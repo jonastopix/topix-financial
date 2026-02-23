@@ -4,13 +4,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign, Building2, Users, Megaphone,
-  Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy,
+  Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import {
+  BUDGET_TEMPLATES, GROUP_LABELS, GROUP_ORDER,
+  type BudgetTemplate, type BudgetCategory,
+} from "@/lib/budgetTemplates";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
@@ -20,6 +25,8 @@ interface BudgetRow {
   values: number[];
   isEditable?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
+  group: string;
+  hint?: string;
 }
 
 type ScenarioKey = "base" | "optimistisk" | "pessimistisk";
@@ -40,20 +47,8 @@ const SCENARIOS: Scenario[] = [
   { key: "pessimistisk", label: "Pessimistisk", description: "Worst case – hvad kan du tåle?", icon: TrendingDown, color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/30" },
 ];
 
-const DEFAULT_CATEGORIES = [
-  { key: "omsaetning", label: "Omsætning", icon: TrendingUp },
-  { key: "marketing", label: "Marketing", icon: Megaphone },
-  { key: "loenninger", label: "Lønninger", icon: Users },
-  { key: "lokaler", label: "Lokaler", icon: Building2 },
-  { key: "admin", label: "Admin", icon: undefined },
-  { key: "ovrige_faste", label: "Øvrige faste", icon: undefined },
-  { key: "vareforbrug", label: "Vareforbrug", icon: undefined },
-  { key: "biomkostninger", label: "Biomkostninger", icon: undefined },
-  { key: "salgsomkostninger", label: "Salgs-/rejseomkostninger", icon: undefined },
-];
-
-function emptyRow(cat: typeof DEFAULT_CATEGORIES[0]): BudgetRow {
-  return { key: cat.key, label: cat.label, values: Array(12).fill(0), isEditable: true, icon: cat.icon };
+function catToRow(cat: BudgetCategory): BudgetRow {
+  return { key: cat.key, label: cat.label, values: Array(12).fill(0), isEditable: true, icon: cat.icon, group: cat.group, hint: cat.hint };
 }
 
 const formatK = (v: number) => {
@@ -62,15 +57,79 @@ const formatK = (v: number) => {
   return `${sign}${Math.abs(Math.round(v / 1000))}k`;
 };
 
+// ─── Template Picker ───
+function TemplatePicker({ onSelect }: { onSelect: (t: BudgetTemplate) => void }) {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="text-center mb-8">
+        <h2 className="text-xl font-display font-bold text-foreground mb-2">Vælg en budgetskabelon</h2>
+        <p className="text-sm text-muted-foreground max-w-lg mx-auto">
+          Vælg den skabelon der passer bedst til din virksomhed. Kategorierne er tilpasset din branche — du kan altid justere bagefter.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {BUDGET_TEMPLATES.map((tmpl) => {
+          const Icon = tmpl.icon;
+          const groups = GROUP_ORDER.filter(g => tmpl.categories.some(c => c.group === g));
+
+          return (
+            <button
+              key={tmpl.key}
+              onClick={() => onSelect(tmpl)}
+              className="p-5 rounded-xl border-2 border-border/30 bg-secondary/20 hover:bg-secondary/50 hover:border-primary/30 text-left transition-all group"
+            >
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                  <Icon className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-foreground">{tmpl.label}</span>
+                  {tmpl.segment && (
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      {tmpl.segment}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{tmpl.description}</p>
+
+              <div className="space-y-1.5">
+                {groups.map(g => {
+                  const cats = tmpl.categories.filter(c => c.group === g);
+                  return (
+                    <div key={g} className="flex items-start gap-1.5">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider min-w-[80px] pt-0.5">{GROUP_LABELS[g]?.split(" ")[0]}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {cats.map(c => (
+                          <span key={c.key} className="text-[10px] px-1.5 py-0.5 rounded bg-card border border-border/50 text-foreground/70">
+                            {c.label.split(" / ")[0].split(" & ")[0]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                Vælg skabelon <ChevronRight className="h-3 w-3" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Budget Page ───
 const Budget = () => {
   const { user } = useAuth();
   const [year, setYear] = useState("2026");
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>("base");
-  const [scenarioData, setScenarioData] = useState<Record<ScenarioKey, BudgetRow[]>>({
-    base: DEFAULT_CATEGORIES.map(emptyRow),
-    optimistisk: DEFAULT_CATEGORIES.map(emptyRow),
-    pessimistisk: DEFAULT_CATEGORIES.map(emptyRow),
-  });
+  const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
+  const [scenarioData, setScenarioData] = useState<Record<ScenarioKey, BudgetRow[]> | null>(null);
   const [editing, setEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, number[]>>({});
   const [dbLoaded, setDbLoaded] = useState(false);
@@ -90,18 +149,41 @@ const Budget = () => {
         return;
       }
 
-      // Parse DB format: period = "2026-base-Jan-omsaetning" => year-scenario-month-category
+      // Detect which template was used based on stored categories
+      // period format: "2026-base-0" (year-scenario-monthIdx)
+      // Also check for a special "_template" marker
+      const templateMarker = data.find(d => d.category === "__template__");
+      let template: BudgetTemplate | undefined;
+
+      if (templateMarker) {
+        template = BUDGET_TEMPLATES.find(t => t.key === templateMarker.period);
+      }
+
+      if (!template) {
+        // Fallback: try to match categories to a template
+        const storedKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__"));
+        let bestMatch = BUDGET_TEMPLATES[0];
+        let bestScore = 0;
+        for (const tmpl of BUDGET_TEMPLATES) {
+          const score = tmpl.categories.filter(c => storedKeys.has(c.key)).length;
+          if (score > bestScore) { bestScore = score; bestMatch = tmpl; }
+        }
+        template = bestMatch;
+      }
+
+      setSelectedTemplate(template);
+
       const newData: Record<ScenarioKey, BudgetRow[]> = {
-        base: DEFAULT_CATEGORIES.map(emptyRow),
-        optimistisk: DEFAULT_CATEGORIES.map(emptyRow),
-        pessimistisk: DEFAULT_CATEGORIES.map(emptyRow),
+        base: template.categories.map(catToRow),
+        optimistisk: template.categories.map(catToRow),
+        pessimistisk: template.categories.map(catToRow),
       };
 
       data.forEach(item => {
-        // period format: "2026-base-0" (year-scenario-monthIdx)
+        if (item.category === "__template__") return;
         const parts = item.period.split("-");
         if (parts.length < 3) return;
-        const [y, scenario, monthIdxStr] = parts;
+        const [, scenario, monthIdxStr] = parts;
         const monthIdx = parseInt(monthIdxStr, 10);
         if (isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return;
         const sc = scenario as ScenarioKey;
@@ -120,24 +202,94 @@ const Budget = () => {
     loadBudget();
   }, [user]);
 
+  const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
+    setSelectedTemplate(tmpl);
+    const data: Record<ScenarioKey, BudgetRow[]> = {
+      base: tmpl.categories.map(catToRow),
+      optimistisk: tmpl.categories.map(catToRow),
+      pessimistisk: tmpl.categories.map(catToRow),
+    };
+    setScenarioData(data);
+
+    // Store template choice
+    if (user) {
+      await supabase.from("budget_targets").insert({
+        user_id: user.id,
+        category: "__template__",
+        budget_amount: 0,
+        period: tmpl.key,
+      });
+    }
+
+    toast.success(`Skabelon "${tmpl.label}" valgt`);
+  };
+
+  const handleChangeTemplate = () => {
+    setSelectedTemplate(null);
+    setScenarioData(null);
+  };
+
+  // If no template selected and no data loaded, show picker
+  if (dbLoaded && !selectedTemplate && !scenarioData) {
+    return (
+      <AppLayout>
+        <div className="mb-8">
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+            <Calculator className="h-6 w-6 text-primary" />
+            Budgettering
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Planlæg og følg op på dine finansielle mål
+          </p>
+        </div>
+        <TemplatePicker onSelect={handleTemplateSelect} />
+      </AppLayout>
+    );
+  }
+
+  if (!scenarioData) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      </AppLayout>
+    );
+  }
+
   const rows = scenarioData[activeScenario];
   const scenarioConfig = SCENARIOS.find(s => s.key === activeScenario)!;
 
-  const ebitda = useMemo(() => MONTHS.map((_, i) => rows.reduce((sum, row) => sum + row.values[i], 0)), [rows]);
-  const afskrivninger = MONTHS.map(() => -3000);
-  const ebit = useMemo(() => ebitda.map((v, i) => v + afskrivninger[i]), [ebitda]);
+  // ─── Calculations ───
+  const revenueRows = rows.filter(r => r.group === "indtaegter");
+  const costRows = rows.filter(r => r.group !== "indtaegter");
 
-  const totalOmsaetning = useMemo(() => rows.find(r => r.key === "omsaetning")?.values.reduce((s, v) => s + v, 0) || 0, [rows]);
-  const totalMarketing = useMemo(() => Math.abs(rows.find(r => r.key === "marketing")?.values.reduce((s, v) => s + v, 0) || 0), [rows]);
-  const totalLoenninger = useMemo(() => Math.abs(rows.find(r => r.key === "loenninger")?.values.reduce((s, v) => s + v, 0) || 0), [rows]);
-  const totalEbitda = useMemo(() => ebitda.reduce((s, v) => s + v, 0), [ebitda]);
+  const ebitda = MONTHS.map((_, i) => {
+    const revenue = revenueRows.reduce((sum, row) => sum + row.values[i], 0);
+    const costs = costRows.reduce((sum, row) => sum + row.values[i], 0);
+    return revenue - Math.abs(costs);
+  });
 
-  const baseEbitdaTotal = useMemo(() => {
-    const baseRows = scenarioData.base;
-    return MONTHS.map((_, i) => baseRows.reduce((sum, row) => sum + row.values[i], 0)).reduce((s, v) => s + v, 0);
-  }, [scenarioData]);
+  const totalOmsaetning = revenueRows.reduce((sum, row) => sum + row.values.reduce((s, v) => s + v, 0), 0);
+  const totalCosts = costRows.reduce((sum, row) => sum + Math.abs(row.values.reduce((s, v) => s + v, 0)), 0);
+  const totalEbitda = ebitda.reduce((s, v) => s + v, 0);
+
+  const baseEbitdaTotal = (() => {
+    const baseRevenue = scenarioData.base.filter(r => r.group === "indtaegter");
+    const baseCosts = scenarioData.base.filter(r => r.group !== "indtaegter");
+    return MONTHS.map((_, i) => {
+      const rev = baseRevenue.reduce((sum, row) => sum + row.values[i], 0);
+      const cost = baseCosts.reduce((sum, row) => sum + Math.abs(row.values[i]), 0);
+      return rev - cost;
+    }).reduce((s, v) => s + v, 0);
+  })();
 
   const ebitdaDiffFromBase = totalEbitda - baseEbitdaTotal;
+
+  // Group rows for display
+  const groupedRows = GROUP_ORDER
+    .map(g => ({ group: g, label: GROUP_LABELS[g], rows: rows.filter(r => r.group === g) }))
+    .filter(g => g.rows.length > 0);
 
   const startEditing = () => {
     const vals: Record<string, number[]> = {};
@@ -154,17 +306,14 @@ const Budget = () => {
       values: editValues[row.key] || row.values,
     }));
 
-    setScenarioData(prev => ({ ...prev, [activeScenario]: updatedScenario }));
+    setScenarioData(prev => prev ? { ...prev, [activeScenario]: updatedScenario } : prev);
     setEditing(false);
     setEditValues({});
 
-    // Persist to DB
     if (!user) return;
 
-    // Delete existing for this scenario + year, then insert
     const periodPrefix = `${year}-${activeScenario}-`;
 
-    // We need to delete old entries and insert new ones
     const { data: existing } = await supabase
       .from("budget_targets")
       .select("id, period")
@@ -172,10 +321,7 @@ const Budget = () => {
       .like("period", `${periodPrefix}%`);
 
     if (existing && existing.length > 0) {
-      await supabase
-        .from("budget_targets")
-        .delete()
-        .in("id", existing.map(e => e.id));
+      await supabase.from("budget_targets").delete().in("id", existing.map(e => e.id));
     }
 
     const inserts = updatedScenario.flatMap(row =>
@@ -189,7 +335,7 @@ const Budget = () => {
 
     const { error } = await supabase.from("budget_targets").insert(inserts);
     if (error) {
-      toast.error("Kunne ikke gemme budget til database");
+      toast.error("Kunne ikke gemme budget");
       console.error("Budget save error:", error);
     } else {
       toast.success(`${scenarioConfig.label}-scenarie gemt`);
@@ -207,12 +353,19 @@ const Budget = () => {
   };
 
   const copyBaseToScenario = (target: ScenarioKey) => {
-    setScenarioData(prev => ({
+    setScenarioData(prev => prev ? {
       ...prev,
       [target]: prev.base.map(r => ({ ...r, values: [...r.values] })),
-    }));
+    } : prev);
     toast.success(`Base-budget kopieret til ${SCENARIOS.find(s => s.key === target)?.label}`);
   };
+
+  // ─── Grouped cost summary for overview ───
+  const costByGroup = GROUP_ORDER.filter(g => g !== "indtaegter").map(g => {
+    const groupRows = rows.filter(r => r.group === g);
+    const total = groupRows.reduce((sum, row) => sum + Math.abs(row.values.reduce((s, v) => s + v, 0)), 0);
+    return { group: g, label: GROUP_LABELS[g], total, count: groupRows.length };
+  }).filter(g => g.total > 0 || g.count > 0);
 
   return (
     <AppLayout>
@@ -222,9 +375,28 @@ const Budget = () => {
             <Calculator className="h-6 w-6 text-primary" />
             Budgettering
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Planlæg og følg op på dine finansielle mål
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-muted-foreground">
+              {selectedTemplate ? (
+                <>
+                  Skabelon: <span className="font-medium text-foreground">{selectedTemplate.label}</span>
+                  {selectedTemplate.segment && (
+                    <span className="ml-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      {selectedTemplate.segment}
+                    </span>
+                  )}
+                </>
+              ) : "Planlæg og følg op på dine finansielle mål"}
+            </p>
+            {selectedTemplate && (
+              <button
+                onClick={handleChangeTemplate}
+                className="text-[10px] text-primary hover:underline"
+              >
+                Skift skabelon
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Select value={year} onValueChange={setYear}>
@@ -263,19 +435,19 @@ const Budget = () => {
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Konsolideret overblik</span>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <SummaryKPI icon={TrendingUp} label="Total omsætning" value={`${(totalOmsaetning / 1000).toFixed(0)}.000 kr.`} />
-              <SummaryKPI icon={Megaphone} label="Marketing" value={`${(totalMarketing / 1000).toFixed(0)}.000 kr.`} />
-              <SummaryKPI icon={Users} label="Lønninger" value={`${(totalLoenninger / 1000).toFixed(0)}.000 kr.`} />
-              <SummaryKPI icon={DollarSign} label="EBITDA" value={`${(totalEbitda / 1000).toFixed(0)}.000 kr.`} valueColor={totalEbitda >= 0 ? "text-primary" : "text-destructive"} />
+              <SummaryKPI icon={TrendingUp} label="Total omsætning" value={`${(totalOmsaetning / 1000).toFixed(0)}k kr.`} />
+              <SummaryKPI icon={TrendingDown} label="Samlede omkostninger" value={`${(totalCosts / 1000).toFixed(0)}k kr.`} />
+              <SummaryKPI icon={DollarSign} label="EBITDA" value={`${(totalEbitda / 1000).toFixed(0)}k kr.`} valueColor={totalEbitda >= 0 ? "text-primary" : "text-destructive"} />
+              <SummaryKPI icon={Calculator} label="EBITDA-margin" value={totalOmsaetning > 0 ? `${((totalEbitda / totalOmsaetning) * 100).toFixed(1)}%` : "—"} valueColor={totalEbitda >= 0 ? "text-primary" : "text-destructive"} />
             </div>
           </div>
 
           <div className="glass-card rounded-xl p-6">
-            <h3 className="font-display font-semibold text-foreground mb-4">Faste omkostninger</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <CostCard label="Lokaler" amount={Math.abs(rows.find(r => r.key === "lokaler")?.values.reduce((s, v) => s + v, 0) || 0)} detail="" />
-              <CostCard label="Administration" amount={Math.abs(rows.find(r => r.key === "admin")?.values.reduce((s, v) => s + v, 0) || 0)} detail="" />
-              <CostCard label="Øvrige faste" amount={Math.abs(rows.find(r => r.key === "ovrige_faste")?.values.reduce((s, v) => s + v, 0) || 0)} detail="" />
+            <h3 className="font-display font-semibold text-foreground mb-4">Omkostninger fordelt på grupper</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {costByGroup.map(g => (
+                <CostGroupCard key={g.group} label={g.label} amount={g.total} count={g.count} />
+              ))}
             </div>
           </div>
         </TabsContent>
@@ -287,13 +459,14 @@ const Budget = () => {
               const isActive = activeScenario === sc.key;
               const Icon = sc.icon;
               const scRows = scenarioData[sc.key];
-              const scEbitda = MONTHS.map((_, i) => scRows.reduce((sum, row) => sum + row.values[i], 0)).reduce((s, v) => s + v, 0);
-              const scRevenue = scRows.find(r => r.key === "omsaetning")?.values.reduce((s, v) => s + v, 0) || 0;
+              const scRevenue = scRows.filter(r => r.group === "indtaegter").reduce((s, r) => s + r.values.reduce((a, b) => a + b, 0), 0);
+              const scCosts = scRows.filter(r => r.group !== "indtaegter").reduce((s, r) => s + Math.abs(r.values.reduce((a, b) => a + b, 0)), 0);
+              const scEbitda = scRevenue - scCosts;
 
               return (
                 <button
                   key={sc.key}
-                  onClick={() => { if (editing) { cancelEditing(); } setActiveScenario(sc.key); }}
+                  onClick={() => { if (editing) cancelEditing(); setActiveScenario(sc.key); }}
                   className={`p-5 rounded-xl border-2 text-left transition-all ${
                     isActive ? `${sc.border} ${sc.bg}` : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
                   }`}
@@ -355,68 +528,79 @@ const Budget = () => {
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
               <ScenarioKPI label="Omsætning" value={totalOmsaetning} color={scenarioConfig.color} />
-              <ScenarioKPI label="Marketing" value={-totalMarketing} color={scenarioConfig.color} />
-              <ScenarioKPI label="Lønninger" value={-totalLoenninger} color={scenarioConfig.color} />
+              <ScenarioKPI label="Omkostninger" value={-totalCosts} color={scenarioConfig.color} />
               <ScenarioKPI label="EBITDA" value={totalEbitda} color={totalEbitda >= 0 ? "text-primary" : "text-destructive"} diff={activeScenario !== "base" ? ebitdaDiffFromBase : undefined} />
+              <ScenarioKPI label="EBITDA-margin" value={totalOmsaetning > 0 ? Math.round((totalEbitda / totalOmsaetning) * 100) : 0} color={totalEbitda >= 0 ? "text-primary" : "text-destructive"} suffix="%" />
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-border/30">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left py-2.5 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[160px] z-10">Linje</th>
-                    {MONTHS.map(m => (
-                      <th key={m} className="text-right py-2.5 px-2.5 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[65px]">{m}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(row => {
-                    const RowIcon = row.icon;
-                    return (
-                      <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
-                        <td className="py-2.5 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10 flex items-center gap-1.5">
-                          {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground" />}
-                          {row.label}
-                        </td>
-                        {row.values.map((val, i) => (
-                          <td key={i} className="py-2.5 px-2.5 text-right font-display text-xs">
-                            {editing && row.isEditable ? (
-                              <input
-                                type="number"
-                                value={editValues[row.key]?.[i] ?? val}
-                                onChange={(e) => updateCell(row.key, i, e.target.value)}
-                                className="w-16 text-right bg-secondary border border-border rounded px-1 py-0.5 text-foreground text-xs font-display focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            ) : (
-                              <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
-                            )}
+            <TooltipProvider>
+              <div className="overflow-x-auto rounded-lg border border-border/30">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary/30">
+                      <th className="text-left py-2.5 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[200px] z-10">Linje</th>
+                      {MONTHS.map(m => (
+                        <th key={m} className="text-right py-2.5 px-2.5 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[65px]">{m}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedRows.map(group => (
+                      <>
+                        <tr key={`group-${group.group}`} className="bg-muted/30">
+                          <td colSpan={13} className="py-2 px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10">
+                            {group.label}
                           </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                  <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
-                    <td className="py-2.5 px-3 text-foreground font-bold text-xs sticky left-0 bg-secondary/20 z-10">EBITDA</td>
-                    {ebitda.map((val, i) => (
-                      <td key={i} className={`py-2.5 px-2.5 text-right font-display text-xs font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(val)}</td>
+                        </tr>
+                        {group.rows.map(row => {
+                          const RowIcon = row.icon;
+                          return (
+                            <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                              <td className="py-2.5 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
+                                <div className="flex items-center gap-1.5">
+                                  {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                                  <span>{row.label}</span>
+                                  {row.hint && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="h-3 w-3 text-muted-foreground/50 flex-shrink-0 cursor-help" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="max-w-[200px] text-xs">
+                                        {row.hint}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              </td>
+                              {row.values.map((val, i) => (
+                                <td key={i} className="py-2.5 px-2.5 text-right font-display text-xs">
+                                  {editing && row.isEditable ? (
+                                    <input
+                                      type="number"
+                                      value={editValues[row.key]?.[i] ?? val}
+                                      onChange={(e) => updateCell(row.key, i, e.target.value)}
+                                      className="w-16 text-right bg-secondary border border-border rounded px-1 py-0.5 text-foreground text-xs font-display focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                  ) : (
+                                    <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
+                                  )}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </>
                     ))}
-                  </tr>
-                  <tr className="border-b border-border/30">
-                    <td className="py-2.5 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">Afskrivninger</td>
-                    {afskrivninger.map((val, i) => (
-                      <td key={i} className="py-2.5 px-2.5 text-right font-display text-xs text-foreground">{formatK(val)}</td>
-                    ))}
-                  </tr>
-                  <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
-                    <td className="py-2.5 px-3 text-foreground font-bold text-xs sticky left-0 bg-secondary/20 z-10">EBIT</td>
-                    {ebit.map((val, i) => (
-                      <td key={i} className={`py-2.5 px-2.5 text-right font-display text-xs font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(val)}</td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
+                      <td className="py-2.5 px-3 text-foreground font-bold text-xs sticky left-0 bg-secondary/20 z-10">EBITDA</td>
+                      {ebitda.map((val, i) => (
+                        <td key={i} className={`py-2.5 px-2.5 text-right font-display text-xs font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(val)}</td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </TooltipProvider>
           </div>
 
           <div className="glass-card rounded-xl p-6">
@@ -439,23 +623,26 @@ const Budget = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {["omsaetning", "marketing", "loenninger"].map(key => {
-                    const label = DEFAULT_CATEGORIES.find(r => r.key === key)?.label || key;
-                    return (
-                      <tr key={key} className="hover:bg-secondary/30 transition-colors">
-                        <td className="py-3 px-3 text-foreground font-medium">{label}</td>
-                        {SCENARIOS.map(sc => {
-                          const val = scenarioData[sc.key].find(r => r.key === key)?.values.reduce((s, v) => s + v, 0) || 0;
-                          return <td key={sc.key} className="py-3 px-3 text-right font-display">{(val / 1000).toFixed(0)}k</td>;
-                        })}
-                      </tr>
-                    );
-                  })}
+                  <tr className="hover:bg-secondary/30 transition-colors">
+                    <td className="py-3 px-3 text-foreground font-medium">Omsætning</td>
+                    {SCENARIOS.map(sc => {
+                      const val = scenarioData[sc.key].filter(r => r.group === "indtaegter").reduce((s, r) => s + r.values.reduce((a, b) => a + b, 0), 0);
+                      return <td key={sc.key} className="py-3 px-3 text-right font-display">{(val / 1000).toFixed(0)}k</td>;
+                    })}
+                  </tr>
+                  <tr className="hover:bg-secondary/30 transition-colors">
+                    <td className="py-3 px-3 text-foreground font-medium">Omkostninger</td>
+                    {SCENARIOS.map(sc => {
+                      const val = scenarioData[sc.key].filter(r => r.group !== "indtaegter").reduce((s, r) => s + Math.abs(r.values.reduce((a, b) => a + b, 0)), 0);
+                      return <td key={sc.key} className="py-3 px-3 text-right font-display">{(val / 1000).toFixed(0)}k</td>;
+                    })}
+                  </tr>
                   <tr className="font-semibold border-t-2 border-border">
                     <td className="py-3 px-3 text-foreground font-bold">EBITDA</td>
                     {SCENARIOS.map(sc => {
-                      const scRows = scenarioData[sc.key];
-                      const val = MONTHS.map((_, i) => scRows.reduce((sum, row) => sum + row.values[i], 0)).reduce((s, v) => s + v, 0);
+                      const rev = scenarioData[sc.key].filter(r => r.group === "indtaegter").reduce((s, r) => s + r.values.reduce((a, b) => a + b, 0), 0);
+                      const cost = scenarioData[sc.key].filter(r => r.group !== "indtaegter").reduce((s, r) => s + Math.abs(r.values.reduce((a, b) => a + b, 0)), 0);
+                      const val = rev - cost;
                       return <td key={sc.key} className={`py-3 px-3 text-right font-display font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{(val / 1000).toFixed(0)}k</td>;
                     })}
                   </tr>
@@ -478,49 +665,57 @@ const Budget = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left py-3 px-4 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[180px] z-10">Linje</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[200px] z-10">Linje</th>
                     {MONTHS.map(m => (
                       <th key={m} className="text-right py-3 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[70px]">{m}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {scenarioData.base.map(row => {
-                    const RowIcon = row.icon;
-                    return (
-                      <tr key={row.key} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                        <td className="py-3 px-4 text-foreground font-medium sticky left-0 bg-card z-10 flex items-center gap-2">
-                          {RowIcon && <RowIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-                          {row.label}
-                        </td>
-                        {row.values.map((val, i) => (
-                          <td key={i} className="py-3 px-3 text-right font-display">
-                            <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
                   {(() => {
-                    const baseEbitda = MONTHS.map((_, i) => scenarioData.base.reduce((sum, row) => sum + row.values[i], 0));
-                    const baseEbit = baseEbitda.map((v, i) => v + afskrivninger[i]);
+                    const baseRows = scenarioData.base;
+                    const baseGrouped = GROUP_ORDER
+                      .map(g => ({ group: g, label: GROUP_LABELS[g], rows: baseRows.filter(r => r.group === g) }))
+                      .filter(g => g.rows.length > 0);
+
+                    const baseRevenue = baseRows.filter(r => r.group === "indtaegter");
+                    const baseCosts = baseRows.filter(r => r.group !== "indtaegter");
+                    const baseEbitda = MONTHS.map((_, i) => {
+                      const rev = baseRevenue.reduce((sum, row) => sum + row.values[i], 0);
+                      const cost = baseCosts.reduce((sum, row) => sum + Math.abs(row.values[i]), 0);
+                      return rev - cost;
+                    });
+
                     return (
                       <>
+                        {baseGrouped.map(group => (
+                          <>
+                            <tr key={`base-group-${group.group}`} className="bg-muted/30">
+                              <td colSpan={13} className="py-2 px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10">
+                                {group.label}
+                              </td>
+                            </tr>
+                            {group.rows.map(row => {
+                              const RowIcon = row.icon;
+                              return (
+                                <tr key={row.key} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                                  <td className="py-3 px-4 text-foreground font-medium sticky left-0 bg-card z-10 flex items-center gap-2">
+                                    {RowIcon && <RowIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+                                    {row.label}
+                                  </td>
+                                  {row.values.map((val, i) => (
+                                    <td key={i} className="py-3 px-3 text-right font-display">
+                                      <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </>
+                        ))}
                         <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
                           <td className="py-3 px-4 text-foreground font-bold sticky left-0 bg-secondary/20 z-10">EBITDA</td>
                           {baseEbitda.map((val, i) => (
-                            <td key={i} className={`py-3 px-3 text-right font-display font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(val)}</td>
-                          ))}
-                        </tr>
-                        <tr className="border-b border-border/50">
-                          <td className="py-3 px-4 text-foreground font-medium sticky left-0 bg-card z-10">Afskrivninger</td>
-                          {afskrivninger.map((val, i) => (
-                            <td key={i} className="py-3 px-3 text-right font-display text-foreground">{formatK(val)}</td>
-                          ))}
-                        </tr>
-                        <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
-                          <td className="py-3 px-4 text-foreground font-bold sticky left-0 bg-secondary/20 z-10">EBIT</td>
-                          {baseEbit.map((val, i) => (
                             <td key={i} className={`py-3 px-3 text-right font-display font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(val)}</td>
                           ))}
                         </tr>
@@ -549,12 +744,12 @@ function SummaryKPI({ icon: Icon, label, value, valueColor }: { icon: React.Comp
   );
 }
 
-function ScenarioKPI({ label, value, color, diff }: { label: string; value: number; color: string; diff?: number }) {
+function ScenarioKPI({ label, value, color, diff, suffix }: { label: string; value: number; color: string; diff?: number; suffix?: string }) {
   return (
     <div className="p-3 rounded-lg bg-secondary/30 border border-border/20">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
       <p className={`text-sm font-display font-bold ${value >= 0 ? (color || "text-foreground") : "text-destructive"}`}>
-        {(value / 1000).toFixed(0)}k kr.
+        {suffix ? `${value}${suffix}` : `${(value / 1000).toFixed(0)}k kr.`}
       </p>
       {diff !== undefined && diff !== 0 && (
         <p className={`text-[10px] font-medium mt-0.5 ${diff >= 0 ? "text-primary" : "text-destructive"}`}>
@@ -565,14 +760,14 @@ function ScenarioKPI({ label, value, color, diff }: { label: string; value: numb
   );
 }
 
-function CostCard({ label, amount, detail }: { label: string; amount: number; detail: string }) {
+function CostGroupCard({ label, amount, count }: { label: string; amount: number; count: number }) {
   return (
     <div className="p-4 rounded-xl bg-secondary/30 border border-border/20 hover:bg-secondary/50 transition-colors cursor-pointer group">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground mb-1">{label}</p>
-          <p className="text-base font-display font-bold text-foreground">{amount.toLocaleString("da-DK")} kr.</p>
-          {detail && <p className="text-[10px] text-muted-foreground mt-0.5">{detail}</p>}
+          <p className="text-base font-display font-bold text-foreground">{amount > 0 ? `${(amount / 1000).toFixed(0)}k kr.` : "—"}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{count} poster</p>
         </div>
         <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
