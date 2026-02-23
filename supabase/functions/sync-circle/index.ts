@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const CIRCLE_BASE = "https://app.circle.so/api/admin/v2";
+const BOARDROOM_ACCESS_GROUP_ID = "16745";
 
 async function circleGet(path: string, apiKey: string, params?: Record<string, string>) {
   const url = new URL(`${CIRCLE_BASE}${path}`);
@@ -23,7 +24,29 @@ async function circleGet(path: string, apiKey: string, params?: Record<string, s
   return res.json();
 }
 
-// Paginate through all Circle community members
+// Fetch members of "The Boardroom" access group only
+async function fetchBoardroomMembers(apiKey: string) {
+  const members: any[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const data = await circleGet(
+      `/access_groups/${BOARDROOM_ACCESS_GROUP_ID}/community_members`,
+      apiKey,
+      { per_page: String(perPage), page: String(page) }
+    );
+
+    const records = data?.records ?? data ?? [];
+    if (!Array.isArray(records) || records.length === 0) break;
+    members.push(...records);
+    if (records.length < perPage) break;
+    page++;
+  }
+  return members;
+}
+
+// Paginate through ALL Circle community members (for profile sync only, no user creation)
 async function fetchAllMembers(apiKey: string) {
   const members: any[] = [];
   let page = 1;
@@ -100,14 +123,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    const stats = { members_synced: 0, courses_synced: 0, activities_synced: 0, users_created: 0 };
+    const stats = { members_synced: 0, boardroom_members: 0, courses_synced: 0, activities_synced: 0, users_created: 0 };
 
-    // ─── 1. Sync Members ───
-    console.log("Fetching Circle members...");
-    const members = await fetchAllMembers(circleApiKey);
-    console.log(`Found ${members.length} Circle members`);
+    // ─── 1. Fetch Boardroom access group members ───
+    console.log("Fetching Boardroom access group members...");
+    const boardroomMembers = await fetchBoardroomMembers(circleApiKey);
+    const boardroomCircleIds = new Set(boardroomMembers.map((m: any) => m.id));
+    console.log(`Found ${boardroomCircleIds.size} Boardroom members`);
+    stats.boardroom_members = boardroomCircleIds.size;
 
-    for (const m of members) {
+    // ─── 2. Sync ALL Circle members (profiles only) ───
+    console.log("Fetching all Circle members...");
+    const allMembers = await fetchAllMembers(circleApiKey);
+    console.log(`Found ${allMembers.length} total Circle members`);
+
+    for (const m of allMembers) {
       const circleId = m.id;
       const email = m.email;
       const name = m.name || m.first_name
@@ -138,7 +168,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Create auth user if not exists ───
+      // ─── Only create auth user for Boardroom members ───
+      if (!boardroomCircleIds.has(circleId)) {
+        stats.members_synced++;
+        continue;
+      }
+
       // Check if we already linked a user_id
       const { data: existing } = await supabase
         .from("circle_members")
@@ -163,7 +198,7 @@ Deno.serve(async (req) => {
           const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
             email: email,
             password: tempPassword,
-            email_confirm: true, // Mark as confirmed so no email is sent
+            email_confirm: true,
             user_metadata: { full_name: name, source: "circle_sync" },
           });
 
@@ -172,7 +207,7 @@ Deno.serve(async (req) => {
           } else if (newUser?.user) {
             userId = newUser.user.id;
             stats.users_created++;
-            console.log(`Created user for ${email}`);
+            console.log(`Created Boardroom user for ${email}`);
 
             // Assign member role
             await supabase.from("user_roles").insert({
@@ -193,7 +228,7 @@ Deno.serve(async (req) => {
       stats.members_synced++;
     }
 
-    // ─── 2. Sync Course Progress ───
+    // ─── 3. Sync Course Progress ───
     console.log("Fetching Circle courses...");
     try {
       const courses = await fetchCourses(circleApiKey);
@@ -203,7 +238,6 @@ Deno.serve(async (req) => {
         const courseId = course.id;
         const courseName = course.name || course.title || `Course ${courseId}`;
 
-        // Get lessons for total count
         let totalLessons = 0;
         try {
           const lessons = await fetchCourseLessons(circleApiKey, courseId);
@@ -212,7 +246,6 @@ Deno.serve(async (req) => {
           console.warn(`Could not fetch lessons for course ${courseId}:`, e);
         }
 
-        // Upsert course progress for each member who has progress
         if (course.community_member_ids && Array.isArray(course.community_member_ids)) {
           for (const memberId of course.community_member_ids) {
             await supabase.from("circle_course_progress").upsert(
@@ -233,7 +266,7 @@ Deno.serve(async (req) => {
       console.warn("Could not sync courses (may require different API plan):", e);
     }
 
-    // ─── 3. Sync Recent Activity ───
+    // ─── 4. Sync Recent Activity ───
     console.log("Fetching recent Circle posts...");
     try {
       const posts = await fetchRecentPosts(circleApiKey);
@@ -243,7 +276,6 @@ Deno.serve(async (req) => {
         const memberId = post.community_member_id || post.user_id;
         if (!memberId) continue;
 
-        // Upsert activity by circle_post_id to avoid duplicates
         const { error: actErr } = await supabase.from("circle_activity").upsert(
           {
             circle_member_id: memberId,
@@ -255,7 +287,7 @@ Deno.serve(async (req) => {
             activity_at: post.created_at || new Date().toISOString(),
             synced_at: new Date().toISOString(),
           },
-          { onConflict: "id" } // Use default id for upsert
+          { onConflict: "id" }
         );
 
         if (!actErr) stats.activities_synced++;
