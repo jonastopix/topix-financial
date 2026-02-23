@@ -2,10 +2,9 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
-  DollarSign,
   Target,
   MessageSquare,
-  Settings,
+  Settings as SettingsIcon,
   TrendingUp,
   Users,
   Calculator,
@@ -14,13 +13,12 @@ import {
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FileText, label: "Rapportering", path: "/reports" },
-  { icon: DollarSign, label: "Økonomi", path: "/financials" },
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageSquare, label: "Feedback", path: "/feedback" },
   { icon: Users, label: "Gruppe", path: "/group" },
-  { icon: Settings, label: "Indstillinger", path: "/settings" },
+  { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
 ];
 
 const AppSidebar = () => {
