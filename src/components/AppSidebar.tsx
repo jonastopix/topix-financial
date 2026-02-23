@@ -11,8 +11,11 @@ import {
   Calculator,
   Menu,
   X,
+  MessageCircle,
+  LogOut,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -21,6 +24,7 @@ const navItems = [
   { icon: Target, label: "Milestones", path: "/milestones" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageSquare, label: "AI Progress", path: "/feedback" },
+  { icon: MessageCircle, label: "Chat", path: "/chat" },
   { icon: Users, label: "Gruppe", path: "/group" },
   { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
 ];
@@ -29,13 +33,12 @@ const AppSidebar = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
+  const { profile, signOut, isAdvisor } = useAuth();
 
-  // Close sidebar on route change (mobile)
   useEffect(() => {
     if (isMobile) setIsOpen(false);
   }, [location.pathname, isMobile]);
 
-  // Close on escape
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsOpen(false);
@@ -44,7 +47,6 @@ const AppSidebar = () => {
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
 
-  // Prevent scroll when open on mobile
   useEffect(() => {
     if (isMobile && isOpen) {
       document.body.style.overflow = "hidden";
@@ -52,9 +54,12 @@ const AppSidebar = () => {
     }
   }, [isMobile, isOpen]);
 
+  const initials = profile?.full_name
+    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "??";
+
   return (
     <>
-      {/* Mobile hamburger button */}
       {isMobile && (
         <button
           onClick={() => setIsOpen(true)}
@@ -65,7 +70,6 @@ const AppSidebar = () => {
         </button>
       )}
 
-      {/* Backdrop */}
       {isMobile && isOpen && (
         <div
           className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm animate-fade-in"
@@ -73,17 +77,13 @@ const AppSidebar = () => {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-out ${
           isMobile
-            ? isOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+            ? isOpen ? "translate-x-0" : "-translate-x-full"
             : "translate-x-0"
         }`}
       >
-        {/* Logo + close button */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
@@ -93,7 +93,9 @@ const AppSidebar = () => {
               <h1 className="font-display font-bold text-sidebar-accent-foreground text-sm tracking-tight">
                 The Boardroom
               </h1>
-              <p className="text-[11px] text-sidebar-muted">Founder Platform</p>
+              <p className="text-[11px] text-sidebar-muted">
+                {isAdvisor ? "Advisor Panel" : "Founder Platform"}
+              </p>
             </div>
           </div>
           {isMobile && (
@@ -107,7 +109,6 @@ const AppSidebar = () => {
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -135,18 +136,26 @@ const AppSidebar = () => {
           })}
         </nav>
 
-        {/* User */}
         <div className="px-4 py-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center">
-              <span className="text-xs font-medium text-sidebar-accent-foreground">JD</span>
+              <span className="text-xs font-medium text-sidebar-accent-foreground">{initials}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-sidebar-accent-foreground truncate">
-                Jonas Doe
+                {profile?.full_name || "Indlæser..."}
               </p>
-              <p className="text-[11px] text-sidebar-muted truncate">Founder & CEO</p>
+              <p className="text-[11px] text-sidebar-muted truncate">
+                {profile?.company_name || (isAdvisor ? "Advisor" : "")}
+              </p>
             </div>
+            <button
+              onClick={signOut}
+              className="p-1.5 rounded-lg text-sidebar-muted hover:text-destructive hover:bg-sidebar-accent transition-colors"
+              title="Log ud"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </aside>
