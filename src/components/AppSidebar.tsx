@@ -13,11 +13,12 @@ import {
   X,
   MessageCircle,
   LogOut,
+  UserCog,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 
-const navItems = [
+const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FileText, label: "Rapportering", path: "/reports" },
   { icon: Calculator, label: "Budget", path: "/budget" },
@@ -27,6 +28,10 @@ const navItems = [
   { icon: MessageCircle, label: "Chat", path: "/chat" },
   { icon: Users, label: "Gruppe", path: "/group" },
   { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
+];
+
+const advisorNavItems = [
+  { icon: UserCog, label: "Medlemmer", path: "/members" },
 ];
 
 const AppSidebar = () => {
@@ -110,7 +115,7 @@ const AppSidebar = () => {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {[...baseNavItems, ...(isAdvisor ? advisorNavItems : [])].map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
