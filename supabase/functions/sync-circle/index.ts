@@ -135,10 +135,9 @@ Deno.serve(async (req) => {
     // ─── Fetch Boardroom members (needed for both sync and cleanup) ───
     console.log("Fetching Boardroom access group members...");
     const boardroomMembers = await fetchBoardroomMembers(circleApiKey);
-    console.log(`Boardroom sample member keys:`, JSON.stringify(boardroomMembers[0] ? Object.keys(boardroomMembers[0]) : []));
-    console.log(`Boardroom sample member:`, JSON.stringify(boardroomMembers[0]));
-    const boardroomEmails = new Set(boardroomMembers.map((m: any) => (m.email || m.community_member?.email || "")?.toLowerCase()).filter(Boolean));
-    console.log(`Found ${boardroomEmails.size} Boardroom members (emails)`);
+    // access_group endpoint returns community_member_id which matches circle_id in our table
+    const boardroomCircleIds = new Set(boardroomMembers.map((m: any) => m.community_member_id));
+    console.log(`Found ${boardroomCircleIds.size} Boardroom members`);
 
     // ─── CLEANUP MODE: Delete non-Boardroom users ───
     if (action === "cleanup") {
@@ -151,7 +150,7 @@ Deno.serve(async (req) => {
         .not("user_id", "is", null);
 
       const toDelete = (allLinked || []).filter(
-        (m: any) => !boardroomEmails.has(m.email?.toLowerCase())
+        (m: any) => !boardroomCircleIds.has(m.circle_id)
       );
 
       console.log(`Found ${toDelete.length} non-Boardroom users to delete`);
@@ -182,7 +181,7 @@ Deno.serve(async (req) => {
       }
 
       const cleanupStats = {
-        boardroom_members: boardroomEmails.size,
+        boardroom_members: boardroomCircleIds.size,
         non_boardroom_found: toDelete.length,
         deleted,
         failed,
@@ -196,7 +195,7 @@ Deno.serve(async (req) => {
     }
 
     // ─── SYNC MODE (default) ───
-    const stats = { members_synced: 0, boardroom_members: boardroomEmails.size, courses_synced: 0, activities_synced: 0, users_created: 0 };
+    const stats = { members_synced: 0, boardroom_members: boardroomCircleIds.size, courses_synced: 0, activities_synced: 0, users_created: 0 };
 
     // Sync ALL Circle members (profiles only)
     console.log("Fetching all Circle members...");
@@ -234,8 +233,7 @@ Deno.serve(async (req) => {
       }
 
       // Only create auth user for Boardroom members
-      const isBoardroom = boardroomEmails.has(email?.toLowerCase());
-      if (!isBoardroom) {
+      if (!boardroomCircleIds.has(circleId)) {
         stats.members_synced++;
         continue;
       }
