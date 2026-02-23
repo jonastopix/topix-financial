@@ -46,7 +46,7 @@ async function fetchBoardroomMembers(apiKey: string) {
   return members;
 }
 
-// Paginate through ALL Circle community members (for profile sync only, no user creation)
+// Paginate through ALL Circle community members
 async function fetchAllMembers(apiKey: string) {
   const members: any[] = [];
   let page = 1;
@@ -123,16 +123,82 @@ Deno.serve(async (req) => {
       }
     }
 
-    const stats = { members_synced: 0, boardroom_members: 0, courses_synced: 0, activities_synced: 0, users_created: 0 };
+    // Parse request body for action
+    let action = "sync";
+    try {
+      const body = await req.json();
+      if (body?.action) action = body.action;
+    } catch {
+      // No body or not JSON, default to sync
+    }
 
-    // ─── 1. Fetch Boardroom access group members ───
+    // ─── Fetch Boardroom members (needed for both sync and cleanup) ───
     console.log("Fetching Boardroom access group members...");
     const boardroomMembers = await fetchBoardroomMembers(circleApiKey);
-    const boardroomCircleIds = new Set(boardroomMembers.map((m: any) => m.id));
-    console.log(`Found ${boardroomCircleIds.size} Boardroom members`);
-    stats.boardroom_members = boardroomCircleIds.size;
+    console.log(`Boardroom sample member keys:`, JSON.stringify(boardroomMembers[0] ? Object.keys(boardroomMembers[0]) : []));
+    console.log(`Boardroom sample member:`, JSON.stringify(boardroomMembers[0]));
+    const boardroomEmails = new Set(boardroomMembers.map((m: any) => (m.email || m.community_member?.email || "")?.toLowerCase()).filter(Boolean));
+    console.log(`Found ${boardroomEmails.size} Boardroom members (emails)`);
 
-    // ─── 2. Sync ALL Circle members (profiles only) ───
+    // ─── CLEANUP MODE: Delete non-Boardroom users ───
+    if (action === "cleanup") {
+      console.log("Starting cleanup of non-Boardroom users...");
+      
+      // Get all circle_members with user_id that are NOT in Boardroom
+      const { data: allLinked } = await supabase
+        .from("circle_members")
+        .select("circle_id, user_id, email, name")
+        .not("user_id", "is", null);
+
+      const toDelete = (allLinked || []).filter(
+        (m: any) => !boardroomEmails.has(m.email?.toLowerCase())
+      );
+
+      console.log(`Found ${toDelete.length} non-Boardroom users to delete`);
+
+      let deleted = 0;
+      let failed = 0;
+
+      for (const member of toDelete) {
+        const userId = member.user_id;
+        try {
+          // Delete auth user (cascades to profiles, user_roles, conversations via trigger/FK)
+          const { error: delErr } = await supabase.auth.admin.deleteUser(userId, false);
+          if (delErr) {
+            console.error(`Failed to delete user ${member.email}:`, delErr);
+            failed++;
+          } else {
+            // Clear user_id from circle_members
+            await supabase
+              .from("circle_members")
+              .update({ user_id: null })
+              .eq("circle_id", member.circle_id);
+            deleted++;
+          }
+        } catch (e) {
+          console.error(`Error deleting ${member.email}:`, e);
+          failed++;
+        }
+      }
+
+      const cleanupStats = {
+        boardroom_members: boardroomEmails.size,
+        non_boardroom_found: toDelete.length,
+        deleted,
+        failed,
+      };
+
+      console.log("Cleanup complete:", cleanupStats);
+
+      return new Response(JSON.stringify({ success: true, action: "cleanup", stats: cleanupStats }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─── SYNC MODE (default) ───
+    const stats = { members_synced: 0, boardroom_members: boardroomEmails.size, courses_synced: 0, activities_synced: 0, users_created: 0 };
+
+    // Sync ALL Circle members (profiles only)
     console.log("Fetching all Circle members...");
     const allMembers = await fetchAllMembers(circleApiKey);
     console.log(`Found ${allMembers.length} total Circle members`);
@@ -144,7 +210,6 @@ Deno.serve(async (req) => {
         ? `${m.first_name || ""} ${m.last_name || ""}`.trim()
         : email?.split("@")[0] || "Unknown";
 
-      // Upsert into circle_members
       const { error: upsertErr } = await supabase
         .from("circle_members")
         .upsert(
@@ -168,13 +233,14 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Only create auth user for Boardroom members ───
-      if (!boardroomCircleIds.has(circleId)) {
+      // Only create auth user for Boardroom members
+      const isBoardroom = boardroomEmails.has(email?.toLowerCase());
+      if (!isBoardroom) {
         stats.members_synced++;
         continue;
       }
+      console.log(`Boardroom member: ${email}`);
 
-      // Check if we already linked a user_id
       const { data: existing } = await supabase
         .from("circle_members")
         .select("user_id")
@@ -182,18 +248,10 @@ Deno.serve(async (req) => {
         .single();
 
       if (!existing?.user_id && email) {
-        // Try to find existing auth user by email
-        const { data: userList } = await supabase.auth.admin.listUsers();
-        const existingUser = userList?.users?.find(
-          (u: any) => u.email?.toLowerCase() === email.toLowerCase()
-        );
-
         let userId: string | null = null;
 
-        if (existingUser) {
-          userId = existingUser.id;
-        } else {
-          // Create user without sending email
+        // Try creating user directly — if email exists, we'll link to existing
+        {
           const tempPassword = crypto.randomUUID() + "Aa1!";
           const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
             email: email,
@@ -203,13 +261,24 @@ Deno.serve(async (req) => {
           });
 
           if (createErr) {
-            console.error(`Failed to create user for ${email}:`, createErr);
+            if (createErr.message?.includes("already been registered")) {
+              // Find existing user by listing and matching email
+              const { data: userList } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+              const found = userList?.users?.find(
+                (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+              );
+              if (found) {
+                userId = found.id;
+                console.log(`Linked existing user for ${email}`);
+              }
+            } else {
+              console.error(`Failed to create user for ${email}:`, createErr);
+            }
           } else if (newUser?.user) {
             userId = newUser.user.id;
             stats.users_created++;
             console.log(`Created Boardroom user for ${email}`);
 
-            // Assign member role
             await supabase.from("user_roles").insert({
               user_id: userId,
               role: "member",
@@ -228,7 +297,7 @@ Deno.serve(async (req) => {
       stats.members_synced++;
     }
 
-    // ─── 3. Sync Course Progress ───
+    // Sync Course Progress
     console.log("Fetching Circle courses...");
     try {
       const courses = await fetchCourses(circleApiKey);
@@ -266,7 +335,7 @@ Deno.serve(async (req) => {
       console.warn("Could not sync courses (may require different API plan):", e);
     }
 
-    // ─── 4. Sync Recent Activity ───
+    // Sync Recent Activity
     console.log("Fetching recent Circle posts...");
     try {
       const posts = await fetchRecentPosts(circleApiKey);
@@ -298,7 +367,7 @@ Deno.serve(async (req) => {
 
     console.log("Sync complete:", stats);
 
-    return new Response(JSON.stringify({ success: true, stats }), {
+    return new Response(JSON.stringify({ success: true, action: "sync", stats }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
