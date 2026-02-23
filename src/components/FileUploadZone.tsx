@@ -4,6 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
 import * as pdfjsLib from "pdfjs-dist";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Set worker source for pdf.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -100,6 +110,14 @@ const FileUploadZone = ({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [overwriteDialog, setOverwriteDialog] = useState<{
+    open: boolean;
+    period: string;
+    pendingFile: File | null;
+    pendingFileContent: string;
+    pendingReportId: string;
+    pendingFileId: string;
+  }>({ open: false, period: "", pendingFile: null, pendingFileContent: "", pendingReportId: "", pendingFileId: "" });
 
   const updateFile = (fileId: string, updates: Partial<UploadedFile>) => {
     setUploadedFiles((prev) =>
@@ -147,9 +165,15 @@ const FileUploadZone = ({
 
         if (extractError) throw extractError;
         if (extractedData?.duplicate) {
-          // Duplicate report — clean up and notify user
-          updateFile(fileId, { status: "error", errorMessage: extractedData.error });
-          toast({ title: "Duplikat rapport", description: extractedData.error, variant: "destructive" });
+          // Show overwrite dialog
+          setOverwriteDialog({
+            open: true,
+            period: extractedData.existing_period,
+            pendingFile: file,
+            pendingFileContent: fileContent,
+            pendingReportId: "", // Will create a new one on overwrite
+            pendingFileId: fileId,
+          });
           return;
         }
         if (extractedData?.error) throw new Error(extractedData.error);
@@ -383,6 +407,73 @@ const FileUploadZone = ({
     setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
+  const handleOverwrite = useCallback(async () => {
+    const { pendingFile, pendingFileContent, pendingFileId } = overwriteDialog;
+    setOverwriteDialog((prev) => ({ ...prev, open: false }));
+
+    if (!pendingFile || !userId) return;
+
+    updateFile(pendingFileId, { status: "processing" });
+
+    try {
+      const reportType = title.toLowerCase().includes("saldo") ? "saldobalance" : "resultatopgørelse";
+
+      // Create a new report record for the overwrite
+      const { data: reportRecord, error: insertError } = await supabase
+        .from("financial_reports")
+        .insert({
+          user_id: userId,
+          file_name: pendingFile.name,
+          file_path: `uploads/${userId}/${pendingFileId}/${pendingFile.name}`,
+          report_type: reportType,
+          status: "processing",
+        })
+        .select()
+        .single();
+
+      if (insertError || !reportRecord) throw new Error(insertError?.message || "Kunne ikke oprette rapport");
+      updateFile(pendingFileId, { reportId: reportRecord.id });
+
+      const { data: extractedData, error: extractError } = await supabase.functions.invoke(
+        "extract-financial-data",
+        { body: { fileContent: pendingFileContent, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true } }
+      );
+
+      if (extractError) throw extractError;
+      if (extractedData?.error) throw new Error(extractedData.error);
+
+      updateFile(pendingFileId, { extractedData });
+      onExtracted?.(extractedData);
+
+      // Post activity
+      if (conversationId && userId) {
+        const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
+        await postActivityMessage({
+          conversationId,
+          senderId: userId,
+          content: `📄 Rapport overskrevet: **${reportLabel}** for ${extractedData.report_period}\n${extractedData.company_name} · CVR ${extractedData.cvr_number}`,
+          contextType: "report",
+          contextId: reportRecord.id,
+          contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
+        });
+      }
+
+      updateFile(pendingFileId, { status: "done" });
+      toast({ title: "Rapport overskrevet", description: `Rapporten for ${extractedData.report_period} er blevet opdateret.` });
+      onPipelineComplete?.();
+    } catch (err: any) {
+      console.error("Overwrite error:", err);
+      updateFile(pendingFileId, { status: "error", errorMessage: err.message });
+      toast({ title: "Fejl", description: err.message, variant: "destructive" });
+    }
+  }, [overwriteDialog, userId, title, conversationId, onExtracted, onPipelineComplete]);
+
+  const handleCancelOverwrite = () => {
+    const { pendingFileId } = overwriteDialog;
+    setOverwriteDialog((prev) => ({ ...prev, open: false }));
+    removeFile(pendingFileId);
+  };
+
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <h3 className="font-display font-semibold text-foreground mb-1">{title}</h3>
@@ -492,6 +583,21 @@ const FileUploadZone = ({
           ))}
         </div>
       )}
+
+      <AlertDialog open={overwriteDialog.open} onOpenChange={(open) => !open && handleCancelOverwrite()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rapport allerede indsendt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Der er allerede indsendt en rapport for <strong>{overwriteDialog.period}</strong>. Vil du overskrive den eksisterende rapport med den nye?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelOverwrite}>Annuller</AlertDialogCancel>
+            <AlertDialogAction onClick={handleOverwrite}>Overskriv</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
