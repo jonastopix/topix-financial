@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import { Navigate, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Navigate } from "react-router-dom";
 import {
   Users,
   Search,
@@ -435,28 +435,40 @@ const Members = () => {
                           </p>
                         </div>
 
-                        {/* Info */}
-                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Calendar className="h-4 w-4 text-primary" />
-                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Detaljer</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Oprettet: {format(new Date(m.created_at), "d. MMMM yyyy", { locale: da })}
-                          </p>
-                          {m.company_name && (
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                              <Building2 className="h-3 w-3" /> {m.company_name}
+                        {/* Actions */}
+                        <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="h-4 w-4 text-primary" />
+                              <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Detaljer</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Oprettet: {format(new Date(m.created_at), "d. MMMM yyyy", { locale: da })}
                             </p>
-                          )}
-                          {m.conversationId && (
-                            <a
-                              href="/chat"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                            {m.company_name && (
+                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                <Building2 className="h-3 w-3" /> {m.company_name}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            <Link
+                              to={`/members/${m.user_id}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <MessageCircle className="h-3 w-3" /> Åbn chat
-                            </a>
-                          )}
+                              <FileText className="h-3 w-3" /> Se rapporter & data
+                            </Link>
+                            {m.conversationId && (
+                              <Link
+                                to="/chat"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MessageCircle className="h-3 w-3" /> Åbn chat
+                              </Link>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
