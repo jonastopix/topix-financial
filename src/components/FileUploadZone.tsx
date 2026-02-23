@@ -3,6 +3,13 @@ import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target } f
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
+import * as pdfjsLib from "pdfjs-dist";
+
+// Set worker source for pdf.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.mjs",
+  import.meta.url
+).toString();
 
 interface ExtractedData {
   report_type: string;
@@ -41,15 +48,44 @@ const formatFileSize = (bytes: number) => {
 };
 
 async function extractTextFromFile(file: File): Promise<string> {
-  const text = await file.text();
-  if (file.type === "application/pdf") {
-    const readable = text
-      .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
-      .replace(/\s{3,}/g, "\n")
-      .trim();
-    return readable.slice(0, 15000);
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const textParts: string[] = [];
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map((item: any) => {
+            // Preserve table structure by adding spaces/newlines
+            const str = item.str || "";
+            if (item.hasEOL) return str + "\n";
+            return str + " ";
+          })
+          .join("");
+        textParts.push(`--- Side ${i} ---\n${pageText}`);
+      }
+      
+      const fullText = textParts.join("\n\n");
+      console.log("PDF extracted text length:", fullText.length);
+      console.log("PDF first 500 chars:", fullText.slice(0, 500));
+      return fullText.slice(0, 30000); // More text for better extraction
+    } catch (err) {
+      console.error("PDF.js extraction failed, falling back:", err);
+      // Fallback to raw text
+      const text = await file.text();
+      const readable = text
+        .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
+        .replace(/\s{3,}/g, "\n")
+        .trim();
+      return readable.slice(0, 15000);
+    }
   }
-  return text.slice(0, 15000);
+  
+  const text = await file.text();
+  return text.slice(0, 30000);
 }
 
 const FileUploadZone = ({
