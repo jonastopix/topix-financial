@@ -6,6 +6,8 @@ import MilestonesList from "@/components/MilestonesList";
 import RecentReports from "@/components/RecentReports";
 import BudgetOverview from "@/components/BudgetOverview";
 import PerformanceScore from "@/components/PerformanceScore";
+import AttentionNeeded from "@/components/AttentionNeeded";
+import ActivityFeed from "@/components/ActivityFeed";
 
 const Dashboard = () => {
   return (
@@ -21,7 +23,7 @@ const Dashboard = () => {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <KPICard
           title="MRR"
           value="115.000 DKK"
@@ -56,6 +58,11 @@ const Dashboard = () => {
         />
       </div>
 
+      {/* Attention needed */}
+      <div className="mb-6">
+        <AttentionNeeded />
+      </div>
+
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -64,6 +71,7 @@ const Dashboard = () => {
         </div>
         <div className="space-y-6">
           <PerformanceScore />
+          <ActivityFeed />
           <BudgetOverview />
           <MilestonesList />
         </div>
