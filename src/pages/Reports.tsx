@@ -14,11 +14,23 @@ import {
   ChevronDown,
   Sparkles,
   Send,
-  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
-import { format, addMonths, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
 interface DbReport {
   id: string;
@@ -46,38 +58,37 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
   error: { icon: AlertCircle, label: "Fejl", className: "text-destructive", bg: "bg-destructive/10" },
 };
 
-// Danish month names for matching report_period strings
 const DANISH_MONTHS = [
   "Januar", "Februar", "Marts", "April", "Maj", "Juni",
   "Juli", "August", "September", "Oktober", "November", "December",
 ];
 
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+
 function parseReportPeriodToKey(period: string | null): string | null {
   if (!period) return null;
-  // Match "Oktober 2025" etc.
   for (let i = 0; i < DANISH_MONTHS.length; i++) {
     if (period.toLowerCase().includes(DANISH_MONTHS[i].toLowerCase())) {
       const yearMatch = period.match(/\d{4}/);
-      if (yearMatch) {
-        return `${yearMatch[0]}-${String(i + 1).padStart(2, "0")}`;
-      }
+      if (yearMatch) return `${yearMatch[0]}-${String(i + 1).padStart(2, "0")}`;
     }
   }
   return null;
 }
 
-function generate12MonthGrid(): { key: string; label: string; monthNum: number }[] {
-  const months: { key: string; label: string; monthNum: number }[] = [];
-  const now = new Date();
-  // Show last 12 months (including current month)
-  for (let i = 11; i >= 0; i--) {
-    const d = addMonths(startOfMonth(now), -i);
-    const key = format(d, "yyyy-MM");
-    const label = format(d, "MMM yyyy", { locale: da });
-    months.push({ key, label, monthNum: d.getMonth() });
-  }
-  return months;
+function getKeyFigures(report: DbReport): Record<string, number> | null {
+  if (!report.extracted_data || typeof report.extracted_data !== "object" || Array.isArray(report.extracted_data)) return null;
+  return (report.extracted_data as Record<string, Json | undefined>).key_figures as Record<string, number> | null;
 }
+
+const formatDKK = (n?: number) =>
+  n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
+
+const formatCompact = (n: number) => {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toFixed(0);
+};
 
 const Reports = () => {
   const { user } = useAuth();
@@ -144,27 +155,70 @@ const Reports = () => {
     loadData();
   }, [loadData, refreshKey]);
 
-  // Build a map of report_period keys to reports
+  // Group reports by month key, taking best report per month
   const reportsByMonth = useMemo(() => {
-    const map: Record<string, DbReport[]> = {};
-    dbReports.forEach((r) => {
+    const map: Record<string, DbReport> = {};
+    // Sort ascending so later (better) reports overwrite
+    const sorted = [...dbReports].sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
+    sorted.forEach((r) => {
       const key = parseReportPeriodToKey(r.report_period);
       if (key) {
-        if (!map[key]) map[key] = [];
-        map[key].push(r);
+        // Prefer processed over others
+        const existing = map[key];
+        if (!existing || r.status === "processed") {
+          map[key] = r;
+        }
       }
     });
     return map;
   }, [dbReports]);
 
-  const monthGrid = useMemo(() => {
-    return generate12MonthGrid();
-  }, []);
+  // Group by year for display
+  const yearGroups = useMemo(() => {
+    const years: Record<string, { key: string; month: number; report?: DbReport }[]> = {};
+    
+    // Collect all years from reports
+    const allKeys = Object.keys(reportsByMonth);
+    const allYears = new Set<string>();
+    allKeys.forEach(k => allYears.add(k.split("-")[0]));
+    
+    // Also include current year
+    allYears.add(String(new Date().getFullYear()));
+    
+    // For each year, create 12 month slots
+    Array.from(allYears).sort().forEach(year => {
+      years[year] = Array.from({ length: 12 }, (_, i) => {
+        const key = `${year}-${String(i + 1).padStart(2, "0")}`;
+        return { key, month: i, report: reportsByMonth[key] };
+      });
+    });
+    
+    return years;
+  }, [reportsByMonth]);
 
-  const deliveredCount = monthGrid.filter((m) => {
-    const reports = reportsByMonth[m.key];
-    return reports?.some((r) => r.status === "processed");
-  }).length;
+  // Build trend data for charts
+  const trendData = useMemo(() => {
+    const sortedKeys = Object.keys(reportsByMonth).sort();
+    return sortedKeys
+      .map((key) => {
+        const r = reportsByMonth[key];
+        if (r.status !== "processed") return null;
+        const kf = getKeyFigures(r);
+        if (!kf) return null;
+        const [year, monthStr] = key.split("-");
+        const monthIdx = parseInt(monthStr, 10) - 1;
+        return {
+          key,
+          label: `${SHORT_MONTHS[monthIdx]} ${year}`,
+          omsaetning: kf.omsaetning ?? null,
+          daekningsbidrag: kf.daekningsbidrag ?? null,
+          resultat_foer_skat: kf.resultat_foer_skat ?? null,
+          loenninger: kf.loenninger ?? null,
+          bank_balance: kf.bank_balance ?? null,
+        };
+      })
+      .filter(Boolean) as any[];
+  }, [reportsByMonth]);
 
   const handleSubmitComment = async (reportId: string, reportName: string) => {
     const content = (commentInputs[reportId] || "").trim();
@@ -206,17 +260,17 @@ const Reports = () => {
     const kf = obj.key_figures as Record<string, number> | undefined;
     if (!kf) return null;
 
-    const formatDKK = (n?: number) =>
-      n != null ? `${n.toLocaleString("da-DK")} DKK` : "—";
-
     const stats = [
-      { label: "Omsætning", value: formatDKK(kf.omsaetning) },
-      { label: "Dækningsbidrag", value: formatDKK(kf.daekningsbidrag) },
-      { label: "Resultat f. skat", value: formatDKK(kf.resultat_foer_skat) },
+      { label: "Omsætning", value: formatDKK(kf.omsaetning), sub: kf.omsaetning_aar != null ? `Å.t.d: ${formatDKK(kf.omsaetning_aar)}` : undefined },
+      { label: "Dækningsbidrag", value: formatDKK(kf.daekningsbidrag), sub: kf.daekningsbidrag_aar != null ? `Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}` : undefined },
+      { label: "Lønninger", value: formatDKK(kf.loenninger) },
+      { label: "Resultat f. skat", value: formatDKK(kf.resultat_foer_skat), sub: kf.resultat_foer_skat_aar != null ? `Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}` : undefined },
       kf.aktiver_i_alt != null ? { label: "Aktiver", value: formatDKK(kf.aktiver_i_alt) } : null,
+      kf.egenkapital != null ? { label: "Egenkapital", value: formatDKK(kf.egenkapital) } : null,
       kf.bank_balance != null ? { label: "Bank", value: formatDKK(kf.bank_balance) } : null,
+      kf.debitorer != null ? { label: "Debitorer", value: formatDKK(kf.debitorer) } : null,
       kf.kreditorer != null ? { label: "Kreditorer", value: formatDKK(kf.kreditorer) } : null,
-    ].filter(Boolean) as { label: string; value: string }[];
+    ].filter(Boolean) as { label: string; value: string; sub?: string }[];
 
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -224,6 +278,7 @@ const Reports = () => {
           <div key={s.label} className="rounded-lg border border-border/50 bg-background/50 p-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
             <p className="text-sm font-medium text-foreground mt-0.5">{s.value}</p>
+            {s.sub && <p className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</p>}
           </div>
         ))}
       </div>
@@ -237,75 +292,157 @@ const Reports = () => {
           Rapportering
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload dokumenter, få AI-analyse og følg op med dit advisory board
+          Upload dokumenter, følg udviklingen og få AI-analyse
         </p>
       </div>
 
-      {/* ── 12-Month Overview Grid ── */}
-      <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            12-måneders overblik
+      {/* ── Year/Month Overview ── */}
+      {Object.keys(yearGroups).length > 0 && (
+        <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
+          <h2 className="font-display font-semibold text-foreground mb-4">
+            Leveringsoverblik
           </h2>
-          <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
-            {deliveredCount} af 12 afleveret
-          </span>
-        </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-2">
-          {monthGrid.map((month) => {
-            const reports = reportsByMonth[month.key];
-            const hasProcessed = reports?.some((r) => r.status === "processed");
-            const hasProcessing = reports?.some((r) => r.status === "processing");
-            const hasError = reports?.some((r) => r.status === "error");
-            const isPast = new Date(month.key + "-01") < new Date();
-
+          {Object.entries(yearGroups).sort(([a], [b]) => b.localeCompare(a)).map(([year, months]) => {
+            const delivered = months.filter(m => m.report?.status === "processed").length;
             return (
-              <div
-                key={month.key}
-                className={`relative flex flex-col items-center justify-center rounded-xl p-3 border transition-all ${
-                  hasProcessed
-                    ? "bg-primary/10 border-primary/30"
-                    : hasProcessing
-                    ? "bg-chart-warning/10 border-chart-warning/30"
-                    : hasError
-                    ? "bg-destructive/10 border-destructive/30"
-                    : isPast
-                    ? "bg-destructive/5 border-border/50"
-                    : "bg-secondary/30 border-border/30"
-                }`}
-              >
-                {hasProcessed ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary mb-1" />
-                ) : hasProcessing ? (
-                  <Clock className="h-5 w-5 text-chart-warning mb-1 animate-pulse" />
-                ) : hasError ? (
-                  <AlertCircle className="h-5 w-5 text-destructive mb-1" />
-                ) : isPast ? (
-                  <div className="h-5 w-5 rounded-full border-2 border-destructive/30 mb-1" />
-                ) : (
-                  <div className="h-5 w-5 rounded-full border-2 border-border/50 mb-1" />
-                )}
-                <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-                  hasProcessed ? "text-primary" : "text-muted-foreground"
-                }`}>
-                  {month.label.split(" ")[0]}
-                </span>
-                <span className="text-[9px] text-muted-foreground">
-                  {month.label.split(" ")[1]}
-                </span>
+              <div key={year} className="mb-4 last:mb-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-foreground">{year}</span>
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                    {delivered} af 12
+                  </span>
+                </div>
+                <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                  {months.map(({ key, month, report }) => {
+                    const isPast = new Date(key + "-28") < new Date();
+                    const status = report?.status;
+                    return (
+                      <div
+                        key={key}
+                        title={`${DANISH_MONTHS[month]} ${year}${report ? ` — ${statusConfig[status || "processing"]?.label}` : ""}`}
+                        className={`flex flex-col items-center justify-center rounded-lg p-2 border transition-all cursor-default ${
+                          status === "processed"
+                            ? "bg-primary/10 border-primary/30"
+                            : status === "processing"
+                            ? "bg-chart-warning/10 border-chart-warning/30"
+                            : status === "error"
+                            ? "bg-destructive/10 border-destructive/30"
+                            : isPast
+                            ? "bg-muted/50 border-border/30"
+                            : "bg-secondary/20 border-border/20"
+                        }`}
+                      >
+                        {status === "processed" ? (
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                        ) : status === "processing" ? (
+                          <Clock className="h-4 w-4 text-chart-warning animate-pulse" />
+                        ) : status === "error" ? (
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <div className={`h-4 w-4 rounded-full border-2 ${isPast ? "border-muted-foreground/20" : "border-border/40"}`} />
+                        )}
+                        <span className="text-[9px] font-medium text-muted-foreground mt-1">
+                          {SHORT_MONTHS[month]}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
         </div>
-      </div>
+      )}
+
+      {/* ── Trend Charts ── */}
+      {trendData.length >= 2 && (
+        <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
+          <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Finansiel udvikling
+          </h2>
+          <p className="text-xs text-muted-foreground mb-6">Måned til måned — baseret på uploadede rapporter</p>
+
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                <Tooltip
+                  formatter={(value: number, name: string) => [formatDKK(value), {
+                    omsaetning: "Omsætning",
+                    daekningsbidrag: "Dækningsbidrag",
+                    resultat_foer_skat: "Resultat f. skat",
+                    loenninger: "Lønninger",
+                    bank_balance: "Bank",
+                  }[name] || name]}
+                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
+                />
+                <Legend formatter={(value: string) => ({
+                  omsaetning: "Omsætning",
+                  daekningsbidrag: "Dækningsbidrag",
+                  resultat_foer_skat: "Resultat f. skat",
+                  loenninger: "Lønninger",
+                  bank_balance: "Bank",
+                }[value] || value)} />
+                <Line type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                <Line type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                <Line type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                <Line type="monotone" dataKey="loenninger" stroke="hsl(var(--chart-4))" strokeWidth={1.5} dot={{ r: 3 }} connectNulls />
+                <Line type="monotone" dataKey="bank_balance" stroke="hsl(var(--chart-5))" strokeWidth={1.5} dot={{ r: 3 }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Month-over-month change indicators */}
+          {trendData.length >= 2 && (() => {
+            const latest = trendData[trendData.length - 1];
+            const prev = trendData[trendData.length - 2];
+            const changes = [
+              { label: "Omsætning", curr: latest.omsaetning, prev: prev.omsaetning },
+              { label: "Dækningsbidrag", curr: latest.daekningsbidrag, prev: prev.daekningsbidrag },
+              { label: "Resultat f. skat", curr: latest.resultat_foer_skat, prev: prev.resultat_foer_skat },
+            ].filter(c => c.curr != null && c.prev != null && c.prev !== 0);
+
+            if (changes.length === 0) return null;
+
+            return (
+              <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-border/30">
+                {changes.map(c => {
+                  const pct = ((c.curr - c.prev) / Math.abs(c.prev)) * 100;
+                  const isUp = pct > 0;
+                  const isFlat = Math.abs(pct) < 1;
+                  return (
+                    <div key={c.label} className="flex items-center gap-2 rounded-lg bg-secondary/30 p-3">
+                      {isFlat ? (
+                        <Minus className="h-4 w-4 text-muted-foreground" />
+                      ) : isUp ? (
+                        <TrendingUp className="h-4 w-4 text-primary" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-destructive" />
+                      )}
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">{c.label}</p>
+                        <p className={`text-sm font-semibold ${isFlat ? "text-muted-foreground" : isUp ? "text-primary" : "text-destructive"}`}>
+                          {isUp ? "+" : ""}{pct.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Upload section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <FileUploadZone
           title="Saldobalance"
-          description="Upload din seneste saldobalance (Excel, CSV eller PDF)"
+          description="Upload din saldobalance for en given måned (Excel, CSV eller PDF)"
           accept=".xlsx,.xls,.csv,.pdf"
           conversationId={conversationId}
           userId={user?.id || null}
@@ -313,7 +450,7 @@ const Reports = () => {
         />
         <FileUploadZone
           title="Resultatopgørelse"
-          description="Upload din seneste resultatopgørelse (Excel, CSV eller PDF)"
+          description="Upload din resultatopgørelse for en given måned (Excel, CSV eller PDF)"
           accept=".xlsx,.xls,.csv,.pdf"
           conversationId={conversationId}
           userId={user?.id || null}
