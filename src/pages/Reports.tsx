@@ -321,11 +321,15 @@ const Reports = () => {
           title="Saldobalance"
           description="Upload din seneste saldobalance (Excel, CSV eller PDF)"
           accept=".xlsx,.xls,.csv,.pdf"
+          conversationId={conversationId}
+          userId={user?.id || null}
         />
         <FileUploadZone
           title="Resultatopgørelse"
           description="Upload din seneste resultatopgørelse (Excel, CSV eller PDF)"
           accept=".xlsx,.xls,.csv,.pdf"
+          conversationId={conversationId}
+          userId={user?.id || null}
         />
       </div>
 

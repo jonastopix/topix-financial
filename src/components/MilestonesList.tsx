@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { format, parse } from "date-fns";
+import { postActivityMessage } from "@/lib/chatActivity";
 import { da } from "date-fns/locale";
 import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
 import {
@@ -55,6 +56,8 @@ function formatDeadline(d: Date) {
 
 interface Props {
   acceptedFromAi?: { title: string; deadline: string }[];
+  conversationId?: string | null;
+  userId?: string | null;
 }
 
 const MilestoneCard = ({
@@ -222,7 +225,7 @@ const MilestoneCard = ({
   );
 };
 
-const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
+const MilestonesList = ({ acceptedFromAi = [], conversationId, userId }: Props) => {
   const [milestones, setMilestones] = useState<Milestone[]>(baseMilestones);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -255,6 +258,9 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
 
   const saveEdit = (id: string) => {
     const progress = Math.min(100, Math.max(0, editProgress));
+    const oldMs = milestones.find((m) => m.id === id);
+    const wasNotDone = oldMs && oldMs.progress < 100;
+    
     setMilestones((prev) =>
       prev.map((m) =>
         m.id === id
@@ -263,6 +269,17 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
       )
     );
     setEditingId(null);
+
+    // Post activity message when milestone is completed
+    if (wasNotDone && progress >= 100 && conversationId && userId) {
+      postActivityMessage({
+        conversationId,
+        senderId: userId,
+        content: `🎯 Milestone gennemført: **${editTitle}**`,
+        contextType: "milestone",
+        contextMeta: { title: editTitle },
+      });
+    }
   };
 
   const cancelEdit = () => setEditingId(null);

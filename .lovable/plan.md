@@ -29,5 +29,5 @@ Al kommunikation samles i chatten med kontekst-cards og AI system-beskeder.
 
 ## TODO
 - [x] AI-feedback fra rapport-analyse postes automatisk som system-beskeder i chatten
-- [ ] Aktivitets-beskeder (rapport uploadet, milestone completed) postes automatisk
+- [x] Aktivitets-beskeder (rapport uploadet, milestone completed) postes automatisk
 - [ ] Milestones-side bruger samme chat-baserede kommentar-system
