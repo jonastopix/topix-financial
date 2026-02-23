@@ -8,12 +8,14 @@ import {
   Settings,
   TrendingUp,
   Users,
+  Calculator,
 } from "lucide-react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FileText, label: "Rapportering", path: "/reports" },
   { icon: DollarSign, label: "Økonomi", path: "/financials" },
+  { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageSquare, label: "Feedback", path: "/feedback" },

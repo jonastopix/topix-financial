@@ -9,6 +9,7 @@ import Financials from "./pages/Financials";
 import Milestones from "./pages/Milestones";
 import KPIs from "./pages/KPIs";
 import Feedback from "./pages/Feedback";
+import Budget from "./pages/Budget";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/milestones" element={<Milestones />} />
           <Route path="/kpis" element={<KPIs />} />
           <Route path="/feedback" element={<Feedback />} />
+          <Route path="/budget" element={<Budget />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
