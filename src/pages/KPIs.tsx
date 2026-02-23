@@ -47,6 +47,7 @@ interface KPIMetric {
   description: string;
   lowerIsBetter: boolean;
   history: { month: string; value: number }[];
+  benchmark: { value: number; label: string; source: string };
 }
 
 interface KPITargetRow {
@@ -64,6 +65,16 @@ const FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {
   resultat: { value: 10000, label: "10.000" },
   omkostninger: { value: 80000, label: "< 80.000" },
   ebitda_margin: { value: 15, label: "15%" },
+};
+
+// Industry benchmarks (Danish SMB averages)
+const INDUSTRY_BENCHMARKS: Record<string, { value: number; label: string; source: string }> = {
+  omsaetning: { value: 150000, label: "150.000 DKK", source: "Dansk SMB gennemsnit" },
+  db_margin: { value: 55, label: "55%", source: "Branchestandard" },
+  loenninger: { value: 60000, label: "60.000 DKK", source: "Danmarks Statistik" },
+  resultat: { value: 12000, label: "12.000 DKK", source: "Dansk SMB gennemsnit" },
+  omkostninger: { value: 90000, label: "90.000 DKK", source: "Branchestandard" },
+  ebitda_margin: { value: 12, label: "12%", source: "Branchestandard" },
 };
 
 const KPI_DEFS = [
@@ -185,6 +196,8 @@ const KPIs = () => {
         ? currentVal.toLocaleString("da-DK", { maximumFractionDigits: 0 })
         : currentVal.toFixed(1);
 
+      const benchmark = INDUSTRY_BENCHMARKS[def.key] || { value: 0, label: "—", source: "" };
+
       return {
         key: def.key,
         label: def.label,
@@ -200,6 +213,7 @@ const KPIs = () => {
         description: def.description,
         lowerIsBetter: def.lowerIsBetter,
         history,
+        benchmark,
       };
     });
   }, [monthlyData, userTargets]);
@@ -469,6 +483,19 @@ const KPIs = () => {
                   </div>
                 </div>
               )}
+              {metric.benchmark.value > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+                  <span className="px-1.5 py-0.5 rounded bg-accent/50 text-accent-foreground font-medium">Benchmark: {metric.benchmark.label}</span>
+                  {(() => {
+                    const aboveBenchmark = metric.lowerIsBetter
+                      ? metric.numValue <= metric.benchmark.value
+                      : metric.numValue >= metric.benchmark.value;
+                    return aboveBenchmark
+                      ? <CheckCircle2 className="h-2.5 w-2.5 text-primary" />
+                      : <AlertTriangle className="h-2.5 w-2.5 text-chart-warning" />;
+                  })()}
+                </div>
+              )}
             </button>
           );
         })}
@@ -502,6 +529,16 @@ const KPIs = () => {
                 </div>
               </>
             )}
+            {activeMetric.benchmark.value > 0 && (
+              <>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Benchmark</p>
+                  <p className="text-lg font-display font-bold text-accent-foreground">{activeMetric.benchmark.label}</p>
+                  <p className="text-[9px] text-muted-foreground">{activeMetric.benchmark.source}</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -524,6 +561,14 @@ const KPIs = () => {
                   stroke="hsl(160, 84%, 39%)"
                   strokeDasharray="4 2"
                   label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }}
+                />
+              )}
+              {activeMetric.benchmark.value > 0 && (
+                <ReferenceLine
+                  y={activeMetric.benchmark.value}
+                  stroke="hsl(220, 70%, 60%)"
+                  strokeDasharray="6 3"
+                  label={{ value: `Benchmark: ${activeMetric.benchmark.label}`, position: "insideTopRight", fill: "hsl(220, 70%, 60%)", fontSize: 10 }}
                 />
               )}
               <Area
@@ -551,6 +596,7 @@ const KPIs = () => {
                 {activeMetric.targetNum > 0 && (
                   <th className="text-right py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">vs. Target</th>
                 )}
+                <th className="text-right py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">vs. Benchmark</th>
               </tr>
             </thead>
             <tbody>
@@ -581,6 +627,20 @@ const KPIs = () => {
                         )}
                       </td>
                     )}
+                    <td className="py-2 px-2 text-right">
+                      {(() => {
+                        const bv = activeMetric.benchmark.value;
+                        if (!bv) return <span className="text-muted-foreground text-xs">—</span>;
+                        const diff = activeMetric.lowerIsBetter
+                          ? ((bv - point.value) / bv) * 100
+                          : ((point.value - bv) / bv) * 100;
+                        return (
+                          <span className={`text-xs font-display ${diff >= 0 ? "text-primary" : "text-destructive"}`}>
+                            {diff >= 0 ? "+" : ""}{diff.toFixed(1)}%
+                          </span>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 );
               })}
