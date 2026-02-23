@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2 } from "lucide-react";
+import { format, parse } from "date-fns";
+import { da } from "date-fns/locale";
+import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,24 +13,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export interface Milestone {
   id: string;
   title: string;
-  deadline: string;
+  deadline: Date;
   status: "done" | "in-progress" | "pending";
   category: string;
   source?: "manual" | "ai";
-  progress: number; // 0-100
+  progress: number;
 }
 
 const baseMilestones: Milestone[] = [
-  { id: "1", title: "Launch beta version", deadline: "15. jan 2026", status: "done", category: "Produkt", source: "manual", progress: 100 },
-  { id: "2", title: "Nå 100 betalende kunder", deadline: "1. mar 2026", status: "in-progress", category: "Vækst", source: "manual", progress: 62 },
-  { id: "3", title: "Lukke seed-runde (3M DKK)", deadline: "1. apr 2026", status: "in-progress", category: "Funding", source: "manual", progress: 35 },
-  { id: "4", title: "Hyre CTO", deadline: "1. maj 2026", status: "pending", category: "Team", source: "manual", progress: 10 },
-  { id: "5", title: "Break-even på månedsbasis", deadline: "1. jun 2026", status: "pending", category: "Økonomi", source: "manual", progress: 0 },
+  { id: "1", title: "Launch beta version", deadline: new Date(2026, 0, 15), status: "done", category: "Produkt", source: "manual", progress: 100 },
+  { id: "2", title: "Nå 100 betalende kunder", deadline: new Date(2026, 2, 1), status: "in-progress", category: "Vækst", source: "manual", progress: 62 },
+  { id: "3", title: "Lukke seed-runde (3M DKK)", deadline: new Date(2026, 3, 1), status: "in-progress", category: "Funding", source: "manual", progress: 35 },
+  { id: "4", title: "Hyre CTO", deadline: new Date(2026, 4, 1), status: "pending", category: "Team", source: "manual", progress: 10 },
+  { id: "5", title: "Break-even på månedsbasis", deadline: new Date(2026, 5, 1), status: "pending", category: "Økonomi", source: "manual", progress: 0 },
 ];
 
 const statusConfig = {
@@ -43,22 +49,190 @@ function deriveStatus(progress: number): "done" | "in-progress" | "pending" {
   return "pending";
 }
 
+function formatDeadline(d: Date) {
+  return format(d, "d. MMM yyyy", { locale: da });
+}
+
 interface Props {
   acceptedFromAi?: { title: string; deadline: string }[];
 }
+
+const MilestoneCard = ({
+  ms,
+  config,
+  isEditing,
+  editTitle,
+  editDeadline,
+  editProgress,
+  setEditTitle,
+  setEditDeadline,
+  setEditProgress,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+}: {
+  ms: Milestone;
+  config: (typeof statusConfig)["done"];
+  isEditing: boolean;
+  editTitle: string;
+  editDeadline: Date | undefined;
+  editProgress: number;
+  setEditTitle: (v: string) => void;
+  setEditDeadline: (v: Date | undefined) => void;
+  setEditProgress: (v: number) => void;
+  onStartEdit: () => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onDelete: () => void;
+}) => {
+  const Icon = config.icon;
+
+  if (isEditing) {
+    return (
+      <div className="rounded-lg bg-secondary/50 overflow-hidden">
+        <div className="p-4 space-y-3">
+          <input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !editDeadline && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {editDeadline ? format(editDeadline, "d. MMM yyyy", { locale: da }) : "Vælg deadline"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={editDeadline}
+                onSelect={setEditDeadline}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-muted-foreground">Fremgang</label>
+              <span className="text-xs font-semibold text-foreground">{editProgress}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={editProgress}
+              onChange={(e) => setEditProgress(Number(e.target.value))}
+              className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+              <span>Ikke startet</span>
+              <span>I gang</span>
+              <span>Færdig</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onSaveEdit}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Check className="h-3 w-3" /> Gem
+            </button>
+            <button
+              onClick={onCancelEdit}
+              className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors"
+            >
+              Annuller
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden">
+      <div className="p-3">
+        <div className="flex items-center gap-3">
+          <div className={`p-1.5 rounded-md ${config.bg}`}>
+            <Icon className={`h-4 w-4 ${config.className}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={cn("text-sm font-medium truncate", ms.status === "done" ? "text-muted-foreground line-through" : "text-foreground")}>{ms.title}</p>
+            <p className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {ms.source === "ai" && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                <Sparkles className="h-2.5 w-2.5" />
+                AI
+              </span>
+            )}
+            <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
+              {ms.category}
+            </span>
+            <button onClick={onStartEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive" title="Slet">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Slet milestone?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Er du sikker på, at du vil slette "{ms.title}"? Denne handling kan ikke fortrydes.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuller</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Slet
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-2.5 flex items-center gap-2.5">
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${config.barColor}`}
+              style={{ width: `${ms.progress}%` }}
+            />
+          </div>
+          <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>
+            {ms.progress}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
   const [milestones, setMilestones] = useState<Milestone[]>(baseMilestones);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editDeadline, setEditDeadline] = useState("");
+  const [editDeadline, setEditDeadline] = useState<Date | undefined>(undefined);
   const [editProgress, setEditProgress] = useState(0);
 
-  // Merge AI-accepted milestones (deduplicate by checking if already added)
   const aiMilestones: Milestone[] = acceptedFromAi.map((a, i) => ({
     id: `ai-${i}`,
     title: a.title,
-    deadline: a.deadline,
+    deadline: new Date(),
     status: "pending" as const,
     category: "AI",
     source: "ai" as const,
@@ -68,6 +242,9 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
   const allMilestones = [...milestones, ...aiMilestones.filter(
     (ai) => !milestones.some((m) => m.id === ai.id)
   )];
+
+  const activeMilestones = allMilestones.filter((m) => m.status !== "done");
+  const doneMilestones = allMilestones.filter((m) => m.status === "done");
 
   const startEdit = (ms: Milestone) => {
     setEditingId(ms.id);
@@ -81,7 +258,7 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
     setMilestones((prev) =>
       prev.map((m) =>
         m.id === id
-          ? { ...m, title: editTitle, deadline: editDeadline, progress, status: deriveStatus(progress) }
+          ? { ...m, title: editTitle, deadline: editDeadline || m.deadline, progress, status: deriveStatus(progress) }
           : m
       )
     );
@@ -95,149 +272,61 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
     toast.success(`"${title}" er slettet`);
   };
 
-  // Overall stats
   const totalProgress = allMilestones.length > 0
     ? Math.round(allMilestones.reduce((sum, m) => sum + m.progress, 0) / allMilestones.length)
     : 0;
 
-  return (
-    <div className="glass-card rounded-xl p-5 animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-foreground">Milestones</h3>
-        <span className="text-xs text-muted-foreground">Samlet: {totalProgress}%</span>
-      </div>
-      <div className="space-y-3">
-        {allMilestones.map((ms) => {
-          const config = statusConfig[ms.status];
-          const Icon = config.icon;
-          const isEditing = editingId === ms.id;
+  const renderList = (items: Milestone[]) =>
+    items.map((ms) => {
+      const config = statusConfig[ms.status];
+      return (
+        <MilestoneCard
+          key={ms.id}
+          ms={ms}
+          config={config}
+          isEditing={editingId === ms.id}
+          editTitle={editTitle}
+          editDeadline={editDeadline}
+          editProgress={editProgress}
+          setEditTitle={setEditTitle}
+          setEditDeadline={setEditDeadline}
+          setEditProgress={setEditProgress}
+          onStartEdit={() => startEdit(ms)}
+          onSaveEdit={() => saveEdit(ms.id)}
+          onCancelEdit={cancelEdit}
+          onDelete={() => deleteMilestone(ms.id, ms.title)}
+        />
+      );
+    });
 
-          return (
-            <div
-              key={ms.id}
-              className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden"
-            >
-              {isEditing ? (
-                <div className="p-4 space-y-3">
-                  <input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                  <input
-                    value={editDeadline}
-                    onChange={(e) => setEditDeadline(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="Deadline, f.eks. 1. apr 2026"
-                  />
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs text-muted-foreground">Fremgang</label>
-                      <span className="text-xs font-semibold text-foreground">{editProgress}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={editProgress}
-                      onChange={(e) => setEditProgress(Number(e.target.value))}
-                      className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                      <span>Ikke startet</span>
-                      <span>I gang</span>
-                      <span>Færdig</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => saveEdit(ms.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-                    >
-                      <Check className="h-3 w-3" /> Gem
-                    </button>
-                    <button
-                      onClick={cancelEdit}
-                      className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors"
-                    >
-                      Annuller
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-1.5 rounded-md ${config.bg}`}>
-                      <Icon className={`h-4 w-4 ${config.className}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{ms.title}</p>
-                      <p className="text-xs text-muted-foreground">{ms.deadline}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {ms.source === "ai" && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                          <Sparkles className="h-2.5 w-2.5" />
-                          AI
-                        </span>
-                      )}
-                      <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
-                        {ms.category}
-                      </span>
-                      <button
-                        onClick={() => startEdit(ms)}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="Rediger"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <button
-                            className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                            title="Slet"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Slet milestone?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Er du sikker på, at du vil slette "{ms.title}"? Denne handling kan ikke fortrydes.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuller</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteMilestone(ms.id, ms.title)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Slet
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="mt-2.5 flex items-center gap-2.5">
-                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${config.barColor}`}
-                        style={{ width: `${ms.progress}%` }}
-                      />
-                    </div>
-                    <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>
-                      {ms.progress}%
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+  return (
+    <div className="space-y-6">
+      {/* Active milestones */}
+      <div className="glass-card rounded-xl p-5 animate-fade-in">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display font-semibold text-foreground">Aktive milestones</h3>
+          <span className="text-xs text-muted-foreground">Samlet: {totalProgress}%</span>
+        </div>
+        <div className="space-y-3">
+          {activeMilestones.length > 0 ? renderList(activeMilestones) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Ingen aktive milestones</p>
+          )}
+        </div>
       </div>
+
+      {/* Done milestones */}
+      {doneMilestones.length > 0 && (
+        <div className="glass-card rounded-xl p-5 animate-fade-in">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            <h3 className="font-display font-semibold text-foreground">Gennemført</h3>
+            <span className="text-xs text-muted-foreground ml-auto">{doneMilestones.length} milestone{doneMilestones.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="space-y-3">
+            {renderList(doneMilestones)}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
