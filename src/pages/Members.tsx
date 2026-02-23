@@ -11,11 +11,13 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowUpDown,
-  Mail,
   Building2,
   Calendar,
   Shield,
   UserCheck,
+  BarChart3,
+  Wallet,
+  Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -26,14 +28,18 @@ interface MemberData {
   company_name: string;
   avatar_url: string;
   created_at: string;
-  email: string;
   role: "member" | "advisor";
   lastMessageAt: string | null;
   unreadCount: number;
   conversationId: string | null;
+  reportCount: number;
+  latestReportDate: string | null;
+  latestReportName: string | null;
+  budgetCategories: number;
+  totalBudget: number;
 }
 
-type SortKey = "full_name" | "company_name" | "created_at" | "unreadCount";
+type SortKey = "full_name" | "company_name" | "created_at" | "unreadCount" | "reportCount";
 type SortDir = "asc" | "desc";
 
 const Members = () => {
@@ -52,31 +58,41 @@ const Members = () => {
     const loadMembers = async () => {
       setLoading(true);
 
-      // Get all profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, company_name, avatar_url, created_at");
+      // Fetch all data in parallel
+      const [profilesRes, rolesRes, convsRes, reportsRes, budgetsRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, company_name, avatar_url, created_at"),
+        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("conversations").select("id, member_id, last_message_at"),
+        supabase.from("financial_reports").select("user_id, file_name, uploaded_at, status"),
+        supabase.from("budget_targets").select("user_id, category, budget_amount"),
+      ]);
 
-      if (!profiles) {
-        setLoading(false);
-        return;
-      }
+      const profiles = profilesRes.data || [];
+      const roles = rolesRes.data || [];
+      const conversations = convsRes.data || [];
+      const reports = reportsRes.data || [];
+      const budgets = budgetsRes.data || [];
 
-      // Get all roles
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
+      // Group reports & budgets by user
+      const reportsByUser = new Map<string, typeof reports>();
+      reports.forEach((r) => {
+        const arr = reportsByUser.get(r.user_id) || [];
+        arr.push(r);
+        reportsByUser.set(r.user_id, arr);
+      });
 
-      // Get conversations with last message info
-      const { data: conversations } = await supabase
-        .from("conversations")
-        .select("id, member_id, last_message_at");
+      const budgetsByUser = new Map<string, typeof budgets>();
+      budgets.forEach((b) => {
+        const arr = budgetsByUser.get(b.user_id) || [];
+        arr.push(b);
+        budgetsByUser.set(b.user_id, arr);
+      });
 
-      // Get unread counts per conversation
+      // Get unread counts per conversation (batch)
       const enriched: MemberData[] = await Promise.all(
         profiles.map(async (p) => {
-          const userRole = roles?.find((r) => r.user_id === p.user_id);
-          const conv = conversations?.find((c) => c.member_id === p.user_id);
+          const userRole = roles.find((r) => r.user_id === p.user_id);
+          const conv = conversations.find((c) => c.member_id === p.user_id);
 
           let unreadCount = 0;
           if (conv && user) {
@@ -89,17 +105,29 @@ const Members = () => {
             unreadCount = count || 0;
           }
 
+          const userReports = reportsByUser.get(p.user_id) || [];
+          const userBudgets = budgetsByUser.get(p.user_id) || [];
+
+          // Find latest report
+          const sortedReports = [...userReports].sort(
+            (a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+          );
+
           return {
             user_id: p.user_id,
             full_name: p.full_name || "Intet navn",
             company_name: p.company_name || "",
             avatar_url: p.avatar_url || "",
             created_at: p.created_at,
-            email: "", // We'll show what we have
             role: (userRole?.role as "member" | "advisor") || "member",
             lastMessageAt: conv?.last_message_at || null,
             unreadCount,
             conversationId: conv?.id || null,
+            reportCount: userReports.length,
+            latestReportDate: sortedReports[0]?.uploaded_at || null,
+            latestReportName: sortedReports[0]?.file_name || null,
+            budgetCategories: userBudgets.length,
+            totalBudget: userBudgets.reduce((sum, b) => sum + Number(b.budget_amount), 0),
           };
         })
       );
@@ -111,7 +139,6 @@ const Members = () => {
     loadMembers();
   }, [user, isAdvisor]);
 
-  // Filter + search + sort
   const filtered = useMemo(() => {
     let result = members;
 
@@ -134,8 +161,8 @@ const Members = () => {
         cmp = (a[sortKey] || "").localeCompare(b[sortKey] || "", "da");
       } else if (sortKey === "created_at") {
         cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else if (sortKey === "unreadCount") {
-        cmp = a.unreadCount - b.unreadCount;
+      } else if (sortKey === "unreadCount" || sortKey === "reportCount") {
+        cmp = a[sortKey] - b[sortKey];
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -158,6 +185,10 @@ const Members = () => {
   const totalMembers = members.filter((m) => m.role === "member").length;
   const totalAdvisors = members.filter((m) => m.role === "advisor").length;
   const totalUnread = members.reduce((sum, m) => sum + m.unreadCount, 0);
+  const membersWithReports = members.filter((m) => m.reportCount > 0).length;
+
+  const formatDKK = (n: number) =>
+    n.toLocaleString("da-DK", { maximumFractionDigits: 0 }) + " DKK";
 
   if (authLoading) return null;
   if (!isAdvisor) return <Navigate to="/" replace />;
@@ -170,12 +201,12 @@ const Members = () => {
           Medlemmer
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Oversigt over alle medlemmer i The Boardroom
+          Oversigt over alle medlemmer og deres aktivitet
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{totalMembers}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Medlemmer</p>
@@ -187,6 +218,10 @@ const Members = () => {
         <div className="glass-card rounded-xl p-4 text-center">
           <p className={`text-2xl font-display font-bold ${totalUnread > 0 ? "text-chart-warning" : "text-foreground"}`}>{totalUnread}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Ubesvarede</p>
+        </div>
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className="text-2xl font-display font-bold text-foreground">{membersWithReports}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Har rapporteret</p>
         </div>
       </div>
 
@@ -218,18 +253,22 @@ const Members = () => {
         </div>
       </div>
 
-      {/* Table header */}
+      {/* Table */}
       <div className="glass-card rounded-xl overflow-hidden">
         <div className="hidden sm:grid grid-cols-12 gap-2 px-5 py-3 bg-secondary/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-          <button onClick={() => toggleSort("full_name")} className="col-span-4 flex items-center gap-1 hover:text-foreground transition-colors">
+          <button onClick={() => toggleSort("full_name")} className="col-span-3 flex items-center gap-1 hover:text-foreground transition-colors">
             Navn <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("company_name")} className="col-span-3 flex items-center gap-1 hover:text-foreground transition-colors">
+          <button onClick={() => toggleSort("company_name")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">
             Virksomhed <ArrowUpDown className="h-3 w-3" />
           </button>
-          <div className="col-span-2">Rolle</div>
-          <button onClick={() => toggleSort("unreadCount")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">
-            Ubesvaret <ArrowUpDown className="h-3 w-3" />
+          <div className="col-span-1">Rolle</div>
+          <button onClick={() => toggleSort("reportCount")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">
+            Rapporter <ArrowUpDown className="h-3 w-3" />
+          </button>
+          <div className="col-span-2">Budget</div>
+          <button onClick={() => toggleSort("unreadCount")} className="col-span-1 flex items-center gap-1 hover:text-foreground transition-colors">
+            Chat <ArrowUpDown className="h-3 w-3" />
           </button>
           <button onClick={() => toggleSort("created_at")} className="col-span-1 flex items-center gap-1 hover:text-foreground transition-colors">
             Oprettet <ArrowUpDown className="h-3 w-3" />
@@ -256,16 +295,16 @@ const Members = () => {
                   >
                     {/* Desktop row */}
                     <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-4 flex items-center gap-3">
+                      <div className="col-span-3 flex items-center gap-3">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <span className="text-[10px] font-semibold text-primary">{getInitials(m.full_name)}</span>
                         </div>
                         <span className="text-sm font-medium text-foreground truncate">{m.full_name}</span>
                       </div>
-                      <div className="col-span-3">
+                      <div className="col-span-2">
                         <span className="text-sm text-muted-foreground truncate">{m.company_name || "–"}</span>
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-1">
                         <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
                           m.role === "advisor" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                         }`}>
@@ -274,6 +313,22 @@ const Members = () => {
                         </span>
                       </div>
                       <div className="col-span-2">
+                        <div className="flex items-center gap-1.5">
+                          <FileText className="h-3 w-3 text-muted-foreground" />
+                          <span className={`text-xs ${m.reportCount === 0 ? "text-muted-foreground" : "text-foreground font-medium"}`}>
+                            {m.reportCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="flex items-center gap-1.5">
+                          <Wallet className="h-3 w-3 text-muted-foreground" />
+                          <span className={`text-xs ${m.budgetCategories === 0 ? "text-muted-foreground" : "text-foreground font-medium"}`}>
+                            {m.budgetCategories > 0 ? formatDKK(m.totalBudget) : "–"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="col-span-1">
                         {m.unreadCount > 0 ? (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold text-chart-warning">
                             <MessageCircle className="h-3 w-3" />
@@ -305,7 +360,12 @@ const Members = () => {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{m.company_name || "Ingen virksomhed"}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <p className="text-xs text-muted-foreground truncate">{m.company_name || "–"}</p>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <FileText className="h-2.5 w-2.5" /> {m.reportCount}
+                          </span>
+                        </div>
                       </div>
                       {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                     </div>
@@ -314,25 +374,85 @@ const Members = () => {
                   {/* Expanded details */}
                   {isExpanded && (
                     <div className="px-5 pb-4 pt-1 bg-secondary/20 border-t border-border/30 animate-fade-in">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>Oprettet: {format(new Date(m.created_at), "d. MMMM yyyy", { locale: da })}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        {/* Rapporter */}
+                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter</span>
+                          </div>
+                          <p className="text-lg font-bold text-foreground">{m.reportCount}</p>
+                          {m.latestReportDate ? (
+                            <div className="mt-1">
+                              <p className="text-[10px] text-muted-foreground">Seneste:</p>
+                              <p className="text-xs text-foreground truncate">{m.latestReportName}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {format(new Date(m.latestReportDate), "d. MMM yyyy", { locale: da })}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-1">Ingen rapporter endnu</p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          <span>
-                            Seneste besked:{" "}
+
+                        {/* Budget */}
+                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Wallet className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Budget</span>
+                          </div>
+                          {m.budgetCategories > 0 ? (
+                            <>
+                              <p className="text-lg font-bold text-foreground">{formatDKK(m.totalBudget)}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {m.budgetCategories} {m.budgetCategories === 1 ? "kategori" : "kategorier"}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-lg font-bold text-muted-foreground">–</p>
+                              <p className="text-xs text-muted-foreground mt-1">Intet budget opsat</p>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Chat */}
+                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MessageCircle className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Chat</span>
+                          </div>
+                          {m.unreadCount > 0 ? (
+                            <p className="text-lg font-bold text-chart-warning">{m.unreadCount} ubesvaret</p>
+                          ) : (
+                            <p className="text-lg font-bold text-foreground">0</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Seneste:{" "}
                             {m.lastMessageAt
-                              ? format(new Date(m.lastMessageAt), "d. MMM yyyy HH:mm", { locale: da })
+                              ? format(new Date(m.lastMessageAt), "d. MMM HH:mm", { locale: da })
                               : "Ingen endnu"}
-                          </span>
+                          </p>
                         </div>
-                        <div className="flex items-center gap-2">
+
+                        {/* Info */}
+                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Calendar className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Detaljer</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Oprettet: {format(new Date(m.created_at), "d. MMMM yyyy", { locale: da })}
+                          </p>
+                          {m.company_name && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Building2 className="h-3 w-3" /> {m.company_name}
+                            </p>
+                          )}
                           {m.conversationId && (
                             <a
-                              href={`/chat`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                              href="/chat"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-3 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
                             >
                               <MessageCircle className="h-3 w-3" /> Åbn chat
                             </a>
