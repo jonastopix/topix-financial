@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react";
 import {
   BarChart,
   Bar,
@@ -9,7 +10,9 @@ import {
   Legend,
   Cell,
 } from "recharts";
-import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Pencil, Save, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface BudgetLine {
   category: string;
@@ -17,8 +20,7 @@ interface BudgetLine {
   actual: number;
 }
 
-// Mock budget targets + "actual" from the October saldobalance extraction
-const budgetData: BudgetLine[] = [
+const defaultBudgetData: BudgetLine[] = [
   { category: "Omsætning", budget: 70000, actual: 74731 },
   { category: "Direkte omk.", budget: 2500, actual: 1862 },
   { category: "Lønninger", budget: 35000, actual: 31966 },
@@ -27,6 +29,8 @@ const budgetData: BudgetLine[] = [
   { category: "Administration", budget: 20000, actual: 24530 },
   { category: "Afskrivninger", budget: 3000, actual: 2911 },
 ];
+
+const PERIOD = "Oktober 2025";
 
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
@@ -45,6 +49,89 @@ function variance(budget: number, actual: number, isRevenue: boolean) {
 }
 
 const BudgetComparison = () => {
+  const [budgetData, setBudgetData] = useState<BudgetLine[]>(defaultBudgetData);
+  const [editing, setEditing] = useState(false);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Load user and saved budgets
+  useEffect(() => {
+    const loadBudgets = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setUserId(user.id);
+
+      const { data } = await supabase
+        .from("budget_targets")
+        .select("category, budget_amount")
+        .eq("user_id", user.id)
+        .eq("period", PERIOD);
+
+      if (data && data.length > 0) {
+        const savedMap = new Map(data.map((d) => [d.category, Number(d.budget_amount)]));
+        setBudgetData((prev) =>
+          prev.map((line) => ({
+            ...line,
+            budget: savedMap.get(line.category) ?? line.budget,
+          }))
+        );
+      }
+    };
+    loadBudgets();
+  }, []);
+
+  const startEditing = useCallback(() => {
+    const values: Record<string, string> = {};
+    budgetData.forEach((line) => {
+      values[line.category] = String(line.budget);
+    });
+    setEditValues(values);
+    setEditing(true);
+  }, [budgetData]);
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setEditValues({});
+  };
+
+  const saveBudgets = async () => {
+    // Apply locally first
+    const updated = budgetData.map((line) => ({
+      ...line,
+      budget: Number(editValues[line.category]) || line.budget,
+    }));
+    setBudgetData(updated);
+    setEditing(false);
+
+    if (!userId) {
+      toast.info("Log ind for at gemme budgetmål permanent");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Upsert all budget targets
+      const rows = updated.map((line) => ({
+        user_id: userId,
+        category: line.category,
+        budget_amount: line.budget,
+        period: PERIOD,
+      }));
+
+      const { error } = await supabase
+        .from("budget_targets")
+        .upsert(rows, { onConflict: "user_id,category,period" });
+
+      if (error) throw error;
+      toast.success("Budgetmål gemt");
+    } catch (e: any) {
+      toast.error("Kunne ikke gemme: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const totalBudgetCost = budgetData
     .filter((d) => d.category !== "Omsætning")
     .reduce((s, d) => s + d.budget, 0);
@@ -58,21 +145,45 @@ const BudgetComparison = () => {
 
   const budgetedResult = revLine.budget - totalBudgetCost;
   const actualResult = revLine.actual - totalActualCost;
-  const resultVar = variance(
-    Math.abs(budgetedResult),
-    Math.abs(actualResult),
-    actualResult > budgetedResult
-  );
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h2 className="text-lg font-display font-semibold text-foreground mb-1">
-          Budget vs. Actual
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Automatisk sammenligning baseret på udtrukne tal · Oktober 2025
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-display font-semibold text-foreground mb-1">
+            Budget vs. Actual
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Automatisk sammenligning baseret på udtrukne tal · {PERIOD}
+          </p>
+        </div>
+        {!editing ? (
+          <button
+            onClick={startEditing}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Rediger budget
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cancelEditing}
+              className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+              Annuller
+            </button>
+            <button
+              onClick={saveBudgets}
+              disabled={saving}
+              className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {saving ? "Gemmer..." : "Gem budget"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -171,7 +282,7 @@ const BudgetComparison = () => {
         </div>
       </div>
 
-      {/* Detailed table */}
+      {/* Detailed table with inline editing */}
       <div className="glass-card rounded-xl p-5">
         <h3 className="font-display font-semibold text-foreground mb-4">
           Detaljeret budgetafvigelse
@@ -213,7 +324,21 @@ const BudgetComparison = () => {
                       {row.category}
                     </td>
                     <td className="py-3 px-2 text-right text-muted-foreground font-display">
-                      {row.budget.toLocaleString("da-DK")}
+                      {editing ? (
+                        <input
+                          type="number"
+                          value={editValues[row.category] || ""}
+                          onChange={(e) =>
+                            setEditValues((prev) => ({
+                              ...prev,
+                              [row.category]: e.target.value,
+                            }))
+                          }
+                          className="w-24 ml-auto text-right bg-secondary border border-border rounded px-2 py-1 text-foreground text-sm font-display focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ) : (
+                        row.budget.toLocaleString("da-DK")
+                      )}
                     </td>
                     <td className="py-3 px-2 text-right text-foreground font-display font-medium">
                       {row.actual.toLocaleString("da-DK")}
@@ -320,7 +445,6 @@ function SummaryCard({
           </p>
         </div>
       </div>
-      {/* Progress bar */}
       <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
         <div
           className={`h-full rounded-full transition-all duration-700 ${
