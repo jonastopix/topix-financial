@@ -84,6 +84,88 @@ const DEFAULT_BENCHMARKS: Record<string, { value: number; label: string; source:
   ebitda_margin: { value: 12, label: "12%", source: "Branchestandard" },
 };
 
+// Predefined industry templates
+interface BenchmarkTemplate {
+  name: string;
+  description: string;
+  benchmarks: Record<string, { value: number; label: string; source: string }>;
+}
+
+const INDUSTRY_TEMPLATES: BenchmarkTemplate[] = [
+  {
+    name: "IT & Software",
+    description: "Tech-virksomheder, SaaS, konsulenter",
+    benchmarks: {
+      omsaetning: { value: 200000, label: "200.000 DKK", source: "IT-branchen" },
+      db_margin: { value: 70, label: "70%", source: "IT-branchen" },
+      loenninger: { value: 80000, label: "80.000 DKK", source: "IT-branchen" },
+      resultat: { value: 25000, label: "25.000 DKK", source: "IT-branchen" },
+      omkostninger: { value: 60000, label: "60.000 DKK", source: "IT-branchen" },
+      ebitda_margin: { value: 18, label: "18%", source: "IT-branchen" },
+    },
+  },
+  {
+    name: "Detailhandel",
+    description: "Butikker, e-commerce, engros",
+    benchmarks: {
+      omsaetning: { value: 250000, label: "250.000 DKK", source: "Detailhandel DK" },
+      db_margin: { value: 40, label: "40%", source: "Detailhandel DK" },
+      loenninger: { value: 55000, label: "55.000 DKK", source: "Detailhandel DK" },
+      resultat: { value: 8000, label: "8.000 DKK", source: "Detailhandel DK" },
+      omkostninger: { value: 120000, label: "120.000 DKK", source: "Detailhandel DK" },
+      ebitda_margin: { value: 6, label: "6%", source: "Detailhandel DK" },
+    },
+  },
+  {
+    name: "Produktion",
+    description: "Fremstilling, industri, håndværk",
+    benchmarks: {
+      omsaetning: { value: 300000, label: "300.000 DKK", source: "Dansk Industri" },
+      db_margin: { value: 45, label: "45%", source: "Dansk Industri" },
+      loenninger: { value: 70000, label: "70.000 DKK", source: "Dansk Industri" },
+      resultat: { value: 15000, label: "15.000 DKK", source: "Dansk Industri" },
+      omkostninger: { value: 150000, label: "150.000 DKK", source: "Dansk Industri" },
+      ebitda_margin: { value: 10, label: "10%", source: "Dansk Industri" },
+    },
+  },
+  {
+    name: "Rådgivning",
+    description: "Konsulenter, revision, advokater",
+    benchmarks: {
+      omsaetning: { value: 180000, label: "180.000 DKK", source: "Rådgiverbranchen" },
+      db_margin: { value: 75, label: "75%", source: "Rådgiverbranchen" },
+      loenninger: { value: 90000, label: "90.000 DKK", source: "Rådgiverbranchen" },
+      resultat: { value: 20000, label: "20.000 DKK", source: "Rådgiverbranchen" },
+      omkostninger: { value: 50000, label: "50.000 DKK", source: "Rådgiverbranchen" },
+      ebitda_margin: { value: 20, label: "20%", source: "Rådgiverbranchen" },
+    },
+  },
+  {
+    name: "Byggeri",
+    description: "Entreprenører, installation, anlæg",
+    benchmarks: {
+      omsaetning: { value: 350000, label: "350.000 DKK", source: "Byggeriets tal" },
+      db_margin: { value: 35, label: "35%", source: "Byggeriets tal" },
+      loenninger: { value: 85000, label: "85.000 DKK", source: "Byggeriets tal" },
+      resultat: { value: 10000, label: "10.000 DKK", source: "Byggeriets tal" },
+      omkostninger: { value: 180000, label: "180.000 DKK", source: "Byggeriets tal" },
+      ebitda_margin: { value: 5, label: "5%", source: "Byggeriets tal" },
+    },
+  },
+  {
+    name: "Sundhed & Velvære",
+    description: "Klinikker, fitness, terapi",
+    benchmarks: {
+      omsaetning: { value: 120000, label: "120.000 DKK", source: "Sundhedsbranchen" },
+      db_margin: { value: 60, label: "60%", source: "Sundhedsbranchen" },
+      loenninger: { value: 45000, label: "45.000 DKK", source: "Sundhedsbranchen" },
+      resultat: { value: 12000, label: "12.000 DKK", source: "Sundhedsbranchen" },
+      omkostninger: { value: 55000, label: "55.000 DKK", source: "Sundhedsbranchen" },
+      ebitda_margin: { value: 14, label: "14%", source: "Sundhedsbranchen" },
+    },
+  },
+];
+
 const KPI_DEFS = [
   { key: "omsaetning", label: "Omsætning", unit: "DKK", icon: DollarSign, description: "Månedlig omsætning", lowerIsBetter: false },
   { key: "db_margin", label: "DB Margin", unit: "%", icon: TrendingUp, description: "Dækningsgrad (Omsætning − direkte omk.)", lowerIsBetter: false },
@@ -516,6 +598,34 @@ const KPIs = () => {
             <BarChart3 className="h-4 w-4 text-accent-foreground" />
             Rediger branchebenchmarks
           </h3>
+
+          {/* Industry template selector */}
+          <div className="mb-5">
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 block">Vælg brancheskabelon</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              {INDUSTRY_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.name}
+                  type="button"
+                  onClick={() => {
+                    const vals: Record<string, { value: string; label: string; source: string }> = {};
+                    KPI_DEFS.forEach((def) => {
+                      const b = tpl.benchmarks[def.key];
+                      if (b) vals[def.key] = { value: String(b.value), label: b.label, source: b.source };
+                    });
+                    setEditBenchmarkValues(vals);
+                    toast.success(`Skabelon "${tpl.name}" indlæst`);
+                  }}
+                  className="p-2.5 rounded-lg border border-border/50 bg-background hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+                >
+                  <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors block">{tpl.name}</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight block mt-0.5">{tpl.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border/30 pt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {KPI_DEFS.map((def) => {
               const ev = editBenchmarkValues[def.key] || { value: "0", label: "", source: "" };
@@ -577,6 +687,7 @@ const KPIs = () => {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       )}
