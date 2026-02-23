@@ -89,11 +89,53 @@ const severityConfig = {
   },
 };
 
-const AIFinancialAnalysis = () => {
+interface AIFinancialAnalysisProps {
+  conversationId?: string | null;
+  userId?: string | null;
+}
+
+const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProps = {}) => {
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
+
+  const postAnalysisToChat = async (analysisData: AnalysisData) => {
+    if (!conversationId || !userId) return;
+
+    // Build a summary message from the analysis
+    const summaryParts: string[] = [];
+    summaryParts.push(`📊 **AI Finansiel Analyse**\n`);
+    summaryParts.push(analysisData.overview);
+    
+    if (analysisData.key_findings?.length > 0) {
+      summaryParts.push(`\n\n**Nøglefund:**`);
+      analysisData.key_findings.forEach((f, i) => {
+        const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
+        summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
+      });
+    }
+
+    if (analysisData.next_steps?.length > 0) {
+      summaryParts.push(`\n\n**Næste skridt:**`);
+      analysisData.next_steps.forEach((s, i) => {
+        summaryParts.push(`${i + 1}. ${s}`);
+      });
+    }
+
+    try {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: userId,
+        content: summaryParts.join("\n"),
+        message_type: "ai",
+        context_type: "report",
+        context_meta: { title: `AI Analyse · ${currentFinancialData.period}` },
+      } as any);
+    } catch (err) {
+      console.error("Failed to post AI analysis to chat:", err);
+    }
+  };
 
   const generateAnalysis = async () => {
     setLoading(true);
@@ -108,7 +150,11 @@ const AIFinancialAnalysis = () => {
 
       if (error) throw error;
       setAnalysis(data);
-      setExpandedFinding(0); // Auto-expand first finding
+      setExpandedFinding(0);
+      
+      // Auto-post to chat as AI system message
+      await postAnalysisToChat(data);
+      toast.success("Analyse genereret og delt i chatten");
     } catch (e: any) {
       console.error("AI analysis error:", e);
       toast.error(e.message || "Kunne ikke generere analyse");
