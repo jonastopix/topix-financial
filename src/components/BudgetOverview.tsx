@@ -1,42 +1,68 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+interface BudgetCategory {
+  category: string;
+  budget_amount: number;
+}
+
 const BudgetOverview = () => {
-  const categories = [
-    { name: "Lønninger", budgeted: 45000, spent: 45000, pct: 100 },
-    { name: "Marketing", budgeted: 15000, spent: 11200, pct: 75 },
-    { name: "Software & Tools", budgeted: 8000, spent: 6400, pct: 80 },
-    { name: "Kontor & Drift", budgeted: 5000, spent: 3800, pct: 76 },
-    { name: "Juridisk & Revision", budgeted: 4000, spent: 1200, pct: 30 },
-  ];
+  const { user } = useAuth();
+  const [categories, setCategories] = useState<BudgetCategory[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("budget_targets")
+      .select("category, budget_amount")
+      .eq("user_id", user.id)
+      .order("budget_amount", { ascending: false })
+      .limit(5)
+      .then(({ data }) => setCategories(data || []));
+  }, [user]);
+
+  const totalBudget = categories.reduce((s, c) => s + Number(c.budget_amount), 0);
+  const hasData = categories.length > 0;
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-foreground">Budget – Februar</h3>
-        <span className="text-xs font-medium text-primary">67% brugt</span>
+        <h3 className="font-display font-semibold text-foreground">Budget</h3>
+        {hasData && (
+          <span className="text-xs font-medium text-primary">
+            {(totalBudget / 1000).toFixed(0)}k i alt
+          </span>
+        )}
       </div>
-      <div className="space-y-4">
-        {categories.map((cat) => (
-          <div key={cat.name}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm text-foreground">{cat.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {(cat.spent / 1000).toFixed(1)}k / {(cat.budgeted / 1000).toFixed(1)}k DKK
-              </span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  cat.pct >= 90
-                    ? "bg-destructive"
-                    : cat.pct >= 70
-                    ? "bg-chart-warning"
-                    : "bg-primary"
-                }`}
-                style={{ width: `${cat.pct}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      {hasData ? (
+        <div className="space-y-4">
+          {categories.map((cat) => {
+            const maxAmount = categories[0]?.budget_amount || 1;
+            const pct = Math.round((Number(cat.budget_amount) / maxAmount) * 100);
+            return (
+              <div key={cat.category}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-foreground">{cat.category}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {(Number(cat.budget_amount) / 1000).toFixed(1)}k DKK
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 bg-primary"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          Ingen budgetposter endnu. Gå til Budget-siden for at oprette.
+        </p>
+      )}
     </div>
   );
 };

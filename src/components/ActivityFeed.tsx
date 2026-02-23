@@ -1,101 +1,110 @@
+import { useEffect, useState } from "react";
 import {
-  MessageSquare,
-  FileText,
-  Target,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Bell,
-  CheckCircle2,
+  MessageSquare, FileText, Target, Sparkles, TrendingUp, Bell,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
 
 interface ActivityEvent {
   id: string;
-  type: "comment" | "report" | "milestone" | "ai" | "member" | "kpi";
-  actor: string;
-  actorInitials: string;
+  type: "message" | "report" | "milestone" | "system";
   description: string;
   timestamp: string;
   link?: string;
+  actorName?: string;
 }
 
-const events: ActivityEvent[] = [
-  {
-    id: "1",
-    type: "comment",
-    actor: "Morten H.",
-    actorInitials: "MH",
-    description: "kommenterede på januar-rapporten",
-    timestamp: "30. jan · 14:22",
-    link: "/reports",
-  },
-  {
-    id: "2",
-    type: "ai",
-    actor: "AI Analyse",
-    actorInitials: "AI",
-    description: "genererede ny analyse for januar 2026",
-    timestamp: "28. jan · 09:15",
-    link: "/reports",
-  },
-  {
-    id: "3",
-    type: "comment",
-    actor: "Jonas K.",
-    actorInitials: "JK",
-    description: "spurgte om salgsproces-dokumentation",
-    timestamp: "29. jan · 11:45",
-    link: "/reports",
-  },
-  {
-    id: "4",
-    type: "kpi",
-    actor: "System",
-    actorInitials: "📊",
-    description: "MRR nåede 115.000 DKK – ny rekord!",
-    timestamp: "25. feb · 08:00",
-    link: "/kpis",
-  },
-  {
-    id: "5",
-    type: "milestone",
-    actor: "System",
-    actorInitials: "🎯",
-    description: "87 af 100 kunder nået (87%)",
-    timestamp: "22. feb · 10:30",
-    link: "/milestones",
-  },
-  {
-    id: "6",
-    type: "report",
-    actor: "Jonas Doe",
-    actorInitials: "JD",
-    description: "uploadede saldobalance for januar",
-    timestamp: "28. jan · 09:00",
-    link: "/reports",
-  },
-  {
-    id: "7",
-    type: "member",
-    actor: "Thomas R.",
-    actorInitials: "TR",
-    description: "tilsluttede sig advisory boardet",
-    timestamp: "15. dec · 16:00",
-    link: "/group",
-  },
-];
-
 const typeConfig = {
-  comment: { icon: MessageSquare, color: "text-chart-info" },
+  message: { icon: MessageSquare, color: "text-chart-info" },
   report: { icon: FileText, color: "text-primary" },
   milestone: { icon: Target, color: "text-chart-warning" },
-  ai: { icon: Sparkles, color: "text-primary" },
-  member: { icon: Users, color: "text-accent" },
-  kpi: { icon: TrendingUp, color: "text-primary" },
+  system: { icon: Sparkles, color: "text-primary" },
 };
 
 const ActivityFeed = () => {
+  const { user } = useAuth();
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadActivity = async () => {
+      const activity: ActivityEvent[] = [];
+
+      // Recent reports
+      const { data: reports } = await supabase
+        .from("financial_reports")
+        .select("id, report_period, uploaded_at, status")
+        .eq("user_id", user.id)
+        .order("uploaded_at", { ascending: false })
+        .limit(3);
+
+      (reports || []).forEach(r => {
+        activity.push({
+          id: `report-${r.id}`,
+          type: "report",
+          description: `Rapport uploadet: ${r.report_period || "ukendt periode"}`,
+          timestamp: r.uploaded_at,
+          link: "/reports",
+        });
+      });
+
+      // Recent messages (from conversation)
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("member_id", user.id)
+        .maybeSingle();
+
+      if (conv?.id) {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("id, content, created_at, message_type, sender_id")
+          .eq("conversation_id", conv.id)
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        (msgs || []).forEach(m => {
+          const isSystem = m.message_type === "system" || m.message_type === "ai";
+          activity.push({
+            id: `msg-${m.id}`,
+            type: isSystem ? "system" : "message",
+            description: m.content.slice(0, 80) + (m.content.length > 80 ? "..." : ""),
+            timestamp: m.created_at,
+            link: "/chat",
+          });
+        });
+      }
+
+      // Recent milestones
+      const { data: milestones } = await supabase
+        .from("milestones")
+        .select("id, title, progress, updated_at")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(2);
+
+      (milestones || []).forEach(ms => {
+        activity.push({
+          id: `ms-${ms.id}`,
+          type: "milestone",
+          description: `${ms.progress >= 100 ? "✅ Gennemført:" : "🎯"} ${ms.title} (${ms.progress}%)`,
+          timestamp: ms.updated_at,
+          link: "/milestones",
+        });
+      });
+
+      // Sort by timestamp desc
+      activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setEvents(activity.slice(0, 6));
+    };
+
+    loadActivity();
+  }, [user]);
+
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
@@ -106,40 +115,36 @@ const ActivityFeed = () => {
         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Seneste</span>
       </div>
       <div className="space-y-1">
-        {events.slice(0, 6).map((event, i) => {
-          const config = typeConfig[event.type];
-          const Icon = config.icon;
-          const isSystem = event.actor === "System" || event.type === "ai";
+        {events.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Ingen aktivitet endnu</p>
+        ) : (
+          events.map((event) => {
+            const config = typeConfig[event.type];
+            const Icon = config.icon;
 
-          const content = (
-            <div className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-secondary/50 transition-colors group cursor-pointer">
-              <div className="flex-shrink-0 mt-0.5">
-                {isSystem ? (
+            const content = (
+              <div className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-secondary/50 transition-colors group cursor-pointer">
+                <div className="flex-shrink-0 mt-0.5">
                   <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
                     <Icon className={`h-3.5 w-3.5 ${config.color}`} />
                   </div>
-                ) : (
-                  <div className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center">
-                    <span className="text-[9px] font-medium text-foreground">{event.actorInitials}</span>
-                  </div>
-                )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-foreground leading-relaxed">{event.description}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {format(new Date(event.timestamp), "d. MMM · HH:mm", { locale: da })}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-foreground leading-relaxed">
-                  {!isSystem && <span className="font-semibold">{event.actor} </span>}
-                  {event.description}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{event.timestamp}</p>
-              </div>
-            </div>
-          );
+            );
 
-          return event.link ? (
-            <Link key={event.id} to={event.link}>{content}</Link>
-          ) : (
-            <div key={event.id}>{content}</div>
-          );
-        })}
+            return event.link ? (
+              <Link key={event.id} to={event.link}>{content}</Link>
+            ) : (
+              <div key={event.id}>{content}</div>
+            );
+          })
+        )}
       </div>
     </div>
   );

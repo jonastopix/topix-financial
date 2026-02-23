@@ -29,39 +29,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
 
+  const fetchUserData = async (userId: string) => {
+    const [rolesRes, profileRes] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", userId),
+      supabase.from("profiles").select("full_name, company_name, avatar_url").eq("user_id", userId).maybeSingle(),
+    ]);
+    setIsAdvisor(rolesRes.data?.some((r) => r.role === "advisor") ?? false);
+    setProfile(profileRes.data);
+  };
+
   useEffect(() => {
-    // Set up auth listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fetch role and profile using setTimeout to avoid deadlock
+          // Use setTimeout to avoid Supabase auth deadlock, but wait for data before setting loading=false
           setTimeout(async () => {
-            const { data: roles } = await supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", session.user.id);
-            setIsAdvisor(roles?.some((r) => r.role === "advisor") ?? false);
-
-            const { data: prof } = await supabase
-              .from("profiles")
-              .select("full_name, company_name, avatar_url")
-              .eq("user_id", session.user.id)
-              .single();
-            setProfile(prof);
+            await fetchUserData(session.user.id);
+            setLoading(false);
           }, 0);
         } else {
           setIsAdvisor(false);
           setProfile(null);
+          setLoading(false);
         }
-
-        setLoading(false);
       }
     );
 
-    // THEN check existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
