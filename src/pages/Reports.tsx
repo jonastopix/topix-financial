@@ -1,14 +1,8 @@
 import AppLayout from "@/components/AppLayout";
-import { FileText, Plus, CheckCircle2, Clock, AlertCircle, MessageSquare } from "lucide-react";
+import FileUploadZone from "@/components/FileUploadZone";
+import { FileText, CheckCircle2, Clock, AlertCircle, MessageSquare } from "lucide-react";
 
-const reports = [
-  {
-    id: "1",
-    month: "Februar 2026",
-    status: "pending" as const,
-    highlights: [],
-    feedbackCount: 0,
-  },
+const pastReports = [
   {
     id: "2",
     month: "Januar 2026",
@@ -44,23 +38,35 @@ const statusConfig = {
 const Reports = () => {
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
-            Rapportering
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Dine månedlige rapporter til The Boardroom
-          </p>
-        </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
-          <Plus className="h-4 w-4" />
-          Ny rapport
-        </button>
+      <div className="mb-8">
+        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+          Rapportering
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Upload dine finansielle dokumenter til The Boardroom
+        </p>
       </div>
 
+      {/* Upload section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <FileUploadZone
+          title="Saldobalance"
+          description="Upload din seneste saldobalance (Excel, CSV eller PDF)"
+          accept=".xlsx,.xls,.csv,.pdf"
+        />
+        <FileUploadZone
+          title="Resultatopgørelse"
+          description="Upload din seneste resultatopgørelse (Excel, CSV eller PDF)"
+          accept=".xlsx,.xls,.csv,.pdf"
+        />
+      </div>
+
+      {/* Previous reports */}
+      <h2 className="font-display font-semibold text-foreground text-lg mb-4">
+        Tidligere rapporter
+      </h2>
       <div className="space-y-4">
-        {reports.map((report) => {
+        {pastReports.map((report) => {
           const config = statusConfig[report.status];
           const Icon = config.icon;
           return (
