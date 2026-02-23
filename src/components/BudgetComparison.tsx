@@ -33,10 +33,10 @@ function mapReportToActuals(kf: Record<string, number>): Record<string, number> 
     "Omsætning": Math.abs(kf.omsaetning || 0),
     "Direkte omk.": Math.abs(kf.direkte_omkostninger || 0),
     "Lønninger": Math.abs(kf.loenninger || 0),
-    "Marketing": 0, // Not directly in reports — kept for budget tracking
-    "Lokaler": 0,
-    "Administration": 0,
-    "Afskrivninger": 0,
+    "Marketing": Math.abs(kf.marketing || 0),
+    "Lokaler": Math.abs(kf.lokaler || 0),
+    "Administration": Math.abs(kf.admin || 0),
+    "Afskrivninger": Math.abs(kf.afskrivninger || 0),
   };
 }
 
