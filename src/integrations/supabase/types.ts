@@ -113,6 +113,39 @@ export type Database = {
         }
         Relationships: []
       }
+      kpi_benchmarks: {
+        Row: {
+          benchmark_label: string
+          benchmark_value: number
+          created_at: string
+          id: string
+          kpi_key: string
+          source_label: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          benchmark_label?: string
+          benchmark_value: number
+          created_at?: string
+          id?: string
+          kpi_key: string
+          source_label?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          benchmark_label?: string
+          benchmark_value?: number
+          created_at?: string
+          id?: string
+          kpi_key?: string
+          source_label?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       kpi_targets: {
         Row: {
           created_at: string
