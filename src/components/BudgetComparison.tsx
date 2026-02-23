@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
+  LineChart, Line, Area, AreaChart, ComposedChart, ReferenceLine,
 } from "recharts";
-import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Pencil, Save, X, CalendarDays, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Pencil, Save, X, CalendarDays, Loader2, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -66,6 +67,7 @@ const BudgetComparison = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reportActuals, setReportActuals] = useState<Record<string, Record<string, number>>>({});
+  const [allBudgetTargets, setAllBudgetTargets] = useState<{ category: string; budget_amount: number; period: string }[]>([]);
 
   // Load user + available report periods
   useEffect(() => {
@@ -103,6 +105,13 @@ const BudgetComparison = () => {
           setSelectedPeriod(uniquePeriods[0]);
         }
       }
+
+      // Fetch all budget targets for trending
+      const { data: targets } = await supabase
+        .from("budget_targets")
+        .select("category, budget_amount, period")
+        .eq("user_id", user.id);
+      if (targets) setAllBudgetTargets(targets);
 
       setLoading(false);
     };
@@ -293,6 +302,11 @@ const BudgetComparison = () => {
         </div>
       </div>
 
+      {/* Trending chart — Budget vs. Actual over tid */}
+      {periods.length >= 2 && (
+        <TrendingChart periods={periods} reportActuals={reportActuals} allBudgetTargets={allBudgetTargets} />
+      )}
+
       {/* Detailed table */}
       <div className="glass-card rounded-xl p-5">
         <h3 className="font-display font-semibold text-foreground mb-4">
@@ -376,6 +390,119 @@ const BudgetComparison = () => {
     </div>
   );
 };
+// Danish month order for sorting periods like "Oktober 2025"
+const DANISH_MONTHS_ORDER: Record<string, number> = {
+  januar: 0, februar: 1, marts: 2, april: 3, maj: 4, juni: 5,
+  juli: 6, august: 7, september: 8, oktober: 9, november: 10, december: 11,
+};
+
+function periodSortKey(period: string): string {
+  const parts = period.toLowerCase().split(" ");
+  const monthIdx = DANISH_MONTHS_ORDER[parts[0]] ?? 0;
+  const year = parts[1] || "2025";
+  return `${year}-${String(monthIdx).padStart(2, "0")}`;
+}
+
+function shortMonth(period: string): string {
+  const SHORT = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+  const parts = period.toLowerCase().split(" ");
+  const idx = DANISH_MONTHS_ORDER[parts[0]] ?? 0;
+  return SHORT[idx];
+}
+
+function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
+  periods: string[];
+  reportActuals: Record<string, Record<string, number>>;
+  allBudgetTargets: { category: string; budget_amount: number; period: string }[];
+}) {
+  const sorted = [...periods].sort((a, b) => periodSortKey(a).localeCompare(periodSortKey(b)));
+
+  const data = sorted.map((period) => {
+    const actuals = reportActuals[period] || {};
+    const actualRevenue = actuals["Omsætning"] || 0;
+    const actualCosts = Object.entries(actuals)
+      .filter(([k]) => k !== "Omsætning")
+      .reduce((s, [, v]) => s + v, 0);
+    const actualResult = actualRevenue - actualCosts;
+
+    // Get budget for this period
+    const periodBudgets = allBudgetTargets.filter(t => t.period === period);
+    const budgetRevenue = periodBudgets.find(t => t.category === "Omsætning")?.budget_amount
+      ?? defaultBudgets["Omsætning"];
+    const budgetCosts = CATEGORIES
+      .filter(c => c !== "Omsætning")
+      .reduce((s, cat) => {
+        const found = periodBudgets.find(t => t.category === cat);
+        return s + (found ? Number(found.budget_amount) : defaultBudgets[cat]);
+      }, 0);
+    const budgetResult = budgetRevenue - budgetCosts;
+
+    return {
+      period: shortMonth(period),
+      fullPeriod: period,
+      budgetRevenue,
+      actualRevenue,
+      budgetResult,
+      actualResult,
+    };
+  });
+
+  return (
+    <div className="glass-card rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          Budget vs. Actual over tid
+        </h3>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{sorted.length} måneder</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Revenue trending */}
+        <div>
+          <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Omsætning</p>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                <Area type="monotone" dataKey="budgetRevenue" name="Budget" fill="hsl(220, 10%, 20%)" stroke="hsl(220, 10%, 40%)" fillOpacity={0.3} strokeDasharray="5 5" />
+                <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={{ fill: "hsl(160, 84%, 39%)", r: 4 }} activeDot={{ r: 6 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Result trending */}
+        <div>
+          <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Resultat</p>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                <ReferenceLine y={0} stroke="hsl(220, 10%, 30%)" strokeDasharray="3 3" />
+                <Area type="monotone" dataKey="budgetResult" name="Budget" fill="hsl(220, 10%, 20%)" stroke="hsl(220, 10%, 40%)" fillOpacity={0.3} strokeDasharray="5 5" />
+                <Line type="monotone" dataKey="actualResult" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={(props: any) => {
+                  const { cx, cy, value } = props;
+                  const color = value >= 0 ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 51%)";
+                  return <circle cx={cx} cy={cy} r={4} fill={color} stroke={color} />;
+                }} activeDot={{ r: 6 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function SummaryCard({ label, budget, actual, favorable, pct, invertColor }: {
   label: string; budget: number; actual: number; favorable: boolean; pct: number; invertColor?: boolean;
