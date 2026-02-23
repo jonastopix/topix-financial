@@ -66,11 +66,12 @@ function parseReportPeriodToKey(period: string | null): string | null {
   return null;
 }
 
-function generate12MonthGrid(memberSince: Date): { key: string; label: string; monthNum: number }[] {
+function generate12MonthGrid(): { key: string; label: string; monthNum: number }[] {
   const months: { key: string; label: string; monthNum: number }[] = [];
-  const start = startOfMonth(memberSince);
-  for (let i = 0; i < 12; i++) {
-    const d = addMonths(start, i);
+  const now = new Date();
+  // Show last 12 months (including current month)
+  for (let i = 11; i >= 0; i--) {
+    const d = addMonths(startOfMonth(now), -i);
     const key = format(d, "yyyy-MM");
     const label = format(d, "MMM yyyy", { locale: da });
     months.push({ key, label, monthNum: d.getMonth() });
@@ -156,12 +157,9 @@ const Reports = () => {
     return map;
   }, [dbReports]);
 
-  // Generate 12-month grid based on user creation date (or earliest report)
   const monthGrid = useMemo(() => {
-    // Use user created_at or fallback to 12 months back from now
-    const memberSince = user?.created_at ? new Date(user.created_at) : new Date();
-    return generate12MonthGrid(memberSince);
-  }, [user]);
+    return generate12MonthGrid();
+  }, []);
 
   const deliveredCount = monthGrid.filter((m) => {
     const reports = reportsByMonth[m.key];
