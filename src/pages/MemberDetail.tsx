@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Target,
+  MessageSquare,
+  Send,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -57,6 +60,14 @@ interface Milestone {
   created_at: string;
 }
 
+interface ReportComment {
+  id: string;
+  report_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
   processed: { icon: CheckCircle2, label: "Behandlet", className: "text-primary", bg: "bg-primary/10" },
   processing: { icon: Clock, label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
@@ -65,11 +76,14 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 
 const MemberDetail = () => {
   const { userId } = useParams<{ userId: string }>();
-  const { isAdvisor, loading: authLoading } = useAuth();
+  const { isAdvisor, user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [comments, setComments] = useState<Record<string, ReportComment[]>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
@@ -85,15 +99,64 @@ const MemberDetail = () => {
         supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
       ]);
 
+      const reportsList = reportsRes.data || [];
       setProfile(profileRes.data);
-      setReports(reportsRes.data || []);
+      setReports(reportsList);
       setBudgets(budgetsRes.data || []);
       setMilestones(milestonesRes.data || []);
+
+      // Fetch comments for all reports
+      if (reportsList.length > 0) {
+        const reportIds = reportsList.map((r) => r.id);
+        const { data: commentsData } = await supabase
+          .from("report_comments")
+          .select("*")
+          .in("report_id", reportIds)
+          .order("created_at", { ascending: true });
+
+        const grouped: Record<string, ReportComment[]> = {};
+        (commentsData || []).forEach((c) => {
+          if (!grouped[c.report_id]) grouped[c.report_id] = [];
+          grouped[c.report_id].push(c);
+        });
+        setComments(grouped);
+      }
+
       setLoading(false);
     };
 
     load();
   }, [userId, isAdvisor]);
+
+  const handleSubmitComment = async (reportId: string) => {
+    const content = (commentInputs[reportId] || "").trim();
+    if (!content || !user) return;
+    if (content.length > 2000) return;
+
+    setSubmittingComment(reportId);
+    const { data, error } = await supabase
+      .from("report_comments")
+      .insert({ report_id: reportId, user_id: user.id, content })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setComments((prev) => ({
+        ...prev,
+        [reportId]: [...(prev[reportId] || []), data],
+      }));
+      setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
+    }
+    setSubmittingComment(null);
+  };
+
+  const handleDeleteComment = async (commentId: string, reportId: string) => {
+    await supabase.from("report_comments").delete().eq("id", commentId);
+    setComments((prev) => ({
+      ...prev,
+      [reportId]: (prev[reportId] || []).filter((c) => c.id !== commentId),
+    }));
+  };
 
   const getInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -284,6 +347,64 @@ const MemberDetail = () => {
                               Behandlet {format(new Date(report.processed_at), "d. MMM yyyy HH:mm", { locale: da })}
                             </p>
                           )}
+
+                          {/* Comments section */}
+                          <div className="mt-5 border-t border-border/50 pt-4">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              Kommentarer ({(comments[report.id] || []).length})
+                            </h4>
+
+                            {(comments[report.id] || []).length > 0 && (
+                              <div className="space-y-2 mb-3">
+                                {(comments[report.id] || []).map((comment) => (
+                                  <div key={comment.id} className="flex items-start gap-2 group rounded-lg bg-muted/50 p-3">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-foreground whitespace-pre-wrap break-words">{comment.content}</p>
+                                      <p className="text-[10px] text-muted-foreground mt-1">
+                                        {format(new Date(comment.created_at), "d. MMM yyyy HH:mm", { locale: da })}
+                                      </p>
+                                    </div>
+                                    {comment.user_id === user?.id && (
+                                      <button
+                                        onClick={() => handleDeleteComment(comment.id, report.id)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
+                                        title="Slet kommentar"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex gap-2">
+                              <textarea
+                                value={commentInputs[report.id] || ""}
+                                onChange={(e) =>
+                                  setCommentInputs((prev) => ({ ...prev, [report.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSubmitComment(report.id);
+                                  }
+                                }}
+                                placeholder="Skriv en kommentar..."
+                                maxLength={2000}
+                                rows={1}
+                                className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <button
+                                onClick={() => handleSubmitComment(report.id)}
+                                disabled={!(commentInputs[report.id] || "").trim() || submittingComment === report.id}
+                                className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                              >
+                                <Send className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
