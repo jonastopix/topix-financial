@@ -1,5 +1,6 @@
 import AppLayout from "@/components/AppLayout";
 import FileUploadZone from "@/components/FileUploadZone";
+import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
 import FinancialTrends from "@/components/FinancialTrends";
 import BudgetComparison from "@/components/BudgetComparison";
 import { FileText, CheckCircle2, Clock, AlertCircle, MessageSquare } from "lucide-react";
@@ -61,6 +62,11 @@ const Reports = () => {
           description="Upload din seneste resultatopgørelse (Excel, CSV eller PDF)"
           accept=".xlsx,.xls,.csv,.pdf"
         />
+      </div>
+
+      {/* AI Financial Analysis */}
+      <div className="mb-8">
+        <AIFinancialAnalysis />
       </div>
 
       {/* Financial trends */}
