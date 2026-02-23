@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import FileUploadZone from "@/components/FileUploadZone";
 import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
 import {
@@ -17,7 +19,10 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
 
 interface ReportFeedback {
   id: string;
@@ -184,9 +189,108 @@ const severityIcon = {
   kritisk: { icon: AlertCircle, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
+interface DbComment {
+  id: string;
+  report_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+interface DbReport {
+  id: string;
+  file_name: string;
+  report_type: string;
+  report_period: string | null;
+  uploaded_at: string;
+  status: string;
+}
+
 const Reports = () => {
+  const { user } = useAuth();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [dbReports, setDbReports] = useState<DbReport[]>([]);
+  const [dbComments, setDbComments] = useState<Record<string, DbComment[]>>({});
+  const [submittingComment, setSubmittingComment] = useState<string | null>(null);
+  const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
+
+  // Fetch real reports and their comments
+  useEffect(() => {
+    if (!user) return;
+
+    const load = async () => {
+      const { data: reports } = await supabase
+        .from("financial_reports")
+        .select("id, file_name, report_type, report_period, uploaded_at, status")
+        .eq("user_id", user.id)
+        .order("uploaded_at", { ascending: false });
+
+      const reportsList = reports || [];
+      setDbReports(reportsList);
+
+      if (reportsList.length > 0) {
+        const ids = reportsList.map((r) => r.id);
+        const { data: commentsData } = await supabase
+          .from("report_comments")
+          .select("*")
+          .in("report_id", ids)
+          .order("created_at", { ascending: true });
+
+        const grouped: Record<string, DbComment[]> = {};
+        const advisorIds = new Set<string>();
+        (commentsData || []).forEach((c) => {
+          if (!grouped[c.report_id]) grouped[c.report_id] = [];
+          grouped[c.report_id].push(c);
+          if (c.user_id !== user.id) advisorIds.add(c.user_id);
+        });
+        setDbComments(grouped);
+
+        // Fetch advisor names
+        if (advisorIds.size > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, full_name")
+            .in("user_id", Array.from(advisorIds));
+          const map: Record<string, string> = {};
+          (profiles || []).forEach((p) => { map[p.user_id] = p.full_name; });
+          setAdvisorProfiles(map);
+        }
+      }
+    };
+
+    load();
+  }, [user]);
+
+  const handleSubmitComment = async (reportId: string) => {
+    const content = (commentInputs[reportId] || "").trim();
+    if (!content || !user) return;
+    if (content.length > 2000) return;
+
+    setSubmittingComment(reportId);
+    const { data, error } = await supabase
+      .from("report_comments")
+      .insert({ report_id: reportId, user_id: user.id, content })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setDbComments((prev) => ({
+        ...prev,
+        [reportId]: [...(prev[reportId] || []), data],
+      }));
+      setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
+    }
+    setSubmittingComment(null);
+  };
+
+  const handleDeleteComment = async (commentId: string, reportId: string) => {
+    await supabase.from("report_comments").delete().eq("id", commentId);
+    setDbComments((prev) => ({
+      ...prev,
+      [reportId]: (prev[reportId] || []).filter((c) => c.id !== commentId),
+    }));
+  };
 
   const toggleReport = (id: string) => {
     setExpandedReport(prev => prev === id ? null : id);
@@ -385,26 +489,87 @@ const Reports = () => {
                     </div>
                   )}
 
-                  {/* Add comment input */}
-                  {report.status === "submitted" && (
-                    <div className="flex items-center gap-3 pt-3 border-t border-border/30">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-medium text-primary">JD</span>
-                      </div>
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          placeholder="Tilføj en kommentar..."
-                          value={commentInputs[report.id] || ""}
-                          onChange={(e) => setCommentInputs(prev => ({ ...prev, [report.id]: e.target.value }))}
-                          className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary pr-10"
-                        />
-                        <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors">
-                          <Send className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Real database comments */}
+                  {(() => {
+                    // Match demo report to real DB report by index
+                    const matchedDbReport = dbReports[pastReports.indexOf(report)];
+                    const reportComments = matchedDbReport ? (dbComments[matchedDbReport.id] || []) : [];
+
+                    return (
+                      <>
+                        {reportComments.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                              <MessageSquare className="h-3 w-3" />
+                              Kommentartråd
+                            </h4>
+                            <div className="space-y-2">
+                              {reportComments.map((c) => {
+                                const isOwn = c.user_id === user?.id;
+                                const authorName = isOwn ? "Dig" : (advisorProfiles[c.user_id] || "Advisor");
+                                return (
+                                  <div key={c.id} className="flex items-start gap-2 group rounded-lg bg-muted/50 p-3">
+                                    <div className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[9px] font-medium text-foreground">
+                                        {authorName === "Dig" ? "Du" : authorName.split(" ").map(w => w[0]).join("")}
+                                      </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="text-xs font-semibold text-foreground">{authorName}</span>
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {format(new Date(c.created_at), "d. MMM yyyy HH:mm", { locale: da })}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-foreground whitespace-pre-wrap break-words">{c.content}</p>
+                                    </div>
+                                    {isOwn && (
+                                      <button
+                                        onClick={() => matchedDbReport && handleDeleteComment(c.id, matchedDbReport.id)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
+                                        title="Slet kommentar"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Reply input */}
+                        {report.status === "submitted" && matchedDbReport && (
+                          <div className="flex gap-2 pt-3 border-t border-border/30">
+                            <textarea
+                              value={commentInputs[matchedDbReport.id] || ""}
+                              onChange={(e) =>
+                                setCommentInputs((prev) => ({ ...prev, [matchedDbReport.id]: e.target.value }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSubmitComment(matchedDbReport.id);
+                                }
+                              }}
+                              placeholder="Svar på kommentarer..."
+                              maxLength={2000}
+                              rows={1}
+                              className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <button
+                              onClick={() => handleSubmitComment(matchedDbReport.id)}
+                              disabled={!(commentInputs[matchedDbReport.id] || "").trim() || submittingComment === matchedDbReport.id}
+                              className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                            >
+                              <Send className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
