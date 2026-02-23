@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import FileUploadZone from "@/components/FileUploadZone";
 import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
+import FinancialOverview from "@/components/FinancialOverview";
+import PerformanceOverview from "@/components/PerformanceOverview";
 import {
   FileText,
   CheckCircle2,
@@ -461,6 +463,16 @@ const Reports = () => {
       {/* AI Financial Analysis */}
       <div className="mb-8">
         <AIFinancialAnalysis conversationId={conversationId} userId={user?.id || null} />
+      </div>
+
+      {/* Detaljeret Finansiel Oversigt */}
+      <div className="mb-8">
+        <FinancialOverview reports={dbReports} />
+      </div>
+
+      {/* Performance Oversigt */}
+      <div className="mb-8">
+        <PerformanceOverview reports={dbReports} />
       </div>
 
       {/* Real DB Reports */}
