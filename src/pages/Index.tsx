@@ -5,6 +5,7 @@ import RevenueChart from "@/components/RevenueChart";
 import MilestonesList from "@/components/MilestonesList";
 import RecentReports from "@/components/RecentReports";
 import BudgetOverview from "@/components/BudgetOverview";
+import PerformanceScore from "@/components/PerformanceScore";
 
 const Dashboard = () => {
   return (
@@ -62,6 +63,7 @@ const Dashboard = () => {
           <RecentReports />
         </div>
         <div className="space-y-6">
+          <PerformanceScore />
           <BudgetOverview />
           <MilestonesList />
         </div>
