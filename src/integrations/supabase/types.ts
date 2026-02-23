@@ -113,25 +113,37 @@ export type Database = {
       messages: {
         Row: {
           content: string
+          context_id: string | null
+          context_meta: Json | null
+          context_type: string | null
           conversation_id: string
           created_at: string
           id: string
+          message_type: string
           read_at: string | null
           sender_id: string
         }
         Insert: {
           content: string
+          context_id?: string | null
+          context_meta?: Json | null
+          context_type?: string | null
           conversation_id: string
           created_at?: string
           id?: string
+          message_type?: string
           read_at?: string | null
           sender_id: string
         }
         Update: {
           content?: string
+          context_id?: string | null
+          context_meta?: Json | null
+          context_type?: string | null
           conversation_id?: string
           created_at?: string
           id?: string
+          message_type?: string
           read_at?: string | null
           sender_id?: string
         }
@@ -216,41 +228,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      report_comments: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          report_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          report_id: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          report_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "report_comments_report_id_fkey"
-            columns: ["report_id"]
-            isOneToOne: false
-            referencedRelation: "financial_reports"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       user_roles: {
         Row: {

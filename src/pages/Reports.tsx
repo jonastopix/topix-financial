@@ -19,7 +19,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -189,11 +188,12 @@ const severityIcon = {
   kritisk: { icon: AlertCircle, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
-interface DbComment {
+interface ChatMsg {
   id: string;
-  report_id: string;
-  user_id: string;
+  sender_id: string;
   content: string;
+  message_type: string;
+  context_id: string | null;
   created_at: string;
 }
 
@@ -211,42 +211,50 @@ const Reports = () => {
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
-  const [dbComments, setDbComments] = useState<Record<string, DbComment[]>>({});
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMsg[]>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
-  // Fetch real reports and their comments
   useEffect(() => {
     if (!user) return;
 
     const load = async () => {
-      const { data: reports } = await supabase
-        .from("financial_reports")
-        .select("id, file_name, report_type, report_period, uploaded_at, status")
-        .eq("user_id", user.id)
-        .order("uploaded_at", { ascending: false });
+      const [reportsRes, convRes] = await Promise.all([
+        supabase
+          .from("financial_reports")
+          .select("id, file_name, report_type, report_period, uploaded_at, status")
+          .eq("user_id", user.id)
+          .order("uploaded_at", { ascending: false }),
+        supabase.from("conversations").select("id").eq("member_id", user.id).single(),
+      ]);
 
-      const reportsList = reports || [];
+      const reportsList = reportsRes.data || [];
       setDbReports(reportsList);
+      setConversationId(convRes.data?.id || null);
 
-      if (reportsList.length > 0) {
+      if (reportsList.length > 0 && convRes.data?.id) {
         const ids = reportsList.map((r) => r.id);
-        const { data: commentsData } = await supabase
-          .from("report_comments")
+        const { data: msgs } = await supabase
+          .from("messages")
           .select("*")
-          .in("report_id", ids)
+          .eq("conversation_id", convRes.data.id)
+          .eq("context_type", "report")
+          .in("context_id", ids)
           .order("created_at", { ascending: true });
 
-        const grouped: Record<string, DbComment[]> = {};
+        const grouped: Record<string, ChatMsg[]> = {};
         const advisorIds = new Set<string>();
-        (commentsData || []).forEach((c) => {
-          if (!grouped[c.report_id]) grouped[c.report_id] = [];
-          grouped[c.report_id].push(c);
-          if (c.user_id !== user.id) advisorIds.add(c.user_id);
+        (msgs || []).forEach((m: any) => {
+          const rid = m.context_id as string;
+          if (rid) {
+            if (!grouped[rid]) grouped[rid] = [];
+            grouped[rid].push(m as ChatMsg);
+            if (m.sender_id !== user.id) advisorIds.add(m.sender_id);
+          }
         });
-        setDbComments(grouped);
+        setChatMessages(grouped);
 
-        // Fetch advisor names
         if (advisorIds.size > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
@@ -262,34 +270,34 @@ const Reports = () => {
     load();
   }, [user]);
 
-  const handleSubmitComment = async (reportId: string) => {
+  const handleSubmitComment = async (reportId: string, reportName: string) => {
     const content = (commentInputs[reportId] || "").trim();
-    if (!content || !user) return;
+    if (!content || !user || !conversationId) return;
     if (content.length > 2000) return;
 
     setSubmittingComment(reportId);
     const { data, error } = await supabase
-      .from("report_comments")
-      .insert({ report_id: reportId, user_id: user.id, content })
+      .from("messages")
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content,
+        message_type: "user",
+        context_type: "report",
+        context_id: reportId,
+        context_meta: { title: reportName },
+      } as any)
       .select()
       .single();
 
     if (!error && data) {
-      setDbComments((prev) => ({
+      setChatMessages((prev) => ({
         ...prev,
-        [reportId]: [...(prev[reportId] || []), data],
+        [reportId]: [...(prev[reportId] || []), data as unknown as ChatMsg],
       }));
       setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
     }
     setSubmittingComment(null);
-  };
-
-  const handleDeleteComment = async (commentId: string, reportId: string) => {
-    await supabase.from("report_comments").delete().eq("id", commentId);
-    setDbComments((prev) => ({
-      ...prev,
-      [reportId]: (prev[reportId] || []).filter((c) => c.id !== commentId),
-    }));
   };
 
   const toggleReport = (id: string) => {
@@ -489,26 +497,25 @@ const Reports = () => {
                     </div>
                   )}
 
-                  {/* Real database comments */}
+                  {/* Chat-based comments */}
                   {(() => {
-                    // Match demo report to real DB report by index
                     const matchedDbReport = dbReports[pastReports.indexOf(report)];
-                    const reportComments = matchedDbReport ? (dbComments[matchedDbReport.id] || []) : [];
+                    const msgs = matchedDbReport ? (chatMessages[matchedDbReport.id] || []) : [];
 
                     return (
                       <>
-                        {reportComments.length > 0 && (
+                        {msgs.length > 0 && (
                           <div className="mb-4">
                             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                               <MessageSquare className="h-3 w-3" />
                               Kommentartråd
                             </h4>
                             <div className="space-y-2">
-                              {reportComments.map((c) => {
-                                const isOwn = c.user_id === user?.id;
-                                const authorName = isOwn ? "Dig" : (advisorProfiles[c.user_id] || "Advisor");
+                              {msgs.map((c) => {
+                                const isOwn = c.sender_id === user?.id;
+                                const authorName = isOwn ? "Dig" : (advisorProfiles[c.sender_id] || "Advisor");
                                 return (
-                                  <div key={c.id} className="flex items-start gap-2 group rounded-lg bg-muted/50 p-3">
+                                  <div key={c.id} className="flex items-start gap-2 rounded-lg bg-muted/50 p-3">
                                     <div className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
                                       <span className="text-[9px] font-medium text-foreground">
                                         {authorName === "Dig" ? "Du" : authorName.split(" ").map(w => w[0]).join("")}
@@ -523,15 +530,6 @@ const Reports = () => {
                                       </div>
                                       <p className="text-sm text-foreground whitespace-pre-wrap break-words">{c.content}</p>
                                     </div>
-                                    {isOwn && (
-                                      <button
-                                        onClick={() => matchedDbReport && handleDeleteComment(c.id, matchedDbReport.id)}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
-                                        title="Slet kommentar"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
                                   </div>
                                 );
                               })}
@@ -550,16 +548,16 @@ const Reports = () => {
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                   e.preventDefault();
-                                  handleSubmitComment(matchedDbReport.id);
+                                  handleSubmitComment(matchedDbReport.id, matchedDbReport.file_name);
                                 }
                               }}
-                              placeholder="Svar på kommentarer..."
+                              placeholder="Svar på kommentarer (sendes til chatten)..."
                               maxLength={2000}
                               rows={1}
                               className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                             />
                             <button
-                              onClick={() => handleSubmitComment(matchedDbReport.id)}
+                              onClick={() => handleSubmitComment(matchedDbReport.id, matchedDbReport.file_name)}
                               disabled={!(commentInputs[matchedDbReport.id] || "").trim() || submittingComment === matchedDbReport.id}
                               className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                             >

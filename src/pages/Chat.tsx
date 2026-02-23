@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, MessageCircle, Circle, CheckCheck } from "lucide-react";
+import { Send, MessageCircle, Circle, CheckCheck, FileText, Sparkles, Target } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -286,25 +286,69 @@ const Chat = () => {
                     <p className="text-xs text-muted-foreground mt-1">Skriv den første besked nedenfor</p>
                   </div>
                 )}
-                {messages.map((msg) => {
+                {messages.map((msg: any) => {
                   const isMine = msg.sender_id === user?.id;
+                  const isSystem = msg.message_type === "system" || msg.message_type === "ai";
+                  const contextType = msg.context_type;
+                  const contextMeta = msg.context_meta as Record<string, unknown> | null;
+
+                  // System/AI messages
+                  if (isSystem) {
+                    return (
+                      <div key={msg.id} className="flex justify-center">
+                        <div className="max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                              {msg.message_type === "ai" ? "AI Analyse" : "System"}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          {contextType && contextMeta?.title && (
+                            <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
+                              {contextType === "report" && <FileText className="h-3 w-3" />}
+                              {contextType === "milestone" && <Target className="h-3 w-3" />}
+                              {String(contextMeta.title)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Regular messages (with optional context card)
                   return (
                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                          isMine
-                            ? "bg-primary text-primary-foreground rounded-br-md"
-                            : "bg-secondary text-foreground rounded-bl-md"
-                        }`}
-                      >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                        <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
-                          <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-                            {format(new Date(msg.created_at), "HH:mm", { locale: da })}
-                          </span>
-                          {isMine && msg.read_at && (
-                            <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
-                          )}
+                      <div className="max-w-[75%]">
+                        {/* Context card */}
+                        {contextType && contextMeta?.title && (
+                          <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
+                            isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                          }`}>
+                            {contextType === "report" && <FileText className="h-3 w-3" />}
+                            {contextType === "milestone" && <Target className="h-3 w-3" />}
+                            Re: {String(contextMeta.title)}
+                          </div>
+                        )}
+                        <div
+                          className={`rounded-2xl px-4 py-2.5 ${
+                            isMine
+                              ? "bg-primary text-primary-foreground rounded-br-md"
+                              : "bg-secondary text-foreground rounded-bl-md"
+                          } ${contextType ? "rounded-tl-md" : ""}`}
+                        >
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
+                            <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                              {format(new Date(msg.created_at), "HH:mm", { locale: da })}
+                            </span>
+                            {isMine && msg.read_at && (
+                              <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

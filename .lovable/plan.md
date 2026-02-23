@@ -1,80 +1,33 @@
 
 
-# Plan: AI Progress Redesign + Auto-Milestones fra AI Feedback
+# Plan: Samlet kommunikationsarkitektur
 
-Vi tager punkt 3 og 4: Et visuelt redesign af AI Progress-siden og automatisk genererede milestones baseret på AI-analysen.
+Al kommunikation samles i chatten med kontekst-cards og AI system-beskeder.
 
----
+## Implementeret
 
-## Del 1: AI Progress Redesign (`/feedback`)
+### Database
+- `messages` tabel udvidet med `message_type`, `context_type`, `context_id`, `context_meta`
+- `report_comments` tabel droppet – alt kører via messages
+- message_type: 'user' (normal), 'system' (aktivitet), 'ai' (AI-analyse)
+- context_type: 'report', 'milestone', 'budget', null
+- context_meta: JSON med titel, status etc. til rendering af kontekst-cards
 
-Den nuværende side er en lang liste af cards der alle ser ens ud. Det nye design skal give et klart overblik over hvor man er, og hvad der kraver handling.
+### Chat UI (Chat.tsx)
+- Kontekst-cards vises på beskeder der refererer til rapporter/milestones
+- AI/system-beskeder vises centreret med Sparkles-ikon
+- Normale beskeder med kontekst viser "Re: [rapport-titel]" som tag
 
-### Nyt layout
+### MemberDetail (advisor-side)
+- Kommentarer på rapporter sendes som chat-beskeder med context_type='report'
+- Viser eksisterende kommentartråd fra chatten
+- Placeholder "sendes til chatten" i input
 
-**Top-sektion: Scoreboard**
-- Cirkulaer progress-ring (ligesom PerformanceScore) med samlet procent
-- 3 stat-bokse: Forbedret / Afventer / Forvaerret (som nu, men visuelt staerkere)
-- Tekst: "Du har handlet pa X af Y anbefalinger"
+### Reports (medlem-side)
+- Svar på kommentarer sendes som chat-beskeder med rapport-kontekst
+- Viser kommentartråd fra chatten
 
-**Midt-sektion: Filtrering med tabs**
-- Tabs: "Alle" | "Kraever handling" | "Forbedret" | "Forvaerret"
-- Giver hurtig adgang til det vigtigste -- specielt "Kraever handling"
-
-**Anbefalings-cards: Redesign**
-- Kompakt format med tydelig status-farve i venstre kant (border-left)
-- Metric-aendring vises som inline "pill" med pil (ROAS: 2.1x -> 3.4x) direkte i card-headeren
-- AI-kommentar vises som collapsible (default foldet ud for "Kraever handling", foldet ind for resten)
-- Rapport-kilde vises som diskret tag
-
-**Tidslinje-indikator**
-- Gruppering per rapport-maaned med en tynd tidslinje-linie mellem grupper
-- Giver kontekst om hvornaar anbefalingen kom
-
-### Teknisk
-- Omskriv `src/pages/Feedback.tsx` fuldstaendigt
-- Tilfoej tab-state med `useState`
-- Brug eksisterende UI-komponenter (Tabs fra radix)
-- Brug SVG cirkel-progress (ligesom PerformanceScore)
-
----
-
-## Del 2: Auto-Milestones fra AI Feedback
-
-Naar AI-analysen genererer anbefalinger, foresl as automatiske milestones som medlemmet kan acceptere, afvise eller redigere.
-
-### Nyt UI pa Milestones-siden
-
-**Ny sektion: "AI-foreslaaede milestones"**
-- Vises oeverst paa `/milestones` i et adskilt kort med Sparkles-ikon
-- Hver foreslaaet milestone viser:
-  - Titel (genereret fra AI-anbefaling)
-  - Foreslaaet deadline
-  - Kilde-rapport
-  - 3 knapper: "Accepter" (gron) | "Rediger" (neutral) | "Afvis" (rod)
-- Accepterede milestones flyttes ned i den normale milestone-liste
-- "Rediger" aabner inline-edit med titel og deadline-felter
-- Afviste milestones forsvinder (med toast-besked)
-
-**Opdateret MilestonesList**
-- Tilfoej visuelt tag pa milestones der kom fra AI ("AI-foreslaaet") 
-- Tilfoej mulighed for at klikke pa en milestone og se detaljer/redigere
-
-### Data-struktur (hardcoded demo foerst)
-- Nye suggested milestones array med `source: "ai"`, `sourceReport`, `suggestedDeadline`
-- Lokal state til at handtere accept/reject/edit
-
-### Filer der aendres
-- `src/pages/Milestones.tsx` -- tilfoej AI-forslag sektion
-- `src/components/MilestonesList.tsx` -- tilfoej source-tag og klikbar detalje-visning
-- `src/pages/Feedback.tsx` -- fuldstaendigt redesign
-
----
-
-## Raekkefoelge
-
-1. Redesign AI Progress (`Feedback.tsx`) -- stoerste visuelle loft
-2. Opdater Milestones med AI-forslag (`Milestones.tsx` + `MilestonesList.tsx`)
-
-Ingen database-aendringer i denne omgang -- alt koerer med demo-data for nu (ligesom resten af platformen). Naar vi senere tilfojer authentication og database, kan vi goere det persistent.
-
+## TODO
+- [ ] AI-feedback fra rapport-analyse postes automatisk som system-beskeder i chatten
+- [ ] Aktivitets-beskeder (rapport uploadet, milestone completed) postes automatisk
+- [ ] Milestones-side bruger samme chat-baserede kommentar-system
