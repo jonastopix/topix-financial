@@ -1,19 +1,31 @@
 import { useCallback, useState, useRef } from "react";
-import { Upload, FileSpreadsheet, X, CheckCircle2 } from "lucide-react";
+import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+
+interface ExtractedData {
+  report_type: string;
+  report_period: string;
+  company_name: string;
+  cvr_number: string;
+  key_figures: Record<string, number>;
+  line_items: Array<{ name: string; period_amount: number; ytd_amount: number }>;
+}
 
 interface UploadedFile {
   id: string;
   name: string;
   size: number;
-  type: string;
-  uploadedAt: Date;
+  status: "uploading" | "processing" | "done" | "error";
+  extractedData?: ExtractedData;
+  errorMessage?: string;
 }
 
 interface FileUploadZoneProps {
   title: string;
   description: string;
   accept?: string;
-  onFilesAdded?: (files: File[]) => void;
+  onExtracted?: (data: ExtractedData) => void;
 }
 
 const formatFileSize = (bytes: number) => {
@@ -22,30 +34,95 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+// Simple PDF text extraction from binary
+async function extractTextFromFile(file: File): Promise<string> {
+  const text = await file.text();
+  // For PDF: extract readable text segments
+  if (file.type === "application/pdf") {
+    // Extract text between BT/ET blocks and parentheses, plus readable strings
+    const readable = text
+      .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
+      .replace(/\s{3,}/g, "\n")
+      .trim();
+    return readable.slice(0, 15000); // Limit for AI context
+  }
+  return text.slice(0, 15000);
+}
+
 const FileUploadZone = ({
   title,
   description,
   accept = ".xlsx,.xls,.csv,.pdf",
-  onFilesAdded,
+  onExtracted,
 }: FileUploadZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const processFile = useCallback(
+    async (file: File) => {
+      const fileId = crypto.randomUUID();
+
+      setUploadedFiles((prev) => [
+        ...prev,
+        { id: fileId, name: file.name, size: file.size, status: "uploading" },
+      ]);
+
+      try {
+        // Read file content for AI
+        const fileContent = await extractTextFromFile(file);
+
+        setUploadedFiles((prev) =>
+          prev.map((f) => (f.id === fileId ? { ...f, status: "processing" } : f))
+        );
+
+        // Call AI extraction
+        const { data, error } = await supabase.functions.invoke(
+          "extract-financial-data",
+          {
+            body: { fileContent, reportId: null },
+          }
+        );
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId ? { ...f, status: "done", extractedData: data } : f
+          )
+        );
+
+        onExtracted?.(data);
+
+        toast({
+          title: "Dokument analyseret",
+          description: `${data.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${data.report_period} er udtrukket.`,
+        });
+      } catch (err) {
+        console.error("Processing error:", err);
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? { ...f, status: "error", errorMessage: err instanceof Error ? err.message : "Ukendt fejl" }
+              : f
+          )
+        );
+        toast({
+          title: "Fejl ved analyse",
+          description: err instanceof Error ? err.message : "Kunne ikke analysere dokumentet",
+          variant: "destructive",
+        });
+      }
+    },
+    [onExtracted]
+  );
+
   const handleFiles = useCallback(
     (files: FileList | File[]) => {
-      const fileArray = Array.from(files);
-      const newFiles: UploadedFile[] = fileArray.map((f) => ({
-        id: crypto.randomUUID(),
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        uploadedAt: new Date(),
-      }));
-      setUploadedFiles((prev) => [...prev, ...newFiles]);
-      onFilesAdded?.(fileArray);
+      Array.from(files).forEach(processFile);
     },
-    [onFilesAdded]
+    [processFile]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -132,31 +209,41 @@ const FileUploadZone = ({
       {uploadedFiles.length > 0 && (
         <div className="mt-4 space-y-2">
           {uploadedFiles.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 group animate-fade-in"
-            >
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileSpreadsheet className="h-4 w-4 text-primary" />
+            <div key={file.id}>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 group">
+                <div className={`p-2 rounded-lg ${file.status === "error" ? "bg-destructive/10" : "bg-primary/10"}`}>
+                  <FileSpreadsheet className={`h-4 w-4 ${file.status === "error" ? "text-destructive" : "text-primary"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {file.status === "uploading" && "Uploader..."}
+                    {file.status === "processing" && "Analyserer med AI..."}
+                    {file.status === "done" && formatFileSize(file.size)}
+                    {file.status === "error" && (file.errorMessage || "Fejl")}
+                  </p>
+                </div>
+                {(file.status === "uploading" || file.status === "processing") && (
+                  <Loader2 className="h-4 w-4 text-primary animate-spin flex-shrink-0" />
+                )}
+                {file.status === "done" && (
+                  <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFile(file.id);
+                  }}
+                  className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {file.name}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatFileSize(file.size)}
-                </p>
-              </div>
-              <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeFile(file.id);
-                }}
-                className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+
+              {/* Show extracted data inline */}
+              {file.status === "done" && file.extractedData && (
+                <ExtractedDataPreview data={file.extractedData} />
+              )}
             </div>
           ))}
         </div>
@@ -164,5 +251,53 @@ const FileUploadZone = ({
     </div>
   );
 };
+
+function ExtractedDataPreview({ data }: { data: ExtractedData }) {
+  const kf = data.key_figures;
+  const formatDKK = (n?: number) =>
+    n != null ? `${n.toLocaleString("da-DK")} DKK` : "—";
+
+  return (
+    <div className="mt-2 p-4 rounded-lg bg-secondary/30 border border-border/50 animate-fade-in space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">
+            {data.report_type}
+          </p>
+          <p className="text-sm font-display font-semibold text-foreground">
+            {data.company_name}{" "}
+            <span className="text-muted-foreground font-normal">
+              · CVR {data.cvr_number}
+            </span>
+          </p>
+        </div>
+        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+          {data.report_period}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <MiniStat label="Omsætning" value={formatDKK(kf.omsaetning)} sub={`Å.t.d: ${formatDKK(kf.omsaetning_aar)}`} />
+        <MiniStat label="Dækningsbidrag" value={formatDKK(kf.daekningsbidrag)} sub={`Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}`} />
+        <MiniStat label="Resultat f. skat" value={formatDKK(kf.resultat_foer_skat)} sub={`Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}`} />
+        {kf.aktiver_i_alt != null && <MiniStat label="Aktiver" value={formatDKK(kf.aktiver_i_alt)} />}
+        {kf.bank_balance != null && <MiniStat label="Bank" value={formatDKK(kf.bank_balance)} />}
+        {kf.kreditorer != null && <MiniStat label="Kreditorer" value={formatDKK(kf.kreditorer)} />}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="p-2.5 rounded-lg bg-card/50">
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
+        {label}
+      </p>
+      <p className="text-sm font-display font-semibold text-foreground">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
 
 export default FileUploadZone;

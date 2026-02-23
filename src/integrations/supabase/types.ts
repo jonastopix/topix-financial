@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      financial_reports: {
+        Row: {
+          company_name: string | null
+          cvr_number: string | null
+          extracted_data: Json | null
+          file_name: string
+          file_path: string
+          id: string
+          processed_at: string | null
+          report_period: string | null
+          report_type: string
+          status: string
+          uploaded_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name?: string | null
+          cvr_number?: string | null
+          extracted_data?: Json | null
+          file_name: string
+          file_path: string
+          id?: string
+          processed_at?: string | null
+          report_period?: string | null
+          report_type: string
+          status?: string
+          uploaded_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string | null
+          cvr_number?: string | null
+          extracted_data?: Json | null
+          file_name?: string
+          file_path?: string
+          id?: string
+          processed_at?: string | null
+          report_period?: string | null
+          report_type?: string
+          status?: string
+          uploaded_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
