@@ -14,6 +14,7 @@ import Group from "./pages/Group";
 import Settings from "./pages/Settings";
 import Chat from "./pages/Chat";
 import Members from "./pages/Members";
+import MemberDetail from "./pages/MemberDetail";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             <Route path="/group" element={<ProtectedRoute><Group /></ProtectedRoute>} />
             <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
+            <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
