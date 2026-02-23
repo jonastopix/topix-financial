@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Sparkles,
   TrendingUp,
@@ -12,10 +12,13 @@ import {
   Target,
   Loader2,
   RefreshCw,
+  Calendar,
+  BarChart3,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { postActivityMessage } from "@/lib/chatActivity";
+import type { Json } from "@/integrations/supabase/types";
 
 interface KeyFinding {
   title: string;
@@ -38,6 +41,17 @@ interface AnalysisData {
   challenges: TrendItem[];
   strategic_questions: string[];
   next_steps: string[];
+}
+
+interface ReportWithAnalysis {
+  id: string;
+  report_period: string | null;
+  company_name: string | null;
+  cvr_number: string | null;
+  extracted_data: Json | null;
+  ai_analysis: Json | null;
+  uploaded_at: string;
+  status: string;
 }
 
 const severityConfig = {
@@ -64,47 +78,83 @@ const severityConfig = {
   },
 };
 
+const DANISH_MONTHS = [
+  "Januar", "Februar", "Marts", "April", "Maj", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "December",
+];
+
 interface AIFinancialAnalysisProps {
   conversationId?: string | null;
   userId?: string | null;
 }
 
 const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProps) => {
-  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [allReports, setAllReports] = useState<ReportWithAnalysis[]>([]);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
-  const [latestReport, setLatestReport] = useState<{ id: string; report_period: string; company_name: string; cvr_number: string; extracted_data: any } | null>(null);
-  const [reportCount, setReportCount] = useState(0);
+  const [expandedYear, setExpandedYear] = useState<string | null>(null);
 
-  // Fetch latest processed report from DB
+  // Fetch all processed reports
   useEffect(() => {
     if (!userId) return;
-    const fetchLatest = async () => {
-      const { data, count } = await supabase
+    const fetch = async () => {
+      const { data } = await supabase
         .from("financial_reports")
-        .select("id, report_period, company_name, cvr_number, extracted_data", { count: "exact" })
+        .select("id, report_period, company_name, cvr_number, extracted_data, ai_analysis, uploaded_at, status")
         .eq("user_id", userId)
         .eq("status", "processed")
-        .order("uploaded_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      setLatestReport(data);
-      setReportCount(count || 0);
+        .order("uploaded_at", { ascending: false });
+
+      const reports = (data || []) as ReportWithAnalysis[];
+      setAllReports(reports);
+
+      // Auto-select latest with analysis, or just latest
+      const withAnalysis = reports.find(r => r.ai_analysis);
+      setSelectedReportId(withAnalysis?.id || reports[0]?.id || null);
+
+      // Auto-expand current year
+      const currentYear = String(new Date().getFullYear());
+      setExpandedYear(currentYear);
     };
-    fetchLatest();
+    fetch();
   }, [userId]);
 
-  const generateAnalysis = async () => {
-    if (!latestReport?.extracted_data) {
-      toast.error("Ingen behandlet rapport fundet. Upload en rapport først.");
+  const selectedReport = useMemo(
+    () => allReports.find(r => r.id === selectedReportId) || null,
+    [allReports, selectedReportId]
+  );
+
+  const analysis = useMemo(() => {
+    if (!selectedReport?.ai_analysis) return null;
+    return selectedReport.ai_analysis as unknown as AnalysisData;
+  }, [selectedReport]);
+
+  // Group reports by year for history
+  const reportsByYear = useMemo(() => {
+    const groups: Record<string, ReportWithAnalysis[]> = {};
+    allReports.forEach(r => {
+      const yearMatch = r.report_period?.match(/\d{4}/);
+      const year = yearMatch?.[0] || "Ukendt";
+      if (!groups[year]) groups[year] = [];
+      groups[year].push(r);
+    });
+    return groups;
+  }, [allReports]);
+
+  const generateAnalysis = async (report?: ReportWithAnalysis) => {
+    const target = report || selectedReport;
+    if (!target?.extracted_data) {
+      toast.error("Ingen data at analysere.");
       return;
     }
 
     setLoading(true);
+    if (report) setSelectedReportId(report.id);
+
     try {
-      const ed = latestReport.extracted_data as any;
+      const ed = target.extracted_data as any;
 
       // Fetch historical data
       const { data: historicalReports } = await supabase
@@ -112,13 +162,13 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
         .select("extracted_data, report_period")
         .eq("user_id", userId!)
         .eq("status", "processed")
-        .neq("id", latestReport.id)
+        .neq("id", target.id)
         .order("uploaded_at", { ascending: true })
         .limit(12);
 
       const historicalData = (historicalReports || [])
-        .filter((r) => r.extracted_data)
-        .map((r) => {
+        .filter(r => r.extracted_data)
+        .map(r => {
           const d = r.extracted_data as any;
           return { period: r.report_period || d?.report_period, ...d?.key_figures };
         });
@@ -128,28 +178,32 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
           financialData: ed.key_figures || ed,
           historicalData: historicalData.length > 0 ? historicalData : undefined,
           companyContext: {
-            name: latestReport.company_name || ed.company_name,
-            cvr: latestReport.cvr_number || ed.cvr_number,
+            name: target.company_name || ed.company_name,
+            cvr: target.cvr_number || ed.cvr_number,
           },
         },
       });
 
       if (error) throw error;
-      setAnalysis(data);
 
       // Persist analysis to DB
       if (data && !data.error) {
         await supabase
           .from("financial_reports")
           .update({ ai_analysis: data } as any)
-          .eq("id", latestReport.id);
+          .eq("id", target.id);
+
+        // Update local state
+        setAllReports(prev =>
+          prev.map(r => r.id === target.id ? { ...r, ai_analysis: data as Json } : r)
+        );
       }
       setExpandedFinding(0);
 
       // Post to chat
       if (conversationId && userId && data && !data.error) {
         const summaryParts: string[] = [];
-        summaryParts.push(`📊 **AI Finansiel Analyse · ${latestReport.report_period}**\n`);
+        summaryParts.push(`📊 **AI Finansiel Analyse · ${target.report_period}**\n`);
         summaryParts.push(data.overview);
         if (data.key_findings?.length > 0) {
           summaryParts.push(`\n\n**Nøglefund:**`);
@@ -169,12 +223,12 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
           senderId: userId,
           content: summaryParts.join("\n"),
           contextType: "report",
-          contextId: latestReport.id,
-          contextMeta: { title: `AI Analyse · ${latestReport.report_period}` },
+          contextId: target.id,
+          contextMeta: { title: `AI Analyse · ${target.report_period}` },
         });
       }
 
-      toast.success("Analyse genereret og delt i chatten");
+      toast.success("Analyse genereret");
     } catch (e: any) {
       console.error("AI analysis error:", e);
       toast.error(e.message || "Kunne ikke generere analyse");
@@ -182,8 +236,6 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
       setLoading(false);
     }
   };
-
-  const hasData = !!latestReport?.extracted_data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -198,45 +250,36 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
               AI Finansiel Analyse
             </h2>
             <p className="text-xs text-muted-foreground">
-              {analysis
-                ? `Genereret · Baseret på ${reportCount} rapporter`
-                : hasData
-                ? `Klar til analyse af ${latestReport?.report_period} · ${latestReport?.company_name}`
+              {selectedReport?.report_period
+                ? `${selectedReport.report_period} · ${selectedReport.company_name || ""}`
                 : "Upload en rapport for at aktivere AI-analyse"}
             </p>
           </div>
         </div>
-        <button
-          onClick={generateAnalysis}
-          disabled={loading || !hasData}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Analyserer...
-            </>
-          ) : analysis ? (
-            <>
-              <RefreshCw className="h-3.5 w-3.5" />
-              Generer ny
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-3.5 w-3.5" />
-              Generer analyse
-            </>
-          )}
-        </button>
+        {selectedReport && (
+          <button
+            onClick={() => generateAnalysis()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {loading ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyserer...</>
+            ) : analysis ? (
+              <><RefreshCw className="h-3.5 w-3.5" /> Generer ny</>
+            ) : (
+              <><Sparkles className="h-3.5 w-3.5" /> Generer analyse</>
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Loading state */}
+      {/* Loading */}
       {loading && (
         <div className="glass-card rounded-xl p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium">Analyserer dine finansielle data...</p>
           <p className="text-xs text-muted-foreground mt-1">
-            AI gennemgår {reportCount} rapporter og identificerer mønstre
+            AI gennemgår rapporter og identificerer mønstre og trends
           </p>
         </div>
       )}
@@ -258,7 +301,7 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
               <Target className="h-4 w-4 text-primary" />
               Nøglefund
             </h3>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {analysis.key_findings.map((finding, i) => {
                 const config = severityConfig[finding.severity];
                 const Icon = config.icon;
@@ -272,47 +315,25 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
                   >
                     <div className="flex items-start gap-3 p-4">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="text-xs font-bold text-muted-foreground shrink-0">
-                          {i + 1}.
-                        </span>
                         <Icon className={`h-4 w-4 shrink-0 ${config.text}`} />
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {finding.title}
-                        </p>
+                        <p className="text-sm font-semibold text-foreground">{finding.title}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span
-                          className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}
-                        >
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>
                           {config.label}
                         </span>
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
 
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-border/30 pt-3 space-y-3">
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                            Analyse
-                          </p>
-                          <p className="text-sm text-foreground leading-relaxed">
-                            {finding.analysis}
-                          </p>
-                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">{finding.analysis}</p>
                         <div className="flex items-start gap-2 bg-secondary/50 rounded-lg p-3">
                           <Lightbulb className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                              Anbefaling
-                            </p>
-                            <p className="text-sm text-foreground leading-relaxed">
-                              {finding.recommendation}
-                            </p>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Anbefaling</p>
+                            <p className="text-sm text-foreground leading-relaxed">{finding.recommendation}</p>
                           </div>
                         </div>
                       </div>
@@ -325,26 +346,22 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
 
           {/* Trend Analysis */}
           <div className="glass-card rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                Trend-Analyse
-              </h3>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Baseret på {reportCount} rapporter
-              </p>
-            </div>
+            <h3 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Trend-Analyse
+            </h3>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-4">
+              Erkendelser, fokusområder og udfordringer over tid
+            </p>
 
             <div className="mb-5">
               <h4 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3" />
-                Positive Trends
+                Tilgrundlæggende fokusområder
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(showAllTrends ? analysis.positive_trends : analysis.positive_trends.slice(0, 3)).map(
-                  (trend, i) => (
-                    <TrendCard key={i} trend={trend} type="positive" />
-                  )
+                  (trend, i) => <TrendCard key={i} trend={trend} type="positive" />
                 )}
               </div>
             </div>
@@ -352,13 +369,11 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
             <div>
               <h4 className="text-xs font-semibold text-chart-warning uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingDown className="h-3 w-3" />
-                Udfordringer
+                Tilgrundlæggende udfordringer
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(showAllTrends ? analysis.challenges : analysis.challenges.slice(0, 3)).map(
-                  (trend, i) => (
-                    <TrendCard key={i} trend={trend} type="challenge" />
-                  )
+                  (trend, i) => <TrendCard key={i} trend={trend} type="challenge" />
                 )}
               </div>
             </div>
@@ -383,9 +398,7 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
               <div className="space-y-3">
                 {analysis.strategic_questions.map((q, i) => (
                   <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
-                    <span className="text-xs font-bold text-chart-warning shrink-0 mt-0.5">
-                      {i + 1}.
-                    </span>
+                    <span className="text-xs font-bold text-chart-warning shrink-0 mt-0.5">{i + 1}.</span>
                     <p className="text-sm text-foreground leading-relaxed">{q}</p>
                   </div>
                 ))}
@@ -410,17 +423,84 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
         </>
       )}
 
+      {/* Analysis History */}
+      {Object.keys(reportsByYear).length > 0 && (
+        <div className="glass-card rounded-xl p-6">
+          <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            Analysehistorik
+          </h3>
+
+          <div className="space-y-2">
+            {Object.entries(reportsByYear)
+              .sort(([a], [b]) => b.localeCompare(a))
+              .map(([year, reports]) => (
+                <div key={year}>
+                  <button
+                    onClick={() => setExpandedYear(expandedYear === year ? null : year)}
+                    className="w-full flex items-center justify-between py-2 px-1 text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                  >
+                    <span>{year}</span>
+                    {expandedYear === year ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+
+                  {expandedYear === year && (
+                    <div className="space-y-1 ml-2 mb-3">
+                      {reports.map(r => {
+                        const hasAnalysis = !!r.ai_analysis;
+                        const isSelected = r.id === selectedReportId;
+                        return (
+                          <button
+                            key={r.id}
+                            onClick={() => {
+                              setSelectedReportId(r.id);
+                              setExpandedFinding(0);
+                              if (!hasAnalysis) generateAnalysis(r);
+                            }}
+                            className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg text-left transition-all ${
+                              isSelected
+                                ? "bg-primary/10 border border-primary/20"
+                                : "hover:bg-secondary/50 border border-transparent"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm text-foreground">{r.report_period || r.uploaded_at.slice(0, 10)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {hasAnalysis ? (
+                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                  Analyse klar
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Vælg for at analysere
+                                </span>
+                              )}
+                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
-      {!analysis && !loading && (
+      {!analysis && !loading && allReports.length === 0 && (
         <div className="glass-card rounded-xl p-12 text-center">
           <Sparkles className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-sm text-foreground font-medium mb-1">
-            {hasData ? "Ingen analyse genereret endnu" : "Ingen rapporter fundet"}
-          </p>
-          <p className="text-xs text-muted-foreground mb-4">
-            {hasData
-              ? `Klik "Generer analyse" for AI-analyse af ${latestReport?.report_period}`
-              : "Upload en saldobalance eller resultatopgørelse ovenfor for at komme i gang"}
+          <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter fundet</p>
+          <p className="text-xs text-muted-foreground">
+            Upload en saldobalance eller resultatopgørelse for at komme i gang
           </p>
         </div>
       )}
