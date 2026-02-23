@@ -1,5 +1,17 @@
 import { useState } from "react";
-import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export interface Milestone {
   id: string;
@@ -77,6 +89,11 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
   };
 
   const cancelEdit = () => setEditingId(null);
+
+  const deleteMilestone = (id: string, title: string) => {
+    setMilestones((prev) => prev.filter((m) => m.id !== id));
+    toast.success(`"${title}" er slettet`);
+  };
 
   // Overall stats
   const totalProgress = allMilestones.length > 0
@@ -174,6 +191,33 @@ const MilestonesList = ({ acceptedFromAi = [] }: Props) => {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                            title="Slet"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Slet milestone?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Er du sikker på, at du vil slette "{ms.title}"? Denne handling kan ikke fortrydes.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuller</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMilestone(ms.id, ms.title)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Slet
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                   {/* Progress bar */}
