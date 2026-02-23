@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef } from "react";
-import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
@@ -17,9 +17,11 @@ interface UploadedFile {
   id: string;
   name: string;
   size: number;
-  status: "uploading" | "processing" | "done" | "error";
+  status: "uploading" | "processing" | "analyzing" | "done" | "error";
   extractedData?: ExtractedData;
   errorMessage?: string;
+  reportId?: string;
+  milestonesCreated?: number;
 }
 
 interface FileUploadZoneProps {
@@ -29,6 +31,7 @@ interface FileUploadZoneProps {
   conversationId?: string | null;
   userId?: string | null;
   onExtracted?: (data: ExtractedData) => void;
+  onPipelineComplete?: () => void;
 }
 
 const formatFileSize = (bytes: number) => {
@@ -37,17 +40,14 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-// Simple PDF text extraction from binary
 async function extractTextFromFile(file: File): Promise<string> {
   const text = await file.text();
-  // For PDF: extract readable text segments
   if (file.type === "application/pdf") {
-    // Extract text between BT/ET blocks and parentheses, plus readable strings
     const readable = text
       .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
       .replace(/\s{3,}/g, "\n")
       .trim();
-    return readable.slice(0, 15000); // Limit for AI context
+    return readable.slice(0, 15000);
   }
   return text.slice(0, 15000);
 }
@@ -59,14 +59,22 @@ const FileUploadZone = ({
   conversationId,
   userId,
   onExtracted,
+  onPipelineComplete,
 }: FileUploadZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const updateFile = (fileId: string, updates: Partial<UploadedFile>) => {
+    setUploadedFiles((prev) =>
+      prev.map((f) => (f.id === fileId ? { ...f, ...updates } : f))
+    );
+  };
+
   const processFile = useCallback(
     async (file: File) => {
       const fileId = crypto.randomUUID();
+      const reportType = title.toLowerCase().includes("saldo") ? "saldobalance" : "resultatopgørelse";
 
       setUploadedFiles((prev) => [
         ...prev,
@@ -74,65 +82,172 @@ const FileUploadZone = ({
       ]);
 
       try {
-        // Read file content for AI
+        // === STEP 1: Create report record in DB ===
+        if (!userId) throw new Error("Du skal være logget ind for at uploade");
+
+        const { data: reportRecord, error: insertError } = await supabase
+          .from("financial_reports")
+          .insert({
+            user_id: userId,
+            file_name: file.name,
+            file_path: `uploads/${userId}/${fileId}/${file.name}`,
+            report_type: reportType,
+            status: "processing",
+          })
+          .select()
+          .single();
+
+        if (insertError || !reportRecord) throw new Error(insertError?.message || "Kunne ikke oprette rapport");
+        updateFile(fileId, { reportId: reportRecord.id });
+
+        // === STEP 2: Extract data via AI ===
+        updateFile(fileId, { status: "processing" });
         const fileContent = await extractTextFromFile(file);
 
-        setUploadedFiles((prev) =>
-          prev.map((f) => (f.id === fileId ? { ...f, status: "processing" } : f))
-        );
-
-        // Call AI extraction
-        const { data, error } = await supabase.functions.invoke(
+        const { data: extractedData, error: extractError } = await supabase.functions.invoke(
           "extract-financial-data",
-          {
-            body: { fileContent, reportId: null },
-          }
+          { body: { fileContent, reportId: reportRecord.id } }
         );
 
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
+        if (extractError) throw extractError;
+        if (extractedData?.error) throw new Error(extractedData.error);
 
-        setUploadedFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileId ? { ...f, status: "done", extractedData: data } : f
-          )
-        );
+        updateFile(fileId, { extractedData });
+        onExtracted?.(extractedData);
 
-        onExtracted?.(data);
-
-        // Post activity message to chat
+        // Post activity: report uploaded
         if (conversationId && userId) {
-          const reportLabel = data.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
+          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
           await postActivityMessage({
             conversationId,
             senderId: userId,
-            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${data.report_period}\n${data.company_name} · CVR ${data.cvr_number}`,
+            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${extractedData.report_period}\n${extractedData.company_name} · CVR ${extractedData.cvr_number}`,
             contextType: "report",
-            contextMeta: { title: `${reportLabel} · ${data.report_period}` },
+            contextId: reportRecord.id,
+            contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
           });
         }
 
+        // === STEP 3: AI Financial Analysis ===
+        updateFile(fileId, { status: "analyzing" });
+
+        // Fetch historical reports for trend analysis
+        const { data: historicalReports } = await supabase
+          .from("financial_reports")
+          .select("extracted_data, report_period")
+          .eq("user_id", userId)
+          .eq("status", "processed")
+          .neq("id", reportRecord.id)
+          .order("uploaded_at", { ascending: true })
+          .limit(12);
+
+        const historicalData = (historicalReports || [])
+          .filter((r) => r.extracted_data)
+          .map((r) => {
+            const ed = r.extracted_data as any;
+            return { period: r.report_period || ed?.report_period, ...ed?.key_figures };
+          });
+
+        const { data: analysis, error: aiError } = await supabase.functions.invoke(
+          "ai-financial-feedback",
+          {
+            body: {
+              financialData: extractedData.key_figures,
+              historicalData: historicalData.length > 0 ? historicalData : undefined,
+              companyContext: {
+                name: extractedData.company_name,
+                cvr: extractedData.cvr_number,
+              },
+            },
+          }
+        );
+
+        if (aiError) {
+          console.error("AI feedback error:", aiError);
+          // Don't fail the whole pipeline - report is saved
+        }
+
+        // === STEP 4: Create milestones from AI findings ===
+        let milestonesCreated = 0;
+        if (analysis && !analysis.error && analysis.key_findings) {
+          const milestonesToCreate = analysis.key_findings
+            .filter((f: any) => f.severity === "advarsel" || f.severity === "kritisk")
+            .slice(0, 3)
+            .map((f: any) => ({
+              user_id: userId,
+              title: f.recommendation?.slice(0, 200) || f.title,
+              description: f.analysis,
+              source: "ai",
+              source_report: reportRecord.id,
+              status: "active",
+              progress: 0,
+            }));
+
+          if (milestonesToCreate.length > 0) {
+            const { error: msError } = await supabase
+              .from("milestones")
+              .insert(milestonesToCreate);
+            if (!msError) milestonesCreated = milestonesToCreate.length;
+          }
+        }
+
+        // === STEP 5: Post AI analysis to chat ===
+        if (analysis && !analysis.error && conversationId && userId) {
+          const summaryParts: string[] = [];
+          summaryParts.push(`📊 **AI Finansiel Analyse · ${extractedData.report_period}**\n`);
+          summaryParts.push(analysis.overview || "");
+
+          if (analysis.key_findings?.length > 0) {
+            summaryParts.push(`\n\n**Nøglefund:**`);
+            analysis.key_findings.forEach((f: any, i: number) => {
+              const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
+              summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
+            });
+          }
+
+          if (analysis.next_steps?.length > 0) {
+            summaryParts.push(`\n\n**Næste skridt:**`);
+            analysis.next_steps.forEach((s: string, i: number) => {
+              summaryParts.push(`${i + 1}. ${s}`);
+            });
+          }
+
+          if (milestonesCreated > 0) {
+            summaryParts.push(`\n\n🎯 ${milestonesCreated} nye milestones er automatisk oprettet.`);
+          }
+
+          await postActivityMessage({
+            conversationId,
+            senderId: userId,
+            content: summaryParts.join("\n"),
+            contextType: "report",
+            contextId: reportRecord.id,
+            contextMeta: { title: `AI Analyse · ${extractedData.report_period}` },
+          });
+        }
+
+        // === DONE ===
+        updateFile(fileId, { status: "done", milestonesCreated });
+        onPipelineComplete?.();
+
         toast({
-          title: "Dokument analyseret",
-          description: `${data.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${data.report_period} er udtrukket.`,
+          title: "Rapport behandlet",
+          description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period}${analysis && !analysis.error ? " · AI-analyse gennemført" : ""}${milestonesCreated > 0 ? ` · ${milestonesCreated} milestones oprettet` : ""}`,
         });
       } catch (err) {
-        console.error("Processing error:", err);
-        setUploadedFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileId
-              ? { ...f, status: "error", errorMessage: err instanceof Error ? err.message : "Ukendt fejl" }
-              : f
-          )
-        );
+        console.error("Pipeline error:", err);
+        updateFile(fileId, {
+          status: "error",
+          errorMessage: err instanceof Error ? err.message : "Ukendt fejl",
+        });
         toast({
-          title: "Fejl ved analyse",
-          description: err instanceof Error ? err.message : "Kunne ikke analysere dokumentet",
+          title: "Fejl ved behandling",
+          description: err instanceof Error ? err.message : "Kunne ikke behandle dokumentet",
           variant: "destructive",
         });
       }
     },
-    [onExtracted]
+    [userId, conversationId, onExtracted, onPipelineComplete, title]
   );
 
   const handleFiles = useCallback(
@@ -234,13 +349,29 @@ const FileUploadZone = ({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {file.status === "uploading" && "Uploader..."}
-                    {file.status === "processing" && "Analyserer med AI..."}
-                    {file.status === "done" && formatFileSize(file.size)}
+                    {file.status === "uploading" && "Opretter rapport..."}
+                    {file.status === "processing" && "Udtrækker nøgletal med AI..."}
+                    {file.status === "analyzing" && (
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-primary" />
+                        Genererer AI-analyse og milestones...
+                      </span>
+                    )}
+                    {file.status === "done" && (
+                      <span className="flex items-center gap-2">
+                        {formatFileSize(file.size)}
+                        {file.milestonesCreated ? (
+                          <span className="inline-flex items-center gap-1 text-primary">
+                            <Target className="h-3 w-3" />
+                            {file.milestonesCreated} milestones
+                          </span>
+                        ) : null}
+                      </span>
+                    )}
                     {file.status === "error" && (file.errorMessage || "Fejl")}
                   </p>
                 </div>
-                {(file.status === "uploading" || file.status === "processing") && (
+                {(file.status === "uploading" || file.status === "processing" || file.status === "analyzing") && (
                   <Loader2 className="h-4 w-4 text-primary animate-spin flex-shrink-0" />
                 )}
                 {file.status === "done" && (

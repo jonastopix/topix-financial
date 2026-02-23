@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Sparkles,
   TrendingUp,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { postActivityMessage } from "@/lib/chatActivity";
 
 interface KeyFinding {
   title: string;
@@ -38,32 +39,6 @@ interface AnalysisData {
   strategic_questions: string[];
   next_steps: string[];
 }
-
-// Mock historical data to feed the AI
-const currentFinancialData = {
-  period: "Oktober 2025",
-  omsaetning: 74731,
-  direkte_omkostninger: 1862,
-  daekningsbidrag: 72869,
-  loenninger: 31966,
-  marketing: 24661,
-  administration: 24530,
-  afskrivninger: 2911,
-  resultat: -15149,
-  aktiver: 221219,
-  bank: 61095,
-  egenkapital: 131343,
-  kreditorer: 44938,
-};
-
-const historicalData = [
-  { period: "Maj 2025", omsaetning: 28500, resultat: -28700, bank: 82000, marketing: 15200, loenninger: 28000 },
-  { period: "Jun 2025", omsaetning: 35200, resultat: -32050, bank: 65000, marketing: 22100, loenninger: 29500 },
-  { period: "Jul 2025", omsaetning: 42800, resultat: -33300, bank: 48000, marketing: 28500, loenninger: 30200 },
-  { period: "Aug 2025", omsaetning: 51400, resultat: -32250, bank: 42000, marketing: 32400, loenninger: 31000 },
-  { period: "Sep 2025", omsaetning: 62100, resultat: -28050, bank: 51000, marketing: 35800, loenninger: 31500 },
-  { period: "Okt 2025", omsaetning: 74731, resultat: -15149, bank: 61095, marketing: 24661, loenninger: 31966 },
-];
 
 const severityConfig = {
   positiv: {
@@ -94,66 +69,103 @@ interface AIFinancialAnalysisProps {
   userId?: string | null;
 }
 
-const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProps = {}) => {
+const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProps) => {
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
+  const [latestReport, setLatestReport] = useState<{ id: string; report_period: string; company_name: string; cvr_number: string; extracted_data: any } | null>(null);
+  const [reportCount, setReportCount] = useState(0);
 
-  const postAnalysisToChat = async (analysisData: AnalysisData) => {
-    if (!conversationId || !userId) return;
-
-    // Build a summary message from the analysis
-    const summaryParts: string[] = [];
-    summaryParts.push(`📊 **AI Finansiel Analyse**\n`);
-    summaryParts.push(analysisData.overview);
-    
-    if (analysisData.key_findings?.length > 0) {
-      summaryParts.push(`\n\n**Nøglefund:**`);
-      analysisData.key_findings.forEach((f, i) => {
-        const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-        summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
-      });
-    }
-
-    if (analysisData.next_steps?.length > 0) {
-      summaryParts.push(`\n\n**Næste skridt:**`);
-      analysisData.next_steps.forEach((s, i) => {
-        summaryParts.push(`${i + 1}. ${s}`);
-      });
-    }
-
-    try {
-      await supabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: userId,
-        content: summaryParts.join("\n"),
-        message_type: "ai",
-        context_type: "report",
-        context_meta: { title: `AI Analyse · ${currentFinancialData.period}` },
-      } as any);
-    } catch (err) {
-      console.error("Failed to post AI analysis to chat:", err);
-    }
-  };
+  // Fetch latest processed report from DB
+  useEffect(() => {
+    if (!userId) return;
+    const fetchLatest = async () => {
+      const { data, count } = await supabase
+        .from("financial_reports")
+        .select("id, report_period, company_name, cvr_number, extracted_data", { count: "exact" })
+        .eq("user_id", userId)
+        .eq("status", "processed")
+        .order("uploaded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      setLatestReport(data);
+      setReportCount(count || 0);
+    };
+    fetchLatest();
+  }, [userId]);
 
   const generateAnalysis = async () => {
+    if (!latestReport?.extracted_data) {
+      toast.error("Ingen behandlet rapport fundet. Upload en rapport først.");
+      return;
+    }
+
     setLoading(true);
     try {
+      const ed = latestReport.extracted_data as any;
+
+      // Fetch historical data
+      const { data: historicalReports } = await supabase
+        .from("financial_reports")
+        .select("extracted_data, report_period")
+        .eq("user_id", userId!)
+        .eq("status", "processed")
+        .neq("id", latestReport.id)
+        .order("uploaded_at", { ascending: true })
+        .limit(12);
+
+      const historicalData = (historicalReports || [])
+        .filter((r) => r.extracted_data)
+        .map((r) => {
+          const d = r.extracted_data as any;
+          return { period: r.report_period || d?.report_period, ...d?.key_figures };
+        });
+
       const { data, error } = await supabase.functions.invoke("ai-financial-feedback", {
         body: {
-          financialData: currentFinancialData,
-          historicalData,
-          companyContext: { name: "Demo Startup ApS", cvr: "12345678" },
+          financialData: ed.key_figures || ed,
+          historicalData: historicalData.length > 0 ? historicalData : undefined,
+          companyContext: {
+            name: latestReport.company_name || ed.company_name,
+            cvr: latestReport.cvr_number || ed.cvr_number,
+          },
         },
       });
 
       if (error) throw error;
       setAnalysis(data);
       setExpandedFinding(0);
-      
-      // Auto-post to chat as AI system message
-      await postAnalysisToChat(data);
+
+      // Post to chat
+      if (conversationId && userId && data && !data.error) {
+        const summaryParts: string[] = [];
+        summaryParts.push(`📊 **AI Finansiel Analyse · ${latestReport.report_period}**\n`);
+        summaryParts.push(data.overview);
+        if (data.key_findings?.length > 0) {
+          summaryParts.push(`\n\n**Nøglefund:**`);
+          data.key_findings.forEach((f: any, i: number) => {
+            const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
+            summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
+          });
+        }
+        if (data.next_steps?.length > 0) {
+          summaryParts.push(`\n\n**Næste skridt:**`);
+          data.next_steps.forEach((s: string, i: number) => {
+            summaryParts.push(`${i + 1}. ${s}`);
+          });
+        }
+        await postActivityMessage({
+          conversationId,
+          senderId: userId,
+          content: summaryParts.join("\n"),
+          contextType: "report",
+          contextId: latestReport.id,
+          contextMeta: { title: `AI Analyse · ${latestReport.report_period}` },
+        });
+      }
+
       toast.success("Analyse genereret og delt i chatten");
     } catch (e: any) {
       console.error("AI analysis error:", e);
@@ -162,6 +174,8 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
       setLoading(false);
     }
   };
+
+  const hasData = !!latestReport?.extracted_data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -177,14 +191,16 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
             </h2>
             <p className="text-xs text-muted-foreground">
               {analysis
-                ? `Genereret · Baseret på ${historicalData.length} måneders data`
-                : "Dybdegående AI-analyse af din virksomheds økonomi"}
+                ? `Genereret · Baseret på ${reportCount} rapporter`
+                : hasData
+                ? `Klar til analyse af ${latestReport?.report_period} · ${latestReport?.company_name}`
+                : "Upload en rapport for at aktivere AI-analyse"}
             </p>
           </div>
         </div>
         <button
           onClick={generateAnalysis}
-          disabled={loading}
+          disabled={loading || !hasData}
           className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {loading ? (
@@ -212,7 +228,7 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium">Analyserer dine finansielle data...</p>
           <p className="text-xs text-muted-foreground mt-1">
-            AI gennemgår {historicalData.length} måneders historik og identificerer mønstre
+            AI gennemgår {reportCount} rapporter og identificerer mønstre
           </p>
         </div>
       )}
@@ -246,7 +262,6 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
                     className={`rounded-xl border ${config.border} ${config.bg} transition-all cursor-pointer`}
                     onClick={() => setExpandedFinding(isExpanded ? null : i)}
                   >
-                    {/* Finding header */}
                     <div className="flex items-start gap-3 p-4">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="text-xs font-bold text-muted-foreground shrink-0">
@@ -271,7 +286,6 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
                       </div>
                     </div>
 
-                    {/* Expanded content */}
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-border/30 pt-3 space-y-3">
                         <div>
@@ -309,15 +323,14 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
                 Trend-Analyse
               </h3>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Udvikling, fokusområder og udfordringer over {historicalData.length} måneder
+                Baseret på {reportCount} rapporter
               </p>
             </div>
 
-            {/* Positive trends */}
             <div className="mb-5">
               <h4 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3" />
-                Tiltagende & Positive Trends
+                Positive Trends
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(showAllTrends ? analysis.positive_trends : analysis.positive_trends.slice(0, 3)).map(
@@ -328,11 +341,10 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
               </div>
             </div>
 
-            {/* Challenges */}
             <div>
               <h4 className="text-xs font-semibold text-chart-warning uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingDown className="h-3 w-3" />
-                Tiltagende Udfordringer
+                Udfordringer
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(showAllTrends ? analysis.challenges : analysis.challenges.slice(0, 3)).map(
@@ -355,7 +367,6 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
 
           {/* Strategic Questions & Next Steps */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Strategic questions */}
             <div className="glass-card rounded-xl p-6">
               <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-chart-warning" />
@@ -373,7 +384,6 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
               </div>
             </div>
 
-            {/* Next steps */}
             <div className="glass-card rounded-xl p-6">
               <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary" />
@@ -396,12 +406,13 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
       {!analysis && !loading && (
         <div className="glass-card rounded-xl p-12 text-center">
           <Sparkles className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-sm text-foreground font-medium mb-1">Ingen analyse genereret endnu</p>
-          <p className="text-xs text-muted-foreground mb-4">
-            Klik "Generer analyse" for at få en dybdegående AI-analyse af dine finansielle data
+          <p className="text-sm text-foreground font-medium mb-1">
+            {hasData ? "Ingen analyse genereret endnu" : "Ingen rapporter fundet"}
           </p>
-          <p className="text-[10px] text-muted-foreground">
-            Analysen bliver klogere over tid efterhånden som du uploader flere rapporter
+          <p className="text-xs text-muted-foreground mb-4">
+            {hasData
+              ? `Klik "Generer analyse" for AI-analyse af ${latestReport?.report_period}`
+              : "Upload en saldobalance eller resultatopgørelse ovenfor for at komme i gang"}
           </p>
         </div>
       )}

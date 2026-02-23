@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { format, parse } from "date-fns";
-import { postActivityMessage } from "@/lib/chatActivity";
+import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
 import {
@@ -19,24 +18,19 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { postActivityMessage } from "@/lib/chatActivity";
 
 export interface Milestone {
   id: string;
   title: string;
-  deadline: Date;
+  deadline: Date | null;
   status: "done" | "in-progress" | "pending";
-  category: string;
-  source?: "manual" | "ai";
+  description: string | null;
+  source: string;
+  source_report: string | null;
   progress: number;
 }
-
-const baseMilestones: Milestone[] = [
-  { id: "1", title: "Launch beta version", deadline: new Date(2026, 0, 15), status: "done", category: "Produkt", source: "manual", progress: 100 },
-  { id: "2", title: "Nå 100 betalende kunder", deadline: new Date(2026, 2, 1), status: "in-progress", category: "Vækst", source: "manual", progress: 62 },
-  { id: "3", title: "Lukke seed-runde (3M DKK)", deadline: new Date(2026, 3, 1), status: "in-progress", category: "Funding", source: "manual", progress: 35 },
-  { id: "4", title: "Hyre CTO", deadline: new Date(2026, 4, 1), status: "pending", category: "Team", source: "manual", progress: 10 },
-  { id: "5", title: "Break-even på månedsbasis", deadline: new Date(2026, 5, 1), status: "pending", category: "Økonomi", source: "manual", progress: 0 },
-];
 
 const statusConfig = {
   done: { icon: CheckCircle2, className: "text-primary", bg: "bg-primary/10", barColor: "bg-primary" },
@@ -50,14 +44,14 @@ function deriveStatus(progress: number): "done" | "in-progress" | "pending" {
   return "pending";
 }
 
-function formatDeadline(d: Date) {
+function formatDeadline(d: Date | null) {
+  if (!d) return "Ingen deadline";
   return format(d, "d. MMM yyyy", { locale: da });
 }
 
 interface Props {
-  acceptedFromAi?: { title: string; deadline: string }[];
-  conversationId?: string | null;
   userId?: string | null;
+  conversationId?: string | null;
 }
 
 const MilestoneCard = ({
@@ -179,9 +173,6 @@ const MilestoneCard = ({
                 AI
               </span>
             )}
-            <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
-              {ms.category}
-            </span>
             <button onClick={onStartEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
               <Pencil className="h-3.5 w-3.5" />
             </button>
@@ -225,52 +216,83 @@ const MilestoneCard = ({
   );
 };
 
-const MilestonesList = ({ acceptedFromAi = [], conversationId, userId }: Props) => {
-  const [milestones, setMilestones] = useState<Milestone[]>(baseMilestones);
+const MilestonesList = ({ userId, conversationId }: Props) => {
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDeadline, setEditDeadline] = useState<Date | undefined>(undefined);
   const [editProgress, setEditProgress] = useState(0);
 
-  const aiMilestones: Milestone[] = acceptedFromAi.map((a, i) => ({
-    id: `ai-${i}`,
-    title: a.title,
-    deadline: new Date(),
-    status: "pending" as const,
-    category: "AI",
-    source: "ai" as const,
-    progress: 0,
-  }));
+  useEffect(() => {
+    if (!userId) return;
+    const fetchMilestones = async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("milestones")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
-  const allMilestones = [...milestones, ...aiMilestones.filter(
-    (ai) => !milestones.some((m) => m.id === ai.id)
-  )];
+      const mapped: Milestone[] = (data || []).map((m) => ({
+        id: m.id,
+        title: m.title,
+        deadline: m.deadline ? new Date(m.deadline) : null,
+        status: deriveStatus(m.progress),
+        description: m.description,
+        source: m.source,
+        source_report: m.source_report,
+        progress: m.progress,
+      }));
+      setMilestones(mapped);
+      setLoading(false);
+    };
+    fetchMilestones();
+  }, [userId]);
 
-  const activeMilestones = allMilestones.filter((m) => m.status !== "done");
-  const doneMilestones = allMilestones.filter((m) => m.status === "done");
+  const activeMilestones = milestones.filter((m) => m.status !== "done");
+  const doneMilestones = milestones.filter((m) => m.status === "done");
 
   const startEdit = (ms: Milestone) => {
     setEditingId(ms.id);
     setEditTitle(ms.title);
-    setEditDeadline(ms.deadline);
+    setEditDeadline(ms.deadline || undefined);
     setEditProgress(ms.progress);
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     const progress = Math.min(100, Math.max(0, editProgress));
     const oldMs = milestones.find((m) => m.id === id);
     const wasNotDone = oldMs && oldMs.progress < 100;
-    
+    const newStatus = deriveStatus(progress);
+
+    // Update in DB
+    const { error } = await supabase
+      .from("milestones")
+      .update({
+        title: editTitle,
+        deadline: editDeadline ? editDeadline.toISOString().split("T")[0] : null,
+        progress,
+        status: newStatus === "done" ? "completed" : newStatus === "in-progress" ? "active" : "active",
+      })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Kunne ikke gemme ændringer");
+      return;
+    }
+
     setMilestones((prev) =>
       prev.map((m) =>
         m.id === id
-          ? { ...m, title: editTitle, deadline: editDeadline || m.deadline, progress, status: deriveStatus(progress) }
+          ? { ...m, title: editTitle, deadline: editDeadline || null, progress, status: newStatus }
           : m
       )
     );
     setEditingId(null);
+    toast.success("Milestone opdateret");
 
-    // Post activity message when milestone is completed
+    // Post activity when completed
     if (wasNotDone && progress >= 100 && conversationId && userId) {
       postActivityMessage({
         conversationId,
@@ -284,13 +306,18 @@ const MilestonesList = ({ acceptedFromAi = [], conversationId, userId }: Props) 
 
   const cancelEdit = () => setEditingId(null);
 
-  const deleteMilestone = (id: string, title: string) => {
+  const deleteMilestone = async (id: string, title: string) => {
+    const { error } = await supabase.from("milestones").delete().eq("id", id);
+    if (error) {
+      toast.error("Kunne ikke slette milestone");
+      return;
+    }
     setMilestones((prev) => prev.filter((m) => m.id !== id));
     toast.success(`"${title}" er slettet`);
   };
 
-  const totalProgress = allMilestones.length > 0
-    ? Math.round(allMilestones.reduce((sum, m) => sum + m.progress, 0) / allMilestones.length)
+  const totalProgress = milestones.length > 0
+    ? Math.round(milestones.reduce((sum, m) => sum + m.progress, 0) / milestones.length)
     : 0;
 
   const renderList = (items: Milestone[]) =>
@@ -315,6 +342,14 @@ const MilestonesList = ({ acceptedFromAi = [], conversationId, userId }: Props) 
         />
       );
     });
+
+  if (loading) {
+    return (
+      <div className="glass-card rounded-xl p-8 text-center">
+        <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
