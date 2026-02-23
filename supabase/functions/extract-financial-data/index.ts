@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { reportId, fileContent, fileName } = await req.json();
+    const { reportId, fileContent, fileName, overwrite } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -203,18 +203,27 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
           .eq("status", "processed")
           .neq("id", reportId);
 
-        if (existing && existing.length > 0) {
-          // Delete the duplicate report record
+        if (existing && existing.length > 0 && !overwrite) {
+          // Delete the new (duplicate) report record
           await supabase.from("financial_reports").delete().eq("id", reportId);
 
           return new Response(
             JSON.stringify({
-              error: `Der er allerede indsendt en rapport for ${extractedData.report_period}. Slet den eksisterende rapport først, hvis du vil uploade en ny.`,
+              error: `Der er allerede indsendt en rapport for ${extractedData.report_period}. Vil du overskrive den?`,
               duplicate: true,
               existing_period: extractedData.report_period,
+              existing_report_id: existing[0].id,
             }),
             { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
+        }
+
+        // If overwriting, delete the old report(s) for that period
+        if (existing && existing.length > 0 && overwrite) {
+          for (const old of existing) {
+            await supabase.from("financial_reports").delete().eq("id", old.id);
+          }
+          console.log(`Overwrote ${existing.length} existing report(s) for ${extractedData.report_period}`);
         }
       }
 
