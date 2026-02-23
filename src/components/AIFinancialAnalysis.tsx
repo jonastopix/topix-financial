@@ -136,6 +136,14 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
 
       if (error) throw error;
       setAnalysis(data);
+
+      // Persist analysis to DB
+      if (data && !data.error) {
+        await supabase
+          .from("financial_reports")
+          .update({ ai_analysis: data } as any)
+          .eq("id", latestReport.id);
+      }
       setExpandedFinding(0);
 
       // Post to chat

@@ -67,6 +67,7 @@ export type Database = {
       }
       financial_reports: {
         Row: {
+          ai_analysis: Json | null
           company_name: string | null
           cvr_number: string | null
           extracted_data: Json | null
@@ -81,6 +82,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_analysis?: Json | null
           company_name?: string | null
           cvr_number?: string | null
           extracted_data?: Json | null
@@ -95,6 +97,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_analysis?: Json | null
           company_name?: string | null
           cvr_number?: string | null
           extracted_data?: Json | null
