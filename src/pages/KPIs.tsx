@@ -57,6 +57,13 @@ interface KPITargetRow {
   lower_is_better: boolean;
 }
 
+interface KPIBenchmarkRow {
+  kpi_key: string;
+  benchmark_value: number;
+  benchmark_label: string;
+  source_label: string;
+}
+
 // Fallback defaults if user hasn't set targets
 const FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {
   omsaetning: { value: 120000, label: "120.000" },
@@ -67,8 +74,8 @@ const FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {
   ebitda_margin: { value: 15, label: "15%" },
 };
 
-// Industry benchmarks (Danish SMB averages)
-const INDUSTRY_BENCHMARKS: Record<string, { value: number; label: string; source: string }> = {
+// Default industry benchmarks (Danish SMB averages) — used as fallback
+const DEFAULT_BENCHMARKS: Record<string, { value: number; label: string; source: string }> = {
   omsaetning: { value: 150000, label: "150.000 DKK", source: "Dansk SMB gennemsnit" },
   db_margin: { value: 55, label: "55%", source: "Branchestandard" },
   loenninger: { value: 60000, label: "60.000 DKK", source: "Danmarks Statistik" },
@@ -116,16 +123,19 @@ const KPIs = () => {
   const { user } = useAuth();
   const [reports, setReports] = useState<ReportData[]>([]);
   const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
+  const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});
   const [loading, setLoading] = useState(true);
   const [selectedKPI, setSelectedKPI] = useState<string>("omsaetning");
   const [editingTargets, setEditingTargets] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, { value: string; label: string }>>({});
+  const [editingBenchmarks, setEditingBenchmarks] = useState(false);
+  const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const [reportsRes, targetsRes] = await Promise.all([
+      const [reportsRes, targetsRes, benchmarksRes] = await Promise.all([
         supabase
           .from("financial_reports")
           .select("id, report_period, extracted_data, status")
@@ -136,6 +146,10 @@ const KPIs = () => {
           .from("kpi_targets")
           .select("kpi_key, target_value, target_label, lower_is_better")
           .eq("user_id", user.id),
+        supabase
+          .from("kpi_benchmarks")
+          .select("kpi_key, benchmark_value, benchmark_label, source_label")
+          .eq("user_id", user.id),
       ]);
 
       setReports(reportsRes.data || []);
@@ -145,6 +159,12 @@ const KPIs = () => {
         tMap[t.kpi_key] = t;
       });
       setUserTargets(tMap);
+
+      const bMap: Record<string, KPIBenchmarkRow> = {};
+      (benchmarksRes.data || []).forEach((b: any) => {
+        bMap[b.kpi_key] = b;
+      });
+      setUserBenchmarks(bMap);
       setLoading(false);
     };
     load();
@@ -196,7 +216,10 @@ const KPIs = () => {
         ? currentVal.toLocaleString("da-DK", { maximumFractionDigits: 0 })
         : currentVal.toFixed(1);
 
-      const benchmark = INDUSTRY_BENCHMARKS[def.key] || { value: 0, label: "—", source: "" };
+      const ub = userBenchmarks[def.key];
+      const benchmark = ub
+        ? { value: Number(ub.benchmark_value), label: ub.benchmark_label, source: ub.source_label }
+        : DEFAULT_BENCHMARKS[def.key] || { value: 0, label: "—", source: "" };
 
       return {
         key: def.key,
@@ -216,7 +239,7 @@ const KPIs = () => {
         benchmark,
       };
     });
-  }, [monthlyData, userTargets]);
+  }, [monthlyData, userTargets, userBenchmarks]);
 
   // Target editing
   const startEditingTargets = () => {
@@ -268,6 +291,65 @@ const KPIs = () => {
 
     setEditingTargets(false);
     setEditValues({});
+    setSaving(false);
+  };
+
+  // Benchmark editing
+  const getBenchmark = (key: string) => {
+    const ub = userBenchmarks[key];
+    if (ub) return { value: Number(ub.benchmark_value), label: ub.benchmark_label, source: ub.source_label };
+    return DEFAULT_BENCHMARKS[key] || { value: 0, label: "—", source: "" };
+  };
+
+  const startEditingBenchmarks = () => {
+    const vals: Record<string, { value: string; label: string; source: string }> = {};
+    KPI_DEFS.forEach((def) => {
+      const b = getBenchmark(def.key);
+      vals[def.key] = { value: String(b.value), label: b.label, source: b.source };
+    });
+    setEditBenchmarkValues(vals);
+    setEditingBenchmarks(true);
+  };
+
+  const cancelEditingBenchmarks = () => {
+    setEditingBenchmarks(false);
+    setEditBenchmarkValues({});
+  };
+
+  const saveBenchmarks = async () => {
+    if (!user) return;
+    setSaving(true);
+
+    const upserts = KPI_DEFS.map((def) => {
+      const ev = editBenchmarkValues[def.key];
+      const numVal = parseFloat(ev?.value || "0") || 0;
+      const label = ev?.label?.trim() || String(numVal);
+      const source = ev?.source?.trim() || "Branchestandard";
+      return {
+        user_id: user.id,
+        kpi_key: def.key,
+        benchmark_value: numVal,
+        benchmark_label: label,
+        source_label: source,
+      };
+    });
+
+    const { error } = await supabase.from("kpi_benchmarks").upsert(upserts, { onConflict: "user_id,kpi_key" });
+
+    if (error) {
+      toast.error("Kunne ikke gemme benchmarks");
+      console.error(error);
+    } else {
+      const bMap: Record<string, KPIBenchmarkRow> = {};
+      upserts.forEach((u) => {
+        bMap[u.kpi_key] = u;
+      });
+      setUserBenchmarks(bMap);
+      toast.success("Benchmarks gemt");
+    }
+
+    setEditingBenchmarks(false);
+    setEditBenchmarkValues({});
     setSaving(false);
   };
 
@@ -328,15 +410,24 @@ const KPIs = () => {
             Følg dine vigtigste nøgletal mod targets · baseret på {monthlyData.length} rapporter
           </p>
         </div>
-        {!editingTargets ? (
-          <button
-            onClick={startEditingTargets}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Rediger targets
-          </button>
-        ) : (
+        {!editingTargets && !editingBenchmarks ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={startEditingBenchmarks}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Benchmarks
+            </button>
+            <button
+              onClick={startEditingTargets}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Targets
+            </button>
+          </div>
+        ) : editingTargets ? (
           <div className="flex items-center gap-2">
             <button onClick={cancelEditingTargets} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors">
               <X className="h-3.5 w-3.5" />
@@ -344,6 +435,16 @@ const KPIs = () => {
             <button onClick={saveTargets} disabled={saving} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               Gem targets
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button onClick={cancelEditingBenchmarks} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={saveBenchmarks} disabled={saving} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Gem benchmarks
             </button>
           </div>
         )}
@@ -397,6 +498,78 @@ const KPIs = () => {
                           }))
                         }
                         placeholder={`f.eks. ${def.lowerIsBetter ? "< " : ""}${ev.value}`}
+                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Benchmark editing panel */}
+      {editingBenchmarks && (
+        <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-accent/30">
+          <h3 className="font-display font-semibold text-foreground text-sm mb-4 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-accent-foreground" />
+            Rediger branchebenchmarks
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {KPI_DEFS.map((def) => {
+              const ev = editBenchmarkValues[def.key] || { value: "0", label: "", source: "" };
+              const Icon = def.icon;
+              return (
+                <div key={def.key} className="p-3 rounded-lg bg-secondary/50 border border-border/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-medium text-foreground">{def.label}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Værdi</label>
+                      <input
+                        type="number"
+                        value={ev.value}
+                        onChange={(e) =>
+                          setEditBenchmarkValues((prev) => ({
+                            ...prev,
+                            [def.key]: { ...prev[def.key], value: e.target.value },
+                          }))
+                        }
+                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Label</label>
+                      <input
+                        type="text"
+                        value={ev.label}
+                        maxLength={30}
+                        onChange={(e) =>
+                          setEditBenchmarkValues((prev) => ({
+                            ...prev,
+                            [def.key]: { ...prev[def.key], label: e.target.value },
+                          }))
+                        }
+                        placeholder={ev.value}
+                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Kilde</label>
+                      <input
+                        type="text"
+                        value={ev.source}
+                        maxLength={40}
+                        onChange={(e) =>
+                          setEditBenchmarkValues((prev) => ({
+                            ...prev,
+                            [def.key]: { ...prev[def.key], source: e.target.value },
+                          }))
+                        }
+                        placeholder="Branchestandard"
                         className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
