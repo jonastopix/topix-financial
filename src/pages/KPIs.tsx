@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   TrendingUp,
   TrendingDown,
-  Users,
   DollarSign,
   Target,
   Flame,
@@ -11,6 +12,8 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
+  Users,
 } from "lucide-react";
 import {
   AreaChart,
@@ -22,7 +25,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getKeyFigures, parseReportPeriodToKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
+import type { ReportData } from "@/lib/financialUtils";
 
 interface KPIMetric {
   key: string;
@@ -37,159 +41,19 @@ interface KPIMetric {
   unit: string;
   icon: any;
   description: string;
+  lowerIsBetter: boolean;
   history: { month: string; value: number }[];
-  benchmark?: { label: string; value: number };
 }
 
-const kpiMetrics: KPIMetric[] = [
-  {
-    key: "mrr",
-    label: "MRR",
-    value: "115.000",
-    numValue: 115000,
-    target: "120.000",
-    targetNum: 120000,
-    change: "+17,3%",
-    changePct: 17.3,
-    trend: "up",
-    unit: "DKK",
-    icon: DollarSign,
-    description: "Monthly Recurring Revenue",
-    history: [
-      { month: "Sep", value: 42000 },
-      { month: "Okt", value: 58000 },
-      { month: "Nov", value: 71000 },
-      { month: "Dec", value: 85000 },
-      { month: "Jan", value: 98000 },
-      { month: "Feb", value: 115000 },
-    ],
-    benchmark: { label: "Benchmark (SaaS Q1)", value: 95000 },
-  },
-  {
-    key: "customers",
-    label: "Aktive kunder",
-    value: "87",
-    numValue: 87,
-    target: "100",
-    targetNum: 100,
-    change: "+16%",
-    changePct: 16,
-    trend: "up",
-    unit: "",
-    icon: Users,
-    description: "Betalende kunder",
-    history: [
-      { month: "Sep", value: 45 },
-      { month: "Okt", value: 52 },
-      { month: "Nov", value: 60 },
-      { month: "Dec", value: 68 },
-      { month: "Jan", value: 75 },
-      { month: "Feb", value: 87 },
-    ],
-    benchmark: { label: "Mål Q1", value: 100 },
-  },
-  {
-    key: "churn",
-    label: "Churn Rate",
-    value: "2,8%",
-    numValue: 2.8,
-    target: "< 2,5%",
-    targetNum: 2.5,
-    change: "-0,2pp",
-    changePct: -7.1,
-    trend: "up",
-    unit: "%",
-    icon: TrendingDown,
-    description: "Månedlig churn",
-    history: [
-      { month: "Sep", value: 5.2 },
-      { month: "Okt", value: 4.8 },
-      { month: "Nov", value: 4.1 },
-      { month: "Dec", value: 3.5 },
-      { month: "Jan", value: 3.0 },
-      { month: "Feb", value: 2.8 },
-    ],
-    benchmark: { label: "Best-in-class SaaS", value: 2.0 },
-  },
-  {
-    key: "ltv",
-    label: "LTV",
-    value: "42.000",
-    numValue: 42000,
-    target: "50.000",
-    targetNum: 50000,
-    change: "+8%",
-    changePct: 8,
-    trend: "up",
-    unit: "DKK",
-    icon: Target,
-    description: "Customer Lifetime Value",
-    history: [
-      { month: "Sep", value: 28000 },
-      { month: "Okt", value: 31000 },
-      { month: "Nov", value: 34000 },
-      { month: "Dec", value: 37000 },
-      { month: "Jan", value: 39000 },
-      { month: "Feb", value: 42000 },
-    ],
-  },
-  {
-    key: "burn",
-    label: "Burn Rate",
-    value: "75.000",
-    numValue: 75000,
-    target: "< 70.000",
-    targetNum: 70000,
-    change: "-4,2%",
-    changePct: -4.2,
-    trend: "up",
-    unit: "DKK/mdr",
-    icon: Flame,
-    description: "Månedlig cash burn",
-    history: [
-      { month: "Sep", value: 88000 },
-      { month: "Okt", value: 85000 },
-      { month: "Nov", value: 82000 },
-      { month: "Dec", value: 80000 },
-      { month: "Jan", value: 78000 },
-      { month: "Feb", value: 75000 },
-    ],
-  },
-  {
-    key: "runway",
-    label: "Runway",
-    value: "14",
-    numValue: 14,
-    target: "> 12",
-    targetNum: 12,
-    change: "+2 mdr.",
-    changePct: 16.7,
-    trend: "up",
-    unit: "måneder",
-    icon: BarChart3,
-    description: "Ved nuværende burn rate",
-    history: [
-      { month: "Sep", value: 8 },
-      { month: "Okt", value: 9 },
-      { month: "Nov", value: 10 },
-      { month: "Dec", value: 11 },
-      { month: "Jan", value: 12 },
-      { month: "Feb", value: 14 },
-    ],
-    benchmark: { label: "Anbefalet minimum", value: 12 },
-  },
-];
-
-function getTargetStatus(metric: KPIMetric): { hit: boolean; pct: number } {
-  const isLowerBetter = metric.key === "churn" || metric.key === "burn";
-  const hit = isLowerBetter
-    ? metric.numValue <= metric.targetNum
-    : metric.numValue >= metric.targetNum;
-  const pct = isLowerBetter
-    ? Math.min((metric.targetNum / metric.numValue) * 100, 100)
-    : Math.min((metric.numValue / metric.targetNum) * 100, 100);
-  return { hit, pct };
-}
+// Default targets — users can adjust later
+const DEFAULT_TARGETS: Record<string, { target: number; label: string }> = {
+  omsaetning: { target: 120000, label: "120.000" },
+  db_margin: { target: 60, label: "60%" },
+  loenninger: { target: 50000, label: "< 50.000" },
+  resultat: { target: 10000, label: "10.000" },
+  omkostninger: { target: 80000, label: "< 80.000" },
+  ebitda_margin: { target: 15, label: "15%" },
+};
 
 const tooltipStyle = {
   background: "hsl(220, 25%, 9%)",
@@ -200,10 +64,160 @@ const tooltipStyle = {
 };
 
 const KPIs = () => {
-  const [selectedKPI, setSelectedKPI] = useState<string>("mrr");
-  const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI)!;
-  const targetStatus = getTargetStatus(activeMetric);
+  const { user } = useAuth();
+  const [reports, setReports] = useState<ReportData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedKPI, setSelectedKPI] = useState<string>("omsaetning");
 
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("financial_reports")
+        .select("id, report_period, extracted_data, status")
+        .eq("user_id", user.id)
+        .eq("status", "processed")
+        .order("uploaded_at", { ascending: true });
+      setReports(data || []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  // Build sorted monthly data points
+  const monthlyData = useMemo(() => {
+    const byKey = new Map<string, { sortKey: string; month: string; kf: Record<string, number> }>();
+
+    reports.forEach((r) => {
+      const kf = getKeyFigures(r);
+      if (!kf) return;
+      const key = parseReportPeriodToKey(r.report_period);
+      if (!key) return;
+
+      // Parse month label
+      const [, monthStr] = key.split("-");
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      const monthLabel = SHORT_MONTHS[monthIdx] || monthStr;
+
+      byKey.set(key, { sortKey: key, month: monthLabel, kf });
+    });
+
+    return Array.from(byKey.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  }, [reports]);
+
+  // Derive KPI metrics from monthly data
+  const kpiMetrics: KPIMetric[] = useMemo(() => {
+    if (monthlyData.length === 0) return [];
+
+    const latest = monthlyData[monthlyData.length - 1].kf;
+    const prev = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2].kf : null;
+
+    const mkMetric = (
+      key: string,
+      label: string,
+      extractValue: (kf: Record<string, number>) => number,
+      unit: string,
+      icon: any,
+      description: string,
+      lowerIsBetter = false
+    ): KPIMetric => {
+      const currentVal = extractValue(latest);
+      const prevVal = prev ? extractValue(prev) : currentVal;
+      const changePct = prevVal !== 0 ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : 0;
+      const target = DEFAULT_TARGETS[key];
+      const trendIsGood = lowerIsBetter ? changePct <= 0 : changePct >= 0;
+
+      const history = monthlyData.map((d) => ({
+        month: d.month,
+        value: Math.round(extractValue(d.kf)),
+      }));
+
+      const formatted = Math.abs(currentVal) >= 1000
+        ? currentVal.toLocaleString("da-DK", { maximumFractionDigits: 0 })
+        : currentVal.toFixed(1);
+
+      return {
+        key,
+        label,
+        value: formatted,
+        numValue: currentVal,
+        target: target?.label || "—",
+        targetNum: target?.target || 0,
+        change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`,
+        changePct,
+        trend: trendIsGood ? "up" : "down",
+        unit,
+        icon,
+        description,
+        lowerIsBetter,
+        history,
+      };
+    };
+
+    return [
+      mkMetric("omsaetning", "Omsætning", (kf) => kf.omsaetning || 0, "DKK", DollarSign, "Månedlig omsætning"),
+      mkMetric("db_margin", "DB Margin", (kf) => {
+        const rev = kf.omsaetning || 0;
+        const direct = kf.direkte_omkostninger || 0;
+        return rev > 0 ? ((rev - Math.abs(direct)) / rev) * 100 : 0;
+      }, "%", TrendingUp, "Dækningsgrad (Omsætning − direkte omk.)"),
+      mkMetric("loenninger", "Lønninger", (kf) => Math.abs(kf.loenninger || 0), "DKK", Users, "Månedlige lønomkostninger", true),
+      mkMetric("resultat", "Resultat", (kf) => kf.resultat_foer_skat || 0, "DKK", Target, "Resultat før skat"),
+      mkMetric("omkostninger", "Omk. total", (kf) => {
+        return Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.loenninger || 0) +
+          Math.abs(kf.andre_eksterne_omkostninger || 0);
+      }, "DKK", Flame, "Samlede omkostninger", true),
+      mkMetric("ebitda_margin", "EBITDA Margin", (kf) => {
+        const rev = kf.omsaetning || 0;
+        const result = kf.resultat_foer_skat || 0;
+        return rev > 0 ? (result / rev) * 100 : 0;
+      }, "%", BarChart3, "Resultat i % af omsætning"),
+    ];
+  }, [monthlyData]);
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-6 w-6 text-primary animate-spin" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (kpiMetrics.length === 0) {
+    return (
+      <AppLayout>
+        <div className="mb-8">
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-primary" />
+            KPI'er
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">Følg dine vigtigste nøgletal mod targets</p>
+        </div>
+        <div className="glass-card rounded-xl p-12 text-center animate-fade-in">
+          <BarChart3 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Ingen rapportdata endnu</p>
+          <p className="text-xs text-muted-foreground mt-1">Upload din første rapport under Rapportering for at se KPI'er her</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) || kpiMetrics[0];
+
+  function getTargetStatus(metric: KPIMetric): { hit: boolean; pct: number } {
+    if (!metric.targetNum) return { hit: false, pct: 0 };
+    const hit = metric.lowerIsBetter
+      ? metric.numValue <= metric.targetNum
+      : metric.numValue >= metric.targetNum;
+    const pct = metric.lowerIsBetter
+      ? Math.min((metric.targetNum / Math.max(metric.numValue, 1)) * 100, 100)
+      : Math.min((metric.numValue / metric.targetNum) * 100, 100);
+    return { hit, pct };
+  }
+
+  const targetStatus = getTargetStatus(activeMetric);
   const hitsCount = kpiMetrics.filter((m) => getTargetStatus(m).hit).length;
 
   return (
@@ -214,7 +228,7 @@ const KPIs = () => {
           KPI'er
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Følg dine vigtigste nøgletal mod targets
+          Følg dine vigtigste nøgletal mod targets · baseret på {monthlyData.length} rapporter
         </p>
       </div>
 
@@ -277,19 +291,20 @@ const KPIs = () => {
                   {metric.change}
                 </span>
               </div>
-              {/* Mini sparkline via progress bar */}
-              <div className="mt-2.5">
-                <div className="flex items-center justify-between text-[9px] text-muted-foreground mb-0.5">
-                  <span>Mål: {metric.target}</span>
-                  <span>{Math.round(status.pct)}%</span>
+              {metric.targetNum > 0 && (
+                <div className="mt-2.5">
+                  <div className="flex items-center justify-between text-[9px] text-muted-foreground mb-0.5">
+                    <span>Mål: {metric.target}</span>
+                    <span>{Math.round(status.pct)}%</span>
+                  </div>
+                  <div className="h-1 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${status.hit ? "bg-primary" : "bg-chart-warning"}`}
+                      style={{ width: `${status.pct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${status.hit ? "bg-primary" : "bg-chart-warning"}`}
-                    style={{ width: `${status.pct}%` }}
-                  />
-                </div>
-              </div>
+              )}
             </button>
           );
         })}
@@ -304,7 +319,7 @@ const KPIs = () => {
               <h3 className="font-display font-semibold text-foreground">
                 {activeMetric.label} Trend
               </h3>
-              <p className="text-xs text-muted-foreground">{activeMetric.description} · Sidste 6 måneder</p>
+              <p className="text-xs text-muted-foreground">{activeMetric.description} · {monthlyData.length} perioder</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -312,13 +327,17 @@ const KPIs = () => {
               <p className="text-xs text-muted-foreground">Nuværende</p>
               <p className="text-lg font-display font-bold text-foreground">{activeMetric.value}</p>
             </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">Target</p>
-              <p className={`text-lg font-display font-bold ${targetStatus.hit ? "text-primary" : "text-chart-warning"}`}>
-                {activeMetric.target}
-              </p>
-            </div>
+            {activeMetric.targetNum > 0 && (
+              <>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Target</p>
+                  <p className={`text-lg font-display font-bold ${targetStatus.hit ? "text-primary" : "text-chart-warning"}`}>
+                    {activeMetric.target}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -344,30 +363,19 @@ const KPIs = () => {
                 tickLine={false}
               />
               <Tooltip contentStyle={tooltipStyle} />
-              {activeMetric.benchmark && (
+              {activeMetric.targetNum > 0 && (
                 <ReferenceLine
-                  y={activeMetric.benchmark.value}
-                  stroke="hsl(38, 92%, 50%)"
-                  strokeDasharray="6 4"
+                  y={activeMetric.targetNum}
+                  stroke="hsl(160, 84%, 39%)"
+                  strokeDasharray="4 2"
                   label={{
-                    value: activeMetric.benchmark.label,
-                    position: "insideTopRight",
-                    fill: "hsl(38, 92%, 50%)",
+                    value: `Target: ${activeMetric.target}`,
+                    position: "insideBottomRight",
+                    fill: "hsl(160, 84%, 39%)",
                     fontSize: 10,
                   }}
                 />
               )}
-              <ReferenceLine
-                y={activeMetric.targetNum}
-                stroke="hsl(160, 84%, 39%)"
-                strokeDasharray="4 2"
-                label={{
-                  value: `Target: ${activeMetric.target}`,
-                  position: "insideBottomRight",
-                  fill: "hsl(160, 84%, 39%)",
-                  fontSize: 10,
-                }}
-              />
               <Area
                 type="monotone"
                 dataKey="value"
@@ -390,15 +398,16 @@ const KPIs = () => {
                 <th className="text-left py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">Måned</th>
                 <th className="text-right py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">Værdi</th>
                 <th className="text-right py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">Ændring</th>
-                <th className="text-right py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">vs. Target</th>
+                {activeMetric.targetNum > 0 && (
+                  <th className="text-right py-2 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider">vs. Target</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {activeMetric.history.map((point, i) => {
                 const prev = i > 0 ? activeMetric.history[i - 1].value : point.value;
                 const change = prev !== 0 ? ((point.value - prev) / Math.abs(prev)) * 100 : 0;
-                const isLowerBetter = activeMetric.key === "churn" || activeMetric.key === "burn";
-                const vsTarget = isLowerBetter
+                const vsTarget = activeMetric.lowerIsBetter
                   ? point.value <= activeMetric.targetNum
                   : point.value >= activeMetric.targetNum;
 
@@ -406,22 +415,22 @@ const KPIs = () => {
                   <tr key={point.month} className="border-b border-border/30 hover:bg-secondary/30 transition-colors">
                     <td className="py-2 px-2 text-foreground font-medium">{point.month}</td>
                     <td className="py-2 px-2 text-right font-display text-foreground">
-                      {typeof point.value === "number" && point.value > 1000
-                        ? `${(point.value / 1000).toFixed(0)}k`
-                        : point.value}
+                      {point.value > 1000 ? formatCompact(point.value) : point.value.toFixed(1)}
                     </td>
                     <td className={`py-2 px-2 text-right font-display text-xs ${
                       i === 0 ? "text-muted-foreground" : change > 0 ? "text-primary" : "text-destructive"
                     }`}>
                       {i === 0 ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(1)}%`}
                     </td>
-                    <td className="py-2 px-2 text-right">
-                      {vsTarget ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary inline-block" />
-                      ) : (
-                        <AlertTriangle className="h-3.5 w-3.5 text-chart-warning inline-block" />
-                      )}
-                    </td>
+                    {activeMetric.targetNum > 0 && (
+                      <td className="py-2 px-2 text-right">
+                        {vsTarget ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary inline-block" />
+                        ) : (
+                          <AlertTriangle className="h-3.5 w-3.5 text-chart-warning inline-block" />
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
