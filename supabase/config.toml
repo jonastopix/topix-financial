@@ -2,3 +2,6 @@ project_id = "loiavmastgeieqyiwyyr"
 
 [functions.extract-financial-data]
 verify_jwt = false
+
+[functions.ai-financial-feedback]
+verify_jwt = false
