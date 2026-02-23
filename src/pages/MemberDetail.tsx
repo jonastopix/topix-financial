@@ -17,7 +17,6 @@ import {
   Target,
   MessageSquare,
   Send,
-  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -60,11 +59,15 @@ interface Milestone {
   created_at: string;
 }
 
-interface ReportComment {
+interface ChatMessage {
   id: string;
-  report_id: string;
-  user_id: string;
+  conversation_id: string;
+  sender_id: string;
   content: string;
+  message_type: string;
+  context_type: string | null;
+  context_id: string | null;
+  context_meta: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -81,9 +84,10 @@ const MemberDetail = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [comments, setComments] = useState<Record<string, ReportComment[]>>({});
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
@@ -92,11 +96,12 @@ const MemberDetail = () => {
 
     const load = async () => {
       setLoading(true);
-      const [profileRes, reportsRes, budgetsRes, milestonesRes] = await Promise.all([
+      const [profileRes, reportsRes, budgetsRes, milestonesRes, convRes] = await Promise.all([
         supabase.from("profiles").select("full_name, company_name, avatar_url, created_at").eq("user_id", userId).single(),
         supabase.from("financial_reports").select("*").eq("user_id", userId).order("uploaded_at", { ascending: false }),
         supabase.from("budget_targets").select("*").eq("user_id", userId).order("category"),
         supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
+        supabase.from("conversations").select("id").eq("member_id", userId).single(),
       ]);
 
       const reportsList = reportsRes.data || [];
@@ -104,22 +109,28 @@ const MemberDetail = () => {
       setReports(reportsList);
       setBudgets(budgetsRes.data || []);
       setMilestones(milestonesRes.data || []);
+      setConversationId(convRes.data?.id || null);
 
-      // Fetch comments for all reports
-      if (reportsList.length > 0) {
+      // Fetch chat messages with report context
+      if (reportsList.length > 0 && convRes.data?.id) {
         const reportIds = reportsList.map((r) => r.id);
-        const { data: commentsData } = await supabase
-          .from("report_comments")
+        const { data: msgs } = await supabase
+          .from("messages")
           .select("*")
-          .in("report_id", reportIds)
+          .eq("conversation_id", convRes.data.id)
+          .eq("context_type", "report")
+          .in("context_id", reportIds)
           .order("created_at", { ascending: true });
 
-        const grouped: Record<string, ReportComment[]> = {};
-        (commentsData || []).forEach((c) => {
-          if (!grouped[c.report_id]) grouped[c.report_id] = [];
-          grouped[c.report_id].push(c);
+        const grouped: Record<string, ChatMessage[]> = {};
+        (msgs || []).forEach((m: any) => {
+          const rid = m.context_id;
+          if (rid) {
+            if (!grouped[rid]) grouped[rid] = [];
+            grouped[rid].push(m as ChatMessage);
+          }
         });
-        setComments(grouped);
+        setChatMessages(grouped);
       }
 
       setLoading(false);
@@ -128,34 +139,34 @@ const MemberDetail = () => {
     load();
   }, [userId, isAdvisor]);
 
-  const handleSubmitComment = async (reportId: string) => {
+  const handleSubmitComment = async (reportId: string, reportName: string) => {
     const content = (commentInputs[reportId] || "").trim();
-    if (!content || !user) return;
+    if (!content || !user || !conversationId) return;
     if (content.length > 2000) return;
 
     setSubmittingComment(reportId);
     const { data, error } = await supabase
-      .from("report_comments")
-      .insert({ report_id: reportId, user_id: user.id, content })
+      .from("messages")
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content,
+        message_type: "user",
+        context_type: "report",
+        context_id: reportId,
+        context_meta: { title: reportName },
+      } as any)
       .select()
       .single();
 
     if (!error && data) {
-      setComments((prev) => ({
+      setChatMessages((prev) => ({
         ...prev,
-        [reportId]: [...(prev[reportId] || []), data],
+        [reportId]: [...(prev[reportId] || []), data as unknown as ChatMessage],
       }));
       setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
     }
     setSubmittingComment(null);
-  };
-
-  const handleDeleteComment = async (commentId: string, reportId: string) => {
-    await supabase.from("report_comments").delete().eq("id", commentId);
-    setComments((prev) => ({
-      ...prev,
-      [reportId]: (prev[reportId] || []).filter((c) => c.id !== commentId),
-    }));
   };
 
   const getInitials = (name: string) =>
@@ -348,32 +359,28 @@ const MemberDetail = () => {
                             </p>
                           )}
 
-                          {/* Comments section */}
+                          {/* Chat comments section */}
                           <div className="mt-5 border-t border-border/50 pt-4">
                             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                               <MessageSquare className="h-3.5 w-3.5" />
-                              Kommentarer ({(comments[report.id] || []).length})
+                              Kommentarer ({(chatMessages[report.id] || []).length})
                             </h4>
 
-                            {(comments[report.id] || []).length > 0 && (
+                            {(chatMessages[report.id] || []).length > 0 && (
                               <div className="space-y-2 mb-3">
-                                {(comments[report.id] || []).map((comment) => (
-                                  <div key={comment.id} className="flex items-start gap-2 group rounded-lg bg-muted/50 p-3">
+                                {(chatMessages[report.id] || []).map((msg) => (
+                                  <div key={msg.id} className="flex items-start gap-2 rounded-lg bg-muted/50 p-3">
+                                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[9px] font-bold text-primary">
+                                        {msg.sender_id === user?.id ? "Du" : "M"}
+                                      </span>
+                                    </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm text-foreground whitespace-pre-wrap break-words">{comment.content}</p>
+                                      <p className="text-sm text-foreground whitespace-pre-wrap break-words">{msg.content}</p>
                                       <p className="text-[10px] text-muted-foreground mt-1">
-                                        {format(new Date(comment.created_at), "d. MMM yyyy HH:mm", { locale: da })}
+                                        {format(new Date(msg.created_at), "d. MMM yyyy HH:mm", { locale: da })}
                                       </p>
                                     </div>
-                                    {comment.user_id === user?.id && (
-                                      <button
-                                        onClick={() => handleDeleteComment(comment.id, report.id)}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
-                                        title="Slet kommentar"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -388,16 +395,16 @@ const MemberDetail = () => {
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" && !e.shiftKey) {
                                     e.preventDefault();
-                                    handleSubmitComment(report.id);
+                                    handleSubmitComment(report.id, report.file_name);
                                   }
                                 }}
-                                placeholder="Skriv en kommentar..."
+                                placeholder="Skriv en kommentar (sendes til chatten)..."
                                 maxLength={2000}
                                 rows={1}
                                 className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <button
-                                onClick={() => handleSubmitComment(report.id)}
+                                onClick={() => handleSubmitComment(report.id, report.file_name)}
                                 disabled={!(commentInputs[report.id] || "").trim() || submittingComment === report.id}
                                 className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                               >
