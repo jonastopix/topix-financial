@@ -175,7 +175,7 @@ Alle beløb skal være positive tal (fjern minus-tegn fra omsætning/indtægter)
           cvr_number: extractedData.cvr_number,
           extracted_data: extractedData,
           processed_at: new Date().toISOString(),
-          status: "completed",
+          status: "processed",
         })
         .eq("id", reportId);
 

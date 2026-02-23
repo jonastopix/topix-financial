@@ -8,7 +8,6 @@ Al kommunikation samles i chatten med kontekst-cards og AI system-beskeder.
 
 ### Database
 - `messages` tabel udvidet med `message_type`, `context_type`, `context_id`, `context_meta`
-- `report_comments` tabel droppet – alt kører via messages
 - message_type: 'user' (normal), 'system' (aktivitet), 'ai' (AI-analyse)
 - context_type: 'report', 'milestone', 'budget', null
 - context_meta: JSON med titel, status etc. til rendering af kontekst-cards
@@ -16,18 +15,26 @@ Al kommunikation samles i chatten med kontekst-cards og AI system-beskeder.
 ### Chat UI (Chat.tsx)
 - Kontekst-cards vises på beskeder der refererer til rapporter/milestones
 - AI/system-beskeder vises centreret med Sparkles-ikon
-- Normale beskeder med kontekst viser "Re: [rapport-titel]" som tag
 
 ### MemberDetail (advisor-side)
 - Kommentarer på rapporter sendes som chat-beskeder med context_type='report'
-- Viser eksisterende kommentartråd fra chatten
-- Placeholder "sendes til chatten" i input
 
-### Reports (medlem-side)
-- Svar på kommentarer sendes som chat-beskeder med rapport-kontekst
-- Viser kommentartråd fra chatten
+### Reports (medlem-side) — FULD PIPELINE
+- Upload → gem i DB → AI-ekstraktion → AI-analyse → auto-milestones → chat-notifikation
+- Fjernet al mock-data, viser kun rigtige DB-rapporter
+- AI-analyse bruger rigtige data fra financial_reports tabellen
+- Kommentarer via chat med rapport-kontekst
 
-## TODO
+### Milestones — DB-BACKED
+- Læser fra milestones-tabellen i stedet for hardcoded data
+- Gemmer ændringer i DB (progress, deadline, titel)
+- AI opretter automatisk milestones fra rapport-analyse (advarsel/kritisk findings)
+- Poster aktivitets-besked i chat ved completion
+
+### Aktivitets-beskeder
 - [x] AI-feedback fra rapport-analyse postes automatisk som system-beskeder i chatten
 - [x] Aktivitets-beskeder (rapport uploadet, milestone completed) postes automatisk
-- [ ] Milestones-side bruger samme chat-baserede kommentar-system
+
+## TODO
+- [ ] Milestones-side bruger chat-baserede kommentarer
+- [ ] Feedback.tsx kobles til rigtige data
