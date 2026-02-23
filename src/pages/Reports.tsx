@@ -1,8 +1,6 @@
 import AppLayout from "@/components/AppLayout";
 import FileUploadZone from "@/components/FileUploadZone";
 import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
-import FinancialTrends from "@/components/FinancialTrends";
-import BudgetComparison from "@/components/BudgetComparison";
 import { FileText, CheckCircle2, Clock, AlertCircle, MessageSquare } from "lucide-react";
 
 const pastReports = [
@@ -46,7 +44,7 @@ const Reports = () => {
           Rapportering
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload dine finansielle dokumenter til The Boardroom
+          Upload dine finansielle dokumenter og få AI-drevet indsigt
         </p>
       </div>
 
@@ -67,16 +65,6 @@ const Reports = () => {
       {/* AI Financial Analysis */}
       <div className="mb-8">
         <AIFinancialAnalysis />
-      </div>
-
-      {/* Financial trends */}
-      <div className="mb-8">
-        <FinancialTrends />
-      </div>
-
-      {/* Budget comparison */}
-      <div className="mb-8">
-        <BudgetComparison />
       </div>
 
       {/* Previous reports */}
