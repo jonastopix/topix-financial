@@ -44,6 +44,135 @@ export type Database = {
         }
         Relationships: []
       }
+      circle_activity: {
+        Row: {
+          activity_at: string
+          activity_type: string
+          circle_member_id: number
+          circle_post_id: number | null
+          content_preview: string | null
+          created_at: string
+          id: string
+          space_name: string | null
+          synced_at: string
+          title: string | null
+        }
+        Insert: {
+          activity_at: string
+          activity_type: string
+          circle_member_id: number
+          circle_post_id?: number | null
+          content_preview?: string | null
+          created_at?: string
+          id?: string
+          space_name?: string | null
+          synced_at?: string
+          title?: string | null
+        }
+        Update: {
+          activity_at?: string
+          activity_type?: string
+          circle_member_id?: number
+          circle_post_id?: number | null
+          content_preview?: string | null
+          created_at?: string
+          id?: string
+          space_name?: string | null
+          synced_at?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
+      circle_course_progress: {
+        Row: {
+          circle_member_id: number
+          completed_at: string | null
+          course_id: number
+          course_name: string
+          created_at: string
+          id: string
+          lessons_completed: number
+          lessons_total: number
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          circle_member_id: number
+          completed_at?: string | null
+          course_id: number
+          course_name?: string
+          created_at?: string
+          id?: string
+          lessons_completed?: number
+          lessons_total?: number
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          circle_member_id?: number
+          completed_at?: string | null
+          course_id?: number
+          course_name?: string
+          created_at?: string
+          id?: string
+          lessons_completed?: number
+          lessons_total?: number
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      circle_members: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          circle_created_at: string | null
+          circle_id: number
+          created_at: string
+          email: string
+          headline: string | null
+          id: string
+          last_seen_at: string | null
+          name: string
+          space_ids: Json | null
+          synced_at: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          circle_created_at?: string | null
+          circle_id: number
+          created_at?: string
+          email: string
+          headline?: string | null
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          space_ids?: Json | null
+          synced_at?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          circle_created_at?: string | null
+          circle_id?: number
+          created_at?: string
+          email?: string
+          headline?: string | null
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          space_ids?: Json | null
+          synced_at?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string

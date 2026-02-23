@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.ai-financial-feedback]
 verify_jwt = false
+
+[functions.sync-circle]
+verify_jwt = false
