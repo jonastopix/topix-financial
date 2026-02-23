@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, MessageCircle, Circle, CheckCheck, FileText, Sparkles, Target } from "lucide-react";
+import { Send, MessageCircle, CheckCheck, FileText, Sparkles, Target } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -13,6 +13,9 @@ interface Message {
   content: string;
   read_at: string | null;
   created_at: string;
+  message_type?: string;
+  context_type?: string | null;
+  context_meta?: any;
 }
 
 interface ConversationWithProfile {
@@ -33,68 +36,70 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load conversations
+  // Load conversations — batch fetch, no N+1
   useEffect(() => {
     if (!user) return;
 
     const loadConversations = async () => {
-      const { data: convs } = await supabase
-        .from("conversations")
-        .select("*")
-        .order("last_message_at", { ascending: false });
+      // Fetch conversations, profiles, and ALL messages in 3 parallel calls
+      const [convsRes, profilesRes, msgsRes] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select("*")
+          .order("last_message_at", { ascending: false }),
+        supabase.from("profiles").select("user_id, full_name, company_name, avatar_url"),
+        supabase
+          .from("messages")
+          .select("id, conversation_id, sender_id, content, read_at, created_at")
+          .order("created_at", { ascending: false }),
+      ]);
 
-      if (!convs) return;
+      const convs = convsRes.data || [];
+      const profiles = profilesRes.data || [];
+      const allMessages = msgsRes.data || [];
 
-      // Load profiles for each conversation
-      const memberIds = convs.map((c) => c.member_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, company_name, avatar_url")
-        .in("user_id", memberIds);
+      // Group messages by conversation for quick lookup
+      const msgsByConv = new Map<string, typeof allMessages>();
+      allMessages.forEach((m) => {
+        const arr = msgsByConv.get(m.conversation_id) || [];
+        arr.push(m);
+        msgsByConv.set(m.conversation_id, arr);
+      });
 
-      // Load last message + unread count per conversation
-      const enriched: ConversationWithProfile[] = await Promise.all(
-        convs.map(async (c) => {
-          const profile = profiles?.find((p) => p.user_id === c.member_id) || null;
+      const enriched: ConversationWithProfile[] = convs.map((c) => {
+        const profile = profiles.find((p) => p.user_id === c.member_id) || null;
+        const convMsgs = msgsByConv.get(c.id) || [];
 
-          const { data: lastMsg } = await supabase
-            .from("messages")
-            .select("content")
-            .eq("conversation_id", c.id)
-            .order("created_at", { ascending: false })
-            .limit(1);
+        // Last message (already sorted desc)
+        const lastMsg = convMsgs[0]?.content;
 
-          // Unread: messages not sent by current user and not read
-          const { count } = await supabase
-            .from("messages")
-            .select("*", { count: "exact", head: true })
-            .eq("conversation_id", c.id)
-            .neq("sender_id", user.id)
-            .is("read_at", null);
+        // Unread count: messages not from current user and not read
+        const unreadCount = convMsgs.filter(
+          (m) => m.sender_id !== user.id && !m.read_at
+        ).length;
 
-          return {
-            id: c.id,
-            member_id: c.member_id,
-            last_message_at: c.last_message_at || c.created_at,
-            profile: profile
-              ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
-              : null,
-            unreadCount: count || 0,
-            lastMessage: lastMsg?.[0]?.content,
-          };
-        })
-      );
+        return {
+          id: c.id,
+          member_id: c.member_id,
+          last_message_at: c.last_message_at || c.created_at,
+          profile: profile
+            ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
+            : null,
+          unreadCount,
+          lastMessage: lastMsg,
+        };
+      });
 
       setConversations(enriched);
 
-      // Auto-select for members (they only have one conversation)
+      // Auto-select for members
       if (!isAdvisor && enriched.length > 0 && !activeConvId) {
         setActiveConvId(enriched[0].id);
       }
     };
 
     loadConversations();
-  }, [user, isAdvisor]);
+  }, [user, isAdvisor, activeConvId]);
 
   // Load messages for active conversation
   useEffect(() => {
@@ -132,13 +137,13 @@ const Chat = () => {
           table: "messages",
           filter: `conversation_id=eq.${activeConvId}`,
         },
-        (payload) => {
+        async (payload) => {
           const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
 
           // Mark as read if not from current user
           if (newMsg.sender_id !== user?.id) {
-            supabase
+            await supabase
               .from("messages")
               .update({ read_at: new Date().toISOString() })
               .eq("id", newMsg.id);
@@ -286,13 +291,12 @@ const Chat = () => {
                     <p className="text-xs text-muted-foreground mt-1">Skriv den første besked nedenfor</p>
                   </div>
                 )}
-                {messages.map((msg: any) => {
+                {messages.map((msg) => {
                   const isMine = msg.sender_id === user?.id;
                   const isSystem = msg.message_type === "system" || msg.message_type === "ai";
                   const contextType = msg.context_type;
-                  const contextMeta = msg.context_meta as Record<string, unknown> | null;
+                  const contextMeta = msg.context_meta;
 
-                  // System/AI messages
                   if (isSystem) {
                     return (
                       <div key={msg.id} className="flex justify-center">
@@ -319,11 +323,9 @@ const Chat = () => {
                     );
                   }
 
-                  // Regular messages (with optional context card)
                   return (
                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                       <div className="max-w-[75%]">
-                        {/* Context card */}
                         {contextType && contextMeta?.title && (
                           <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
                             isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"

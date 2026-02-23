@@ -88,49 +88,50 @@ const Members = () => {
         budgetsByUser.set(b.user_id, arr);
       });
 
-      // Get unread counts per conversation (batch)
-      const enriched: MemberData[] = await Promise.all(
-        profiles.map(async (p) => {
-          const userRole = roles.find((r) => r.user_id === p.user_id);
-          const conv = conversations.find((c) => c.member_id === p.user_id);
+      // Batch-fetch unread messages (no N+1)
+      const convIds = conversations.map((c) => c.id);
+      const { data: unreadMessages } = convIds.length > 0
+        ? await supabase
+            .from("messages")
+            .select("conversation_id")
+            .in("conversation_id", convIds)
+            .neq("sender_id", user.id)
+            .is("read_at", null)
+        : { data: [] };
 
-          let unreadCount = 0;
-          if (conv && user) {
-            const { count } = await supabase
-              .from("messages")
-              .select("*", { count: "exact", head: true })
-              .eq("conversation_id", conv.id)
-              .neq("sender_id", user.id)
-              .is("read_at", null);
-            unreadCount = count || 0;
-          }
+      // Count unreads per conversation
+      const unreadByConv = new Map<string, number>();
+      (unreadMessages || []).forEach((m) => {
+        unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
+      });
 
-          const userReports = reportsByUser.get(p.user_id) || [];
-          const userBudgets = budgetsByUser.get(p.user_id) || [];
+      const enriched: MemberData[] = profiles.map((p) => {
+        const userRole = roles.find((r) => r.user_id === p.user_id);
+        const conv = conversations.find((c) => c.member_id === p.user_id);
+        const userReports = reportsByUser.get(p.user_id) || [];
+        const userBudgets = budgetsByUser.get(p.user_id) || [];
 
-          // Find latest report
-          const sortedReports = [...userReports].sort(
-            (a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
-          );
+        const sortedReports = [...userReports].sort(
+          (a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+        );
 
-          return {
-            user_id: p.user_id,
-            full_name: p.full_name || "Intet navn",
-            company_name: p.company_name || "",
-            avatar_url: p.avatar_url || "",
-            created_at: p.created_at,
-            role: (userRole?.role as "member" | "advisor") || "member",
-            lastMessageAt: conv?.last_message_at || null,
-            unreadCount,
-            conversationId: conv?.id || null,
-            reportCount: userReports.length,
-            latestReportDate: sortedReports[0]?.uploaded_at || null,
-            latestReportName: sortedReports[0]?.file_name || null,
-            budgetCategories: userBudgets.length,
-            totalBudget: userBudgets.reduce((sum, b) => sum + Number(b.budget_amount), 0),
-          };
-        })
-      );
+        return {
+          user_id: p.user_id,
+          full_name: p.full_name || "Intet navn",
+          company_name: p.company_name || "",
+          avatar_url: p.avatar_url || "",
+          created_at: p.created_at,
+          role: (userRole?.role as "member" | "advisor") || "member",
+          lastMessageAt: conv?.last_message_at || null,
+          unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
+          conversationId: conv?.id || null,
+          reportCount: userReports.length,
+          latestReportDate: sortedReports[0]?.uploaded_at || null,
+          latestReportName: sortedReports[0]?.file_name || null,
+          budgetCategories: userBudgets.length,
+          totalBudget: userBudgets.reduce((sum, b) => sum + Number(b.budget_amount), 0),
+        };
+      });
 
       setMembers(enriched);
       setLoading(false);

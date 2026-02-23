@@ -294,11 +294,57 @@ const FileUploadZone = ({
     [userId, conversationId, onExtracted, onPipelineComplete, title]
   );
 
+  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+  const ALLOWED_TYPES = [
+    "application/pdf",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/csv",
+  ];
+  const ALLOWED_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".csv"];
+
   const handleFiles = useCallback(
     (files: FileList | File[]) => {
-      Array.from(files).forEach(processFile);
+      Array.from(files).forEach((file) => {
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+          toast({
+            title: "Filen er for stor",
+            description: `${file.name} er ${formatFileSize(file.size)}. Maks. 25 MB.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Validate file type
+        const ext = "." + file.name.split(".").pop()?.toLowerCase();
+        const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(ext);
+        if (!isValidType) {
+          toast({
+            title: "Ikke-understøttet filtype",
+            description: `${file.name} er ikke en gyldig fil. Upload Excel, CSV eller PDF.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check for duplicate (same name already uploading/done)
+        const isDuplicate = uploadedFiles.some(
+          (f) => f.name === file.name && (f.status === "uploading" || f.status === "processing" || f.status === "analyzing" || f.status === "done")
+        );
+        if (isDuplicate) {
+          toast({
+            title: "Duplikat",
+            description: `${file.name} er allerede uploadet.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        processFile(file);
+      });
     },
-    [processFile]
+    [processFile, uploadedFiles]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
