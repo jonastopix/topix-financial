@@ -46,26 +46,36 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
    - Rapportperioden: skriv den som "Oktober 2025", "November 2025" etc.
 
 4. NØGLETAL — Udtræk kun det du FAKTISK kan se i dokumentet:
-   - omsaetning: Total omsætning/nettoomsætning for perioden
-   - omsaetning_aar: Omsætning år til dato
-   - direkte_omkostninger: Vareforbrug/produktionsomkostninger
-   - daekningsbidrag: Bruttofortjeneste/dækningsbidrag
-   - daekningsbidrag_aar: Dækningsbidrag år til dato
-   - loenninger: Personaleomkostninger/lønninger
-   - resultat_foer_skat: Resultat før skat
-   - resultat_foer_skat_aar: Resultat før skat å.t.d.
-   - resultat_efter_skat: Resultat efter skat (hvis tilgængelig)
-   - resultat_efter_skat_aar: Resultat efter skat å.t.d.
-   - aktiver_i_alt: Sum af aktiver (kun saldobalance)
-   - passiver_i_alt: Sum af passiver (kun saldobalance)
-   - egenkapital: Egenkapital i alt (kun saldobalance)
-   - bank_balance: Likvide beholdninger/bank
-   - debitorer: Tilgodehavender fra salg
-   - kreditorer: Leverandørgæld
+    - omsaetning: Total omsætning/nettoomsætning for perioden
+    - omsaetning_aar: Omsætning år til dato
+    - direkte_omkostninger: Vareforbrug/produktionsomkostninger
+    - daekningsbidrag: Bruttofortjeneste/dækningsbidrag
+    - daekningsbidrag_aar: Dækningsbidrag år til dato
+    - loenninger: Personaleomkostninger/lønninger
+    - marketing: Salgs- og marketingomkostninger (annoncering, reklame, messer, SoMe, PR, sponsorater, salgsfremmende)
+    - lokaler: Lokaleomkostninger (husleje, el, vand, varme, vedligeholdelse, rengøring, renovation)
+    - admin: Administrative omkostninger (kontorhold, telefon, internet, porto, forsikringer, revisor, advokat, IT, abonnementer, gebyrer)
+    - afskrivninger: Af- og nedskrivninger
+    - resultat_foer_skat: Resultat før skat
+    - resultat_foer_skat_aar: Resultat før skat å.t.d.
+    - resultat_efter_skat: Resultat efter skat (hvis tilgængelig)
+    - resultat_efter_skat_aar: Resultat efter skat å.t.d.
+    - aktiver_i_alt: Sum af aktiver (kun saldobalance)
+    - passiver_i_alt: Sum af passiver (kun saldobalance)
+    - egenkapital: Egenkapital i alt (kun saldobalance)
+    - bank_balance: Likvide beholdninger/bank
+    - debitorer: Tilgodehavender fra salg
+    - kreditorer: Leverandørgæld
 
-5. BELØB — Returnér som rene tal UDEN tusindtalsseparatorer. Eksempel: 1234567.89
+5. KATEGORISERING AF OMKOSTNINGER:
+    - "marketing": Saml ALLE salgs- og marketingrelaterede poster (annoncering, reklame, messer, Google Ads, SoMe, PR, sponsorater, salgsfremmende foranstaltninger)
+    - "lokaler": Saml ALLE lokaleomkostninger (husleje, el, vand, varme, ejendomsskat, vedligeholdelse af lokaler, rengøring, renovation)
+    - "admin": Saml ALLE administrative/kontoromkostninger (kontorhold, telefon, internet, porto, forsikringer, revisor, advokat, IT-omkostninger, abonnementer, gebyrer, småanskaffelser)
+    - Hvis en post kan tilhøre flere kategorier, vælg den mest specifikke
 
-6. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb.`;
+6. BELØB — Returnér som rene tal UDEN tusindtalsseparatorer. Eksempel: 1234567.89
+
+7. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -114,6 +124,10 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
                         daekningsbidrag: { type: "number" },
                         daekningsbidrag_aar: { type: "number" },
                         loenninger: { type: "number" },
+                        marketing: { type: "number", description: "Salgs- og marketingomkostninger samlet" },
+                        lokaler: { type: "number", description: "Lokaleomkostninger samlet (husleje, el, vand, etc.)" },
+                        admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
+                        afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
                         resultat_foer_skat: { type: "number" },
                         resultat_foer_skat_aar: { type: "number" },
                         resultat_efter_skat: { type: "number" },
