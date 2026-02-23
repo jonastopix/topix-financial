@@ -146,6 +146,12 @@ const FileUploadZone = ({
         );
 
         if (extractError) throw extractError;
+        if (extractedData?.duplicate) {
+          // Duplicate report — clean up and notify user
+          updateFile(fileId, { status: "error", errorMessage: extractedData.error });
+          toast({ title: "Duplikat rapport", description: extractedData.error, variant: "destructive" });
+          return;
+        }
         if (extractedData?.error) throw new Error(extractedData.error);
 
         updateFile(fileId, { extractedData });

@@ -185,8 +185,40 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
     const extractedData = JSON.parse(toolCall.function.arguments);
 
-    // Update the report record with extracted data
+    // Check for duplicate report (same user, same period, same type)
     if (reportId) {
+      // Get the current report's user_id
+      const { data: currentReport } = await supabase
+        .from("financial_reports")
+        .select("user_id")
+        .eq("id", reportId)
+        .single();
+
+      if (currentReport) {
+        const { data: existing } = await supabase
+          .from("financial_reports")
+          .select("id, report_period")
+          .eq("user_id", currentReport.user_id)
+          .eq("report_period", extractedData.report_period)
+          .eq("status", "processed")
+          .neq("id", reportId);
+
+        if (existing && existing.length > 0) {
+          // Delete the duplicate report record
+          await supabase.from("financial_reports").delete().eq("id", reportId);
+
+          return new Response(
+            JSON.stringify({
+              error: `Der er allerede indsendt en rapport for ${extractedData.report_period}. Slet den eksisterende rapport først, hvis du vil uploade en ny.`,
+              duplicate: true,
+              existing_period: extractedData.report_period,
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      // Update the report record with extracted data
       const { error: updateError } = await supabase
         .from("financial_reports")
         .update({
