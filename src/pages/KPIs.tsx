@@ -14,6 +14,9 @@ import {
   AlertTriangle,
   Loader2,
   Users,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import {
   AreaChart,
@@ -27,6 +30,7 @@ import {
 } from "recharts";
 import { getKeyFigures, parseReportPeriodToKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
 import type { ReportData } from "@/lib/financialUtils";
+import { toast } from "sonner";
 
 interface KPIMetric {
   key: string;
@@ -45,14 +49,48 @@ interface KPIMetric {
   history: { month: string; value: number }[];
 }
 
-// Default targets — users can adjust later
-const DEFAULT_TARGETS: Record<string, { target: number; label: string }> = {
-  omsaetning: { target: 120000, label: "120.000" },
-  db_margin: { target: 60, label: "60%" },
-  loenninger: { target: 50000, label: "< 50.000" },
-  resultat: { target: 10000, label: "10.000" },
-  omkostninger: { target: 80000, label: "< 80.000" },
-  ebitda_margin: { target: 15, label: "15%" },
+interface KPITargetRow {
+  kpi_key: string;
+  target_value: number;
+  target_label: string;
+  lower_is_better: boolean;
+}
+
+// Fallback defaults if user hasn't set targets
+const FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {
+  omsaetning: { value: 120000, label: "120.000" },
+  db_margin: { value: 60, label: "60%" },
+  loenninger: { value: 50000, label: "< 50.000" },
+  resultat: { value: 10000, label: "10.000" },
+  omkostninger: { value: 80000, label: "< 80.000" },
+  ebitda_margin: { value: 15, label: "15%" },
+};
+
+const KPI_DEFS = [
+  { key: "omsaetning", label: "Omsætning", unit: "DKK", icon: DollarSign, description: "Månedlig omsætning", lowerIsBetter: false },
+  { key: "db_margin", label: "DB Margin", unit: "%", icon: TrendingUp, description: "Dækningsgrad (Omsætning − direkte omk.)", lowerIsBetter: false },
+  { key: "loenninger", label: "Lønninger", unit: "DKK", icon: Users, description: "Månedlige lønomkostninger", lowerIsBetter: true },
+  { key: "resultat", label: "Resultat", unit: "DKK", icon: Target, description: "Resultat før skat", lowerIsBetter: false },
+  { key: "omkostninger", label: "Omk. total", unit: "DKK", icon: Flame, description: "Samlede omkostninger", lowerIsBetter: true },
+  { key: "ebitda_margin", label: "EBITDA Margin", unit: "%", icon: BarChart3, description: "Resultat i % af omsætning", lowerIsBetter: false },
+];
+
+const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number> = {
+  omsaetning: (kf) => kf.omsaetning || 0,
+  db_margin: (kf) => {
+    const rev = kf.omsaetning || 0;
+    const direct = kf.direkte_omkostninger || 0;
+    return rev > 0 ? ((rev - Math.abs(direct)) / rev) * 100 : 0;
+  },
+  loenninger: (kf) => Math.abs(kf.loenninger || 0),
+  resultat: (kf) => kf.resultat_foer_skat || 0,
+  omkostninger: (kf) =>
+    Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.loenninger || 0) + Math.abs(kf.andre_eksterne_omkostninger || 0),
+  ebitda_margin: (kf) => {
+    const rev = kf.omsaetning || 0;
+    const result = kf.resultat_foer_skat || 0;
+    return rev > 0 ? (result / rev) * 100 : 0;
+  },
 };
 
 const tooltipStyle = {
@@ -66,70 +104,81 @@ const tooltipStyle = {
 const KPIs = () => {
   const { user } = useAuth();
   const [reports, setReports] = useState<ReportData[]>([]);
+  const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
   const [loading, setLoading] = useState(true);
   const [selectedKPI, setSelectedKPI] = useState<string>("omsaetning");
+  const [editingTargets, setEditingTargets] = useState(false);
+  const [editValues, setEditValues] = useState<Record<string, { value: string; label: string }>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data } = await supabase
-        .from("financial_reports")
-        .select("id, report_period, extracted_data, status")
-        .eq("user_id", user.id)
-        .eq("status", "processed")
-        .order("uploaded_at", { ascending: true });
-      setReports(data || []);
+      const [reportsRes, targetsRes] = await Promise.all([
+        supabase
+          .from("financial_reports")
+          .select("id, report_period, extracted_data, status")
+          .eq("user_id", user.id)
+          .eq("status", "processed")
+          .order("uploaded_at", { ascending: true }),
+        supabase
+          .from("kpi_targets")
+          .select("kpi_key, target_value, target_label, lower_is_better")
+          .eq("user_id", user.id),
+      ]);
+
+      setReports(reportsRes.data || []);
+
+      const tMap: Record<string, KPITargetRow> = {};
+      (targetsRes.data || []).forEach((t: any) => {
+        tMap[t.kpi_key] = t;
+      });
+      setUserTargets(tMap);
       setLoading(false);
     };
     load();
   }, [user]);
 
+  // Resolve target for a KPI key
+  const getTarget = (key: string) => {
+    const ut = userTargets[key];
+    if (ut) return { value: Number(ut.target_value), label: ut.target_label };
+    return FALLBACK_TARGETS[key] || { value: 0, label: "—" };
+  };
+
   // Build sorted monthly data points
   const monthlyData = useMemo(() => {
     const byKey = new Map<string, { sortKey: string; month: string; kf: Record<string, number> }>();
-
     reports.forEach((r) => {
       const kf = getKeyFigures(r);
       if (!kf) return;
       const key = parseReportPeriodToKey(r.report_period);
       if (!key) return;
-
-      // Parse month label
       const [, monthStr] = key.split("-");
       const monthIdx = parseInt(monthStr, 10) - 1;
       const monthLabel = SHORT_MONTHS[monthIdx] || monthStr;
-
       byKey.set(key, { sortKey: key, month: monthLabel, kf });
     });
-
     return Array.from(byKey.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [reports]);
 
-  // Derive KPI metrics from monthly data
+  // Derive KPI metrics
   const kpiMetrics: KPIMetric[] = useMemo(() => {
     if (monthlyData.length === 0) return [];
-
     const latest = monthlyData[monthlyData.length - 1].kf;
     const prev = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2].kf : null;
 
-    const mkMetric = (
-      key: string,
-      label: string,
-      extractValue: (kf: Record<string, number>) => number,
-      unit: string,
-      icon: any,
-      description: string,
-      lowerIsBetter = false
-    ): KPIMetric => {
-      const currentVal = extractValue(latest);
-      const prevVal = prev ? extractValue(prev) : currentVal;
+    return KPI_DEFS.map((def) => {
+      const extract = VALUE_EXTRACTORS[def.key];
+      const currentVal = extract(latest);
+      const prevVal = prev ? extract(prev) : currentVal;
       const changePct = prevVal !== 0 ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : 0;
-      const target = DEFAULT_TARGETS[key];
-      const trendIsGood = lowerIsBetter ? changePct <= 0 : changePct >= 0;
+      const trendIsGood = def.lowerIsBetter ? changePct <= 0 : changePct >= 0;
+      const target = getTarget(def.key);
 
       const history = monthlyData.map((d) => ({
         month: d.month,
-        value: Math.round(extractValue(d.kf)),
+        value: Math.round(extract(d.kf)),
       }));
 
       const formatted = Math.abs(currentVal) >= 1000
@@ -137,43 +186,76 @@ const KPIs = () => {
         : currentVal.toFixed(1);
 
       return {
-        key,
-        label,
+        key: def.key,
+        label: def.label,
         value: formatted,
         numValue: currentVal,
-        target: target?.label || "—",
-        targetNum: target?.target || 0,
+        target: target.label,
+        targetNum: target.value,
         change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`,
         changePct,
         trend: trendIsGood ? "up" : "down",
-        unit,
-        icon,
-        description,
-        lowerIsBetter,
+        unit: def.unit,
+        icon: def.icon,
+        description: def.description,
+        lowerIsBetter: def.lowerIsBetter,
         history,
       };
-    };
+    });
+  }, [monthlyData, userTargets]);
 
-    return [
-      mkMetric("omsaetning", "Omsætning", (kf) => kf.omsaetning || 0, "DKK", DollarSign, "Månedlig omsætning"),
-      mkMetric("db_margin", "DB Margin", (kf) => {
-        const rev = kf.omsaetning || 0;
-        const direct = kf.direkte_omkostninger || 0;
-        return rev > 0 ? ((rev - Math.abs(direct)) / rev) * 100 : 0;
-      }, "%", TrendingUp, "Dækningsgrad (Omsætning − direkte omk.)"),
-      mkMetric("loenninger", "Lønninger", (kf) => Math.abs(kf.loenninger || 0), "DKK", Users, "Månedlige lønomkostninger", true),
-      mkMetric("resultat", "Resultat", (kf) => kf.resultat_foer_skat || 0, "DKK", Target, "Resultat før skat"),
-      mkMetric("omkostninger", "Omk. total", (kf) => {
-        return Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.loenninger || 0) +
-          Math.abs(kf.andre_eksterne_omkostninger || 0);
-      }, "DKK", Flame, "Samlede omkostninger", true),
-      mkMetric("ebitda_margin", "EBITDA Margin", (kf) => {
-        const rev = kf.omsaetning || 0;
-        const result = kf.resultat_foer_skat || 0;
-        return rev > 0 ? (result / rev) * 100 : 0;
-      }, "%", BarChart3, "Resultat i % af omsætning"),
-    ];
-  }, [monthlyData]);
+  // Target editing
+  const startEditingTargets = () => {
+    const vals: Record<string, { value: string; label: string }> = {};
+    KPI_DEFS.forEach((def) => {
+      const t = getTarget(def.key);
+      vals[def.key] = { value: String(t.value), label: t.label };
+    });
+    setEditValues(vals);
+    setEditingTargets(true);
+  };
+
+  const cancelEditingTargets = () => {
+    setEditingTargets(false);
+    setEditValues({});
+  };
+
+  const saveTargets = async () => {
+    if (!user) return;
+    setSaving(true);
+
+    const upserts = KPI_DEFS.map((def) => {
+      const ev = editValues[def.key];
+      const numVal = parseFloat(ev?.value || "0") || 0;
+      const label = ev?.label?.trim() || String(numVal);
+      return {
+        user_id: user.id,
+        kpi_key: def.key,
+        target_value: numVal,
+        target_label: label,
+        lower_is_better: def.lowerIsBetter,
+      };
+    });
+
+    const { error } = await supabase.from("kpi_targets").upsert(upserts, { onConflict: "user_id,kpi_key" });
+
+    if (error) {
+      toast.error("Kunne ikke gemme targets");
+      console.error(error);
+    } else {
+      // Update local state
+      const tMap: Record<string, KPITargetRow> = {};
+      upserts.forEach((u) => {
+        tMap[u.kpi_key] = u;
+      });
+      setUserTargets(tMap);
+      toast.success("KPI-targets gemt");
+    }
+
+    setEditingTargets(false);
+    setEditValues({});
+    setSaving(false);
+  };
 
   if (loading) {
     return (
@@ -222,15 +304,95 @@ const KPIs = () => {
 
   return (
     <AppLayout>
-      <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-primary" />
-          KPI'er
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Følg dine vigtigste nøgletal mod targets · baseret på {monthlyData.length} rapporter
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-primary" />
+            KPI'er
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Følg dine vigtigste nøgletal mod targets · baseret på {monthlyData.length} rapporter
+          </p>
+        </div>
+        {!editingTargets ? (
+          <button
+            onClick={startEditingTargets}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Rediger targets
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button onClick={cancelEditingTargets} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={saveTargets} disabled={saving} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Gem targets
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Target editing panel */}
+      {editingTargets && (
+        <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-primary/30">
+          <h3 className="font-display font-semibold text-foreground text-sm mb-4 flex items-center gap-2">
+            <Target className="h-4 w-4 text-primary" />
+            Rediger KPI-targets
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {KPI_DEFS.map((def) => {
+              const ev = editValues[def.key] || { value: "0", label: "" };
+              const Icon = def.icon;
+              return (
+                <div key={def.key} className="p-3 rounded-lg bg-secondary/50 border border-border/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-medium text-foreground">{def.label}</span>
+                    {def.lowerIsBetter && (
+                      <span className="text-[9px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted">lavere = bedre</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Værdi</label>
+                      <input
+                        type="number"
+                        value={ev.value}
+                        onChange={(e) =>
+                          setEditValues((prev) => ({
+                            ...prev,
+                            [def.key]: { ...prev[def.key], value: e.target.value },
+                          }))
+                        }
+                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Label</label>
+                      <input
+                        type="text"
+                        value={ev.label}
+                        maxLength={30}
+                        onChange={(e) =>
+                          setEditValues((prev) => ({
+                            ...prev,
+                            [def.key]: { ...prev[def.key], label: e.target.value },
+                          }))
+                        }
+                        placeholder={`f.eks. ${def.lowerIsBetter ? "< " : ""}${ev.value}`}
+                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Target progress banner */}
       <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in">
@@ -274,10 +436,12 @@ const KPIs = () => {
                   <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground font-medium">{metric.label}</span>
                 </div>
-                {status.hit ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                ) : (
-                  <AlertTriangle className="h-3.5 w-3.5 text-chart-warning" />
+                {metric.targetNum > 0 && (
+                  status.hit ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5 text-chart-warning" />
+                  )
                 )}
               </div>
               <p className="text-lg font-display font-bold text-foreground">
@@ -351,29 +515,15 @@ const KPIs = () => {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }}
-                axisLine={false}
-                tickLine={false}
-              />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
               {activeMetric.targetNum > 0 && (
                 <ReferenceLine
                   y={activeMetric.targetNum}
                   stroke="hsl(160, 84%, 39%)"
                   strokeDasharray="4 2"
-                  label={{
-                    value: `Target: ${activeMetric.target}`,
-                    position: "insideBottomRight",
-                    fill: "hsl(160, 84%, 39%)",
-                    fontSize: 10,
-                  }}
+                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }}
                 />
               )}
               <Area
