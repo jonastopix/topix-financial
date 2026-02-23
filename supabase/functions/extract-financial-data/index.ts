@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { reportId, fileContent } = await req.json();
+    const { reportId, fileContent, fileName } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -22,33 +22,50 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const systemPrompt = `Du er en ekspert i dansk regnskab. Du modtager tekst fra en saldobalance eller resultatopgørelse.
+    const systemPrompt = `Du er en ekspert i dansk regnskab og bogføring. Du modtager det rå tekstindhold fra en dansk finansiel rapport (saldobalance eller resultatopgørelse).
 
-Udtræk følgende information og returner det som et JSON-objekt via tool call:
-- report_type: "saldobalance" eller "resultatopgørelse"
-- report_period: den måned og år rapporten dækker, f.eks. "Oktober 2025"
-- company_name: virksomhedens navn
-- cvr_number: CVR-nummer
-- key_figures: et objekt med de vigtigste nøgletal:
-  - omsaetning: samlet omsætning for perioden (tal)
-  - omsaetning_aar: omsætning år til dato (tal)
-  - direkte_omkostninger: direkte omkostninger for perioden (tal)
-  - daekningsbidrag: dækningsbidrag for perioden (tal)
-  - daekningsbidrag_aar: dækningsbidrag år til dato (tal)
-  - loenninger: lønninger i alt for perioden (tal)
-  - resultat_foer_skat: resultat før skat for perioden (tal)
-  - resultat_foer_skat_aar: resultat før skat år til dato (tal)
-  - resultat_efter_skat: resultat efter skat for perioden (tal)
-  - resultat_efter_skat_aar: resultat efter skat år til dato (tal)
-  - aktiver_i_alt: aktiver i alt (tal, kun hvis tilgængelig)
-  - passiver_i_alt: passiver i alt (tal, kun hvis tilgængelig)
-  - egenkapital: egenkapital i alt (tal, kun hvis tilgængelig)
-  - bank_balance: bankkontoens saldo (tal, kun hvis tilgængelig)
-  - debitorer: tilgodehavender (tal, kun hvis tilgængelig)
-  - kreditorer: gæld til leverandører (tal, kun hvis tilgængelig)
-- line_items: en liste af de vigtigste poster med {name, period_amount, ytd_amount}
+DIN OPGAVE: Udtræk NØJAGTIGE tal fra dokumentet. Opfind ALDRIG tal. Hvis et tal ikke kan findes, udelad feltet.
 
-Alle beløb skal være positive tal (fjern minus-tegn fra omsætning/indtægter). Brug tal uden tusindtalsseparatorer.`;
+VIGTIGE REGLER FOR KORREKT AFLÆSNING:
+
+1. RAPPORTTYPE — Bestem typen ud fra indholdet:
+   - "saldobalance": Indeholder kontonumre, debitor/kreditor-kolonner, balance-poster (aktiver, passiver, egenkapital)
+   - "resultatopgørelse": Indeholder primært omsætning, omkostninger, bruttofortjeneste, resultat
+   - Filnavnet "${fileName || ''}" kan give hint, men INDHOLDET bestemmer typen
+
+2. FORTEGN — I dansk regnskab:
+   - Omsætning/indtægter vises ofte som NEGATIVE tal (kreditposter). Konvertér dem til POSITIVE tal.
+   - Omkostninger vises ofte som POSITIVE tal (debetposter). Behold dem som positive.
+   - Resultat: Overskud = positiv, Underskud = negativ
+   - Aktiver: normalt positive
+   - Passiver/gæld: kan vises som negative (kreditside) — returner som POSITIVE tal
+
+3. PERIODER — Identificer:
+   - Periodens tal (typisk en enkelt måned)
+   - Å.t.d. (år til dato) tal
+   - Rapportperioden: skriv den som "Oktober 2025", "November 2025" etc.
+
+4. NØGLETAL — Udtræk kun det du FAKTISK kan se i dokumentet:
+   - omsaetning: Total omsætning/nettoomsætning for perioden
+   - omsaetning_aar: Omsætning år til dato
+   - direkte_omkostninger: Vareforbrug/produktionsomkostninger
+   - daekningsbidrag: Bruttofortjeneste/dækningsbidrag
+   - daekningsbidrag_aar: Dækningsbidrag år til dato
+   - loenninger: Personaleomkostninger/lønninger
+   - resultat_foer_skat: Resultat før skat
+   - resultat_foer_skat_aar: Resultat før skat å.t.d.
+   - resultat_efter_skat: Resultat efter skat (hvis tilgængelig)
+   - resultat_efter_skat_aar: Resultat efter skat å.t.d.
+   - aktiver_i_alt: Sum af aktiver (kun saldobalance)
+   - passiver_i_alt: Sum af passiver (kun saldobalance)
+   - egenkapital: Egenkapital i alt (kun saldobalance)
+   - bank_balance: Likvide beholdninger/bank
+   - debitorer: Tilgodehavender fra salg
+   - kreditorer: Leverandørgæld
+
+5. BELØB — Returnér som rene tal UDEN tusindtalsseparatorer. Eksempel: 1234567.89
+
+6. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -59,12 +76,12 @@ Alle beløb skal være positive tal (fjern minus-tegn fra omsætning/indtægter)
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "google/gemini-2.5-flash",
           messages: [
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: `Her er indholdet af det uploadede dokument:\n\n${fileContent}`,
+              content: `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`,
             },
           ],
           tools: [
@@ -73,15 +90,19 @@ Alle beløb skal være positive tal (fjern minus-tegn fra omsætning/indtægter)
               function: {
                 name: "extract_financial_data",
                 description:
-                  "Udtrækker nøgletal fra en saldobalance eller resultatopgørelse",
+                  "Udtrækker nøjagtigt aflæste nøgletal fra en dansk saldobalance eller resultatopgørelse",
                 parameters: {
                   type: "object",
                   properties: {
                     report_type: {
                       type: "string",
                       enum: ["saldobalance", "resultatopgørelse"],
+                      description: "Bestem ud fra indholdet — IKKE kun filnavnet",
                     },
-                    report_period: { type: "string" },
+                    report_period: { 
+                      type: "string",
+                      description: "F.eks. 'Oktober 2025'. Angiv den måned rapporten primært dækker.",
+                    },
                     company_name: { type: "string" },
                     cvr_number: { type: "string" },
                     key_figures: {

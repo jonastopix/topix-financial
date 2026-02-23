@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,8 +14,9 @@ import {
   ChevronDown,
   Sparkles,
   Send,
+  Calendar,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, addMonths, startOfMonth } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -44,6 +45,38 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
   processing: { icon: Clock, label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
   error: { icon: AlertCircle, label: "Fejl", className: "text-destructive", bg: "bg-destructive/10" },
 };
+
+// Danish month names for matching report_period strings
+const DANISH_MONTHS = [
+  "Januar", "Februar", "Marts", "April", "Maj", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "December",
+];
+
+function parseReportPeriodToKey(period: string | null): string | null {
+  if (!period) return null;
+  // Match "Oktober 2025" etc.
+  for (let i = 0; i < DANISH_MONTHS.length; i++) {
+    if (period.toLowerCase().includes(DANISH_MONTHS[i].toLowerCase())) {
+      const yearMatch = period.match(/\d{4}/);
+      if (yearMatch) {
+        return `${yearMatch[0]}-${String(i + 1).padStart(2, "0")}`;
+      }
+    }
+  }
+  return null;
+}
+
+function generate12MonthGrid(memberSince: Date): { key: string; label: string; monthNum: number }[] {
+  const months: { key: string; label: string; monthNum: number }[] = [];
+  const start = startOfMonth(memberSince);
+  for (let i = 0; i < 12; i++) {
+    const d = addMonths(start, i);
+    const key = format(d, "yyyy-MM");
+    const label = format(d, "MMM yyyy", { locale: da });
+    months.push({ key, label, monthNum: d.getMonth() });
+  }
+  return months;
+}
 
 const Reports = () => {
   const { user } = useAuth();
@@ -109,6 +142,31 @@ const Reports = () => {
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  // Build a map of report_period keys to reports
+  const reportsByMonth = useMemo(() => {
+    const map: Record<string, DbReport[]> = {};
+    dbReports.forEach((r) => {
+      const key = parseReportPeriodToKey(r.report_period);
+      if (key) {
+        if (!map[key]) map[key] = [];
+        map[key].push(r);
+      }
+    });
+    return map;
+  }, [dbReports]);
+
+  // Generate 12-month grid based on user creation date (or earliest report)
+  const monthGrid = useMemo(() => {
+    // Use user created_at or fallback to 12 months back from now
+    const memberSince = user?.created_at ? new Date(user.created_at) : new Date();
+    return generate12MonthGrid(memberSince);
+  }, [user]);
+
+  const deliveredCount = monthGrid.filter((m) => {
+    const reports = reportsByMonth[m.key];
+    return reports?.some((r) => r.status === "processed");
+  }).length;
 
   const handleSubmitComment = async (reportId: string, reportName: string) => {
     const content = (commentInputs[reportId] || "").trim();
@@ -183,6 +241,66 @@ const Reports = () => {
         <p className="text-sm text-muted-foreground mt-1">
           Upload dokumenter, få AI-analyse og følg op med dit advisory board
         </p>
+      </div>
+
+      {/* ── 12-Month Overview Grid ── */}
+      <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            12-måneders overblik
+          </h2>
+          <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
+            {deliveredCount} af 12 afleveret
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-2">
+          {monthGrid.map((month) => {
+            const reports = reportsByMonth[month.key];
+            const hasProcessed = reports?.some((r) => r.status === "processed");
+            const hasProcessing = reports?.some((r) => r.status === "processing");
+            const hasError = reports?.some((r) => r.status === "error");
+            const isPast = new Date(month.key + "-01") < new Date();
+
+            return (
+              <div
+                key={month.key}
+                className={`relative flex flex-col items-center justify-center rounded-xl p-3 border transition-all ${
+                  hasProcessed
+                    ? "bg-primary/10 border-primary/30"
+                    : hasProcessing
+                    ? "bg-chart-warning/10 border-chart-warning/30"
+                    : hasError
+                    ? "bg-destructive/10 border-destructive/30"
+                    : isPast
+                    ? "bg-destructive/5 border-border/50"
+                    : "bg-secondary/30 border-border/30"
+                }`}
+              >
+                {hasProcessed ? (
+                  <CheckCircle2 className="h-5 w-5 text-primary mb-1" />
+                ) : hasProcessing ? (
+                  <Clock className="h-5 w-5 text-chart-warning mb-1 animate-pulse" />
+                ) : hasError ? (
+                  <AlertCircle className="h-5 w-5 text-destructive mb-1" />
+                ) : isPast ? (
+                  <div className="h-5 w-5 rounded-full border-2 border-destructive/30 mb-1" />
+                ) : (
+                  <div className="h-5 w-5 rounded-full border-2 border-border/50 mb-1" />
+                )}
+                <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                  hasProcessed ? "text-primary" : "text-muted-foreground"
+                }`}>
+                  {month.label.split(" ")[0]}
+                </span>
+                <span className="text-[9px] text-muted-foreground">
+                  {month.label.split(" ")[1]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Upload section */}
@@ -288,7 +406,6 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-5">
-                    {/* Extracted data */}
                     {report.extracted_data && (
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -298,7 +415,6 @@ const Reports = () => {
                       </div>
                     )}
 
-                    {/* AI messages */}
                     {aiMsgs.length > 0 && (
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -318,7 +434,6 @@ const Reports = () => {
                       </div>
                     )}
 
-                    {/* User/advisor comments */}
                     {userMsgs.length > 0 && (
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -352,7 +467,6 @@ const Reports = () => {
                       </div>
                     )}
 
-                    {/* Reply input */}
                     <div className="flex gap-2 pt-3 border-t border-border/30">
                       <textarea
                         value={commentInputs[report.id] || ""}
@@ -379,7 +493,6 @@ const Reports = () => {
                       </button>
                     </div>
 
-                    {/* Empty state for reports without data */}
                     {!report.extracted_data && aiMsgs.length === 0 && userMsgs.length === 0 && (
                       <div className="text-center py-4">
                         <Sparkles className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
