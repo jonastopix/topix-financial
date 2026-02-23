@@ -8,6 +8,10 @@ const corsHeaders = {
 
 const CIRCLE_BASE = "https://app.circle.so/api/admin/v2";
 const BOARDROOM_ACCESS_GROUP_ID = "16745";
+// "Classroom" space under The Boardroom — contains video lessons
+const CLASSROOM_SPACE_ID = 1947777;
+// Known Boardroom space IDs (from API discovery)
+const BOARDROOM_SPACE_IDS = [1947776, 1947777, 1947778, 1947779, 1861841, 1861842];
 
 async function circleGet(path: string, apiKey: string, params?: Record<string, string>) {
   const url = new URL(`${CIRCLE_BASE}${path}`);
@@ -68,28 +72,95 @@ async function fetchAllMembers(apiKey: string) {
   return members;
 }
 
-// Fetch courses list
-async function fetchCourses(apiKey: string) {
-  const data = await circleGet("/courses", apiKey, { per_page: "100" });
+// Fetch all spaces (courses are spaces with type "course")
+async function fetchSpaces(apiKey: string) {
+  const spaces: any[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const data = await circleGet("/spaces", apiKey, {
+      per_page: String(perPage),
+      page: String(page),
+    });
+
+    const records = data?.records ?? data ?? [];
+    if (!Array.isArray(records) || records.length === 0) break;
+    spaces.push(...records);
+    if (records.length < perPage) break;
+    page++;
+  }
+  return spaces;
+}
+
+// Fetch space groups to find "The Boardroom"
+async function fetchSpaceGroups(apiKey: string) {
+  const data = await circleGet("/space_groups", apiKey, { per_page: "100" });
   return data?.records ?? data ?? [];
 }
 
-// Fetch course lessons for progress tracking
-async function fetchCourseLessons(apiKey: string, courseId: number) {
-  const data = await circleGet("/course_lessons", apiKey, {
-    course_id: String(courseId),
-    per_page: "200",
-  });
+// Fetch course lessons for a specific space (course type)
+async function fetchCourseLessons(apiKey: string, spaceId: number) {
+  const lessons: any[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const data = await circleGet("/course_lessons", apiKey, {
+      space_id: String(spaceId),
+      per_page: String(perPage),
+      page: String(page),
+    });
+
+    const records = data?.records ?? data ?? [];
+    if (!Array.isArray(records) || records.length === 0) break;
+    lessons.push(...records);
+    if (records.length < perPage) break;
+    page++;
+  }
+  return lessons;
+}
+
+// Fetch space members for a specific space
+async function fetchSpaceMembers(apiKey: string, spaceId: number) {
+  const members: any[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const data = await circleGet("/space_members", apiKey, {
+      space_id: String(spaceId),
+      per_page: String(perPage),
+      page: String(page),
+    });
+
+    const records = data?.records ?? data ?? [];
+    if (!Array.isArray(records) || records.length === 0) break;
+    members.push(...records);
+    if (records.length < perPage) break;
+    page++;
+  }
+  return members;
+}
+
+// Fetch posts for a specific space
+async function fetchPosts(apiKey: string, spaceId?: number) {
+  const params: Record<string, string> = { per_page: "100", sort: "latest" };
+  if (spaceId) params.space_id = String(spaceId);
+
+  const data = await circleGet("/posts", apiKey, params);
   return data?.records ?? data ?? [];
 }
 
-// Fetch recent posts for activity
-async function fetchRecentPosts(apiKey: string) {
-  const data = await circleGet("/posts", apiKey, {
-    per_page: "100",
-    sort: "latest",
-  });
-  return data?.records ?? data ?? [];
+// Safe content preview extraction
+function getContentPreview(body: any): string {
+  if (!body) return "";
+  if (typeof body === "string") return body.substring(0, 300);
+  if (typeof body === "object") {
+    const text = body.plain_text || body.text || body.html || "";
+    if (typeof text === "string") return text.substring(0, 300);
+  }
+  return String(body).substring(0, 300);
 }
 
 Deno.serve(async (req) => {
@@ -295,72 +366,77 @@ Deno.serve(async (req) => {
       stats.members_synced++;
     }
 
-    // Sync Course Progress
-    console.log("Fetching Circle courses...");
-    try {
-      const courses = await fetchCourses(circleApiKey);
-      console.log(`Found ${courses.length} courses`);
+    // ─── Use known Boardroom space IDs ───
+    const classroomSpaceId = CLASSROOM_SPACE_ID;
+    const boardroomSpaceIds = BOARDROOM_SPACE_IDS;
+    console.log(`Using Classroom space ID: ${classroomSpaceId}, Boardroom spaces: ${boardroomSpaceIds.join(", ")}`);
 
-      for (const course of courses) {
-        const courseId = course.id;
-        const courseName = course.name || course.title || `Course ${courseId}`;
+    // ─── Sync Course Lessons from Classroom space ───
+    if (classroomSpaceId) {
+      console.log(`Fetching course lessons from Classroom space (ID: ${classroomSpaceId})...`);
+      try {
+        const lessons = await fetchCourseLessons(circleApiKey, classroomSpaceId);
+        console.log(`Found ${lessons.length} course lessons`);
 
-        let totalLessons = 0;
-        try {
-          const lessons = await fetchCourseLessons(circleApiKey, courseId);
-          totalLessons = lessons.length;
-        } catch (e) {
-          console.warn(`Could not fetch lessons for course ${courseId}:`, e);
+        // Get space members to track who has access
+        const spaceMembers = await fetchSpaceMembers(circleApiKey, classroomSpaceId);
+        console.log(`Found ${spaceMembers.length} Classroom space members`);
+
+        // Store lessons as course progress records
+        for (const member of spaceMembers) {
+          const memberId = member.community_member_id || member.id;
+          if (!memberId) continue;
+
+          await supabase.from("circle_course_progress").upsert(
+            {
+              circle_member_id: memberId,
+              course_id: classroomSpaceId,
+              course_name: "Classroom",
+              lessons_total: lessons.length,
+              // We can't get individual lesson completion from this API, but we track enrollment
+              synced_at: new Date().toISOString(),
+            },
+            { onConflict: "circle_member_id,course_id" }
+          );
+          stats.courses_synced++;
         }
-
-        if (course.community_member_ids && Array.isArray(course.community_member_ids)) {
-          for (const memberId of course.community_member_ids) {
-            await supabase.from("circle_course_progress").upsert(
-              {
-                circle_member_id: memberId,
-                course_id: courseId,
-                course_name: courseName,
-                lessons_total: totalLessons,
-                synced_at: new Date().toISOString(),
-              },
-              { onConflict: "circle_member_id,course_id" }
-            );
-            stats.courses_synced++;
-          }
-        }
+      } catch (e) {
+        console.warn("Could not sync course lessons:", e);
       }
-    } catch (e) {
-      console.warn("Could not sync courses (may require different API plan):", e);
+    } else {
+      console.warn("Classroom space not found in Boardroom space group");
     }
 
-    // Sync Recent Activity
-    console.log("Fetching recent Circle posts...");
-    try {
-      const posts = await fetchRecentPosts(circleApiKey);
-      console.log(`Found ${posts.length} recent posts`);
+    // ─── Sync Activity from Boardroom spaces ───
+    console.log("Fetching activity from Boardroom spaces...");
+    for (const spaceId of boardroomSpaceIds) {
+      try {
+        const posts = await fetchPosts(circleApiKey, spaceId);
+        console.log(`Found ${posts.length} posts in space ${spaceId}`);
 
-      for (const post of posts) {
-        const memberId = post.community_member_id || post.user_id;
-        if (!memberId) continue;
+        for (const post of posts) {
+          const memberId = post.community_member_id || post.user_id;
+          if (!memberId) continue;
 
-        const { error: actErr } = await supabase.from("circle_activity").upsert(
-          {
-            circle_member_id: memberId,
-            activity_type: "post",
-            circle_post_id: post.id,
-            space_name: post.space?.name || post.space_name || null,
-            title: post.name || post.title || null,
-            content_preview: (post.body?.plain_text || post.body || "").substring(0, 300),
-            activity_at: post.created_at || new Date().toISOString(),
-            synced_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        );
+          const { error: actErr } = await supabase.from("circle_activity").upsert(
+            {
+              circle_member_id: memberId,
+              activity_type: "post",
+              circle_post_id: post.id,
+              space_name: post.space?.name || post.space_name || null,
+              title: post.name || post.title || null,
+              content_preview: getContentPreview(post.body),
+              activity_at: post.created_at || new Date().toISOString(),
+              synced_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
 
-        if (!actErr) stats.activities_synced++;
+          if (!actErr) stats.activities_synced++;
+        }
+      } catch (e) {
+        console.warn(`Could not sync posts for space ${spaceId}:`, e);
       }
-    } catch (e) {
-      console.warn("Could not sync activity:", e);
     }
 
     console.log("Sync complete:", stats);
