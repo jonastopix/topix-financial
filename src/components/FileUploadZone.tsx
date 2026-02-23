@@ -167,6 +167,14 @@ const FileUploadZone = ({
           // Don't fail the whole pipeline - report is saved
         }
 
+        // === STEP 3b: Save AI analysis to DB ===
+        if (analysis && !analysis.error) {
+          await supabase
+            .from("financial_reports")
+            .update({ ai_analysis: analysis } as any)
+            .eq("id", reportRecord.id);
+        }
+
         // === STEP 4: Create milestones from AI findings ===
         let milestonesCreated = 0;
         if (analysis && !analysis.error && analysis.key_findings) {
