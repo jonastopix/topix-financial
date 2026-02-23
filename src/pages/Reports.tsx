@@ -331,7 +331,7 @@ const Reports = () => {
 
       {/* AI Financial Analysis for current period */}
       <div className="mb-8">
-        <AIFinancialAnalysis />
+        <AIFinancialAnalysis conversationId={conversationId} userId={user?.id || null} />
       </div>
 
       {/* Reports with integrated feedback */}
