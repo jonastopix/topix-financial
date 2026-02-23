@@ -67,10 +67,15 @@ const Milestones = () => {
     toast.success("Milestone redigeret og tilføjet");
   };
 
-  // Progress calculation including accepted
-  const totalMilestones = 5 + acceptedFromAi.length;
-  const doneMilestones = 1; // from hardcoded list
-  const pct = Math.round((doneMilestones / totalMilestones) * 100);
+  // Progress calculation – base milestones progress avg
+  const baseProgressValues = [100, 62, 35, 10, 0]; // matches MilestonesList defaults
+  const aiProgressValues = acceptedFromAi.map(() => 0);
+  const allProgress = [...baseProgressValues, ...aiProgressValues];
+  const pct = allProgress.length > 0
+    ? Math.round(allProgress.reduce((a, b) => a + b, 0) / allProgress.length)
+    : 0;
+  const doneMilestones = baseProgressValues.filter(p => p >= 100).length;
+  const totalMilestones = allProgress.length;
 
   return (
     <AppLayout>
