@@ -2,6 +2,7 @@ import { useCallback, useState, useRef } from "react";
 import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { postActivityMessage } from "@/lib/chatActivity";
 
 interface ExtractedData {
   report_type: string;
@@ -25,6 +26,8 @@ interface FileUploadZoneProps {
   title: string;
   description: string;
   accept?: string;
+  conversationId?: string | null;
+  userId?: string | null;
   onExtracted?: (data: ExtractedData) => void;
 }
 
@@ -53,6 +56,8 @@ const FileUploadZone = ({
   title,
   description,
   accept = ".xlsx,.xls,.csv,.pdf",
+  conversationId,
+  userId,
   onExtracted,
 }: FileUploadZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -94,6 +99,18 @@ const FileUploadZone = ({
         );
 
         onExtracted?.(data);
+
+        // Post activity message to chat
+        if (conversationId && userId) {
+          const reportLabel = data.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
+          await postActivityMessage({
+            conversationId,
+            senderId: userId,
+            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${data.report_period}\n${data.company_name} · CVR ${data.cvr_number}`,
+            contextType: "report",
+            contextMeta: { title: `${reportLabel} · ${data.report_period}` },
+          });
+        }
 
         toast({
           title: "Dokument analyseret",

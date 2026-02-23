@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import MilestonesList from "@/components/MilestonesList";
 import { Target, Plus, Sparkles, Check, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SuggestedMilestone {
   id: string;
@@ -37,11 +39,19 @@ const initialSuggestions: SuggestedMilestone[] = [
 ];
 
 const Milestones = () => {
+  const { user } = useAuth();
   const [suggestions, setSuggestions] = useState(initialSuggestions);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDeadline, setEditDeadline] = useState("");
   const [acceptedFromAi, setAcceptedFromAi] = useState<{ title: string; deadline: string }[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("conversations").select("id").eq("member_id", user.id).single()
+      .then(({ data }) => setConversationId(data?.id || null));
+  }, [user]);
 
   const handleAccept = (s: SuggestedMilestone) => {
     setAcceptedFromAi((prev) => [...prev, { title: s.title, deadline: s.suggestedDeadline }]);
@@ -202,7 +212,7 @@ const Milestones = () => {
         </div>
       )}
 
-      <MilestonesList acceptedFromAi={acceptedFromAi} />
+      <MilestonesList acceptedFromAi={acceptedFromAi} conversationId={conversationId} userId={user?.id || null} />
     </AppLayout>
   );
 };
