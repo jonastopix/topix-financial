@@ -1,44 +1,16 @@
-import { useMemo } from "react";
-import { TrendingUp, TrendingDown, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
+import { useMemo, useEffect, useState } from "react";
+import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { getKeyFigures, parseReportPeriodToKey, type ReportData } from "@/lib/financialUtils";
 
 interface MetricScore {
   label: string;
   value: string;
-  score: number; // 0-100
-  icon: any;
+  score: number;
+  icon: typeof TrendingUp;
   detail: string;
 }
-
-const METRICS: MetricScore[] = [
-  {
-    label: "Vækstrate",
-    value: "+17,3%",
-    score: 82,
-    icon: TrendingUp,
-    detail: "MRR vækst MoM",
-  },
-  {
-    label: "Burn Rate",
-    value: "75k/mdr",
-    score: 71,
-    icon: Flame,
-    detail: "Faldende trend ↓4,2%",
-  },
-  {
-    label: "Bruttomargin",
-    value: "34,8%",
-    score: 58,
-    icon: DollarSign,
-    detail: "Under benchmark (50%)",
-  },
-  {
-    label: "Runway",
-    value: "14 mdr.",
-    score: 88,
-    icon: BarChart3,
-    detail: "Ved nuværende burn",
-  },
-];
 
 function getScoreColor(score: number) {
   if (score >= 75) return "text-primary";
@@ -61,21 +33,83 @@ function getScoreLabel(score: number) {
 }
 
 const PerformanceScore = () => {
+  const { user } = useAuth();
+  const [reports, setReports] = useState<ReportData[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("financial_reports")
+      .select("id, report_period, extracted_data, status")
+      .eq("user_id", user.id)
+      .eq("status", "processed")
+      .order("uploaded_at", { ascending: false })
+      .limit(6)
+      .then(({ data }) => setReports(data || []));
+  }, [user]);
+
+  const metrics = useMemo((): MetricScore[] => {
+    if (reports.length === 0) return [];
+
+    const sorted = [...reports]
+      .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r) }))
+      .filter((d): d is { key: string; kf: Record<string, number> } => !!d.key && !!d.kf)
+      .sort((a, b) => a.key.localeCompare(b.key));
+
+    if (sorted.length === 0) return [];
+    const latest = sorted[sorted.length - 1].kf;
+    const prev = sorted.length >= 2 ? sorted[sorted.length - 2].kf : null;
+
+    const revenueGrowth = prev?.omsaetning && latest.omsaetning
+      ? ((latest.omsaetning - prev.omsaetning) / Math.abs(prev.omsaetning)) * 100 : 0;
+    const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * 2));
+
+    const dbMargin = latest.omsaetning && latest.daekningsbidrag
+      ? (latest.daekningsbidrag / latest.omsaetning) * 100 : 0;
+    const marginScore = Math.min(100, Math.max(0, dbMargin * 2));
+
+    const netMargin = latest.omsaetning && latest.resultat_foer_skat
+      ? (latest.resultat_foer_skat / latest.omsaetning) * 100 : 0;
+    const profitScore = Math.min(100, Math.max(0, 50 + netMargin * 3));
+
+    const bankScore = latest.bank_balance
+      ? Math.min(100, Math.max(0, (latest.bank_balance / (Math.abs(latest.loenninger || 50000) * 6)) * 100))
+      : 50;
+
+    return [
+      { label: "Vækstrate", value: `${revenueGrowth >= 0 ? "+" : ""}${revenueGrowth.toFixed(1)}%`, score: Math.round(growthScore), icon: TrendingUp, detail: "Omsætningsvækst M/M" },
+      { label: "Bruttomargin", value: `${dbMargin.toFixed(1)}%`, score: Math.round(marginScore), icon: DollarSign, detail: "Dækningsgrad" },
+      { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
+      { label: "Likviditet", value: latest.bank_balance ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
+    ];
+  }, [reports]);
+
   const overallScore = useMemo(() => {
-    const weights = [0.3, 0.25, 0.2, 0.25]; // growth, burn, margin, runway
-    return Math.round(
-      METRICS.reduce((sum, m, i) => sum + m.score * weights[i], 0)
-    );
-  }, []);
+    if (metrics.length === 0) return 0;
+    const weights = [0.3, 0.25, 0.25, 0.2];
+    return Math.round(metrics.reduce((sum, m, i) => sum + m.score * (weights[i] || 0.25), 0));
+  }, [metrics]);
 
   const scoreColor = getScoreColor(overallScore);
   const scoreBg = getScoreBg(overallScore);
   const scoreLabel = getScoreLabel(overallScore);
-
-  // Calculate stroke for circular progress
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (overallScore / 100) * circumference;
+
+  if (metrics.length === 0) {
+    return (
+      <div className="glass-card rounded-xl p-5 animate-fade-in">
+        <div className="flex items-center gap-2 mb-3">
+          <Activity className="h-4 w-4 text-primary" />
+          <h3 className="font-display font-semibold text-foreground">Performance Score</h3>
+        </div>
+        <p className="text-sm text-muted-foreground text-center py-4">
+          Upload mindst én rapport for at se din performance score.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
@@ -89,60 +123,32 @@ const PerformanceScore = () => {
         </span>
       </div>
 
-      {/* Score ring */}
       <div className="flex items-center gap-6 mb-5">
         <div className="relative flex-shrink-0">
           <svg width="120" height="120" viewBox="0 0 120 120" className="transform -rotate-90">
-            {/* Background circle */}
-            <circle
-              cx="60"
-              cy="60"
-              r={radius}
-              fill="none"
-              stroke="hsl(var(--muted))"
-              strokeWidth="8"
-            />
-            {/* Score circle */}
-            <circle
-              cx="60"
-              cy="60"
-              r={radius}
-              fill="none"
-              stroke="hsl(var(--primary))"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className="transition-all duration-1000 ease-out"
-            />
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--primary))" strokeWidth="8"
+              strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+              className="transition-all duration-1000 ease-out" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`text-3xl font-display font-bold ${scoreColor}`}>
-              {overallScore}
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              / 100
-            </span>
+            <span className={`text-3xl font-display font-bold ${scoreColor}`}>{overallScore}</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">/ 100</span>
           </div>
         </div>
-
         <div className="flex-1 space-y-1.5">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Din samlede forretningssundhed baseret på vækst, burn rate, marginer og runway.
+            Din samlede forretningssundhed baseret på vækst, marginer, resultat og likviditet.
           </p>
-          <p className="text-[10px] text-muted-foreground">
-            Opdateret · Februar 2026
-          </p>
+          <p className="text-[10px] text-muted-foreground">Baseret på uploadede rapporter</p>
         </div>
       </div>
 
-      {/* Individual metrics */}
       <div className="space-y-3">
-        {METRICS.map((metric) => {
+        {metrics.map((metric) => {
           const Icon = metric.icon;
           const color = getScoreColor(metric.score);
           const bg = getScoreBg(metric.score);
-
           return (
             <div key={metric.label} className="flex items-center gap-3">
               <div className="p-1.5 rounded-md bg-secondary">
@@ -157,10 +163,7 @@ const PerformanceScore = () => {
                   </div>
                 </div>
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${bg}`}
-                    style={{ width: `${metric.score}%` }}
-                  />
+                  <div className={`h-full rounded-full transition-all duration-700 ${bg}`} style={{ width: `${metric.score}%` }} />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{metric.detail}</p>
               </div>

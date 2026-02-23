@@ -1,69 +1,81 @@
-import { FileText, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
 
 interface Report {
   id: string;
-  month: string;
-  status: "submitted" | "pending" | "overdue";
-  submittedAt?: string;
-  feedbackCount: number;
+  report_period: string | null;
+  status: string;
+  uploaded_at: string;
 }
 
-const reports: Report[] = [
-  { id: "1", month: "Februar 2026", status: "pending", feedbackCount: 0 },
-  { id: "2", month: "Januar 2026", status: "submitted", submittedAt: "28. jan", feedbackCount: 4 },
-  { id: "3", month: "December 2025", status: "submitted", submittedAt: "30. dec", feedbackCount: 6 },
-  { id: "4", month: "November 2025", status: "submitted", submittedAt: "27. nov", feedbackCount: 3 },
-];
-
 const statusConfig = {
-  submitted: { icon: CheckCircle2, label: "Indsendt", className: "text-primary", bg: "bg-primary/10" },
-  pending: { icon: Clock, label: "Afventer", className: "text-chart-warning", bg: "bg-chart-warning/10" },
-  overdue: { icon: AlertCircle, label: "Forsinket", className: "text-destructive", bg: "bg-destructive/10" },
+  processed: { icon: CheckCircle2, label: "Behandlet", className: "text-primary", bg: "bg-primary/10" },
+  processing: { icon: Clock, label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
+  error: { icon: AlertCircle, label: "Fejl", className: "text-destructive", bg: "bg-destructive/10" },
 };
 
 const RecentReports = () => {
+  const { user } = useAuth();
+  const [reports, setReports] = useState<Report[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("financial_reports")
+      .select("id, report_period, status, uploaded_at")
+      .eq("user_id", user.id)
+      .order("uploaded_at", { ascending: false })
+      .limit(4)
+      .then(({ data }) => setReports(data || []));
+  }, [user]);
+
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-display font-semibold text-foreground">Rapporter</h3>
-        <button className="text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+        <Link to="/reports" className="text-xs text-primary hover:text-primary/80 font-medium transition-colors">
           Se alle →
-        </button>
+        </Link>
       </div>
       <div className="space-y-3">
-        {reports.map((report) => {
-          const config = statusConfig[report.status];
-          const Icon = config.icon;
-          return (
-            <div
-              key={report.id}
-              className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer group"
-            >
-              <div className="p-2 rounded-lg bg-muted">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                  {report.month}
-                </p>
-                {report.submittedAt && (
-                  <p className="text-xs text-muted-foreground">Indsendt {report.submittedAt}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {report.feedbackCount > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {report.feedbackCount} feedback
-                  </span>
-                )}
+        {reports.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Ingen rapporter endnu. Upload din første rapport.
+          </p>
+        ) : (
+          reports.map((report) => {
+            const config = statusConfig[report.status as keyof typeof statusConfig] || statusConfig.processing;
+            const Icon = config.icon;
+            return (
+              <Link
+                key={report.id}
+                to="/reports"
+                className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer group"
+              >
+                <div className="p-2 rounded-lg bg-muted">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                    {report.report_period || "Ukendt periode"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Uploadet {format(new Date(report.uploaded_at), "d. MMM yyyy", { locale: da })}
+                  </p>
+                </div>
                 <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${config.bg} ${config.className}`}>
                   <Icon className="h-3 w-3" />
                   {config.label}
                 </span>
-              </div>
-            </div>
-          );
-        })}
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
   );

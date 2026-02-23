@@ -1,35 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Legend,
 } from "recharts";
-import type { Json } from "@/integrations/supabase/types";
-
-interface ReportData {
-  id: string;
-  report_period: string | null;
-  extracted_data: Json | null;
-  status: string;
-}
+import {
+  parseReportPeriodToKey, getKeyFigures, formatDKK, formatCompact, pctChange,
+  SHORT_MONTHS, type ReportData,
+} from "@/lib/financialUtils";
 
 interface FinancialOverviewProps {
   reports: ReportData[];
 }
-
-const DANISH_MONTHS = [
-  "Januar", "Februar", "Marts", "April", "Maj", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "December",
-];
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
 type TabKey = "marginer" | "omkostninger" | "resultat" | "balance";
 
@@ -40,33 +22,6 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "balance", label: "Balance" },
 ];
 
-function parseKey(period: string | null): string | null {
-  if (!period) return null;
-  for (let i = 0; i < DANISH_MONTHS.length; i++) {
-    if (period.toLowerCase().includes(DANISH_MONTHS[i].toLowerCase())) {
-      const y = period.match(/\d{4}/);
-      if (y) return `${y[0]}-${String(i + 1).padStart(2, "0")}`;
-    }
-  }
-  return null;
-}
-
-function getKF(report: ReportData): Record<string, number> | null {
-  if (!report.extracted_data || typeof report.extracted_data !== "object" || Array.isArray(report.extracted_data)) return null;
-  return (report.extracted_data as Record<string, Json | undefined>).key_figures as Record<string, number> | null;
-}
-
-const formatDKK = (n?: number) =>
-  n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
-
-const formatCompact = (n: number) => {
-  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toFixed(0);
-};
-
-import { useState } from "react";
-
 const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
   const [activeTab, setActiveTab] = useState<TabKey>("marginer");
 
@@ -74,8 +29,8 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
     const processed = reports
       .filter(r => r.status === "processed")
       .map(r => {
-        const key = parseKey(r.report_period);
-        const kf = getKF(r);
+        const key = parseReportPeriodToKey(r.report_period);
+        const kf = getKeyFigures(r);
         if (!key || !kf) return null;
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
@@ -88,51 +43,42 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
 
   if (chartData.length < 1) return null;
 
-  // Compute KPI cards from latest
   const latest = chartData[chartData.length - 1];
   const prev = chartData.length >= 2 ? chartData[chartData.length - 2] : null;
   const kf = latest.kf;
 
   const dbMargin = kf.omsaetning && kf.daekningsbidrag
-    ? ((kf.daekningsbidrag / kf.omsaetning) * 100)
-    : null;
+    ? ((kf.daekningsbidrag / kf.omsaetning) * 100) : null;
   const dbMarginPrev = prev?.kf.omsaetning && prev?.kf.daekningsbidrag
-    ? ((prev.kf.daekningsbidrag / prev.kf.omsaetning) * 100)
-    : null;
+    ? ((prev.kf.daekningsbidrag / prev.kf.omsaetning) * 100) : null;
 
   const netMargin = kf.omsaetning && kf.resultat_foer_skat
-    ? ((kf.resultat_foer_skat / kf.omsaetning) * 100)
-    : null;
+    ? ((kf.resultat_foer_skat / kf.omsaetning) * 100) : null;
 
   const kpis = [
     {
       label: "Dækningsgrad",
       value: dbMargin != null ? `${dbMargin.toFixed(1)}%` : "—",
       change: dbMargin != null && dbMarginPrev != null ? dbMargin - dbMarginPrev : null,
-      good: true,
     },
     {
-      label: "DB Margin",
+      label: "Dækningsbidrag",
       value: kf.daekningsbidrag != null ? formatDKK(kf.daekningsbidrag) : "—",
-      change: prev?.kf.daekningsbidrag != null && kf.daekningsbidrag != null
-        ? ((kf.daekningsbidrag - prev.kf.daekningsbidrag) / Math.abs(prev.kf.daekningsbidrag)) * 100
-        : null,
+      change: pctChange(kf.daekningsbidrag, prev?.kf.daekningsbidrag),
     },
     {
-      label: "DB Margin",
+      label: "Netto Margin",
       value: netMargin != null ? `${netMargin.toFixed(1)}%` : "—",
-      change: null,
+      change: pctChange(kf.resultat_foer_skat, prev?.kf.resultat_foer_skat),
     },
     {
       label: "EBITDA Margin",
       value: kf.omsaetning && kf.resultat_foer_skat
-        ? `${((kf.resultat_foer_skat / kf.omsaetning) * 100).toFixed(1)}%`
-        : "—",
+        ? `${((kf.resultat_foer_skat / kf.omsaetning) * 100).toFixed(1)}%` : "—",
       change: null,
     },
   ];
 
-  // Chart data per tab
   const tabChartData = chartData.map(d => {
     const k = d.kf;
     return {
@@ -158,7 +104,6 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
         </h2>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {kpis.map((kpi, i) => (
           <div key={i} className="rounded-xl border border-border/50 bg-secondary/30 p-4">
@@ -173,7 +118,6 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
         ))}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-6 p-1 rounded-lg bg-secondary/50">
         {tabs.map(tab => (
           <button
@@ -190,7 +134,6 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
         ))}
       </div>
 
-      {/* Chart */}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           {activeTab === "marginer" ? (
