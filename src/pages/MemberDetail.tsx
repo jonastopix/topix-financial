@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   FileText,
   Wallet,
-  MessageCircle,
   Building2,
   Calendar,
   ChevronDown,
@@ -15,7 +14,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Download,
+  Target,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -46,6 +45,18 @@ interface BudgetTarget {
   period: string;
 }
 
+interface Milestone {
+  id: string;
+  title: string;
+  description: string | null;
+  deadline: string | null;
+  progress: number;
+  status: string;
+  source: string;
+  source_report: string | null;
+  created_at: string;
+}
+
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
   processed: { icon: CheckCircle2, label: "Behandlet", className: "text-primary", bg: "bg-primary/10" },
   processing: { icon: Clock, label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
@@ -58,6 +69,7 @@ const MemberDetail = () => {
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
@@ -66,15 +78,17 @@ const MemberDetail = () => {
 
     const load = async () => {
       setLoading(true);
-      const [profileRes, reportsRes, budgetsRes] = await Promise.all([
+      const [profileRes, reportsRes, budgetsRes, milestonesRes] = await Promise.all([
         supabase.from("profiles").select("full_name, company_name, avatar_url, created_at").eq("user_id", userId).single(),
         supabase.from("financial_reports").select("*").eq("user_id", userId).order("uploaded_at", { ascending: false }),
         supabase.from("budget_targets").select("*").eq("user_id", userId).order("category"),
+        supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
       ]);
 
       setProfile(profileRes.data);
       setReports(reportsRes.data || []);
       setBudgets(budgetsRes.data || []);
+      setMilestones(milestonesRes.data || []);
       setLoading(false);
     };
 
@@ -194,6 +208,10 @@ const MemberDetail = () => {
                 <p className="text-2xl font-display font-bold text-foreground">{budgets.length}</p>
                 <p className="text-[10px] text-muted-foreground uppercase">Budgetposter</p>
               </div>
+              <div className="text-center px-4 border-l border-border">
+                <p className="text-2xl font-display font-bold text-foreground">{milestones.length}</p>
+                <p className="text-[10px] text-muted-foreground uppercase">Milestones</p>
+              </div>
             </div>
           </div>
 
@@ -276,7 +294,7 @@ const MemberDetail = () => {
           </div>
 
           {/* Budget section */}
-          <div>
+          <div className="mb-8">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <Wallet className="h-5 w-5 text-primary" />
               Budget
@@ -309,6 +327,83 @@ const MemberDetail = () => {
                     {formatDKK(budgets.reduce((sum, b) => sum + Number(b.budget_amount), 0))}
                   </span>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Milestones section */}
+          <div>
+            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              Milestones
+            </h2>
+
+            {milestones.length === 0 ? (
+              <div className="glass-card rounded-xl p-8 text-center">
+                <Target className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Ingen milestones oprettet endnu</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {milestones.map((m) => {
+                  const isCompleted = m.status === "completed";
+                  const isOverdue = m.deadline && new Date(m.deadline) < new Date() && !isCompleted;
+
+                  return (
+                    <div key={m.id} className="glass-card rounded-xl p-4 animate-fade-in">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 p-2 rounded-lg flex-shrink-0 ${isCompleted ? "bg-primary/10" : isOverdue ? "bg-destructive/10" : "bg-muted"}`}>
+                          {isCompleted ? (
+                            <CheckCircle2 className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Target className={`h-4 w-4 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-sm font-medium ${isCompleted ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {m.title}
+                            </p>
+                            {m.source === "ai" && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                AI-foreslået
+                              </span>
+                            )}
+                            {isOverdue && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                Overskredet
+                              </span>
+                            )}
+                          </div>
+                          {m.description && (
+                            <p className="text-xs text-muted-foreground mt-1">{m.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 mt-2">
+                            {m.deadline && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(m.deadline), "d. MMM yyyy", { locale: da })}
+                              </span>
+                            )}
+                            {m.source_report && (
+                              <span className="text-xs text-muted-foreground">· {m.source_report}</span>
+                            )}
+                          </div>
+                          {/* Progress bar */}
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${isCompleted ? "bg-primary" : isOverdue ? "bg-destructive" : "bg-primary/70"}`}
+                                style={{ width: `${m.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground font-medium w-8 text-right">{m.progress}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
