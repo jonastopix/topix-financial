@@ -1,6 +1,7 @@
 import AppLayout from "@/components/AppLayout";
 import FileUploadZone from "@/components/FileUploadZone";
 import FinancialTrends from "@/components/FinancialTrends";
+import BudgetComparison from "@/components/BudgetComparison";
 import { FileText, CheckCircle2, Clock, AlertCircle, MessageSquare } from "lucide-react";
 
 const pastReports = [
@@ -65,6 +66,11 @@ const Reports = () => {
       {/* Financial trends */}
       <div className="mb-8">
         <FinancialTrends />
+      </div>
+
+      {/* Budget comparison */}
+      <div className="mb-8">
+        <BudgetComparison />
       </div>
 
       {/* Previous reports */}
