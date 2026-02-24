@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
+import { supabase } from "@/integrations/supabase/client";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -41,9 +42,40 @@ const AppSidebar = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
-  const { profile, signOut, isAdvisor } = useAuth();
+  const { user, profile, signOut, isAdvisor } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
+  const [unreadChat, setUnreadChat] = useState(0);
+
+  // Fetch unread chat count
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnread = async () => {
+      // Get conversations for this user
+      const { data: convs } = await supabase
+        .from("conversations")
+        .select("id");
+
+      if (!convs || convs.length === 0) { setUnreadChat(0); return; }
+
+      const convIds = convs.map((c) => c.id);
+      const { count } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .in("conversation_id", convIds)
+        .neq("sender_id", user.id)
+        .is("read_at", null);
+
+      setUnreadChat(count || 0);
+    };
+
+    fetchUnread();
+
+    // Re-check when navigating away from chat (messages get marked read)
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [user, location.pathname]);
 
   useEffect(() => {
     if (isMobile) setIsOpen(false);
@@ -138,6 +170,11 @@ const AppSidebar = () => {
                   }`}
                 />
                 {item.label}
+                {item.path === "/chat" && unreadChat > 0 && !isActive && (
+                  <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {unreadChat > 99 ? "99+" : unreadChat}
+                  </span>
+                )}
                 {isActive && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />
                 )}
