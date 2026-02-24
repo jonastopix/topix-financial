@@ -1,4 +1,4 @@
-import { Calculator, Compass, Settings, Handshake, Megaphone } from "lucide-react";
+import { Calculator, Compass, Settings, Handshake, Megaphone, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
@@ -15,6 +15,7 @@ interface HandoutCardProps {
   config: HandoutConfig;
   status: 'not_started' | 'in_progress' | 'completed';
   progress: number;
+  completedAt?: string | null;
   onClick: () => void;
 }
 
@@ -24,7 +25,7 @@ const statusLabels: Record<string, { label: string; variant: "default" | "second
   completed: { label: "Udfyldt", variant: "default" },
 };
 
-const HandoutCard = ({ config, status, progress, onClick }: HandoutCardProps) => {
+const HandoutCard = ({ config, status, progress, completedAt, onClick }: HandoutCardProps) => {
   const Icon = iconMap[config.icon] || Compass;
   const statusInfo = statusLabels[status];
 
@@ -50,6 +51,12 @@ const HandoutCard = ({ config, status, progress, onClick }: HandoutCardProps) =>
         </div>
         <Progress value={progress} className="h-1.5" />
       </div>
+      {status === "completed" && completedAt && (
+        <div className="flex items-center gap-1.5 mt-3 text-[11px] text-primary">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          <span>Udfyldt {new Date(completedAt).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })}</span>
+        </div>
+      )}
     </button>
   );
 };

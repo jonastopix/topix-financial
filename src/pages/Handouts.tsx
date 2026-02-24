@@ -11,6 +11,7 @@ interface HandoutSummary {
   module: HandoutModule;
   status: "not_started" | "in_progress" | "completed";
   progress: number;
+  completedAt: string | null;
 }
 
 function calcProgress(config: HandoutConfig, responses: Record<string, string>, checklist: Record<string, boolean>, levers: string[]): number {
@@ -31,7 +32,7 @@ function calcProgress(config: HandoutConfig, responses: Record<string, string>, 
 const Handouts = () => {
   const { user } = useAuth();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
-    moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0 }))
+    moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
 
@@ -40,13 +41,13 @@ const Handouts = () => {
     const load = async () => {
       const { data } = await supabase
         .from("handouts")
-        .select("module, status, responses, checklist, levers")
+        .select("module, status, responses, checklist, levers, completed_at")
         .eq("user_id", user.id);
 
       const map = new Map((data || []).map(d => [d.module, d]));
       setSummaries(moduleOrder.map(m => {
         const d = map.get(m);
-        if (!d) return { module: m, status: "not_started" as const, progress: 0 };
+        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null };
         const config = handoutConfigs[m];
         const progress = calcProgress(
           config,
@@ -54,7 +55,7 @@ const Handouts = () => {
           (d.checklist as Record<string, boolean>) || {},
           (d.levers as string[]) || []
         );
-        return { module: m, status: d.status as HandoutSummary["status"], progress };
+        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null };
       }));
     };
     load();
@@ -100,6 +101,7 @@ const Handouts = () => {
             config={handoutConfigs[s.module]}
             status={s.status}
             progress={s.progress}
+            completedAt={s.completedAt}
             onClick={() => setActiveModule(s.module)}
           />
         ))}
