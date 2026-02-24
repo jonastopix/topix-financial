@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, MessageCircle, CheckCheck, FileText, Sparkles, Target } from "lucide-react";
-import { format } from "date-fns";
+import {
+  Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
+  Search, Inbox, Clock, AlertCircle, Filter,
+} from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 
 interface Message {
@@ -26,7 +29,21 @@ interface ConversationWithProfile {
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   unreadCount: number;
   lastMessage?: string;
+  lastMessageSenderId?: string;
+  lastMessageType?: string;
+  lastContextType?: string | null;
+  hasRecentReport: boolean;
+  recentReportName?: string;
 }
+
+type InboxFilter = "alle" | "ubesvaret" | "rapporter" | "besvaret";
+
+const FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
+  { key: "alle", label: "Alle", icon: Inbox },
+  { key: "ubesvaret", label: "Ubesvaret", icon: AlertCircle },
+  { key: "rapporter", label: "Ny rapport", icon: FileText },
+  { key: "besvaret", label: "Besvaret", icon: CheckCheck },
+];
 
 const Chat = () => {
   const { user, isAdvisor: rawAdvisor } = useAuth();
@@ -37,6 +54,8 @@ const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations — batch fetch, no N+1
@@ -44,8 +63,7 @@ const Chat = () => {
     if (!user) return;
 
     const loadConversations = async () => {
-      // Fetch conversations, profiles, and ALL messages in 3 parallel calls
-      const [convsRes, profilesRes, msgsRes] = await Promise.all([
+      const [convsRes, profilesRes, msgsRes, reportsRes] = await Promise.all([
         supabase
           .from("conversations")
           .select("*")
@@ -53,13 +71,30 @@ const Chat = () => {
         supabase.from("profiles").select("user_id, full_name, company_name, avatar_url"),
         supabase
           .from("messages")
-          .select("id, conversation_id, sender_id, content, read_at, created_at")
+          .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type")
           .order("created_at", { ascending: false }),
+        // Fetch recent reports (last 7 days) for advisor view
+        isAdvisor
+          ? supabase
+              .from("financial_reports")
+              .select("user_id, file_name, uploaded_at, status")
+              .gte("uploaded_at", new Date(Date.now() - 7 * 86400000).toISOString())
+              .order("uploaded_at", { ascending: false })
+          : Promise.resolve({ data: [] }),
       ]);
 
       const convs = convsRes.data || [];
       const profiles = profilesRes.data || [];
       const allMessages = msgsRes.data || [];
+      const recentReports = reportsRes.data || [];
+
+      // Recent reports by user
+      const reportsByUser = new Map<string, { name: string }>();
+      recentReports.forEach((r: any) => {
+        if (!reportsByUser.has(r.user_id)) {
+          reportsByUser.set(r.user_id, { name: r.file_name });
+        }
+      });
 
       // Group messages by conversation for quick lookup
       const msgsByConv = new Map<string, typeof allMessages>();
@@ -73,13 +108,12 @@ const Chat = () => {
         const profile = profiles.find((p) => p.user_id === c.member_id) || null;
         const convMsgs = msgsByConv.get(c.id) || [];
 
-        // Last message (already sorted desc)
-        const lastMsg = convMsgs[0]?.content;
-
-        // Unread count: messages not from current user and not read
+        const lastMsg = convMsgs[0];
         const unreadCount = convMsgs.filter(
           (m) => m.sender_id !== user.id && !m.read_at
         ).length;
+
+        const report = reportsByUser.get(c.member_id);
 
         return {
           id: c.id,
@@ -89,7 +123,12 @@ const Chat = () => {
             ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
             : null,
           unreadCount,
-          lastMessage: lastMsg,
+          lastMessage: lastMsg?.content,
+          lastMessageSenderId: lastMsg?.sender_id,
+          lastMessageType: lastMsg?.message_type,
+          lastContextType: lastMsg?.context_type,
+          hasRecentReport: !!report,
+          recentReportName: report?.name,
         };
       });
 
@@ -104,6 +143,44 @@ const Chat = () => {
     loadConversations();
   }, [user, isAdvisor, activeConvId]);
 
+  // Filtered & searched conversations for advisor
+  const filteredConversations = useMemo(() => {
+    let result = conversations;
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.profile?.full_name?.toLowerCase().includes(q) ||
+          c.profile?.company_name?.toLowerCase().includes(q)
+      );
+    }
+
+    // Filter
+    switch (activeFilter) {
+      case "ubesvaret":
+        result = result.filter((c) => c.unreadCount > 0);
+        break;
+      case "rapporter":
+        result = result.filter((c) => c.hasRecentReport);
+        break;
+      case "besvaret":
+        result = result.filter((c) => c.unreadCount === 0);
+        break;
+    }
+
+    return result;
+  }, [conversations, searchQuery, activeFilter]);
+
+  // Stats for filter badges
+  const stats = useMemo(() => ({
+    total: conversations.length,
+    unanswered: conversations.filter((c) => c.unreadCount > 0).length,
+    withReports: conversations.filter((c) => c.hasRecentReport).length,
+    answered: conversations.filter((c) => c.unreadCount === 0).length,
+  }), [conversations]);
+
   // Load messages for active conversation
   useEffect(() => {
     if (!activeConvId) return;
@@ -116,7 +193,6 @@ const Chat = () => {
         .order("created_at", { ascending: true });
       setMessages(data || []);
 
-      // Mark messages as read
       if (user) {
         await supabase
           .from("messages")
@@ -129,7 +205,6 @@ const Chat = () => {
 
     loadMessages();
 
-    // Real-time subscription
     const channel = supabase
       .channel(`messages-${activeConvId}`)
       .on(
@@ -144,7 +219,6 @@ const Chat = () => {
           const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
 
-          // Mark as read if not from current user
           if (newMsg.sender_id !== user?.id) {
             await supabase
               .from("messages")
@@ -160,7 +234,6 @@ const Chat = () => {
     };
   }, [activeConvId, user]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -184,12 +257,15 @@ const Chat = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const getInitials = (name: string) =>
-    name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  const relativeTime = (dateStr: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: da });
+    } catch {
+      return "";
+    }
+  };
 
   return (
     <AppLayout>
@@ -204,59 +280,170 @@ const Chat = () => {
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden flex" style={{ height: "calc(100vh - 200px)" }}>
-        {/* Conversation list (advisors see all, members see their own) */}
+        {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {isAdvisor && (
-          <div className="w-80 border-r border-border flex flex-col">
-            <div className="p-4 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">Samtaler</h3>
-              <p className="text-[10px] text-muted-foreground">
-                {conversations.filter((c) => c.unreadCount > 0).length} ubesvarede
-              </p>
+          <div className="w-[340px] border-r border-border flex flex-col bg-card/50">
+            {/* Quick stats */}
+            <div className="px-4 pt-4 pb-3 border-b border-border space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center py-2 rounded-lg bg-secondary/50">
+                  <p className={`text-lg font-display font-bold ${stats.unanswered > 0 ? "text-destructive" : "text-foreground"}`}>
+                    {stats.unanswered}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Ubesvaret</p>
+                </div>
+                <div className="text-center py-2 rounded-lg bg-secondary/50">
+                  <p className={`text-lg font-display font-bold ${stats.withReports > 0 ? "text-primary" : "text-foreground"}`}>
+                    {stats.withReports}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Ny rapport</p>
+                </div>
+                <div className="text-center py-2 rounded-lg bg-secondary/50">
+                  <p className="text-lg font-display font-bold text-foreground">{stats.total}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total</p>
+                </div>
+              </div>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Søg medlem eller virksomhed..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Filter tabs */}
+              <div className="flex gap-1">
+                {FILTER_CONFIG.map((f) => {
+                  const count = f.key === "alle" ? stats.total
+                    : f.key === "ubesvaret" ? stats.unanswered
+                    : f.key === "rapporter" ? stats.withReports
+                    : stats.answered;
+                  const isActive = activeFilter === f.key;
+                  return (
+                    <button
+                      key={f.key}
+                      onClick={() => setActiveFilter(f.key)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      <f.icon className="h-3 w-3" />
+                      {f.label}
+                      {count > 0 && f.key !== "alle" && (
+                        <span className={`ml-0.5 text-[9px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Conversation list */}
             <div className="flex-1 overflow-y-auto">
-              {conversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => setActiveConvId(conv.id)}
-                  className={`w-full text-left p-4 border-b border-border/50 hover:bg-secondary/50 transition-colors ${
-                    activeConvId === conv.id ? "bg-secondary" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-primary">
-                        {getInitials(conv.profile?.full_name || "??")}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {conv.profile?.full_name || "Ukendt"}
-                        </p>
-                        {conv.unreadCount > 0 && (
-                          <span className="ml-2 h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                            {conv.unreadCount}
-                          </span>
-                        )}
+              {filteredConversations.length === 0 ? (
+                <div className="p-6 text-center">
+                  <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {searchQuery ? "Ingen resultater" : "Ingen samtaler i denne kategori"}
+                  </p>
+                </div>
+              ) : (
+                filteredConversations.map((conv) => {
+                  const isActive = activeConvId === conv.id;
+                  const isUnread = conv.unreadCount > 0;
+                  const lastMsgIsFromMember = conv.lastMessageSenderId && conv.lastMessageSenderId !== user?.id;
+
+                  return (
+                    <button
+                      key={conv.id}
+                      onClick={() => setActiveConvId(conv.id)}
+                      className={`w-full text-left px-4 py-3.5 border-b border-border/30 transition-colors ${
+                        isActive
+                          ? "bg-primary/5 border-l-2 border-l-primary"
+                          : isUnread
+                          ? "bg-destructive/[0.03] hover:bg-secondary/50"
+                          : "hover:bg-secondary/30"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Avatar with status indicator */}
+                        <div className="relative flex-shrink-0">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                            isUnread ? "bg-destructive/10" : "bg-primary/10"
+                          }`}>
+                            <span className={`text-xs font-semibold ${isUnread ? "text-destructive" : "text-primary"}`}>
+                              {getInitials(conv.profile?.full_name || "??")}
+                            </span>
+                          </div>
+                          {isUnread && (
+                            <div className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-destructive border-2 border-card flex items-center justify-center">
+                              <span className="text-[7px] font-bold text-destructive-foreground">{conv.unreadCount}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          {/* Name + time row */}
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className={`text-sm truncate ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
+                              {conv.profile?.full_name || "Ukendt"}
+                            </p>
+                            <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
+                              {relativeTime(conv.last_message_at)}
+                            </span>
+                          </div>
+
+                          {/* Company */}
+                          {conv.profile?.company_name && (
+                            <p className="text-[10px] text-muted-foreground mb-1">{conv.profile.company_name}</p>
+                          )}
+
+                          {/* Last message preview */}
+                          {conv.lastMessage && (
+                            <p className={`text-xs truncate ${isUnread ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>
+                              {lastMsgIsFromMember ? "" : "Du: "}
+                              {conv.lastMessage}
+                            </p>
+                          )}
+
+                          {/* Tags row */}
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            {conv.hasRecentReport && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                <FileText className="h-2.5 w-2.5" />
+                                {conv.recentReportName
+                                  ? conv.recentReportName.length > 20
+                                    ? conv.recentReportName.slice(0, 20) + "…"
+                                    : conv.recentReportName
+                                  : "Ny rapport"}
+                              </span>
+                            )}
+                            {isUnread && lastMsgIsFromMember && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                <Clock className="h-2.5 w-2.5" />
+                                Afventer svar
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      {conv.profile?.company_name && (
-                        <p className="text-[10px] text-muted-foreground">{conv.profile.company_name}</p>
-                      )}
-                      {conv.lastMessage && (
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {conversations.length === 0 && (
-                <p className="p-4 text-sm text-muted-foreground text-center">Ingen samtaler endnu</p>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
         )}
 
-        {/* Message area */}
+        {/* ─── MESSAGE AREA ─── */}
         <div className="flex-1 flex flex-col">
           {activeConvId ? (
             <>
@@ -271,7 +458,7 @@ const Chat = () => {
                     )}
                   </span>
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-semibold text-foreground">
                     {isAdvisor
                       ? activeConv?.profile?.full_name || "Ukendt"
@@ -283,6 +470,12 @@ const Chat = () => {
                       : "Dine rådgivere"}
                   </p>
                 </div>
+                {isAdvisor && activeConv?.hasRecentReport && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                    <FileText className="h-3 w-3" />
+                    Ny rapport indsendt
+                  </span>
+                )}
               </div>
 
               {/* Messages */}
