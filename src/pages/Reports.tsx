@@ -351,7 +351,7 @@ const Reports = () => {
 
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <AreaChart data={trendData} margin={{ top: 18, right: 20, left: 10, bottom: 5 }}>
                 <defs>
                   {SERIES.map(s => (
                     <linearGradient key={`grad-${s.key}`} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -371,6 +371,7 @@ const Reports = () => {
                   const props = getLineProps(s.key, s.color);
                   const isActive = activeSeries === s.key;
                   const isDefaultMain = !activeSeries && s.key === "omsaetning";
+                  const showLabels = isActive || isDefaultMain;
                   return (
                     <Area
                       key={s.key}
@@ -381,9 +382,25 @@ const Reports = () => {
                       opacity={props.opacity}
                       strokeDasharray={props.strokeDasharray}
                       fill={isActive || isDefaultMain ? `url(#grad-${s.key})` : "none"}
-                      dot={isActive ? { r: 4, fill: s.color, strokeWidth: 0 } : false}
+                      dot={isActive ? { r: 3, fill: s.color, strokeWidth: 0 } : false}
                       activeDot={isActive ? { r: 5 } : { r: 3 }}
                       connectNulls
+                      label={showLabels ? ({ x, y, value }: any) => {
+                        if (value == null) return null;
+                        return (
+                          <text
+                            x={x}
+                            y={y - 10}
+                            textAnchor="middle"
+                            fill={s.color}
+                            fontSize={9}
+                            fontWeight={500}
+                            opacity={0.85}
+                          >
+                            {formatCompact(value)}
+                          </text>
+                        );
+                      } : false}
                     />
                   );
                 })}
