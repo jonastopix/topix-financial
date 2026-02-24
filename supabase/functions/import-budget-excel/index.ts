@@ -30,10 +30,9 @@ serve(async (req) => {
 
 Du modtager indholdet af en Excel-fil (parset som tekst/CSV). Din opgave er at:
 
-1. Identificere hvilke faner/sektioner der indeholder det faktiske budget (ikke opsætningsfaner)
-2. Finde det relevante budgetår
-3. Udtrække ALLE budgetposter med månedlige beløb (Januar-December)
-4. Intelligent gruppere posterne i følgende hovedkategorier:
+1. Identificere ALLE budgetår i filen (f.eks. 2025 OG 2026 hvis begge findes)
+2. For HVERT år: udtrække ALLE budgetposter med månedlige beløb (Januar-December)
+3. Intelligent gruppere posterne i følgende hovedkategorier:
    - "omsaetning" (Omsætning / indtægter)
    - "vareforbrug" (Vareforbrug, COGS, direkte omkostninger)
    - "loenninger" (Lønninger, medarbejderomkostninger, personalepleje)
@@ -44,25 +43,33 @@ Du modtager indholdet af en Excel-fil (parset som tekst/CSV). Din opgave er at:
    - "betalingsgebyrer" (Betalingshåndtering, transaktionsgebyrer)
    - "andet" (Alt der ikke passer andre kategorier)
 
-5. For hver kategori, summer ALLE relevante underposter per måned
+4. For hver kategori, summer ALLE relevante underposter per måned
 
 Regler:
 - Alle beløb skal være POSITIVE tal (fjern minus-tegn fra omkostninger)
 - Omsætning er positiv, omkostninger er positive (vi ved de er omkostninger fra kategorien)
 - Ignorer tomme rækker, totaler, marginer og beregnede felter
-- Hvis der er flere budgetår, returnér det seneste
+- Returnér ALLE budgetår der findes i filen — hvert år som et separat objekt i "years" arrayet
 - Ignorer "uforudsete omkostninger" som separat post — inkluder dem i "andet"
 
 Returnér resultatet som et JSON-objekt med denne struktur:
 {
-  "year": "2025",
   "company_name": "Firmanavn",
-  "categories": [
+  "years": [
     {
-      "key": "omsaetning",
-      "label": "Omsætning",
-      "monthly": [jan, feb, mar, apr, maj, jun, jul, aug, sep, okt, nov, dec],
-      "details": ["Topix salg", "Boardroom salg"]
+      "year": "2025",
+      "categories": [
+        {
+          "key": "omsaetning",
+          "label": "Omsætning",
+          "monthly": [jan, feb, mar, apr, maj, jun, jul, aug, sep, okt, nov, dec],
+          "details": ["Topix salg", "Boardroom salg"]
+        }
+      ]
+    },
+    {
+      "year": "2026",
+      "categories": [...]
     }
   ]
 }`;
@@ -87,50 +94,61 @@ Returnér resultatet som et JSON-objekt med denne struktur:
             type: "function",
             function: {
               name: "extract_budget",
-              description: "Extract structured budget data from the Excel content",
+              description: "Extract structured budget data for ALL years found in the Excel content",
               parameters: {
                 type: "object",
                 properties: {
-                  year: { type: "string", description: "Budget year e.g. 2025" },
                   company_name: { type: "string", description: "Company name if found" },
-                  categories: {
+                  years: {
                     type: "array",
+                    description: "One entry per budget year found in the file",
                     items: {
                       type: "object",
                       properties: {
-                        key: {
-                          type: "string",
-                          enum: [
-                            "omsaetning",
-                            "vareforbrug",
-                            "loenninger",
-                            "marketing",
-                            "lokaler",
-                            "tech_software",
-                            "admin",
-                            "betalingsgebyrer",
-                            "andet",
-                          ],
-                        },
-                        label: { type: "string" },
-                        monthly: {
+                        year: { type: "string", description: "Budget year e.g. 2025" },
+                        categories: {
                           type: "array",
-                          items: { type: "number" },
-                          minItems: 12,
-                          maxItems: 12,
-                        },
-                        details: {
-                          type: "array",
-                          items: { type: "string" },
-                          description: "Original line items that were summed into this category",
+                          items: {
+                            type: "object",
+                            properties: {
+                              key: {
+                                type: "string",
+                                enum: [
+                                  "omsaetning",
+                                  "vareforbrug",
+                                  "loenninger",
+                                  "marketing",
+                                  "lokaler",
+                                  "tech_software",
+                                  "admin",
+                                  "betalingsgebyrer",
+                                  "andet",
+                                ],
+                              },
+                              label: { type: "string" },
+                              monthly: {
+                                type: "array",
+                                items: { type: "number" },
+                                minItems: 12,
+                                maxItems: 12,
+                              },
+                              details: {
+                                type: "array",
+                                items: { type: "string" },
+                                description: "Original line items summed into this category",
+                              },
+                            },
+                            required: ["key", "label", "monthly", "details"],
+                            additionalProperties: false,
+                          },
                         },
                       },
-                      required: ["key", "label", "monthly", "details"],
+                      required: ["year", "categories"],
                       additionalProperties: false,
                     },
                   },
                 },
-                required: ["year", "company_name", "categories"],
+                required: ["company_name", "years"],
                 additionalProperties: false,
               },
             },
