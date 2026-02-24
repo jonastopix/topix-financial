@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DollarSign, Users, TrendingUp, Flame } from "lucide-react";
+import { DollarSign, Users, TrendingUp, Flame, Wallet, BarChart3 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
@@ -12,6 +12,14 @@ import ActivityFeed from "@/components/ActivityFeed";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getKeyFigures, parseReportPeriodToKey, formatDKK, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 5) return "God nat";
+  if (h < 12) return "Godmorgen";
+  if (h < 18) return "God eftermiddag";
+  return "God aften";
+}
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -75,16 +83,18 @@ const Dashboard = () => {
 
   return (
     <AppLayout>
+      {/* Hero greeting */}
       <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
-          Godmorgen, {firstName} 👋
+        <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
+          {getGreeting()}, {firstName}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Her er dit overblik for {currentMonthName} {currentYear}
+        <p className="text-sm text-muted-foreground mt-1.5">
+          Dit finansielle overblik for <span className="font-medium text-foreground/70">{currentMonthName} {currentYear}</span>
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <KPICard
           title="Omsætning"
           value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
@@ -92,12 +102,14 @@ const Dashboard = () => {
           trend={revenueChange != null ? (revenueChange >= 0 ? "up" : "down") : "neutral"}
           subtitle={kpiData.period ? `fra ${kpiData.period}` : "Upload rapport"}
           icon={<DollarSign className="h-4 w-4" />}
+          accentColor="emerald"
         />
         <KPICard
           title="Udgifter"
           value={kpiData.expenses != null ? formatDKK(kpiData.expenses) : "—"}
           subtitle="løn + direkte omk."
           icon={<Flame className="h-4 w-4" />}
+          accentColor="amber"
         />
         <KPICard
           title="Resultat"
@@ -105,25 +117,32 @@ const Dashboard = () => {
           trend={kpiData.result != null ? (kpiData.result >= 0 ? "up" : "down") : "neutral"}
           subtitle="før skat"
           icon={<TrendingUp className="h-4 w-4" />}
+          accentColor="blue"
         />
         <KPICard
           title="Bank"
           value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
           subtitle="saldo"
-          icon={<Users className="h-4 w-4" />}
+          icon={<Wallet className="h-4 w-4" />}
+          accentColor="blue"
         />
       </div>
 
-      <div className="mb-6">
+      {/* Attention needed — full width */}
+      <div className="mb-8">
         <AttentionNeeded />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Primary column — charts & reports */}
+        <div className="lg:col-span-8 space-y-6">
           <RevenueChart />
           <RecentReports />
         </div>
-        <div className="space-y-6">
+
+        {/* Secondary column — performance & activity */}
+        <div className="lg:col-span-4 space-y-6">
           <PerformanceScore />
           <ActivityFeed />
           <BudgetOverview />

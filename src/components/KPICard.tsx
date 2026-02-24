@@ -8,20 +8,54 @@ interface KPICardProps {
   trend?: "up" | "down" | "neutral";
   subtitle?: string;
   icon?: ReactNode;
+  accentColor?: "emerald" | "amber" | "blue" | "rose";
 }
 
-const KPICard = ({ title, value, change, trend = "neutral", subtitle, icon }: KPICardProps) => {
+const accentMap = {
+  emerald: {
+    iconBg: "bg-primary/10",
+    iconText: "text-primary",
+    border: "border-l-primary",
+    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(var(--primary)/0.25)]",
+  },
+  amber: {
+    iconBg: "bg-chart-warning/10",
+    iconText: "text-chart-warning",
+    border: "border-l-chart-warning",
+    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(38,92%,50%,0.2)]",
+  },
+  blue: {
+    iconBg: "bg-chart-info/10",
+    iconText: "text-chart-info",
+    border: "border-l-chart-info",
+    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(217,91%,60%,0.2)]",
+  },
+  rose: {
+    iconBg: "bg-destructive/10",
+    iconText: "text-destructive",
+    border: "border-l-destructive",
+    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(0,72%,51%,0.15)]",
+  },
+};
+
+const KPICard = ({ title, value, change, trend = "neutral", subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
+  const accent = accentMap[accentColor];
+
   return (
-    <div className="glass-card rounded-xl p-5 animate-fade-in group hover:border-primary/20 transition-all duration-300">
+    <div className={`glass-card rounded-xl p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow}`}>
       <div className="flex items-start justify-between mb-3">
-        <p className="text-sm text-muted-foreground font-medium">{title}</p>
-        {icon && <div className="text-muted-foreground">{icon}</div>}
+        <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
+        {icon && (
+          <div className={`p-2 rounded-lg ${accent.iconBg}`}>
+            <div className={accent.iconText}>{icon}</div>
+          </div>
+        )}
       </div>
-      <p className="text-2xl font-display font-bold text-foreground tracking-tight">{value}</p>
-      <div className="flex items-center gap-2 mt-2">
+      <p className="text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
+      <div className="flex items-center gap-2 mt-3">
         {change && (
           <span
-            className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
               trend === "up"
                 ? "bg-primary/10 text-primary"
                 : trend === "down"
@@ -39,7 +73,7 @@ const KPICard = ({ title, value, change, trend = "neutral", subtitle, icon }: KP
             {change}
           </span>
         )}
-        {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+        {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
       </div>
     </div>
   );
