@@ -31,10 +31,10 @@ const urgencyBorder = {
 };
 
 const AttentionNeeded = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const { data: items = [] } = useQuery({
-    queryKey: ["attention-needed", user?.id],
+    queryKey: ["attention-needed", companyId, user?.id],
     queryFn: async () => {
       const attentionItems: AttentionItem[] = [];
       const now = new Date();
@@ -42,10 +42,10 @@ const AttentionNeeded = () => {
       const currentYear = now.getFullYear();
       const currentKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
 
-      const { data: reports } = await supabase
+      const { data: reports } = await (supabase
         .from("financial_reports")
-        .select("report_period")
-        .eq("user_id", user!.id)
+        .select("report_period") as any)
+        .eq("company_id", companyId!)
         .eq("status", "processed");
 
       const reportKeys = new Set(
@@ -77,10 +77,10 @@ const AttentionNeeded = () => {
         });
       }
 
-      const { data: milestones } = await supabase
+      const { data: milestones } = await (supabase
         .from("milestones")
-        .select("id, title, deadline, progress")
-        .eq("user_id", user!.id)
+        .select("id, title, deadline, progress") as any)
+        .eq("company_id", companyId!)
         .lt("progress", 100)
         .not("deadline", "is", null);
 
@@ -131,7 +131,7 @@ const AttentionNeeded = () => {
 
       return attentionItems;
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 3 * 60 * 1000,
   });
 

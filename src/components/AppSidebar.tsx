@@ -44,7 +44,7 @@ const AppSidebar = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
-  const { user, profile, signOut, isAdvisor } = useAuth();
+  const { user, profile, signOut, isAdvisor, companyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
@@ -215,7 +215,7 @@ const AppSidebar = () => {
                 {profile?.full_name || "Indlæser..."}
               </p>
               <p className="text-[11px] text-sidebar-muted truncate">
-                {profile?.company_name || (effectiveAdvisor ? "Advisor" : "")}
+                {companyName || (effectiveAdvisor ? "Advisor" : "")}
               </p>
             </div>
             <button

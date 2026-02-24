@@ -24,23 +24,23 @@ const statusConfig = {
 };
 
 const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [dialogTab, setDialogTab] = useState<"pending" | "improved" | "regressed">("pending");
 
   const { data: items = [], isLoading: loading } = useQuery({
-    queryKey: ["ai-progress", user?.id],
+    queryKey: ["ai-progress", companyId],
     queryFn: async () => {
       const [{ data: reports }, { data: milestones }] = await Promise.all([
-        supabase
+        (supabase
           .from("financial_reports")
-          .select("id, report_period, ai_analysis")
-          .eq("user_id", user!.id)
+          .select("id, report_period, ai_analysis") as any)
+          .eq("company_id", companyId!)
           .not("ai_analysis", "is", null)
           .order("uploaded_at", { ascending: false }),
-        supabase
+        (supabase
           .from("milestones")
-          .select("title, progress, status, source_report")
-          .eq("user_id", user!.id),
+          .select("title, progress, status, source_report") as any)
+          .eq("company_id", companyId!),
       ]);
 
       const result: ProgressItem[] = [];
@@ -77,7 +77,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
 
       return result;
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

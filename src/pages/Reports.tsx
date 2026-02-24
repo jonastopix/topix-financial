@@ -65,7 +65,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 };
 
 const Reports = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
@@ -81,10 +81,10 @@ const Reports = () => {
     if (!user) return;
 
     const [reportsRes, convRes, profileRes] = await Promise.all([
-      supabase
+      (supabase
         .from("financial_reports")
-        .select("id, file_name, report_type, report_period, company_name, uploaded_at, status, extracted_data")
-        .eq("user_id", user.id)
+        .select("id, file_name, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
+        .eq("company_id", companyId)
         .order("uploaded_at", { ascending: false }),
       supabase.from("conversations").select("id").eq("member_id", user.id).maybeSingle(),
       supabase.from("profiles").select("created_at").eq("user_id", user.id).maybeSingle(),
@@ -129,7 +129,7 @@ const Reports = () => {
         setAdvisorProfiles(map);
       }
     }
-  }, [user]);
+  }, [user, companyId]);
 
   useEffect(() => {
     loadData();
@@ -430,6 +430,7 @@ const Reports = () => {
           accept=".xlsx,.xls,.csv,.pdf"
           conversationId={conversationId}
           userId={user?.id || null}
+          companyId={companyId || null}
           onPipelineComplete={handlePipelineComplete}
         />
       </div>

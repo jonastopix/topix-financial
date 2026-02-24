@@ -8,18 +8,18 @@ import { moduleOrder } from "@/lib/handoutConfig";
 const TOTAL_MODULES = moduleOrder.length; // 5
 
 const DashboardHandouts = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const { data } = useQuery({
-    queryKey: ["dashboard-handouts", user?.id],
+    queryKey: ["dashboard-handouts", companyId],
     queryFn: async () => {
-      const { data: handouts } = await supabase
+      const { data: handouts } = await (supabase
         .from("handouts")
-        .select("id, status, module")
-        .eq("user_id", user!.id);
+        .select("id, status, module") as any)
+        .eq("company_id", companyId!);
       return handouts || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

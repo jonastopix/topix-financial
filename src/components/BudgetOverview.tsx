@@ -12,22 +12,22 @@ interface ComparisonRow {
 }
 
 const BudgetOverview = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const { data } = useQuery({
-    queryKey: ["budget-overview-v2", user?.id],
+    queryKey: ["budget-overview-v2", companyId],
     queryFn: async () => {
       const currentYear = new Date().getFullYear();
       const [budgetRes, reportRes] = await Promise.all([
-        supabase
+        (supabase
           .from("budget_targets")
-          .select("category, budget_amount, period")
-          .eq("user_id", user!.id)
+          .select("category, budget_amount, period") as any)
+          .eq("company_id", companyId!)
           .like("period", `${currentYear}-base-%`),
-        supabase
+        (supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status")
-          .eq("user_id", user!.id)
+          .select("id, report_period, extracted_data, status") as any)
+          .eq("company_id", companyId!)
           .eq("status", "processed")
           .order("uploaded_at", { ascending: false })
           .limit(1),
@@ -69,7 +69,7 @@ const BudgetOverview = () => {
 
       return { rows, period: report?.report_period, hasBudget: budgets.length > 0 };
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

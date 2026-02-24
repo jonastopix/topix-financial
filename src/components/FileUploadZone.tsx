@@ -47,6 +47,7 @@ interface FileUploadZoneProps {
   accept?: string;
   conversationId?: string | null;
   userId?: string | null;
+  companyId?: string | null;
   onExtracted?: (data: ExtractedData) => void;
   onPipelineComplete?: () => void;
 }
@@ -104,6 +105,7 @@ const FileUploadZone = ({
   accept = ".xlsx,.xls,.csv,.pdf",
   conversationId,
   userId,
+  companyId,
   onExtracted,
   onPipelineComplete,
 }: FileUploadZoneProps) => {
@@ -140,15 +142,18 @@ const FileUploadZone = ({
         // === STEP 1: Create report record in DB ===
         if (!userId) throw new Error("Du skal være logget ind for at uploade");
 
-        const { data: reportRecord, error: insertError } = await supabase
-          .from("financial_reports")
-          .insert({
+        const insertData: any = {
             user_id: userId,
             file_name: file.name,
             file_path: `uploads/${userId}/${fileId}/${file.name}`,
             report_type: reportType,
             status: "processing",
-          })
+          };
+        if (companyId) insertData.company_id = companyId;
+
+        const { data: reportRecord, error: insertError } = await supabase
+          .from("financial_reports")
+          .insert(insertData)
           .select()
           .single();
 
@@ -219,14 +224,10 @@ const FileUploadZone = ({
         updateFile(fileId, { status: "analyzing" });
 
         // Fetch historical reports for trend analysis
-        const { data: historicalReports } = await supabase
-          .from("financial_reports")
-          .select("extracted_data, report_period")
-          .eq("user_id", userId)
-          .eq("status", "processed")
-          .neq("id", reportRecord.id)
-          .order("uploaded_at", { ascending: true })
-          .limit(12);
+        const historicalQuery = companyId
+          ? (supabase.from("financial_reports").select("extracted_data, report_period") as any).eq("company_id", companyId).eq("status", "processed").neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12)
+          : supabase.from("financial_reports").select("extracted_data, report_period").eq("user_id", userId).eq("status", "processed").neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12);
+        const { data: historicalReports } = await historicalQuery;
 
         const historicalData = (historicalReports || [])
           .filter((r) => r.extracted_data)
@@ -268,20 +269,24 @@ const FileUploadZone = ({
           const milestonesToCreate = analysis.key_findings
             .filter((f: any) => f.severity === "advarsel" || f.severity === "kritisk")
             .slice(0, 3)
-            .map((f: any) => ({
-              user_id: userId,
-              title: f.recommendation?.slice(0, 200) || f.title,
-              description: f.analysis,
-              source: "ai",
-              source_report: reportRecord.id,
-              status: "active",
-              progress: 0,
-            }));
+            .map((f: any) => {
+              const ms: any = {
+                user_id: userId,
+                title: f.recommendation?.slice(0, 200) || f.title,
+                description: f.analysis,
+                source: "ai",
+                source_report: reportRecord.id,
+                status: "active",
+                progress: 0,
+              };
+              if (companyId) ms.company_id = companyId;
+              return ms;
+            });
 
           if (milestonesToCreate.length > 0) {
             const { error: msError } = await supabase
               .from("milestones")
-              .insert(milestonesToCreate);
+              .insert(milestonesToCreate as any);
             if (!msError) milestonesCreated = milestonesToCreate.length;
           }
         }
@@ -342,7 +347,7 @@ const FileUploadZone = ({
         });
       }
     },
-    [userId, conversationId, onExtracted, onPipelineComplete]
+    [userId, companyId, conversationId, onExtracted, onPipelineComplete]
   );
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
