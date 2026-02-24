@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getKeyFigures, parseReportPeriodToKey, type ReportData } from "@/lib/financialUtils";
-import { PERFORMANCE_SCORE } from "@/lib/appConfig";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface MetricScore {
   label: string;
@@ -26,15 +26,16 @@ function getScoreBg(score: number) {
   return "bg-destructive";
 }
 
-function getScoreLabel(score: number) {
-  for (const { min, label } of PERFORMANCE_SCORE.labels) {
+function getScoreLabel(score: number, labels: readonly { min: number; label: string }[]) {
+  for (const { min, label } of labels) {
     if (score >= min) return label;
   }
-  return PERFORMANCE_SCORE.labels[PERFORMANCE_SCORE.labels.length - 1].label;
+  return labels[labels.length - 1].label;
 }
 
 const PerformanceScore = () => {
   const { user } = useAuth();
+  const { performanceScore: PERF } = useAppConfig();
 
   const { data: reports = [] } = useQuery({
     queryKey: ["financial-reports-perf", user?.id],
@@ -67,18 +68,18 @@ const PerformanceScore = () => {
 
     const revenueGrowth = prev?.omsaetning && latest.omsaetning
       ? ((latest.omsaetning - prev.omsaetning) / Math.abs(prev.omsaetning)) * 100 : 0;
-    const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * PERFORMANCE_SCORE.growthMultiplier));
+    const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * PERF.growthMultiplier));
 
     const dbMargin = latest.omsaetning && latest.daekningsbidrag
       ? (latest.daekningsbidrag / latest.omsaetning) * 100 : 0;
-    const marginScore = Math.min(100, Math.max(0, dbMargin * PERFORMANCE_SCORE.marginMultiplier));
+    const marginScore = Math.min(100, Math.max(0, dbMargin * PERF.marginMultiplier));
 
     const netMargin = latest.omsaetning && latest.resultat_foer_skat
       ? (latest.resultat_foer_skat / latest.omsaetning) * 100 : 0;
-    const profitScore = Math.min(100, Math.max(0, 50 + netMargin * PERFORMANCE_SCORE.profitMultiplier));
+    const profitScore = Math.min(100, Math.max(0, 50 + netMargin * PERF.profitMultiplier));
 
     const bankScore = latest.bank_balance
-      ? Math.min(100, Math.max(0, (latest.bank_balance / (Math.abs(latest.loenninger || PERFORMANCE_SCORE.defaultSalaryFallback) * PERFORMANCE_SCORE.liquidityMonths)) * 100))
+      ? Math.min(100, Math.max(0, (latest.bank_balance / (Math.abs(latest.loenninger || PERF.defaultSalaryFallback) * PERF.liquidityMonths)) * 100))
       : 50;
 
     return [
@@ -87,17 +88,17 @@ const PerformanceScore = () => {
       { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
       { label: "Likviditet", value: latest.bank_balance ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
     ];
-  }, [reports]);
+  }, [reports, PERF]);
 
   const overallScore = useMemo(() => {
     if (metrics.length === 0) return 0;
-    const weights = PERFORMANCE_SCORE.weights;
+    const weights = PERF.weights;
     return Math.round(metrics.reduce((sum, m, i) => sum + m.score * (weights[i] || 0.25), 0));
-  }, [metrics]);
+  }, [metrics, PERF]);
 
   const scoreColor = getScoreColor(overallScore);
   const scoreBg = getScoreBg(overallScore);
-  const scoreLabel = getScoreLabel(overallScore);
+  const scoreLabel = getScoreLabel(overallScore, PERF.labels || []);
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (overallScore / 100) * circumference;

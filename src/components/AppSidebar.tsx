@@ -21,6 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -36,6 +37,7 @@ const baseNavItems = [
 
 const advisorNavItems = [
   { icon: UserCog, label: "Medlemmer", path: "/members" },
+  { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
 ];
 
 const AppSidebar = () => {
@@ -46,6 +48,7 @@ const AppSidebar = () => {
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
+  const { branding } = useAppConfig();
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
@@ -130,11 +133,11 @@ const AppSidebar = () => {
         <div className="flex items-center justify-between px-6 py-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-sm">BR</span>
+              <span className="text-primary-foreground font-display font-bold text-sm">{branding.shortName}</span>
             </div>
             <div>
               <h1 className="font-display font-bold text-sidebar-accent-foreground text-sm tracking-tight">
-                The Boardroom
+                {branding.name}
               </h1>
               <p className="text-[11px] text-sidebar-muted">
                 {effectiveAdvisor ? "Advisor Panel" : "Founder Platform"}

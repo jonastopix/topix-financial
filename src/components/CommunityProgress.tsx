@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
-import { GAMIFICATION } from "@/lib/appConfig";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface MemberStats {
   userId: string;
@@ -18,6 +18,7 @@ const CommunityProgress = () => {
   const { user, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
+  const { gamification: GAM } = useAppConfig();
 
   const { data, isLoading } = useQuery({
     queryKey: ["community-progress", user?.id, isAdvisor],
@@ -40,7 +41,7 @@ const CommunityProgress = () => {
         const stats: MemberStats[] = memberProfiles.map(p => {
           const rCount = reports.filter(r => r.user_id === p.user_id && r.status === "processed").length;
           const mCompleted = milestones.filter(m => m.user_id === p.user_id && m.progress >= 100).length;
-          const score = rCount * GAMIFICATION.pointsPerReport + mCompleted * GAMIFICATION.pointsPerMilestone;
+          const score = rCount * GAM.pointsPerReport + mCompleted * GAM.pointsPerMilestone;
           const name = p.full_name || "Ukendt";
           const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
           return { userId: p.user_id, name, initials, reportsCount: rCount, milestonesCompleted: mCompleted, totalScore: score };
@@ -57,7 +58,7 @@ const CommunityProgress = () => {
 
         const rCount = (reportsRes.data || []).filter(r => r.status === "processed").length;
         const mCompleted = (milestonesRes.data || []).filter(m => m.progress >= 100).length;
-        const score = rCount * GAMIFICATION.pointsPerReport + mCompleted * GAMIFICATION.pointsPerMilestone;
+        const score = rCount * GAM.pointsPerReport + mCompleted * GAM.pointsPerMilestone;
         const name = profileRes.data?.full_name || "Dig";
         const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
@@ -120,11 +121,11 @@ const CommunityProgress = () => {
         <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <FileText className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">Rapport = {GAMIFICATION.pointsPerReport} pts</span>
+            <span className="text-[10px] text-muted-foreground">Rapport = {GAM.pointsPerReport} pts</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Target className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">Milestone = {GAMIFICATION.pointsPerMilestone} pts</span>
+            <span className="text-[10px] text-muted-foreground">Milestone = {GAM.pointsPerMilestone} pts</span>
           </div>
         </div>
       </div>
@@ -132,8 +133,9 @@ const CommunityProgress = () => {
   }
 
   if (ownStats) {
-    const levels = GAMIFICATION.levels;
+    const levels = GAM.levels;
     const currentLevel = [...levels].reverse().find(m => ownStats.totalScore >= m.threshold) || levels[0];
+
     const nextLevel = levels.find(m => m.threshold > ownStats.totalScore);
     const progressToNext = nextLevel
       ? Math.round(((ownStats.totalScore - (currentLevel.threshold)) / (nextLevel.threshold - currentLevel.threshold)) * 100)
