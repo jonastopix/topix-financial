@@ -1,86 +1,89 @@
 
-# Dashboard Redesign: Kompakt, Visuelt og WOW
 
-## Problem
-- Hojre sidebar (4 kolonner) har 6 widgets stablet vertikalt, inkl. MilestonesList der viser ALLE milestones med fuld redigering
-- Venstre side (8 kolonner) har kun 2 elementer (chart + rapporter) og er ofte tom
-- Resultatet er en skæv, lang scroll-oplevelse
+# Dashboard Fixes — 6 Konkrete Problemer
 
-## Ny Layout-Struktur
+## 1. Handouts viser forkert total (100% / "1 af 1")
 
-```text
-+------------------------------------------------------+
-| Greeting + periode                                    |
-+------------------------------------------------------+
-| KPI 1    | KPI 2     | KPI 3      | KPI 4           |
-+------------------------------------------------------+
-| Attention Needed (kun hvis items)                     |
-+------------------------------------------------------+
-| Performance   | Revenue Chart (kompakt)               |
-| Score         |                                       |
-| (donut)       |                                       |
-+-------------+-----------------------------------------+
-| Handout     | Budget    | Milestones  | AI Progress   |
-| Progress    | Snapshot  | (top 3)     | (kompakt)     |
-+-------------+-----------+-------------+---------------+
-| Aktivitet (horisontal tidslinje, max 5 items)         |
-+------------------------------------------------------+
-```
+**Problem**: Widgetten tæller kun rækker i `handouts`-tabellen. Hvis brugeren kun har oprettet 1 handout, viser den "1 af 1 = 100%", selvom der er 5 moduler i alt.
 
-## Konkrete Aendringer
+**Fix**: Brug de 5 hardcodede moduler fra `handoutConfig.ts` (`moduleOrder.length = 5`) som total i stedet for `handouts.length`. Completed tælles stadig fra databasen.
 
-### 1. Nyt layout i `src/pages/Index.tsx`
-- **Sektion 1**: KPI-kort (beholdes som-er, 4-grid)
-- **Sektion 2**: AttentionNeeded (beholdes som-er)
-- **Sektion 3**: 2-kolonne grid (4+8) med PerformanceScore (kompakt) og RevenueChart
-- **Sektion 4**: 4-kolonne grid med fire kompakte "snapshot" kort:
-  - **Handout-fremgang**: Ny mini-widget der viser samlet handout-completiongrad (antal faerdige/total) med en progress-bar og link til /handouts
-  - **Budget-snapshot**: BudgetOverview (allerede kompakt nok, beholdes)
-  - **Milestones-snapshot**: NY kompakt version der kun viser top 3 aktive milestones som simple progress-bars, med "Se alle" link til /milestones -- INGEN redigering paa dashboardet
-  - **AI Progress**: Kompakt version (kun donut + taellere, ingen liste)
-- **Sektion 5**: Aktivitetsfeed som horisontal kort-raekke (max 5) i stedet for vertikal liste
-- **FJERNES fra dashboard**: CommunityProgress (tilgaengelig via sidebar), RecentReports (rapporter staar allerede i aktivitet + AttentionNeeded), fuld MilestonesList
+**Fil**: `src/components/DashboardHandouts.tsx`
 
-### 2. Ny komponent: `src/components/DashboardMilestones.tsx`
-- Viser max 3 aktive milestones som kompakte progress-linjer
-- Ingen edit/delete knapper
-- Footer med "Se alle X milestones" link til /milestones
-- Ca. 60 linjer kode
+---
 
-### 3. Ny komponent: `src/components/DashboardHandouts.tsx`
-- Henter handout-data fra Supabase
-- Viser antal faerdige / total modules som en cirkel-progress
-- Link til /handouts
-- Ca. 50 linjer kode
+## 2. Budget-widget viser meningsløse data
 
-### 4. Kompakt ActivityFeed: `src/components/DashboardActivity.tsx`
-- Horisontal scroll med max 5 aktivitets-kort
-- Hvert kort: ikon + kort tekst + tidsstempel
-- Mere visuelt interessant end en vertikal liste
+**Problem**: Viser top 5 budget_targets sorteret efter beløb — men uden måned, kontekst eller sammenligning med actuals. Det er bare 5 bars med kategorinavne.
 
-### 5. Kompakt AI Progress i dashboard-kontekst
-- Genbrug AIProgressWidget men vis kun donut + 3 taellere (ingen liste af anbefalinger)
-- Tilfoej prop `compact?: boolean` til AIProgressWidget
+**Fix**: Erstat med en "Budget vs. Actual" mini-widget der viser:
+- Samlet budgetteret omsætning vs. realiseret omsætning (fra seneste rapport)
+- Samlet budgetterede omkostninger vs. realiserede
+- En simpel afvigelsesindikator (grøn/rød pil)
+- Link til /budget for detaljer
 
-## Teknisk Plan
+**Fil**: `src/components/BudgetOverview.tsx`
 
-### Filer der oprettes
-- `src/components/DashboardMilestones.tsx` - kompakt milestone-widget
-- `src/components/DashboardHandouts.tsx` - handout-fremgang widget
-- `src/components/DashboardActivity.tsx` - horisontal aktivitetsfeed
+---
 
-### Filer der aendres
-- `src/pages/Index.tsx` - helt nyt layout med de nye widgets
-- `src/components/AIProgressWidget.tsx` - tilfoej `compact` prop der skjuler anbefalingslisten
+## 3. Milestones er ulæselige og ubrugelige
 
-### Filer der IKKE aendres
-- Alle eksisterende widgets beholdes intakte (de bruges stadig paa deres egne sider)
-- Ingen database-aendringer
-- Ingen nye dependencies
+**Problem**: Titler afkortes ved `max-w-[70%]` + `truncate`, og der er ingen interaktionsmuligheder.
 
-## Resultat
-- Dashboardet passer paa en enkelt skaerm (max lille scroll)
-- Alle vigtige informationer fra alle sider er repraesenteret som kompakte snapshots
-- Hvert snapshot linker til den fulde side for detaljer
-- Visuelt balanceret med brug af hele skaermbredden
-- WOW-faktor via glassmorphism-kort, progress-cirkler og farvekodede accenter
+**Fix**:
+- Fjern `truncate` og brug `line-clamp-2` i stedet, så titler kan folde over 2 linjer
+- Tilføj en lille "done"-knap (checkmark-ikon) ved hver milestone, der sætter progress til 100 og status til "completed" direkte fra dashboardet
+- Vis deadline hvis den findes (kompakt datoformat)
+
+**Fil**: `src/components/DashboardMilestones.tsx`
+
+---
+
+## 4. AI Progress croppes i kompakt tilstand
+
+**Problem**: Compact-mode renderer stadig det fulde 80x80px SVG + 3-kolonne counter-grid, som er for bredt/højt til et 1/4-bredde kort.
+
+**Fix**:
+- I compact-mode: Reducer SVG til 64x64, reducer radius
+- Placer donut og counters vertikalt i stedet for horisontalt (de 3 tællere stables under donut'en)
+- Fjern "Se alle X anbefalinger"-linket i compact og erstat med et simpelt "Se detaljer"-link
+
+**Fil**: `src/components/AIProgressWidget.tsx`
+
+---
+
+## 5. Bank-KPI mangler data
+
+**Problem**: Dashboardet tager kun `bank_balance` fra den seneste rapport. Men den seneste rapport (Januar 2026) er en resultatopgørelse uden balancedata. Kun saldobalancer (fx Juni 2025, April 2025) har `bank_balance`.
+
+**Fix**: I dashboard-queryen, find separat den seneste rapport der HAR `bank_balance` (dvs. ikke nødvendigvis den allerseneste rapport). Vis bank-saldo fra den rapport med en subtitle der angiver hvilken periode den stammer fra.
+
+**Fil**: `src/pages/Index.tsx` (dashboard query-logik)
+
+---
+
+## 6. Udgifter-KPI er uklar
+
+**Problem**: "Udgifter" viser kun `loenninger + direkte_omkostninger`. Subtitlen siger "løn + direkte omk." — men brugeren undrer sig over om marketing, lokaler, admin etc. er med.
+
+**Fix**:
+- Inkluder ALLE driftsomkostninger: loenninger + direkte_omkostninger + marketing + lokaler + admin + tech_software + afskrivninger
+- Omdøb subtitlen til "samlede driftsomk."
+- Opdater også RevenueChart-komponenten, så "Udgifter"-linjen bruger samme beregning for konsistens
+
+**Filer**: `src/pages/Index.tsx`, `src/components/RevenueChart.tsx`
+
+---
+
+## Opsummering af filer der ændres
+
+| Fil | Ændring |
+|-----|---------|
+| `src/components/DashboardHandouts.tsx` | Brug 5 moduler som total |
+| `src/components/BudgetOverview.tsx` | Erstat med Budget vs. Actual mini-widget |
+| `src/components/DashboardMilestones.tsx` | Bedre tekst-visning + done-knap |
+| `src/components/AIProgressWidget.tsx` | Fix compact layout (vertikal, mindre SVG) |
+| `src/pages/Index.tsx` | Bank fallback + udgifter beregning |
+| `src/components/RevenueChart.tsx` | Samme udgifter-beregning for konsistens |
+
+Ingen nye filer, ingen database-ændringer, ingen nye dependencies.
