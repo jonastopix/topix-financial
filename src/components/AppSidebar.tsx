@@ -26,7 +26,7 @@ const baseNavItems = [
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageSquare, label: "AI Progress", path: "/feedback" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
-  { icon: Users, label: "Gruppe", path: "/group" },
+  
   { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
 ];
 
