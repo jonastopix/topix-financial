@@ -39,7 +39,7 @@ const RevenueChart = () => {
           key,
           month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}`,
           revenue: kf.omsaetning || 0,
-          expenses: Math.abs(kf.loenninger || 0) + Math.abs(kf.direkte_omkostninger || 0),
+          expenses: Math.abs(kf.loenninger || 0) + Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.marketing || 0) + Math.abs(kf.lokaler || 0) + Math.abs(kf.admin || 0) + Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0),
         };
       })
       .filter(Boolean)

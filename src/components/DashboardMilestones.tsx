@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import { Target, ArrowRight } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Target, ArrowRight, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
 
 const statusBar: Record<string, string> = {
   active: "bg-chart-warning",
@@ -12,19 +14,32 @@ const statusBar: Record<string, string> = {
 
 const DashboardMilestones = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data } = useQuery({
     queryKey: ["dashboard-milestones", user?.id],
     queryFn: async () => {
       const { data: all } = await supabase
         .from("milestones")
-        .select("id, title, progress, status")
+        .select("id, title, progress, status, deadline")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       return all || [];
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase
+        .from("milestones")
+        .update({ progress: 100, status: "completed" })
+        .eq("id", id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-milestones"] });
+    },
   });
 
   const milestones = data || [];
@@ -48,15 +63,29 @@ const DashboardMilestones = () => {
         <div className="space-y-3 flex-1">
           {active.map(ms => (
             <div key={ms.id}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-foreground truncate max-w-[70%]">{ms.title}</span>
-                <span className="text-[10px] font-semibold text-muted-foreground">{ms.progress}%</span>
+              <div className="flex items-start gap-1.5 mb-1">
+                <span className="text-xs text-foreground line-clamp-2 flex-1 leading-snug">{ms.title}</span>
+                <button
+                  onClick={() => completeMutation.mutate(ms.id)}
+                  className="flex-shrink-0 p-0.5 rounded hover:bg-primary/10 transition-colors"
+                  title="Markér som færdig"
+                >
+                  <Check className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                </button>
               </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${statusBar[ms.status] || "bg-chart-warning"}`}
-                  style={{ width: `${ms.progress}%` }}
-                />
+              {ms.deadline && (
+                <p className="text-[10px] text-muted-foreground mb-1">
+                  Deadline: {format(new Date(ms.deadline), "d. MMM yyyy", { locale: da })}
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden flex-1">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${statusBar[ms.status] || "bg-chart-warning"}`}
+                    style={{ width: `${ms.progress}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-semibold text-muted-foreground w-7 text-right">{ms.progress}%</span>
               </div>
             </div>
           ))}

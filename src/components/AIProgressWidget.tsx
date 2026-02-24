@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CheckCircle2, Clock, TrendingDown, TrendingUp, Sparkles, Loader2, Activity } from "lucide-react";
+import { CheckCircle2, Clock, TrendingDown, TrendingUp, Sparkles, Loader2, Activity, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -85,9 +86,11 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
   const regressedCount = items.filter((p) => p.status === "regressed").length;
   const pct = items.length > 0 ? Math.round((actionedCount / items.length) * 100) : 0;
 
-  const r = 32;
+  const svgSize = compact ? 64 : 80;
+  const r = compact ? 24 : 32;
   const circ = 2 * Math.PI * r;
   const offset = circ - (pct / 100) * circ;
+  const center = svgSize / 2;
 
   const topPending = items.filter((i) => i.status === "pending" || i.status === "regressed").slice(0, 4);
 
@@ -100,7 +103,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
 
   if (loading) {
     return (
-      <div className="glass-card rounded-xl p-6">
+      <div className="glass-card rounded-xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
@@ -114,12 +117,12 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
 
   if (items.length === 0) {
     return (
-      <div className="glass-card rounded-xl p-6">
+      <div className="glass-card rounded-xl p-5 h-full flex flex-col">
         <div className="flex items-center gap-2 mb-3">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
         </div>
-        <div className="text-center py-4">
+        <div className="text-center py-4 flex-1 flex flex-col items-center justify-center">
           <Sparkles className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-xs text-muted-foreground">Ingen AI-anbefalinger endnu</p>
         </div>
@@ -127,6 +130,102 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
     );
   }
 
+  // Compact layout for dashboard snapshot
+  if (compact) {
+    return (
+      <div className="glass-card rounded-xl p-5 animate-fade-in h-full flex flex-col">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <div className="relative">
+            <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} className="transform -rotate-90">
+              <circle cx={center} cy={center} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="5" />
+              <circle
+                cx={center} cy={center} r={r} fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="5" strokeLinecap="round"
+                strokeDasharray={circ}
+                strokeDashoffset={offset}
+                className="transition-all duration-1000 ease-out"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-base font-display font-bold text-primary">{pct}%</span>
+            </div>
+          </div>
+
+          <div className="flex gap-3 text-center">
+            <div>
+              <p className="text-sm font-display font-bold text-primary">{actionedCount}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">OK</p>
+            </div>
+            <div>
+              <p className="text-sm font-display font-bold text-chart-warning">{pendingCount}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Afv.</p>
+            </div>
+            <div>
+              <p className="text-sm font-display font-bold text-destructive">{regressedCount}</p>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Ned</p>
+            </div>
+          </div>
+        </div>
+
+        <Dialog>
+          <DialogTrigger asChild>
+            <button className="flex items-center justify-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors pt-3 mt-auto w-full">
+              Se detaljer <ArrowRight className="h-3 w-3" />
+            </button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" />
+                AI Progress — alle anbefalinger
+              </DialogTitle>
+            </DialogHeader>
+            <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
+              <TabsList className="w-full grid grid-cols-3">
+                <TabsTrigger value="pending">Afventer ({pendingCount})</TabsTrigger>
+                <TabsTrigger value="improved">Forbedret ({actionedCount})</TabsTrigger>
+                <TabsTrigger value="regressed">Forværret ({regressedCount})</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="space-y-3 mt-4">
+              {dialogItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Ingen anbefalinger i denne kategori.</p>
+              ) : (
+                dialogItems.map((item) => {
+                  const cfg = statusConfig[item.status];
+                  const Icon = cfg.icon;
+                  return (
+                    <div key={item.id} className="p-3 rounded-lg border border-border/50 bg-card">
+                      <div className="flex items-start gap-2.5">
+                        <div className={`p-1.5 rounded-lg ${cfg.bg} flex-shrink-0 mt-0.5`}>
+                          <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground leading-snug">{item.recommendation}</p>
+                          <span className="text-[10px] text-muted-foreground">{item.fromReport}</span>
+                          {item.aiComment && (
+                            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // Full layout
   return (
     <div className="glass-card rounded-xl p-6 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
@@ -136,10 +235,10 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
 
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-shrink-0">
-          <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
-            <circle cx="40" cy="40" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
+          <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} className="transform -rotate-90">
+            <circle cx={center} cy={center} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
             <circle
-              cx="40" cy="40" r={r} fill="none"
+              cx={center} cy={center} r={r} fill="none"
               stroke="hsl(var(--primary))"
               strokeWidth="6" strokeLinecap="round"
               strokeDasharray={circ}
@@ -168,7 +267,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
         </div>
       </div>
 
-      {!compact && topPending.length > 0 && (
+      {topPending.length > 0 && (
         <div className="space-y-2 mb-3">
           {topPending.map((item) => {
             const cfg = statusConfig[item.status];
@@ -198,7 +297,6 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
               AI Progress — alle anbefalinger
             </DialogTitle>
           </DialogHeader>
-
           <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
             <TabsList className="w-full grid grid-cols-3">
               <TabsTrigger value="pending">Afventer ({pendingCount})</TabsTrigger>
@@ -206,7 +304,6 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
               <TabsTrigger value="regressed">Forværret ({regressedCount})</TabsTrigger>
             </TabsList>
           </Tabs>
-
           <div className="space-y-3 mt-4">
             {dialogItems.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">Ingen anbefalinger i denne kategori.</p>
@@ -222,9 +319,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground leading-snug">{item.recommendation}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-muted-foreground">{item.fromReport}</span>
-                        </div>
+                        <span className="text-[10px] text-muted-foreground">{item.fromReport}</span>
                         {item.aiComment && (
                           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
                         )}
