@@ -17,11 +17,13 @@ const BudgetOverview = () => {
   const { data } = useQuery({
     queryKey: ["budget-overview-v2", user?.id],
     queryFn: async () => {
+      const currentYear = new Date().getFullYear();
       const [budgetRes, reportRes] = await Promise.all([
         supabase
           .from("budget_targets")
           .select("category, budget_amount, period")
-          .eq("user_id", user!.id),
+          .eq("user_id", user!.id)
+          .like("period", `${currentYear}-base-%`),
         supabase
           .from("financial_reports")
           .select("id, report_period, extracted_data, status")
@@ -40,7 +42,7 @@ const BudgetOverview = () => {
       let budgetExpenses = 0;
       budgets.forEach(b => {
         const cat = b.category.toLowerCase();
-        if (cat.includes("omsætning") || cat.includes("revenue") || cat.includes("salg")) {
+        if (cat.includes("omsaetning") || cat.includes("omsætning") || cat.includes("revenue") || cat.includes("salg")) {
           budgetRevenue += Number(b.budget_amount);
         } else {
           budgetExpenses += Math.abs(Number(b.budget_amount));
