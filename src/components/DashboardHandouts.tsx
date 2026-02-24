@@ -3,6 +3,9 @@ import { BookOpen, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { moduleOrder } from "@/lib/handoutConfig";
+
+const TOTAL_MODULES = moduleOrder.length; // 5
 
 const DashboardHandouts = () => {
   const { user } = useAuth();
@@ -21,9 +24,8 @@ const DashboardHandouts = () => {
   });
 
   const handouts = data || [];
-  const total = handouts.length;
   const completed = handouts.filter(h => h.status === "completed").length;
-  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const pct = Math.round((completed / TOTAL_MODULES) * 100);
 
   const r = 30;
   const circ = 2 * Math.PI * r;
@@ -54,7 +56,7 @@ const DashboardHandouts = () => {
           </div>
         </div>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          {completed} af {total} moduler
+          {completed} af {TOTAL_MODULES} moduler
         </p>
       </div>
 

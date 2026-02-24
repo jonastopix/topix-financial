@@ -1,72 +1,130 @@
 import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 
-interface BudgetCategory {
-  category: string;
-  budget_amount: number;
+interface ComparisonRow {
+  label: string;
+  budget: number;
+  actual: number;
 }
 
 const BudgetOverview = () => {
   const { user } = useAuth();
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ["budget-overview", user?.id],
+  const { data } = useQuery({
+    queryKey: ["budget-overview-v2", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("budget_targets")
-        .select("category, budget_amount")
-        .eq("user_id", user!.id)
-        .order("budget_amount", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      return (data || []) as BudgetCategory[];
+      const [budgetRes, reportRes] = await Promise.all([
+        supabase
+          .from("budget_targets")
+          .select("category, budget_amount, period")
+          .eq("user_id", user!.id),
+        supabase
+          .from("financial_reports")
+          .select("id, report_period, extracted_data, status")
+          .eq("user_id", user!.id)
+          .eq("status", "processed")
+          .order("uploaded_at", { ascending: false })
+          .limit(1),
+      ]);
+
+      const budgets = budgetRes.data || [];
+      const report = (reportRes.data?.[0] || null) as ReportData | null;
+      const kf = report ? getKeyFigures(report) : null;
+
+      // Sum budget by revenue vs expenses categories
+      let budgetRevenue = 0;
+      let budgetExpenses = 0;
+      budgets.forEach(b => {
+        const cat = b.category.toLowerCase();
+        if (cat.includes("omsætning") || cat.includes("revenue") || cat.includes("salg")) {
+          budgetRevenue += Number(b.budget_amount);
+        } else {
+          budgetExpenses += Math.abs(Number(b.budget_amount));
+        }
+      });
+
+      // Actuals from latest report
+      const actualRevenue = kf?.omsaetning ?? 0;
+      const actualExpenses = Math.abs(kf?.loenninger ?? 0) +
+        Math.abs(kf?.direkte_omkostninger ?? 0) +
+        Math.abs(kf?.marketing ?? 0) +
+        Math.abs(kf?.lokaler ?? 0) +
+        Math.abs(kf?.admin ?? 0) +
+        Math.abs(kf?.tech_software ?? 0) +
+        Math.abs(kf?.afskrivninger ?? 0);
+
+      const rows: ComparisonRow[] = [];
+      if (budgetRevenue > 0 || actualRevenue > 0) {
+        rows.push({ label: "Omsætning", budget: budgetRevenue, actual: actualRevenue });
+      }
+      if (budgetExpenses > 0 || actualExpenses > 0) {
+        rows.push({ label: "Omkostninger", budget: budgetExpenses, actual: actualExpenses });
+      }
+
+      return { rows, period: report?.report_period, hasBudget: budgets.length > 0 };
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
 
-  const totalBudget = categories.reduce((s, c) => s + Number(c.budget_amount), 0);
-  const hasData = categories.length > 0;
+  const { rows = [], period, hasBudget } = data || {};
 
   return (
-    <div className="glass-card rounded-xl p-5 animate-fade-in">
+    <div className="glass-card rounded-xl p-5 animate-fade-in h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-foreground">Budget</h3>
-        {hasData && (
-          <span className="text-xs font-medium text-primary">
-            {(totalBudget / 1000).toFixed(0)}k i alt
-          </span>
-        )}
+        <h3 className="font-display font-semibold text-foreground text-sm">Budget vs. Actual</h3>
       </div>
-      {hasData ? (
-        <div className="space-y-4">
-          {categories.map((cat) => {
-            const maxAmount = categories[0]?.budget_amount || 1;
-            const pct = Math.round((Number(cat.budget_amount) / maxAmount) * 100);
+
+      {rows.length > 0 ? (
+        <div className="flex-1 space-y-4">
+          {rows.map(row => {
+            const diff = row.actual - row.budget;
+            const isRevenue = row.label === "Omsætning";
+            // For revenue: positive diff is good. For expenses: negative diff is good.
+            const isGood = isRevenue ? diff >= 0 : diff <= 0;
             return (
-              <div key={cat.category}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm text-foreground">{cat.category}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {(Number(cat.budget_amount) / 1000).toFixed(1)}k DKK
-                  </span>
+              <div key={row.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-foreground font-medium">{row.label}</span>
+                  <div className="flex items-center gap-1">
+                    {diff !== 0 && (
+                      isGood
+                        ? <TrendingUp className="h-3 w-3 text-primary" />
+                        : <TrendingDown className="h-3 w-3 text-destructive" />
+                    )}
+                    <span className={`text-[10px] font-semibold ${isGood ? "text-primary" : "text-destructive"}`}>
+                      {diff >= 0 ? "+" : ""}{formatCompact(diff)}
+                    </span>
+                  </div>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500 bg-primary"
-                    style={{ width: `${pct}%` }}
-                  />
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  <span>Budget: {formatCompact(row.budget)}</span>
+                  <span>·</span>
+                  <span>Actual: {formatCompact(row.actual)}</span>
                 </div>
               </div>
             );
           })}
+          {period && (
+            <p className="text-[10px] text-muted-foreground">Baseret på {period}</p>
+          )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          Ingen budgetposter endnu. Gå til Budget-siden for at oprette.
+        <p className="text-sm text-muted-foreground text-center py-4 flex-1 flex items-center justify-center">
+          {hasBudget ? "Upload rapport for sammenligning" : "Opret budget for at se afvigelser"}
         </p>
       )}
+
+      <Link
+        to="/budget"
+        className="flex items-center justify-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors pt-3 mt-auto"
+      >
+        Se budget <ArrowRight className="h-3 w-3" />
+      </Link>
     </div>
   );
 };

@@ -22,6 +22,17 @@ function getGreeting() {
   return "God aften";
 }
 
+/** Sum all operating expenses from key figures */
+function totalExpenses(kf: Record<string, number>): number {
+  return Math.abs(kf.loenninger ?? 0) +
+    Math.abs(kf.direkte_omkostninger ?? 0) +
+    Math.abs(kf.marketing ?? 0) +
+    Math.abs(kf.lokaler ?? 0) +
+    Math.abs(kf.admin ?? 0) +
+    Math.abs(kf.tech_software ?? 0) +
+    Math.abs(kf.afskrivninger ?? 0);
+}
+
 const Dashboard = () => {
   const { user, profile } = useAuth();
 
@@ -46,17 +57,22 @@ const Dashboard = () => {
         .filter((d): d is { key: string; kf: Record<string, number>; period: string } => !!d.key && !!d.kf)
         .sort((a, b) => a.key.localeCompare(b.key));
 
-      let kpiData = { revenue: null as number | null, revenuePrev: null as number | null, expenses: null as number | null, result: null as number | null, bank: null as number | null, period: null as string | null };
+      let kpiData = { revenue: null as number | null, revenuePrev: null as number | null, expenses: null as number | null, result: null as number | null, bank: null as number | null, bankPeriod: null as string | null, period: null as string | null };
 
       if (sorted.length > 0) {
         const latest = sorted[sorted.length - 1];
         const prev = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
+
+        // Find the most recent report that has bank_balance
+        const bankReport = [...sorted].reverse().find(r => r.kf.bank_balance != null);
+
         kpiData = {
           revenue: latest.kf.omsaetning ?? null,
           revenuePrev: prev?.kf.omsaetning ?? null,
-          expenses: latest.kf.loenninger != null ? Math.abs(latest.kf.loenninger) + Math.abs(latest.kf.direkte_omkostninger || 0) : null,
+          expenses: totalExpenses(latest.kf),
           result: latest.kf.resultat_foer_skat ?? null,
-          bank: latest.kf.bank_balance ?? null,
+          bank: bankReport?.kf.bank_balance ?? null,
+          bankPeriod: bankReport?.period ?? null,
           period: latest.period,
         };
       }
@@ -67,7 +83,7 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const kpiData = dashboardData?.kpiData ?? { revenue: null, revenuePrev: null, expenses: null, result: null, bank: null, period: null };
+  const kpiData = dashboardData?.kpiData ?? { revenue: null, revenuePrev: null, expenses: null, result: null, bank: null, bankPeriod: null, period: null };
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -102,7 +118,7 @@ const Dashboard = () => {
         <KPICard
           title="Udgifter"
           value={kpiData.expenses != null ? formatDKK(kpiData.expenses) : "—"}
-          subtitle="løn + direkte omk."
+          subtitle="samlede driftsomk."
           icon={<Flame className="h-4 w-4" />}
           accentColor="amber"
         />
@@ -117,7 +133,7 @@ const Dashboard = () => {
         <KPICard
           title="Bank"
           value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
-          subtitle="saldo"
+          subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
           icon={<Wallet className="h-4 w-4" />}
           accentColor="blue"
         />
