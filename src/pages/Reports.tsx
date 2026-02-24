@@ -301,9 +301,9 @@ const Reports = () => {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-                <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
                 <Tooltip
                   formatter={(value: number, name: string) => [formatDKK(value), {
                     omsaetning: "Omsætning",
@@ -321,11 +321,11 @@ const Reports = () => {
                   loenninger: "Lønninger",
                   bank_balance: "Bank",
                 }[value] || value)} />
-                <Line type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
-                <Line type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
-                <Line type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
-                <Line type="monotone" dataKey="loenninger" stroke="hsl(var(--chart-4))" strokeWidth={1.5} dot={{ r: 3 }} connectNulls />
-                <Line type="monotone" dataKey="bank_balance" stroke="hsl(var(--chart-5))" strokeWidth={1.5} dot={{ r: 3 }} connectNulls />
+                <Line type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
+                <Line type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} connectNulls strokeDasharray="6 3" />
+                <Line type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} connectNulls />
+                <Line type="monotone" dataKey="loenninger" stroke="hsl(var(--chart-4))" strokeWidth={1} dot={false} activeDot={{ r: 3 }} connectNulls strokeDasharray="4 4" opacity={0.7} />
+                <Line type="monotone" dataKey="bank_balance" stroke="hsl(var(--chart-5))" strokeWidth={1} dot={false} activeDot={{ r: 3 }} connectNulls strokeDasharray="2 2" opacity={0.7} />
               </LineChart>
             </ResponsiveContainer>
           </div>
