@@ -18,6 +18,7 @@ import Members from "./pages/Members";
 import MemberDetail from "./pages/MemberDetail";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
+import AdminConfig from "./pages/AdminConfig";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
             <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
             <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/admin/config" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </ViewModeProvider>
