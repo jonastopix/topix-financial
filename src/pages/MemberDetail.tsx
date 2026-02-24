@@ -23,6 +23,8 @@ import {
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
+import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { reportStatusConfig } from "@/lib/financialUtils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
@@ -84,23 +86,10 @@ interface HandoutSummaryItem {
   progress: number;
 }
 
-function calcHandoutProgress(config: HandoutConfig, responses: Record<string, string>, checklist: Record<string, boolean>, levers: string[]): number {
-  const totalFields = config.sections.reduce((sum, s) => {
-    let count = s.questions.filter(q => q.type === "textarea").length;
-    if (s.checklist) count += s.checklist.length;
-    count += s.questions.filter(q => q.type === "numbered_list").reduce((a, q) => a + (q.count || 2), 0);
-    return sum + count;
-  }, 0) + config.leverCount;
-  const filled = Object.values(responses).filter(v => v.trim()).length
-    + Object.values(checklist).filter(v => v).length
-    + levers.filter(v => v.trim()).length;
-  return totalFields > 0 ? Math.round((filled / totalFields) * 100) : 0;
-}
-
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
-  processed: { icon: CheckCircle2, label: "Behandlet", className: "text-primary", bg: "bg-primary/10" },
-  processing: { icon: Clock, label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
-  error: { icon: AlertCircle, label: "Fejl", className: "text-destructive", bg: "bg-destructive/10" },
+  processed: { icon: CheckCircle2, ...reportStatusConfig.processed },
+  processing: { icon: Clock, ...reportStatusConfig.processing },
+  error: { icon: AlertCircle, ...reportStatusConfig.error },
 };
 
 const handoutStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {

@@ -1,5 +1,8 @@
 import { useMemo } from "react";
 import { CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import {
+  DANISH_MONTHS, SHORT_MONTHS, parseReportPeriodToKey, reportStatusConfig,
+} from "@/lib/financialUtils";
 
 interface ReportSlim {
   id: string;
@@ -11,30 +14,6 @@ interface DeliveryOverviewProps {
   reports: ReportSlim[];
   programStart: Date | null;
 }
-
-const DANISH_MONTHS = [
-  "Januar", "Februar", "Marts", "April", "Maj", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "December",
-];
-
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
-
-function parseReportPeriodToKey(period: string | null): string | null {
-  if (!period) return null;
-  for (let i = 0; i < DANISH_MONTHS.length; i++) {
-    if (period.toLowerCase().includes(DANISH_MONTHS[i].toLowerCase())) {
-      const yearMatch = period.match(/\d{4}/);
-      if (yearMatch) return `${yearMatch[0]}-${String(i + 1).padStart(2, "0")}`;
-    }
-  }
-  return null;
-}
-
-const statusConfig: Record<string, { label: string }> = {
-  processed: { label: "Behandlet" },
-  processing: { label: "Behandles" },
-  error: { label: "Fejl" },
-};
 
 type MonthSlot = { key: string; month: number; year: string; report?: ReportSlim };
 
@@ -113,7 +92,7 @@ const DeliveryOverview = ({ reports, programStart }: DeliveryOverviewProps) => {
               return (
                 <div
                   key={key}
-                  title={`${DANISH_MONTHS[month]} ${year} — ${statusConfig[status || "processing"]?.label || "Historik"}`}
+                  title={`${DANISH_MONTHS[month]} ${year} — ${reportStatusConfig[status || "processing"]?.label || "Historik"}`}
                   className={`flex flex-col items-center justify-center rounded-lg p-2 border transition-all cursor-default opacity-60 ${
                     status === "processed"
                       ? "bg-primary/10 border-primary/30"
@@ -175,7 +154,7 @@ const DeliveryOverview = ({ reports, programStart }: DeliveryOverviewProps) => {
             return (
               <div
                 key={key}
-                title={`${DANISH_MONTHS[month]} ${year}${report ? ` — ${statusConfig[status || "processing"]?.label}` : ""}`}
+                title={`${DANISH_MONTHS[month]} ${year}${report ? ` — ${reportStatusConfig[status || "processing"]?.label}` : ""}`}
                 className={`flex flex-col items-center justify-center rounded-lg p-2 border transition-all cursor-default ${
                   status === "processed"
                     ? "bg-primary/10 border-primary/30"

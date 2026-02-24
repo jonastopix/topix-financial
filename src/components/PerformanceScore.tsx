@@ -45,7 +45,10 @@ const PerformanceScore = () => {
       .eq("status", "processed")
       .order("uploaded_at", { ascending: false })
       .limit(6)
-      .then(({ data }) => setReports(data || []));
+      .then(({ data, error }) => {
+        if (error) console.error("PerformanceScore load error:", error);
+        setReports(data || []);
+      });
   }, [user]);
 
   const metrics = useMemo((): MetricScore[] => {

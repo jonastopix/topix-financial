@@ -138,7 +138,7 @@ function TemplatePicker({ onSelect, userId, onImportComplete }: { onSelect: (t: 
 // ─── Main Budget Page ───
 const Budget = () => {
   const { user } = useAuth();
-  const [year, setYear] = useState("2026");
+  const [year, setYear] = useState(String(new Date().getFullYear()));
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>("base");
   const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
   const [scenarioData, setScenarioData] = useState<Record<ScenarioKey, BudgetRow[]> | null>(null);
@@ -445,8 +445,10 @@ const Budget = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover border-border z-50">
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
+              {[0, 1, 2].map(offset => {
+                const y = String(new Date().getFullYear() + offset - 1);
+                return <SelectItem key={y} value={y}>{y}</SelectItem>;
+              })}
             </SelectContent>
           </Select>
         </div>

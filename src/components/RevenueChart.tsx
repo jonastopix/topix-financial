@@ -19,7 +19,10 @@ const RevenueChart = () => {
       .eq("status", "processed")
       .order("uploaded_at", { ascending: false })
       .limit(12)
-      .then(({ data }) => setReports(data || []));
+      .then(({ data, error }) => {
+        if (error) console.error("RevenueChart load error:", error);
+        setReports(data || []);
+      });
   }, [user]);
 
   const chartData = useMemo(() => {

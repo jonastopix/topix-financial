@@ -72,7 +72,8 @@ const Chat = () => {
         supabase
           .from("messages")
           .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type")
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(500),
         // Fetch recent reports (last 7 days) for advisor view
         isAdvisor
           ? supabase
@@ -256,7 +257,7 @@ const Chat = () => {
   };
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
-  const getInitials = (name: string) =>
+  const getInitialsLocal = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const relativeTime = (dateStr: string) => {
@@ -275,7 +276,7 @@ const Chat = () => {
           {isAdvisor ? "Indbakke" : "Chat med rådgivere"}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isAdvisor ? "Alle medlemssamtaler samlet ét sted" : "Skriv direkte til Morten og Jonas"}
+          {isAdvisor ? "Alle medlemssamtaler samlet ét sted" : "Skriv direkte til dine rådgivere"}
         </p>
       </div>
 
@@ -380,7 +381,7 @@ const Chat = () => {
                             isUnread ? "bg-destructive/10" : "bg-primary/10"
                           }`}>
                             <span className={`text-xs font-semibold ${isUnread ? "text-destructive" : "text-primary"}`}>
-                              {getInitials(conv.profile?.full_name || "??")}
+                              {getInitialsLocal(conv.profile?.full_name || "??")}
                             </span>
                           </div>
                           {isUnread && (
@@ -451,7 +452,7 @@ const Chat = () => {
               <div className="p-4 border-b border-border flex items-center gap-3">
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-xs font-semibold text-primary">
-                    {getInitials(
+                    {getInitialsLocal(
                       isAdvisor
                         ? activeConv?.profile?.full_name || "??"
                         : "MJ"

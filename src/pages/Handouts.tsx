@@ -5,28 +5,14 @@ import HandoutCard from "@/components/HandoutCard";
 import HandoutDetail from "@/components/HandoutDetail";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
+import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
+import { calcHandoutProgress } from "@/lib/handoutUtils";
 
 interface HandoutSummary {
   module: HandoutModule;
   status: "not_started" | "in_progress" | "completed";
   progress: number;
   completedAt: string | null;
-}
-
-function calcProgress(config: HandoutConfig, responses: Record<string, string>, checklist: Record<string, boolean>, levers: string[]): number {
-  const totalFields = config.sections.reduce((sum, s) => {
-    let count = s.questions.filter(q => q.type === "textarea").length;
-    if (s.checklist) count += s.checklist.length;
-    count += s.questions.filter(q => q.type === "numbered_list").reduce((a, q) => a + (q.count || 2), 0);
-    return sum + count;
-  }, 0) + config.leverCount;
-
-  const filled = Object.values(responses).filter(v => v.trim()).length
-    + Object.values(checklist).filter(v => v).length
-    + levers.filter(v => v.trim()).length;
-
-  return totalFields > 0 ? Math.round((filled / totalFields) * 100) : 0;
 }
 
 const Handouts = () => {
@@ -49,7 +35,7 @@ const Handouts = () => {
         const d = map.get(m);
         if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null };
         const config = handoutConfigs[m];
-        const progress = calcProgress(
+        const progress = calcHandoutProgress(
           config,
           (d.responses as Record<string, string>) || {},
           (d.checklist as Record<string, boolean>) || {},

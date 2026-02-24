@@ -52,9 +52,9 @@ export function pctChange(curr: number | undefined, prev: number | undefined): n
   return ((curr - prev) / Math.abs(prev)) * 100;
 }
 
-// ── Status config (shared between Reports, MemberDetail) ──
-export const reportStatusConfig = {
+// ── Status config (shared between Reports, MemberDetail, DeliveryOverview) ──
+export const reportStatusConfig: Record<string, { label: string; className: string; bg: string }> = {
   processed: { label: "Behandlet", className: "text-primary", bg: "bg-primary/10" },
   processing: { label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
   error: { label: "Fejl", className: "text-destructive", bg: "bg-destructive/10" },
-} as const;
+};
