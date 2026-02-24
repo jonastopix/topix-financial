@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   MessageCircle,
+  ClipboardList,
   LogOut,
   UserCog,
   Eye,
@@ -26,6 +27,7 @@ const baseNavItems = [
   { icon: FileText, label: "Rapportering", path: "/reports" },
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
+  { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
   

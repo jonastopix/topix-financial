@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sync-circle]
 verify_jwt = false
+
+[functions.handout-ai-feedback]
+verify_jwt = false

@@ -242,6 +242,90 @@ export type Database = {
         }
         Relationships: []
       }
+      handout_lever_milestones: {
+        Row: {
+          created_at: string
+          handout_id: string
+          id: string
+          lever_index: number
+          milestone_id: string
+        }
+        Insert: {
+          created_at?: string
+          handout_id: string
+          id?: string
+          lever_index: number
+          milestone_id: string
+        }
+        Update: {
+          created_at?: string
+          handout_id?: string
+          id?: string
+          lever_index?: number
+          milestone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "handout_lever_milestones_handout_id_fkey"
+            columns: ["handout_id"]
+            isOneToOne: false
+            referencedRelation: "handouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "handout_lever_milestones_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      handouts: {
+        Row: {
+          ai_feedback: Json | null
+          ai_feedback_at: string | null
+          checklist: Json
+          completed_at: string | null
+          created_at: string
+          id: string
+          levers: Json
+          module: string
+          responses: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_feedback?: Json | null
+          ai_feedback_at?: string | null
+          checklist?: Json
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          levers?: Json
+          module: string
+          responses?: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_feedback?: Json | null
+          ai_feedback_at?: string | null
+          checklist?: Json
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          levers?: Json
+          module?: string
+          responses?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       kpi_benchmarks: {
         Row: {
           benchmark_label: string
