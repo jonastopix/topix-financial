@@ -10,7 +10,7 @@ import Milestones from "./pages/Milestones";
 import KPIs from "./pages/KPIs";
 import Feedback from "./pages/Feedback";
 import Budget from "./pages/Budget";
-import Group from "./pages/Group";
+
 import Settings from "./pages/Settings";
 import Chat from "./pages/Chat";
 import Members from "./pages/Members";
@@ -56,7 +56,7 @@ const App = () => (
             <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
             <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-            <Route path="/group" element={<ProtectedRoute><Group /></ProtectedRoute>} />
+            
             <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
             <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

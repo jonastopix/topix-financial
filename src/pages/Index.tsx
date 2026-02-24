@@ -9,6 +9,7 @@ import BudgetOverview from "@/components/BudgetOverview";
 import PerformanceScore from "@/components/PerformanceScore";
 import AttentionNeeded from "@/components/AttentionNeeded";
 import ActivityFeed from "@/components/ActivityFeed";
+import CommunityProgress from "@/components/CommunityProgress";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getKeyFigures, parseReportPeriodToKey, formatDKK, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
@@ -144,6 +145,7 @@ const Dashboard = () => {
         {/* Secondary column — performance & activity */}
         <div className="lg:col-span-4 space-y-6">
           <PerformanceScore />
+          <CommunityProgress />
           <ActivityFeed />
           <BudgetOverview />
           <MilestonesList userId={user?.id} conversationId={conversationId} />
