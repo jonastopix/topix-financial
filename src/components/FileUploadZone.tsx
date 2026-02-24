@@ -128,7 +128,7 @@ const FileUploadZone = ({
   const processFile = useCallback(
     async (file: File) => {
       const fileId = crypto.randomUUID();
-      const reportType = title.toLowerCase().includes("saldo") ? "saldobalance" : "resultatopgørelse";
+      const reportType = "auto"; // AI determines the type from content
 
       setUploadedFiles((prev) => [
         ...prev,
@@ -321,7 +321,7 @@ const FileUploadZone = ({
         });
       }
     },
-    [userId, conversationId, onExtracted, onPipelineComplete, title]
+    [userId, conversationId, onExtracted, onPipelineComplete]
   );
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
@@ -416,7 +416,7 @@ const FileUploadZone = ({
     updateFile(pendingFileId, { status: "processing" });
 
     try {
-      const reportType = title.toLowerCase().includes("saldo") ? "saldobalance" : "resultatopgørelse";
+      const reportType = "auto"; // AI determines the type from content
 
       // Create a new report record for the overwrite
       const { data: reportRecord, error: insertError } = await supabase

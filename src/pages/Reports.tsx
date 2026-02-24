@@ -441,18 +441,10 @@ const Reports = () => {
       )}
 
       {/* Upload section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="mb-8">
         <FileUploadZone
-          title="Saldobalance"
-          description="Upload din saldobalance for en given måned (Excel, CSV eller PDF)"
-          accept=".xlsx,.xls,.csv,.pdf"
-          conversationId={conversationId}
-          userId={user?.id || null}
-          onPipelineComplete={handlePipelineComplete}
-        />
-        <FileUploadZone
-          title="Resultatopgørelse"
-          description="Upload din resultatopgørelse for en given måned (Excel, CSV eller PDF)"
+          title="Upload finansiel rapport"
+          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
           accept=".xlsx,.xls,.csv,.pdf"
           conversationId={conversationId}
           userId={user?.id || null}
