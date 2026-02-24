@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { Send, MessageCircle, CheckCheck, FileText, Sparkles, Target } from "lucide-react";
 import { format } from "date-fns";
@@ -28,7 +29,9 @@ interface ConversationWithProfile {
 }
 
 const Chat = () => {
-  const { user, isAdvisor } = useAuth();
+  const { user, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

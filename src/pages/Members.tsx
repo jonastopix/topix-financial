@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Navigate, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Users,
@@ -43,7 +44,9 @@ type SortKey = "full_name" | "company_name" | "created_at" | "unreadCount" | "re
 type SortDir = "asc" | "desc";
 
 const Members = () => {
-  const { user, isAdvisor, loading: authLoading } = useAuth();
+  const { user, isAdvisor: rawAdvisor, loading: authLoading } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [members, setMembers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
