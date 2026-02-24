@@ -18,7 +18,12 @@ import {
   Target,
   MessageSquare,
   Send,
+  ClipboardList,
 } from "lucide-react";
+import HandoutDetail from "@/components/HandoutDetail";
+import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
@@ -72,10 +77,35 @@ interface ChatMessage {
   created_at: string;
 }
 
+interface HandoutSummaryItem {
+  module: HandoutModule;
+  status: 'not_started' | 'in_progress' | 'completed';
+  progress: number;
+}
+
+function calcHandoutProgress(config: HandoutConfig, responses: Record<string, string>, checklist: Record<string, boolean>, levers: string[]): number {
+  const totalFields = config.sections.reduce((sum, s) => {
+    let count = s.questions.filter(q => q.type === "textarea").length;
+    if (s.checklist) count += s.checklist.length;
+    count += s.questions.filter(q => q.type === "numbered_list").reduce((a, q) => a + (q.count || 2), 0);
+    return sum + count;
+  }, 0) + config.leverCount;
+  const filled = Object.values(responses).filter(v => v.trim()).length
+    + Object.values(checklist).filter(v => v).length
+    + levers.filter(v => v.trim()).length;
+  return totalFields > 0 ? Math.round((filled / totalFields) * 100) : 0;
+}
+
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
   processed: { icon: CheckCircle2, label: "Behandlet", className: "text-primary", bg: "bg-primary/10" },
   processing: { icon: Clock, label: "Behandles", className: "text-chart-warning", bg: "bg-chart-warning/10" },
   error: { icon: AlertCircle, label: "Fejl", className: "text-destructive", bg: "bg-destructive/10" },
+};
+
+const handoutStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+  not_started: { label: "Ikke startet", variant: "outline" },
+  in_progress: { label: "I gang", variant: "secondary" },
+  completed: { label: "Udfyldt", variant: "default" },
 };
 
 const MemberDetail = () => {
@@ -87,6 +117,8 @@ const MemberDetail = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [handoutSummaries, setHandoutSummaries] = useState<HandoutSummaryItem[]>([]);
+  const [activeHandout, setActiveHandout] = useState<HandoutModule | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
@@ -99,12 +131,13 @@ const MemberDetail = () => {
 
     const load = async () => {
       setLoading(true);
-      const [profileRes, reportsRes, budgetsRes, milestonesRes, convRes] = await Promise.all([
+      const [profileRes, reportsRes, budgetsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
         supabase.from("profiles").select("full_name, company_name, avatar_url, created_at").eq("user_id", userId).single(),
         supabase.from("financial_reports").select("*").eq("user_id", userId).order("uploaded_at", { ascending: false }),
         supabase.from("budget_targets").select("*").eq("user_id", userId).order("category"),
         supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
         supabase.from("conversations").select("id").eq("member_id", userId).single(),
+        supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
       ]);
 
       const reportsList = reportsRes.data || [];
@@ -113,6 +146,21 @@ const MemberDetail = () => {
       setBudgets(budgetsRes.data || []);
       setMilestones(milestonesRes.data || []);
       setConversationId(convRes.data?.id || null);
+
+      // Build handout summaries
+      const handoutMap = new Map((handoutsRes.data || []).map((d: any) => [d.module, d]));
+      setHandoutSummaries(moduleOrder.map(m => {
+        const d = handoutMap.get(m) as any;
+        if (!d) return { module: m, status: 'not_started' as const, progress: 0 };
+        const config = handoutConfigs[m];
+        const progress = calcHandoutProgress(
+          config,
+          (d.responses as Record<string, string>) || {},
+          (d.checklist as Record<string, boolean>) || {},
+          (d.levers as string[]) || []
+        );
+        return { module: m, status: d.status as HandoutSummaryItem["status"], progress };
+      }));
 
       // Fetch chat messages with report context
       if (reportsList.length > 0 && convRes.data?.id) {
@@ -239,6 +287,18 @@ const MemberDetail = () => {
 
   if (authLoading) return null;
   if (!isAdvisor) return <Navigate to="/" replace />;
+
+  if (activeHandout) {
+    return (
+      <AppLayout>
+        <HandoutDetail
+          config={handoutConfigs[activeHandout]}
+          onBack={() => setActiveHandout(null)}
+          userId={userId}
+        />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -460,6 +520,39 @@ const MemberDetail = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Handouts section */}
+          <div className="mb-8">
+            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Handouts
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {handoutSummaries.map(s => {
+                const config = handoutConfigs[s.module];
+                const statusInfo = handoutStatusLabels[s.status];
+                return (
+                  <button
+                    key={s.module}
+                    onClick={() => setActiveHandout(s.module)}
+                    className="glass-card rounded-xl p-4 text-left hover:ring-2 hover:ring-primary/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-foreground">{config.title}</h3>
+                      <Badge variant={statusInfo.variant} className="text-[10px]">{statusInfo.label}</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground">Fremskridt</span>
+                        <span className="font-medium text-foreground">{s.progress}%</span>
+                      </div>
+                      <Progress value={s.progress} className="h-1.5" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Milestones section */}
