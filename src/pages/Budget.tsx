@@ -8,6 +8,7 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign, Building2, Users, Megaphone,
   Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info, Upload,
+  Plus, Trash2,
 } from "lucide-react";
 import BudgetImport from "@/components/BudgetImport";
 import BudgetFromAccounts from "@/components/BudgetFromAccounts";
@@ -150,6 +151,11 @@ const Budget = () => {
   const [editing, setEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, number[]>>({});
   const [dbLoaded, setDbLoaded] = useState(false);
+  const [addingToGroup, setAddingToGroup] = useState<string | null>(null);
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [editLabelValue, setEditLabelValue] = useState("");
 
   // Load from DB
   useEffect(() => {
@@ -167,8 +173,6 @@ const Budget = () => {
       }
 
       // Detect which template was used based on stored categories
-      // period format: "2026-base-0" (year-scenario-monthIdx)
-      // Also check for a special "_template" marker
       const templateMarker = data.find(d => d.category === "__template__");
       let template: BudgetTemplate | undefined;
 
@@ -177,8 +181,7 @@ const Budget = () => {
       }
 
       if (!template) {
-        // Fallback: try to match categories to a template
-        const storedKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__"));
+        const storedKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
         let bestMatch = BUDGET_TEMPLATES[0];
         let bestScore = 0;
         for (const tmpl of BUDGET_TEMPLATES) {
@@ -190,14 +193,60 @@ const Budget = () => {
 
       setSelectedTemplate(template);
 
+      // Collect all unique category keys from data (excluding markers)
+      const allCatKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
+      
+      // Build rows from template + any extra keys (manual categories)
+      const templateKeys = new Set(template.categories.map(c => c.key));
+      const extraKeys = [...allCatKeys].filter(k => !templateKeys.has(k));
+      
+      // Detect groups for extra keys from period format: year-scenario-monthIdx
+      // We need to also load __group__ markers
+      const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
+      const extraGroupMap: Record<string, string> = {};
+      groupMarkers.forEach(g => {
+        // format: __group__<key> with period = groupName
+        const key = g.category.replace("__group__", "");
+        extraGroupMap[key] = g.period;
+      });
+
+      const extraCategories: BudgetCategory[] = extraKeys.map(key => ({
+        key,
+        label: key.replace(/_/g, " "),
+        group: (extraGroupMap[key] || "variable") as BudgetCategory["group"],
+      }));
+
+      const allCategories = [...template.categories, ...extraCategories];
+
       const newData: Record<ScenarioKey, BudgetRow[]> = {
-        base: template.categories.map(catToRow),
-        optimistisk: template.categories.map(catToRow),
-        pessimistisk: template.categories.map(catToRow),
+        base: allCategories.map(catToRow),
+        optimistisk: allCategories.map(catToRow),
+        pessimistisk: allCategories.map(catToRow),
       };
 
+      // Load label overrides
+      const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
+      const loadedLabels: Record<string, string> = {};
+      labelMarkers.forEach(m => {
+        const key = m.category.replace("__label__", "");
+        loadedLabels[key] = m.period; // period stores the label text
+      });
+      setLabelOverrides(loadedLabels);
+
+      // Apply labels to rows
+      Object.entries(loadedLabels).forEach(([key, label]) => {
+        for (const sc of Object.values(newData)) {
+          const row = sc.find(r => r.key === key);
+          if (row) row.label = label;
+        }
+      });
+      // Also apply labels to extra categories
+      extraCategories.forEach(ec => {
+        if (loadedLabels[ec.key]) ec.label = loadedLabels[ec.key];
+      });
+
       data.forEach(item => {
-        if (item.category === "__template__") return;
+        if (item.category === "__template__" || item.category.startsWith("__label__") || item.category.startsWith("__group__")) return;
         const parts = item.period.split("-");
         if (parts.length < 3) return;
         const [, scenario, monthIdxStr] = parts;
@@ -273,6 +322,71 @@ const Budget = () => {
   const handleChangeTemplate = () => {
     setSelectedTemplate(null);
     setScenarioData(null);
+    setLabelOverrides({});
+  };
+
+  // ─── Add manual category ───
+  const handleAddCategory = (group: string) => {
+    if (!newCatLabel.trim() || !scenarioData) return;
+    const key = `manual_${newCatLabel.trim().toLowerCase().replace(/\s+/g, "_")}_${Date.now()}`;
+    const newRow: BudgetRow = {
+      key,
+      label: newCatLabel.trim(),
+      values: Array(12).fill(0),
+      isEditable: true,
+      group,
+    };
+    setScenarioData(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      for (const sc of Object.keys(updated) as ScenarioKey[]) {
+        updated[sc] = [...updated[sc], { ...newRow, values: [...newRow.values] }];
+      }
+      return updated;
+    });
+    setAddingToGroup(null);
+    setNewCatLabel("");
+    toast.success(`"${newRow.label}" tilføjet`);
+  };
+
+  const handleDeleteCategory = (key: string) => {
+    if (!scenarioData) return;
+    setScenarioData(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      for (const sc of Object.keys(updated) as ScenarioKey[]) {
+        updated[sc] = updated[sc].filter(r => r.key !== key);
+      }
+      return updated;
+    });
+    setLabelOverrides(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    toast.success("Kategori slettet");
+  };
+
+  const startRenameLabel = (key: string, currentLabel: string) => {
+    setEditingLabel(key);
+    setEditLabelValue(currentLabel);
+  };
+
+  const commitRenameLabel = () => {
+    if (!editingLabel || !editLabelValue.trim() || !scenarioData) return;
+    const key = editingLabel;
+    const newLabel = editLabelValue.trim();
+    setLabelOverrides(prev => ({ ...prev, [key]: newLabel }));
+    setScenarioData(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      for (const sc of Object.keys(updated) as ScenarioKey[]) {
+        updated[sc] = updated[sc].map(r => r.key === key ? { ...r, label: newLabel } : r);
+      }
+      return updated;
+    });
+    setEditingLabel(null);
+    setEditLabelValue("");
   };
 
   // If no template selected and no data loaded, show picker
@@ -334,8 +448,7 @@ const Budget = () => {
 
   // Group rows for display
   const groupedRows = GROUP_ORDER
-    .map(g => ({ group: g, label: GROUP_LABELS[g], rows: rows.filter(r => r.group === g) }))
-    .filter(g => g.rows.length > 0);
+    .map(g => ({ group: g, label: GROUP_LABELS[g], rows: rows.filter(r => r.group === g) }));
 
   const startEditing = () => {
     const vals: Record<string, number[]> = {};
@@ -362,14 +475,20 @@ const Budget = () => {
 
     const { data: existing } = await supabase
       .from("budget_targets")
-      .select("id, period")
-      .eq("user_id", user.id)
-      .like("period", `${periodPrefix}%`);
+      .select("id, period, category")
+      .eq("user_id", user.id);
 
-    if (existing && existing.length > 0) {
-      await supabase.from("budget_targets").delete().in("id", existing.map(e => e.id));
+    // Delete scenario data + label/group markers
+    const toDelete = (existing || []).filter(e => 
+      e.period.startsWith(periodPrefix) || 
+      e.category.startsWith("__label__") || 
+      e.category.startsWith("__group__")
+    );
+    if (toDelete.length > 0) {
+      await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
     }
 
+    // Budget values
     const inserts = updatedScenario.flatMap(row =>
       row.values.map((val, monthIdx) => ({
         user_id: user.id,
@@ -379,7 +498,27 @@ const Budget = () => {
       }))
     );
 
-    const { error } = await supabase.from("budget_targets").insert(inserts);
+    // Label overrides
+    const labelInserts = Object.entries(labelOverrides).map(([key, label]) => ({
+      user_id: user.id,
+      category: `__label__${key}`,
+      budget_amount: 0,
+      period: label,
+    }));
+
+    // Group markers for manual categories (keys not in any template)
+    const templateKeys = new Set(selectedTemplate?.categories.map(c => c.key) || []);
+    const groupInserts = updatedScenario
+      .filter(r => !templateKeys.has(r.key))
+      .map(r => ({
+        user_id: user.id,
+        category: `__group__${r.key}`,
+        budget_amount: 0,
+        period: r.group,
+      }));
+
+    const allInserts = [...inserts, ...labelInserts, ...groupInserts];
+    const { error } = await supabase.from("budget_targets").insert(allInserts);
     if (error) {
       toast.error("Kunne ikke gemme budget");
       console.error("Budget save error:", error);
@@ -606,12 +745,38 @@ const Budget = () => {
                         </tr>
                         {group.rows.map(row => {
                           const RowIcon = row.icon;
+                          const isManual = row.key.startsWith("manual_");
+                          const isRenamingThis = editingLabel === row.key;
                           return (
-                            <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                            <tr key={row.key} className="group border-b border-border/30 hover:bg-secondary/20 transition-colors">
                               <td className="py-2.5 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
                                 <div className="flex items-center gap-1.5">
                                   {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
-                                  <span>{row.label}</span>
+                                  {isRenamingThis ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        autoFocus
+                                        value={editLabelValue}
+                                        onChange={e => setEditLabelValue(e.target.value)}
+                                        onKeyDown={e => { if (e.key === "Enter") commitRenameLabel(); if (e.key === "Escape") setEditingLabel(null); }}
+                                        className="w-28 bg-secondary border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                      />
+                                      <button onClick={commitRenameLabel} className="text-primary hover:text-primary/80"><Save className="h-3 w-3" /></button>
+                                      <button onClick={() => setEditingLabel(null)} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span>{row.label}</span>
+                                      {isManual && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">Manuelt</span>}
+                                      <button
+                                        onClick={() => startRenameLabel(row.key, row.label)}
+                                        className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                                        title="Omdøb"
+                                      >
+                                        <Pencil className="h-2.5 w-2.5" />
+                                      </button>
+                                    </>
+                                  )}
                                   {row.hint && (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -621,6 +786,15 @@ const Budget = () => {
                                         {row.hint}
                                       </TooltipContent>
                                     </Tooltip>
+                                  )}
+                                  {isManual && (
+                                    <button
+                                      onClick={() => handleDeleteCategory(row.key)}
+                                      className="text-muted-foreground hover:text-destructive transition-colors ml-auto"
+                                      title="Slet kategori"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
                                   )}
                                 </div>
                               </td>
@@ -641,6 +815,43 @@ const Budget = () => {
                             </tr>
                           );
                         })}
+                        {/* Add category button */}
+                        <tr key={`add-${group.group}`} className="border-b border-border/10">
+                          <td colSpan={13} className="py-1 px-3 sticky left-0 bg-card z-10">
+                            {addingToGroup === group.group ? (
+                              <div className="flex items-center gap-2 py-1">
+                                <input
+                                  autoFocus
+                                  placeholder="Kategori-navn..."
+                                  value={newCatLabel}
+                                  onChange={e => setNewCatLabel(e.target.value)}
+                                  onKeyDown={e => { if (e.key === "Enter") handleAddCategory(group.group); if (e.key === "Escape") { setAddingToGroup(null); setNewCatLabel(""); } }}
+                                  className="w-40 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <button
+                                  onClick={() => handleAddCategory(group.group)}
+                                  disabled={!newCatLabel.trim()}
+                                  className="text-xs font-medium px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                                >
+                                  Tilføj
+                                </button>
+                                <button
+                                  onClick={() => { setAddingToGroup(null); setNewCatLabel(""); }}
+                                  className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setAddingToGroup(group.group)}
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1"
+                              >
+                                <Plus className="h-3 w-3" /> Tilføj kategori
+                              </button>
+                            )}
+                          </td>
+                        </tr>
                       </>
                     ))}
                     <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
