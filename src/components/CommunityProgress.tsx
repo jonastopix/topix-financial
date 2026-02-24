@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trophy, FileText, Target, TrendingUp, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 
 interface MemberStats {
   userId: string;
@@ -13,7 +14,9 @@ interface MemberStats {
 }
 
 const CommunityProgress = () => {
-  const { user, isAdvisor } = useAuth();
+  const { user, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [members, setMembers] = useState<MemberStats[]>([]);
   const [ownStats, setOwnStats] = useState<MemberStats | null>(null);
   const [loading, setLoading] = useState(true);
