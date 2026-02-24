@@ -52,6 +52,8 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
   // Overrides: keyed by "catKey-monthIdx", stores the user-edited value (already with growth)
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
 
   const extractTextFromPDF = useCallback(async (file: File): Promise<string> => {
     // Use pdfjs-dist to extract text
@@ -115,6 +117,7 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
       setResult(data as BudgetResult);
       setGrowthPercent(0);
       setOverrides({});
+      setLabelOverrides({});
       toast.success("Regnskab analyseret! Vælg vækstprocent og godkend.");
     } catch (err: any) {
       console.error("Budget from accounts error:", err);
@@ -211,7 +214,7 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
           const isRevenue = cat.group === "indtaegter";
           return {
             key: cat.key,
-            label: cat.label,
+            label: labelOverrides[cat.key] || cat.label,
             monthly: getFinalMonthly(cat, isRevenue),
             details: cat.source_lines,
           };
@@ -241,6 +244,8 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
     const resultOrig = totalRevOrig - totalCostOrig;
     const resultFinal = totalRevFinal - totalCostFinal;
     const hasOverrides = Object.keys(overrides).length > 0;
+    const hasLabelOverrides = Object.keys(labelOverrides).length > 0;
+    const hasAnyOverrides = hasOverrides || hasLabelOverrides;
 
     // Group categories for display
     const groups = ["indtaegter", "variable", "personale", "salg_marketing", "drift", "faste"];
@@ -354,18 +359,18 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
         </div>
 
         {/* Hint about editing */}
-        {!hasOverrides && (
+        {!hasAnyOverrides && (
           <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <Pencil className="h-3 w-3" /> Klik på et beløb for at redigere det manuelt
+            <Pencil className="h-3 w-3" /> Klik på et beløb eller kategori-navn for at redigere
           </p>
         )}
-        {hasOverrides && (
+        {hasAnyOverrides && (
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-primary flex items-center gap-1">
-              <Pencil className="h-3 w-3" /> {Object.keys(overrides).length} manuelle rettelser
+              <Pencil className="h-3 w-3" /> {Object.keys(overrides).length} beløb, {Object.keys(labelOverrides).length} navne ændret
             </p>
             <button
-              onClick={() => setOverrides({})}
+              onClick={() => { setOverrides({}); setLabelOverrides({}); }}
               className="text-[10px] text-muted-foreground hover:text-foreground underline"
             >
               Nulstil rettelser
@@ -392,8 +397,37 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
                     return (
                       <div key={cat.key} className="rounded-lg border border-border/30 p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <span className="text-sm font-medium text-foreground">{cat.label}</span>
+                          <div className="flex items-center gap-1">
+                            {editingLabel === cat.key ? (
+                              <Input
+                                autoFocus
+                                defaultValue={labelOverrides[cat.key] || cat.label}
+                                className="h-6 px-1.5 text-sm font-medium w-40 border-primary"
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val && val !== cat.label) {
+                                    setLabelOverrides(prev => ({ ...prev, [cat.key]: val }));
+                                  } else {
+                                    setLabelOverrides(prev => { const n = { ...prev }; delete n[cat.key]; return n; });
+                                  }
+                                  setEditingLabel(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                  if (e.key === "Escape") setEditingLabel(null);
+                                }}
+                              />
+                            ) : (
+                              <span
+                                onClick={() => setEditingLabel(cat.key)}
+                                className={`text-sm font-medium cursor-pointer rounded px-1 transition-colors hover:bg-primary/10 ${
+                                  cat.key in labelOverrides ? "text-primary ring-1 ring-primary/30" : "text-foreground"
+                                }`}
+                                title="Klik for at ændre navn"
+                              >
+                                {labelOverrides[cat.key] || cat.label}
+                              </span>
+                            )}
                             <span className="text-[10px] text-muted-foreground ml-2">
                               ({cat.source_lines.length} poster: {cat.source_lines.slice(0, 2).join(", ")}
                               {cat.source_lines.length > 2 ? ` +${cat.source_lines.length - 2}` : ""})
