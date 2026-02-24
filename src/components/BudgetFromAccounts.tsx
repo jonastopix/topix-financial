@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Check, X, TrendingUp, Percent, FileText, Sparkles, Pencil } from "lucide-react";
+import { Upload, Loader2, Check, X, TrendingUp, Percent, FileText, Sparkles, Pencil, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
@@ -54,6 +55,9 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [addedCategories, setAddedCategories] = useState<BudgetCategory[]>([]);
+  const [addingToGroup, setAddingToGroup] = useState<string | null>(null);
+  const [newCatLabel, setNewCatLabel] = useState("");
 
   const extractTextFromPDF = useCallback(async (file: File): Promise<string> => {
     // Use pdfjs-dist to extract text
@@ -118,6 +122,9 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
       setGrowthPercent(0);
       setOverrides({});
       setLabelOverrides({});
+      setAddedCategories([]);
+      setAddingToGroup(null);
+      setNewCatLabel("");
       toast.success("Regnskab analyseret! Vælg vækstprocent og godkend.");
     } catch (err: any) {
       console.error("Budget from accounts error:", err);
@@ -155,6 +162,33 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
     setOverrides(prev => ({ ...prev, [`${catKey}-${monthIdx}`]: num }));
   };
 
+  const handleAddCategory = (group: string) => {
+    if (!newCatLabel.trim()) return;
+    const key = `manual_${newCatLabel.trim().toLowerCase().replace(/\s+/g, "_")}_${Date.now()}`;
+    const newCat: BudgetCategory = {
+      key,
+      label: newCatLabel.trim(),
+      group,
+      annual_amount: 0,
+      monthly: Array(12).fill(0),
+      source_lines: ["Manuelt tilføjet"],
+    };
+    setAddedCategories(prev => [...prev, newCat]);
+    setAddingToGroup(null);
+    setNewCatLabel("");
+  };
+
+  const handleDeleteAddedCategory = (key: string) => {
+    setAddedCategories(prev => prev.filter(c => c.key !== key));
+    // Clean up any overrides/label overrides for this category
+    setOverrides(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.startsWith(`${key}-`)) delete next[k]; });
+      return next;
+    });
+    setLabelOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
+  };
+
   const handleConfirm = async () => {
     if (!result) return;
     setSaving(true);
@@ -189,8 +223,9 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
         period: "webshop_b2c", // Generic template key
       });
 
-      // Insert budget rows with growth + overrides applied
-      const inserts = result.categories.flatMap(cat => {
+      // Insert budget rows with growth + overrides applied (AI + manual categories)
+      const allCategories = [...result.categories, ...addedCategories];
+      const inserts = allCategories.flatMap(cat => {
         const isRevenue = cat.group === "indtaegter";
         const final = getFinalMonthly(cat, isRevenue);
         return final.map((amount, monthIdx) => ({
@@ -210,7 +245,7 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
       onImportComplete({
         year: targetYearStr,
         company_name: result.company_name || "",
-        categories: result.categories.map(cat => {
+        categories: allCategories.map(cat => {
           const isRevenue = cat.group === "indtaegter";
           return {
             key: cat.key,
@@ -232,8 +267,9 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
   if (result) {
     const targetYear = Number(result.source_year) + 1;
 
-    const revenueCategories = result.categories.filter(c => c.group === "indtaegter");
-    const costCategories = result.categories.filter(c => c.group !== "indtaegter");
+    const allCategories = [...result.categories, ...addedCategories];
+    const revenueCategories = allCategories.filter(c => c.group === "indtaegter");
+    const costCategories = allCategories.filter(c => c.group !== "indtaegter");
 
     const totalRevOrig = revenueCategories.reduce((s, c) => s + c.annual_amount, 0);
     const totalCostOrig = costCategories.reduce((s, c) => s + c.annual_amount, 0);
@@ -245,7 +281,8 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
     const resultFinal = totalRevFinal - totalCostFinal;
     const hasOverrides = Object.keys(overrides).length > 0;
     const hasLabelOverrides = Object.keys(labelOverrides).length > 0;
-    const hasAnyOverrides = hasOverrides || hasLabelOverrides;
+    const hasManualCategories = addedCategories.length > 0;
+    const hasAnyOverrides = hasOverrides || hasLabelOverrides || hasManualCategories;
 
     // Group categories for display
     const groups = ["indtaegter", "variable", "personale", "salg_marketing", "drift", "faste"];
@@ -367,10 +404,10 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
         {hasAnyOverrides && (
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-primary flex items-center gap-1">
-              <Pencil className="h-3 w-3" /> {Object.keys(overrides).length} beløb, {Object.keys(labelOverrides).length} navne ændret
+              <Pencil className="h-3 w-3" /> {Object.keys(overrides).length} beløb, {Object.keys(labelOverrides).length} navne, {addedCategories.length} kategorier ændret
             </p>
             <button
-              onClick={() => { setOverrides({}); setLabelOverrides({}); }}
+              onClick={() => { setOverrides({}); setLabelOverrides({}); setAddedCategories([]); setAddingToGroup(null); }}
               className="text-[10px] text-muted-foreground hover:text-foreground underline"
             >
               Nulstil rettelser
@@ -381,9 +418,12 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
         {/* Category breakdown by group */}
         <div className="space-y-3">
           {groups.map(g => {
-            const cats = result.categories.filter(c => c.group === g);
-            if (cats.length === 0) return null;
+            const aiCats = result.categories.filter(c => c.group === g);
+            const manualCats = addedCategories.filter(c => c.group === g);
+            const cats = [...aiCats, ...manualCats];
+            if (cats.length === 0 && addingToGroup !== g) return null;
             const isRevenue = g === "indtaegter";
+            const isManualCat = (key: string) => addedCategories.some(c => c.key === key);
 
             return (
               <div key={g}>
@@ -394,8 +434,9 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
                   {cats.map(cat => {
                     const final = getFinalMonthly(cat, isRevenue);
                     const yearTotal = final.reduce((s, v) => s + v, 0);
+                    const manual = isManualCat(cat.key);
                     return (
-                      <div key={cat.key} className="rounded-lg border border-border/30 p-3">
+                      <div key={cat.key} className={`rounded-lg border p-3 ${manual ? "border-primary/30 bg-primary/5" : "border-border/30"}`}>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-1">
                             {editingLabel === cat.key ? (
@@ -428,17 +469,34 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
                                 {labelOverrides[cat.key] || cat.label}
                               </span>
                             )}
-                            <span className="text-[10px] text-muted-foreground ml-2">
-                              ({cat.source_lines.length} poster: {cat.source_lines.slice(0, 2).join(", ")}
-                              {cat.source_lines.length > 2 ? ` +${cat.source_lines.length - 2}` : ""})
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-semibold text-foreground">{(yearTotal / 1000).toFixed(0)}k</span>
-                            {(growthPercent !== 0 || hasOverrides) && (
-                              <span className="text-[10px] text-muted-foreground ml-1.5">
-                                (orig. {(cat.annual_amount / 1000).toFixed(0)}k)
+                            {manual ? (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 ml-1 border-primary/40 text-primary">
+                                Manuelt
+                              </Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground ml-2">
+                                ({cat.source_lines.length} poster: {cat.source_lines.slice(0, 2).join(", ")}
+                                {cat.source_lines.length > 2 ? ` +${cat.source_lines.length - 2}` : ""})
                               </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <span className="text-sm font-semibold text-foreground">{(yearTotal / 1000).toFixed(0)}k</span>
+                              {!manual && (growthPercent !== 0 || hasOverrides) && (
+                                <span className="text-[10px] text-muted-foreground ml-1.5">
+                                  (orig. {(cat.annual_amount / 1000).toFixed(0)}k)
+                                </span>
+                              )}
+                            </div>
+                            {manual && (
+                              <button
+                                onClick={() => handleDeleteAddedCategory(cat.key)}
+                                className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                title="Fjern kategori"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             )}
                           </div>
                         </div>
@@ -486,6 +544,46 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
                       </div>
                     );
                   })}
+
+                  {/* Inline add category form */}
+                  {addingToGroup === g ? (
+                    <div className="rounded-lg border border-dashed border-primary/40 p-3 bg-primary/5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Input
+                          autoFocus
+                          placeholder="Kategori-navn..."
+                          value={newCatLabel}
+                          onChange={(e) => setNewCatLabel(e.target.value)}
+                          className="h-7 text-sm flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleAddCategory(g);
+                            if (e.key === "Escape") { setAddingToGroup(null); setNewCatLabel(""); }
+                          }}
+                        />
+                        <button
+                          onClick={() => handleAddCategory(g)}
+                          disabled={!newCatLabel.trim()}
+                          className="px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                        >
+                          Tilføj
+                        </button>
+                        <button
+                          onClick={() => { setAddingToGroup(null); setNewCatLabel(""); }}
+                          className="px-2 py-1 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Annuller
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Beløb kan redigeres efter tilføjelse</p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setAddingToGroup(g); setNewCatLabel(""); }}
+                      className="w-full py-1.5 rounded-lg border border-dashed border-border/50 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" /> Tilføj kategori
+                    </button>
+                  )}
                 </div>
               </div>
             );
