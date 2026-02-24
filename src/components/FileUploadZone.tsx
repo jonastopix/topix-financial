@@ -128,7 +128,10 @@ const FileUploadZone = ({
   const processFile = useCallback(
     async (file: File) => {
       const fileId = crypto.randomUUID();
-      const reportType = "auto"; // AI determines the type from content
+      const nameLower = file.name.toLowerCase();
+      const reportType = nameLower.includes("saldo") ? "saldobalance"
+        : nameLower.includes("resultat") ? "resultatopgørelse"
+        : "andet";
 
       setUploadedFiles((prev) => [
         ...prev,
@@ -416,7 +419,10 @@ const FileUploadZone = ({
     updateFile(pendingFileId, { status: "processing" });
 
     try {
-      const reportType = "auto"; // AI determines the type from content
+      const nameLower = pendingFile.name.toLowerCase();
+      const reportType = nameLower.includes("saldo") ? "saldobalance"
+        : nameLower.includes("resultat") ? "resultatopgørelse"
+        : "andet";
 
       // Create a new report record for the overwrite
       const { data: reportRecord, error: insertError } = await supabase
