@@ -47,35 +47,36 @@ const AppSidebar = () => {
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
 
-  // Fetch unread chat count
+  const fetchUnread = useCallback(async () => {
+    if (!user) return;
+    const { data: convs } = await supabase.from("conversations").select("id");
+    if (!convs || convs.length === 0) { setUnreadChat(0); return; }
+    const convIds = convs.map((c) => c.id);
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .in("conversation_id", convIds)
+      .neq("sender_id", user.id)
+      .is("read_at", null);
+    setUnreadChat(count || 0);
+  }, [user]);
+
+  // Fetch unread on mount, route change, and subscribe to realtime
   useEffect(() => {
     if (!user) return;
-
-    const fetchUnread = async () => {
-      // Get conversations for this user
-      const { data: convs } = await supabase
-        .from("conversations")
-        .select("id");
-
-      if (!convs || convs.length === 0) { setUnreadChat(0); return; }
-
-      const convIds = convs.map((c) => c.id);
-      const { count } = await supabase
-        .from("messages")
-        .select("id", { count: "exact", head: true })
-        .in("conversation_id", convIds)
-        .neq("sender_id", user.id)
-        .is("read_at", null);
-
-      setUnreadChat(count || 0);
-    };
-
     fetchUnread();
 
-    // Re-check when navigating away from chat (messages get marked read)
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [user, location.pathname]);
+    const channel = supabase
+      .channel("sidebar-unread")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => { fetchUnread(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, location.pathname, fetchUnread]);
 
   useEffect(() => {
     if (isMobile) setIsOpen(false);
