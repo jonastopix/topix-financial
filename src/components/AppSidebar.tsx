@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   FileText,
   Target,
-  MessageSquare,
   Settings as SettingsIcon,
   TrendingUp,
   Users,
@@ -28,7 +27,6 @@ const baseNavItems = [
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
-  { icon: MessageSquare, label: "AI Progress", path: "/feedback" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
   
   { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
