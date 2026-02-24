@@ -143,7 +143,7 @@ function TemplatePicker({ onSelect, userId, onImportComplete }: { onSelect: (t: 
 
 // ─── Main Budget Page ───
 const Budget = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>("base");
   const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
@@ -159,13 +159,14 @@ const Budget = () => {
 
   // Load from DB
   useEffect(() => {
-    if (!user) return;
+    if (!user || !companyId) return;
 
     const loadBudget = async () => {
-      const { data } = await supabase
+      const res = await (supabase
         .from("budget_targets")
-        .select("category, budget_amount, period")
-        .eq("user_id", user.id);
+        .select("category, budget_amount, period") as any)
+        .eq("company_id", companyId);
+      const data = (res.data || []) as { category: string; budget_amount: number; period: string }[];
 
       if (!data || data.length === 0) {
         setDbLoaded(true);
@@ -266,7 +267,7 @@ const Budget = () => {
     };
 
     loadBudget();
-  }, [user]);
+  }, [user, companyId]);
 
   const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
     setSelectedTemplate(tmpl);
@@ -278,13 +279,14 @@ const Budget = () => {
     setScenarioData(data);
 
     // Store template choice
-    if (user) {
+    if (user && companyId) {
       await supabase.from("budget_targets").insert({
         user_id: user.id,
+        company_id: companyId,
         category: "__template__",
         budget_amount: 0,
         period: tmpl.key,
-      });
+      } as any);
     }
 
     toast.success(`Skabelon "${tmpl.label}" valgt`);
@@ -469,17 +471,18 @@ const Budget = () => {
     setEditing(false);
     setEditValues({});
 
-    if (!user) return;
+    if (!user || !companyId) return;
 
     const periodPrefix = `${year}-${activeScenario}-`;
 
-    const { data: existing } = await supabase
+    const res = await (supabase
       .from("budget_targets")
-      .select("id, period, category")
-      .eq("user_id", user.id);
+      .select("id, period, category") as any)
+      .eq("company_id", companyId);
+    const existing = (res.data || []) as { id: string; period: string; category: string }[];
 
     // Delete scenario data + label/group markers
-    const toDelete = (existing || []).filter(e => 
+    const toDelete = existing.filter(e => 
       e.period.startsWith(periodPrefix) || 
       e.category.startsWith("__label__") || 
       e.category.startsWith("__group__")
@@ -492,6 +495,7 @@ const Budget = () => {
     const inserts = updatedScenario.flatMap(row =>
       row.values.map((val, monthIdx) => ({
         user_id: user.id,
+        company_id: companyId,
         category: row.key,
         budget_amount: val,
         period: `${year}-${activeScenario}-${monthIdx}`,
@@ -501,6 +505,7 @@ const Budget = () => {
     // Label overrides
     const labelInserts = Object.entries(labelOverrides).map(([key, label]) => ({
       user_id: user.id,
+      company_id: companyId,
       category: `__label__${key}`,
       budget_amount: 0,
       period: label,
@@ -512,13 +517,14 @@ const Budget = () => {
       .filter(r => !templateKeys.has(r.key))
       .map(r => ({
         user_id: user.id,
+        company_id: companyId,
         category: `__group__${r.key}`,
         budget_amount: 0,
         period: r.group,
       }));
 
     const allInserts = [...inserts, ...labelInserts, ...groupInserts];
-    const { error } = await supabase.from("budget_targets").insert(allInserts);
+    const { error } = await supabase.from("budget_targets").insert(allInserts as any);
     if (error) {
       toast.error("Kunne ikke gemme budget");
       console.error("Budget save error:", error);

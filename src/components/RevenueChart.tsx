@@ -8,22 +8,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { parseReportPeriodToKey, getKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 const RevenueChart = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const { data: reports = [] } = useQuery({
-    queryKey: ["financial-reports-chart", user?.id],
+    queryKey: ["financial-reports-chart", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from("financial_reports")
-        .select("id, report_period, extracted_data, status")
-        .eq("user_id", user!.id)
+        .select("id, report_period, extracted_data, status") as any)
+        .eq("company_id", companyId!)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false })
         .limit(12);
       if (error) throw error;
       return (data || []) as ReportData[];
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

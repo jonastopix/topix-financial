@@ -13,20 +13,20 @@ const statusBar: Record<string, string> = {
 };
 
 const DashboardMilestones = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
-    queryKey: ["dashboard-milestones", user?.id],
+    queryKey: ["dashboard-milestones", companyId],
     queryFn: async () => {
-      const { data: all } = await supabase
+      const { data: all } = await (supabase
         .from("milestones")
-        .select("id, title, progress, status, deadline")
-        .eq("user_id", user!.id)
+        .select("id, title, progress, status, deadline") as any)
+        .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       return all || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

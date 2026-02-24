@@ -34,16 +34,16 @@ function totalExpenses(kf: Record<string, number>): number {
 }
 
 const Dashboard = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, companyId } = useAuth();
 
   const { data: dashboardData } = useQuery({
-    queryKey: ["dashboard-kpis", user?.id],
+    queryKey: ["dashboard-kpis", companyId, user?.id],
     queryFn: async () => {
       const [reportsRes, convRes] = await Promise.all([
-        supabase
+        (supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status")
-          .eq("user_id", user!.id)
+          .select("id, report_period, extracted_data, status") as any)
+          .eq("company_id", companyId!)
           .eq("status", "processed")
           .order("uploaded_at", { ascending: false })
           .limit(12),
@@ -79,7 +79,7 @@ const Dashboard = () => {
 
       return { kpiData, conversationId };
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 

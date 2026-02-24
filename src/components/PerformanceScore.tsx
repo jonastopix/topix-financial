@@ -34,23 +34,23 @@ function getScoreLabel(score: number, labels: readonly { min: number; label: str
 }
 
 const PerformanceScore = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const { performanceScore: PERF } = useAppConfig();
 
   const { data: reports = [] } = useQuery({
-    queryKey: ["financial-reports-perf", user?.id],
+    queryKey: ["financial-reports-perf", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from("financial_reports")
-        .select("id, report_period, extracted_data, status")
-        .eq("user_id", user!.id)
+        .select("id, report_period, extracted_data, status") as any)
+        .eq("company_id", companyId!)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false })
         .limit(6);
       if (error) throw error;
       return (data || []) as ReportData[];
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
