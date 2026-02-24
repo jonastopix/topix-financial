@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getKeyFigures, parseReportPeriodToKey, type ReportData } from "@/lib/financialUtils";
+import { PERFORMANCE_SCORE } from "@/lib/appConfig";
 
 interface MetricScore {
   label: string;
@@ -26,11 +27,10 @@ function getScoreBg(score: number) {
 }
 
 function getScoreLabel(score: number) {
-  if (score >= 80) return "Stærk";
-  if (score >= 65) return "Sund";
-  if (score >= 50) return "OK";
-  if (score >= 35) return "Svag";
-  return "Kritisk";
+  for (const { min, label } of PERFORMANCE_SCORE.labels) {
+    if (score >= min) return label;
+  }
+  return PERFORMANCE_SCORE.labels[PERFORMANCE_SCORE.labels.length - 1].label;
 }
 
 const PerformanceScore = () => {
@@ -67,18 +67,18 @@ const PerformanceScore = () => {
 
     const revenueGrowth = prev?.omsaetning && latest.omsaetning
       ? ((latest.omsaetning - prev.omsaetning) / Math.abs(prev.omsaetning)) * 100 : 0;
-    const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * 2));
+    const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * PERFORMANCE_SCORE.growthMultiplier));
 
     const dbMargin = latest.omsaetning && latest.daekningsbidrag
       ? (latest.daekningsbidrag / latest.omsaetning) * 100 : 0;
-    const marginScore = Math.min(100, Math.max(0, dbMargin * 2));
+    const marginScore = Math.min(100, Math.max(0, dbMargin * PERFORMANCE_SCORE.marginMultiplier));
 
     const netMargin = latest.omsaetning && latest.resultat_foer_skat
       ? (latest.resultat_foer_skat / latest.omsaetning) * 100 : 0;
-    const profitScore = Math.min(100, Math.max(0, 50 + netMargin * 3));
+    const profitScore = Math.min(100, Math.max(0, 50 + netMargin * PERFORMANCE_SCORE.profitMultiplier));
 
     const bankScore = latest.bank_balance
-      ? Math.min(100, Math.max(0, (latest.bank_balance / (Math.abs(latest.loenninger || 50000) * 6)) * 100))
+      ? Math.min(100, Math.max(0, (latest.bank_balance / (Math.abs(latest.loenninger || PERFORMANCE_SCORE.defaultSalaryFallback) * PERFORMANCE_SCORE.liquidityMonths)) * 100))
       : 50;
 
     return [
@@ -91,7 +91,7 @@ const PerformanceScore = () => {
 
   const overallScore = useMemo(() => {
     if (metrics.length === 0) return 0;
-    const weights = [0.3, 0.25, 0.25, 0.2];
+    const weights = PERFORMANCE_SCORE.weights;
     return Math.round(metrics.reduce((sum, m, i) => sum + m.score * (weights[i] || 0.25), 0));
   }, [metrics]);
 
