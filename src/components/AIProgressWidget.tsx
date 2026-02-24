@@ -22,7 +22,7 @@ const statusConfig = {
   regressed: { icon: TrendingDown, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
-const AIProgressWidget = () => {
+const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
   const { user } = useAuth();
   const [dialogTab, setDialogTab] = useState<"pending" | "improved" | "regressed">("pending");
 
@@ -168,7 +168,7 @@ const AIProgressWidget = () => {
         </div>
       </div>
 
-      {topPending.length > 0 && (
+      {!compact && topPending.length > 0 && (
         <div className="space-y-2 mb-3">
           {topPending.map((item) => {
             const cfg = statusConfig[item.status];
