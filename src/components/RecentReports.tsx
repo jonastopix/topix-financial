@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { FileText, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
@@ -21,18 +21,22 @@ const statusConfig = {
 
 const RecentReports = () => {
   const { user } = useAuth();
-  const [reports, setReports] = useState<Report[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("financial_reports")
-      .select("id, report_period, status, uploaded_at")
-      .eq("user_id", user.id)
-      .order("uploaded_at", { ascending: false })
-      .limit(4)
-      .then(({ data }) => setReports(data || []));
-  }, [user]);
+  const { data: reports = [] } = useQuery({
+    queryKey: ["recent-reports", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("financial_reports")
+        .select("id, report_period, status, uploaded_at")
+        .eq("user_id", user!.id)
+        .order("uploaded_at", { ascending: false })
+        .limit(4);
+      if (error) throw error;
+      return (data || []) as Report[];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">

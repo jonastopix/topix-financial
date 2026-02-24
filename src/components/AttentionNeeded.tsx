@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import {
-  AlertTriangle, Clock, MessageSquare, FileText, Target, ChevronRight, Sparkles,
+  AlertTriangle, Clock, MessageSquare, FileText, Target, ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DANISH_MONTHS } from "@/lib/financialUtils";
@@ -32,23 +32,20 @@ const urgencyBorder = {
 
 const AttentionNeeded = () => {
   const { user } = useAuth();
-  const [items, setItems] = useState<AttentionItem[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const loadAttention = async () => {
+  const { data: items = [] } = useQuery({
+    queryKey: ["attention-needed", user?.id],
+    queryFn: async () => {
       const attentionItems: AttentionItem[] = [];
       const now = new Date();
-      const currentMonth = now.getMonth(); // 0-indexed
+      const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
       const currentKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
 
-      // Check if current month report is missing
       const { data: reports } = await supabase
         .from("financial_reports")
         .select("report_period")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .eq("status", "processed");
 
       const reportKeys = new Set(
@@ -80,11 +77,10 @@ const AttentionNeeded = () => {
         });
       }
 
-      // Check milestones nearing deadline
       const { data: milestones } = await supabase
         .from("milestones")
         .select("id, title, deadline, progress")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .lt("progress", 100)
         .not("deadline", "is", null);
 
@@ -106,11 +102,10 @@ const AttentionNeeded = () => {
         }
       });
 
-      // Check unread messages
       const { data: conv } = await supabase
         .from("conversations")
         .select("id")
-        .eq("member_id", user.id)
+        .eq("member_id", user!.id)
         .maybeSingle();
 
       if (conv?.id) {
@@ -118,7 +113,7 @@ const AttentionNeeded = () => {
           .from("messages")
           .select("*", { count: "exact", head: true })
           .eq("conversation_id", conv.id)
-          .neq("sender_id", user.id)
+          .neq("sender_id", user!.id)
           .is("read_at", null);
 
         if (count && count > 0) {
@@ -134,11 +129,11 @@ const AttentionNeeded = () => {
         }
       }
 
-      setItems(attentionItems);
-    };
-
-    loadAttention();
-  }, [user]);
+      return attentionItems;
+    },
+    enabled: !!user,
+    staleTime: 3 * 60 * 1000,
+  });
 
   if (items.length === 0) return null;
 

@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { CheckCircle2, Clock, TrendingDown, TrendingUp, Sparkles, Loader2, Activity } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -23,25 +24,22 @@ const statusConfig = {
 
 const AIProgressWidget = () => {
   const { user } = useAuth();
-  const [items, setItems] = useState<ProgressItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dialogTab, setDialogTab] = useState<"pending" | "improved" | "regressed">("pending");
 
-  useEffect(() => {
-    if (!user) return;
-    const fetch = async () => {
-      setLoading(true);
+  const { data: items = [], isLoading: loading } = useQuery({
+    queryKey: ["ai-progress", user?.id],
+    queryFn: async () => {
       const [{ data: reports }, { data: milestones }] = await Promise.all([
         supabase
           .from("financial_reports")
           .select("id, report_period, ai_analysis")
-          .eq("user_id", user.id)
+          .eq("user_id", user!.id)
           .not("ai_analysis", "is", null)
           .order("uploaded_at", { ascending: false }),
         supabase
           .from("milestones")
           .select("title, progress, status, source_report")
-          .eq("user_id", user.id),
+          .eq("user_id", user!.id),
       ]);
 
       const result: ProgressItem[] = [];
@@ -76,11 +74,11 @@ const AIProgressWidget = () => {
         });
       });
 
-      setItems(result);
-      setLoading(false);
-    };
-    fetch();
-  }, [user]);
+      return result;
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const actionedCount = items.filter((p) => p.status === "actioned" || p.status === "improved").length;
   const pendingCount = items.filter((p) => p.status === "pending").length;
@@ -136,7 +134,6 @@ const AIProgressWidget = () => {
         <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
       </div>
 
-      {/* Ring + stats row */}
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-shrink-0">
           <svg width="80" height="80" viewBox="0 0 80 80" className="transform -rotate-90">
@@ -171,7 +168,6 @@ const AIProgressWidget = () => {
         </div>
       </div>
 
-      {/* Top pending/regressed items */}
       {topPending.length > 0 && (
         <div className="space-y-2 mb-3">
           {topPending.map((item) => {
@@ -189,7 +185,6 @@ const AIProgressWidget = () => {
         </div>
       )}
 
-      {/* See all dialog */}
       <Dialog>
         <DialogTrigger asChild>
           <button className="w-full text-xs font-medium text-primary hover:text-primary/80 transition-colors py-1.5">

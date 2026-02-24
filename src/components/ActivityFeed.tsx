@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import {
-  MessageSquare, FileText, Target, Sparkles, TrendingUp, Bell,
+  MessageSquare, FileText, Target, Sparkles, Bell,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
@@ -14,7 +14,6 @@ interface ActivityEvent {
   description: string;
   timestamp: string;
   link?: string;
-  actorName?: string;
 }
 
 const typeConfig = {
@@ -26,19 +25,16 @@ const typeConfig = {
 
 const ActivityFeed = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<ActivityEvent[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const loadActivity = async () => {
+  const { data: events = [] } = useQuery({
+    queryKey: ["activity-feed", user?.id],
+    queryFn: async () => {
       const activity: ActivityEvent[] = [];
 
-      // Recent reports
       const { data: reports } = await supabase
         .from("financial_reports")
         .select("id, report_period, uploaded_at, status")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .order("uploaded_at", { ascending: false })
         .limit(3);
 
@@ -52,11 +48,10 @@ const ActivityFeed = () => {
         });
       });
 
-      // Recent messages (from conversation)
       const { data: conv } = await supabase
         .from("conversations")
         .select("id")
-        .eq("member_id", user.id)
+        .eq("member_id", user!.id)
         .maybeSingle();
 
       if (conv?.id) {
@@ -79,11 +74,10 @@ const ActivityFeed = () => {
         });
       }
 
-      // Recent milestones
       const { data: milestones } = await supabase
         .from("milestones")
         .select("id, title, progress, updated_at")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .order("updated_at", { ascending: false })
         .limit(2);
 
@@ -97,13 +91,12 @@ const ActivityFeed = () => {
         });
       });
 
-      // Sort by timestamp desc
       activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setEvents(activity.slice(0, 6));
-    };
-
-    loadActivity();
-  }, [user]);
+      return activity.slice(0, 6);
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">

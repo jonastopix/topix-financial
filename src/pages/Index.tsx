@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { DollarSign, Users, TrendingUp, Flame, Wallet, BarChart3 } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
@@ -25,56 +25,51 @@ function getGreeting() {
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
-  const [kpiData, setKpiData] = useState<{
-    revenue: number | null;
-    revenuePrev: number | null;
-    expenses: number | null;
-    result: number | null;
-    bank: number | null;
-    period: string | null;
-  }>({ revenue: null, revenuePrev: null, expenses: null, result: null, bank: null, period: null });
 
-  const [conversationId, setConversationId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const loadKPIs = async () => {
+  const { data: dashboardData } = useQuery({
+    queryKey: ["dashboard-kpis", user?.id],
+    queryFn: async () => {
       const [reportsRes, convRes] = await Promise.all([
         supabase
           .from("financial_reports")
           .select("id, report_period, extracted_data, status")
-          .eq("user_id", user.id)
+          .eq("user_id", user!.id)
           .eq("status", "processed")
           .order("uploaded_at", { ascending: false })
           .limit(12),
-        supabase.from("conversations").select("id").eq("member_id", user.id).maybeSingle(),
+        supabase.from("conversations").select("id").eq("member_id", user!.id).maybeSingle(),
       ]);
 
-      setConversationId(convRes.data?.id || null);
-
+      const conversationId = convRes.data?.id || null;
       const reports = (reportsRes.data || []) as ReportData[];
       const sorted = reports
         .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r), period: r.report_period }))
         .filter((d): d is { key: string; kf: Record<string, number>; period: string } => !!d.key && !!d.kf)
         .sort((a, b) => a.key.localeCompare(b.key));
 
+      let kpiData = { revenue: null as number | null, revenuePrev: null as number | null, expenses: null as number | null, result: null as number | null, bank: null as number | null, period: null as string | null };
+
       if (sorted.length > 0) {
         const latest = sorted[sorted.length - 1];
         const prev = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
-        setKpiData({
+        kpiData = {
           revenue: latest.kf.omsaetning ?? null,
           revenuePrev: prev?.kf.omsaetning ?? null,
           expenses: latest.kf.loenninger != null ? Math.abs(latest.kf.loenninger) + Math.abs(latest.kf.direkte_omkostninger || 0) : null,
           result: latest.kf.resultat_foer_skat ?? null,
           bank: latest.kf.bank_balance ?? null,
           period: latest.period,
-        });
+        };
       }
-    };
 
-    loadKPIs();
-  }, [user]);
+      return { kpiData, conversationId };
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const kpiData = dashboardData?.kpiData ?? { revenue: null, revenuePrev: null, expenses: null, result: null, bank: null, period: null };
+  const conversationId = dashboardData?.conversationId ?? null;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -85,7 +80,6 @@ const Dashboard = () => {
 
   return (
     <AppLayout>
-      {/* Hero greeting */}
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
           {getGreeting()}, {firstName}
@@ -95,7 +89,6 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <KPICard
           title="Omsætning"
@@ -130,20 +123,16 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* Attention needed — full width */}
       <div className="mb-8">
         <AttentionNeeded />
       </div>
 
-      {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Primary column — charts & reports */}
         <div className="lg:col-span-8 space-y-6">
           <RevenueChart />
           <RecentReports />
         </div>
 
-        {/* Secondary column — performance & activity */}
         <div className="lg:col-span-4 space-y-6">
           <PerformanceScore />
           <AIProgressWidget />

@@ -1,29 +1,31 @@
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { parseReportPeriodToKey, getKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 const RevenueChart = () => {
   const { user } = useAuth();
-  const [reports, setReports] = useState<ReportData[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("financial_reports")
-      .select("id, report_period, extracted_data, status")
-      .eq("user_id", user.id)
-      .eq("status", "processed")
-      .order("uploaded_at", { ascending: false })
-      .limit(12)
-      .then(({ data, error }) => {
-        if (error) console.error("RevenueChart load error:", error);
-        setReports(data || []);
-      });
-  }, [user]);
+  const { data: reports = [] } = useQuery({
+    queryKey: ["financial-reports-chart", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("financial_reports")
+        .select("id, report_period, extracted_data, status")
+        .eq("user_id", user!.id)
+        .eq("status", "processed")
+        .order("uploaded_at", { ascending: false })
+        .limit(12);
+      if (error) throw error;
+      return (data || []) as ReportData[];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const chartData = useMemo(() => {
     return reports
