@@ -223,12 +223,11 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
           return new Response(
             JSON.stringify({
-              error: `Der er allerede indsendt en rapport for ${extractedData.report_period}. Vil du overskrive den?`,
               duplicate: true,
               existing_period: extractedData.report_period,
               existing_report_id: existing[0].id,
             }),
-            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
