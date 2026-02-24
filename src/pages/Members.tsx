@@ -191,7 +191,7 @@ const Members = () => {
   const totalUnread = members.reduce((sum, m) => sum + m.unreadCount, 0);
   const membersWithReports = members.filter((m) => m.reportCount > 0).length;
 
-  const formatDKK = (n: number) =>
+  const formatMemberDKK = (n: number) =>
     n.toLocaleString("da-DK", { maximumFractionDigits: 0 }) + " DKK";
 
   if (authLoading) return null;
@@ -328,7 +328,7 @@ const Members = () => {
                         <div className="flex items-center gap-1.5">
                           <Wallet className="h-3 w-3 text-muted-foreground" />
                           <span className={`text-xs ${m.budgetCategories === 0 ? "text-muted-foreground" : "text-foreground font-medium"}`}>
-                            {m.budgetCategories > 0 ? formatDKK(m.totalBudget) : "–"}
+                            {m.budgetCategories > 0 ? formatMemberDKK(m.totalBudget) : "–"}
                           </span>
                         </div>
                       </div>
@@ -407,7 +407,7 @@ const Members = () => {
                           </div>
                           {m.budgetCategories > 0 ? (
                             <>
-                              <p className="text-lg font-bold text-foreground">{formatDKK(m.totalBudget)}</p>
+                              <p className="text-lg font-bold text-foreground">{formatMemberDKK(m.totalBudget)}</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {m.budgetCategories} {m.budgetCategories === 1 ? "kategori" : "kategorier"}
                               </p>

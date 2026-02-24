@@ -19,7 +19,10 @@ const BudgetOverview = () => {
       .eq("user_id", user.id)
       .order("budget_amount", { ascending: false })
       .limit(5)
-      .then(({ data }) => setCategories(data || []));
+      .then(({ data, error }) => {
+        if (error) console.error("BudgetOverview load error:", error);
+        setCategories(data || []);
+      });
   }, [user]);
 
   const totalBudget = categories.reduce((s, c) => s + Number(c.budget_amount), 0);
