@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { parseReportPeriodToKey, formatCompact } from "@/lib/financialUtils";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign, Building2, Users, Megaphone,
   Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info, Upload,
@@ -699,80 +702,9 @@ const Budget = () => {
           </div>
         </TabsContent>
 
-        {/* Monthly Grid Tab */}
+        {/* Monthly Grid Tab — Budget vs. Actual */}
         <TabsContent value="maaned" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              Månedsoversigt – Base
-            </h2>
-          </div>
-          <div className="glass-card rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left py-3 px-4 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[200px] z-10">Linje</th>
-                    {MONTHS.map(m => (
-                      <th key={m} className="text-right py-3 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[70px]">{m}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const baseRows = scenarioData.base;
-                    const baseGrouped = GROUP_ORDER
-                      .map(g => ({ group: g, label: GROUP_LABELS[g], rows: baseRows.filter(r => r.group === g) }))
-                      .filter(g => g.rows.length > 0);
-
-                    const baseRevenue = baseRows.filter(r => r.group === "indtaegter");
-                    const baseCosts = baseRows.filter(r => r.group !== "indtaegter");
-                    const baseEbitda = MONTHS.map((_, i) => {
-                      const rev = baseRevenue.reduce((sum, row) => sum + row.values[i], 0);
-                      const cost = baseCosts.reduce((sum, row) => sum + Math.abs(row.values[i]), 0);
-                      return rev - cost;
-                    });
-
-                    return (
-                      <>
-                        {baseGrouped.map(group => (
-                          <>
-                            <tr key={`base-group-${group.group}`} className="bg-muted/30">
-                              <td colSpan={13} className="py-2 px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10">
-                                {group.label}
-                              </td>
-                            </tr>
-                            {group.rows.map(row => {
-                              const RowIcon = row.icon;
-                              return (
-                                <tr key={row.key} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                                  <td className="py-3 px-4 text-foreground font-medium sticky left-0 bg-card z-10 flex items-center gap-2">
-                                    {RowIcon && <RowIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-                                    {row.label}
-                                  </td>
-                                  {row.values.map((val, i) => (
-                                    <td key={i} className="py-3 px-3 text-right font-display">
-                                      <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
-                                    </td>
-                                  ))}
-                                </tr>
-                              );
-                            })}
-                          </>
-                        ))}
-                        <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
-                          <td className="py-3 px-4 text-foreground font-bold sticky left-0 bg-secondary/20 z-10">EBITDA</td>
-                          {baseEbitda.map((val, i) => (
-                            <td key={i} className={`py-3 px-3 text-right font-display font-bold ${val >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(val)}</td>
-                          ))}
-                        </tr>
-                      </>
-                    );
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <BudgetVsActualTab scenarioData={scenarioData} year={year} userId={user?.id} />
         </TabsContent>
 
         {/* Import Tab */}
@@ -783,6 +715,269 @@ const Budget = () => {
     </AppLayout>
   );
 };
+
+// ─── Budget category key → report key_figures key mapping ───
+const BUDGET_TO_REPORT_KEY: Record<string, string> = {
+  omsaetning: "omsaetning",
+  direkte_omk: "direkte_omkostninger",
+  vareforbrug: "direkte_omkostninger",
+  loenninger: "loenninger",
+  marketing: "marketing",
+  digital_marketing: "marketing",
+  lokaler: "lokaler",
+  admin: "admin",
+  admin_regnskab: "admin",
+  tech_software: "tech_software",
+  platform_tech: "tech_software",
+};
+
+// Categories where higher actual is favorable (revenue)
+const REVENUE_GROUPS = new Set(["indtaegter"]);
+
+function BudgetVsActualTab({
+  scenarioData,
+  year,
+  userId,
+}: {
+  scenarioData: Record<ScenarioKey, BudgetRow[]>;
+  year: string;
+  userId: string | undefined;
+}) {
+  const { data: reports } = useQuery({
+    queryKey: ["financial-reports-actuals", userId, year],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("financial_reports")
+        .select("report_period, extracted_data")
+        .eq("user_id", userId!)
+        .eq("status", "processed");
+      return data || [];
+    },
+  });
+
+  // Build actuals map: monthIndex (0-11) → { budgetCategoryKey → value }
+  const actualsMap = useMemo(() => {
+    const map: Record<number, Record<string, number>> = {};
+    if (!reports) return map;
+
+    for (const report of reports) {
+      const periodKey = parseReportPeriodToKey(report.report_period);
+      if (!periodKey) continue;
+      const [reportYear, monthStr] = periodKey.split("-");
+      if (reportYear !== year) continue;
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      if (monthIdx < 0 || monthIdx > 11) continue;
+
+      const ed = report.extracted_data as Record<string, any> | null;
+      const kf = ed?.key_figures as Record<string, number> | null;
+      if (!kf) continue;
+
+      if (!map[monthIdx]) map[monthIdx] = {};
+      // Map each known key_figure to the corresponding budget keys
+      for (const [budgetKey, reportKey] of Object.entries(BUDGET_TO_REPORT_KEY)) {
+        if (kf[reportKey] != null) {
+          map[monthIdx][budgetKey] = Math.abs(kf[reportKey]);
+        }
+      }
+    }
+    return map;
+  }, [reports, year]);
+
+  const baseRows = scenarioData.base;
+  const hasAnyActuals = Object.keys(actualsMap).length > 0;
+
+  // Group rows
+  const groupedRows = GROUP_ORDER
+    .map(g => ({ group: g, label: GROUP_LABELS[g], rows: baseRows.filter(r => r.group === g) }))
+    .filter(g => g.rows.length > 0);
+
+  // Compute EBITDA per month
+  const revenueRows = baseRows.filter(r => r.group === "indtaegter");
+  const costRows = baseRows.filter(r => r.group !== "indtaegter");
+
+  const budgetEbitda = MONTHS.map((_, i) => {
+    const rev = revenueRows.reduce((s, r) => s + r.values[i], 0);
+    const cost = costRows.reduce((s, r) => s + Math.abs(r.values[i]), 0);
+    return rev - cost;
+  });
+
+  const actualEbitda = MONTHS.map((_, i) => {
+    if (!actualsMap[i]) return null;
+    const rev = revenueRows.reduce((s, r) => s + (actualsMap[i]?.[r.key] ?? 0), 0);
+    const cost = costRows.reduce((s, r) => s + (actualsMap[i]?.[r.key] ?? 0), 0);
+    return rev - cost;
+  });
+
+  // Summary totals
+  const totalBudgetRevenue = revenueRows.reduce((s, r) => s + r.values.reduce((a, b) => a + b, 0), 0);
+  const totalBudgetCosts = costRows.reduce((s, r) => s + Math.abs(r.values.reduce((a, b) => a + b, 0)), 0);
+  const totalBudgetEbitda = totalBudgetRevenue - totalBudgetCosts;
+
+  const totalActualRevenue = MONTHS.reduce((s, _, i) => s + revenueRows.reduce((rs, r) => rs + (actualsMap[i]?.[r.key] ?? 0), 0), 0);
+  const totalActualCosts = MONTHS.reduce((s, _, i) => s + costRows.reduce((rs, r) => rs + (actualsMap[i]?.[r.key] ?? 0), 0), 0);
+  const totalActualEbitda = totalActualRevenue - totalActualCosts;
+
+  function varianceColor(budget: number, actual: number | null, isRevenue: boolean): string {
+    if (actual == null) return "text-muted-foreground";
+    const diff = isRevenue ? actual - budget : budget - actual;
+    const pct = budget !== 0 ? (diff / Math.abs(budget)) * 100 : 0;
+    if (diff >= 0) return "text-primary";
+    if (Math.abs(pct) > 10) return "text-destructive";
+    return "text-chart-warning";
+  }
+
+  function varianceIcon(budget: number, actual: number | null, isRevenue: boolean) {
+    if (actual == null) return null;
+    const diff = isRevenue ? actual - budget : budget - actual;
+    const pct = budget !== 0 ? (diff / Math.abs(budget)) * 100 : 0;
+    if (diff >= 0) return <CheckCircle2 className="h-3 w-3 text-primary inline" />;
+    if (Math.abs(pct) > 10) return <AlertTriangle className="h-3 w-3 text-destructive inline" />;
+    return <AlertTriangle className="h-3 w-3 text-chart-warning inline" />;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          Budget vs. Realiseret · {year}
+        </h2>
+        {!hasAnyActuals && (
+          <span className="text-xs text-muted-foreground">Ingen rapporter for {year} endnu</span>
+        )}
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <BvaSummaryCard label="Omsætning" budget={totalBudgetRevenue} actual={hasAnyActuals ? totalActualRevenue : null} isRevenue />
+        <BvaSummaryCard label="Omkostninger" budget={totalBudgetCosts} actual={hasAnyActuals ? totalActualCosts : null} isRevenue={false} />
+        <BvaSummaryCard label="EBITDA" budget={totalBudgetEbitda} actual={hasAnyActuals ? totalActualEbitda : null} isRevenue />
+      </div>
+
+      {/* Main table */}
+      <div className="glass-card rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="text-left py-2.5 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[180px] z-10">Kategori</th>
+                {MONTHS.map(m => (
+                  <th key={m} className="text-right py-2.5 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[75px]">{m}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {groupedRows.map(group => (
+                <>
+                  <tr key={`bva-group-${group.group}`} className="bg-muted/30">
+                    <td colSpan={13} className="py-2 px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10">
+                      {group.label}
+                    </td>
+                  </tr>
+                  {group.rows.map(row => {
+                    const isRevenue = REVENUE_GROUPS.has(row.group);
+                    const RowIcon = row.icon;
+                    return (
+                      <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                        <td className="py-2 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
+                          <div className="flex items-center gap-1.5">
+                            {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                            <span>{row.label}</span>
+                          </div>
+                        </td>
+                        {row.values.map((budgetVal, i) => {
+                          const actualVal = actualsMap[i]?.[row.key] ?? null;
+                          const color = varianceColor(budgetVal, actualVal, isRevenue);
+                          return (
+                            <td key={i} className="py-1.5 px-2 text-right">
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-xs font-display text-muted-foreground">{budgetVal === 0 ? "—" : formatK(budgetVal)}</span>
+                                <span className={`text-xs font-display font-semibold ${actualVal != null ? color : "text-muted-foreground/50"}`}>
+                                  {actualVal != null ? formatK(actualVal) : "--"}
+                                </span>
+                                {actualVal != null && budgetVal !== 0 && (
+                                  <span className={`text-[10px] ${color} flex items-center gap-0.5`}>
+                                    {varianceIcon(budgetVal, actualVal, isRevenue)}
+                                    {(() => {
+                                      const diff = isRevenue ? actualVal - budgetVal : budgetVal - actualVal;
+                                      const pct = (diff / Math.abs(budgetVal)) * 100;
+                                      return `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`;
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </>
+              ))}
+              {/* EBITDA row */}
+              <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
+                <td className="py-2.5 px-3 text-foreground font-bold text-xs sticky left-0 bg-secondary/20 z-10">EBITDA</td>
+                {budgetEbitda.map((bVal, i) => {
+                  const aVal = actualEbitda[i];
+                  const color = varianceColor(bVal, aVal, true);
+                  return (
+                    <td key={i} className="py-1.5 px-2 text-right">
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className={`text-xs font-display font-bold ${bVal >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(bVal)}</span>
+                        <span className={`text-xs font-display font-bold ${aVal != null ? color : "text-muted-foreground/50"}`}>
+                          {aVal != null ? formatK(aVal) : "--"}
+                        </span>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {/* Legend */}
+        <div className="px-4 py-2 border-t border-border/30 flex items-center gap-4 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground inline-block" /> Budget</span>
+          <span className="flex items-center gap-1"><span className="font-bold text-foreground">Fed</span> Realiseret</span>
+          <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-primary" /> Favorable</span>
+          <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-chart-warning" /> {'<10% afvigelse'}</span>
+          <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-destructive" /> {'>10% afvigelse'}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BvaSummaryCard({ label, budget, actual, isRevenue }: { label: string; budget: number; actual: number | null; isRevenue: boolean }) {
+  const hasActual = actual != null && actual !== 0;
+  const diff = hasActual ? (isRevenue ? actual - budget : budget - actual) : 0;
+  const pct = hasActual && budget !== 0 ? (diff / Math.abs(budget)) * 100 : 0;
+  const favorable = diff >= 0;
+
+  return (
+    <div className="p-4 rounded-xl bg-secondary/50 border border-border/30">
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">{label}</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[10px] text-muted-foreground">Budget</p>
+          <p className="text-sm font-display font-bold text-foreground">{formatK(budget)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-muted-foreground">Realiseret</p>
+          <p className={`text-sm font-display font-bold ${!hasActual ? "text-muted-foreground" : favorable ? "text-primary" : "text-destructive"}`}>
+            {hasActual ? formatK(actual) : "—"}
+          </p>
+        </div>
+      </div>
+      {hasActual && (
+        <div className={`mt-2 text-xs font-medium ${favorable ? "text-primary" : "text-destructive"}`}>
+          {pct > 0 ? "+" : ""}{pct.toFixed(1)}% afvigelse
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SummaryKPI({ icon: Icon, label, value, valueColor }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; valueColor?: string }) {
   return (
