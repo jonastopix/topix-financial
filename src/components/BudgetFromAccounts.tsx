@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { Upload, Loader2, Check, X, TrendingUp, Percent, FileText, Sparkles } from "lucide-react";
+import { Upload, Loader2, Check, X, TrendingUp, Percent, FileText, Sparkles, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 
 interface BudgetCategory {
   key: string;
@@ -48,6 +49,9 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
   const [growthPercent, setGrowthPercent] = useState(0);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Overrides: keyed by "catKey-monthIdx", stores the user-edited value (already with growth)
+  const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [editingCell, setEditingCell] = useState<string | null>(null);
 
   const extractTextFromPDF = useCallback(async (file: File): Promise<string> => {
     // Use pdfjs-dist to extract text
@@ -110,6 +114,7 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
 
       setResult(data as BudgetResult);
       setGrowthPercent(0);
+      setOverrides({});
       toast.success("Regnskab analyseret! Vælg vækstprocent og godkend.");
     } catch (err: any) {
       console.error("Budget from accounts error:", err);
@@ -128,9 +133,23 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
 
   const applyGrowth = (monthly: number[], isRevenue: boolean): number[] => {
     const factor = 1 + growthPercent / 100;
-    // Only apply growth to revenue; costs stay flat or grow slower
     const costFactor = isRevenue ? factor : 1 + (growthPercent / 100) * 0.5;
     return monthly.map(v => Math.round(v * (isRevenue ? factor : costFactor)));
+  };
+
+  // Get final monthly values: growth-applied, then overridden if user edited
+  const getFinalMonthly = (cat: BudgetCategory, isRevenue: boolean): number[] => {
+    const grown = applyGrowth(cat.monthly, isRevenue);
+    return grown.map((v, i) => {
+      const key = `${cat.key}-${i}`;
+      return key in overrides ? overrides[key] : v;
+    });
+  };
+
+  const handleCellEdit = (catKey: string, monthIdx: number, value: string) => {
+    const num = Math.round(Number(value.replace(/[^0-9.-]/g, "")));
+    if (isNaN(num)) return;
+    setOverrides(prev => ({ ...prev, [`${catKey}-${monthIdx}`]: num }));
   };
 
   const handleConfirm = async () => {
@@ -167,11 +186,11 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
         period: "webshop_b2c", // Generic template key
       });
 
-      // Insert budget rows with growth applied
+      // Insert budget rows with growth + overrides applied
       const inserts = result.categories.flatMap(cat => {
         const isRevenue = cat.group === "indtaegter";
-        const adjusted = applyGrowth(cat.monthly, isRevenue);
-        return adjusted.map((amount, monthIdx) => ({
+        const final = getFinalMonthly(cat, isRevenue);
+        return final.map((amount, monthIdx) => ({
           user_id: userId,
           category: cat.key,
           budget_amount: amount,
@@ -193,7 +212,7 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
           return {
             key: cat.key,
             label: cat.label,
-            monthly: applyGrowth(cat.monthly, isRevenue),
+            monthly: getFinalMonthly(cat, isRevenue),
             details: cat.source_lines,
           };
         }),
@@ -216,11 +235,12 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
     const totalRevOrig = revenueCategories.reduce((s, c) => s + c.annual_amount, 0);
     const totalCostOrig = costCategories.reduce((s, c) => s + c.annual_amount, 0);
 
-    const totalRevGrowth = revenueCategories.reduce((s, c) => s + applyGrowth(c.monthly, true).reduce((a, b) => a + b, 0), 0);
-    const totalCostGrowth = costCategories.reduce((s, c) => s + applyGrowth(c.monthly, false).reduce((a, b) => a + b, 0), 0);
+    const totalRevFinal = revenueCategories.reduce((s, c) => s + getFinalMonthly(c, true).reduce((a, b) => a + b, 0), 0);
+    const totalCostFinal = costCategories.reduce((s, c) => s + getFinalMonthly(c, false).reduce((a, b) => a + b, 0), 0);
 
     const resultOrig = totalRevOrig - totalCostOrig;
-    const resultGrowth = totalRevGrowth - totalCostGrowth;
+    const resultFinal = totalRevFinal - totalCostFinal;
+    const hasOverrides = Object.keys(overrides).length > 0;
 
     // Group categories for display
     const groups = ["indtaegter", "variable", "personale", "salg_marketing", "drift", "faste"];
@@ -309,29 +329,49 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
           </div>
           <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Omsætning {targetYear}</p>
-            <p className="text-sm font-bold text-primary">{(totalRevGrowth / 1000).toFixed(0)}k</p>
-            {growthPercent !== 0 && (
+            <p className="text-sm font-bold text-primary">{(totalRevFinal / 1000).toFixed(0)}k</p>
+            {(growthPercent !== 0 || hasOverrides) && (
               <p className="text-[10px] text-primary">
-                {growthPercent > 0 ? "+" : ""}{((totalRevGrowth - totalRevOrig) / 1000).toFixed(0)}k
+                {totalRevFinal - totalRevOrig >= 0 ? "+" : ""}{((totalRevFinal - totalRevOrig) / 1000).toFixed(0)}k
               </p>
             )}
           </div>
           <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Omkostninger {targetYear}</p>
-            <p className="text-sm font-bold text-destructive">{(totalCostGrowth / 1000).toFixed(0)}k</p>
+            <p className="text-sm font-bold text-destructive">{(totalCostFinal / 1000).toFixed(0)}k</p>
           </div>
           <div className="p-3 rounded-lg bg-secondary/50 border border-border/30">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Resultat {targetYear}</p>
-            <p className={`text-sm font-bold ${resultGrowth >= 0 ? "text-primary" : "text-destructive"}`}>
-              {(resultGrowth / 1000).toFixed(0)}k
+            <p className={`text-sm font-bold ${resultFinal >= 0 ? "text-primary" : "text-destructive"}`}>
+              {(resultFinal / 1000).toFixed(0)}k
             </p>
-            {growthPercent !== 0 && (
-              <p className={`text-[10px] ${resultGrowth - resultOrig >= 0 ? "text-primary" : "text-destructive"}`}>
-                {resultGrowth - resultOrig >= 0 ? "+" : ""}{((resultGrowth - resultOrig) / 1000).toFixed(0)}k vs. flat
+            {(growthPercent !== 0 || hasOverrides) && (
+              <p className={`text-[10px] ${resultFinal - resultOrig >= 0 ? "text-primary" : "text-destructive"}`}>
+                {resultFinal - resultOrig >= 0 ? "+" : ""}{((resultFinal - resultOrig) / 1000).toFixed(0)}k vs. original
               </p>
             )}
           </div>
         </div>
+
+        {/* Hint about editing */}
+        {!hasOverrides && (
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Pencil className="h-3 w-3" /> Klik på et beløb for at redigere det manuelt
+          </p>
+        )}
+        {hasOverrides && (
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-primary flex items-center gap-1">
+              <Pencil className="h-3 w-3" /> {Object.keys(overrides).length} manuelle rettelser
+            </p>
+            <button
+              onClick={() => setOverrides({})}
+              className="text-[10px] text-muted-foreground hover:text-foreground underline"
+            >
+              Nulstil rettelser
+            </button>
+          </div>
+        )}
 
         {/* Category breakdown by group */}
         <div className="space-y-3">
@@ -347,8 +387,8 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
                 </p>
                 <div className="space-y-2">
                   {cats.map(cat => {
-                    const adjusted = applyGrowth(cat.monthly, isRevenue);
-                    const yearTotal = adjusted.reduce((s, v) => s + v, 0);
+                    const final = getFinalMonthly(cat, isRevenue);
+                    const yearTotal = final.reduce((s, v) => s + v, 0);
                     return (
                       <div key={cat.key} className="rounded-lg border border-border/30 p-3">
                         <div className="flex items-center justify-between mb-2">
@@ -361,20 +401,53 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
                           </div>
                           <div className="text-right">
                             <span className="text-sm font-semibold text-foreground">{(yearTotal / 1000).toFixed(0)}k</span>
-                            {growthPercent !== 0 && (
+                            {(growthPercent !== 0 || hasOverrides) && (
                               <span className="text-[10px] text-muted-foreground ml-1.5">
-                                (var {(cat.annual_amount / 1000).toFixed(0)}k)
+                                (orig. {(cat.annual_amount / 1000).toFixed(0)}k)
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="grid grid-cols-12 gap-1">
-                          {adjusted.map((val, i) => (
-                            <div key={i} className="text-center">
-                              <p className="text-[8px] text-muted-foreground">{MONTHS[i]}</p>
-                              <p className="text-[10px] font-medium text-foreground">{formatK(val)}</p>
-                            </div>
-                          ))}
+                          {final.map((val, i) => {
+                            const cellKey = `${cat.key}-${i}`;
+                            const isEditing = editingCell === cellKey;
+                            const isOverridden = cellKey in overrides;
+                            return (
+                              <div key={i} className="text-center">
+                                <p className="text-[8px] text-muted-foreground">{MONTHS[i]}</p>
+                                {isEditing ? (
+                                  <Input
+                                    autoFocus
+                                    defaultValue={val}
+                                    className="h-5 px-0.5 text-[10px] text-center font-medium border-primary w-full"
+                                    onBlur={(e) => {
+                                      handleCellEdit(cat.key, i, e.target.value);
+                                      setEditingCell(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        handleCellEdit(cat.key, i, (e.target as HTMLInputElement).value);
+                                        setEditingCell(null);
+                                      } else if (e.key === "Escape") {
+                                        setEditingCell(null);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <p
+                                    onClick={() => setEditingCell(cellKey)}
+                                    className={`text-[10px] font-medium cursor-pointer rounded px-0.5 transition-colors hover:bg-primary/10 ${
+                                      isOverridden ? "text-primary ring-1 ring-primary/30" : "text-foreground"
+                                    }`}
+                                    title="Klik for at redigere"
+                                  >
+                                    {formatK(val)}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
