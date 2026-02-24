@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
+import { GAMIFICATION } from "@/lib/appConfig";
 
 interface MemberStats {
   userId: string;
@@ -39,7 +40,7 @@ const CommunityProgress = () => {
         const stats: MemberStats[] = memberProfiles.map(p => {
           const rCount = reports.filter(r => r.user_id === p.user_id && r.status === "processed").length;
           const mCompleted = milestones.filter(m => m.user_id === p.user_id && m.progress >= 100).length;
-          const score = rCount * 10 + mCompleted * 25;
+          const score = rCount * GAMIFICATION.pointsPerReport + mCompleted * GAMIFICATION.pointsPerMilestone;
           const name = p.full_name || "Ukendt";
           const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
           return { userId: p.user_id, name, initials, reportsCount: rCount, milestonesCompleted: mCompleted, totalScore: score };
@@ -56,7 +57,7 @@ const CommunityProgress = () => {
 
         const rCount = (reportsRes.data || []).filter(r => r.status === "processed").length;
         const mCompleted = (milestonesRes.data || []).filter(m => m.progress >= 100).length;
-        const score = rCount * 10 + mCompleted * 25;
+        const score = rCount * GAMIFICATION.pointsPerReport + mCompleted * GAMIFICATION.pointsPerMilestone;
         const name = profileRes.data?.full_name || "Dig";
         const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
@@ -119,11 +120,11 @@ const CommunityProgress = () => {
         <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <FileText className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">Rapport = 10 pts</span>
+            <span className="text-[10px] text-muted-foreground">Rapport = {GAMIFICATION.pointsPerReport} pts</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Target className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">Milestone = 25 pts</span>
+            <span className="text-[10px] text-muted-foreground">Milestone = {GAMIFICATION.pointsPerMilestone} pts</span>
           </div>
         </div>
       </div>
@@ -131,16 +132,9 @@ const CommunityProgress = () => {
   }
 
   if (ownStats) {
-    const milestones = [
-      { threshold: 0, label: "Starter", emoji: "🌱" },
-      { threshold: 25, label: "Aktiv", emoji: "⚡" },
-      { threshold: 75, label: "Dedikeret", emoji: "🔥" },
-      { threshold: 150, label: "Stjerneelev", emoji: "⭐" },
-      { threshold: 300, label: "Mester", emoji: "🏆" },
-    ];
-
-    const currentLevel = [...milestones].reverse().find(m => ownStats.totalScore >= m.threshold) || milestones[0];
-    const nextLevel = milestones.find(m => m.threshold > ownStats.totalScore);
+    const levels = GAMIFICATION.levels;
+    const currentLevel = [...levels].reverse().find(m => ownStats.totalScore >= m.threshold) || levels[0];
+    const nextLevel = levels.find(m => m.threshold > ownStats.totalScore);
     const progressToNext = nextLevel
       ? Math.round(((ownStats.totalScore - (currentLevel.threshold)) / (nextLevel.threshold - currentLevel.threshold)) * 100)
       : 100;

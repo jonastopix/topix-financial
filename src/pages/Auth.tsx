@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Mail, Lock, User, Building2, LogIn, UserPlus } from "lucide-react";
+import { APP_BRANDING } from "@/lib/appConfig";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -65,7 +66,7 @@ const Auth = () => {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-              <span className="text-primary-foreground font-display font-bold text-lg">BR</span>
+              <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
             </div>
             <h1 className="text-xl font-display font-bold text-foreground">Nulstil adgangskode</h1>
           </div>
@@ -105,7 +106,7 @@ const Auth = () => {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <span className="text-primary-foreground font-display font-bold text-lg">BR</span>
+            <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
           </div>
           <h1 className="text-xl font-display font-bold text-foreground">
             {isLogin ? "Log ind på The Boardroom" : "Opret konto"}
