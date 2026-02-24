@@ -45,6 +45,7 @@ export type Database = {
         Row: {
           budget_amount: number
           category: string
+          company_id: string | null
           created_at: string
           id: string
           period: string
@@ -54,6 +55,7 @@ export type Database = {
         Insert: {
           budget_amount?: number
           category: string
+          company_id?: string | null
           created_at?: string
           id?: string
           period?: string
@@ -63,13 +65,22 @@ export type Database = {
         Update: {
           budget_amount?: number
           category?: string
+          company_id?: string | null
           created_at?: string
           id?: string
           period?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "budget_targets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       circle_activity: {
         Row: {
@@ -200,30 +211,95 @@ export type Database = {
         }
         Relationships: []
       }
+      companies: {
+        Row: {
+          created_at: string
+          cvr_number: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          cvr_number?: string | null
+          id?: string
+          name?: string
+        }
+        Update: {
+          created_at?: string
+          cvr_number?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
+          company_id: string | null
           created_at: string
           id: string
           last_message_at: string | null
           member_id: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           id?: string
           last_message_at?: string | null
           member_id: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           id?: string
           last_message_at?: string | null
           member_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       financial_reports: {
         Row: {
           ai_analysis: Json | null
+          company_id: string | null
           company_name: string | null
           cvr_number: string | null
           extracted_data: Json | null
@@ -239,6 +315,7 @@ export type Database = {
         }
         Insert: {
           ai_analysis?: Json | null
+          company_id?: string | null
           company_name?: string | null
           cvr_number?: string | null
           extracted_data?: Json | null
@@ -254,6 +331,7 @@ export type Database = {
         }
         Update: {
           ai_analysis?: Json | null
+          company_id?: string | null
           company_name?: string | null
           cvr_number?: string | null
           extracted_data?: Json | null
@@ -267,7 +345,15 @@ export type Database = {
           uploaded_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "financial_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       handout_lever_milestones: {
         Row: {
@@ -313,6 +399,7 @@ export type Database = {
           ai_feedback: Json | null
           ai_feedback_at: string | null
           checklist: Json
+          company_id: string | null
           completed_at: string | null
           created_at: string
           id: string
@@ -327,6 +414,7 @@ export type Database = {
           ai_feedback?: Json | null
           ai_feedback_at?: string | null
           checklist?: Json
+          company_id?: string | null
           completed_at?: string | null
           created_at?: string
           id?: string
@@ -341,6 +429,7 @@ export type Database = {
           ai_feedback?: Json | null
           ai_feedback_at?: string | null
           checklist?: Json
+          company_id?: string | null
           completed_at?: string | null
           created_at?: string
           id?: string
@@ -351,12 +440,21 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "handouts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       kpi_benchmarks: {
         Row: {
           benchmark_label: string
           benchmark_value: number
+          company_id: string | null
           created_at: string
           id: string
           kpi_key: string
@@ -367,6 +465,7 @@ export type Database = {
         Insert: {
           benchmark_label?: string
           benchmark_value: number
+          company_id?: string | null
           created_at?: string
           id?: string
           kpi_key: string
@@ -377,6 +476,7 @@ export type Database = {
         Update: {
           benchmark_label?: string
           benchmark_value?: number
+          company_id?: string | null
           created_at?: string
           id?: string
           kpi_key?: string
@@ -384,10 +484,19 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "kpi_benchmarks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       kpi_targets: {
         Row: {
+          company_id: string | null
           created_at: string
           id: string
           kpi_key: string
@@ -398,6 +507,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           id?: string
           kpi_key: string
@@ -408,6 +518,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           id?: string
           kpi_key?: string
@@ -417,7 +528,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "kpi_targets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -468,6 +587,7 @@ export type Database = {
       }
       milestones: {
         Row: {
+          company_id: string | null
           created_at: string
           deadline: string | null
           description: string | null
@@ -481,6 +601,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
@@ -494,6 +615,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
@@ -506,7 +628,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "milestones_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -568,6 +698,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      user_company_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
       app_role: "member" | "advisor"
