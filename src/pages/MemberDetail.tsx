@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Navigate, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft,
@@ -79,7 +80,9 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 
 const MemberDetail = () => {
   const { userId } = useParams<{ userId: string }>();
-  const { isAdvisor, user, loading: authLoading } = useAuth();
+  const { isAdvisor: rawAdvisor, user, loading: authLoading } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
