@@ -4,8 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign, Building2, Users, Megaphone,
-  Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info,
+  Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info, Upload,
 } from "lucide-react";
+import BudgetImport from "@/components/BudgetImport";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -58,9 +59,20 @@ const formatK = (v: number) => {
 };
 
 // ─── Template Picker ───
-function TemplatePicker({ onSelect }: { onSelect: (t: BudgetTemplate) => void }) {
+function TemplatePicker({ onSelect, userId, onImportComplete }: { onSelect: (t: BudgetTemplate) => void; userId: string; onImportComplete: (result: any) => void }) {
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Excel Import Option */}
+      <div className="mb-2">
+        <BudgetImport userId={userId} onImportComplete={onImportComplete} />
+      </div>
+
+      <div className="flex items-center gap-3 my-6">
+        <div className="flex-1 border-t border-border/30" />
+        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Eller vælg en skabelon</span>
+        <div className="flex-1 border-t border-border/30" />
+      </div>
+
       <div className="text-center mb-8">
         <h2 className="text-xl font-display font-bold text-foreground mb-2">Vælg en budgetskabelon</h2>
         <p className="text-sm text-muted-foreground max-w-lg mx-auto">
@@ -224,6 +236,35 @@ const Budget = () => {
     toast.success(`Skabelon "${tmpl.label}" valgt`);
   };
 
+  const handleImportComplete = useCallback((result: any) => {
+    // After import, auto-select a generic template that matches best
+    // and reload data
+    const tmpl = BUDGET_TEMPLATES[0]; // fallback
+    setSelectedTemplate(tmpl);
+    
+    // Build scenario data from import result
+    const importedRows: BudgetRow[] = (result.categories || []).map((cat: any) => ({
+      key: cat.key,
+      label: cat.label,
+      values: cat.monthly || Array(12).fill(0),
+      isEditable: true,
+      group: cat.key === "omsaetning" ? "indtaegter" : 
+             cat.key === "loenninger" ? "personale" :
+             cat.key === "marketing" ? "salg_marketing" :
+             cat.key === "lokaler" ? "faste" :
+             cat.key === "tech_software" ? "drift" :
+             cat.key === "admin" ? "faste" :
+             "variable",
+    }));
+    
+    setScenarioData({
+      base: importedRows,
+      optimistisk: importedRows.map(r => ({ ...r, values: [...r.values] })),
+      pessimistisk: importedRows.map(r => ({ ...r, values: [...r.values] })),
+    });
+    setYear(result.year || "2025");
+  }, []);
+
   const handleChangeTemplate = () => {
     setSelectedTemplate(null);
     setScenarioData(null);
@@ -242,7 +283,7 @@ const Budget = () => {
             Planlæg og følg op på dine finansielle mål
           </p>
         </div>
-        <TemplatePicker onSelect={handleTemplateSelect} />
+        <TemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} onImportComplete={handleImportComplete} />
       </AppLayout>
     );
   }
@@ -424,6 +465,10 @@ const Budget = () => {
           <TabsTrigger value="maaned" className="text-xs">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />
             Månedsoversigt
+          </TabsTrigger>
+          <TabsTrigger value="import" className="text-xs">
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Importér
           </TabsTrigger>
         </TabsList>
 
@@ -726,6 +771,11 @@ const Budget = () => {
               </table>
             </div>
           </div>
+        </TabsContent>
+
+        {/* Import Tab */}
+        <TabsContent value="import">
+          <BudgetImport userId={user?.id || ""} onImportComplete={handleImportComplete} />
         </TabsContent>
       </Tabs>
     </AppLayout>
