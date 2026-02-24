@@ -25,8 +25,8 @@ import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -345,7 +345,15 @@ const Reports = () => {
 
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <AreaChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <defs>
+                  {SERIES.map(s => (
+                    <linearGradient key={`grad-${s.key}`} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={s.color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
@@ -355,8 +363,10 @@ const Reports = () => {
                 />
                 {SERIES.map(s => {
                   const props = getLineProps(s.key, s.color);
+                  const isActive = activeSeries === s.key;
+                  const isDefaultMain = !activeSeries && s.key === "omsaetning";
                   return (
-                    <Line
+                    <Area
                       key={s.key}
                       type="monotone"
                       dataKey={s.key}
@@ -364,13 +374,14 @@ const Reports = () => {
                       strokeWidth={props.strokeWidth}
                       opacity={props.opacity}
                       strokeDasharray={props.strokeDasharray}
-                      dot={activeSeries === s.key ? { r: 4 } : false}
-                      activeDot={activeSeries === s.key ? { r: 5 } : { r: 3 }}
+                      fill={isActive || isDefaultMain ? `url(#grad-${s.key})` : "none"}
+                      dot={isActive ? { r: 4, fill: s.color, strokeWidth: 0 } : false}
+                      activeDot={isActive ? { r: 5 } : { r: 3 }}
                       connectNulls
                     />
                   );
                 })}
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
 
