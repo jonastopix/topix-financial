@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.handout-ai-feedback]
 verify_jwt = false
+
+[functions.import-budget-excel]
+verify_jwt = false
