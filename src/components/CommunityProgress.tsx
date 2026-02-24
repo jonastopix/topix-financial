@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Trophy, FileText, Target, TrendingUp, Star } from "lucide-react";
+import { Trophy, FileText, Target, Star } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -17,16 +17,11 @@ const CommunityProgress = () => {
   const { user, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
-  const [members, setMembers] = useState<MemberStats[]>([]);
-  const [ownStats, setOwnStats] = useState<MemberStats | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const load = async () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["community-progress", user?.id, isAdvisor],
+    queryFn: async () => {
       if (isAdvisor) {
-        // Advisors can see all data — build a full leaderboard
         const [profilesRes, reportsRes, milestonesRes] = await Promise.all([
           supabase.from("profiles").select("user_id, full_name"),
           supabase.from("financial_reports").select("user_id, status"),
@@ -37,10 +32,8 @@ const CommunityProgress = () => {
         const reports = reportsRes.data || [];
         const milestones = milestonesRes.data || [];
 
-        // Exclude advisors from leaderboard
         const rolesRes = await supabase.from("user_roles").select("user_id").eq("role", "advisor");
         const advisorIds = new Set((rolesRes.data || []).map(r => r.user_id));
-
         const memberProfiles = profiles.filter(p => !advisorIds.has(p.user_id));
 
         const stats: MemberStats[] = memberProfiles.map(p => {
@@ -53,13 +46,12 @@ const CommunityProgress = () => {
         });
 
         stats.sort((a, b) => b.totalScore - a.totalScore);
-        setMembers(stats);
+        return { members: stats, ownStats: null as MemberStats | null };
       } else {
-        // Members see only their own stats
         const [reportsRes, milestonesRes, profileRes] = await Promise.all([
-          supabase.from("financial_reports").select("status").eq("user_id", user.id),
-          supabase.from("milestones").select("progress").eq("user_id", user.id),
-          supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle(),
+          supabase.from("financial_reports").select("status").eq("user_id", user!.id),
+          supabase.from("milestones").select("progress").eq("user_id", user!.id),
+          supabase.from("profiles").select("full_name").eq("user_id", user!.id).maybeSingle(),
         ]);
 
         const rCount = (reportsRes.data || []).filter(r => r.status === "processed").length;
@@ -68,16 +60,14 @@ const CommunityProgress = () => {
         const name = profileRes.data?.full_name || "Dig";
         const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
-        setOwnStats({ userId: user.id, name, initials, reportsCount: rCount, milestonesCompleted: mCompleted, totalScore: score });
+        return { members: [] as MemberStats[], ownStats: { userId: user!.id, name, initials, reportsCount: rCount, milestonesCompleted: mCompleted, totalScore: score } };
       }
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
-      setLoading(false);
-    };
-
-    load();
-  }, [user, isAdvisor]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="glass-card rounded-xl p-5 animate-fade-in">
         <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
@@ -85,10 +75,10 @@ const CommunityProgress = () => {
     );
   }
 
-  // Medal colors for top 3
+  const members = data?.members || [];
+  const ownStats = data?.ownStats;
   const medals = ["🥇", "🥈", "🥉"];
 
-  // Advisor view: full leaderboard
   if (isAdvisor && members.length > 0) {
     return (
       <div className="glass-card rounded-xl p-5 animate-fade-in">
@@ -118,10 +108,7 @@ const CommunityProgress = () => {
                     <span className="text-[10px] font-display font-bold text-primary ml-2">{member.totalScore} pts</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary/70 transition-all duration-700"
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className="h-full rounded-full bg-primary/70 transition-all duration-700" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               </div>
@@ -129,7 +116,6 @@ const CommunityProgress = () => {
           })}
         </div>
 
-        {/* Scoring legend */}
         <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <FileText className="h-3 w-3 text-muted-foreground" />
@@ -144,7 +130,6 @@ const CommunityProgress = () => {
     );
   }
 
-  // Member view: own progress with motivational framing
   if (ownStats) {
     const milestones = [
       { threshold: 0, label: "Starter", emoji: "🌱" },

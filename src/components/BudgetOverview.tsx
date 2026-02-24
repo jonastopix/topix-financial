@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -9,21 +9,22 @@ interface BudgetCategory {
 
 const BudgetOverview = () => {
   const { user } = useAuth();
-  const [categories, setCategories] = useState<BudgetCategory[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("budget_targets")
-      .select("category, budget_amount")
-      .eq("user_id", user.id)
-      .order("budget_amount", { ascending: false })
-      .limit(5)
-      .then(({ data, error }) => {
-        if (error) console.error("BudgetOverview load error:", error);
-        setCategories(data || []);
-      });
-  }, [user]);
+  const { data: categories = [] } = useQuery({
+    queryKey: ["budget-overview", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budget_targets")
+        .select("category, budget_amount")
+        .eq("user_id", user!.id)
+        .order("budget_amount", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return (data || []) as BudgetCategory[];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const totalBudget = categories.reduce((s, c) => s + Number(c.budget_amount), 0);
   const hasData = categories.length > 0;

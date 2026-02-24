@@ -1,5 +1,6 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getKeyFigures, parseReportPeriodToKey, type ReportData } from "@/lib/financialUtils";
@@ -34,22 +35,23 @@ function getScoreLabel(score: number) {
 
 const PerformanceScore = () => {
   const { user } = useAuth();
-  const [reports, setReports] = useState<ReportData[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("financial_reports")
-      .select("id, report_period, extracted_data, status")
-      .eq("user_id", user.id)
-      .eq("status", "processed")
-      .order("uploaded_at", { ascending: false })
-      .limit(6)
-      .then(({ data, error }) => {
-        if (error) console.error("PerformanceScore load error:", error);
-        setReports(data || []);
-      });
-  }, [user]);
+  const { data: reports = [] } = useQuery({
+    queryKey: ["financial-reports-perf", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("financial_reports")
+        .select("id, report_period, extracted_data, status")
+        .eq("user_id", user!.id)
+        .eq("status", "processed")
+        .order("uploaded_at", { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      return (data || []) as ReportData[];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const metrics = useMemo((): MetricScore[] => {
     if (reports.length === 0) return [];
