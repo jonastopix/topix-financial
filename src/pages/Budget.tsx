@@ -10,6 +10,7 @@ import {
   Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info, Upload,
 } from "lucide-react";
 import BudgetImport from "@/components/BudgetImport";
+import BudgetFromAccounts from "@/components/BudgetFromAccounts";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -65,9 +66,10 @@ const formatK = (v: number) => {
 function TemplatePicker({ onSelect, userId, onImportComplete }: { onSelect: (t: BudgetTemplate) => void; userId: string; onImportComplete: (result: any) => void }) {
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Excel Import Option */}
-      <div className="mb-2">
+      {/* Import options */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
         <BudgetImport userId={userId} onImportComplete={onImportComplete} />
+        <BudgetFromAccounts userId={userId} onImportComplete={onImportComplete} />
       </div>
 
       <div className="flex items-center gap-3 my-6">

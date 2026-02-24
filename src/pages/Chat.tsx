@@ -5,8 +5,10 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
-  Search, Inbox, Clock, AlertCircle, Filter,
+  Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
+  BarChart3,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -37,12 +39,38 @@ interface ConversationWithProfile {
 }
 
 type InboxFilter = "alle" | "ubesvaret" | "rapporter" | "besvaret";
+type TopicFilter = "all" | "report" | "handout" | "milestone" | "budget" | "sparring";
+type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
 
 const FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
   { key: "alle", label: "Alle", icon: Inbox },
   { key: "ubesvaret", label: "Ubesvaret", icon: AlertCircle },
   { key: "rapporter", label: "Ny rapport", icon: FileText },
   { key: "besvaret", label: "Besvaret", icon: CheckCheck },
+];
+
+const TOPIC_CONFIG: { key: TopicFilter; label: string; icon: typeof MessageSquare; color: string }[] = [
+  { key: "all", label: "Alle", icon: MessageSquare, color: "bg-muted text-muted-foreground" },
+  { key: "report", label: "Rapporter", icon: FileText, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  { key: "handout", label: "Handouts", icon: BookOpen, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  { key: "milestone", label: "Milestones", icon: Target, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+  { key: "budget", label: "Budget", icon: Calculator, color: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  { key: "sparring", label: "Sparring", icon: MessageSquare, color: "bg-muted text-muted-foreground" },
+];
+
+const TOPIC_COLORS: Record<string, { bg: string; text: string; label: string; icon: typeof MessageSquare }> = {
+  report: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", label: "Rapport", icon: FileText },
+  handout: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", label: "Handout", icon: BookOpen },
+  milestone: { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", label: "Milestone", icon: Target },
+  budget: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", label: "Budget", icon: Calculator },
+};
+
+const MESSAGE_TOPICS: { key: MessageTopic; label: string }[] = [
+  { key: null, label: "Generelt" },
+  { key: "report", label: "Rapport" },
+  { key: "handout", label: "Handout" },
+  { key: "milestone", label: "Milestone" },
+  { key: "budget", label: "Budget" },
 ];
 
 const Chat = () => {
@@ -56,6 +84,8 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
+  const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
+  const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations — batch fetch, no N+1
@@ -244,17 +274,31 @@ const Chat = () => {
     if (!newMessage.trim() || !activeConvId || !user) return;
 
     setSending(true);
-    const { error } = await supabase.from("messages").insert({
+    const insertData: any = {
       conversation_id: activeConvId,
       sender_id: user.id,
       content: newMessage.trim(),
-    });
+    };
+
+    if (selectedTopic) {
+      insertData.context_type = selectedTopic;
+    }
+
+    const { error } = await supabase.from("messages").insert(insertData);
 
     if (!error) {
       setNewMessage("");
+      // Don't reset selectedTopic — user might send multiple messages on same topic
     }
     setSending(false);
   };
+
+  // Filter messages by topic
+  const filteredMessages = useMemo(() => {
+    if (topicFilter === "all") return messages;
+    if (topicFilter === "sparring") return messages.filter(m => !m.context_type);
+    return messages.filter(m => m.context_type === topicFilter);
+  }, [messages, topicFilter]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const getInitialsLocal = (name: string) =>
@@ -479,20 +523,58 @@ const Chat = () => {
                 )}
               </div>
 
+              {/* Topic filter chips */}
+              <div className="px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto">
+                {TOPIC_CONFIG.map(t => {
+                  const isActive = topicFilter === t.key;
+                  const TopicIcon = t.icon;
+                  const count = t.key === "all" ? messages.length
+                    : t.key === "sparring" ? messages.filter(m => !m.context_type).length
+                    : messages.filter(m => m.context_type === t.key).length;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => setTopicFilter(t.key)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
+                        isActive
+                          ? `${t.color} ring-1 ring-current/20`
+                          : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      <TopicIcon className="h-3 w-3" />
+                      {t.label}
+                      {count > 0 && t.key !== "all" && (
+                        <span className="text-[9px] opacity-70">{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.length === 0 && (
+                {filteredMessages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">Ingen beskeder endnu</p>
-                    <p className="text-xs text-muted-foreground mt-1">Skriv den første besked nedenfor</p>
+                    <p className="text-sm text-muted-foreground">
+                      {topicFilter !== "all" ? "Ingen beskeder med dette emne" : "Ingen beskeder endnu"}
+                    </p>
+                    {topicFilter !== "all" && (
+                      <button
+                        onClick={() => setTopicFilter("all")}
+                        className="text-xs text-primary hover:underline mt-2"
+                      >
+                        Vis alle beskeder
+                      </button>
+                    )}
                   </div>
                 )}
-                {messages.map((msg) => {
+                {filteredMessages.map((msg) => {
                   const isMine = msg.sender_id === user?.id;
                   const isSystem = msg.message_type === "system" || msg.message_type === "ai";
                   const contextType = msg.context_type;
                   const contextMeta = msg.context_meta;
+                  const topicInfo = contextType ? TOPIC_COLORS[contextType] : null;
 
                   if (isSystem) {
                     return (
@@ -503,6 +585,12 @@ const Chat = () => {
                             <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
                               {msg.message_type === "ai" ? "AI Analyse" : "System"}
                             </span>
+                            {topicInfo && (
+                              <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
+                                <topicInfo.icon className="h-2.5 w-2.5" />
+                                {topicInfo.label}
+                              </span>
+                            )}
                             <span className="text-[10px] text-muted-foreground">
                               {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
                             </span>
@@ -523,6 +611,13 @@ const Chat = () => {
                   return (
                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                       <div className="max-w-[75%]">
+                        {/* Topic tag above message */}
+                        {topicInfo && (
+                          <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                            <topicInfo.icon className="h-2.5 w-2.5" />
+                            {topicInfo.label}
+                          </div>
+                        )}
                         {contextType && contextMeta?.title && (
                           <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
                             isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
@@ -556,22 +651,48 @@ const Chat = () => {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input */}
-              <form onSubmit={handleSend} className="p-4 border-t border-border flex gap-2">
-                <input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Skriv en besked..."
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  disabled={sending}
-                />
-                <button
-                  type="submit"
-                  disabled={sending || !newMessage.trim()}
-                  className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
+              {/* Input with topic selector */}
+              <form onSubmit={handleSend} className="p-4 border-t border-border">
+                {/* Topic selector row */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[10px] text-muted-foreground mr-1">Emne:</span>
+                  {MESSAGE_TOPICS.map(t => {
+                    const isActive = selectedTopic === t.key;
+                    const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
+                    return (
+                      <button
+                        key={t.key ?? "general"}
+                        type="button"
+                        onClick={() => setSelectedTopic(t.key)}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                          isActive
+                            ? topicInfo
+                              ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
+                              : "bg-muted text-foreground ring-1 ring-border"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    disabled={sending}
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending || !newMessage.trim()}
+                    className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
               </form>
             </>
           ) : (
