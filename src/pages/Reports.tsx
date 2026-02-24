@@ -98,6 +98,7 @@ const Reports = () => {
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
+  const [activeSeries, setActiveSeries] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMsg[]>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
@@ -290,13 +291,57 @@ const Reports = () => {
       </div>
 
       {/* ── Trend Charts ── */}
-      {trendData.length >= 2 && (
+      {trendData.length >= 2 && (() => {
+        const SERIES = [
+          { key: "omsaetning", label: "Omsætning", color: "hsl(var(--primary))" },
+          { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(var(--chart-2))" },
+          { key: "resultat_foer_skat", label: "Resultat f. skat", color: "hsl(var(--chart-3))" },
+          { key: "loenninger", label: "Lønninger", color: "hsl(var(--chart-4))" },
+          { key: "bank_balance", label: "Bank", color: "hsl(var(--chart-5))" },
+        ];
+
+        const getLineProps = (seriesKey: string, baseColor: string) => {
+          if (!activeSeries) {
+            // Default: omsætning prominent, others subtle
+            const isMain = seriesKey === "omsaetning";
+            return { strokeWidth: isMain ? 2.5 : 1, opacity: isMain ? 1 : 0.4, strokeDasharray: isMain ? undefined : "4 4" };
+          }
+          const isActive = activeSeries === seriesKey;
+          return { strokeWidth: isActive ? 3 : 0.8, opacity: isActive ? 1 : 0.15, strokeDasharray: undefined };
+        };
+
+        return (
         <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
           <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
             Finansiel udvikling
           </h2>
-          <p className="text-xs text-muted-foreground mb-6">Måned til måned — baseret på uploadede rapporter</p>
+          <p className="text-xs text-muted-foreground mb-4">Måned til måned — klik på en serie for at fremhæve</p>
+
+          {/* Custom legend with click */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {SERIES.map(s => {
+              const isActive = activeSeries === s.key;
+              const isDefault = !activeSeries && s.key === "omsaetning";
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => setActiveSeries(prev => prev === s.key ? null : s.key)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
+                    isActive
+                      ? "border-current bg-current/10"
+                      : isDefault
+                        ? "border-border/50 bg-secondary/30"
+                        : "border-transparent bg-secondary/20 opacity-60 hover:opacity-100"
+                  }`}
+                  style={{ color: s.color }}
+                >
+                  <span className="w-3 h-0.5 rounded-full" style={{ background: s.color }} />
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
 
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -305,27 +350,26 @@ const Reports = () => {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
                 <Tooltip
-                  formatter={(value: number, name: string) => [formatDKK(value), {
-                    omsaetning: "Omsætning",
-                    daekningsbidrag: "Dækningsbidrag",
-                    resultat_foer_skat: "Resultat f. skat",
-                    loenninger: "Lønninger",
-                    bank_balance: "Bank",
-                  }[name] || name]}
+                  formatter={(value: number, name: string) => [formatDKK(value), SERIES.find(s => s.key === name)?.label || name]}
                   contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
                 />
-                <Legend formatter={(value: string) => ({
-                  omsaetning: "Omsætning",
-                  daekningsbidrag: "Dækningsbidrag",
-                  resultat_foer_skat: "Resultat f. skat",
-                  loenninger: "Lønninger",
-                  bank_balance: "Bank",
-                }[value] || value)} />
-                <Line type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} connectNulls />
-                <Line type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} connectNulls strokeDasharray="6 3" />
-                <Line type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} connectNulls />
-                <Line type="monotone" dataKey="loenninger" stroke="hsl(var(--chart-4))" strokeWidth={1} dot={false} activeDot={{ r: 3 }} connectNulls strokeDasharray="4 4" opacity={0.7} />
-                <Line type="monotone" dataKey="bank_balance" stroke="hsl(var(--chart-5))" strokeWidth={1} dot={false} activeDot={{ r: 3 }} connectNulls strokeDasharray="2 2" opacity={0.7} />
+                {SERIES.map(s => {
+                  const props = getLineProps(s.key, s.color);
+                  return (
+                    <Line
+                      key={s.key}
+                      type="monotone"
+                      dataKey={s.key}
+                      stroke={s.color}
+                      strokeWidth={props.strokeWidth}
+                      opacity={props.opacity}
+                      strokeDasharray={props.strokeDasharray}
+                      dot={activeSeries === s.key ? { r: 4 } : false}
+                      activeDot={activeSeries === s.key ? { r: 5 } : { r: 3 }}
+                      connectNulls
+                    />
+                  );
+                })}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -370,7 +414,8 @@ const Reports = () => {
             );
           })()}
         </div>
-      )}
+        );
+      })()}
 
       {/* Upload section */}
       <div className="mb-8">
