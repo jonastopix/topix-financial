@@ -293,11 +293,11 @@ const Reports = () => {
       {/* ── Trend Charts ── */}
       {trendData.length >= 2 && (() => {
         const SERIES = [
-          { key: "omsaetning", label: "Omsætning", color: "hsl(var(--primary))" },
-          { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(var(--chart-2))" },
-          { key: "resultat_foer_skat", label: "Resultat f. skat", color: "hsl(var(--chart-3))" },
-          { key: "loenninger", label: "Lønninger", color: "hsl(var(--chart-4))" },
-          { key: "bank_balance", label: "Bank", color: "hsl(var(--chart-5))" },
+          { key: "omsaetning", label: "Omsætning", color: "hsl(160, 84%, 39%)" },
+          { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(38, 92%, 50%)" },
+          { key: "resultat_foer_skat", label: "Resultat f. skat", color: "hsl(217, 91%, 60%)" },
+          { key: "loenninger", label: "Lønninger", color: "hsl(280, 65%, 60%)" },
+          { key: "bank_balance", label: "Bank", color: "hsl(190, 80%, 50%)" },
         ];
 
         const getLineProps = (seriesKey: string, baseColor: string) => {
