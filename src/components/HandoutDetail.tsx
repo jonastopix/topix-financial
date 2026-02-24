@@ -1,0 +1,303 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { ArrowLeft, Save, Check, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import HandoutLeverItem from "@/components/HandoutLeverItem";
+import HandoutAIFeedback from "@/components/HandoutAIFeedback";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
+
+interface HandoutDetailProps {
+  config: HandoutConfig;
+  onBack: () => void;
+  userId?: string; // for advisor viewing another member
+}
+
+interface LeverMilestone {
+  milestone_id: string;
+  title: string;
+  progress: number;
+  status: string;
+}
+
+type SaveStatus = "idle" | "saving" | "saved";
+
+const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
+  const { user } = useAuth();
+  const effectiveUserId = userId || user?.id;
+  const isOwner = !userId || userId === user?.id;
+
+  const [handoutId, setHandoutId] = useState<string | null>(null);
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [levers, setLevers] = useState<string[]>(Array(config.leverCount).fill(""));
+  const [aiFeedback, setAiFeedback] = useState<any>(null);
+  const [aiFeedbackAt, setAiFeedbackAt] = useState<string | null>(null);
+  const [leverMilestones, setLeverMilestones] = useState<Record<number, LeverMilestone>>({});
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [loading, setLoading] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load handout data
+  const loadData = useCallback(async () => {
+    if (!effectiveUserId) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("handouts")
+      .select("*")
+      .eq("user_id", effectiveUserId)
+      .eq("module", config.module)
+      .maybeSingle();
+
+    if (data) {
+      setHandoutId(data.id);
+      setResponses((data.responses as Record<string, string>) || {});
+      setChecklist((data.checklist as Record<string, boolean>) || {});
+      const loadedLevers = (data.levers as string[]) || [];
+      setLevers([...loadedLevers, ...Array(Math.max(0, config.leverCount - loadedLevers.length)).fill("")]);
+      setAiFeedback(data.ai_feedback);
+      setAiFeedbackAt(data.ai_feedback_at);
+
+      // Load lever milestones
+      const { data: links } = await supabase
+        .from("handout_lever_milestones" as any)
+        .select("lever_index, milestone_id")
+        .eq("handout_id", data.id);
+
+      if (links && links.length > 0) {
+        const msIds = links.map((l: any) => l.milestone_id);
+        const { data: milestones } = await supabase
+          .from("milestones")
+          .select("id, title, progress, status")
+          .in("id", msIds);
+
+        const map: Record<number, LeverMilestone> = {};
+        for (const link of links as any[]) {
+          const ms = milestones?.find((m) => m.id === link.milestone_id);
+          if (ms) {
+            map[link.lever_index] = { milestone_id: ms.id, title: ms.title, progress: ms.progress, status: ms.status };
+          }
+        }
+        setLeverMilestones(map);
+      }
+    }
+    setLoading(false);
+  }, [effectiveUserId, config.module, config.leverCount]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Auto-save with debounce
+  const save = useCallback(async (r: Record<string, string>, c: Record<string, boolean>, l: string[]) => {
+    if (!effectiveUserId || !isOwner) return;
+    setSaveStatus("saving");
+
+    const hasContent = Object.values(r).some(v => v.trim()) || Object.values(c).some(v => v) || l.some(v => v.trim());
+    const status = hasContent ? "in_progress" : "not_started";
+
+    const payload = {
+      user_id: effectiveUserId,
+      module: config.module,
+      responses: r,
+      checklist: c,
+      levers: l,
+      status,
+    };
+
+    if (handoutId) {
+      const { error } = await supabase.from("handouts").update(payload).eq("id", handoutId);
+      if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
+    } else {
+      const { data, error } = await supabase.from("handouts").insert(payload).select("id").single();
+      if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
+      else { setHandoutId(data.id); }
+    }
+
+    setSaveStatus("saved");
+    setTimeout(() => setSaveStatus("idle"), 2000);
+  }, [effectiveUserId, isOwner, config.module, handoutId]);
+
+  const debounceSave = useCallback((r: Record<string, string>, c: Record<string, boolean>, l: string[]) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => save(r, c, l), 1500);
+  }, [save]);
+
+  const updateResponse = (key: string, val: string) => {
+    const next = { ...responses, [key]: val };
+    setResponses(next);
+    debounceSave(next, checklist, levers);
+  };
+
+  const updateChecklist = (key: string, val: boolean) => {
+    const next = { ...checklist, [key]: val };
+    setChecklist(next);
+    debounceSave(responses, next, levers);
+  };
+
+  const updateLever = (idx: number, val: string) => {
+    const next = [...levers];
+    next[idx] = val;
+    setLevers(next);
+    debounceSave(responses, checklist, next);
+  };
+
+  // Calculate progress
+  const totalFields = config.sections.reduce((sum, s) => {
+    let count = s.questions.filter(q => q.type === "textarea").length;
+    if (s.checklist) count += s.checklist.length;
+    count += s.questions.filter(q => q.type === "numbered_list").reduce((a, q) => a + (q.count || 2), 0);
+    return sum + count;
+  }, 0) + config.leverCount;
+
+  const filledFields = Object.values(responses).filter(v => v.trim()).length
+    + Object.values(checklist).filter(v => v).length
+    + levers.filter(v => v.trim()).length;
+
+  const progress = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5">
+            <ArrowLeft className="h-4 w-4" /> Tilbage
+          </Button>
+          <div>
+            <h2 className="text-xl font-display font-bold text-foreground">{config.title}</h2>
+            <p className="text-xs text-muted-foreground">{config.subtitle} · {progress}% udfyldt</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {saveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Gemmer…</>}
+          {saveStatus === "saved" && <><Check className="h-3 w-3 text-emerald-500" /> Gemt</>}
+        </div>
+      </div>
+
+      {/* Tabs for sections */}
+      <Tabs defaultValue="0" className="w-full">
+        <TabsList className="w-full justify-start">
+          {config.sections.map((s, i) => (
+            <TabsTrigger key={i} value={String(i)} className="text-xs">{s.title}</TabsTrigger>
+          ))}
+          {config.leverCount > 0 && (
+            <TabsTrigger value="levers" className="text-xs">Løftestænger</TabsTrigger>
+          )}
+        </TabsList>
+
+        {config.sections.map((section, si) => (
+          <TabsContent key={si} value={String(si)} className="space-y-5 mt-4">
+            {section.questions.map((q) => (
+              <div key={q.key} className="space-y-2">
+                <label className="text-sm font-medium text-foreground">{q.label}</label>
+                {q.type === "textarea" ? (
+                  <Textarea
+                    value={responses[q.key] || ""}
+                    onChange={(e) => updateResponse(q.key, e.target.value)}
+                    placeholder="Skriv dit svar her..."
+                    className="min-h-[100px] text-sm"
+                    disabled={!isOwner}
+                  />
+                ) : q.type === "numbered_list" ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: q.count || 2 }).map((_, ni) => {
+                      const listKey = `${q.key}_${ni}`;
+                      return (
+                        <div key={ni} className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-5">{ni + 1}.</span>
+                          <Input
+                            value={responses[listKey] || ""}
+                            onChange={(e) => updateResponse(listKey, e.target.value)}
+                            placeholder={`Punkt ${ni + 1}`}
+                            className="text-sm"
+                            disabled={!isOwner}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+
+            {section.checklist && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-sm font-semibold text-foreground">Tjekliste</h4>
+                {section.checklist.map((item) => (
+                  <div key={item.key} className="space-y-1.5">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id={item.key}
+                        checked={checklist[item.key] || false}
+                        onCheckedChange={(v) => updateChecklist(item.key, v === true)}
+                        disabled={!isOwner}
+                      />
+                      <label htmlFor={item.key} className="text-sm text-foreground cursor-pointer leading-tight">
+                        {item.label}
+                      </label>
+                    </div>
+                    {item.hasFollowUp && checklist[item.key] && (
+                      <div className="ml-7">
+                        <Input
+                          value={responses[`followup_${item.key}`] || ""}
+                          onChange={(e) => updateResponse(`followup_${item.key}`, e.target.value)}
+                          placeholder={item.hasFollowUp}
+                          className="text-sm"
+                          disabled={!isOwner}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        ))}
+
+        {config.leverCount > 0 && (
+          <TabsContent value="levers" className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Vælg dine vigtigste løftestænger og opret dem som milestones for at tracke din fremgang.
+            </p>
+            {levers.map((val, i) => (
+              <HandoutLeverItem
+                key={i}
+                index={i}
+                value={val}
+                onChange={(v) => updateLever(i, v)}
+                handoutId={handoutId || undefined}
+                linkedMilestone={leverMilestones[i] || null}
+                onMilestoneCreated={loadData}
+              />
+            ))}
+          </TabsContent>
+        )}
+      </Tabs>
+
+      {/* AI Feedback */}
+      {handoutId && (
+        <HandoutAIFeedback
+          handoutId={handoutId}
+          module={config.module}
+          feedback={aiFeedback}
+          feedbackAt={aiFeedbackAt}
+          onFeedbackReceived={loadData}
+        />
+      )}
+    </div>
+  );
+};
+
+export default HandoutDetail;

@@ -10,6 +10,7 @@ import Reports from "./pages/Reports";
 import Milestones from "./pages/Milestones";
 import KPIs from "./pages/KPIs";
 import Budget from "./pages/Budget";
+import Handouts from "./pages/Handouts";
 
 import Settings from "./pages/Settings";
 import Chat from "./pages/Chat";
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             <Route path="/budget" element={<ProtectedRoute><Budget /></ProtectedRoute>} />
             <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
+            <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
             <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             
