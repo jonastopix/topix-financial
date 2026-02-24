@@ -21,6 +21,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
+import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -350,6 +351,14 @@ const MemberDetail = () => {
                 <p className="text-[10px] text-muted-foreground uppercase">Milestones</p>
               </div>
             </div>
+          </div>
+
+          {/* Delivery Overview */}
+          <div className="mb-8">
+            <DeliveryOverview
+              reports={reports}
+              programStart={profile.created_at ? new Date(profile.created_at) : null}
+            />
           </div>
 
           {/* Reports section */}
