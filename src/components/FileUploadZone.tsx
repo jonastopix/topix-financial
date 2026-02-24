@@ -164,15 +164,35 @@ const FileUploadZone = ({
           { body: { fileContent, reportId: reportRecord.id, fileName: file.name } }
         );
 
-        if (extractError) throw extractError;
+        // Handle duplicate (409) — supabase.functions.invoke puts non-2xx in error
+        if (extractError) {
+          // Try to parse duplicate info from the error context
+          const errMsg = typeof extractError === "object" && "context" in (extractError as any)
+            ? (extractError as any).context
+            : extractError;
+          // Check if data still contains duplicate info (some SDK versions)
+          const dupData = extractedData ?? (typeof errMsg === "object" ? errMsg : null);
+          
+          if (dupData?.duplicate) {
+            setOverwriteDialog({
+              open: true,
+              period: dupData.existing_period,
+              pendingFile: file,
+              pendingFileContent: fileContent,
+              pendingReportId: "",
+              pendingFileId: fileId,
+            });
+            return;
+          }
+          throw extractError;
+        }
         if (extractedData?.duplicate) {
-          // Show overwrite dialog
           setOverwriteDialog({
             open: true,
             period: extractedData.existing_period,
             pendingFile: file,
             pendingFileContent: fileContent,
-            pendingReportId: "", // Will create a new one on overwrite
+            pendingReportId: "",
             pendingFileId: fileId,
           });
           return;
