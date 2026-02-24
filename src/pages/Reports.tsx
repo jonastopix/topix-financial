@@ -319,25 +319,31 @@ const Reports = () => {
           <p className="text-xs text-muted-foreground mb-4">Måned til måned — klik på en serie for at fremhæve</p>
 
           {/* Custom legend with click */}
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-3 mb-5">
             {SERIES.map(s => {
               const isActive = activeSeries === s.key;
               const isDefault = !activeSeries && s.key === "omsaetning";
+              const highlighted = isActive || isDefault;
               return (
                 <button
                   key={s.key}
                   onClick={() => setActiveSeries(prev => prev === s.key ? null : s.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
-                    isActive
-                      ? "border-current bg-current/10"
-                      : isDefault
-                        ? "border-border/50 bg-secondary/30"
-                        : "border-transparent bg-secondary/20 opacity-60 hover:opacity-100"
+                  className={`group flex items-center gap-1.5 text-[11px] tracking-wide transition-all duration-200 ${
+                    highlighted
+                      ? "opacity-100"
+                      : "opacity-40 hover:opacity-80"
                   }`}
-                  style={{ color: s.color }}
                 >
-                  <span className="w-3 h-0.5 rounded-full" style={{ background: s.color }} />
-                  {s.label}
+                  <span
+                    className={`rounded-full transition-all duration-200 ${highlighted ? "w-2 h-2" : "w-1.5 h-1.5 group-hover:w-2 group-hover:h-2"}`}
+                    style={{ background: s.color }}
+                  />
+                  <span
+                    className={`font-medium transition-colors duration-200 ${highlighted ? "" : "text-muted-foreground"}`}
+                    style={highlighted ? { color: s.color } : undefined}
+                  >
+                    {s.label}
+                  </span>
                 </button>
               );
             })}
