@@ -417,6 +417,17 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
 }) {
   const sorted = [...periods].sort((a, b) => periodSortKey(a).localeCompare(periodSortKey(b)));
 
+  const COST_CATEGORIES = CATEGORIES.filter(c => c !== "Omsætning");
+
+  const COST_COLORS: Record<string, string> = {
+    "Lønninger": "hsl(220, 70%, 55%)",
+    "Marketing": "hsl(280, 60%, 55%)",
+    "Lokaler": "hsl(35, 80%, 50%)",
+    "Administration": "hsl(190, 60%, 45%)",
+    "Direkte omk.": "hsl(340, 65%, 50%)",
+    "Afskrivninger": "hsl(150, 40%, 45%)",
+  };
+
   const data = sorted.map((period) => {
     const actuals = reportActuals[period] || {};
     const actualRevenue = actuals["Omsætning"] || 0;
@@ -437,6 +448,12 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
       }, 0);
     const budgetResult = budgetRevenue - budgetCosts;
 
+    // Per-category cost actuals
+    const costBreakdown: Record<string, number> = {};
+    COST_CATEGORIES.forEach(cat => {
+      costBreakdown[cat] = actuals[cat] || 0;
+    });
+
     return {
       period: shortMonth(period),
       fullPeriod: period,
@@ -444,6 +461,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
       actualRevenue,
       budgetResult,
       actualResult,
+      ...costBreakdown,
     };
   });
 
@@ -497,6 +515,34 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </div>
+
+      {/* Cost breakdown stacked area */}
+      <div className="mt-6">
+        <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Omkostningsfordeling over tid</p>
+        <div className="h-60">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
+              <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [`${value.toLocaleString("da-DK")} DKK`, name]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+              <Legend wrapperStyle={{ fontSize: "11px" }} />
+              {COST_CATEGORIES.map((cat) => (
+                <Area
+                  key={cat}
+                  type="monotone"
+                  dataKey={cat}
+                  name={cat}
+                  stackId="costs"
+                  stroke={COST_COLORS[cat] || "hsl(220, 10%, 40%)"}
+                  fill={COST_COLORS[cat] || "hsl(220, 10%, 20%)"}
+                  fillOpacity={0.6}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
