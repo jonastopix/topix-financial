@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowLeft, Save, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Check, Loader2, CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
   const [aiFeedbackAt, setAiFeedbackAt] = useState<string | null>(null);
   const [leverMilestones, setLeverMilestones] = useState<Record<number, LeverMilestone>>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [handoutStatus, setHandoutStatus] = useState<string>("not_started");
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,6 +63,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
       setLevers([...loadedLevers, ...Array(Math.max(0, config.leverCount - loadedLevers.length)).fill("")]);
       setAiFeedback(data.ai_feedback);
       setAiFeedbackAt(data.ai_feedback_at);
+      setHandoutStatus(data.status || "not_started");
 
       // Load lever milestones
       const { data: links } = await supabase
@@ -158,6 +160,23 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
     + levers.filter(v => v.trim()).length;
 
   const progress = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
+  const isCompleted = handoutStatus === "completed";
+
+  const toggleCompleted = async () => {
+    if (!handoutId || !isOwner) return;
+    const newStatus = isCompleted ? "in_progress" : "completed";
+    const update: Record<string, any> = { status: newStatus };
+    if (newStatus === "completed") update.completed_at = new Date().toISOString();
+    else update.completed_at = null;
+
+    const { error } = await supabase.from("handouts").update(update).eq("id", handoutId);
+    if (error) {
+      toast({ title: "Fejl", description: error.message, variant: "destructive" });
+    } else {
+      setHandoutStatus(newStatus);
+      toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
+    }
+  };
 
   if (loading) {
     return (
@@ -170,7 +189,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5">
             <ArrowLeft className="h-4 w-4" /> Tilbage
@@ -180,9 +199,25 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
             <p className="text-xs text-muted-foreground">{config.subtitle} · {progress}% udfyldt</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {saveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Gemmer…</>}
-          {saveStatus === "saved" && <><Check className="h-3 w-3 text-emerald-500" /> Gemt</>}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {saveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Gemmer…</>}
+            {saveStatus === "saved" && <><Check className="h-3 w-3 text-emerald-500" /> Gemt</>}
+          </div>
+          {isOwner && handoutId && (
+            <Button
+              size="sm"
+              variant={isCompleted ? "outline" : "default"}
+              onClick={toggleCompleted}
+              className="gap-1.5 text-xs"
+            >
+              {isCompleted ? (
+                <><RotateCcw className="h-3.5 w-3.5" /> Genåbn</>
+              ) : (
+                <><CheckCircle2 className="h-3.5 w-3.5" /> Markér som udfyldt</>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
