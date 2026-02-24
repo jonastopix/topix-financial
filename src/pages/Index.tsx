@@ -3,14 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
-import MilestonesList from "@/components/MilestonesList";
-import RecentReports from "@/components/RecentReports";
 import BudgetOverview from "@/components/BudgetOverview";
 import PerformanceScore from "@/components/PerformanceScore";
 import AttentionNeeded from "@/components/AttentionNeeded";
-import ActivityFeed from "@/components/ActivityFeed";
-import CommunityProgress from "@/components/CommunityProgress";
 import AIProgressWidget from "@/components/AIProgressWidget";
+import DashboardMilestones from "@/components/DashboardMilestones";
+import DashboardHandouts from "@/components/DashboardHandouts";
+import DashboardActivity from "@/components/DashboardActivity";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getKeyFigures, parseReportPeriodToKey, formatDKK, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
@@ -69,7 +68,6 @@ const Dashboard = () => {
   });
 
   const kpiData = dashboardData?.kpiData ?? { revenue: null, revenuePrev: null, expenses: null, result: null, bank: null, period: null };
-  const conversationId = dashboardData?.conversationId ?? null;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -80,6 +78,7 @@ const Dashboard = () => {
 
   return (
     <AppLayout>
+      {/* Greeting */}
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
           {getGreeting()}, {firstName}
@@ -89,7 +88,8 @@ const Dashboard = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <KPICard
           title="Omsætning"
           value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
@@ -123,25 +123,31 @@ const Dashboard = () => {
         />
       </div>
 
-      <div className="mb-8">
+      {/* Attention needed */}
+      <div className="mb-6">
         <AttentionNeeded />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 space-y-6">
-          <RevenueChart />
-          <RecentReports />
-        </div>
-
-        <div className="lg:col-span-4 space-y-6">
+      {/* Performance + Revenue chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+        <div className="lg:col-span-4">
           <PerformanceScore />
-          <AIProgressWidget />
-          <CommunityProgress />
-          <ActivityFeed />
-          <BudgetOverview />
-          <MilestonesList userId={user?.id} conversationId={conversationId} />
+        </div>
+        <div className="lg:col-span-8">
+          <RevenueChart />
         </div>
       </div>
+
+      {/* 4-column snapshot grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <DashboardHandouts />
+        <BudgetOverview />
+        <DashboardMilestones />
+        <AIProgressWidget compact />
+      </div>
+
+      {/* Horizontal activity feed */}
+      <DashboardActivity />
     </AppLayout>
   );
 };
