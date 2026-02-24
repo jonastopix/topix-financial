@@ -1,148 +1,72 @@
 
 
-# Handouts -- Interaktiv Udviklingsplan for Medlemmer
+# Intelligent Leveringsoverblik
 
-## Overblik
+## Problem
+Det nuvaerende leveringsoverblik viser et stift kalenderaar (Jan-Dec) for hvert aar. Det skaber problemer:
+- Et nyt medlem der starter i juni ser 5 tomme maaneder (Jan-Maj) som foeler sig "bagud"
+- Historisk data blandes visuelt med programperioden uden forskel
+- Der er ingen tydelig markering af "dit 12-maaneders program" vs. "ekstra historik"
 
-En ny underside (`/handouts`) hvor medlemmer udfylder, gemmer og udvikler deres handouts for hvert forretningsmodul. Systemet kobler svar til milestones, giver AI-sparring, og lader radgivere folge med i realtid.
+## Losning: Medlemscentreret tidslinje
 
-## Struktur i de 5 handouts
+Erstat det nuvaerende kalenderaars-grid med en tidslinje der er centreret om medlemmets start og slut, men stadig tillader historisk data.
 
-Alle 5 handouts folger samme monster med 3 sektioner:
+### Visuelt koncept
 
 ```text
-+---------------------------------------------+
-|  HANDOUT (fx "Salg")                        |
-+---------------------------------------------+
-|  Sektion 1: Nuvaerende situation            |
-|    - 4-5 aabne sporgsmal (textarea)         |
-+---------------------------------------------+
-|  Sektion 2: Mal                             |
-|    - 1-2 aabne sporgsmal (textarea)         |
-|    - Tjekliste (checkboxes)                 |
-+---------------------------------------------+
-|  Sektion 3: Loftstaenger & refleksioner     |
-|    - 2-4 loftstaenger (nummereret)          |
-|    - Vigtigste naeste skridt (textarea)     |
-|    - Vaneanndringer (nummereret)            |
-+---------------------------------------------+
+Leveringsoverblik
+─────────────────────────────────────────────────────────
+  HISTORISK DATA          DIT 12-MAANEDERS PROGRAM
+  (foer opstart)         (fra medlemskabsstart)
+  
+  [Mar] [Apr] [Maj] │ [Jun] [Jul] [Aug] [Sep] [Okt] ...
+   ✓     ✓     ✓   │   ✓    ✓    ○     ○     ○
+                    │
+              Programstart: Juni 2025
+              Status: 5 af 12 leveret
 ```
 
-Det overordnede handout ("Maalsaetning 12 mdr.") har en lidt anden struktur: Nuvaerende situation, Mal for forretningen, Motivationsark.
+- **Venstre side**: Historiske rapporter (vist i en dempet stil med label "Historik")
+- **Hoejre side**: De 12 programmaaneder (tydeligt fremhaevet som kerneperioden)
+- En visuel separator og label viser praecis hvornaar programmet starter
+- Maaneder i fremtiden vises bloedt, fortidige uden rapport vises som "mangler"
 
-## Database-design
+### Datakilder
 
-### Ny tabel: `handouts`
+- **Programstart**: Hentes fra `profiles.created_at` (hvornaar brugeren oprettede sig) - dette er allerede tilgaengeligt
+- **Rapporter**: Allerede hentet fra `financial_reports`-tabellen
+- Ingen nye tabeller eller kolonner er noedvendige
 
-| Kolonne | Type | Beskrivelse |
-|---------|------|-------------|
-| id | uuid PK | |
-| user_id | uuid | Ejer |
-| module | text | 'overordnet', 'bogholderi', 'administration', 'salg', 'marketing' |
-| responses | jsonb | Alle svar som struktureret JSON |
-| checklist | jsonb | Tjekliste-status som `{"item_key": true/false}` |
-| levers | jsonb | Array af loftstaenger med titel + status |
-| status | text | 'not_started', 'in_progress', 'completed' |
-| ai_feedback | jsonb | Seneste AI-feedback (sparring) |
-| ai_feedback_at | timestamptz | Hvornaar AI sidst gav feedback |
-| completed_at | timestamptz | Hvornaar handoutet blev markeret faerdigt |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
+### Implementeringsplan
 
-RLS: Medlemmer ser egne, radgivere ser alle. CRUD for ejere.
+**1. Beregn programperiode (i `Reports.tsx`)**
+- Brug brugerens `created_at` til at definere de 12 programmaaneder
+- Generer en sorteret liste af alle relevante maaneder: historiske + program
 
-### Ny tabel: `handout_lever_milestones`
+**2. Opdater Leveringsoverblik-sektionen**
+- Erstat det nuvaerende `yearGroups`-grid med en todelt visning:
+  - "Historik"-sektion (kun hvis der er rapporter foer programstart) - vises kompakt
+  - "Program"-sektion med de 12 maaneder som hoved-grid
+- Tilfoej en progress-bar: "X af 12 leveret"
+- Behold farvekoderne: groen (processed), gul (processing), roed (error), graa (tom)
 
-Kobling mellem en loftestang i et handout og en milestone:
+**3. Filtrer grafer intelligent**
+- Tilfoej en simpel toggle/filter oeverst paa trendgraferne: "Programperiode" / "Al data"
+- Standard er "Al data" saa historik altid vises i graferne
+- Graferne faar en visuel markering (vertikal linje) der viser programstart
 
-| Kolonne | Type |
-|---------|------|
-| id | uuid PK |
-| handout_id | uuid FK -> handouts |
-| lever_index | int | Hvilken loftestang (0-baseret) |
-| milestone_id | uuid FK -> milestones |
-| created_at | timestamptz |
+**4. Fremtidssikring**
+- Maaneder efter de 12 programmaaneder vises ikke i programgriddet, men rapporter kan stadig uploades og vil vises i historik/grafer
+- Ingen haard afgraensning - systemet accepterer alt data
 
-## Frontend-arkitektur
-
-### Ny side: `/handouts`
-
-Oversigt med 5 kort (et pr. modul) der viser:
-- Modulnavn + ikon
-- Status-badge (Ikke startet / I gang / Udfyldt)
-- Progress-bar baseret paa antal udfyldte felter
-- Klik aabner det paagaeldende handout
-
-### Handout-detailvisning (samme side, som panel/dialog eller nested route)
-
-- Tabs eller accordion for de 3 sektioner
-- Auto-save med debounce (gemmer efter 1.5 sek inaktivitet)
-- Visuelt "gem"-indikator (som Google Docs: "Gemt" / "Gemmer...")
-- Tjekliste-items som interaktive checkboxes
-- Loftstaenger med mulighed for at oprette/linke milestones direkte
-
-### AI Sparring-knap
-
-- "Faa AI-sparring" knap paa hvert handout
-- Kalder en edge function der sender handout-svar + modul-kontekst til Lovable AI
-- AI'en giver konkret, konstruktiv feedback paa svarene
-- Feedback vises i en dedikeret sektion under handoutet
-- Radgivere kan ogsaa trigge AI-sparring for et medlem
-
-### Milestone-integration
-
-- Naar et medlem skriver en loftestang, kan de klikke "Opret som milestone"
-- Dette opretter en milestone i `milestones`-tabellen og linker den via `handout_lever_milestones`
-- Progress paa linkede milestones vises direkte ved loftestangen
-- Naar en milestone faerdiggoeres, opdateres visningen automatisk
-
-## Edge Function: `handout-ai-feedback`
-
-- Modtager: `handout_id` + `module`
-- Henter handout-svar fra databasen
-- Sender til Lovable AI med modul-specifik system-prompt
-- Gemmer feedback i `handouts.ai_feedback`
-- Returnerer feedback til klienten
-
-System-prompten vil vaere skraeeddersyet til hvert modul og instruere AI'en i at:
-1. Anerkende det medlemmet har skrevet
-2. Stille opfolgende sporgsmal der driver dybere refleksion
-3. Foresla konkrete naeste skridt
-4. Paapege blinde vinkler eller muligheder
-
-## Sidebar-navigation
-
-Tilfoej "Handouts" som nyt nav-item med `ClipboardList`-ikon, placeret efter "Milestones".
-
-## Raadgiver-visning
-
-Naar en raadgiver ser et medlems profil (`/members/:userId`), vises en oversigt over medlemmets handout-status med mulighed for at klikke ind og se svarene.
-
-## Implementeringsrakkefolge
-
-1. Database-migration (2 tabeller + RLS)
-2. Handout-konfiguration (sporgsmal, tjeklister pr. modul -- som TypeScript-konstanter)
-3. Handouts oversigtsside + routing
-4. Handout-detailvisning med auto-save
-5. Milestone-kobling (opret fra loftestang)
-6. Edge function til AI-sparring
-7. AI-feedback UI
-8. Raadgiver-adgang i MemberDetail
-9. Sidebar-opdatering
-
-## Filer der oprettes/aendres
+### Tekniske aendringer
 
 | Fil | Aendring |
-|-----|----------|
-| Migration SQL | Ny tabel `handouts` + `handout_lever_milestones` + RLS |
-| `src/lib/handoutConfig.ts` | Ny -- sporgsmal og tjekliste-definitioner for alle 5 moduler |
-| `src/pages/Handouts.tsx` | Ny -- oversigtsside |
-| `src/components/HandoutDetail.tsx` | Ny -- detail/udfyldning med auto-save |
-| `src/components/HandoutCard.tsx` | Ny -- kort paa oversigtssiden |
-| `src/components/HandoutAIFeedback.tsx` | Ny -- AI feedback-visning |
-| `src/components/HandoutLeverItem.tsx` | Ny -- loftestang med milestone-kobling |
-| `supabase/functions/handout-ai-feedback/index.ts` | Ny edge function |
-| `src/App.tsx` | Tilfoej `/handouts` route |
-| `src/components/AppSidebar.tsx` | Tilfoej "Handouts" nav-item |
-| `src/pages/MemberDetail.tsx` | Tilfoej handout-oversigt for raadgivere |
+|-----|---------|
+| `src/pages/Reports.tsx` | Erstat `yearGroups` logik med `programMonths` + `historicMonths` beregning. Opdater JSX for leveringsoverblikket. Tilfoej filter-state for grafer. |
+| `src/pages/Reports.tsx` | Hent `profiles.created_at` i `loadData` for at kende programstart |
+| `src/components/FinancialOverview.tsx` | Tilfoej valgfri `programStart` prop for visuel markering |
+
+Ingen database-aendringer er noedvendige.
 
