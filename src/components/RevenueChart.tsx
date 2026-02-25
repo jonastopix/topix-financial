@@ -18,8 +18,7 @@ const RevenueChart = () => {
         .select("id, report_period, extracted_data, status") as any)
         .eq("company_id", companyId!)
         .eq("status", "processed")
-        .order("uploaded_at", { ascending: false })
-        .limit(12);
+      .order("uploaded_at", { ascending: false });
       if (error) throw error;
       return (data || []) as ReportData[];
     },
@@ -43,7 +42,8 @@ const RevenueChart = () => {
         };
       })
       .filter(Boolean)
-      .sort((a, b) => a!.key.localeCompare(b!.key)) as { key: string; month: string; revenue: number; expenses: number }[];
+      .sort((a, b) => a!.key.localeCompare(b!.key))
+      .slice(-12) as { key: string; month: string; revenue: number; expenses: number }[];
   }, [reports]);
 
   const hasData = chartData.length > 0;
