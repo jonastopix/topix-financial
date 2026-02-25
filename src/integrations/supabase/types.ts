@@ -213,22 +213,61 @@ export type Database = {
       }
       companies: {
         Row: {
+          address: string | null
+          annual_revenue: number | null
+          city: string | null
+          contact_email: string | null
+          contact_person: string | null
+          contact_phone: string | null
           created_at: string
           cvr_number: string | null
+          end_date: string | null
           id: string
+          industry: string | null
           name: string
+          postal_code: string | null
+          slack_channel: string | null
+          start_date: string | null
+          status: string | null
+          website: string | null
         }
         Insert: {
+          address?: string | null
+          annual_revenue?: number | null
+          city?: string | null
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
           created_at?: string
           cvr_number?: string | null
+          end_date?: string | null
           id?: string
+          industry?: string | null
           name?: string
+          postal_code?: string | null
+          slack_channel?: string | null
+          start_date?: string | null
+          status?: string | null
+          website?: string | null
         }
         Update: {
+          address?: string | null
+          annual_revenue?: number | null
+          city?: string | null
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
           created_at?: string
           cvr_number?: string | null
+          end_date?: string | null
           id?: string
+          industry?: string | null
           name?: string
+          postal_code?: string | null
+          slack_channel?: string | null
+          start_date?: string | null
+          status?: string | null
+          website?: string | null
         }
         Relationships: []
       }
