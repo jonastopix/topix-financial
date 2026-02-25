@@ -1,41 +1,59 @@
 
 
-## Dashboard KPI-kort: Månedlig + År-til-dato visning
+# Indsæt 12 historiske rapporter for NordService ApS (Jul 2024 – Jun 2025)
 
-### Nuværende situation
-Dashboard KPI-kortene viser kun den seneste rapporterede måneds tal (omsætning, udgifter, resultat, bank) med sammenligning til forrige måned. Der vises ingen YTD-tal og ingen sammenligning med samme måned sidste år.
+## Formaal
 
-### Plan
+Tilfoej 12 maaneders historiske rapporter saa Year-over-Year (YOY) sammenligningen paa dashboardet aktiveres automatisk. Tallene skal vaere 15-20% lavere end de tilsvarende 2025/2026-maaneder for at vise en trovaerdig vaeksthistorie.
 
-**1. Udvid data-hentning i `src/pages/Index.tsx`**
-- Tilføj YTD-felter fra `extracted_data.key_figures`: `omsaetning_aar`, `resultat_foer_skat_aar`
-- Find samme måned fra sidste år i den sorterede rapport-liste for Y/Y-sammenligning
-- Beregn YTD-udgifter ved at summere alle måneders udgifter i indeværende år
+## Dataoversigt
 
-**2. Redesign KPI-sektionen til to rækker**
-- **Række 1 -- Seneste måned (3-4 kort):** Omsætning, Udgifter, Resultat, Bank -- med badge for M/M og Y/Y %-ændring
-- **Række 2 -- År-til-dato (3 kort):** YTD Omsætning, YTD Resultat, YTD Bank/Likviditet -- fra `_aar`-felterne i rapporten
+Eksisterende rapporter (Jul 2025 – Feb 2026) har disse omsaetningstal:
+- Jul 2025: 180k, Aug: 145k, Sep: 195k, Okt: 230k, Nov: 210k, Dec: 170k, Jan 2026: 220k, Feb 2026: 240k
 
-**3. Udvid `KPICard` komponenten**
-- Tilføj support for en sekundær change-badge (Y/Y) så kortet kan vise fx "+5.2% vs forrige md" og "-1.3% vs samme md. sidste år" samtidigt
-- Tilføj en optional `secondaryChange` og `secondaryTrend` prop
+De nye rapporter (Jul 2024 – Jun 2025) designes ca. 15-20% lavere:
 
-### Teknisk detalje
+| Periode | Omsaetning | Loenninger | Dir.omk | Marketing | Lokaler | Admin | Tech | Afskriv. | Resultat | Bank |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Juli 2024 | 150.000 | -82.000 | -12.000 | -9.000 | -7.000 | -4.000 | -3.000 | -1.500 | 31.500 | 280.000 |
+| August 2024 | 120.000 | -78.000 | -10.000 | -8.000 | -7.000 | -4.000 | -3.000 | -1.500 | 8.500 | 275.000 |
+| September 2024 | 165.000 | -85.000 | -13.000 | -10.000 | -7.000 | -4.500 | -3.000 | -1.500 | 41.000 | 290.000 |
+| Oktober 2024 | 195.000 | -88.000 | -14.000 | -11.000 | -7.500 | -4.500 | -3.500 | -1.500 | 65.000 | 310.000 |
+| November 2024 | 175.000 | -86.000 | -13.000 | -10.000 | -7.500 | -4.500 | -3.500 | -1.500 | 49.000 | 325.000 |
+| December 2024 | 140.000 | -80.000 | -11.000 | -9.000 | -7.500 | -4.000 | -3.500 | -1.500 | 23.500 | 315.000 |
+| Januar 2025 | 185.000 | -87.000 | -13.500 | -10.500 | -7.500 | -4.500 | -3.500 | -1.500 | 57.000 | 335.000 |
+| Februar 2025 | 200.000 | -90.000 | -14.000 | -11.000 | -7.500 | -4.500 | -3.500 | -1.500 | 68.000 | 345.000 |
+| Marts 2025 | 190.000 | -88.000 | -13.500 | -10.500 | -7.500 | -4.500 | -3.500 | -1.500 | 61.000 | 355.000 |
+| April 2025 | 175.000 | -86.000 | -13.000 | -10.000 | -7.500 | -4.500 | -3.500 | -1.500 | 49.000 | 345.000 |
+| Maj 2025 | 160.000 | -84.000 | -12.500 | -9.500 | -7.500 | -4.000 | -3.500 | -1.500 | 37.500 | 340.000 |
+| Juni 2025 | 170.000 | -85.000 | -13.000 | -10.000 | -7.500 | -4.500 | -3.500 | -1.500 | 45.000 | 348.000 |
 
-```text
-KPI Layout:
-+------------------+------------------+------------------+------------------+
-| Oms. (md)        | Udgifter (md)    | Resultat (md)    | Bank             |
-| 195.000 kr.      | 142.000 kr.      | 53.000 kr.       | 312.000 kr.      |
-| +3.2% M/M        |                  | +8.1% M/M        |                  |
-| -1.5% Y/Y        |                  | +12% Y/Y         |                  |
-+------------------+------------------+------------------+------------------+
-| YTD Omsætning    | YTD Resultat     | YTD Udgifter     |
-| 1.245.000 kr.    | 287.000 kr.      | 958.000 kr.      |
-+------------------+------------------+------------------+
-```
+## YOY-sammenligninger der aktiveres
 
-### Filer der ændres
-- `src/components/KPICard.tsx` -- tilføj `secondaryChange` / `secondaryTrend` props
-- `src/pages/Index.tsx` -- udvid query-logik med YTD-data og Y/Y-sammenligning, tilføj anden række KPI-kort
+Naar disse rapporter er indsat, vil dashboardet automatisk vise:
 
+- **Jul 2025 vs Jul 2024**: 180k vs 150k = +20% omsaetning
+- **Aug 2025 vs Aug 2024**: 145k vs 120k = +21% omsaetning
+- **Sep 2025 vs Sep 2024**: 195k vs 165k = +18% omsaetning
+- **Jan 2026 vs Jan 2025**: 220k vs 185k = +19% omsaetning
+- **Feb 2026 vs Feb 2025**: 240k vs 200k = +20% omsaetning
+
+## Teknisk implementering
+
+### Trin 1: Indsaet 12 rapporter via data-insert
+
+Indsaet 12 raeekker i `financial_reports` med:
+- `company_id`: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
+- `user_id`: `23e81de4-db14-40b6-92ed-0d84ed3c71f1`
+- `status`: `processed`
+- `report_type`: `saldobalance`
+- `file_name`: f.eks. `NordService_Juli_2024.pdf`
+- `file_path`: f.eks. `demo/nordservice_jul24.pdf`
+- `report_period`: dansk maanedsformat, f.eks. `Juli 2024`
+- `extracted_data`: JSONB med `key_figures` der indeholder alle 9 noeglertal (omsaetning, loenninger, direkte_omkostninger, marketing, lokaler, admin, tech_software, afskrivninger, resultat, resultat_foer_skat, bank_balance)
+
+### Trin 2: Verificer
+
+Skift til NordService i virksomhedsvælgeren og bekraeft at dashboardet nu viser YOY-badges paa KPI-kortene.
+
+Ingen kodeaendringer er noedvendige -- dashboardet haandterer allerede YOY-logikken automatisk via `parseReportPeriodToKey`.
