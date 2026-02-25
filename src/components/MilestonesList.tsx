@@ -133,6 +133,9 @@ const MilestoneCard = ({
   const [detailOpen, setDetailOpen] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(ms.title);
+  const [categoryDraft, setCategoryDraft] = useState<MilestoneCategory>(ms.category);
   const [descDraft, setDescDraft] = useState(ms.description || "");
   const [detailDeadline, setDetailDeadline] = useState<Date | undefined>(ms.deadline || undefined);
   const [savingField, setSavingField] = useState(false);
@@ -278,16 +281,64 @@ const MilestoneCard = ({
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-left leading-snug">
-              <div className={`p-1.5 rounded-md ${config.bg} flex-shrink-0`}>
-                <Icon className={`h-4 w-4 ${config.className}`} />
-              </div>
-              <span>{ms.title}</span>
+            <DialogTitle className="text-left leading-snug">
+              {editingTitle ? (
+                <div className="space-y-2">
+                  <input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!titleDraft.trim()) return;
+                        setSavingField(true);
+                        await onUpdateField(ms.id, { title: titleDraft.trim() });
+                        setEditingTitle(false);
+                        setSavingField(false);
+                      }}
+                      disabled={savingField}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      <Check className="h-3 w-3" /> {savingField ? "Gemmer..." : "Gem"}
+                    </button>
+                    <button onClick={() => { setTitleDraft(ms.title); setEditingTitle(false); }} className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
+                      Annuller
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setTitleDraft(ms.title); setEditingTitle(true); }}>
+                  <div className={`p-1.5 rounded-md ${config.bg} flex-shrink-0`}>
+                    <Icon className={`h-4 w-4 ${config.className}`} />
+                  </div>
+                  <span className="flex-1">{ms.title}</span>
+                  <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </div>
+              )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="flex flex-wrap items-center gap-2">
-              <CategoryBadge category={ms.category} />
+              {/* Editable category */}
+              <Select value={categoryDraft} onValueChange={async (v) => {
+                const val = v as MilestoneCategory;
+                setCategoryDraft(val);
+                setSavingField(true);
+                await onUpdateField(ms.id, { category: val });
+                setSavingField(false);
+              }}>
+                <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 [&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3">
+                  <CategoryBadge category={categoryDraft} />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {ms.source === "ai" && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   <Sparkles className="h-2.5 w-2.5" /> AI
@@ -514,6 +565,14 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
   const updateField = async (id: string, fields: Record<string, any>) => {
     const dbFields: Record<string, any> = {};
     const localFields: Record<string, any> = {};
+    if ("title" in fields) {
+      dbFields.title = fields.title;
+      localFields.title = fields.title;
+    }
+    if ("category" in fields) {
+      dbFields.category = fields.category;
+      localFields.category = fields.category;
+    }
     if ("description" in fields) {
       dbFields.description = fields.description || null;
       localFields.description = fields.description || null;
