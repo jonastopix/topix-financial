@@ -59,7 +59,7 @@ serve(async (req) => {
       });
     }
 
-    const { handout_id, module } = await req.json();
+    const { handout_id, module, company_name, industry } = await req.json();
     if (!handout_id || !module) throw new Error("Missing handout_id or module");
 
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -70,17 +70,24 @@ serve(async (req) => {
 
     const { data: handout, error: hErr } = await sb
       .from("handouts")
-      .select("*")
+      .select("*, companies:company_id(name, industry)")
       .eq("id", handout_id)
       .single();
     if (hErr || !handout) throw new Error("Handout not found");
+
+    // Use provided values or fall back to DB
+    const effectiveCompanyName = company_name || (handout as any).companies?.name || null;
+    const effectiveIndustry = industry || (handout as any).companies?.industry || null;
 
     const responses = handout.responses || {};
     const checklist = handout.checklist || {};
     const levers = handout.levers || [];
 
     // Build context string
-    let context = `MODUL: ${module}\n\nSVAR:\n`;
+    let context = "";
+    if (effectiveCompanyName) context += `VIRKSOMHED: ${effectiveCompanyName}\n`;
+    if (effectiveIndustry) context += `BRANCHE: ${effectiveIndustry}\n`;
+    context += `MODUL: ${module}\n\nSVAR:\n`;
     for (const [key, value] of Object.entries(responses)) {
       if (value && (value as string).trim()) {
         context += `- ${key}: ${value}\n`;
@@ -98,6 +105,14 @@ serve(async (req) => {
     }
 
     const systemPrompt = modulePrompts[module] || modulePrompts.overordnet;
+
+    // Build industry-aware prompt addition
+    const industryPrompt = effectiveIndustry
+      ? `\n\nMedlemmet driver en virksomhed inden for: ${effectiveIndustry}.${effectiveCompanyName ? ` Virksomheden hedder "${effectiveCompanyName}".` : ""}
+Tilpas dine råd og eksempler specifikt til denne branche.
+En autoværkstedsejer har andre udfordringer end en webshop eller en konsulentvirksomhed.
+Brug branchespecifikke termer, KPI'er og konkrete eksempler fra netop denne branche.`
+      : "";
 
     const qualityGuard = `VIGTIG REGEL: Før du giver feedback, skal du vurdere om svarene er meningsfulde og gennemtænkte. 
 Hvis svarene er tilfældige bogstaver, nonsens, copy-paste af spørgsmålet, ekstremt korte (1-2 ord uden substans) eller tydeligt ikke-seriøse:
@@ -117,7 +132,7 @@ Kun hvis svarene faktisk indeholder reel substans, skal du følge instruktionern
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: `${qualityGuard}\n\n${systemPrompt}\n\nSvar ALTID på dansk. Vær konkret og handlingsorienteret. Hold dig under 500 ord.` },
+          { role: "system", content: `${qualityGuard}\n\n${systemPrompt}${industryPrompt}\n\nSvar ALTID på dansk. Vær konkret og handlingsorienteret. Hold dig under 500 ord.` },
           { role: "user", content: `Her er medlemmets svar:\n\n${context}\n\nVurdér først kvaliteten af svarene, og giv derefter passende feedback.` },
         ],
       }),
