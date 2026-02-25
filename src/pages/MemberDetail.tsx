@@ -47,6 +47,7 @@ interface CompanyContext {
   slack_channel: string | null;
   city: string | null;
   website: string | null;
+  logo_url: string | null;
 }
 
 interface Report {
@@ -145,7 +146,7 @@ const MemberDetail = () => {
       // Fetch company context via company_members
       const { data: cmData } = await supabase
         .from("company_members" as any)
-        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website)" as any)
+        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website, logo_url)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
@@ -335,9 +336,13 @@ const MemberDetail = () => {
       ) : (
         <>
           {/* Member header */}
-          <div className="glass-card rounded-xl p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-lg font-bold text-primary">{getInitials(profile.full_name)}</span>
+           <div className="glass-card rounded-xl p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {companyCtx?.logo_url ? (
+                <img src={companyCtx.logo_url} alt={companyCtx.name} className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-lg font-bold text-primary">{getInitials(profile.full_name)}</span>
+              )}
             </div>
             <div className="flex-1">
               <h1 className="text-xl font-display font-bold text-foreground">{profile.full_name}</h1>
