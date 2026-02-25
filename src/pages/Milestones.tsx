@@ -32,6 +32,7 @@ const Milestones = () => {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<MilestoneCategory>("other");
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
+  const [baseline, setBaseline] = useState("");
   const [saving, setSaving] = useState(false);
 
 
@@ -58,6 +59,7 @@ const Milestones = () => {
   const resetForm = () => {
     setTitle("");
     setDescription("");
+    setBaseline("");
     setCategory("other");
     setDeadline(undefined);
   };
@@ -68,6 +70,7 @@ const Milestones = () => {
     const { error } = await supabase.from("milestones").insert({
       title: title.trim(),
       description: description.trim() || null,
+      baseline: baseline.trim() || null,
       category,
       deadline: deadline ? deadline.toISOString().split("T")[0] : null,
       company_id: companyId,
@@ -209,7 +212,7 @@ const Milestones = () => {
                     <button
                       key={s.title}
                       type="button"
-                      onClick={() => { setTitle(s.title); setDescription(s.description); }}
+                      onClick={() => { setTitle(s.title); setDescription(s.description); if (s.baselineHint) setBaseline(""); }}
                       className="text-xs px-2.5 py-1 rounded-full bg-secondary text-foreground hover:bg-accent transition-colors text-left"
                     >
                       {s.title}
@@ -218,6 +221,18 @@ const Milestones = () => {
                 </div>
               </div>
             )}
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Nuværende status / baseline</label>
+              <input
+                value={baseline}
+                onChange={(e) => setBaseline(e.target.value)}
+                placeholder={
+                  MILESTONE_SUGGESTIONS[category]?.find((s) => s.title === title)?.baselineHint
+                  || "F.eks. 800.000 kr. i omsætning"
+                }
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Deadline</label>
               <Popover>

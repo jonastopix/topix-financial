@@ -1,0 +1,1 @@
+ALTER TABLE public.milestones ADD COLUMN baseline text;
