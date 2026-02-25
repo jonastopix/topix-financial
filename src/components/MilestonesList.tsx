@@ -374,8 +374,16 @@ const MilestoneCard = ({
                 <span className="text-xs text-muted-foreground">Fremgang</span>
                 <span className={`text-sm font-semibold ${config.className}`}>{ms.progress}%</span>
               </div>
-              <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={ms.progress}
+                onChange={(e) => onQuickProgress(Number(e.target.value))}
+                className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
               </div>
             </div>
             {ms.baseline && (
