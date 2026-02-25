@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Navigate, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,15 +20,40 @@ import {
   Phone,
   Wallet,
   ExternalLink,
+  Hash,
+  Trash2,
+  UserPlus,
+  X,
+  BookOpen,
+  Activity,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface CompanyMember {
   user_id: string;
   full_name: string;
   role: string;
   avatar_url: string | null;
+}
+
+interface CircleInfo {
+  circle_member_id: number;
+  name: string;
+  last_seen_at: string | null;
+  courses_completed: number;
+  courses_total: number;
+  recent_activity_count: number;
 }
 
 interface CompanyData {
@@ -44,6 +69,7 @@ interface CompanyData {
   postal_code: string;
   city: string;
   annual_revenue: number;
+  reported_revenue: number | null;
   start_date: string | null;
   end_date: string | null;
   status: string;
@@ -53,10 +79,18 @@ interface CompanyData {
   reportCount: number;
   unreadCount: number;
   conversationId: string | null;
+  circleInfo: CircleInfo[];
 }
 
 type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
 type SortDir = "asc" | "desc";
+
+interface UnassignedUser {
+  user_id: string;
+  full_name: string;
+  company_id: string;
+  company_name: string;
+}
 
 const Members = () => {
   const { user, isAdvisor: rawAdvisor, loading: authLoading } = useAuth();
@@ -70,108 +104,295 @@ const Members = () => {
   const [filterIndustry, setFilterIndustry] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Merge state
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [mergeTargetCompany, setMergeTargetCompany] = useState<CompanyData | null>(null);
+  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
+  const [mergeSearch, setMergeSearch] = useState("");
+  const [merging, setMerging] = useState(false);
+
+  // Delete state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CompanyData | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
+    setLoading(true);
 
-    const loadCompanies = async () => {
-      setLoading(true);
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, courseProgressRes, circleActivityRes] = await Promise.all([
+      supabase.from("companies" as any).select("*"),
+      supabase.from("company_members" as any).select("company_id, user_id, role"),
+      supabase.from("profiles").select("user_id, full_name, avatar_url"),
+      supabase.from("conversations").select("id, company_id, last_message_at"),
+      supabase.from("financial_reports").select("company_id, id, extracted_data"),
+      supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
+      supabase.from("circle_course_progress").select("circle_member_id, course_name, lessons_completed, lessons_total, completed_at"),
+      supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
+    ]);
 
-      const [companiesRes, membersRes, profilesRes, convsRes, reportsRes] = await Promise.all([
-        supabase.from("companies" as any).select("*"),
-        supabase.from("company_members" as any).select("company_id, user_id, role"),
-        supabase.from("profiles").select("user_id, full_name, avatar_url"),
-        supabase.from("conversations").select("id, company_id, last_message_at"),
-        supabase.from("financial_reports").select("company_id, id"),
+    const allCompanies = (companiesRes.data || []) as any[];
+    const allMembers = (membersRes.data || []) as any[];
+    const allProfiles = (profilesRes.data || []) as any[];
+    const allConvs = (convsRes.data || []) as any[];
+    const allReports = (reportsRes.data || []) as any[];
+    const allCircleMembers = (circleMembersRes.data || []) as any[];
+    const allCourseProgress = (courseProgressRes.data || []) as any[];
+    const allCircleActivity = (circleActivityRes.data || []) as any[];
+
+    // Build profile map
+    const profileMap = new Map(allProfiles.map((p: any) => [p.user_id, p]));
+
+    // Group members by company
+    const membersByCompany = new Map<string, CompanyMember[]>();
+    allMembers.forEach((cm: any) => {
+      const profile = profileMap.get(cm.user_id);
+      const arr = membersByCompany.get(cm.company_id) || [];
+      arr.push({
+        user_id: cm.user_id,
+        full_name: profile?.full_name || "Ukendt",
+        role: cm.role,
+        avatar_url: profile?.avatar_url || null,
+      });
+      membersByCompany.set(cm.company_id, arr);
+    });
+
+    // Reports by company + extract reported revenue
+    const reportsByCompany = new Map<string, number>();
+    const reportedRevenueByCompany = new Map<string, number>();
+    allReports.forEach((r: any) => {
+      if (r.company_id) {
+        reportsByCompany.set(r.company_id, (reportsByCompany.get(r.company_id) || 0) + 1);
+        // Try to extract revenue from extracted_data
+        const data = r.extracted_data as any;
+        if (data?.revenue || data?.omsætning || data?.nettoomsætning) {
+          const rev = Number(data.revenue || data.omsætning || data.nettoomsætning || 0);
+          if (rev > 0) {
+            const existing = reportedRevenueByCompany.get(r.company_id) || 0;
+            if (rev > existing) reportedRevenueByCompany.set(r.company_id, rev);
+          }
+        }
+      }
+    });
+
+    // Conversations by company
+    const convByCompany = new Map<string, any>();
+    allConvs.forEach((c: any) => {
+      if (c.company_id) convByCompany.set(c.company_id, c);
+    });
+
+    // Batch unread messages
+    const convIds = allConvs.map((c: any) => c.id);
+    const { data: unreadMessages } = convIds.length > 0
+      ? await supabase
+          .from("messages")
+          .select("conversation_id")
+          .in("conversation_id", convIds)
+          .neq("sender_id", user.id)
+          .is("read_at", null)
+      : { data: [] };
+
+    const unreadByConv = new Map<string, number>();
+    (unreadMessages || []).forEach((m) => {
+      unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
+    });
+
+    // Circle.so matching: match circle_members to company members via user_id or email
+    // Build a map: company_id -> CircleInfo[]
+    const circleByUserId = new Map<string, any>();
+    allCircleMembers.forEach((cm: any) => {
+      if (cm.user_id) circleByUserId.set(cm.user_id, cm);
+    });
+
+    // Also match by email (profiles don't have email, but we can match circle_members.email to profiles)
+    // We'll need auth emails - but we can't access auth.users. Instead, match via circle_members.user_id link
+    // or by name similarity. The safest is user_id link on circle_members table.
+
+    // Course progress by circle_member_id
+    const coursesByCircleMember = new Map<number, { completed: number; total: number }>();
+    allCourseProgress.forEach((cp: any) => {
+      const existing = coursesByCircleMember.get(cp.circle_member_id) || { completed: 0, total: 0 };
+      existing.total++;
+      if (cp.completed_at) existing.completed++;
+      coursesByCircleMember.set(cp.circle_member_id, existing);
+    });
+
+    // Activity count by circle_member_id
+    const activityByCircleMember = new Map<number, number>();
+    allCircleActivity.forEach((a: any) => {
+      activityByCircleMember.set(a.circle_member_id, (activityByCircleMember.get(a.circle_member_id) || 0) + 1);
+    });
+
+    const circleInfoByCompany = new Map<string, CircleInfo[]>();
+    // For each company member, check if they have a circle_member linked
+    allMembers.forEach((cm: any) => {
+      const circleMember = circleByUserId.get(cm.user_id);
+      if (circleMember) {
+        const courses = coursesByCircleMember.get(circleMember.circle_id) || { completed: 0, total: 0 };
+        const activityCount = activityByCircleMember.get(circleMember.circle_id) || 0;
+        const arr = circleInfoByCompany.get(cm.company_id) || [];
+        arr.push({
+          circle_member_id: circleMember.circle_id,
+          name: circleMember.name,
+          last_seen_at: circleMember.last_seen_at,
+          courses_completed: courses.completed,
+          courses_total: courses.total,
+          recent_activity_count: activityCount,
+        });
+        circleInfoByCompany.set(cm.company_id, arr);
+      }
+    });
+
+    const enriched: CompanyData[] = allCompanies
+      .filter((c: any) => c.status === "active" || !c.status)
+      .map((c: any) => {
+        const conv = convByCompany.get(c.id);
+        const reportedRev = reportedRevenueByCompany.get(c.id) || null;
+        return {
+          id: c.id,
+          name: c.name || "",
+          cvr_number: c.cvr_number,
+          industry: c.industry || "",
+          contact_person: c.contact_person || "",
+          contact_email: c.contact_email || "",
+          contact_phone: c.contact_phone || "",
+          website: c.website || "",
+          address: c.address || "",
+          postal_code: c.postal_code || "",
+          city: c.city || "",
+          annual_revenue: Number(c.annual_revenue) || 0,
+          reported_revenue: reportedRev,
+          start_date: c.start_date,
+          end_date: c.end_date,
+          status: c.status || "active",
+          slack_channel: c.slack_channel || "",
+          created_at: c.created_at,
+          members: membersByCompany.get(c.id) || [],
+          reportCount: reportsByCompany.get(c.id) || 0,
+          unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
+          conversationId: conv?.id || null,
+          circleInfo: circleInfoByCompany.get(c.id) || [],
+        };
+      });
+
+    setCompanies(enriched);
+    setLoading(false);
+  }, [user, isAdvisor]);
+
+  useEffect(() => {
+    loadCompanies();
+  }, [loadCompanies, reloadTrigger]);
+
+  // Load unassigned users for merge dialog
+  const openMergeDialog = async (company: CompanyData) => {
+    setMergeTargetCompany(company);
+    setMergeSearch("");
+    setMergeDialogOpen(true);
+
+    // Get all users that are in auto-created "X's virksomhed" companies
+    // or all users not in this company
+    const { data: allMemberships } = await supabase
+      .from("company_members" as any)
+      .select("user_id, company_id") as any;
+    const { data: allProfiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name");
+    const { data: allCompanies } = await supabase
+      .from("companies" as any)
+      .select("id, name") as any;
+
+    const companyNameMap = new Map((allCompanies || []).map((c: any) => [c.id, c.name]));
+    const profileMap = new Map((allProfiles || []).map((p: any) => [p.user_id, p.full_name]));
+
+    const users: UnassignedUser[] = (allMemberships || [])
+      .filter((m: any) => m.company_id !== company.id)
+      .map((m: any) => ({
+        user_id: m.user_id,
+        full_name: profileMap.get(m.user_id) || "Ukendt",
+        company_id: m.company_id,
+        company_name: companyNameMap.get(m.company_id) || "Ukendt",
+      }));
+
+    setUnassignedUsers(users);
+  };
+
+  const handleMergeUser = async (targetUser: UnassignedUser) => {
+    if (!mergeTargetCompany || !user) return;
+    setMerging(true);
+
+    try {
+      // 1. Update company_members: change user's company_id
+      const { error: updateErr } = await supabase
+        .from("company_members" as any)
+        .update({ company_id: mergeTargetCompany.id } as any)
+        .eq("user_id", targetUser.user_id)
+        .eq("company_id", targetUser.company_id) as any;
+
+      if (updateErr) throw updateErr;
+
+      // 2. Update conversations for this user to new company
+      await supabase
+        .from("conversations")
+        .update({ company_id: mergeTargetCompany.id })
+        .eq("member_id", targetUser.user_id)
+        .eq("company_id", targetUser.company_id);
+
+      // 3. Move any reports, handouts, milestones, budget_targets
+      await Promise.all([
+        supabase.from("financial_reports").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
+        supabase.from("handouts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
+        supabase.from("milestones").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
+        supabase.from("budget_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
       ]);
 
-      const allCompanies = (companiesRes.data || []) as any[];
-      const allMembers = (membersRes.data || []) as any[];
-      const allProfiles = (profilesRes.data || []) as any[];
-      const allConvs = (convsRes.data || []) as any[];
-      const allReports = (reportsRes.data || []) as any[];
+      // 4. Check if old company is now empty
+      const { data: remaining } = await supabase
+        .from("company_members" as any)
+        .select("id")
+        .eq("company_id", targetUser.company_id) as any;
 
-      // Build profile map
-      const profileMap = new Map(allProfiles.map((p: any) => [p.user_id, p]));
+      if (!remaining || remaining.length === 0) {
+        // Auto-delete empty company
+        await supabase.from("conversations").delete().eq("company_id", targetUser.company_id);
+        await supabase.from("companies" as any).delete().eq("id", targetUser.company_id) as any;
+      }
 
-      // Group members by company
-      const membersByCompany = new Map<string, CompanyMember[]>();
-      allMembers.forEach((cm: any) => {
-        const profile = profileMap.get(cm.user_id);
-        const arr = membersByCompany.get(cm.company_id) || [];
-        arr.push({
-          user_id: cm.user_id,
-          full_name: profile?.full_name || "Ukendt",
-          role: cm.role,
-          avatar_url: profile?.avatar_url || null,
-        });
-        membersByCompany.set(cm.company_id, arr);
-      });
+      toast.success(`${targetUser.full_name} tilknyttet ${mergeTargetCompany.name}`);
+      setMergeDialogOpen(false);
+      setReloadTrigger((t) => t + 1);
+    } catch (err: any) {
+      console.error("Merge error:", err);
+      toast.error("Kunne ikke flytte brugeren: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setMerging(false);
+    }
+  };
 
-      // Reports by company
-      const reportsByCompany = new Map<string, number>();
-      allReports.forEach((r: any) => {
-        if (r.company_id) {
-          reportsByCompany.set(r.company_id, (reportsByCompany.get(r.company_id) || 0) + 1);
-        }
-      });
+  const handleDeleteCompany = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      // Delete related data first
+      await Promise.all([
+        supabase.from("conversations").delete().eq("company_id", deleteTarget.id),
+        supabase.from("company_members" as any).delete().eq("company_id", deleteTarget.id) as any,
+      ]);
+      const { error } = await supabase.from("companies" as any).delete().eq("id", deleteTarget.id) as any;
+      if (error) throw error;
 
-      // Conversations by company
-      const convByCompany = new Map<string, any>();
-      allConvs.forEach((c: any) => {
-        if (c.company_id) convByCompany.set(c.company_id, c);
-      });
-
-      // Batch unread messages
-      const convIds = allConvs.map((c: any) => c.id);
-      const { data: unreadMessages } = convIds.length > 0
-        ? await supabase
-            .from("messages")
-            .select("conversation_id")
-            .in("conversation_id", convIds)
-            .neq("sender_id", user.id)
-            .is("read_at", null)
-        : { data: [] };
-
-      const unreadByConv = new Map<string, number>();
-      (unreadMessages || []).forEach((m) => {
-        unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
-      });
-
-      const enriched: CompanyData[] = allCompanies
-        .filter((c: any) => c.status === "active" || !c.status)
-        .map((c: any) => {
-          const conv = convByCompany.get(c.id);
-          return {
-            id: c.id,
-            name: c.name || "",
-            cvr_number: c.cvr_number,
-            industry: c.industry || "",
-            contact_person: c.contact_person || "",
-            contact_email: c.contact_email || "",
-            contact_phone: c.contact_phone || "",
-            website: c.website || "",
-            address: c.address || "",
-            postal_code: c.postal_code || "",
-            city: c.city || "",
-            annual_revenue: Number(c.annual_revenue) || 0,
-            start_date: c.start_date,
-            end_date: c.end_date,
-            status: c.status || "active",
-            slack_channel: c.slack_channel || "",
-            created_at: c.created_at,
-            members: membersByCompany.get(c.id) || [],
-            reportCount: reportsByCompany.get(c.id) || 0,
-            unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
-            conversationId: conv?.id || null,
-          };
-        });
-
-      setCompanies(enriched);
-      setLoading(false);
-    };
-
-    loadCompanies();
-  }, [user, isAdvisor]);
+      toast.success(`${deleteTarget.name} slettet`);
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      setReloadTrigger((t) => t + 1);
+    } catch (err: any) {
+      console.error("Delete error:", err);
+      toast.error("Kunne ikke slette: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const industries = useMemo(() => {
     const set = new Set(companies.map((c) => c.industry).filter(Boolean));
@@ -192,7 +413,8 @@ const Members = () => {
           c.name.toLowerCase().includes(q) ||
           c.industry.toLowerCase().includes(q) ||
           c.contact_person.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q)
+          c.city.toLowerCase().includes(q) ||
+          c.slack_channel.toLowerCase().includes(q)
       );
     }
 
@@ -227,10 +449,23 @@ const Members = () => {
     return n.toLocaleString("da-DK");
   };
 
+  const getDisplayRevenue = (c: CompanyData) => {
+    // Reported revenue from financial reports takes priority
+    if (c.reported_revenue && c.reported_revenue > 0) return { value: c.reported_revenue, source: "rapport" };
+    if (c.annual_revenue > 0) return { value: c.annual_revenue, source: "ansøgning" };
+    return null;
+  };
+
   const totalCompanies = companies.length;
   const totalMembers = companies.reduce((sum, c) => sum + c.members.length, 0);
   const totalUnread = companies.reduce((sum, c) => sum + c.unreadCount, 0);
   const companiesWithReports = companies.filter((c) => c.reportCount > 0).length;
+
+  const filteredMergeUsers = unassignedUsers.filter((u) => {
+    if (!mergeSearch.trim()) return true;
+    const q = mergeSearch.toLowerCase();
+    return u.full_name.toLowerCase().includes(q) || u.company_name.toLowerCase().includes(q);
+  });
 
   if (authLoading) return null;
   if (!isAdvisor) return <Navigate to="/" replace />;
@@ -274,7 +509,7 @@ const Members = () => {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Søg på virksomhed, branche, kontaktperson eller by..."
+            placeholder="Søg på virksomhed, branche, kontaktperson, by eller Slack..."
             className="w-full pl-10 pr-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
@@ -353,6 +588,7 @@ const Members = () => {
           <div className="divide-y divide-border/50">
             {filtered.map((c) => {
               const isExpanded = expandedId === c.id;
+              const revenue = getDisplayRevenue(c);
               return (
                 <div key={c.id}>
                   <button
@@ -367,9 +603,16 @@ const Members = () => {
                         </div>
                         <div className="min-w-0">
                           <span className="text-sm font-medium text-foreground truncate block">{c.name}</span>
-                          {c.cvr_number && (
-                            <span className="text-[10px] text-muted-foreground">CVR: {c.cvr_number}</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {c.cvr_number && (
+                              <span className="text-[10px] text-muted-foreground">CVR: {c.cvr_number}</span>
+                            )}
+                            {c.slack_channel && (
+                              <span className="text-[10px] text-primary flex items-center gap-0.5">
+                                <Hash className="h-2.5 w-2.5" />{c.slack_channel}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="col-span-2">
@@ -382,9 +625,14 @@ const Members = () => {
                         <span className="text-xs text-muted-foreground truncate block">{c.city || "–"}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className={`text-xs ${c.annual_revenue > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                          {c.annual_revenue > 0 ? formatDKK(c.annual_revenue) : "–"}
-                        </span>
+                        {revenue ? (
+                          <div>
+                            <span className="text-xs text-foreground font-medium">{formatDKK(revenue.value)}</span>
+                            <span className="text-[9px] text-muted-foreground ml-1">({revenue.source})</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">–</span>
+                        )}
                       </div>
                       <div className="col-span-1">
                         <div className="flex items-center gap-1.5">
@@ -424,6 +672,11 @@ const Members = () => {
                         <div className="flex items-center gap-3 mt-0.5">
                           <p className="text-xs text-muted-foreground truncate">{c.industry || "–"}</p>
                           <span className="text-[10px] text-muted-foreground">{c.city}</span>
+                          {c.slack_channel && (
+                            <span className="text-[10px] text-primary flex items-center gap-0.5">
+                              <Hash className="h-2.5 w-2.5" />{c.slack_channel}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -457,15 +710,29 @@ const Members = () => {
                               <ExternalLink className="h-2.5 w-2.5" />
                             </a>
                           )}
+                          {c.slack_channel && (
+                            <p className="text-xs text-primary flex items-center gap-1 mt-2 font-medium">
+                              <Hash className="h-3 w-3" /> {c.slack_channel}
+                            </p>
+                          )}
                         </div>
 
-                        {/* Team members */}
+                        {/* Team members + merge button */}
                         <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Users className="h-4 w-4 text-primary" />
-                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                              Team ({c.members.length})
-                            </span>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-primary" />
+                              <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                                Team ({c.members.length})
+                              </span>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openMergeDialog(c); }}
+                              className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
+                              title="Tilknyt bruger"
+                            >
+                              <UserPlus className="h-3 w-3" /> Tilknyt
+                            </button>
                           </div>
                           {c.members.length === 0 ? (
                             <p className="text-xs text-muted-foreground">Ingen tilknyttede brugere</p>
@@ -489,7 +756,7 @@ const Members = () => {
                           )}
                         </div>
 
-                        {/* Info */}
+                        {/* Info + Circle activity */}
                         <div className="rounded-lg bg-background/50 border border-border/50 p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <Building2 className="h-4 w-4 text-primary" />
@@ -503,29 +770,64 @@ const Members = () => {
                               <MapPin className="h-3 w-3" /> {c.address}, {c.postal_code} {c.city}
                             </p>
                           )}
-                          {c.annual_revenue > 0 && (
-                            <p className="text-xs text-foreground font-medium flex items-center gap-1 mt-1">
-                              <Wallet className="h-3 w-3 text-primary" /> {c.annual_revenue.toLocaleString("da-DK")} DKK
-                            </p>
-                          )}
+                          {(() => {
+                            const rev = getDisplayRevenue(c);
+                            if (!rev) return null;
+                            return (
+                              <p className="text-xs text-foreground font-medium flex items-center gap-1 mt-1">
+                                <Wallet className="h-3 w-3 text-primary" /> {rev.value.toLocaleString("da-DK")} DKK
+                                <span className="text-[9px] text-muted-foreground font-normal">({rev.source})</span>
+                              </p>
+                            );
+                          })()}
                           {c.start_date && (
                             <p className="text-xs text-muted-foreground mt-1">
                               Forløb: {format(new Date(c.start_date), "d. MMM yyyy", { locale: da })}
                               {c.end_date && ` – ${format(new Date(c.end_date), "d. MMM yyyy", { locale: da })}`}
                             </p>
                           )}
+
+                          {/* Circle.so activity */}
+                          {c.circleInfo.length > 0 && (
+                            <div className="mt-3 pt-2 border-t border-border/30">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                                <Activity className="h-3 w-3" /> Circle.so
+                              </p>
+                              {c.circleInfo.map((ci) => (
+                                <div key={ci.circle_member_id} className="text-xs text-muted-foreground mt-1">
+                                  <span className="text-foreground">{ci.name}</span>
+                                  {ci.courses_total > 0 && (
+                                    <span className="ml-2 flex items-center gap-1 inline-flex">
+                                      <BookOpen className="h-2.5 w-2.5" />
+                                      {ci.courses_completed}/{ci.courses_total} kurser
+                                    </span>
+                                  )}
+                                  {ci.recent_activity_count > 0 && (
+                                    <span className="ml-2">{ci.recent_activity_count} aktiviteter</span>
+                                  )}
+                                  {ci.last_seen_at && (
+                                    <span className="ml-2 text-[10px]">
+                                      Sidst set: {format(new Date(ci.last_seen_at), "d. MMM", { locale: da })}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Actions */}
+                        {/* Actions + delete */}
                         <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between">
-                          <div className="flex items-center gap-2 mb-2">
-                            <FileText className="h-4 w-4 text-primary" />
-                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <FileText className="h-4 w-4 text-primary" />
+                              <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
+                            </div>
+                            <p className="text-sm font-medium text-foreground">{c.reportCount} rapporter</p>
+                            {c.unreadCount > 0 && (
+                              <p className="text-xs text-chart-warning font-semibold mt-1">{c.unreadCount} ubesvarede beskeder</p>
+                            )}
                           </div>
-                          <p className="text-sm font-medium text-foreground">{c.reportCount} rapporter</p>
-                          {c.unreadCount > 0 && (
-                            <p className="text-xs text-chart-warning font-semibold mt-1">{c.unreadCount} ubesvarede beskeder</p>
-                          )}
                           <div className="flex flex-wrap gap-2 mt-3">
                             {c.members.length > 0 && (
                               <Link
@@ -545,6 +847,14 @@ const Members = () => {
                                 <MessageCircle className="h-3 w-3" /> Åbn chat
                               </Link>
                             )}
+                            {c.members.length === 0 && c.reportCount === 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                              >
+                                <Trash2 className="h-3 w-3" /> Slet
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -561,6 +871,73 @@ const Members = () => {
           Viser {filtered.length} af {companies.length} virksomheder
         </div>
       </div>
+
+      {/* Merge dialog */}
+      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tilknyt bruger til {mergeTargetCompany?.name}</DialogTitle>
+            <DialogDescription>
+              Søg efter en bruger og flyt dem til denne virksomhed. Eventuelle data flyttes automatisk med.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={mergeSearch}
+              onChange={(e) => setMergeSearch(e.target.value)}
+              placeholder="Søg på brugernavn eller virksomhed..."
+              className="w-full pl-10 pr-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto space-y-1">
+            {filteredMergeUsers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {mergeSearch ? "Ingen brugere matcher" : "Ingen brugere at tilknytte"}
+              </p>
+            ) : (
+              filteredMergeUsers.map((u) => (
+                <button
+                  key={u.user_id}
+                  onClick={() => handleMergeUser(u)}
+                  disabled={merging}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/50 transition-colors text-left disabled:opacity-50"
+                >
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-semibold text-primary">{getInitials(u.full_name)}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{u.full_name}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">Fra: {u.company_name}</p>
+                  </div>
+                  <UserPlus className="h-4 w-4 text-primary flex-shrink-0" />
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Slet {deleteTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              Denne virksomhed har ingen tilknyttede brugere eller rapporter. Sletningen kan ikke fortrydes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Annullér
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteCompany} disabled={deleting}>
+              {deleting ? "Sletter..." : "Slet virksomhed"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
