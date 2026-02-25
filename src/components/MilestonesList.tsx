@@ -162,9 +162,6 @@ const MilestoneCard = ({
           </div>
           <div className="flex-1 min-w-0">
             <p className={cn("text-sm font-medium truncate", ms.status === "done" ? "text-muted-foreground line-through" : "text-foreground")}>{ms.title}</p>
-            {ms.baseline && (
-              <p className="text-[10px] text-muted-foreground">Udgangspunkt: {ms.baseline}</p>
-            )}
             <p className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -196,12 +193,27 @@ const MilestoneCard = ({
             </AlertDialog>
           </div>
         </div>
-        <div className="mt-2.5 flex items-center gap-2.5">
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+        {ms.baseline ? (
+          <div className="mt-2.5">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-muted-foreground">{ms.baseline}</span>
+              <span className="text-[10px] font-medium text-foreground">{ms.title}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden relative">
+                <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+              </div>
+              <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
+            </div>
           </div>
-          <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
-        </div>
+        ) : (
+          <div className="mt-2.5 flex items-center gap-2.5">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+            </div>
+            <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
+          </div>
+        )}
       </div>
     </div>
   );
