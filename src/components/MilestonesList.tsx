@@ -107,6 +107,7 @@ const MilestoneCard = ({
   editTitle, editDeadline, editProgress, editCategory, editBaseline,
   setEditTitle, setEditDeadline, setEditProgress, setEditCategory, setEditBaseline,
   onStartEdit, onSaveEdit, onCancelEdit, onDelete, onQuickProgress, onToggleComplete,
+  onUpdateField,
 }: {
   ms: Milestone;
   config: (typeof statusConfig)["done"];
@@ -127,9 +128,14 @@ const MilestoneCard = ({
   onDelete: () => void;
   onQuickProgress: (p: number) => void;
   onToggleComplete: () => void;
+  onUpdateField: (id: string, fields: Record<string, any>) => Promise<void>;
 }) => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descDraft, setDescDraft] = useState(ms.description || "");
+  const [detailDeadline, setDetailDeadline] = useState<Date | undefined>(ms.deadline || undefined);
+  const [savingField, setSavingField] = useState(false);
   const prevStatusRef = useRef(ms.status);
   const Icon = config.icon;
 
@@ -287,7 +293,30 @@ const MilestoneCard = ({
                   <Sparkles className="h-2.5 w-2.5" /> AI
                 </span>
               )}
-              <span className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</span>
+              {/* Editable deadline */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md px-2 py-1 hover:bg-muted">
+                    <CalendarIcon className="h-3 w-3" />
+                    {detailDeadline ? format(detailDeadline, "d. MMM yyyy", { locale: da }) : "Sæt deadline"}
+                    <Pencil className="h-2.5 w-2.5 ml-1 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={detailDeadline}
+                    onSelect={async (d) => {
+                      setDetailDeadline(d || undefined);
+                      setSavingField(true);
+                      await onUpdateField(ms.id, { deadline: d || null });
+                      setSavingField(false);
+                    }}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -304,12 +333,57 @@ const MilestoneCard = ({
                 <p className="text-sm text-foreground">{ms.baseline}</p>
               </div>
             )}
-            {ms.description && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Beskrivelse</p>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{ms.description}</p>
+
+            {/* Editable description */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Beskrivelse</p>
+                {!editingDescription && (
+                  <button
+                    onClick={() => { setDescDraft(ms.description || ""); setEditingDescription(true); }}
+                    className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-2.5 w-2.5" /> Rediger
+                  </button>
+                )}
               </div>
-            )}
+              {editingDescription ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={descDraft}
+                    onChange={(e) => setDescDraft(e.target.value)}
+                    rows={5}
+                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y"
+                    placeholder="Tilføj beskrivelse..."
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setSavingField(true);
+                        await onUpdateField(ms.id, { description: descDraft.trim() });
+                        setEditingDescription(false);
+                        setSavingField(false);
+                      }}
+                      disabled={savingField}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      <Check className="h-3 w-3" /> {savingField ? "Gemmer..." : "Gem"}
+                    </button>
+                    <button
+                      onClick={() => setEditingDescription(false)}
+                      className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors"
+                    >
+                      Annuller
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                  {ms.description || <span className="text-muted-foreground italic">Ingen beskrivelse endnu</span>}
+                </p>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -437,6 +511,23 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     toast.success(`"${title}" er slettet`);
   };
 
+  const updateField = async (id: string, fields: Record<string, any>) => {
+    const dbFields: Record<string, any> = {};
+    const localFields: Record<string, any> = {};
+    if ("description" in fields) {
+      dbFields.description = fields.description || null;
+      localFields.description = fields.description || null;
+    }
+    if ("deadline" in fields) {
+      dbFields.deadline = fields.deadline ? (fields.deadline as Date).toISOString().split("T")[0] : null;
+      localFields.deadline = fields.deadline || null;
+    }
+    const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
+    if (error) { toast.error("Kunne ikke gemme"); return; }
+    setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, ...localFields } : m));
+    toast.success("Gemt");
+  };
+
   const totalProgress = milestones.length > 0 ? Math.round(milestones.reduce((sum, m) => sum + m.progress, 0) / milestones.length) : 0;
 
   const renderList = (items: Milestone[]) =>
@@ -452,6 +543,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
           onDelete={() => deleteMilestone(ms.id, ms.title)}
           onQuickProgress={(p) => quickUpdateProgress(ms.id, p)}
           onToggleComplete={() => toggleComplete(ms.id)}
+          onUpdateField={updateField}
         />
       );
     });
