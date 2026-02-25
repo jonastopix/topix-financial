@@ -1,5 +1,43 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// HMAC-SHA256 verification for Monday.com webhook JWT
+async function verifyMondayJwt(authHeader: string | null, signingSecret: string): Promise<boolean> {
+  if (!authHeader) return false;
+
+  try {
+    // Monday sends a JWT in the Authorization header
+    const parts = authHeader.split(".");
+    if (parts.length !== 3) return false;
+
+    const [headerB64, payloadB64, signatureB64] = parts;
+
+    // Import the signing secret as HMAC key
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(signingSecret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    // Convert base64url signature to ArrayBuffer
+    const signatureStr = signatureB64.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = signatureStr.length % 4;
+    const paddedSig = pad ? signatureStr + "=".repeat(4 - pad) : signatureStr;
+    const sigBytes = Uint8Array.from(atob(paddedSig), (c) => c.charCodeAt(0));
+
+    // Verify signature
+    const data = encoder.encode(`${headerB64}.${payloadB64}`);
+    const valid = await crypto.subtle.verify("HMAC", key, sigBytes, data);
+
+    return valid;
+  } catch (e) {
+    console.error("JWT verification error:", e);
+    return false;
+  }
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -101,12 +139,29 @@ Deno.serve(async (req) => {
     const body = await req.json();
     console.log("Monday webhook received:", JSON.stringify(body));
 
-    // Handle Monday.com webhook challenge verification
+    // Handle Monday.com webhook challenge verification (must respond before signature check)
     if (body.challenge) {
       return new Response(JSON.stringify({ challenge: body.challenge }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Verify Monday.com JWT signature
+    const MONDAY_SIGNING_SECRET = Deno.env.get("MONDAY_SIGNING_SECRET");
+    if (MONDAY_SIGNING_SECRET) {
+      const authHeader = req.headers.get("Authorization");
+      const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
+      if (!isValid) {
+        console.error("Invalid Monday.com webhook signature");
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      console.log("Monday.com webhook signature verified ✓");
+    } else {
+      console.warn("MONDAY_SIGNING_SECRET not configured — skipping signature verification");
     }
 
     const event = body.event;
