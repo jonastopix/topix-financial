@@ -42,6 +42,31 @@ function mapReportToActuals(kf: Record<string, number>): Record<string, number> 
   };
 }
 
+// Map internal budget keys → display category names
+const INTERNAL_TO_DISPLAY: Record<string, string> = {
+  omsaetning: "Omsætning",
+  direkte_omkostninger: "Direkte omk.",
+  loenninger: "Lønninger",
+  marketing: "Marketing",
+  lokaler: "Lokaler",
+  admin: "Administration",
+  afskrivninger: "Afskrivninger",
+};
+
+// Convert Danish period "Januar 2026" → "2026-base-0"
+function danishPeriodToBudgetKey(period: string): string | null {
+  const parts = period.toLowerCase().split(" ");
+  const monthIdx = DANISH_MONTHS_ORDER_LOCAL[parts[0]];
+  const year = parts[1];
+  if (monthIdx == null || !year) return null;
+  return `${year}-base-${monthIdx}`;
+}
+
+const DANISH_MONTHS_ORDER_LOCAL: Record<string, number> = {
+  januar: 0, februar: 1, marts: 2, april: 3, maj: 4, juni: 5,
+  juli: 6, august: 7, september: 8, oktober: 9, november: 10, december: 11,
+};
+
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
 const tooltipStyle = {
@@ -125,15 +150,33 @@ const BudgetComparison = () => {
     if (!selectedPeriod || !userId) return;
 
     const load = async () => {
+      // Try both Danish period format and internal budget key format
+      const budgetKey = danishPeriodToBudgetKey(selectedPeriod);
+      const periodsToQuery = [selectedPeriod];
+      if (budgetKey) periodsToQuery.push(budgetKey);
+
       const { data } = await supabase
         .from("budget_targets")
-        .select("category, budget_amount")
+        .select("category, budget_amount, period")
         .eq("user_id", userId)
-        .eq("period", selectedPeriod);
+        .in("period", periodsToQuery);
 
-      const savedMap = data && data.length > 0
-        ? new Map(data.map((d) => [d.category, Number(d.budget_amount)]))
-        : undefined;
+      let savedMap: Map<string, number> | undefined;
+      if (data && data.length > 0) {
+        savedMap = new Map();
+        data.forEach((d) => {
+          // Handle display name categories (legacy)
+          if (CATEGORIES.includes(d.category)) {
+            savedMap!.set(d.category, Number(d.budget_amount));
+          }
+          // Handle internal key categories (new format)
+          const displayName = INTERNAL_TO_DISPLAY[d.category];
+          if (displayName && !savedMap!.has(displayName)) {
+            savedMap!.set(displayName, Number(d.budget_amount));
+          }
+        });
+        if (savedMap.size === 0) savedMap = undefined;
+      }
 
       const actuals = reportActuals[selectedPeriod] || {};
 
@@ -393,11 +436,8 @@ const BudgetComparison = () => {
     </div>
   );
 };
-// Danish month order for sorting periods like "Oktober 2025"
-const DANISH_MONTHS_ORDER: Record<string, number> = {
-  januar: 0, februar: 1, marts: 2, april: 3, maj: 4, juni: 5,
-  juli: 6, august: 7, september: 8, oktober: 9, november: 10, december: 11,
-};
+// Reuse the local Danish months order for sorting
+const DANISH_MONTHS_ORDER = DANISH_MONTHS_ORDER_LOCAL;
 
 function periodSortKey(period: string): string {
   const parts = period.toLowerCase().split(" ");
@@ -439,16 +479,30 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
       .reduce((s, [, v]) => s + v, 0);
     const actualResult = actualRevenue - actualCosts;
 
-    // Get budget for this period
-    const periodBudgets = allBudgetTargets.filter(t => t.period === period);
-    const budgetRevenue = periodBudgets.find(t => t.category === "Omsætning")?.budget_amount
-      ?? defaultBudgets["Omsætning"];
+    // Get budget for this period — try both Danish and internal format
+    const budgetKey = danishPeriodToBudgetKey(period);
+    const periodBudgets = allBudgetTargets.filter(t => 
+      t.period === period || (budgetKey && t.period === budgetKey)
+    );
+    
+    // Resolve budget values checking both display names and internal keys
+    const findBudget = (displayCat: string): number => {
+      // Check display name match
+      const byDisplay = periodBudgets.find(t => t.category === displayCat);
+      if (byDisplay) return Number(byDisplay.budget_amount);
+      // Check internal key match
+      const internalKey = Object.entries(INTERNAL_TO_DISPLAY).find(([, v]) => v === displayCat)?.[0];
+      if (internalKey) {
+        const byKey = periodBudgets.find(t => t.category === internalKey);
+        if (byKey) return Number(byKey.budget_amount);
+      }
+      return defaultBudgets[displayCat];
+    };
+    
+    const budgetRevenue = findBudget("Omsætning");
     const budgetCosts = CATEGORIES
       .filter(c => c !== "Omsætning")
-      .reduce((s, cat) => {
-        const found = periodBudgets.find(t => t.category === cat);
-        return s + (found ? Number(found.budget_amount) : defaultBudgets[cat]);
-      }, 0);
+      .reduce((s, cat) => s + findBudget(cat), 0);
     const budgetResult = budgetRevenue - budgetCosts;
 
     // Per-category cost actuals
