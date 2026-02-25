@@ -28,7 +28,8 @@ interface LeverMilestone {
 type SaveStatus = "idle" | "saving" | "saved";
 
 const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, companyName } = useAuth();
+  const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
   const isOwner = !userId || userId === user?.id;
 
@@ -92,6 +93,14 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
   }, [effectiveUserId, config.module, config.leverCount]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Fetch industry from company
+  useEffect(() => {
+    if (!companyId) return;
+    supabase.from("companies").select("industry").eq("id", companyId).maybeSingle().then(({ data }) => {
+      setIndustry(data?.industry || null);
+    });
+  }, [companyId]);
 
   // Auto-save with debounce
   const save = useCallback(async (r: Record<string, string>, c: Record<string, boolean>, l: string[]) => {
@@ -330,6 +339,8 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
           feedback={aiFeedback}
           feedbackAt={aiFeedbackAt}
           onFeedbackReceived={loadData}
+          companyName={companyName}
+          industry={industry}
         />
       )}
     </div>

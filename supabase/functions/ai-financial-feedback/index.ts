@@ -34,7 +34,21 @@ serve(async (req) => {
       });
     }
 
-    const { financialData, historicalData, companyContext } = await req.json();
+    let { financialData, historicalData, companyContext } = await req.json();
+
+    // If companyContext doesn't include industry, try to look it up
+    if (companyContext?.name && !companyContext.industry) {
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const sb = createClient(supabaseUrl, serviceKey);
+      const { data: company } = await sb
+        .from("companies")
+        .select("industry")
+        .eq("name", companyContext.name)
+        .maybeSingle();
+      if (company?.industry) {
+        companyContext = { ...companyContext, industry: company.industry };
+      }
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -64,7 +78,7 @@ Hvis der er historiske data, skal du analysere trends og mønstre over tid og gi
 
     const userMessage = `Her er virksomhedens finansielle data:
 
-${companyContext ? `Virksomhed: ${companyContext.name}\nCVR: ${companyContext.cvr}\n` : ""}
+${companyContext ? `Virksomhed: ${companyContext.name}\nCVR: ${companyContext.cvr}\n${companyContext.industry ? `Branche: ${companyContext.industry}\nTilpas din analyse specifikt til denne branche — brug branchespecifikke KPI'er, benchmarks og termer.\n` : ""}` : ""}
 
 AKTUEL PERIODE DATA:
 ${JSON.stringify(financialData, null, 2)}

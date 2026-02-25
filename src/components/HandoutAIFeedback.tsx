@@ -10,16 +10,18 @@ interface HandoutAIFeedbackProps {
   feedback: any | null;
   feedbackAt: string | null;
   onFeedbackReceived: () => void;
+  companyName?: string | null;
+  industry?: string | null;
 }
 
-const HandoutAIFeedback = ({ handoutId, module, feedback, feedbackAt, onFeedbackReceived }: HandoutAIFeedbackProps) => {
+const HandoutAIFeedback = ({ handoutId, module, feedback, feedbackAt, onFeedbackReceived, companyName, industry }: HandoutAIFeedbackProps) => {
   const [loading, setLoading] = useState(false);
 
   const requestFeedback = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("handout-ai-feedback", {
-        body: { handout_id: handoutId, module },
+        body: { handout_id: handoutId, module, company_name: companyName, industry },
       });
       if (error) throw error;
       onFeedbackReceived();
