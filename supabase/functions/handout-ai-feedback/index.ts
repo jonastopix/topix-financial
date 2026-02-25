@@ -99,6 +99,15 @@ serve(async (req) => {
 
     const systemPrompt = modulePrompts[module] || modulePrompts.overordnet;
 
+    const qualityGuard = `VIGTIG REGEL: Før du giver feedback, skal du vurdere om svarene er meningsfulde og gennemtænkte. 
+Hvis svarene er tilfældige bogstaver, nonsens, copy-paste af spørgsmålet, ekstremt korte (1-2 ord uden substans) eller tydeligt ikke-seriøse:
+- Sig det DIREKTE og ærligt. Lad være med at lade som om der er substans hvor der ikke er nogen.
+- Forklar at du ikke kan give brugbar feedback på tomme eller tilfældige svar.
+- Opfordr dem til at bruge 10-15 minutter på at reflektere og svare ærligt, så du kan give reel værdi.
+- Vær venlig men bestemt — lad ALDRIG som om tilfældige bogstaver er "ærlig selvindsigt" eller "et godt udgangspunkt".
+
+Kun hvis svarene faktisk indeholder reel substans, skal du følge instruktionerne nedenfor.`;
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -108,8 +117,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: `${systemPrompt}\n\nSvar ALTID på dansk. Vær konkret, støttende og handlingsorienteret. Hold dig under 500 ord.` },
-          { role: "user", content: `Her er medlemmets svar:\n\n${context}\n\nGiv din feedback og sparring.` },
+          { role: "system", content: `${qualityGuard}\n\n${systemPrompt}\n\nSvar ALTID på dansk. Vær konkret og handlingsorienteret. Hold dig under 500 ord.` },
+          { role: "user", content: `Her er medlemmets svar:\n\n${context}\n\nVurdér først kvaliteten af svarene, og giv derefter passende feedback.` },
         ],
       }),
     });
