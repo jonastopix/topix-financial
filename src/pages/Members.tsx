@@ -80,6 +80,7 @@ interface CompanyData {
   unreadCount: number;
   conversationId: string | null;
   circleInfo: CircleInfo[];
+  logo_url: string | null;
 }
 
 type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
@@ -274,6 +275,7 @@ const Members = () => {
           unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
           conversationId: conv?.id || null,
           circleInfo: circleInfoByCompany.get(c.id) || [],
+          logo_url: c.logo_url || null,
         };
       });
 
@@ -598,8 +600,12 @@ const Members = () => {
                     {/* Desktop row */}
                     <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-3 flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <span className="text-[10px] font-semibold text-primary">{getInitials(c.name)}</span>
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {c.logo_url ? (
+                            <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-[10px] font-semibold text-primary">{getInitials(c.name)}</span>
+                          )}
                         </div>
                         <div className="min-w-0">
                           <span className="text-sm font-medium text-foreground truncate block">{c.name}</span>
@@ -657,8 +663,12 @@ const Members = () => {
 
                     {/* Mobile row */}
                     <div className="sm:hidden flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-semibold text-primary">{getInitials(c.name)}</span>
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {c.logo_url ? (
+                          <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
+                        ) : (
+                          <span className="text-xs font-semibold text-primary">{getInitials(c.name)}</span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
