@@ -8,6 +8,10 @@ interface KPICardProps {
   trend?: "up" | "down" | "neutral";
   secondaryChange?: string;
   secondaryTrend?: "up" | "down" | "neutral";
+  /** Budget comparison label, e.g. "5k under budget" */
+  budgetLabel?: string;
+  /** Whether actual is favorable vs budget (green) or not (red) */
+  budgetFavorable?: boolean;
   subtitle?: string;
   icon?: ReactNode;
   accentColor?: "emerald" | "amber" | "blue" | "rose";
@@ -40,7 +44,7 @@ const accentMap = {
   },
 };
 
-const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
+const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
   const accent = accentMap[accentColor];
 
   const ChangeBadge = ({ label, dir }: { label: string; dir: "up" | "down" | "neutral" }) => (
@@ -78,6 +82,15 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
       <div className="flex flex-wrap items-center gap-2 mt-3">
         {change && <ChangeBadge label={change} dir={trend} />}
         {secondaryChange && <ChangeBadge label={secondaryChange} dir={secondaryTrend} />}
+        {budgetLabel && (
+          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+            budgetFavorable
+              ? "bg-primary/5 text-primary border-primary/20"
+              : "bg-destructive/5 text-destructive border-destructive/20"
+          }`}>
+            {budgetLabel}
+          </span>
+        )}
         {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
       </div>
     </div>
