@@ -49,6 +49,28 @@ const AppSidebar = () => {
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
   const { branding } = useAppConfig();
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+
+  // Fetch company logo
+  useEffect(() => {
+    if (!user) return;
+    const fetchLogo = async () => {
+      const { data: cm } = await supabase
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (!cm?.company_id) return;
+      const { data } = await supabase
+        .from("companies")
+        .select("logo_url")
+        .eq("id", cm.company_id)
+        .single();
+      if (data?.logo_url) setCompanyLogoUrl(data.logo_url);
+    };
+    fetchLogo();
+  }, [user]);
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
@@ -207,8 +229,12 @@ const AppSidebar = () => {
             </button>
           )}
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center">
-              <span className="text-xs font-medium text-sidebar-accent-foreground">{initials}</span>
+            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center overflow-hidden shrink-0">
+              {companyLogoUrl ? (
+                <img src={companyLogoUrl} alt="Logo" className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-xs font-medium text-sidebar-accent-foreground">{initials}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-sidebar-accent-foreground truncate">
