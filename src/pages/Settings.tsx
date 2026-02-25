@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash } from "lucide-react";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import CompanyInvitations from "@/components/CompanyInvitations";
 
@@ -13,6 +13,7 @@ interface CompanyData {
   contact_email: string | null;
   website: string | null;
   contact_phone: string | null;
+  logo_url: string | null;
 }
 
 const Settings = () => {
@@ -31,6 +32,9 @@ const Settings = () => {
     contact_phone: "",
   });
   const [savingCompany, setSavingCompany] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
@@ -53,12 +57,12 @@ const Settings = () => {
 
       const { data } = await supabase
         .from("companies")
-        .select("id, name, cvr_number, contact_email, website, contact_phone")
+        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url")
         .eq("id", cm.company_id)
         .single();
 
       if (data) {
-        setCompany(data);
+        setCompany(data as CompanyData);
         setCompanyForm({
           name: data.name || "",
           cvr_number: data.cvr_number || "",
@@ -66,10 +70,58 @@ const Settings = () => {
           website: data.website || "",
           contact_phone: data.contact_phone || "",
         });
+        setLogoUrl(data.logo_url || null);
       }
     };
     fetchCompany();
   }, [user]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !company) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Vælg venligst en billedfil");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Logo må max være 2 MB");
+      return;
+    }
+
+    setUploadingLogo(true);
+    const ext = file.name.split(".").pop();
+    const filePath = `${company.id}/logo.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("company-logos")
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      toast.error("Kunne ikke uploade logo");
+      setUploadingLogo(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("company-logos")
+      .getPublicUrl(filePath);
+
+    const publicUrl = urlData.publicUrl;
+
+    const { error: updateError } = await supabase
+      .from("companies")
+      .update({ logo_url: publicUrl })
+      .eq("id", company.id);
+
+    if (updateError) {
+      toast.error("Kunne ikke gemme logo-URL");
+    } else {
+      setLogoUrl(publicUrl);
+      toast.success("Logo uploadet");
+    }
+    setUploadingLogo(false);
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -194,6 +246,40 @@ const Settings = () => {
               <Building2 className="h-4 w-4 text-primary" />
               Virksomhed
             </h2>
+            {/* Logo upload */}
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Logo
+              </label>
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-lg bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Virksomhedslogo" className="h-full w-full object-contain" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingLogo}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    {logoUrl ? "Skift logo" : "Upload logo"}
+                  </button>
+                  <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
               {companyField("Virksomhedsnavn", "name", "Virksomhedsnavn", <Building2 className="h-4 w-4" />)}
               {companyField("CVR-nummer", "cvr_number", "12345678", <Hash className="h-4 w-4" />)}
