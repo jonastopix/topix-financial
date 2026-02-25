@@ -31,8 +31,7 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
     if (!user || !handoutId || !value.trim()) return;
     setCreating(true);
     try {
-      const insertData: Record<string, any> = { user_id: user.id, title: value.trim(), source: "handout" };
-      if (companyId) insertData.company_id = companyId;
+      const insertData: Record<string, any> = { user_id: user.id, title: value.trim(), source: "handout", company_id: companyId };
       const { data: ms, error: msErr } = await supabase
         .from("milestones")
         .insert(insertData as any)

@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Pencil, Save, X, CalendarDays, Loader2, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -58,6 +59,7 @@ function variance(budget: number, actual: number, isRevenue: boolean) {
 }
 
 const BudgetComparison = () => {
+  const { companyId } = useAuth();
   const [periods, setPeriods] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState("");
   const [budgetData, setBudgetData] = useState<BudgetLine[]>([]);
@@ -175,6 +177,7 @@ const BudgetComparison = () => {
     try {
       const rows = updated.map((line) => ({
         user_id: userId,
+        company_id: companyId,
         category: line.category,
         budget_amount: line.budget,
         period: selectedPeriod,

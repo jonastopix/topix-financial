@@ -23,6 +23,7 @@ interface BudgetResult {
 
 interface BudgetFromAccountsProps {
   userId: string;
+  companyId: string;
   onImportComplete: (result: { year: string; company_name: string; categories: { key: string; label: string; monthly: number[]; details: string[] }[] }) => void;
 }
 
@@ -44,7 +45,7 @@ const formatK = (v: number) => {
   return `${Math.round(v / 1000)}k`;
 };
 
-const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProps) => {
+const BudgetFromAccounts = ({ userId, companyId, onImportComplete }: BudgetFromAccountsProps) => {
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<BudgetResult | null>(null);
   const [growthPercent, setGrowthPercent] = useState(0);
@@ -218,10 +219,11 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
       // Insert template marker
       await supabase.from("budget_targets").insert({
         user_id: userId,
+        company_id: companyId,
         category: "__template__",
         budget_amount: 0,
-        period: "webshop_b2c", // Generic template key
-      });
+        period: "webshop_b2c",
+      } as any);
 
       // Insert budget rows with growth + overrides applied (AI + manual categories)
       const allCategories = [...result.categories, ...addedCategories];
@@ -230,6 +232,7 @@ const BudgetFromAccounts = ({ userId, onImportComplete }: BudgetFromAccountsProp
         const final = getFinalMonthly(cat, isRevenue);
         return final.map((amount, monthIdx) => ({
           user_id: userId,
+          company_id: companyId,
           category: cat.key,
           budget_amount: amount,
           period: `${targetYear}-base-${monthIdx}`,
