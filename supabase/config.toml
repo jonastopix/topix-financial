@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.generate-budget-from-accounts]
 verify_jwt = false
+
+[functions.monday-webhook]
+verify_jwt = false
