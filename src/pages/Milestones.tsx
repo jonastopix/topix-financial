@@ -6,17 +6,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const Milestones = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [milestoneStats, setMilestoneStats] = useState({ total: 0, done: 0, pct: 0 });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !companyId) return;
     
     const load = async () => {
       const [convRes, msRes] = await Promise.all([
-        supabase.from("conversations").select("id").eq("member_id", user.id).maybeSingle(),
-        supabase.from("milestones").select("progress").eq("user_id", user.id),
+        supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle(),
+        supabase.from("milestones").select("progress").eq("company_id", companyId),
       ]);
       setConversationId(convRes.data?.id || null);
       
@@ -26,7 +26,7 @@ const Milestones = () => {
       setMilestoneStats({ total: all.length, done, pct });
     };
     load();
-  }, [user]);
+  }, [user, companyId]);
 
   return (
     <AppLayout>
@@ -60,7 +60,7 @@ const Milestones = () => {
         </div>
       </div>
 
-      <MilestonesList userId={user?.id || null} conversationId={conversationId} />
+      <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} />
     </AppLayout>
   );
 };

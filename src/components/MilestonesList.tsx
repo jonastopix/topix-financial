@@ -51,6 +51,7 @@ function formatDeadline(d: Date | null) {
 
 interface Props {
   userId?: string | null;
+  companyId?: string | null;
   conversationId?: string | null;
 }
 
@@ -216,7 +217,7 @@ const MilestoneCard = ({
   );
 };
 
-const MilestonesList = ({ userId, conversationId }: Props) => {
+const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -225,14 +226,16 @@ const MilestonesList = ({ userId, conversationId }: Props) => {
   const [editProgress, setEditProgress] = useState(0);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId && !companyId) return;
     const fetchMilestones = async () => {
       setLoading(true);
-      const { data } = await supabase
+      let query = supabase
         .from("milestones")
         .select("*")
-        .eq("user_id", userId)
         .order("created_at", { ascending: false });
+      if (companyId) query = query.eq("company_id", companyId);
+      else if (userId) query = query.eq("user_id", userId);
+      const { data } = await query;
 
       const mapped: Milestone[] = (data || []).map((m) => ({
         id: m.id,
