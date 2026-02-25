@@ -9,6 +9,8 @@ import {
   FileText,
   Wallet,
   Building2,
+  Globe,
+  Hash,
   Calendar,
   ChevronDown,
   ChevronRight,
@@ -36,6 +38,15 @@ interface MemberProfile {
   company_name: string | null;
   avatar_url: string | null;
   created_at: string;
+}
+
+interface CompanyContext {
+  name: string;
+  industry: string | null;
+  cvr_number: string | null;
+  slack_channel: string | null;
+  city: string | null;
+  website: string | null;
 }
 
 interface Report {
@@ -104,6 +115,7 @@ const MemberDetail = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [profile, setProfile] = useState<MemberProfile | null>(null);
+  const [companyCtx, setCompanyCtx] = useState<CompanyContext | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
@@ -129,6 +141,20 @@ const MemberDetail = () => {
         supabase.from("conversations").select("id").eq("member_id", userId).single(),
         supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
       ]);
+
+      // Fetch company context via company_members
+      const { data: cmData } = await supabase
+        .from("company_members" as any)
+        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website)" as any)
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      const cm = cmData as any;
+      if (cm?.companies) {
+        setCompanyCtx(cm.companies as CompanyContext);
+      } else {
+        setCompanyCtx(null);
+      }
 
       const reportsList = reportsRes.data || [];
       setProfile(profileRes.data);
@@ -316,9 +342,24 @@ const MemberDetail = () => {
             <div className="flex-1">
               <h1 className="text-xl font-display font-bold text-foreground">{profile.full_name}</h1>
               <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted-foreground">
-                {profile.company_name && (
+                {companyCtx?.name && (
+                  <span className="flex items-center gap-1 font-medium text-foreground">
+                    <Building2 className="h-3.5 w-3.5 text-primary" /> {companyCtx.name}
+                  </span>
+                )}
+                {companyCtx?.industry && (
                   <span className="flex items-center gap-1">
-                    <Building2 className="h-3.5 w-3.5" /> {profile.company_name}
+                    <Globe className="h-3.5 w-3.5" /> {companyCtx.industry}
+                  </span>
+                )}
+                {companyCtx?.cvr_number && (
+                  <span className="flex items-center gap-1 font-mono text-xs">
+                    CVR: {companyCtx.cvr_number}
+                  </span>
+                )}
+                {companyCtx?.slack_channel && (
+                  <span className="flex items-center gap-1">
+                    <Hash className="h-3.5 w-3.5" /> {companyCtx.slack_channel}
                   </span>
                 )}
                 <span className="flex items-center gap-1">
