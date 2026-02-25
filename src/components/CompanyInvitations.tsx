@@ -96,6 +96,22 @@ const CompanyInvitations = () => {
       toast.success(`Invitation oprettet til ${trimmed}`);
       setEmail("");
       fetchData();
+
+      // Trigger invitation email (test-mode: no email actually sent)
+      try {
+        const { data: emailResult } = await supabase.functions.invoke("send-invitation-email", {
+          body: {
+            email: trimmed,
+            company_name: companyName || "Din virksomhed",
+            signup_url: `${window.location.origin}/auth`,
+          },
+        });
+        if (emailResult?.test_mode) {
+          console.log("[TEST-MODE] Email invitation logged but not sent");
+        }
+      } catch (emailErr) {
+        console.error("Could not trigger invitation email:", emailErr);
+      }
     }
     setSending(false);
   };

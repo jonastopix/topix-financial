@@ -220,6 +220,26 @@ Deno.serve(async (req) => {
           console.error("Error creating invitation:", inviteError);
         } else {
           console.log(`Invitation created for ${contactEmail} to company ${newCompany.id}`);
+
+          // Trigger invitation email (test-mode controlled by EMAIL_SENDING_ENABLED secret)
+          try {
+            const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-invitation-email`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              },
+              body: JSON.stringify({
+                email: contactEmail,
+                company_name: pulseName,
+                signup_url: "https://id-preview--0bcda7a6-4154-4a81-9f82-fcdf623eb7ea.lovable.app/auth",
+              }),
+            });
+            const emailData = await emailRes.json();
+            console.log("Invitation email result:", JSON.stringify(emailData));
+          } catch (emailErr) {
+            console.error("Could not trigger invitation email:", emailErr);
+          }
         }
       } else {
         console.warn("No advisor found to set as inviter - skipping invitation");
