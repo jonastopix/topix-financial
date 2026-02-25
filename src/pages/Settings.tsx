@@ -90,12 +90,12 @@ const Settings = () => {
     }
 
     setUploadingLogo(true);
-    const ext = file.name.split(".").pop();
-    const filePath = `${company.id}/logo.${ext}`;
+    // Use a fixed filename so upsert always overwrites the same file
+    const filePath = `${company.id}/logo`;
 
     const { error: uploadError } = await supabase.storage
       .from("company-logos")
-      .upload(filePath, file, { upsert: true });
+      .upload(filePath, file, { upsert: true, contentType: file.type });
 
     if (uploadError) {
       toast.error("Kunne ikke uploade logo");
@@ -107,7 +107,8 @@ const Settings = () => {
       .from("company-logos")
       .getPublicUrl(filePath);
 
-    const publicUrl = urlData.publicUrl;
+    // Add cache-busting param so browser fetches the new image
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from("companies")
@@ -121,6 +122,8 @@ const Settings = () => {
       toast.success("Logo uploadet");
     }
     setUploadingLogo(false);
+    // Reset file input so re-selecting the same file triggers onChange
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSave = async () => {
