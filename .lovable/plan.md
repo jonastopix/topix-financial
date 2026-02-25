@@ -1,20 +1,68 @@
 
 
-# Begrans Handlingsplan til seneste 3 rapporter
+# Tilføj auth-validering til Edge Functions
 
-## Problemet
-Handlingsplan-widgetten henter alle rapporter med AI-analyse, hvilket betyder at procenten udvandes over tid efterhaanden som nye rapporter tilfojer nye anbefalinger. Aeldte, irrelevante punkter traekker procenten ned.
+## Oversigt
+Begge edge functions (`extract-financial-data` og `handout-ai-feedback`) kan i dag kaldes uden autentificering. Vi tilføjer `getClaims()`-validering så kun indloggede brugere kan bruge dem. Frontend sender allerede auth-token automatisk via `supabase.functions.invoke()`, så ingen frontend-ændringer er nødvendige.
 
-## Loesning
-En simpel aendring i query-funktionen: Begrans rapporterne til de seneste 3 (de er allerede sorteret med `uploaded_at DESC`). Rapporterne hentes med `.limit(12)` i dag — vi aendrer til `.limit(3)`.
+## Ændringer
 
-## Teknisk aendring
+### 1. `supabase/functions/extract-financial-data/index.ts`
 
-**Fil:** `src/components/AIProgressWidget.tsx`
+Tilføj auth-validering lige efter CORS-check (linje 15), før request body parses:
 
-Linje 39: Aendr `.order("uploaded_at", { ascending: false })` query til ogsaa at have `.limit(3)` i stedet for at hente alle rapporter.
+```typescript
+// Validate auth
+const authHeader = req.headers.get('Authorization');
+if (!authHeader?.startsWith('Bearer ')) {
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
 
-Konkret tilfojes `.limit(3)` efter `.order(...)` linjen paa rapporter-queryen (der er ingen eksisterende limit paa denne query i modsaetning til dashboard-queryen).
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+const authClient = createClient(supabaseUrl, anonKey, {
+  global: { headers: { Authorization: authHeader } }
+});
+const token = authHeader.replace('Bearer ', '');
+const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+if (claimsError || !claimsData?.claims) {
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+```
 
-Derudover tilfojes en lille tekst-indikation i widgetten saa brugeren kan se at det er baseret paa de seneste 3 rapporter, f.eks. "Baseret paa seneste 3 rapporter" som subtitle under titlen.
+Den eksisterende service-role client bibeholdes til database-operationer. Auth-clienten bruges kun til at verificere brugeren.
 
+### 2. `supabase/functions/handout-ai-feedback/index.ts`
+
+Præcis samme auth-blok tilføjes efter CORS-check (linje 40), før request body parses:
+
+```typescript
+// Validate auth
+const authHeader = req.headers.get('Authorization');
+if (!authHeader?.startsWith('Bearer ')) {
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+const authClient = createClient(supabaseUrl, anonKey, {
+  global: { headers: { Authorization: authHeader } }
+});
+const token = authHeader.replace('Bearer ', '');
+const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+if (claimsError || !claimsData?.claims) {
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+```
+
+### Ingen frontend-ændringer
+`supabase.functions.invoke()` sender automatisk brugerens JWT-token, så frontend-koden i `FileUploadZone.tsx` og `HandoutAIFeedback.tsx` behøver ingen ændringer.
+
+### Ingen config-ændringer
+`verify_jwt = false` bibeholdes i `supabase/config.toml` — vi validerer manuelt i koden som anbefalet.
