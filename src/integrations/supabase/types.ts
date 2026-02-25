@@ -45,7 +45,7 @@ export type Database = {
         Row: {
           budget_amount: number
           category: string
-          company_id: string | null
+          company_id: string
           created_at: string
           id: string
           period: string
@@ -55,7 +55,7 @@ export type Database = {
         Insert: {
           budget_amount?: number
           category: string
-          company_id?: string | null
+          company_id: string
           created_at?: string
           id?: string
           period?: string
@@ -65,7 +65,7 @@ export type Database = {
         Update: {
           budget_amount?: number
           category?: string
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           id?: string
           period?: string
@@ -382,7 +382,7 @@ export type Database = {
       financial_reports: {
         Row: {
           ai_analysis: Json | null
-          company_id: string | null
+          company_id: string
           company_name: string | null
           cvr_number: string | null
           extracted_data: Json | null
@@ -398,7 +398,7 @@ export type Database = {
         }
         Insert: {
           ai_analysis?: Json | null
-          company_id?: string | null
+          company_id: string
           company_name?: string | null
           cvr_number?: string | null
           extracted_data?: Json | null
@@ -414,7 +414,7 @@ export type Database = {
         }
         Update: {
           ai_analysis?: Json | null
-          company_id?: string | null
+          company_id?: string
           company_name?: string | null
           cvr_number?: string | null
           extracted_data?: Json | null
@@ -482,7 +482,7 @@ export type Database = {
           ai_feedback: Json | null
           ai_feedback_at: string | null
           checklist: Json
-          company_id: string | null
+          company_id: string
           completed_at: string | null
           created_at: string
           id: string
@@ -497,7 +497,7 @@ export type Database = {
           ai_feedback?: Json | null
           ai_feedback_at?: string | null
           checklist?: Json
-          company_id?: string | null
+          company_id: string
           completed_at?: string | null
           created_at?: string
           id?: string
@@ -512,7 +512,7 @@ export type Database = {
           ai_feedback?: Json | null
           ai_feedback_at?: string | null
           checklist?: Json
-          company_id?: string | null
+          company_id?: string
           completed_at?: string | null
           created_at?: string
           id?: string
@@ -537,7 +537,7 @@ export type Database = {
         Row: {
           benchmark_label: string
           benchmark_value: number
-          company_id: string | null
+          company_id: string
           created_at: string
           id: string
           kpi_key: string
@@ -548,7 +548,7 @@ export type Database = {
         Insert: {
           benchmark_label?: string
           benchmark_value: number
-          company_id?: string | null
+          company_id: string
           created_at?: string
           id?: string
           kpi_key: string
@@ -559,7 +559,7 @@ export type Database = {
         Update: {
           benchmark_label?: string
           benchmark_value?: number
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           id?: string
           kpi_key?: string
@@ -579,7 +579,7 @@ export type Database = {
       }
       kpi_targets: {
         Row: {
-          company_id: string | null
+          company_id: string
           created_at: string
           id: string
           kpi_key: string
@@ -590,7 +590,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          company_id?: string | null
+          company_id: string
           created_at?: string
           id?: string
           kpi_key: string
@@ -601,7 +601,7 @@ export type Database = {
           user_id: string
         }
         Update: {
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           id?: string
           kpi_key?: string
@@ -670,7 +670,7 @@ export type Database = {
       }
       milestones: {
         Row: {
-          company_id: string | null
+          company_id: string
           created_at: string
           deadline: string | null
           description: string | null
@@ -684,7 +684,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          company_id?: string | null
+          company_id: string
           created_at?: string
           deadline?: string | null
           description?: string | null
@@ -698,7 +698,7 @@ export type Database = {
           user_id: string
         }
         Update: {
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           deadline?: string | null
           description?: string | null
