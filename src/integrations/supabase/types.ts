@@ -224,6 +224,7 @@ export type Database = {
           end_date: string | null
           id: string
           industry: string | null
+          logo_url: string | null
           name: string
           postal_code: string | null
           slack_channel: string | null
@@ -243,6 +244,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           industry?: string | null
+          logo_url?: string | null
           name?: string
           postal_code?: string | null
           slack_channel?: string | null
@@ -262,6 +264,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           industry?: string | null
+          logo_url?: string | null
           name?: string
           postal_code?: string | null
           slack_channel?: string | null
