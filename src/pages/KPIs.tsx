@@ -106,7 +106,7 @@ const tooltipStyle = {
 };
 
 const KPIs = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [reports, setReports] = useState<ReportData[]>([]);
   const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
   const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});
@@ -119,23 +119,23 @@ const KPIs = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !companyId) return;
     const load = async () => {
       const [reportsRes, targetsRes, benchmarksRes] = await Promise.all([
         supabase
           .from("financial_reports")
           .select("id, report_period, extracted_data, status")
-          .eq("user_id", user.id)
+          .eq("company_id", companyId)
           .eq("status", "processed")
           .order("uploaded_at", { ascending: true }),
         supabase
           .from("kpi_targets")
           .select("kpi_key, target_value, target_label, lower_is_better")
-          .eq("user_id", user.id),
+          .eq("company_id", companyId),
         supabase
           .from("kpi_benchmarks")
           .select("kpi_key, benchmark_value, benchmark_label, source_label")
-          .eq("user_id", user.id),
+          .eq("company_id", companyId),
       ]);
 
       setReports(reportsRes.data || []);
@@ -154,7 +154,7 @@ const KPIs = () => {
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [user, companyId]);
 
   // Resolve target for a KPI key
   const getTarget = (key: string) => {
@@ -253,6 +253,7 @@ const KPIs = () => {
       const label = ev?.label?.trim() || String(numVal);
       return {
         user_id: user.id,
+        company_id: companyId,
         kpi_key: def.key,
         target_value: numVal,
         target_label: label,
@@ -313,6 +314,7 @@ const KPIs = () => {
       const source = ev?.source?.trim() || "Branchestandard";
       return {
         user_id: user.id,
+        company_id: companyId,
         kpi_key: def.key,
         benchmark_value: numVal,
         benchmark_label: label,

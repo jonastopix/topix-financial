@@ -28,7 +28,7 @@ interface LeverMilestone {
 type SaveStatus = "idle" | "saving" | "saved";
 
 const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const effectiveUserId = userId || user?.id;
   const isOwner = !userId || userId === user?.id;
 
@@ -101,7 +101,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
     const hasContent = Object.values(r).some(v => v.trim()) || Object.values(c).some(v => v) || l.some(v => v.trim());
     const status = hasContent ? "in_progress" : "not_started";
 
-    const payload = {
+    const payload: Record<string, any> = {
       user_id: effectiveUserId,
       module: config.module,
       responses: r,
@@ -109,12 +109,13 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
       levers: l,
       status,
     };
+    if (companyId) payload.company_id = companyId;
 
     if (handoutId) {
       const { error } = await supabase.from("handouts").update(payload).eq("id", handoutId);
       if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
     } else {
-      const { data, error } = await supabase.from("handouts").insert(payload).select("id").single();
+      const { data, error } = await supabase.from("handouts").insert(payload as any).select("id").single();
       if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
       else { setHandoutId(data.id); }
     }

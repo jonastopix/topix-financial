@@ -24,16 +24,18 @@ interface HandoutLeverItemProps {
 }
 
 const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, onMilestoneCreated }: HandoutLeverItemProps) => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [creating, setCreating] = useState(false);
 
   const createMilestone = async () => {
     if (!user || !handoutId || !value.trim()) return;
     setCreating(true);
     try {
+      const insertData: Record<string, any> = { user_id: user.id, title: value.trim(), source: "handout" };
+      if (companyId) insertData.company_id = companyId;
       const { data: ms, error: msErr } = await supabase
         .from("milestones")
-        .insert({ user_id: user.id, title: value.trim(), source: "handout" })
+        .insert(insertData as any)
         .select("id")
         .single();
       if (msErr) throw msErr;

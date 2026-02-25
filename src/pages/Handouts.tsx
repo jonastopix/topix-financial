@@ -16,19 +16,19 @@ interface HandoutSummary {
 }
 
 const Handouts = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
     moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !companyId) return;
     const load = async () => {
       const { data } = await supabase
         .from("handouts")
         .select("module, status, responses, checklist, levers, completed_at")
-        .eq("user_id", user.id);
+        .eq("company_id", companyId);
 
       const map = new Map((data || []).map(d => [d.module, d]));
       setSummaries(moduleOrder.map(m => {
