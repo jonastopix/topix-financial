@@ -588,7 +588,7 @@ const MemberDetail = () => {
                     </div>
                     <div className="space-y-1">
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground">Fremskridt</span>
+                        <span className="text-muted-foreground">Udfyldt</span>
                         <span className="font-medium text-foreground">{s.progress}%</span>
                       </div>
                       <Progress value={s.progress} className="h-1.5" />
