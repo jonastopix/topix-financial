@@ -106,7 +106,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
       <div className="glass-card rounded-xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
+          <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
         </div>
         <div className="flex justify-center py-6">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -120,7 +120,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
       <div className="glass-card rounded-xl p-5 h-full flex flex-col">
         <div className="flex items-center gap-2 mb-3">
           <Activity className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
+          <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
         </div>
         <div className="text-center py-4 flex-1 flex flex-col items-center justify-center">
           <Sparkles className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
@@ -136,7 +136,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
       <div className="glass-card rounded-xl p-5 animate-fade-in h-full flex flex-col">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
+          <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
@@ -183,7 +183,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-primary" />
-                AI Progress — alle anbefalinger
+                Handlingsplan — alle anbefalinger
               </DialogTitle>
             </DialogHeader>
             <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
@@ -230,7 +230,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
     <div className="glass-card rounded-xl p-6 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
         <Activity className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold text-foreground">AI Progress</h3>
+        <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
       </div>
 
       <div className="flex items-center gap-4 mb-4">
@@ -294,7 +294,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
-              AI Progress — alle anbefalinger
+              Handlingsplan — alle anbefalinger
             </DialogTitle>
           </DialogHeader>
           <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
