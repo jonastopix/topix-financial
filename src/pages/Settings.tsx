@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Building2, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import CompanyInvitations from "@/components/CompanyInvitations";
 
 const Settings = () => {
   const { user, profile } = useAuth();
@@ -100,6 +101,9 @@ const Settings = () => {
             Gem ændringer
           </button>
         </div>
+
+        {/* Team invitations */}
+        <CompanyInvitations />
 
         {/* Account info */}
         <div className="glass-card rounded-xl p-6 animate-fade-in">
