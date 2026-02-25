@@ -156,6 +156,7 @@ const Budget = () => {
   const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [editLabelValue, setEditLabelValue] = useState("");
+  const [generatingScenario, setGeneratingScenario] = useState<ScenarioKey | null>(null);
 
   // Load from DB
   useEffect(() => {
@@ -543,15 +544,107 @@ const Budget = () => {
     });
   };
 
-  const copyBaseToScenario = (target: ScenarioKey) => {
-    setScenarioData(prev => prev ? {
-      ...prev,
-      [target]: prev.base.map(r => ({ ...r, values: [...r.values] })),
-    } : prev);
-    toast.success(`Base-budget kopieret til ${SCENARIOS.find(s => s.key === target)?.label}`);
+  const copyBaseToScenario = async (target: ScenarioKey) => {
+    const copiedRows = scenarioData.base.map(r => ({ ...r, values: [...r.values] }));
+    setScenarioData(prev => prev ? { ...prev, [target]: copiedRows } : prev);
+
+    if (!user || !companyId) return;
+
+    // Persist the copied scenario to DB
+    const periodPrefix = `${year}-${target}-`;
+    const res = await (supabase.from("budget_targets").select("id, period") as any).eq("company_id", companyId);
+    const existing = (res.data || []) as { id: string; period: string }[];
+    const toDelete = existing.filter(e => e.period.startsWith(periodPrefix));
+    if (toDelete.length > 0) {
+      await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
+    }
+
+    const inserts = copiedRows.flatMap(row =>
+      row.values.map((val, monthIdx) => ({
+        user_id: user.id,
+        company_id: companyId,
+        category: row.key,
+        budget_amount: val,
+        period: `${year}-${target}-${monthIdx}`,
+      }))
+    );
+    const { error } = await supabase.from("budget_targets").insert(inserts as any);
+    if (error) {
+      toast.error("Kunne ikke gemme scenarie");
+    } else {
+      toast.success(`Base-budget kopieret og gemt til ${SCENARIOS.find(s => s.key === target)?.label}`);
+    }
   };
 
-  // ─── Grouped cost summary for overview ───
+  const generateAIScenario = async (target: ScenarioKey) => {
+    if (!scenarioData || !user || !companyId) return;
+    const baseHasData = scenarioData.base.some(r => r.values.some(v => v !== 0));
+    if (!baseHasData) {
+      toast.error("Udfyld base-budgettet først");
+      return;
+    }
+
+    setGeneratingScenario(target);
+    try {
+      const baseRows = scenarioData.base.map(r => ({
+        key: r.key,
+        label: r.label,
+        group: r.group,
+        values: r.values,
+      }));
+
+      const { data, error } = await supabase.functions.invoke("generate-budget-scenarios", {
+        body: { baseRows, scenario: target },
+      });
+
+      if (error) throw error;
+      if (!data?.categories) throw new Error("Ingen data returneret fra AI");
+
+      // Apply AI results to scenario rows
+      const updatedRows = scenarioData.base.map(r => {
+        const aiCat = data.categories.find((c: any) => c.key === r.key);
+        return {
+          ...r,
+          values: aiCat?.monthly || [...r.values],
+        };
+      });
+
+      setScenarioData(prev => prev ? { ...prev, [target]: updatedRows } : prev);
+
+      // Persist to DB
+      const periodPrefix = `${year}-${target}-`;
+      const res = await (supabase.from("budget_targets").select("id, period") as any).eq("company_id", companyId);
+      const existing = (res.data || []) as { id: string; period: string }[];
+      const toDelete = existing.filter(e => e.period.startsWith(periodPrefix));
+      if (toDelete.length > 0) {
+        await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
+      }
+
+      const inserts = updatedRows.flatMap(row =>
+        row.values.map((val, monthIdx) => ({
+          user_id: user.id,
+          company_id: companyId,
+          category: row.key,
+          budget_amount: val,
+          period: `${year}-${target}-${monthIdx}`,
+        }))
+      );
+      await supabase.from("budget_targets").insert(inserts as any);
+
+      const label = SCENARIOS.find(s => s.key === target)?.label;
+      toast.success(`AI har genereret ${label}-scenarie`, {
+        description: data.reasoning || undefined,
+        duration: 6000,
+      });
+      setActiveScenario(target);
+    } catch (err: any) {
+      console.error("AI scenario error:", err);
+      toast.error("Kunne ikke generere scenarie", { description: err.message });
+    } finally {
+      setGeneratingScenario(null);
+    }
+  };
+
   const costByGroup = GROUP_ORDER.filter(g => g !== "indtaegter").map(g => {
     const groupRows = rows.filter(r => r.group === g);
     const total = groupRows.reduce((sum, row) => sum + Math.abs(row.values.reduce((s, v) => s + v, 0)), 0);
@@ -702,9 +795,28 @@ const Budget = () => {
               </div>
               <div className="flex items-center gap-2">
                 {activeScenario !== "base" && (
-                  <button onClick={() => copyBaseToScenario(activeScenario)} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors">
-                    <Copy className="h-3.5 w-3.5" />Kopiér base
-                  </button>
+                  <>
+                    <button
+                      onClick={() => generateAIScenario(activeScenario)}
+                      disabled={!!generatingScenario}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                    >
+                      {generatingScenario === activeScenario ? (
+                        <>
+                          <div className="h-3.5 w-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          Genererer...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          AI-generér
+                        </>
+                      )}
+                    </button>
+                    <button onClick={() => copyBaseToScenario(activeScenario)} className="inline-flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors">
+                      <Copy className="h-3.5 w-3.5" />Kopiér base
+                    </button>
+                  </>
                 )}
                 {!editing ? (
                   <button onClick={startEditing} className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors">
