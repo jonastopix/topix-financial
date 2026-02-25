@@ -7,6 +7,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -125,6 +128,7 @@ const MilestoneCard = ({
   onQuickProgress: (p: number) => void;
   onToggleComplete: () => void;
 }) => {
+  const [detailOpen, setDetailOpen] = useState(false);
   const Icon = config.icon;
 
   if (isEditing) {
@@ -190,64 +194,115 @@ const MilestoneCard = ({
   }
 
   return (
-    <div className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden">
-      <div className="p-3">
-        <div className="flex items-center gap-3">
-          <div className={`p-1.5 rounded-md ${config.bg} cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all`} onClick={onToggleComplete} title={ms.status === "done" ? "Marker som aktiv" : "Marker som færdig"}>
-            <Icon className={`h-4 w-4 ${config.className}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className={cn("text-sm font-medium truncate", ms.status === "done" ? "text-muted-foreground line-through" : "text-foreground")}>{ms.title}</p>
-            <p className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <CategoryBadge category={ms.category} />
-            {ms.source === "ai" && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                <Sparkles className="h-2.5 w-2.5" /> AI
-              </span>
-            )}
-            <button onClick={onStartEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive" title="Slet">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Slet milestone?</AlertDialogTitle>
-                  <AlertDialogDescription>Er du sikker på, at du vil slette "{ms.title}"? Denne handling kan ikke fortrydes.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annuller</AlertDialogCancel>
-                  <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Slet</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-        {ms.baseline ? (
-          <div className="mt-2.5">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-muted-foreground">{ms.baseline}</span>
-              <span className="text-[10px] font-medium text-foreground">{ms.title}</span>
+    <>
+      <div
+        className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden cursor-pointer"
+        onClick={() => setDetailOpen(true)}
+      >
+        <div className="p-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-1.5 rounded-md ${config.bg} cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all`}
+              onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+              title={ms.status === "done" ? "Marker som aktiv" : "Marker som færdig"}
+            >
+              <Icon className={`h-4 w-4 ${config.className}`} />
             </div>
+            <div className="flex-1 min-w-0">
+              <p className={cn("text-sm font-medium truncate", ms.status === "done" ? "text-muted-foreground line-through" : "text-foreground")}>{ms.title}</p>
+              <p className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</p>
+            </div>
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <CategoryBadge category={ms.category} />
+              {ms.source === "ai" && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                  <Sparkles className="h-2.5 w-2.5" /> AI
+                </span>
+              )}
+              <button onClick={onStartEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive" title="Slet">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Slet milestone?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Er du sikker på, at du vil slette denne milestone? Denne handling kan ikke fortrydes.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuller</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Slet</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+          <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
+            {ms.baseline && (
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground">{ms.baseline}</span>
+                <span className="text-[10px] font-medium text-foreground truncate ml-2">{ms.title}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2.5">
               <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
               <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
             </div>
           </div>
-        ) : (
-          <div className="mt-2.5 flex items-center gap-2.5">
-            <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
-            <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-left leading-snug">
+              <div className={`p-1.5 rounded-md ${config.bg} flex-shrink-0`}>
+                <Icon className={`h-4 w-4 ${config.className}`} />
+              </div>
+              <span>{ms.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <CategoryBadge category={ms.category} />
+              {ms.source === "ai" && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                  <Sparkles className="h-2.5 w-2.5" /> AI
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</span>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground">Fremgang</span>
+                <span className={`text-sm font-semibold ${config.className}`}>{ms.progress}%</span>
+              </div>
+              <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+              </div>
+            </div>
+            {ms.baseline && (
+              <div className="rounded-lg bg-secondary/50 p-3">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Udgangspunkt / baseline</p>
+                <p className="text-sm text-foreground">{ms.baseline}</p>
+              </div>
+            )}
+            {ms.description && (
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Beskrivelse</p>
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{ms.description}</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

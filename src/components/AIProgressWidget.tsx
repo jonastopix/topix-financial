@@ -89,9 +89,10 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
     if (!user || !companyId) return;
     setCreatingMilestone(item.id);
     const reportId = item.id.split("-").slice(0, -1).join("-");
+    const fullDescription = [item.recommendation, item.aiComment].filter(Boolean).join("\n\n");
     const { error } = await supabase.from("milestones").insert({
       title: item.recommendation.slice(0, 200),
-      description: item.aiComment || null,
+      description: fullDescription || null,
       category: "other",
       company_id: companyId,
       user_id: user.id,
