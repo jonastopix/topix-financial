@@ -46,7 +46,7 @@ const HandoutCard = ({ config, status, progress, completedAt, onClick }: Handout
       <p className="text-xs text-muted-foreground mb-4 line-clamp-2">{config.subtitle}</p>
       <div className="space-y-1.5">
         <div className="flex justify-between text-[11px]">
-          <span className="text-muted-foreground">Fremskridt</span>
+          <span className="text-muted-foreground">Udfyldt</span>
           <span className="font-medium text-foreground">{Math.round(progress)}%</span>
         </div>
         <Progress value={progress} className="h-1.5" />

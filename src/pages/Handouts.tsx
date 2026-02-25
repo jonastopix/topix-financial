@@ -74,7 +74,7 @@ const Handouts = () => {
               Handouts
             </h1>
             <p className="text-sm text-muted-foreground">
-              Udfyld dine handouts for hvert modul · {totalProgress}% samlet fremskridt
+              Udfyld dine handouts for hvert modul · {totalProgress}% samlet udfyldt
             </p>
           </div>
         </div>
