@@ -129,7 +129,18 @@ const MilestoneCard = ({
   onToggleComplete: () => void;
 }) => {
   const [detailOpen, setDetailOpen] = useState(false);
+  const [justCompleted, setJustCompleted] = useState(false);
+  const prevStatusRef = useRef(ms.status);
   const Icon = config.icon;
+
+  useEffect(() => {
+    if (prevStatusRef.current !== "done" && ms.status === "done") {
+      setJustCompleted(true);
+      const t = setTimeout(() => setJustCompleted(false), 700);
+      return () => clearTimeout(t);
+    }
+    prevStatusRef.current = ms.status;
+  }, [ms.status]);
 
   if (isEditing) {
     return (
@@ -206,7 +217,7 @@ const MilestoneCard = ({
               onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
               title={ms.status === "done" ? "Marker som aktiv" : "Marker som færdig"}
             >
-              <Icon className={`h-4 w-4 ${config.className}`} />
+              <Icon className={cn("h-4 w-4", config.className, justCompleted && "animate-checkmark-pop")} />
             </div>
             <div className="flex-1 min-w-0">
               <p className={cn("text-sm font-medium truncate", ms.status === "done" ? "text-muted-foreground line-through" : "text-foreground")}>{ms.title}</p>
