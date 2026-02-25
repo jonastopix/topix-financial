@@ -121,9 +121,17 @@ const Dashboard = () => {
         };
       }
 
+      // ── Sparkline data (last 6 months) ──
+      const last6 = sorted.slice(-6);
+      const sparklines = {
+        revenue: last6.map(r => r.kf.omsaetning ?? 0),
+        expenses: last6.map(r => totalExpenses(r.kf)),
+        result: last6.map(r => r.kf.resultat_foer_skat ?? 0),
+        bank: last6.filter(r => r.kf.bank_balance != null).map(r => r.kf.bank_balance),
+      };
+
       // ── Budget vs Actual ──
       const budgets = (budgetRes.data || []) as { category: string; period: string; budget_amount: number }[];
-      // Index budgets by "YYYY-MM" → category → amount
       const budgetByMonthCat = new Map<string, Map<string, number>>();
       for (const b of budgets) {
         if (b.category === "__template__") continue;
@@ -155,9 +163,7 @@ const Dashboard = () => {
         budgetData.monthRevenue = mb.revenue;
         budgetData.monthExpenses = mb.expenses;
 
-        // YTD budget: sum all months in same year up to & including latest
         const currentYearKeys = sorted.filter(r => r.key.startsWith(latestYear)).map(r => r.key);
-        // Also include budget months that exist even without reports
         const allBudgetKeysInYear = [...budgetByMonthCat.keys()].filter(k => k.startsWith(latestYear) && k <= latestKey);
         const ytdKeys = [...new Set([...currentYearKeys, ...allBudgetKeysInYear])].sort();
         let ytdBudgetRev = 0, ytdBudgetExp = 0, hasYtd = false;
@@ -172,7 +178,7 @@ const Dashboard = () => {
         }
       }
 
-      return { kpiData, budgetData, conversationId };
+      return { kpiData, budgetData, sparklines, conversationId };
     },
     enabled: !!user && !!companyId,
     staleTime: 5 * 60_000,
@@ -187,6 +193,7 @@ const Dashboard = () => {
   const budgetData = dashboardData?.budgetData ?? {
     monthRevenue: null, monthExpenses: null, ytdRevenue: null, ytdExpenses: null,
   };
+  const spark = dashboardData?.sparklines ?? { revenue: [], expenses: [], result: [], bank: [] };
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -243,6 +250,7 @@ const Dashboard = () => {
             secondaryTrend={kpiData.revenueYoY != null ? (kpiData.revenueYoY >= 0 ? "up" : "down") : "neutral"}
             budgetLabel={monthRevBudget?.label}
             budgetFavorable={monthRevBudget?.favorable}
+            sparkline={spark.revenue.length >= 2 ? spark.revenue : undefined}
             subtitle={!revenueChange && kpiData.period ? `fra ${kpiData.period}` : kpiData.period ? undefined : "Upload rapport"}
             icon={<DollarSign className="h-4 w-4" />}
             accentColor="emerald"
@@ -254,6 +262,7 @@ const Dashboard = () => {
             secondaryTrend={kpiData.expensesYoY != null ? (kpiData.expensesYoY <= 0 ? "up" : "down") : "neutral"}
             budgetLabel={monthExpBudget?.label}
             budgetFavorable={monthExpBudget?.favorable}
+            sparkline={spark.expenses.length >= 2 ? spark.expenses : undefined}
             subtitle="samlede driftsomk."
             icon={<Flame className="h-4 w-4" />}
             accentColor="amber"
@@ -266,6 +275,7 @@ const Dashboard = () => {
             secondaryTrend={kpiData.resultYoY != null ? (kpiData.resultYoY >= 0 ? "up" : "down") : "neutral"}
             budgetLabel={monthResultBudget?.label}
             budgetFavorable={monthResultBudget?.favorable}
+            sparkline={spark.result.length >= 2 ? spark.result : undefined}
             subtitle="før skat"
             icon={<TrendingUp className="h-4 w-4" />}
             accentColor="blue"
@@ -273,6 +283,7 @@ const Dashboard = () => {
           <KPICard
             title="Bank"
             value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
+            sparkline={spark.bank.length >= 2 ? spark.bank : undefined}
             subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
             icon={<Wallet className="h-4 w-4" />}
             accentColor="blue"
