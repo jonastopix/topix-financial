@@ -16,12 +16,16 @@ import {
   UserCog,
   Eye,
   EyeOff,
+  Building2,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useQuery } from "@tanstack/react-query";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -44,12 +48,24 @@ const AppSidebar = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
-  const { user, profile, signOut, isAdvisor, companyName } = useAuth();
+  const { user, profile, signOut, isAdvisor, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
   const { branding } = useAppConfig();
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+  const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+
+  // Fetch all companies for advisor picker
+  const { data: allCompanies } = useQuery({
+    queryKey: ["all-companies-picker"],
+    queryFn: async () => {
+      const { data } = await supabase.from("companies").select("id, name").order("name");
+      return data || [];
+    },
+    enabled: isAdvisor,
+    staleTime: 60_000,
+  });
 
   // Fetch company logo
   useEffect(() => {
@@ -211,22 +227,73 @@ const AppSidebar = () => {
 
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
           {isAdvisor && (
-            <button
-              onClick={toggleViewMode}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 bg-secondary/50 hover:bg-secondary text-foreground"
-            >
-              {viewingAsMember ? (
-                <>
-                  <EyeOff className="h-3.5 w-3.5 text-primary" />
-                  <span>Afslut medlemsvisning</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>Vis som medlem</span>
-                </>
-              )}
-            </button>
+            <div className="space-y-2">
+              {/* Company picker */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowCompanyPicker((v) => !v)}
+                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    isCompanyOverride
+                      ? "bg-primary/15 text-primary border border-primary/20"
+                      : "bg-secondary/50 hover:bg-secondary text-foreground"
+                  }`}
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate flex-1 text-left">
+                    {isCompanyOverride ? companyName : "Vis som virksomhed"}
+                  </span>
+                  <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showCompanyPicker ? "rotate-180" : ""}`} />
+                </button>
+
+                {showCompanyPicker && (
+                  <div className="absolute bottom-full left-0 right-0 mb-1 bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto z-50">
+                    {isCompanyOverride && (
+                      <button
+                        onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
+                      >
+                        <EyeOff className="h-3.5 w-3.5" />
+                        Tilbage til {ownCompanyName || "min virksomhed"}
+                      </button>
+                    )}
+                    {allCompanies?.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setCompanyOverride(c.id, c.name);
+                          setShowCompanyPicker(false);
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                      >
+                        <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="truncate flex-1 text-left">{c.name}</span>
+                        {companyName === c.name && isCompanyOverride && (
+                          <Check className="h-3 w-3 text-primary shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* View as member toggle */}
+              <button
+                onClick={toggleViewMode}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 bg-secondary/50 hover:bg-secondary text-foreground"
+              >
+                {viewingAsMember ? (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5 text-primary" />
+                    <span>Afslut medlemsvisning</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Vis som medlem</span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center overflow-hidden shrink-0">

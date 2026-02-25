@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -10,6 +10,13 @@ interface AuthContext {
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   companyId: string | null;
   companyName: string | null;
+  /** The advisor's own company (unaffected by override) */
+  ownCompanyId: string | null;
+  ownCompanyName: string | null;
+  /** True when viewing a different company than the advisor's own */
+  isCompanyOverride: boolean;
+  setCompanyOverride: (id: string, name: string) => void;
+  clearCompanyOverride: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -21,6 +28,11 @@ const AuthContext = createContext<AuthContext>({
   profile: null,
   companyId: null,
   companyName: null,
+  ownCompanyId: null,
+  ownCompanyName: null,
+  isCompanyOverride: false,
+  setCompanyOverride: () => {},
+  clearCompanyOverride: () => {},
   signOut: async () => {},
 });
 
@@ -32,8 +44,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
+  const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
+
+  // Override state
+  const [overrideCompanyId, setOverrideCompanyId] = useState<string | null>(null);
+  const [overrideCompanyName, setOverrideCompanyName] = useState<string | null>(null);
+
+  const companyId = overrideCompanyId ?? ownCompanyId;
+  const companyName = overrideCompanyName ?? ownCompanyName;
+  const isCompanyOverride = overrideCompanyId != null;
+
+  const setCompanyOverride = useCallback((id: string, name: string) => {
+    setOverrideCompanyId(id);
+    setOverrideCompanyName(name);
+  }, []);
+
+  const clearCompanyOverride = useCallback(() => {
+    setOverrideCompanyId(null);
+    setOverrideCompanyName(null);
+  }, []);
 
   const fetchUserData = async (userId: string) => {
     const [rolesRes, profileRes, companyRes] = await Promise.all([
@@ -51,11 +81,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const cm = companyRes.data as any;
     if (cm?.company_id) {
-      setCompanyId(cm.company_id);
-      setCompanyName(cm.companies?.name || null);
+      setOwnCompanyId(cm.company_id);
+      setOwnCompanyName(cm.companies?.name || null);
     } else {
-      setCompanyId(null);
-      setCompanyName(null);
+      setOwnCompanyId(null);
+      setOwnCompanyName(null);
     }
   };
 
@@ -66,7 +96,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Use setTimeout to avoid Supabase auth deadlock, but wait for data before setting loading=false
           setTimeout(async () => {
             await fetchUserData(session.user.id);
             setLoading(false);
@@ -74,8 +103,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
           setIsAdvisor(false);
           setProfile(null);
-          setCompanyId(null);
-          setCompanyName(null);
+          setOwnCompanyId(null);
+          setOwnCompanyName(null);
+          setOverrideCompanyId(null);
+          setOverrideCompanyName(null);
           setLoading(false);
         }
       }
@@ -95,7 +126,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdvisor, profile, companyId, companyName, signOut }}>
+    <AuthContext.Provider value={{
+      user, session, loading, isAdvisor, profile,
+      companyId, companyName,
+      ownCompanyId, ownCompanyName,
+      isCompanyOverride, setCompanyOverride, clearCompanyOverride,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );
