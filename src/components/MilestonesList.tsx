@@ -3,23 +3,18 @@ import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { postActivityMessage } from "@/lib/chatActivity";
+import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
 
 export interface Milestone {
   id: string;
@@ -30,6 +25,7 @@ export interface Milestone {
   source: string;
   source_report: string | null;
   progress: number;
+  category: MilestoneCategory;
 }
 
 const statusConfig = {
@@ -49,26 +45,29 @@ function formatDeadline(d: Date | null) {
   return format(d, "d. MMM yyyy", { locale: da });
 }
 
+const CategoryBadge = ({ category }: { category: MilestoneCategory }) => {
+  const cfg = MILESTONE_CATEGORIES[category] || MILESTONE_CATEGORIES.other;
+  const Icon = cfg.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full", cfg.badgeClass)}>
+      <Icon className="h-2.5 w-2.5" />
+      {cfg.label}
+    </span>
+  );
+};
+
 interface Props {
   userId?: string | null;
   companyId?: string | null;
   conversationId?: string | null;
+  refreshKey?: number;
 }
 
 const MilestoneCard = ({
-  ms,
-  config,
-  isEditing,
-  editTitle,
-  editDeadline,
-  editProgress,
-  setEditTitle,
-  setEditDeadline,
-  setEditProgress,
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onDelete,
+  ms, config, isEditing,
+  editTitle, editDeadline, editProgress, editCategory,
+  setEditTitle, setEditDeadline, setEditProgress, setEditCategory,
+  onStartEdit, onSaveEdit, onCancelEdit, onDelete,
 }: {
   ms: Milestone;
   config: (typeof statusConfig)["done"];
@@ -76,9 +75,11 @@ const MilestoneCard = ({
   editTitle: string;
   editDeadline: Date | undefined;
   editProgress: number;
+  editCategory: MilestoneCategory;
   setEditTitle: (v: string) => void;
   setEditDeadline: (v: Date | undefined) => void;
   setEditProgress: (v: number) => void;
+  setEditCategory: (v: MilestoneCategory) => void;
   onStartEdit: () => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -95,27 +96,25 @@ const MilestoneCard = ({
             onChange={(e) => setEditTitle(e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
+          <Select value={editCategory} onValueChange={(v) => setEditCategory(v as MilestoneCategory)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Popover>
             <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !editDeadline && "text-muted-foreground"
-                )}
-              >
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editDeadline && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {editDeadline ? format(editDeadline, "d. MMM yyyy", { locale: da }) : "Vælg deadline"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={editDeadline}
-                onSelect={setEditDeadline}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
+              <Calendar mode="single" selected={editDeadline} onSelect={setEditDeadline} initialFocus className={cn("p-3 pointer-events-auto")} />
             </PopoverContent>
           </Popover>
           <div>
@@ -123,31 +122,16 @@ const MilestoneCard = ({
               <label className="text-xs text-muted-foreground">Fremgang</label>
               <span className="text-xs font-semibold text-foreground">{editProgress}%</span>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={editProgress}
-              onChange={(e) => setEditProgress(Number(e.target.value))}
-              className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
-            />
+            <input type="range" min={0} max={100} value={editProgress} onChange={(e) => setEditProgress(Number(e.target.value))} className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary" />
             <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-              <span>Ikke startet</span>
-              <span>I gang</span>
-              <span>Færdig</span>
+              <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={onSaveEdit}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-            >
+            <button onClick={onSaveEdit} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
               <Check className="h-3 w-3" /> Gem
             </button>
-            <button
-              onClick={onCancelEdit}
-              className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors"
-            >
+            <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
               Annuller
             </button>
           </div>
@@ -168,10 +152,10 @@ const MilestoneCard = ({
             <p className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</p>
           </div>
           <div className="flex items-center gap-2">
+            <CategoryBadge category={ms.category} />
             {ms.source === "ai" && (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                <Sparkles className="h-2.5 w-2.5" />
-                AI
+                <Sparkles className="h-2.5 w-2.5" /> AI
               </span>
             )}
             <button onClick={onStartEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
@@ -186,58 +170,46 @@ const MilestoneCard = ({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Slet milestone?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Er du sikker på, at du vil slette "{ms.title}"? Denne handling kan ikke fortrydes.
-                  </AlertDialogDescription>
+                  <AlertDialogDescription>Er du sikker på, at du vil slette "{ms.title}"? Denne handling kan ikke fortrydes.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annuller</AlertDialogCancel>
-                  <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Slet
-                  </AlertDialogAction>
+                  <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Slet</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           </div>
         </div>
-        {/* Progress bar */}
         <div className="mt-2.5 flex items-center gap-2.5">
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${config.barColor}`}
-              style={{ width: `${ms.progress}%` }}
-            />
+            <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
           </div>
-          <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>
-            {ms.progress}%
-          </span>
+          <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
         </div>
       </div>
     </div>
   );
 };
 
-const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
+const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0 }: Props) => {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDeadline, setEditDeadline] = useState<Date | undefined>(undefined);
   const [editProgress, setEditProgress] = useState(0);
+  const [editCategory, setEditCategory] = useState<MilestoneCategory>("other");
 
   useEffect(() => {
     if (!userId && !companyId) return;
     const fetchMilestones = async () => {
       setLoading(true);
-      let query = supabase
-        .from("milestones")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("milestones").select("*").order("created_at", { ascending: false });
       if (companyId) query = query.eq("company_id", companyId);
       else if (userId) query = query.eq("user_id", userId);
       const { data } = await query;
 
-      const mapped: Milestone[] = (data || []).map((m) => ({
+      const mapped: Milestone[] = (data || []).map((m: any) => ({
         id: m.id,
         title: m.title,
         deadline: m.deadline ? new Date(m.deadline) : null,
@@ -246,12 +218,13 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
         source: m.source,
         source_report: m.source_report,
         progress: m.progress,
+        category: (m.category || "other") as MilestoneCategory,
       }));
       setMilestones(mapped);
       setLoading(false);
     };
     fetchMilestones();
-  }, [userId]);
+  }, [userId, companyId, refreshKey]);
 
   const activeMilestones = milestones.filter((m) => m.status !== "done");
   const doneMilestones = milestones.filter((m) => m.status === "done");
@@ -261,6 +234,7 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
     setEditTitle(ms.title);
     setEditDeadline(ms.deadline || undefined);
     setEditProgress(ms.progress);
+    setEditCategory(ms.category);
   };
 
   const saveEdit = async (id: string) => {
@@ -269,41 +243,24 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
     const wasNotDone = oldMs && oldMs.progress < 100;
     const newStatus = deriveStatus(progress);
 
-    // Update in DB
-    const { error } = await supabase
-      .from("milestones")
-      .update({
-        title: editTitle,
-        deadline: editDeadline ? editDeadline.toISOString().split("T")[0] : null,
-        progress,
-        status: newStatus === "done" ? "completed" : newStatus === "in-progress" ? "active" : "active",
-      })
-      .eq("id", id);
+    const { error } = await supabase.from("milestones").update({
+      title: editTitle,
+      deadline: editDeadline ? editDeadline.toISOString().split("T")[0] : null,
+      progress,
+      category: editCategory,
+      status: newStatus === "done" ? "completed" : "active",
+    }).eq("id", id);
 
-    if (error) {
-      toast.error("Kunne ikke gemme ændringer");
-      return;
-    }
+    if (error) { toast.error("Kunne ikke gemme ændringer"); return; }
 
-    setMilestones((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? { ...m, title: editTitle, deadline: editDeadline || null, progress, status: newStatus }
-          : m
-      )
-    );
+    setMilestones((prev) => prev.map((m) =>
+      m.id === id ? { ...m, title: editTitle, deadline: editDeadline || null, progress, status: newStatus, category: editCategory } : m
+    ));
     setEditingId(null);
     toast.success("Milestone opdateret");
 
-    // Post activity when completed
     if (wasNotDone && progress >= 100 && conversationId && userId) {
-      postActivityMessage({
-        conversationId,
-        senderId: userId,
-        content: `🎯 Milestone gennemført: **${editTitle}**`,
-        contextType: "milestone",
-        contextMeta: { title: editTitle },
-      });
+      postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${editTitle}**`, contextType: "milestone", contextMeta: { title: editTitle } });
     }
   };
 
@@ -311,36 +268,23 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
 
   const deleteMilestone = async (id: string, title: string) => {
     const { error } = await supabase.from("milestones").delete().eq("id", id);
-    if (error) {
-      toast.error("Kunne ikke slette milestone");
-      return;
-    }
+    if (error) { toast.error("Kunne ikke slette milestone"); return; }
     setMilestones((prev) => prev.filter((m) => m.id !== id));
     toast.success(`"${title}" er slettet`);
   };
 
-  const totalProgress = milestones.length > 0
-    ? Math.round(milestones.reduce((sum, m) => sum + m.progress, 0) / milestones.length)
-    : 0;
+  const totalProgress = milestones.length > 0 ? Math.round(milestones.reduce((sum, m) => sum + m.progress, 0) / milestones.length) : 0;
 
   const renderList = (items: Milestone[]) =>
     items.map((ms) => {
       const config = statusConfig[ms.status];
       return (
         <MilestoneCard
-          key={ms.id}
-          ms={ms}
-          config={config}
+          key={ms.id} ms={ms} config={config}
           isEditing={editingId === ms.id}
-          editTitle={editTitle}
-          editDeadline={editDeadline}
-          editProgress={editProgress}
-          setEditTitle={setEditTitle}
-          setEditDeadline={setEditDeadline}
-          setEditProgress={setEditProgress}
-          onStartEdit={() => startEdit(ms)}
-          onSaveEdit={() => saveEdit(ms.id)}
-          onCancelEdit={cancelEdit}
+          editTitle={editTitle} editDeadline={editDeadline} editProgress={editProgress} editCategory={editCategory}
+          setEditTitle={setEditTitle} setEditDeadline={setEditDeadline} setEditProgress={setEditProgress} setEditCategory={setEditCategory}
+          onStartEdit={() => startEdit(ms)} onSaveEdit={() => saveEdit(ms.id)} onCancelEdit={cancelEdit}
           onDelete={() => deleteMilestone(ms.id, ms.title)}
         />
       );
@@ -356,7 +300,6 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
 
   return (
     <div className="space-y-6">
-      {/* Active milestones */}
       <div className="glass-card rounded-xl p-5 animate-fade-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-semibold text-foreground">Aktive milestones</h3>
@@ -369,7 +312,6 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
         </div>
       </div>
 
-      {/* Done milestones */}
       {doneMilestones.length > 0 && (
         <div className="glass-card rounded-xl p-5 animate-fade-in">
           <div className="flex items-center gap-2 mb-4">
@@ -377,9 +319,7 @@ const MilestonesList = ({ userId, companyId, conversationId }: Props) => {
             <h3 className="font-display font-semibold text-foreground">Gennemført</h3>
             <span className="text-xs text-muted-foreground ml-auto">{doneMilestones.length} milestone{doneMilestones.length !== 1 ? "s" : ""}</span>
           </div>
-          <div className="space-y-3">
-            {renderList(doneMilestones)}
-          </div>
+          <div className="space-y-3">{renderList(doneMilestones)}</div>
         </div>
       )}
     </div>
