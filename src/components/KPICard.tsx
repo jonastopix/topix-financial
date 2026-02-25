@@ -6,6 +6,8 @@ interface KPICardProps {
   value: string;
   change?: string;
   trend?: "up" | "down" | "neutral";
+  secondaryChange?: string;
+  secondaryTrend?: "up" | "down" | "neutral";
   subtitle?: string;
   icon?: ReactNode;
   accentColor?: "emerald" | "amber" | "blue" | "rose";
@@ -38,8 +40,29 @@ const accentMap = {
   },
 };
 
-const KPICard = ({ title, value, change, trend = "neutral", subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
+const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
   const accent = accentMap[accentColor];
+
+  const ChangeBadge = ({ label, dir }: { label: string; dir: "up" | "down" | "neutral" }) => (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+        dir === "up"
+          ? "bg-primary/10 text-primary"
+          : dir === "down"
+          ? "bg-destructive/10 text-destructive"
+          : "bg-muted text-muted-foreground"
+      }`}
+    >
+      {dir === "up" ? (
+        <TrendingUp className="h-3 w-3" />
+      ) : dir === "down" ? (
+        <TrendingDown className="h-3 w-3" />
+      ) : (
+        <Minus className="h-3 w-3" />
+      )}
+      {label}
+    </span>
+  );
 
   return (
     <div className={`glass-card rounded-xl p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow}`}>
@@ -52,27 +75,9 @@ const KPICard = ({ title, value, change, trend = "neutral", subtitle, icon, acce
         )}
       </div>
       <p className="text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
-      <div className="flex items-center gap-2 mt-3">
-        {change && (
-          <span
-            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-              trend === "up"
-                ? "bg-primary/10 text-primary"
-                : trend === "down"
-                ? "bg-destructive/10 text-destructive"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {trend === "up" ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : trend === "down" ? (
-              <TrendingDown className="h-3 w-3" />
-            ) : (
-              <Minus className="h-3 w-3" />
-            )}
-            {change}
-          </span>
-        )}
+      <div className="flex flex-wrap items-center gap-2 mt-3">
+        {change && <ChangeBadge label={change} dir={trend} />}
+        {secondaryChange && <ChangeBadge label={secondaryChange} dir={secondaryTrend} />}
         {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
       </div>
     </div>
