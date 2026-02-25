@@ -160,12 +160,20 @@ const Members = () => {
       membersByCompany.set(cm.company_id, arr);
     });
 
-    // Reports by company + extract reported revenue
+    // Reports by company: count unique periods (not individual files)
     const reportsByCompany = new Map<string, number>();
+    const reportFilesByCompany = new Map<string, number>();
     const reportedRevenueByCompany = new Map<string, number>();
+    const periodsByCompany = new Map<string, Set<string>>();
     allReports.forEach((r: any) => {
       if (r.company_id) {
-        reportsByCompany.set(r.company_id, (reportsByCompany.get(r.company_id) || 0) + 1);
+        reportFilesByCompany.set(r.company_id, (reportFilesByCompany.get(r.company_id) || 0) + 1);
+        // Track unique periods
+        if (r.report_period) {
+          const periods = periodsByCompany.get(r.company_id) || new Set<string>();
+          periods.add(r.report_period);
+          periodsByCompany.set(r.company_id, periods);
+        }
         // Try to extract revenue from extracted_data
         const data = r.extracted_data as any;
         if (data?.revenue || data?.omsætning || data?.nettoomsætning) {
@@ -176,6 +184,11 @@ const Members = () => {
           }
         }
       }
+    });
+
+    // Use unique periods as the report count
+    periodsByCompany.forEach((periods, companyId) => {
+      reportsByCompany.set(companyId, periods.size);
     });
 
     // Conversations by company
@@ -574,7 +587,7 @@ const Members = () => {
             Omsætning <ArrowUpDown className="h-3 w-3" />
           </button>
           <button onClick={() => toggleSort("reportCount")} className="col-span-1 flex items-center gap-1 hover:text-foreground transition-colors">
-            Rapporter <ArrowUpDown className="h-3 w-3" />
+            Perioder <ArrowUpDown className="h-3 w-3" />
           </button>
           <div className="col-span-1">Chat</div>
         </div>
@@ -833,7 +846,7 @@ const Members = () => {
                               <FileText className="h-4 w-4 text-primary" />
                               <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
                             </div>
-                            <p className="text-sm font-medium text-foreground">{c.reportCount} rapporter</p>
+                            <p className="text-sm font-medium text-foreground">{c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret</p>
                             {c.unreadCount > 0 && (
                               <p className="text-xs text-chart-warning font-semibold mt-1">{c.unreadCount} ubesvarede beskeder</p>
                             )}
