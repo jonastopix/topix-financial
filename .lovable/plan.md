@@ -1,58 +1,62 @@
 
 
-# Fix budget periodeformater for NordService ApS
+# Tilfoej manuel milestone-oprettelse med kategori-type
 
 ## Problem
-
-Budget-tabellen for NordService bruger periodeformatet "Januar 2026", "Februar 2026" osv., men koden i `Budget.tsx` (linje 252-256) forventer formatet `year-scenario-monthIdx`, f.eks. `2026-base-0` for januar. Derfor parses ingen budget-vaerdier, og Maanedsoversigt viser "0k" overalt.
-
-Der mangler ogsaa en `__template__` marker (periodevardien "konsulent_service" tyder paa et forsog, men den er gemt forkert).
+Medlemmer kan i dag ikke oprette milestones manuelt. Der findes kun redigering og sletning af eksisterende milestones (typisk AI-genererede). Der mangler ogsaa en kategorisering, saa man kan skelne mellem forskellige typer maal.
 
 ## Loesning
 
-Opdater alle 132 budget_targets-raekker (11 kategorier x 12 maaneder) for NordService saa periodevardien aendres fra dansk maanedsformat til det korrekte `year-scenario-monthIdx` format:
+### Trin 1: Database -- tilfoej `category` kolonne
+Tilfoej en ny kolonne `category` til `milestones`-tabellen med en default-vaerdi saa eksisterende data ikke bryder:
 
-| Nuvaerende periode | Ny periode |
-|---|---|
-| Januar 2026 | 2026-base-0 |
-| Februar 2026 | 2026-base-1 |
-| Marts 2026 | 2026-base-2 |
-| April 2026 | 2026-base-3 |
-| Maj 2026 | 2026-base-4 |
-| Juni 2026 | 2026-base-5 |
-| Juli 2026 | 2026-base-6 |
-| August 2026 | 2026-base-7 |
-| September 2026 | 2026-base-8 |
-| Oktober 2026 | 2026-base-9 |
-| November 2026 | 2026-base-10 |
-| December 2026 | 2026-base-11 |
+```sql
+ALTER TABLE milestones ADD COLUMN category text NOT NULL DEFAULT 'other';
+```
 
-Derudover rettes `__template__` markeren saa `period = 'konsulent_service'` og `category = '__template__'`.
+### Trin 2: Opret milestone-formular med kategori-vaelger
+
+Tilfoej en "Opret milestone"-knap i sidehovedet paa Milestones-siden og en dialog/formular med:
+
+- **Titel** (tekstfelt, paakraevet)
+- **Beskrivelse** (textarea, valgfrit)
+- **Kategori** (dropdown med foelgende muligheder):
+  - Vaekst (revenue growth)
+  - Profit (profitability)
+  - Timer (hours/workload)
+  - Medarbejdere (team/hiring)
+  - Daekningsbidrag (contribution margin)
+  - Andet (custom)
+- **Deadline** (kalendervælger, valgfrit)
+
+### Trin 3: Vis kategori paa milestone-kort
+
+Vis kategorien som et farvekodet badge paa hvert milestone-kort, saa man hurtigt kan se typen. Hver kategori faar sin egen farve og ikon.
+
+### Trin 4: Tilfoej kategori til redigering
+
+Udvid den eksisterende inline-redigering saa kategorien ogsaa kan aendres.
 
 ## Teknisk implementering
 
-### Trin 1: Opdater periodeformater via data-update
+### Filer der aendres:
+1. **Database migration** -- tilfoej `category` kolonne
+2. **`src/pages/Milestones.tsx`** -- tilfoej "Opret milestone"-knap og Dialog-komponent
+3. **`src/components/MilestonesList.tsx`** -- udvid Milestone-interface med `category`, vis badge, tilfoej kategori til redigering
 
-Koer 12 UPDATE-statements der omdoeber perioderne:
-
-```sql
-UPDATE budget_targets SET period = '2026-base-0' WHERE company_id = 'a1b2c3d4-...' AND period = 'Januar 2026';
-UPDATE budget_targets SET period = '2026-base-1' WHERE company_id = 'a1b2c3d4-...' AND period = 'Februar 2026';
--- ... osv for alle 12 maaneder
+### Kategori-konfiguration:
+```text
+vaekst     -> Groen badge,  TrendingUp ikon
+profit     -> Blaa badge,   Coins ikon
+timer      -> Gul badge,    Clock ikon
+medarbejdere -> Lilla badge, Users ikon
+db         -> Orange badge,  BarChart ikon
+other      -> Graa badge,   Target ikon
 ```
 
-### Trin 2: Ret template-marker
+### Oprettelses-flow:
+1. Bruger klikker "+ Opret milestone" i headeren
+2. Dialog aabner med formularfelter
+3. Ved gem: INSERT i milestones med `source: 'manual'`, `progress: 0`, `status: 'active'`
+4. Listen opdateres og toast bekraefter oprettelsen
 
-Opdater raekken med `period = 'konsulent_service'` saa den har `category = '__template__'` og beholder `period = 'konsulent_service'`.
-
-### Trin 3: Fix BudgetVsActualTab query
-
-`BudgetVsActualTab` henter rapporter med `.eq("user_id", userId!)` (linje 972), men NordService-rapporterne har en anden `user_id`. Vi bor aendre queryen til at bruge `company_id` i stedet, da det er mere korrekt for multi-bruger virksomheder. Alternativt sikre at demo-brugerens ID matcher.
-
-### Trin 4: Verificer
-
-Skift til NordService i virksomhedsvaelgeren og bekraeft at budget-tabellen og Maanedsoversigt nu viser korrekte tal.
-
-## Ingen kodeaendringer noevendige (muligvis)
-
-Hvis demo-brugeren er den samme som `user_id` paa rapporterne, er det kun data-opdateringer. Hvis ikke, skal linje 972 i Budget.tsx aendres fra `user_id` til `company_id`.
