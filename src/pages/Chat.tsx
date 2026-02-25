@@ -269,15 +269,22 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const MAX_MESSAGE_LENGTH = 5000;
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !activeConvId || !user) return;
+    const trimmed = newMessage.trim();
+    if (!trimmed || !activeConvId || !user) return;
+
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      return; // UI already prevents this, but guard anyway
+    }
 
     setSending(true);
     const insertData: any = {
       conversation_id: activeConvId,
       sender_id: user.id,
-      content: newMessage.trim(),
+      content: trimmed,
     };
 
     if (selectedTopic) {
@@ -678,13 +685,21 @@ const Chat = () => {
                   })}
                 </div>
                 <div className="flex gap-2">
-                  <input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    disabled={sending}
-                  />
+                  <div className="flex-1 relative">
+                    <input
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+                      maxLength={MAX_MESSAGE_LENGTH}
+                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      disabled={sending}
+                    />
+                    {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
+                      <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] ${newMessage.length >= MAX_MESSAGE_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
+                        {newMessage.length}/{MAX_MESSAGE_LENGTH}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="submit"
                     disabled={sending || !newMessage.trim()}
