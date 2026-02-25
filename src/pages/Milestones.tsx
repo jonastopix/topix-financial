@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import MilestonesList from "@/components/MilestonesList";
-import { Target, Plus } from "lucide-react";
+import { Target, Plus, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,14 @@ import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
+import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
 
 const Milestones = () => {
   const { user, companyId } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [milestoneStats, setMilestoneStats] = useState({ total: 0, done: 0, pct: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [categoryFilter, setCategoryFilter] = useState<MilestoneCategory | "all">("all");
 
   // Create dialog state
   const [open, setOpen] = useState(false);
@@ -31,6 +32,9 @@ const Milestones = () => {
   const [category, setCategory] = useState<MilestoneCategory>("other");
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+
+
+
 
   useEffect(() => {
     if (!user || !companyId) return;
@@ -118,7 +122,42 @@ const Milestones = () => {
         </div>
       </div>
 
-      <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} refreshKey={refreshKey} />
+      {/* Category filter chips */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <button
+          onClick={() => setCategoryFilter("all")}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+            categoryFilter === "all"
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Alle
+        </button>
+        {CATEGORY_OPTIONS.map((opt) => {
+          const cfg = MILESTONE_CATEGORIES[opt.value];
+          const Icon = cfg.icon;
+          const isActive = categoryFilter === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => setCategoryFilter(isActive ? "all" : opt.value)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                isActive
+                  ? cfg.badgeClass + " ring-1 ring-current/20"
+                  : "bg-secondary text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3 w-3" />
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} refreshKey={refreshKey} categoryFilter={categoryFilter === "all" ? undefined : categoryFilter} />
 
       {/* Create Dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
