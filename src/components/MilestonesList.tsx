@@ -103,28 +103,12 @@ const ClickableProgressBar = ({
 };
 
 const MilestoneCard = ({
-  ms, config, isEditing,
-  editTitle, editDeadline, editProgress, editCategory, editBaseline,
-  setEditTitle, setEditDeadline, setEditProgress, setEditCategory, setEditBaseline,
-  onStartEdit, onSaveEdit, onCancelEdit, onDelete, onQuickProgress, onToggleComplete,
+  ms, config,
+  onDelete, onQuickProgress, onToggleComplete,
   onUpdateField,
 }: {
   ms: Milestone;
   config: (typeof statusConfig)["done"];
-  isEditing: boolean;
-  editTitle: string;
-  editDeadline: Date | undefined;
-  editProgress: number;
-  editCategory: MilestoneCategory;
-  editBaseline: string;
-  setEditTitle: (v: string) => void;
-  setEditDeadline: (v: Date | undefined) => void;
-  setEditProgress: (v: number) => void;
-  setEditCategory: (v: MilestoneCategory) => void;
-  setEditBaseline: (v: string) => void;
-  onStartEdit: () => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
   onDelete: () => void;
   onQuickProgress: (p: number) => void;
   onToggleComplete: () => void;
@@ -151,67 +135,11 @@ const MilestoneCard = ({
     prevStatusRef.current = ms.status;
   }, [ms.status]);
 
-  if (isEditing) {
-    return (
-      <div className="rounded-lg bg-secondary/50 overflow-hidden">
-        <div className="p-4 space-y-3">
-          <input
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <Select value={editCategory} onValueChange={(v) => setEditCategory(v as MilestoneCategory)}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Baseline / udgangspunkt</label>
-            <input
-              value={editBaseline}
-              onChange={(e) => setEditBaseline(e.target.value)}
-              placeholder="F.eks. 800.000 kr. i omsætning"
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editDeadline && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {editDeadline ? format(editDeadline, "d. MMM yyyy", { locale: da }) : "Vælg deadline"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={editDeadline} onSelect={setEditDeadline} initialFocus className={cn("p-3 pointer-events-auto")} />
-            </PopoverContent>
-          </Popover>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-muted-foreground">Fremgang</label>
-              <span className="text-xs font-semibold text-foreground">{editProgress}%</span>
-            </div>
-            <input type="range" min={0} max={100} value={editProgress} onChange={(e) => setEditProgress(Number(e.target.value))} className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary" />
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-              <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={onSaveEdit} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
-              <Check className="h-3 w-3" /> Gem
-            </button>
-            <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
-              Annuller
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Sync local state when ms changes from outside
+  useEffect(() => { setTitleDraft(ms.title); }, [ms.title]);
+  useEffect(() => { setCategoryDraft(ms.category); }, [ms.category]);
+  useEffect(() => { setDescDraft(ms.description || ""); }, [ms.description]);
+  useEffect(() => { setDetailDeadline(ms.deadline || undefined); }, [ms.deadline]);
 
   return (
     <>
@@ -239,7 +167,7 @@ const MilestoneCard = ({
                   <Sparkles className="h-2.5 w-2.5" /> AI
                 </span>
               )}
-              <button onClick={onStartEdit} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
+              <button onClick={() => setDetailOpen(true)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <AlertDialog>
@@ -386,12 +314,20 @@ const MilestoneCard = ({
                 <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
               </div>
             </div>
-            {ms.baseline && (
-              <div className="rounded-lg bg-secondary/50 p-3">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Udgangspunkt / baseline</p>
-                <p className="text-sm text-foreground">{ms.baseline}</p>
-              </div>
-            )}
+            <div className="rounded-lg bg-secondary/50 p-3">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Udgangspunkt / baseline</p>
+              <input
+                defaultValue={ms.baseline || ""}
+                placeholder="F.eks. 800.000 kr. i omsætning"
+                onBlur={async (e) => {
+                  const val = e.target.value.trim();
+                  if (val !== (ms.baseline || "")) {
+                    await onUpdateField(ms.id, { baseline: val });
+                  }
+                }}
+                className="w-full text-sm text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-colors py-0.5"
+              />
+            </div>
 
             {/* Editable description */}
             <div>
@@ -453,12 +389,6 @@ const MilestoneCard = ({
 const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, categoryFilter }: Props) => {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDeadline, setEditDeadline] = useState<Date | undefined>(undefined);
-  const [editProgress, setEditProgress] = useState(0);
-  const [editCategory, setEditCategory] = useState<MilestoneCategory>("other");
-  const [editBaseline, setEditBaseline] = useState("");
   useEffect(() => {
     if (!userId && !companyId) return;
     const fetchMilestones = async () => {
@@ -491,46 +421,6 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     : milestones;
   const activeMilestones = filtered.filter((m) => m.status !== "done");
   const doneMilestones = filtered.filter((m) => m.status === "done");
-
-  const startEdit = (ms: Milestone) => {
-    setEditingId(ms.id);
-    setEditTitle(ms.title);
-    setEditDeadline(ms.deadline || undefined);
-    setEditProgress(ms.progress);
-    setEditCategory(ms.category);
-    setEditBaseline(ms.baseline || "");
-  };
-
-  const saveEdit = async (id: string) => {
-    const progress = Math.min(100, Math.max(0, editProgress));
-    const oldMs = milestones.find((m) => m.id === id);
-    const wasNotDone = oldMs && oldMs.progress < 100;
-    const newStatus = deriveStatus(progress);
-
-    const { error } = await supabase.from("milestones").update({
-      title: editTitle,
-      deadline: editDeadline ? editDeadline.toISOString().split("T")[0] : null,
-      progress,
-      category: editCategory,
-      baseline: editBaseline.trim() || null,
-      status: newStatus === "done" ? "completed" : "active",
-    }).eq("id", id);
-
-    if (error) { toast.error("Kunne ikke gemme ændringer"); return; }
-
-    setMilestones((prev) => prev.map((m) =>
-      m.id === id ? { ...m, title: editTitle, deadline: editDeadline || null, progress, status: newStatus, category: editCategory, baseline: editBaseline.trim() || null } : m
-    ));
-    setEditingId(null);
-    toast.success("Milestone opdateret");
-
-    if (wasNotDone && progress >= 100 && conversationId && userId) {
-      confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
-      postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${editTitle}**`, contextType: "milestone", contextMeta: { title: editTitle } });
-    }
-  };
-
-  const cancelEdit = () => setEditingId(null);
 
   const quickUpdateProgress = async (id: string, newProgress: number) => {
     const oldMs = milestones.find((m) => m.id === id);
@@ -573,13 +463,8 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
   const updateField = async (id: string, fields: Record<string, any>) => {
     const dbFields: Record<string, any> = {};
     const localFields: Record<string, any> = {};
-    if ("title" in fields) {
-      dbFields.title = fields.title;
-      localFields.title = fields.title;
-    }
-    if ("category" in fields) {
-      dbFields.category = fields.category;
-      localFields.category = fields.category;
+    for (const key of ["title", "category", "baseline"] as const) {
+      if (key in fields) { dbFields[key] = fields[key] || null; localFields[key] = fields[key] || null; }
     }
     if ("description" in fields) {
       dbFields.description = fields.description || null;
@@ -603,10 +488,6 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
       return (
         <MilestoneCard
           key={ms.id} ms={ms} config={config}
-          isEditing={editingId === ms.id}
-          editTitle={editTitle} editDeadline={editDeadline} editProgress={editProgress} editCategory={editCategory} editBaseline={editBaseline}
-          setEditTitle={setEditTitle} setEditDeadline={setEditDeadline} setEditProgress={setEditProgress} setEditCategory={setEditCategory} setEditBaseline={setEditBaseline}
-          onStartEdit={() => startEdit(ms)} onSaveEdit={() => saveEdit(ms.id)} onCancelEdit={cancelEdit}
           onDelete={() => deleteMilestone(ms.id, ms.title)}
           onQuickProgress={(p) => quickUpdateProgress(ms.id, p)}
           onToggleComplete={() => toggleComplete(ms.id)}
