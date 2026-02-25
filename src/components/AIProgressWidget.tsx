@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { CheckCircle2, Clock, TrendingDown, TrendingUp, Sparkles, Loader2, Activity, ArrowRight } from "lucide-react";
+import { CheckCircle2, Clock, TrendingDown, TrendingUp, Sparkles, Loader2, Activity, ArrowRight, Target } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface ProgressItem {
   id: string;
@@ -25,7 +26,9 @@ const statusConfig = {
 
 const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
   const { user, companyId } = useAuth();
+  const queryClient = useQueryClient();
   const [dialogTab, setDialogTab] = useState<"pending" | "improved" | "regressed">("pending");
+  const [creatingMilestone, setCreatingMilestone] = useState<string | null>(null);
 
   const { data: items = [], isLoading: loading } = useQuery({
     queryKey: ["ai-progress", companyId],
@@ -81,6 +84,27 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
     enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
+
+  const createMilestoneFromItem = async (item: ProgressItem) => {
+    if (!user || !companyId) return;
+    setCreatingMilestone(item.id);
+    const reportId = item.id.split("-").slice(0, -1).join("-");
+    const { error } = await supabase.from("milestones").insert({
+      title: item.recommendation.slice(0, 200),
+      description: item.aiComment || null,
+      category: "other",
+      company_id: companyId,
+      user_id: user.id,
+      source: "ai",
+      source_report: reportId || null,
+      progress: 0,
+      status: "active",
+    });
+    setCreatingMilestone(null);
+    if (error) { toast.error("Kunne ikke oprette milestone"); return; }
+    toast.success("Milestone oprettet fra anbefaling");
+    queryClient.invalidateQueries({ queryKey: ["ai-progress", companyId] });
+  };
 
   const actionedCount = items.filter((p) => p.status === "actioned" || p.status === "improved").length;
   const pendingCount = items.filter((p) => p.status === "pending").length;
@@ -215,6 +239,17 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
                             <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
                           )}
                         </div>
+                        {(item.status === "pending" || item.status === "regressed") && (
+                          <button
+                            onClick={() => createMilestoneFromItem(item)}
+                            disabled={creatingMilestone === item.id}
+                            className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                            title="Opret som milestone"
+                          >
+                            <Target className="h-3 w-3" />
+                            {creatingMilestone === item.id ? "..." : "Milestone"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -327,6 +362,17 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
                           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
                         )}
                       </div>
+                      {(item.status === "pending" || item.status === "regressed") && (
+                        <button
+                          onClick={() => createMilestoneFromItem(item)}
+                          disabled={creatingMilestone === item.id}
+                          className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                          title="Opret som milestone"
+                        >
+                          <Target className="h-3 w-3" />
+                          {creatingMilestone === item.id ? "..." : "Milestone"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
