@@ -824,12 +824,6 @@ const Members = () => {
                                       Sidst aktiv: {format(new Date(ci.last_seen_at), "d. MMM yyyy", { locale: da })}
                                     </p>
                                   )}
-                                  {ci.courses_total > 0 && (
-                                    <p className="flex items-center gap-1">
-                                      <BookOpen className="h-2.5 w-2.5" />
-                                      Tilmeldt kursus
-                                    </p>
-                                  )}
                                   {ci.recent_activity_count > 0 && (
                                     <p>{ci.recent_activity_count} community-indlæg</p>
                                   )}
