@@ -46,7 +46,7 @@ const Dashboard = () => {
           .eq("company_id", companyId!)
           .eq("status", "processed")
           .order("uploaded_at", { ascending: false })
-          .limit(12),
+          .limit(24),
         supabase.from("conversations").select("id").eq("member_id", user!.id).maybeSingle(),
       ]);
 
@@ -57,14 +57,40 @@ const Dashboard = () => {
         .filter((d): d is { key: string; kf: Record<string, number>; period: string } => !!d.key && !!d.kf)
         .sort((a, b) => a.key.localeCompare(b.key));
 
-      let kpiData = { revenue: null as number | null, revenuePrev: null as number | null, expenses: null as number | null, result: null as number | null, bank: null as number | null, bankPeriod: null as string | null, period: null as string | null };
+      let kpiData = {
+        revenue: null as number | null, revenuePrev: null as number | null,
+        expenses: null as number | null, result: null as number | null,
+        bank: null as number | null, bankPeriod: null as string | null,
+        period: null as string | null,
+        // Y/Y
+        revenueYoY: null as number | null, resultYoY: null as number | null,
+        expensesYoY: null as number | null,
+        // YTD
+        ytdRevenue: null as number | null, ytdResult: null as number | null,
+        ytdExpenses: null as number | null,
+      };
 
       if (sorted.length > 0) {
         const latest = sorted[sorted.length - 1];
         const prev = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
 
+        // Find same month last year for Y/Y
+        const [latestYear, latestMonth] = latest.key.split("-");
+        const yoyKey = `${Number(latestYear) - 1}-${latestMonth}`;
+        const yoyReport = sorted.find(r => r.key === yoyKey);
+
         // Find the most recent report that has bank_balance
         const bankReport = [...sorted].reverse().find(r => r.kf.bank_balance != null);
+
+        // YTD: sum all reports in the same year as latest
+        const currentYearReports = sorted.filter(r => r.key.startsWith(latestYear));
+        const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
+        const ytdExpenses = currentYearReports.reduce((s, r) => s + totalExpenses(r.kf), 0);
+        const ytdResult = currentYearReports.reduce((s, r) => s + (r.kf.resultat_foer_skat ?? 0), 0);
+
+        // Use _aar fields from latest report if available, otherwise use summed values
+        const ytdRevenueFromReport = latest.kf.omsaetning_aar;
+        const ytdResultFromReport = latest.kf.resultat_foer_skat_aar;
 
         kpiData = {
           revenue: latest.kf.omsaetning ?? null,
@@ -74,16 +100,29 @@ const Dashboard = () => {
           bank: bankReport?.kf.bank_balance ?? null,
           bankPeriod: bankReport?.period ?? null,
           period: latest.period,
+          // Y/Y comparisons
+          revenueYoY: pctChange(latest.kf.omsaetning, yoyReport?.kf.omsaetning),
+          resultYoY: pctChange(latest.kf.resultat_foer_skat, yoyReport?.kf.resultat_foer_skat),
+          expensesYoY: pctChange(totalExpenses(latest.kf), yoyReport ? totalExpenses(yoyReport.kf) : undefined),
+          // YTD
+          ytdRevenue: ytdRevenueFromReport ?? (currentYearReports.length > 0 ? ytdRevenue : null),
+          ytdResult: ytdResultFromReport ?? (currentYearReports.length > 0 ? ytdResult : null),
+          ytdExpenses: currentYearReports.length > 0 ? ytdExpenses : null,
         };
       }
 
       return { kpiData, conversationId };
     },
     enabled: !!user && !!companyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60_000,
   });
 
-  const kpiData = dashboardData?.kpiData ?? { revenue: null, revenuePrev: null, expenses: null, result: null, bank: null, bankPeriod: null, period: null };
+  const kpiData = dashboardData?.kpiData ?? {
+    revenue: null, revenuePrev: null, expenses: null, result: null,
+    bank: null, bankPeriod: null, period: null,
+    revenueYoY: null, resultYoY: null, expensesYoY: null,
+    ytdRevenue: null, ytdResult: null, ytdExpenses: null,
+  };
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -91,6 +130,7 @@ const Dashboard = () => {
   const currentYear = now.getFullYear();
 
   const revenueChange = pctChange(kpiData.revenue ?? undefined, kpiData.revenuePrev ?? undefined);
+  const fmtPct = (v: number | null) => v != null ? `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` : undefined;
 
   return (
     <AppLayout>
@@ -104,39 +144,75 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <KPICard
-          title="Omsætning"
-          value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
-          change={revenueChange != null ? `${revenueChange >= 0 ? "+" : ""}${revenueChange.toFixed(1)}%` : undefined}
-          trend={revenueChange != null ? (revenueChange >= 0 ? "up" : "down") : "neutral"}
-          subtitle={kpiData.period ? `fra ${kpiData.period}` : "Upload rapport"}
-          icon={<DollarSign className="h-4 w-4" />}
-          accentColor="emerald"
-        />
-        <KPICard
-          title="Udgifter"
-          value={kpiData.expenses != null ? formatDKK(kpiData.expenses) : "—"}
-          subtitle="samlede driftsomk."
-          icon={<Flame className="h-4 w-4" />}
-          accentColor="amber"
-        />
-        <KPICard
-          title="Resultat"
-          value={kpiData.result != null ? formatDKK(kpiData.result) : "—"}
-          trend={kpiData.result != null ? (kpiData.result >= 0 ? "up" : "down") : "neutral"}
-          subtitle="før skat"
-          icon={<TrendingUp className="h-4 w-4" />}
-          accentColor="blue"
-        />
-        <KPICard
-          title="Bank"
-          value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
-          subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
-          icon={<Wallet className="h-4 w-4" />}
-          accentColor="blue"
-        />
+      {/* KPI cards – Seneste måned */}
+      <div className="mb-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned{kpiData.period ? ` · ${kpiData.period}` : ""}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <KPICard
+            title="Omsætning"
+            value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
+            change={revenueChange != null ? `${fmtPct(revenueChange)} M/M` : undefined}
+            trend={revenueChange != null ? (revenueChange >= 0 ? "up" : "down") : "neutral"}
+            secondaryChange={kpiData.revenueYoY != null ? `${fmtPct(kpiData.revenueYoY)} Y/Y` : undefined}
+            secondaryTrend={kpiData.revenueYoY != null ? (kpiData.revenueYoY >= 0 ? "up" : "down") : "neutral"}
+            subtitle={!revenueChange && kpiData.period ? `fra ${kpiData.period}` : kpiData.period ? undefined : "Upload rapport"}
+            icon={<DollarSign className="h-4 w-4" />}
+            accentColor="emerald"
+          />
+          <KPICard
+            title="Udgifter"
+            value={kpiData.expenses != null ? formatDKK(kpiData.expenses) : "—"}
+            secondaryChange={kpiData.expensesYoY != null ? `${fmtPct(kpiData.expensesYoY)} Y/Y` : undefined}
+            secondaryTrend={kpiData.expensesYoY != null ? (kpiData.expensesYoY <= 0 ? "up" : "down") : "neutral"}
+            subtitle="samlede driftsomk."
+            icon={<Flame className="h-4 w-4" />}
+            accentColor="amber"
+          />
+          <KPICard
+            title="Resultat"
+            value={kpiData.result != null ? formatDKK(kpiData.result) : "—"}
+            trend={kpiData.result != null ? (kpiData.result >= 0 ? "up" : "down") : "neutral"}
+            secondaryChange={kpiData.resultYoY != null ? `${fmtPct(kpiData.resultYoY)} Y/Y` : undefined}
+            secondaryTrend={kpiData.resultYoY != null ? (kpiData.resultYoY >= 0 ? "up" : "down") : "neutral"}
+            subtitle="før skat"
+            icon={<TrendingUp className="h-4 w-4" />}
+            accentColor="blue"
+          />
+          <KPICard
+            title="Bank"
+            value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
+            subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
+            icon={<Wallet className="h-4 w-4" />}
+            accentColor="blue"
+          />
+        </div>
+      </div>
+
+      {/* KPI cards – År til dato */}
+      <div className="mb-6">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato {kpiData.period ? `· ${kpiData.period?.match(/\d{4}/)?.[0] ?? ""}` : ""}</p>
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <KPICard
+            title="YTD Omsætning"
+            value={kpiData.ytdRevenue != null ? formatDKK(kpiData.ytdRevenue) : "—"}
+            icon={<DollarSign className="h-4 w-4" />}
+            accentColor="emerald"
+          />
+          <KPICard
+            title="YTD Resultat"
+            value={kpiData.ytdResult != null ? formatDKK(kpiData.ytdResult) : "—"}
+            trend={kpiData.ytdResult != null ? (kpiData.ytdResult >= 0 ? "up" : "down") : "neutral"}
+            subtitle="før skat"
+            icon={<TrendingUp className="h-4 w-4" />}
+            accentColor="blue"
+          />
+          <KPICard
+            title="YTD Udgifter"
+            value={kpiData.ytdExpenses != null ? formatDKK(kpiData.ytdExpenses) : "—"}
+            icon={<Flame className="h-4 w-4" />}
+            accentColor="amber"
+          />
+        </div>
       </div>
 
       {/* Attention needed */}
