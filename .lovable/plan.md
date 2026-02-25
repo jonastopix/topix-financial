@@ -1,68 +1,43 @@
 
 
-# Tilføj auth-validering til Edge Functions
+# Branchetilpasset AI-feedback
 
-## Oversigt
-Begge edge functions (`extract-financial-data` og `handout-ai-feedback`) kan i dag kaldes uden autentificering. Vi tilføjer `getClaims()`-validering så kun indloggede brugere kan bruge dem. Frontend sender allerede auth-token automatisk via `supabase.functions.invoke()`, så ingen frontend-ændringer er nødvendige.
+## Problem
+AI-feedbacken kender ikke medlemmets virksomhedstype/branche, selvom data allerede findes i databasen (`companies.industry`). Det giver generisk rådgivning der ikke skelner mellem en e-commerce, et autoværksted eller en servicevirksomhed.
+
+## Løsning
+Sende virksomhedens branche og navn med til AI-funktionen, og bruge det aktivt i prompten til at skræddersy feedbacken.
 
 ## Ændringer
 
-### 1. `supabase/functions/extract-financial-data/index.ts`
+### 1. Frontend: `HandoutAIFeedback.tsx`
+- Tilføj props for `companyName` og `industry`
+- Send dem med i kaldet til edge-funktionen
 
-Tilføj auth-validering lige efter CORS-check (linje 15), før request body parses:
+### 2. Frontend: `HandoutDetail.tsx`
+- Hent virksomhedens branche og navn (allerede tilgængelig via `useAuth` eller en query)
+- Send dem videre til `HandoutAIFeedback`-komponenten
 
-```typescript
-// Validate auth
-const authHeader = req.headers.get('Authorization');
-if (!authHeader?.startsWith('Bearer ')) {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-}
+### 3. Edge function: `handout-ai-feedback/index.ts`
+- Modtag `company_name` og `industry` fra request body
+- Tilføj branchekontekst til system-prompten, f.eks.:
+  ```
+  Medlemmet driver en virksomhed inden for: [branche].
+  Tilpas dine råd og eksempler specifikt til denne branche.
+  En autoværkstedsejer har andre udfordringer end en webshop.
+  Brug branchespecifikke termer og konkrete eksempler.
+  ```
+- Tilføj virksomhedsnavn og branche til user-konteksten
 
-const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-const authClient = createClient(supabaseUrl, anonKey, {
-  global: { headers: { Authorization: authHeader } }
-});
-const token = authHeader.replace('Bearer ', '');
-const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-if (claimsError || !claimsData?.claims) {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-}
-```
+### 4. Edge function: `ai-financial-feedback/index.ts`
+- Tilsvarende: sikre at `companyContext` (som allerede modtages) inkluderer `industry` i prompten
 
-Den eksisterende service-role client bibeholdes til database-operationer. Auth-clienten bruges kun til at verificere brugeren.
+## Teknisk detalje
+`companies.industry` er et nullable string-felt der allerede er udfyldt for de fleste virksomheder. Hvis det mangler, falder AI'en blot tilbage til generisk rådgivning som i dag.
 
-### 2. `supabase/functions/handout-ai-feedback/index.ts`
+## Forventet resultat
+- En autoværkstedsejer får råd om værkstedsplanlægning, tilbudsopfølgning på bilreparationer, og sæsonudsving
+- En e-commerce-ejer får råd om konverteringsrater, returrater, og lagerstyring
+- En håndværker får råd om projektstyring, materialeindkøb, og prisberegning
+- Alle får stadig den samme grundstruktur, men med branchespecifik dybde
 
-Præcis samme auth-blok tilføjes efter CORS-check (linje 40), før request body parses:
-
-```typescript
-// Validate auth
-const authHeader = req.headers.get('Authorization');
-if (!authHeader?.startsWith('Bearer ')) {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-}
-
-const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-const authClient = createClient(supabaseUrl, anonKey, {
-  global: { headers: { Authorization: authHeader } }
-});
-const token = authHeader.replace('Bearer ', '');
-const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-if (claimsError || !claimsData?.claims) {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-}
-```
-
-### Ingen frontend-ændringer
-`supabase.functions.invoke()` sender automatisk brugerens JWT-token, så frontend-koden i `FileUploadZone.tsx` og `HandoutAIFeedback.tsx` behøver ingen ændringer.
-
-### Ingen config-ændringer
-`verify_jwt = false` bibeholdes i `supabase/config.toml` — vi validerer manuelt i koden som anbefalet.
