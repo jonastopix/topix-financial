@@ -211,12 +211,13 @@ const Members = () => {
     // We'll need auth emails - but we can't access auth.users. Instead, match via circle_members.user_id link
     // or by name similarity. The safest is user_id link on circle_members table.
 
-    // Course progress by circle_member_id
-    const coursesByCircleMember = new Map<number, { completed: number; total: number }>();
+    // Course progress by circle_member_id: track lessons completed vs total
+    const coursesByCircleMember = new Map<number, { completed: number; total: number; courseNames: string[] }>();
     allCourseProgress.forEach((cp: any) => {
-      const existing = coursesByCircleMember.get(cp.circle_member_id) || { completed: 0, total: 0 };
-      existing.total++;
-      if (cp.completed_at) existing.completed++;
+      const existing = coursesByCircleMember.get(cp.circle_member_id) || { completed: 0, total: 0, courseNames: [] };
+      existing.total += cp.lessons_total || 0;
+      existing.completed += cp.lessons_completed || 0;
+      if (cp.course_name) existing.courseNames.push(cp.course_name);
       coursesByCircleMember.set(cp.circle_member_id, existing);
     });
 
@@ -231,7 +232,7 @@ const Members = () => {
     allMembers.forEach((cm: any) => {
       const circleMember = circleByUserId.get(cm.user_id);
       if (circleMember) {
-        const courses = coursesByCircleMember.get(circleMember.circle_id) || { completed: 0, total: 0 };
+        const courses = coursesByCircleMember.get(circleMember.circle_id) || { completed: 0, total: 0, courseNames: [] };
         const activityCount = activityByCircleMember.get(circleMember.circle_id) || 0;
         const arr = circleInfoByCompany.get(cm.company_id) || [];
         arr.push({
@@ -801,24 +802,23 @@ const Members = () => {
                           {c.circleInfo.length > 0 && (
                             <div className="mt-3 pt-2 border-t border-border/30">
                               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                                <Activity className="h-3 w-3" /> Circle.so
+                                <Activity className="h-3 w-3" /> Community
                               </p>
                               {c.circleInfo.map((ci) => (
-                                <div key={ci.circle_member_id} className="text-xs text-muted-foreground mt-1">
-                                  <span className="text-foreground">{ci.name}</span>
+                                <div key={ci.circle_member_id} className="text-xs text-muted-foreground mt-1.5 space-y-0.5">
+                                  {ci.last_seen_at && (
+                                    <p className="text-[10px]">
+                                      Sidst aktiv: {format(new Date(ci.last_seen_at), "d. MMM yyyy", { locale: da })}
+                                    </p>
+                                  )}
                                   {ci.courses_total > 0 && (
-                                    <span className="ml-2 flex items-center gap-1 inline-flex">
+                                    <p className="flex items-center gap-1">
                                       <BookOpen className="h-2.5 w-2.5" />
-                                      {ci.courses_completed}/{ci.courses_total} kurser
-                                    </span>
+                                      {ci.courses_completed} af {ci.courses_total} lektioner gennemført
+                                    </p>
                                   )}
                                   {ci.recent_activity_count > 0 && (
-                                    <span className="ml-2">{ci.recent_activity_count} aktiviteter</span>
-                                  )}
-                                  {ci.last_seen_at && (
-                                    <span className="ml-2 text-[10px]">
-                                      Sidst set: {format(new Date(ci.last_seen_at), "d. MMM", { locale: da })}
-                                    </span>
+                                    <p>{ci.recent_activity_count} community-indlæg</p>
                                   )}
                                 </div>
                               ))}
