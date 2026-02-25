@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
 interface KPICardProps {
   title: string;
@@ -8,10 +9,10 @@ interface KPICardProps {
   trend?: "up" | "down" | "neutral";
   secondaryChange?: string;
   secondaryTrend?: "up" | "down" | "neutral";
-  /** Budget comparison label, e.g. "5k under budget" */
   budgetLabel?: string;
-  /** Whether actual is favorable vs budget (green) or not (red) */
   budgetFavorable?: boolean;
+  /** Sparkline data points (last 6 months). Each entry is a value. */
+  sparkline?: number[];
   subtitle?: string;
   icon?: ReactNode;
   accentColor?: "emerald" | "amber" | "blue" | "rose";
@@ -23,28 +24,36 @@ const accentMap = {
     iconText: "text-primary",
     border: "border-l-primary",
     glow: "group-hover:shadow-[0_0_24px_-6px_hsl(var(--primary)/0.25)]",
+    sparkStroke: "hsl(var(--primary))",
+    sparkFill: "hsl(var(--primary) / 0.1)",
   },
   amber: {
     iconBg: "bg-chart-warning/10",
     iconText: "text-chart-warning",
     border: "border-l-chart-warning",
     glow: "group-hover:shadow-[0_0_24px_-6px_hsl(38,92%,50%,0.2)]",
+    sparkStroke: "hsl(38, 92%, 50%)",
+    sparkFill: "hsl(38, 92%, 50%, 0.1)",
   },
   blue: {
     iconBg: "bg-chart-info/10",
     iconText: "text-chart-info",
     border: "border-l-chart-info",
     glow: "group-hover:shadow-[0_0_24px_-6px_hsl(217,91%,60%,0.2)]",
+    sparkStroke: "hsl(217, 91%, 60%)",
+    sparkFill: "hsl(217, 91%, 60%, 0.1)",
   },
   rose: {
     iconBg: "bg-destructive/10",
     iconText: "text-destructive",
     border: "border-l-destructive",
     glow: "group-hover:shadow-[0_0_24px_-6px_hsl(0,72%,51%,0.15)]",
+    sparkStroke: "hsl(0, 72%, 51%)",
+    sparkFill: "hsl(0, 72%, 51%, 0.1)",
   },
 };
 
-const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
+const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, sparkline, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
   const accent = accentMap[accentColor];
 
   const ChangeBadge = ({ label, dir }: { label: string; dir: "up" | "down" | "neutral" }) => (
@@ -68,30 +77,60 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
     </span>
   );
 
+  const sparkData = sparkline?.map((v, i) => ({ v }));
+  const hasSparkline = sparkData && sparkData.length >= 2;
+
   return (
-    <div className={`glass-card rounded-xl p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow}`}>
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
-        {icon && (
-          <div className={`p-2 rounded-lg ${accent.iconBg}`}>
-            <div className={accent.iconText}>{icon}</div>
-          </div>
-        )}
-      </div>
-      <p className="text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
-      <div className="flex flex-wrap items-center gap-2 mt-3">
-        {change && <ChangeBadge label={change} dir={trend} />}
-        {secondaryChange && <ChangeBadge label={secondaryChange} dir={secondaryTrend} />}
-        {budgetLabel && (
-          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-            budgetFavorable
-              ? "bg-primary/5 text-primary border-primary/20"
-              : "bg-destructive/5 text-destructive border-destructive/20"
-          }`}>
-            {budgetLabel}
-          </span>
-        )}
-        {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
+    <div className={`glass-card rounded-xl p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow} relative overflow-hidden`}>
+      {/* Sparkline background */}
+      {hasSparkline && (
+        <div className="absolute bottom-0 left-0 right-0 h-12 opacity-60 group-hover:opacity-80 transition-opacity pointer-events-none">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={sparkData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id={`spark-${title.replace(/\s/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accent.sparkStroke} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={accent.sparkStroke} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="v"
+                stroke={accent.sparkStroke}
+                strokeWidth={1.5}
+                fill={`url(#spark-${title.replace(/\s/g, "")})`}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-3">
+          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
+          {icon && (
+            <div className={`p-2 rounded-lg ${accent.iconBg}`}>
+              <div className={accent.iconText}>{icon}</div>
+            </div>
+          )}
+        </div>
+        <p className="text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {change && <ChangeBadge label={change} dir={trend} />}
+          {secondaryChange && <ChangeBadge label={secondaryChange} dir={secondaryTrend} />}
+          {budgetLabel && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+              budgetFavorable
+                ? "bg-primary/5 text-primary border-primary/20"
+                : "bg-destructive/5 text-destructive border-destructive/20"
+            }`}>
+              {budgetLabel}
+            </span>
+          )}
+          {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
+        </div>
       </div>
     </div>
   );
