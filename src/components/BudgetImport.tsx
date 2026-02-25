@@ -28,6 +28,7 @@ interface MultiYearResult {
 
 interface BudgetImportProps {
   userId: string;
+  companyId: string;
   onImportComplete: (result: ImportResult) => void;
 }
 
@@ -50,7 +51,7 @@ const formatK = (v: number) => {
   return `${Math.round(v / 1000)}k`;
 };
 
-const BudgetImport = ({ userId, onImportComplete }: BudgetImportProps) => {
+const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps) => {
   const [parsing, setParsing] = useState(false);
   const [multiYear, setMultiYear] = useState<MultiYearResult | null>(null);
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
@@ -145,6 +146,7 @@ const BudgetImport = ({ userId, onImportComplete }: BudgetImportProps) => {
       const inserts = preview.categories.flatMap((cat) =>
         cat.monthly.map((amount, monthIdx) => ({
           user_id: userId,
+          company_id: companyId,
           category: cat.key,
           budget_amount: amount,
           period: `${preview.year}-base-${monthIdx}`,

@@ -109,7 +109,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
       levers: l,
       status,
     };
-    if (companyId) payload.company_id = companyId;
+    payload.company_id = companyId;
 
     if (handoutId) {
       const { error } = await supabase.from("handouts").update(payload).eq("id", handoutId);

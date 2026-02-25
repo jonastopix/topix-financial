@@ -149,7 +149,7 @@ const FileUploadZone = ({
             report_type: reportType,
             status: "processing",
           };
-        if (companyId) insertData.company_id = companyId;
+        insertData.company_id = companyId;
 
         const { data: reportRecord, error: insertError } = await supabase
           .from("financial_reports")
@@ -279,7 +279,7 @@ const FileUploadZone = ({
                 status: "active",
                 progress: 0,
               };
-              if (companyId) ms.company_id = companyId;
+              ms.company_id = companyId;
               return ms;
             });
 
@@ -453,7 +453,7 @@ const FileUploadZone = ({
           report_type: reportType,
           status: "processing",
         };
-      if (companyId) insertData.company_id = companyId;
+      insertData.company_id = companyId;
 
       const { data: reportRecord, error: insertError } = await supabase
         .from("financial_reports")

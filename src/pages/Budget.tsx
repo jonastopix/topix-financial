@@ -64,13 +64,13 @@ const formatK = (v: number) => {
 };
 
 // ─── Template Picker ───
-function TemplatePicker({ onSelect, userId, onImportComplete }: { onSelect: (t: BudgetTemplate) => void; userId: string; onImportComplete: (result: any) => void }) {
+function TemplatePicker({ onSelect, userId, companyId, onImportComplete }: { onSelect: (t: BudgetTemplate) => void; userId: string; companyId: string; onImportComplete: (result: any) => void }) {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Import options */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-        <BudgetImport userId={userId} onImportComplete={onImportComplete} />
-        <BudgetFromAccounts userId={userId} onImportComplete={onImportComplete} />
+        <BudgetImport userId={userId} companyId={companyId} onImportComplete={onImportComplete} />
+        <BudgetFromAccounts userId={userId} companyId={companyId} onImportComplete={onImportComplete} />
       </div>
 
       <div className="flex items-center gap-3 my-6">
@@ -404,7 +404,7 @@ const Budget = () => {
             Planlæg og følg op på dine finansielle mål
           </p>
         </div>
-        <TemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} onImportComplete={handleImportComplete} />
+        <TemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
       </AppLayout>
     );
   }
@@ -928,7 +928,7 @@ const Budget = () => {
 
         {/* Import Tab */}
         <TabsContent value="import">
-          <BudgetImport userId={user?.id || ""} onImportComplete={handleImportComplete} />
+          <BudgetImport userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
         </TabsContent>
       </Tabs>
     </AppLayout>
