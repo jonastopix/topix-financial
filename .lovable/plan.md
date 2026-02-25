@@ -1,44 +1,52 @@
 
 
-# Opret virksomhed manuelt + sikr webhook fremadrettet
+# Opsaet email-invitation system (TEST-MODE)
 
-## 1. Opret "Din økonomiafdeling Danmark ApS" manuelt
+## Oversigt
 
-Baseret på Excel-filen opretter vi virksomheden direkte i databasen med alle relevante felter:
+Bygger infrastrukturen til at sende invitations-emails via Resend, men med en **test-mode toggle** saa ingen emails sendes foer du siger go. Alt logges i stedet for at blive sendt.
 
-| Felt | Vaerdi |
-|------|--------|
-| name | Din okonomiafdeling Danmark ApS |
-| cvr_number | 39434369 |
-| contact_person | Nicolai Marc Haagen olesen |
-| contact_email | nicolai@okonomi-afdelingen.dk |
-| contact_phone | 4522312301 |
-| industry | Bogholderi |
-| website | https://okonomi-afdelingen.dk/ |
-| address | Jernbanegade 50 |
-| city | Haslev |
-| postal_code | 4690 |
-| annual_revenue | 4500000 |
-| slack_channel | din-okonomiafdeling |
-| start_date | 2026-02-25 |
-| end_date | 2027-02-25 |
-| status | active |
+## Forudsaetninger
 
-Derefter oprettes en **invitation** til kontakt-emailen, saa personen kan tilmelde sig og automatisk blive knyttet til virksomheden.
-
-## 2. Sikr webhook fremadrettet
-
-Webhook-koden er klar og har bestaaet challenge-verifikation med Monday.com. Men column-ID-mappingen (f.eks. "tekst" -> cvr_number) er baseret paa gaet. 
-
-**Forbedring**: Opdater webhook-koden til ogsaa at haandtere felter fra Excel-eksporten som ikke mappes i dag:
-- `annual_revenue` (numerisk felt)
-- `start_date` og `end_date` (dato-felter)
-
-Naar det foerste rigtige webhook-kald kommer igennem, vil alle kolonne-IDs blive logget, saa vi kan verificere og justere mappingen.
+Du skal oprette en Resend-konto og tilfoeje API-noeglen som secret. Du skal ogsaa verificere dit domaine paa Resend foer emails kan sendes fra det.
 
 ## Tekniske trin
 
-1. **Indsaet virksomhed** i `companies`-tabellen via insert-tool
-2. **Opret invitation** i `company_invitations` for kontakt-emailen
-3. **Opdater webhook** `index.ts` til at inkludere mapping for `annual_revenue`, `start_date`, `end_date` og `slack_channel` (Slack-feltet er allerede mappet)
+### 1. Tilfoej RESEND_API_KEY som secret
+- Beder dig om at oprette en API-noegle paa resend.com og indtaste den
+
+### 2. Tilfoej EMAIL_SENDING_ENABLED secret
+- Saettes til `false` som standard
+- Naar du er klar til at gaa live, aendres den til `true`
+- Edge function checker denne vaerdi foer afsendelse
+
+### 3. Opret Edge Function: `send-invitation-email`
+
+Funktionen:
+- Modtager `email`, `company_name`, `signup_url` som input
+- Checker `EMAIL_SENDING_ENABLED` secret — hvis `false`, logger den blot "Email would be sent to X" og returnerer success uden at sende noget
+- Hvis `true`, sender en pen invitations-email via Resend med virksomhedsnavn og signup-link
+- Bruger React Email template til professionelt design
+
+### 4. Opret React Email template
+
+Simpel invitations-email paa dansk:
+- Velkomst med virksomhedsnavn
+- Forklaring om platformen
+- CTA-knap til signup
+- Hvid baggrund, rent design
+
+### 5. Opdater `CompanyInvitations.tsx`
+
+Efter succesfuld invitation-insert, kald `send-invitation-email` Edge Function. Viser en note til brugeren om at emailen er i test-mode (ingen email sendt endnu).
+
+### 6. Opdater `monday-webhook/index.ts`
+
+Efter automatisk invitation-oprettelse, kald ogsaa `send-invitation-email`. Samme test-mode logik gaelder.
+
+## Sikkerhed
+
+- Ingen emails sendes foer `EMAIL_SENDING_ENABLED` saettes til `true`
+- Alt logges saa du kan verificere at det virker korrekt foer go-live
+- Du styrer selv hvornaar det aktiveres
 
