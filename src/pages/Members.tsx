@@ -827,7 +827,7 @@ const Members = () => {
                                   {ci.courses_total > 0 && (
                                     <p className="flex items-center gap-1">
                                       <BookOpen className="h-2.5 w-2.5" />
-                                      {ci.courses_completed} af {ci.courses_total} lektioner gennemført
+                                      Tilmeldt kursus
                                     </p>
                                   )}
                                   {ci.recent_activity_count > 0 && (
