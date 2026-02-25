@@ -1,70 +1,121 @@
 
-# Fuld Monday.com Integration: Automatisk onboarding ved "I gang"
 
-## Hvad skal ske
-Når en ansøger på Monday-boardet (board ID 1899777797) skifter status til "I gang", skal systemet:
-1. Hente alle relevante kolonnedata fra Monday via API (CVR, branche, kontaktperson, email, hjemmeside, by osv.)
-2. Oprette virksomheden i databasen med alle felter udfyldt
-3. Sende en invitation til kontaktpersonens email, så de kan oprette en bruger og automatisk blive tilknyttet virksomheden
+# Platform Review: The Boardroom — Klar til lancering?
 
-## Forudsætning: Monday API Token
-En **Monday API Token** er nødvendig for at hente kolonnedata. Du finder den i Monday.com under:
-- Klik dit profilbillede (nederst til venstre) -> "Developers" -> "My access tokens"
-- Eller: monday.com -> Administration -> API
+## 1. Sikkerhed — Fortrolige data
 
-Tokenet skal gemmes som en sikker hemmelighed i backend.
+**Status: Solid fundament, men et par huller**
 
-## Teknisk plan
+RLS-politikkerne er generelt velstrukturerede med `user_company_id()` og `has_role()` security definer-funktioner. Hver tabel er korrekt isoleret, så virksomheder kun kan se egne data, og advisors har adgang til alt.
 
-### Trin 1: Gem Monday API Token som secret
-- Brug `add_secret` til at bede om `MONDAY_API_TOKEN`
+**Fundne problemer:**
 
-### Trin 2: Opdater `supabase/functions/monday-webhook/index.ts`
-Den nuværende webhook opretter kun en virksomhed med navn. Den skal udvides:
+- **Manglende input-validering i Settings**: Virksomhedsdata (CVR, telefon, website) gemmes uden sanitering eller længdebegrænsninger. En bruger kan i princippet indsætte meget lange strenge eller specialtegn.
+- **Chat: Ingen længdebegrænsning server-side**: Kommentarer på rapporter begrænses til 2000 tegn client-side, men chat-beskeder har ingen begrænsning.
+- **`company_invitations` mangler RLS for advisors INSERT**: Advisors kan se og opdatere invitationer, men kan ikke oprette dem. Skal de kunne det?
+- **`handleOverwrite` i FileUploadZone opretter rapport uden `company_id`**: Ved overwrite sættes `company_id` ikke eksplicit i insert-objektet, hvilket potentielt giver en rapport uden virksomhedstilknytning.
+- **`financial-documents` storage bucket er privat** (korrekt), men der er ingen upload til bucketen — filer sendes kun som tekst til Edge Functions. Bucketen bruges ikke.
 
-**a) GraphQL-kald til Monday API**
-- Når status er "I gang", brug `pulseId` (item ID) til at kalde Monday GraphQL API:
-```
-query { items(ids: [PULSE_ID]) { column_values { id title text value } } }
-```
-- Dette returnerer alle kolonneværdier for det specifikke item
+**Anbefaling:**
+- Tilføj Zod-validering til Settings-formularer (CVR-format, max-længder)
+- Tilføj max-længde på chat-beskeder (f.eks. 5000 tegn)
+- Fix overwrite-flowet til at inkludere `company_id`
+- Overvej at fjerne `financial-documents` bucketen hvis den ikke bruges
 
-**b) Mapping af Monday-kolonner til companies-felter**
-- Vi skal mappe kolonne-ID'er fra boardet til vores database-felter (CVR, branche, kontaktperson, email, hjemmeside, adresse, by, postnr.)
-- Da vi ikke kender de præcise kolonne-ID'er endnu, bygger vi en fleksibel mapping der logger alle kolonner ved første kald, så vi kan tilpasse
+---
 
-**c) Opret virksomhed med alle data**
-- Indsæt i `companies`-tabellen med alle felter udfyldt fra Monday
+## 2. Bugs i uploads, links og sammenfletninger
 
-**d) Send invitation automatisk**
-- Hvis kontaktpersonens email er tilgængelig fra Monday, opret en `company_invitation` med status "pending"
-- Kontaktpersonen kan derefter oprette sig via det normale signup-flow og bliver automatisk tilknyttet virksomheden (via `handle_new_user`-triggeren der allerede tjekker for pending invitations)
+**Fundne problemer:**
 
-### Trin 3: Konfigurér webhook i Monday.com
-- Webhook URL: `https://loiavmastgeieqyiwyyr.supabase.co/functions/v1/monday-webhook`
-- Boardet: 1899777797
-- Event: Når en statuskolonne ændres
-- Dette er allerede delvist sat op (challenge-verification virker), men skal verificeres
+- **Overwrite-bug**: I `handleOverwrite` i `FileUploadZone.tsx` indsættes en ny rapport-record UDEN `company_id`, så den nye rapport ikke knyttes til virksomheden. Dette betyder overskrevne rapporter potentielt "forsvinder" fra virksomhedens data.
+- **Delete company fjerner IKKE tilknyttede rapporter, handouts, milestones eller budget_targets**: Når en advisor sletter en virksomhed, slettes kun `conversations` og `company_members`, men resterende data (rapporter, handouts, milestones, budgets) bliver "forældreløs" i databasen.
+- **Merge-flow mangler `kpi_targets` og `kpi_benchmarks`**: Ved flytning af en bruger til en anden virksomhed flyttes rapporter, handouts, milestones og budgets — men KPI-targets og benchmarks følger ikke med.
+- **Chat: Ingen markering af egne automatiske beskeder**: Aktivitetsbeskeder postes med brugerens `sender_id`, men vises som om brugeren selv skrev dem. Det kan forvirre.
 
-## Filer der ændres
-- `supabase/functions/monday-webhook/index.ts` -- hovedlogikken udvides med Monday API-kald og invitation-oprettelse
+---
 
-## Flowdiagram
-```text
-Monday Board: Status -> "I gang"
-        |
-        v
-  Webhook fires -> Edge Function
-        |
-        v
-  GraphQL kald til Monday API (hent alle kolonner)
-        |
-        v
-  Opret virksomhed med fulde data (companies)
-        |
-        v
-  Opret invitation (company_invitations) med kontakt-email
-        |
-        v
-  Kontaktperson modtager besked -> Signup -> Auto-tilknyttet
-```
+## 3. Funktioner der er "fyld" og ikke giver værdi
+
+**Kandidater til forenkling:**
+
+- **`circle_course_progress` tabel og alt relateret kode**: Vi har netop bekræftet at data ikke kan hentes. Tabellen, queries i Members.tsx, og det hele med `courses_completed`/`courses_total` er dead code.
+- **`profiles.company_name` felt**: Bruges i Settings men er redundant med `companies.name`. Skaber forvirring om hvilken der er "den rigtige".
+- **`BudgetImport` (Excel-import af budget)**: Kræver at en Edge Function kører — men giver den faktisk medlemmerne værdi vs. manuelt budget-input?
+
+---
+
+## 4. Visuelle grafer og widgets — forvirring vs. værdi
+
+**Vurdering af dashboard-widgets:**
+
+| Widget | Værdi | Vurdering |
+|--------|-------|-----------|
+| 4x KPI-kort (Omsætning, Udgifter, Resultat, Bank) | Hoej | Klar og direkte — behold |
+| AttentionNeeded | Hoej | Handlingsorienteret — behold |
+| PerformanceScore (cirkel med 4 delscores) | Medium | Giver overblik, men "score" kan forvirre. Vaegt-beregningen er ikke transparent for brugeren |
+| RevenueChart | Hoej | Behold |
+| AIProgressWidget (compact) | Lav-Medium | Viser % af AI-anbefalinger fulgt op. Kan forvirre nye brugere der ikke forstaar hvad "AI Progress" betyder |
+| BudgetOverview (compact) | Medium | Fine |
+| DashboardMilestones (compact) | Medium | Fine |
+| DashboardHandouts (compact) | Medium | Fine |
+
+**Anbefaling:**
+- **PerformanceScore**: Overvej at gøre den mere forklarende eller simplificere til 1-2 nøgletal i stedet for 4 subscores
+- **AIProgressWidget**: Overvej at omdøbe til noget mere forståeligt, f.eks. "Handlingsplan" eller "Anbefalinger"
+
+---
+
+## 5. Gamification
+
+**Nuvaerende tilstand:**
+
+- Medlemmer ser personlig fremgang med point, niveauer (Starter, Aktiv, Mester) og progress-bar
+- Advisors ser Top 5 leaderboard med fulde navne og initialer
+- Point: 10 per rapport, 25 per milestone
+
+**Problemer og risici:**
+
+- **Leaderboardet viser fulde navne til advisors**: Det er fint internt, men advisors bør ikke utilsigtet dele denne info
+- **Medlemmer ser KUN egen score — ingen benchmark**: De har ingen idé om de klarer sig godt relativt til andre. Det fjerner en del af motivationen
+- **Forslag**: Tilføj et anonymiseret "gennemsnit for fællesskabet" eller en percentil-indikator (f.eks. "Du er i top 30%") uden at udstille individuelle navne
+- **Manglende gamification for handouts**: Handout-udfyldelse giver ingen point, selvom det er en kærneopgave
+
+---
+
+## 6. Andre anbefalinger for en high-end Advisory Board platform
+
+**Onboarding:**
+- Der er ingen guided onboarding for nye medlemmer. Første gang en bruger logger ind, ser de et tomt dashboard uden vejledning. Overvej en "Kom i gang"-guide eller checklist.
+
+**Branding og professionalisme:**
+- Platformens navn styres via `app_config` (godt!), men sidebar viser "Founder Platform" / "Advisor Panel" — sørg for det matcher "The Boardroom" branding.
+
+**Mobile oplevelse:**
+- Sidebar er responsiv, men chat-layoutet (fast højde, todelt visning) fungerer sandsynligvis ikke godt på mobil.
+
+**Notifikationer:**
+- Ingen email-notifikationer. Når en advisor sender en besked, ser medlemmet det kun næste gang de logger ind. For et high-end advisory board er det kritisk at have email-notifikationer ved nye beskeder.
+
+**Data-export:**
+- Ingen mulighed for at eksportere data (rapporter, KPI-historik). High-end klienter forventer at kunne trække data ud.
+
+---
+
+## Anbefalet handlingsplan (prioriteret)
+
+### Must-fix for lancering:
+1. Fix overwrite-bug i FileUploadZone (manglende `company_id`)
+2. Fix delete company flow (slet al tilknyttet data)
+3. Fix merge flow (inkludér `kpi_targets` og `kpi_benchmarks`)
+4. Tilføj input-validering i Settings
+5. Tilføj max-længde på chat-beskeder
+6. Ryd op i dead code fra `circle_course_progress`
+
+### Nice-to-have for lancering:
+7. Omdøb "AI Progress" til noget mere forståeligt
+8. Tilføj anonym fællesskabs-benchmark i gamification
+9. Tilføj gamification-point for handout-udfyldelse
+10. Simpel onboarding for nye medlemmer
+11. Email-notifikationer (kræver email-service)
+
