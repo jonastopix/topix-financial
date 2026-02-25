@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon } from "lucide-react";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import CompanyInvitations from "@/components/CompanyInvitations";
 
@@ -14,6 +14,7 @@ interface CompanyData {
   website: string | null;
   contact_phone: string | null;
   logo_url: string | null;
+  industry: string | null;
 }
 
 const Settings = () => {
@@ -30,6 +31,7 @@ const Settings = () => {
     contact_email: "",
     website: "",
     contact_phone: "",
+    industry: "",
   });
   const [savingCompany, setSavingCompany] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -57,7 +59,7 @@ const Settings = () => {
 
       const { data } = await supabase
         .from("companies")
-        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url")
+        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry")
         .eq("id", cm.company_id)
         .single();
 
@@ -69,6 +71,7 @@ const Settings = () => {
           contact_email: data.contact_email || "",
           website: data.website || "",
           contact_phone: data.contact_phone || "",
+          industry: data.industry || "",
         });
         setLogoUrl(data.logo_url || null);
       }
@@ -152,6 +155,7 @@ const Settings = () => {
     const email = companyForm.contact_email.trim();
     const website = companyForm.website.trim();
     const phone = companyForm.contact_phone.trim();
+    const industry = companyForm.industry.trim();
 
     if (!name || name.length > 200) {
       toast.error("Virksomhedsnavn skal udfyldes (max 200 tegn)");
@@ -173,6 +177,10 @@ const Settings = () => {
       toast.error("Ugyldigt telefonnummer");
       return;
     }
+    if (industry.length > 100) {
+      toast.error("Branche må max være 100 tegn");
+      return;
+    }
 
     setSavingCompany(true);
 
@@ -184,6 +192,7 @@ const Settings = () => {
         contact_email: email || null,
         website: website || null,
         contact_phone: phone || null,
+        industry: industry || null,
       })
       .eq("id", company.id);
 
@@ -318,6 +327,7 @@ const Settings = () => {
               {companyField("Kontakt e-mail", "contact_email", "kontakt@firma.dk")}
               {companyField("Hjemmeside", "website", "https://firma.dk", <Globe className="h-4 w-4" />)}
               {companyField("Telefon", "contact_phone", "+45 12 34 56 78", <Phone className="h-4 w-4" />)}
+              {companyField("Branche", "industry", "F.eks. E-commerce, Håndværker, Autoværksted…", <Briefcase className="h-4 w-4" />)}
             </div>
             <button
               onClick={handleSaveCompany}
