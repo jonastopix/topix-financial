@@ -61,6 +61,7 @@ interface Props {
   companyId?: string | null;
   conversationId?: string | null;
   refreshKey?: number;
+  categoryFilter?: MilestoneCategory;
 }
 
 const MilestoneCard = ({
@@ -191,7 +192,7 @@ const MilestoneCard = ({
   );
 };
 
-const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0 }: Props) => {
+const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, categoryFilter }: Props) => {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -226,8 +227,11 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0 }: P
     fetchMilestones();
   }, [userId, companyId, refreshKey]);
 
-  const activeMilestones = milestones.filter((m) => m.status !== "done");
-  const doneMilestones = milestones.filter((m) => m.status === "done");
+  const filtered = categoryFilter
+    ? milestones.filter((m) => m.category === categoryFilter)
+    : milestones;
+  const activeMilestones = filtered.filter((m) => m.status !== "done");
+  const doneMilestones = filtered.filter((m) => m.status === "done");
 
   const startEdit = (ms: Milestone) => {
     setEditingId(ms.id);
