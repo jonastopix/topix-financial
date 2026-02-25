@@ -47,6 +47,8 @@ export const GAMIFICATION = {
   pointsPerReport: 10,
   /** Points awarded per completed milestone */
   pointsPerMilestone: 25,
+  /** Points awarded per completed handout module */
+  pointsPerHandout: 50,
 
   /** Member progress levels */
   levels: [
