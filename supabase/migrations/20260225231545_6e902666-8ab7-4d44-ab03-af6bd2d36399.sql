@@ -1,0 +1,1 @@
+ALTER TABLE public.milestones ADD COLUMN category text NOT NULL DEFAULT 'other';

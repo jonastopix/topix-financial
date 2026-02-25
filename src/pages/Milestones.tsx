@@ -1,14 +1,36 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import MilestonesList from "@/components/MilestonesList";
-import { Target, Plus, Sparkles } from "lucide-react";
+import { Target, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
 
 const Milestones = () => {
   const { user, companyId } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [milestoneStats, setMilestoneStats] = useState({ total: 0, done: 0, pct: 0 });
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Create dialog state
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<MilestoneCategory>("other");
+  const [deadline, setDeadline] = useState<Date | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user || !companyId) return;
@@ -26,7 +48,39 @@ const Milestones = () => {
       setMilestoneStats({ total: all.length, done, pct });
     };
     load();
-  }, [user, companyId]);
+  }, [user, companyId, refreshKey]);
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setCategory("other");
+    setDeadline(undefined);
+  };
+
+  const handleCreate = async () => {
+    if (!title.trim() || !user || !companyId) return;
+    setSaving(true);
+    const { error } = await supabase.from("milestones").insert({
+      title: title.trim(),
+      description: description.trim() || null,
+      category,
+      deadline: deadline ? deadline.toISOString().split("T")[0] : null,
+      company_id: companyId,
+      user_id: user.id,
+      source: "manual",
+      progress: 0,
+      status: "active",
+    });
+    setSaving(false);
+    if (error) {
+      toast.error("Kunne ikke oprette milestone");
+      return;
+    }
+    toast.success("Milestone oprettet");
+    resetForm();
+    setOpen(false);
+    setRefreshKey((k) => k + 1);
+  };
 
   return (
     <AppLayout>
@@ -39,6 +93,10 @@ const Milestones = () => {
             Sæt og følg dine vigtigste mål
           </p>
         </div>
+        <Button onClick={() => setOpen(true)} size="sm" className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          Opret milestone
+        </Button>
       </div>
 
       {/* Progress overview */}
@@ -60,7 +118,71 @@ const Milestones = () => {
         </div>
       </div>
 
-      <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} />
+      <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} refreshKey={refreshKey} />
+
+      {/* Create Dialog */}
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Opret ny milestone</DialogTitle>
+            <DialogDescription>Definer dit mål og vælg en kategori.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Titel *</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="F.eks. Nå 1M i omsætning"
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Beskrivelse</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Uddyb dit mål..."
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Kategori</label>
+              <Select value={category} onValueChange={(v) => setCategory(v as MilestoneCategory)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Deadline</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !deadline && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {deadline ? format(deadline, "d. MMM yyyy", { locale: da }) : "Vælg deadline"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={deadline} onSelect={setDeadline} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); resetForm(); }}>Annuller</Button>
+            <Button onClick={handleCreate} disabled={!title.trim() || saving}>
+              {saving ? "Opretter..." : "Opret"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
