@@ -20,6 +20,10 @@ const COLUMN_MAPPING: Record<string, string> = {
   "tekst4": "city",
   "tekst5": "postal_code",
   "tekst7": "slack_channel",
+  // Numeric and date fields — column IDs are guessed, will be verified from logs
+  "tal": "annual_revenue",
+  "dato": "start_date",
+  "dato0": "end_date",
 };
 
 async function fetchMondayItemData(itemId: number, apiToken: string) {
@@ -58,8 +62,11 @@ async function fetchMondayItemData(itemId: number, apiToken: string) {
   return json.data?.items?.[0] || null;
 }
 
+const NUMERIC_FIELDS = new Set(["annual_revenue"]);
+const DATE_FIELDS = new Set(["start_date", "end_date"]);
+
 function mapColumnValues(columnValues: Array<{ id: string; title: string; text: string; value: string }>) {
-  const companyData: Record<string, string> = {};
+  const companyData: Record<string, string | number> = {};
 
   // Log all columns for debugging/mapping
   console.log("=== Monday Column Values ===");
@@ -68,7 +75,16 @@ function mapColumnValues(columnValues: Array<{ id: string; title: string; text: 
 
     const dbField = COLUMN_MAPPING[col.id];
     if (dbField && col.text) {
-      companyData[dbField] = col.text;
+      if (NUMERIC_FIELDS.has(dbField)) {
+        const num = parseFloat(col.text.replace(/[^0-9.-]/g, ""));
+        if (!isNaN(num)) companyData[dbField] = num;
+      } else if (DATE_FIELDS.has(dbField)) {
+        // Monday dates come as "YYYY-MM-DD" in text
+        const dateMatch = col.text.match(/\d{4}-\d{2}-\d{2}/);
+        if (dateMatch) companyData[dbField] = dateMatch[0];
+      } else {
+        companyData[dbField] = col.text;
+      }
     }
   }
   console.log("=== Mapped company data ===", JSON.stringify(companyData));
