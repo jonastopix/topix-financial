@@ -446,15 +446,18 @@ const FileUploadZone = ({
       const reportType = "andet";
 
       // Create a new report record for the overwrite
-      const { data: reportRecord, error: insertError } = await supabase
-        .from("financial_reports")
-        .insert({
+      const insertData: any = {
           user_id: userId,
           file_name: pendingFile.name,
           file_path: `uploads/${userId}/${pendingFileId}/${pendingFile.name}`,
           report_type: reportType,
           status: "processing",
-        })
+        };
+      if (companyId) insertData.company_id = companyId;
+
+      const { data: reportRecord, error: insertError } = await supabase
+        .from("financial_reports")
+        .insert(insertData)
         .select()
         .single();
 

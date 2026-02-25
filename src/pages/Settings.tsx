@@ -145,16 +145,45 @@ const Settings = () => {
 
   const handleSaveCompany = async () => {
     if (!company) return;
+
+    // Validate inputs
+    const name = companyForm.name.trim();
+    const cvr = companyForm.cvr_number.trim();
+    const email = companyForm.contact_email.trim();
+    const website = companyForm.website.trim();
+    const phone = companyForm.contact_phone.trim();
+
+    if (!name || name.length > 200) {
+      toast.error("Virksomhedsnavn skal udfyldes (max 200 tegn)");
+      return;
+    }
+    if (cvr && !/^\d{8}$/.test(cvr)) {
+      toast.error("CVR-nummer skal være præcis 8 cifre");
+      return;
+    }
+    if (email && (email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      toast.error("Ugyldig e-mailadresse");
+      return;
+    }
+    if (website && website.length > 500) {
+      toast.error("Hjemmeside-URL er for lang (max 500 tegn)");
+      return;
+    }
+    if (phone && (phone.length > 30 || !/^[+\d\s\-()]+$/.test(phone))) {
+      toast.error("Ugyldigt telefonnummer");
+      return;
+    }
+
     setSavingCompany(true);
 
     const { error } = await supabase
       .from("companies")
       .update({
-        name: companyForm.name.trim(),
-        cvr_number: companyForm.cvr_number.trim() || null,
-        contact_email: companyForm.contact_email.trim() || null,
-        website: companyForm.website.trim() || null,
-        contact_phone: companyForm.contact_phone.trim() || null,
+        name,
+        cvr_number: cvr || null,
+        contact_email: email || null,
+        website: website || null,
+        contact_phone: phone || null,
       })
       .eq("id", company.id);
 

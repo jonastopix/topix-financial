@@ -24,7 +24,6 @@ import {
   Trash2,
   UserPlus,
   X,
-  BookOpen,
   Activity,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -51,8 +50,6 @@ interface CircleInfo {
   circle_member_id: number;
   name: string;
   last_seen_at: string | null;
-  courses_completed: number;
-  courses_total: number;
   recent_activity_count: number;
 }
 
@@ -123,14 +120,13 @@ const Members = () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, courseProgressRes, circleActivityRes] = await Promise.all([
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes] = await Promise.all([
       supabase.from("companies" as any).select("*"),
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
       supabase.from("conversations").select("id, company_id, last_message_at"),
       supabase.from("financial_reports").select("company_id, id, extracted_data"),
       supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
-      supabase.from("circle_course_progress").select("circle_member_id, course_name, lessons_completed, lessons_total, completed_at"),
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
     ]);
 
@@ -140,7 +136,6 @@ const Members = () => {
     const allConvs = (convsRes.data || []) as any[];
     const allReports = (reportsRes.data || []) as any[];
     const allCircleMembers = (circleMembersRes.data || []) as any[];
-    const allCourseProgress = (courseProgressRes.data || []) as any[];
     const allCircleActivity = (circleActivityRes.data || []) as any[];
 
     // Build profile map
@@ -224,15 +219,7 @@ const Members = () => {
     // We'll need auth emails - but we can't access auth.users. Instead, match via circle_members.user_id link
     // or by name similarity. The safest is user_id link on circle_members table.
 
-    // Course progress by circle_member_id: track lessons completed vs total
-    const coursesByCircleMember = new Map<number, { completed: number; total: number; courseNames: string[] }>();
-    allCourseProgress.forEach((cp: any) => {
-      const existing = coursesByCircleMember.get(cp.circle_member_id) || { completed: 0, total: 0, courseNames: [] };
-      existing.total += cp.lessons_total || 0;
-      existing.completed += cp.lessons_completed || 0;
-      if (cp.course_name) existing.courseNames.push(cp.course_name);
-      coursesByCircleMember.set(cp.circle_member_id, existing);
-    });
+    // (circle_course_progress removed — API does not support fetching lesson data)
 
     // Activity count by circle_member_id
     const activityByCircleMember = new Map<number, number>();
@@ -245,15 +232,12 @@ const Members = () => {
     allMembers.forEach((cm: any) => {
       const circleMember = circleByUserId.get(cm.user_id);
       if (circleMember) {
-        const courses = coursesByCircleMember.get(circleMember.circle_id) || { completed: 0, total: 0, courseNames: [] };
         const activityCount = activityByCircleMember.get(circleMember.circle_id) || 0;
         const arr = circleInfoByCompany.get(cm.company_id) || [];
         arr.push({
           circle_member_id: circleMember.circle_id,
           name: circleMember.name,
           last_seen_at: circleMember.last_seen_at,
-          courses_completed: courses.completed,
-          courses_total: courses.total,
           recent_activity_count: activityCount,
         });
         circleInfoByCompany.set(cm.company_id, arr);
@@ -355,12 +339,14 @@ const Members = () => {
         .eq("member_id", targetUser.user_id)
         .eq("company_id", targetUser.company_id);
 
-      // 3. Move any reports, handouts, milestones, budget_targets
+      // 3. Move any reports, handouts, milestones, budget_targets, kpi_targets, kpi_benchmarks
       await Promise.all([
         supabase.from("financial_reports").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("handouts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("milestones").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("budget_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
+        supabase.from("kpi_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
+        supabase.from("kpi_benchmarks").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
       ]);
 
       // 4. Check if old company is now empty
@@ -390,11 +376,29 @@ const Members = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      // Delete related data first
+      // Delete all related data first
       await Promise.all([
-        supabase.from("conversations").delete().eq("company_id", deleteTarget.id),
-        supabase.from("company_members" as any).delete().eq("company_id", deleteTarget.id) as any,
+        supabase.from("financial_reports").delete().eq("company_id", deleteTarget.id),
+        supabase.from("handouts").delete().eq("company_id", deleteTarget.id),
+        supabase.from("milestones").delete().eq("company_id", deleteTarget.id),
+        supabase.from("budget_targets").delete().eq("company_id", deleteTarget.id),
+        supabase.from("kpi_targets").delete().eq("company_id", deleteTarget.id),
+        supabase.from("kpi_benchmarks").delete().eq("company_id", deleteTarget.id),
+        supabase.from("company_invitations").delete().eq("company_id", deleteTarget.id),
       ]);
+
+      // Delete conversations and their messages
+      const { data: convs } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("company_id", deleteTarget.id);
+      if (convs && convs.length > 0) {
+        const convIds = convs.map((c) => c.id);
+        await supabase.from("messages").delete().in("conversation_id", convIds);
+      }
+      await supabase.from("conversations").delete().eq("company_id", deleteTarget.id);
+      await (supabase.from("company_members" as any).delete().eq("company_id", deleteTarget.id) as any);
+
       const { error } = await supabase.from("companies" as any).delete().eq("id", deleteTarget.id) as any;
       if (error) throw error;
 
