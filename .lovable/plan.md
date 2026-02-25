@@ -1,62 +1,27 @@
 
 
-# Tilfoej manuel milestone-oprettelse med kategori-type
+# Fix: Omsaetning vs. Udgifter viser ikke seneste 12 maaneder
 
 ## Problem
-Medlemmer kan i dag ikke oprette milestones manuelt. Der findes kun redigering og sletning af eksisterende milestones (typisk AI-genererede). Der mangler ogsaa en kategorisering, saa man kan skelne mellem forskellige typer maal.
+
+`RevenueChart.tsx` henter rapporter med:
+- `.order("uploaded_at", { ascending: false })`
+- `.limit(12)`
+
+Dette returnerer de 12 senest uploadede rapporter, men upload-raekkefoelgen matcher ikke noedvendigvis perioderaekkefoelgen. NordService har 20 rapporter (jul 2024 til feb 2026), saa `.limit(12)` afskærer 8 maaneder tilfaeldigt baseret paa upload-dato.
 
 ## Loesning
 
-### Trin 1: Database -- tilfoej `category` kolonne
-Tilfoej en ny kolonne `category` til `milestones`-tabellen med en default-vaerdi saa eksisterende data ikke bryder:
+1. **Fjern `.limit(12)`** fra queryen, saa alle rapporter hentes
+2. **Tag de seneste 12 maaneder** fra det sorterede `chartData`-array i stedet (`.slice(-12)`)
 
-```sql
-ALTER TABLE milestones ADD COLUMN category text NOT NULL DEFAULT 'other';
-```
+Dette sikrer at grafen altid viser de 12 seneste perioder uanset upload-raekkefoelge.
 
-### Trin 2: Opret milestone-formular med kategori-vaelger
+## Teknisk aendring
 
-Tilfoej en "Opret milestone"-knap i sidehovedet paa Milestones-siden og en dialog/formular med:
+**Fil: `src/components/RevenueChart.tsx`**
 
-- **Titel** (tekstfelt, paakraevet)
-- **Beskrivelse** (textarea, valgfrit)
-- **Kategori** (dropdown med foelgende muligheder):
-  - Vaekst (revenue growth)
-  - Profit (profitability)
-  - Timer (hours/workload)
-  - Medarbejdere (team/hiring)
-  - Daekningsbidrag (contribution margin)
-  - Andet (custom)
-- **Deadline** (kalendervælger, valgfrit)
+- Linje 22: Fjern `.limit(12)` fra queryen
+- Linje 46: Tilfoej `.slice(-12)` efter sortering, saa kun de seneste 12 maaneder vises i grafen
 
-### Trin 3: Vis kategori paa milestone-kort
-
-Vis kategorien som et farvekodet badge paa hvert milestone-kort, saa man hurtigt kan se typen. Hver kategori faar sin egen farve og ikon.
-
-### Trin 4: Tilfoej kategori til redigering
-
-Udvid den eksisterende inline-redigering saa kategorien ogsaa kan aendres.
-
-## Teknisk implementering
-
-### Filer der aendres:
-1. **Database migration** -- tilfoej `category` kolonne
-2. **`src/pages/Milestones.tsx`** -- tilfoej "Opret milestone"-knap og Dialog-komponent
-3. **`src/components/MilestonesList.tsx`** -- udvid Milestone-interface med `category`, vis badge, tilfoej kategori til redigering
-
-### Kategori-konfiguration:
-```text
-vaekst     -> Groen badge,  TrendingUp ikon
-profit     -> Blaa badge,   Coins ikon
-timer      -> Gul badge,    Clock ikon
-medarbejdere -> Lilla badge, Users ikon
-db         -> Orange badge,  BarChart ikon
-other      -> Graa badge,   Target ikon
-```
-
-### Oprettelses-flow:
-1. Bruger klikker "+ Opret milestone" i headeren
-2. Dialog aabner med formularfelter
-3. Ved gem: INSERT i milestones med `source: 'manual'`, `progress: 0`, `status: 'active'`
-4. Listen opdateres og toast bekraefter oprettelsen
-
+Resultatet: grafen viser nu korrekt de seneste 12 maaneder i kronologisk raekkefoelge.
