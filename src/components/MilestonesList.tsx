@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
@@ -65,11 +65,44 @@ interface Props {
   categoryFilter?: MilestoneCategory;
 }
 
+const ClickableProgressBar = ({
+  progress, barColor, onProgressChange,
+}: {
+  progress: number;
+  barColor: string;
+  onProgressChange: (p: number) => void;
+}) => {
+  const barRef = useRef<HTMLDivElement>(null);
+
+  const calcProgress = (clientX: number) => {
+    if (!barRef.current) return progress;
+    const rect = barRef.current.getBoundingClientRect();
+    const pct = Math.round(((clientX - rect.left) / rect.width) * 100);
+    return Math.min(100, Math.max(0, Math.round(pct / 5) * 5));
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    onProgressChange(calcProgress(e.clientX));
+  };
+
+  return (
+    <div
+      ref={barRef}
+      onClick={handleClick}
+      className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden relative cursor-pointer group"
+      title="Klik for at ændre fremgang"
+    >
+      <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${progress}%` }} />
+      <div className="absolute inset-0 rounded-full ring-1 ring-transparent group-hover:ring-primary/20 transition-all" />
+    </div>
+  );
+};
+
 const MilestoneCard = ({
   ms, config, isEditing,
   editTitle, editDeadline, editProgress, editCategory, editBaseline,
   setEditTitle, setEditDeadline, setEditProgress, setEditCategory, setEditBaseline,
-  onStartEdit, onSaveEdit, onCancelEdit, onDelete,
+  onStartEdit, onSaveEdit, onCancelEdit, onDelete, onQuickProgress, onToggleComplete,
 }: {
   ms: Milestone;
   config: (typeof statusConfig)["done"];
@@ -88,6 +121,8 @@ const MilestoneCard = ({
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDelete: () => void;
+  onQuickProgress: (p: number) => void;
+  onToggleComplete: () => void;
 }) => {
   const Icon = config.icon;
 
@@ -157,7 +192,7 @@ const MilestoneCard = ({
     <div className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden">
       <div className="p-3">
         <div className="flex items-center gap-3">
-          <div className={`p-1.5 rounded-md ${config.bg}`}>
+          <div className={`p-1.5 rounded-md ${config.bg} cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all`} onClick={onToggleComplete} title={ms.status === "done" ? "Marker som aktiv" : "Marker som færdig"}>
             <Icon className={`h-4 w-4 ${config.className}`} />
           </div>
           <div className="flex-1 min-w-0">
@@ -200,17 +235,13 @@ const MilestoneCard = ({
               <span className="text-[10px] font-medium text-foreground">{ms.title}</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden relative">
-                <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
-              </div>
+              <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
               <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
             </div>
           </div>
         ) : (
           <div className="mt-2.5 flex items-center gap-2.5">
-            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-500 ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
-            </div>
+            <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
             <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
           </div>
         )}
@@ -300,6 +331,36 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
 
   const cancelEdit = () => setEditingId(null);
 
+  const quickUpdateProgress = async (id: string, newProgress: number) => {
+    const oldMs = milestones.find((m) => m.id === id);
+    if (!oldMs) return;
+    const wasNotDone = oldMs.progress < 100;
+    const newStatus = deriveStatus(newProgress);
+
+    setMilestones((prev) => prev.map((m) =>
+      m.id === id ? { ...m, progress: newProgress, status: newStatus } : m
+    ));
+
+    const { error } = await supabase.from("milestones").update({
+      progress: newProgress,
+      status: newStatus === "done" ? "completed" : "active",
+    }).eq("id", id);
+
+    if (error) { toast.error("Kunne ikke opdatere fremgang"); return; }
+
+    if (wasNotDone && newProgress >= 100 && conversationId && userId) {
+      toast.success(`🎯 "${oldMs.title}" er gennemført!`);
+      postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${oldMs.title}**`, contextType: "milestone", contextMeta: { title: oldMs.title } });
+    }
+  };
+
+  const toggleComplete = async (id: string) => {
+    const ms = milestones.find((m) => m.id === id);
+    if (!ms) return;
+    const newProgress = ms.progress >= 100 ? 0 : 100;
+    await quickUpdateProgress(id, newProgress);
+  };
+
   const deleteMilestone = async (id: string, title: string) => {
     const { error } = await supabase.from("milestones").delete().eq("id", id);
     if (error) { toast.error("Kunne ikke slette milestone"); return; }
@@ -320,6 +381,8 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
           setEditTitle={setEditTitle} setEditDeadline={setEditDeadline} setEditProgress={setEditProgress} setEditCategory={setEditCategory} setEditBaseline={setEditBaseline}
           onStartEdit={() => startEdit(ms)} onSaveEdit={() => saveEdit(ms.id)} onCancelEdit={cancelEdit}
           onDelete={() => deleteMilestone(ms.id, ms.title)}
+          onQuickProgress={(p) => quickUpdateProgress(ms.id, p)}
+          onToggleComplete={() => toggleComplete(ms.id)}
         />
       );
     });
