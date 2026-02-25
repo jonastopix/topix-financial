@@ -17,6 +17,7 @@ import { da } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
+import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
 
 const Milestones = () => {
   const { user, companyId } = useAuth();
@@ -199,6 +200,24 @@ const Milestones = () => {
                 </SelectContent>
               </Select>
             </div>
+            {/* Suggestion chips – only when title is empty */}
+            {!title.trim() && MILESTONE_SUGGESTIONS[category]?.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-muted-foreground block">Forslag</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MILESTONE_SUGGESTIONS[category].map((s) => (
+                    <button
+                      key={s.title}
+                      type="button"
+                      onClick={() => { setTitle(s.title); setDescription(s.description); }}
+                      className="text-xs px-2.5 py-1 rounded-full bg-secondary text-foreground hover:bg-accent transition-colors text-left"
+                    >
+                      {s.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Deadline</label>
               <Popover>
