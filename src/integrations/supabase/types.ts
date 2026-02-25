@@ -670,6 +670,7 @@ export type Database = {
       }
       milestones: {
         Row: {
+          baseline: string | null
           category: string
           company_id: string
           created_at: string
@@ -685,6 +686,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          baseline?: string | null
           category?: string
           company_id: string
           created_at?: string
@@ -700,6 +702,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          baseline?: string | null
           category?: string
           company_id?: string
           created_at?: string

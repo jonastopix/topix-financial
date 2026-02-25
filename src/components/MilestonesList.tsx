@@ -26,6 +26,7 @@ export interface Milestone {
   source_report: string | null;
   progress: number;
   category: MilestoneCategory;
+  baseline: string | null;
 }
 
 const statusConfig = {
@@ -150,6 +151,9 @@ const MilestoneCard = ({
           </div>
           <div className="flex-1 min-w-0">
             <p className={cn("text-sm font-medium truncate", ms.status === "done" ? "text-muted-foreground line-through" : "text-foreground")}>{ms.title}</p>
+            {ms.baseline && (
+              <p className="text-[10px] text-muted-foreground">Udgangspunkt: {ms.baseline}</p>
+            )}
             <p className="text-xs text-muted-foreground">{formatDeadline(ms.deadline)}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -220,6 +224,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
         source_report: m.source_report,
         progress: m.progress,
         category: (m.category || "other") as MilestoneCategory,
+        baseline: m.baseline || null,
       }));
       setMilestones(mapped);
       setLoading(false);
