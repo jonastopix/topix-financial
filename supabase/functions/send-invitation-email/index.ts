@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     );
 
     const { error } = await resend.emails.send({
-      from: "MOLA Founder <noreply@molafoundersclub.dk>",
+      from: "MOLA Founder <noreply@boardroom.topix.dk>",
       to: [email],
       subject: `Du er inviteret til ${company_name} på MOLA Founder`,
       html,
