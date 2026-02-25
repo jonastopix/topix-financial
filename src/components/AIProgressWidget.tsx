@@ -36,7 +36,8 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
           .select("id, report_period, ai_analysis") as any)
           .eq("company_id", companyId!)
           .not("ai_analysis", "is", null)
-          .order("uploaded_at", { ascending: false }),
+          .order("uploaded_at", { ascending: false })
+          .limit(3),
         (supabase
           .from("milestones")
           .select("title, progress, status, source_report") as any)
@@ -138,6 +139,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
         </div>
+        <p className="text-[10px] text-muted-foreground -mt-3 mb-1">Baseret på seneste 3 rapporter</p>
 
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
           <div className="relative">
@@ -232,6 +234,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
         <Activity className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-3 mb-3">Baseret på seneste 3 rapporter</p>
 
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-shrink-0">
