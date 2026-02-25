@@ -67,8 +67,8 @@ interface Props {
 
 const MilestoneCard = ({
   ms, config, isEditing,
-  editTitle, editDeadline, editProgress, editCategory,
-  setEditTitle, setEditDeadline, setEditProgress, setEditCategory,
+  editTitle, editDeadline, editProgress, editCategory, editBaseline,
+  setEditTitle, setEditDeadline, setEditProgress, setEditCategory, setEditBaseline,
   onStartEdit, onSaveEdit, onCancelEdit, onDelete,
 }: {
   ms: Milestone;
@@ -78,10 +78,12 @@ const MilestoneCard = ({
   editDeadline: Date | undefined;
   editProgress: number;
   editCategory: MilestoneCategory;
+  editBaseline: string;
   setEditTitle: (v: string) => void;
   setEditDeadline: (v: Date | undefined) => void;
   setEditProgress: (v: number) => void;
   setEditCategory: (v: MilestoneCategory) => void;
+  setEditBaseline: (v: string) => void;
   onStartEdit: () => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -108,6 +110,15 @@ const MilestoneCard = ({
               ))}
             </SelectContent>
           </Select>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Baseline / udgangspunkt</label>
+            <input
+              value={editBaseline}
+              onChange={(e) => setEditBaseline(e.target.value)}
+              placeholder="F.eks. 800.000 kr. i omsætning"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editDeadline && "text-muted-foreground")}>
@@ -204,7 +215,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
   const [editDeadline, setEditDeadline] = useState<Date | undefined>(undefined);
   const [editProgress, setEditProgress] = useState(0);
   const [editCategory, setEditCategory] = useState<MilestoneCategory>("other");
-
+  const [editBaseline, setEditBaseline] = useState("");
   useEffect(() => {
     if (!userId && !companyId) return;
     const fetchMilestones = async () => {
@@ -244,6 +255,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     setEditDeadline(ms.deadline || undefined);
     setEditProgress(ms.progress);
     setEditCategory(ms.category);
+    setEditBaseline(ms.baseline || "");
   };
 
   const saveEdit = async (id: string) => {
@@ -257,13 +269,14 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
       deadline: editDeadline ? editDeadline.toISOString().split("T")[0] : null,
       progress,
       category: editCategory,
+      baseline: editBaseline.trim() || null,
       status: newStatus === "done" ? "completed" : "active",
     }).eq("id", id);
 
     if (error) { toast.error("Kunne ikke gemme ændringer"); return; }
 
     setMilestones((prev) => prev.map((m) =>
-      m.id === id ? { ...m, title: editTitle, deadline: editDeadline || null, progress, status: newStatus, category: editCategory } : m
+      m.id === id ? { ...m, title: editTitle, deadline: editDeadline || null, progress, status: newStatus, category: editCategory, baseline: editBaseline.trim() || null } : m
     ));
     setEditingId(null);
     toast.success("Milestone opdateret");
@@ -291,8 +304,8 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
         <MilestoneCard
           key={ms.id} ms={ms} config={config}
           isEditing={editingId === ms.id}
-          editTitle={editTitle} editDeadline={editDeadline} editProgress={editProgress} editCategory={editCategory}
-          setEditTitle={setEditTitle} setEditDeadline={setEditDeadline} setEditProgress={setEditProgress} setEditCategory={setEditCategory}
+          editTitle={editTitle} editDeadline={editDeadline} editProgress={editProgress} editCategory={editCategory} editBaseline={editBaseline}
+          setEditTitle={setEditTitle} setEditDeadline={setEditDeadline} setEditProgress={setEditProgress} setEditCategory={setEditCategory} setEditBaseline={setEditBaseline}
           onStartEdit={() => startEdit(ms)} onSaveEdit={() => saveEdit(ms.id)} onCancelEdit={cancelEdit}
           onDelete={() => deleteMilestone(ms.id, ms.title)}
         />
