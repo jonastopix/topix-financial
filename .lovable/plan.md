@@ -1,35 +1,32 @@
 
 
-## Kategori-specifikke milestone-forslag
+## Baseline / nuværende status på milestones
 
-Når brugeren vælger en kategori i "Opret milestone"-dialogen, vises en liste af foreslåede milestones med realistiske, detaljerede titler og beskrivelser, som kan sammenholdes med de data der kommer ind via regnskaber og KPI'er.
+Tilføj et felt til milestones, der registrerer udgangspunktet (baseline), så fremgang kan måles relativt. For eksempel: "Nuværende omsætning: 800.000 kr." når målet er "Nå 2M kr. i årlig omsætning".
 
 ### Hvad der ændres
 
-**1. Ny fil: `src/lib/milestoneSuggestions.ts`**
-En samling af 3-5 forslag per kategori med titel, beskrivelse og eventuelt en foreslået deadline-horisont. Eksempler:
+**1. Database: Ny kolonne `baseline` på `milestones`-tabellen**
+- Tilføj en nullable `text`-kolonne kaldet `baseline`
+- Text-type giver fleksibilitet til både tal ("800.000 kr.") og kvalitative udsagn ("Ingen NPS-måling endnu")
+- Ingen RLS-ændringer nødvendige -- eksisterende policies dækker allerede
 
-- **Vaekst**: "Nå 2M kr. i årlig omsætning", "Opnå 15% omsætningsvækst MoM", "Fordoble kundebase inden Q4"
-- **Profit**: "Opnå positiv bundlinje", "Nå 10% overskudsgrad", "Reducér driftsomkostninger med 20%"
-- **Salg**: "Luk 50 nye aftaler i Q2", "Opnå gennemsnitlig ordrestørrelse på 25.000 kr.", "Reducer salgscyklus til under 30 dage"
-- **Kunder**: "Nå 100 aktive kunder", "Opnå NPS over 50", "Reducer churn til under 5%"
-- **Produkt**: "Launch MVP af ny produktlinje", "Implementér 3 nøglefunktioner fra kundefeedback", "Reducér fejlrate med 50%"
-- **Marketing**: "Nå 10.000 månedlige website-besøg", "Opnå CAC under 500 kr.", "Kør 3 kampagner med positivt ROAS"
-- **Medarbejdere**: "Ansæt 2 nye medarbejdere", "Gennemfør MUS med alle inden juni", "Opnå medarbejdertilfredshed over 8/10"
-- **Timer**: "Opnå 75% faktureringsgrad", "Reducér spildtid med 20%", "Log 1.500 fakturerbare timer i Q2"
-- **DB (Dækningsbidrag)**: "Opnå DB1 over 60%", "Forbedre DB2 med 10 procentpoint", "Nå 500.000 kr. i månedligt dækningsbidrag"
-- **Juridisk**: "Få GDPR-compliance på plads", "Opdater alle kontrakter", "Gennemfør årlig compliance-review"
-- **Funding**: "Rejse pre-seed runde på 2M kr.", "Udarbejde pitch deck", "Nå break-even inden næste runde"
-- **Andet**: "Etabler advisory board", "Implementer nyt ERP-system"
+**2. Opret-dialogen i `src/pages/Milestones.tsx`**
+- Tilføj et nyt inputfelt "Nuværende status / baseline" mellem beskrivelse og kategori
+- Placeholder-tekst der guider brugeren, f.eks. "F.eks. 800.000 kr. i omsætning"
+- Feltet er valgfrit
+- Værdien gemmes ved oprettelse via `handleCreate`
 
-**2. Ændring i `src/pages/Milestones.tsx` - Opret-dialogen**
-- Når brugeren vælger en kategori, vises relevante forslag som klikbare chips/knapper under kategori-feltet
-- Klik på et forslag udfylder automatisk titel og beskrivelse (brugeren kan stadig redigere frit)
-- Forslagene vises kun når titel-feltet er tomt, så de ikke forstyrrer brugere der allerede skriver
+**3. Milestone-forslag med baseline-hints**
+- Udvid `MilestoneSuggestion`-interfacet i `src/lib/milestoneSuggestions.ts` med et valgfrit `baselineHint`-felt
+- Når brugeren klikker et forslag, udfyldes baseline-feltet med et hint (f.eks. "Indtast nuværende årsomsætning")
+
+**4. Visning i `src/components/MilestonesList.tsx`**
+- Vis baseline-værdien under milestone-titlen når den er udfyldt, f.eks. som en lille "Udgangspunkt: 800.000 kr."-label
 
 ### Teknisk tilgang
 
-- Ingen database-ændringer nødvendige -- forslagene er rene frontend-templates
-- Forslagene er statiske men designet til at matche de KPI-nøgler og budget-kategorier der allerede bruges i systemet (omsætning, dækningsbidrag, overskudsgrad osv.)
-- Simpel UX: vælg kategori --> se forslag --> klik for at udfylde --> tilpas og opret
-
+- En database-migration tilføjer kolonnen: `ALTER TABLE milestones ADD COLUMN baseline text;`
+- Typen opdateres automatisk i `types.ts`
+- Forslagenes `baselineHint` er statisk og kræver ingen database-ændring
+- Simpel UX: feltet er synligt men valgfrit, så det ikke bremser brugere der bare vil oprette hurtigt
