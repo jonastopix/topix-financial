@@ -1,8 +1,98 @@
 import React from 'npm:react@18.3.1'
 import { Resend } from 'npm:resend@4.0.0'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
-import { ReminderEmail } from './_templates/reminder.tsx'
+import {
+  Body,
+  Container,
+  Head,
+  Heading,
+  Html,
+  Link,
+  Preview,
+  Section,
+  Text,
+} from 'npm:@react-email/components@0.0.22'
 
+// ---------- Inline email template ----------
+interface ReminderEmailProps {
+  companyName: string;
+  period: string;
+  reportUrl: string;
+}
+
+const main = {
+  backgroundColor: '#ffffff',
+  fontFamily:
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+}
+const containerStyle = {
+  paddingLeft: '12px',
+  paddingRight: '12px',
+  margin: '0 auto',
+  maxWidth: '480px',
+}
+const h1 = {
+  color: '#1a1a2e',
+  fontSize: '24px',
+  fontWeight: 'bold' as const,
+  margin: '40px 0 20px',
+}
+const text = {
+  color: '#333',
+  fontSize: '14px',
+  lineHeight: '24px',
+  margin: '16px 0',
+}
+const buttonContainer = {
+  textAlign: 'center' as const,
+  margin: '32px 0',
+}
+const button = {
+  backgroundColor: '#6366f1',
+  borderRadius: '8px',
+  color: '#ffffff',
+  display: 'inline-block',
+  fontSize: '14px',
+  fontWeight: '600' as const,
+  padding: '12px 32px',
+  textDecoration: 'none',
+}
+const footer = {
+  color: '#898989',
+  fontSize: '12px',
+  lineHeight: '20px',
+  marginTop: '32px',
+}
+
+const ReminderEmail = ({ companyName, period, reportUrl }: ReminderEmailProps) => (
+  React.createElement(Html, null,
+    React.createElement(Head),
+    React.createElement(Preview, null, `Påmindelse: Rapport for ${period} mangler`),
+    React.createElement(Body, { style: main },
+      React.createElement(Container, { style: containerStyle },
+        React.createElement(Heading, { style: h1 }, `Rapport mangler for ${period}`),
+        React.createElement(Text, { style: text },
+          'Hej! Vi mangler stadig den månedlige rapport for ',
+          React.createElement('strong', null, period),
+          ' fra ',
+          React.createElement('strong', null, companyName),
+          '.'
+        ),
+        React.createElement(Text, { style: text },
+          'Upload venligst jeres rapport, så vi kan følge med i virksomhedens udvikling.'
+        ),
+        React.createElement(Section, { style: buttonContainer },
+          React.createElement(Link, { href: reportUrl, target: '_blank', style: button }, 'Upload rapport')
+        ),
+        React.createElement(Text, { style: footer },
+          'Denne påmindelse er sendt fra The Boardroom. Hvis rapporten allerede er uploadet, kan du ignorere denne besked.'
+        )
+      )
+    )
+  )
+)
+
+// ---------- Edge function ----------
 const DANISH_MONTHS = [
   "Januar", "Februar", "Marts", "April", "Maj", "Juni",
   "Juli", "August", "September", "Oktober", "November", "December",
@@ -20,15 +110,30 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate authorization — only service-role key from pg_cron / manual trigger
+    // Parse body early to check for test mode
+    let testEmail: string | null = null;
+    let bodyParsed = false;
+    try {
+      const body = await req.clone().json();
+      if (body?.test_email) testEmail = body.test_email;
+      bodyParsed = true;
+    } catch { /* no body */ }
+
+    // Validate authorization
+    // test_email mode: allow any authenticated request (verify_jwt=false handles gateway auth)
+    // production mode: require service-role key (from pg_cron)
     const authHeader = req.headers.get("Authorization");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
+    const isServiceRole = authHeader === `Bearer ${serviceRoleKey}`;
+
+    if (!testEmail && !isServiceRole) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // testEmail already parsed above
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -39,9 +144,38 @@ Deno.serve(async (req) => {
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const expectedPeriod = `${DANISH_MONTHS[prevMonth.getMonth()]} ${prevMonth.getFullYear()}`;
 
-    console.log(`[send-report-reminder] Checking for missing reports for period: ${expectedPeriod}`);
+    console.log(`[send-report-reminder] Period: ${expectedPeriod}${testEmail ? ` | TEST MODE → ${testEmail}` : ''}`);
 
-    // Get all companies with status 'active'
+    // If test_email is provided, send a single test email directly
+    if (testEmail) {
+      const resendApiKey = Deno.env.get("RESEND_API_KEY");
+      if (!resendApiKey) throw new Error("RESEND_API_KEY is not configured");
+      const resend = new Resend(resendApiKey);
+
+      const html = await renderAsync(
+        React.createElement(ReminderEmail, {
+          companyName: "Test Virksomhed",
+          period: expectedPeriod,
+          reportUrl: "https://boardroom.topix.dk/reports",
+        })
+      );
+
+      const { error: sendErr } = await resend.emails.send({
+        from: "The Boardroom <noreply@boardroom.topix.dk>",
+        to: [testEmail],
+        subject: `[TEST] Påmindelse: Rapport for ${expectedPeriod} mangler`,
+        html,
+      });
+
+      if (sendErr) throw new Error(`Send failed: ${JSON.stringify(sendErr)}`);
+
+      console.log(`[TEST] Reminder sent to: ${testEmail}`);
+      return new Response(JSON.stringify({ test: true, sent_to: testEmail, period: expectedPeriod }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Normal flow: find companies missing reports ---
     const { data: companies, error: compErr } = await supabase
       .from("companies")
       .select("id, name, start_date, created_at")
@@ -55,7 +189,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get all reports for this period
     const { data: existingReports, error: repErr } = await supabase
       .from("financial_reports")
       .select("company_id")
@@ -65,22 +198,14 @@ Deno.serve(async (req) => {
 
     const reportedCompanyIds = new Set((existingReports || []).map((r: any) => r.company_id));
 
-    // Find companies missing reports
     const missingCompanies = companies.filter((c: any) => {
       if (reportedCompanyIds.has(c.id)) return false;
-
-      // Only remind companies that should have reported for this period.
-      // A company's earliest reportable month is the month BEFORE their start.
-      // E.g. company starting March 2026 -> earliest report period is February 2026.
       const companyStart = new Date(c.start_date || c.created_at);
       const earliestReportMonth = new Date(companyStart.getFullYear(), companyStart.getMonth() - 1, 1);
-      const expectedMonth = prevMonth.getTime();
-
-      if (expectedMonth < earliestReportMonth.getTime()) {
-        console.log(`[send-report-reminder] Skipping ${c.name}: too new (started ${companyStart.toISOString()}, earliest report: ${earliestReportMonth.toISOString()})`);
+      if (prevMonth.getTime() < earliestReportMonth.getTime()) {
+        console.log(`[send-report-reminder] Skipping ${c.name}: too new`);
         return false;
       }
-
       return true;
     });
 
@@ -91,7 +216,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Email toggle
     const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     let resend: InstanceType<typeof Resend> | null = null;
@@ -105,43 +229,29 @@ Deno.serve(async (req) => {
     let skipped = 0;
 
     for (const company of missingCompanies) {
-      // Get members + their auth emails
       const { data: members, error: memErr } = await supabase
         .from("company_members")
         .select("user_id")
         .eq("company_id", company.id);
 
-      if (memErr) {
-        console.error(`[send-report-reminder] Error fetching members for ${company.name}:`, memErr);
-        continue;
-      }
-
+      if (memErr) { console.error(`[send-report-reminder] Members error for ${company.name}:`, memErr); continue; }
       if (!members?.length) continue;
 
-      // Get emails from auth.users via admin API
       for (const member of members) {
         const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(member.user_id);
-
-        if (userErr || !userData?.user?.email) {
-          console.error(`[send-report-reminder] Could not get email for user ${member.user_id}`);
-          continue;
-        }
+        if (userErr || !userData?.user?.email) { console.error(`[send-report-reminder] No email for user ${member.user_id}`); continue; }
 
         const email = userData.user.email;
 
         if (!emailEnabled) {
-          console.log(`[BLOCKED] Would send reminder to: ${email} (${company.name}) for ${expectedPeriod} — test-mode`);
+          console.log(`[BLOCKED] Would send to: ${email} (${company.name}) for ${expectedPeriod}`);
           skipped++;
           continue;
         }
 
         try {
           const html = await renderAsync(
-            React.createElement(ReminderEmail, {
-              companyName: company.name,
-              period: expectedPeriod,
-              reportUrl,
-            })
+            React.createElement(ReminderEmail, { companyName: company.name, period: expectedPeriod, reportUrl })
           );
 
           const { error: sendErr } = await resend!.emails.send({
@@ -151,15 +261,11 @@ Deno.serve(async (req) => {
             html,
           });
 
-          if (sendErr) {
-            console.error(`[send-report-reminder] Failed to send to ${email}:`, sendErr);
-            continue;
-          }
-
-          console.log(`[LIVE] Reminder sent to: ${email} (${company.name}) for ${expectedPeriod}`);
+          if (sendErr) { console.error(`[send-report-reminder] Failed ${email}:`, sendErr); continue; }
+          console.log(`[LIVE] Sent to: ${email} (${company.name}) for ${expectedPeriod}`);
           sent++;
         } catch (sendError) {
-          console.error(`[send-report-reminder] Send error for ${email}:`, sendError);
+          console.error(`[send-report-reminder] Error ${email}:`, sendError);
         }
       }
     }
