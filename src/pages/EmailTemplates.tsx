@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,9 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Mail, Send, Pencil, Trash2, Clock, Zap, Hand, Code, Eye, Settings2, ArrowLeft } from "lucide-react";
+import RichTextEditor from "@/components/RichTextEditor";
+import {
+  Plus, Mail, Send, Pencil, Trash2, Clock, Zap, Hand,
+  Code, Eye, Settings2, ArrowLeft, Type, Loader2,
+} from "lucide-react";
 
 interface EmailTemplate {
   id: string;
@@ -42,6 +45,7 @@ const CRON_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
 
 const EVENT_OPTIONS = [
   { value: "report_missing", label: "Rapport mangler" },
+  { value: "invitation_sent", label: "Invitation sendt" },
   { value: "new_user", label: "Ny bruger oprettet" },
   { value: "milestone_deadline", label: "Milestone deadline nærmer sig" },
 ];
@@ -63,14 +67,26 @@ function cronToDescription(config: Record<string, any>): string {
   return `Den ${day}. i hver måned kl. ${hour.padStart(2, "0")}:${min.padStart(2, "0")}`;
 }
 
+/** Wrap rich-text HTML in a full email document with inline styles */
+function wrapInEmailDocument(richHtml: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${richHtml}</div></body></html>`;
+}
+
+/** Extract inner body content from full email HTML */
+function extractBodyContent(fullHtml: string): string {
+  // Try to extract content inside the inner wrapper div
+  const match = fullHtml.match(/<div[^>]*style="[^"]*max-width[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/body>/i);
+  if (match) return match[1];
+  // Try body tag
+  const bodyMatch = fullHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (bodyMatch) return bodyMatch[1];
+  return fullHtml;
+}
+
 export default function EmailTemplates() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
-  const [testDialogOpen, setTestDialogOpen] = useState(false);
-  const [testEmail, setTestEmail] = useState("");
-  const [testTemplateId, setTestTemplateId] = useState("");
-  const [sending, setSending] = useState(false);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["email-templates"],
@@ -130,24 +146,6 @@ export default function EmailTemplates() {
     queryClient.invalidateQueries({ queryKey: ["email-templates"] });
   };
 
-  const sendTest = async () => {
-    if (!testEmail || !testTemplateId) return;
-    setSending(true);
-    try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const res = await supabase.functions.invoke("send-template-email", {
-        body: { template_id: testTemplateId, test_email: testEmail },
-      });
-      if (res.error) throw res.error;
-      toast.success(`Test-email sendt til ${testEmail}`);
-      setTestDialogOpen(false);
-    } catch (e: any) {
-      toast.error(e.message || "Fejl ved afsendelse");
-    } finally {
-      setSending(false);
-    }
-  };
-
   const newTemplate = (): EmailTemplate => ({
     id: "",
     name: "",
@@ -164,7 +162,14 @@ export default function EmailTemplates() {
   });
 
   if (editing) {
-    return <TemplateEditor template={editing} onSave={(t) => saveMutation.mutate(t)} onCancel={() => setEditing(null)} saving={saveMutation.isPending} />;
+    return (
+      <TemplateEditor
+        template={editing}
+        onSave={(t) => saveMutation.mutate(t)}
+        onCancel={() => setEditing(null)}
+        saving={saveMutation.isPending}
+      />
+    );
   }
 
   return (
@@ -173,7 +178,7 @@ export default function EmailTemplates() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-display font-bold text-foreground">E-mail skabeloner</h1>
-            <p className="text-sm text-muted-foreground mt-1">Administrer og tilpas e-mail-skabeloner</p>
+            <p className="text-sm text-muted-foreground mt-1">Administrer og tilpas alle e-mails herfra</p>
           </div>
           <Button onClick={() => setEditing(newTemplate())}>
             <Plus className="h-4 w-4 mr-2" /> Ny skabelon
@@ -200,7 +205,7 @@ export default function EmailTemplates() {
                 <Card key={t.id} className="group">
                   <CardContent className="flex items-center gap-4 py-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-medium text-foreground truncate">{t.name}</h3>
                         <Badge variant="outline" className="shrink-0 text-xs">
                           <TriggerIcon className="h-3 w-3 mr-1" />
@@ -211,22 +216,15 @@ export default function EmailTemplates() {
                             {cronToDescription(t.trigger_config)}
                           </span>
                         )}
+                        {!t.enabled && (
+                          <Badge variant="secondary" className="text-xs">Inaktiv</Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate mt-0.5">{t.subject}</p>
                     </div>
                     <Switch checked={t.enabled} onCheckedChange={(v) => toggleEnabled(t.id, v)} />
-                    <Button variant="ghost" size="icon" onClick={() => setEditing(t)}>
+                    <Button variant="ghost" size="icon" onClick={() => setEditing(t)} title="Rediger">
                       <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setTestTemplateId(t.id);
-                        setTestDialogOpen(true);
-                      }}
-                    >
-                      <Send className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -235,6 +233,7 @@ export default function EmailTemplates() {
                       onClick={() => {
                         if (confirm("Slet denne skabelon?")) deleteMutation.mutate(t.id);
                       }}
+                      title="Slet"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -245,28 +244,6 @@ export default function EmailTemplates() {
           </div>
         )}
       </div>
-
-      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send test-email</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Modtager e-mail</Label>
-              <Input
-                type="email"
-                placeholder="test@example.com"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-              />
-            </div>
-            <Button onClick={sendTest} disabled={sending || !testEmail} className="w-full">
-              {sending ? "Sender..." : "Send test"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </AppLayout>
   );
 }
@@ -286,9 +263,18 @@ function TemplateEditor({
 }) {
   const [form, setForm] = useState({ ...template });
   const [variableInput, setVariableInput] = useState({ key: "", example: "", description: "" });
+  const [testEmail, setTestEmail] = useState("");
+  const [sending, setSending] = useState(false);
 
   const update = <K extends keyof EmailTemplate>(key: K, value: EmailTemplate[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // For rich text: extract body content from full HTML for editing
+  const richContent = extractBodyContent(form.body_html);
+
+  const handleRichTextChange = useCallback((html: string) => {
+    update("body_html", wrapInEmailDocument(html));
+  }, []);
 
   const parseCronDay = () => {
     const m = (form.trigger_config?.schedule || "").match(/^\d+\s+\d+\s+(\d+)/);
@@ -335,11 +321,32 @@ function TemplateEditor({
     onSave(payload);
   };
 
+  const sendTest = async () => {
+    if (!testEmail) return;
+    if (!form.id) {
+      toast.error("Gem skabelonen først, før du sender en test");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await supabase.functions.invoke("send-template-email", {
+        body: { template_id: form.id, test_email: testEmail },
+      });
+      if (res.error) throw res.error;
+      toast.success(`Test-email sendt til ${testEmail}`);
+    } catch (e: any) {
+      toast.error(e.message || "Fejl ved afsendelse");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const previewHtml = replaceVariables(form.body_html, form.variables);
 
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-4">
+        {/* Header */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onCancel}>
             <ArrowLeft className="h-4 w-4" />
@@ -353,6 +360,7 @@ function TemplateEditor({
           </Button>
         </div>
 
+        {/* Name + Subject */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label>Skabelonnavn</Label>
@@ -364,29 +372,35 @@ function TemplateEditor({
           </div>
         </div>
 
-        <Tabs defaultValue="code" className="w-full">
+        {/* Tabs */}
+        <Tabs defaultValue="visual" className="w-full">
           <TabsList>
+            <TabsTrigger value="visual"><Type className="h-3.5 w-3.5 mr-1.5" />Visuel redigering</TabsTrigger>
             <TabsTrigger value="code"><Code className="h-3.5 w-3.5 mr-1.5" />HTML</TabsTrigger>
             <TabsTrigger value="preview"><Eye className="h-3.5 w-3.5 mr-1.5" />Preview</TabsTrigger>
             <TabsTrigger value="trigger"><Clock className="h-3.5 w-3.5 mr-1.5" />Trigger</TabsTrigger>
             <TabsTrigger value="settings"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Indstillinger</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="code" className="mt-3">
-            <Textarea
-              value={form.body_html}
-              onChange={(e) => update("body_html", e.target.value)}
-              className="font-mono text-xs min-h-[400px]"
-              placeholder="<html>...</html>"
+          {/* Visual editor */}
+          <TabsContent value="visual" className="mt-3 space-y-3">
+            <RichTextEditor
+              content={richContent}
+              onChange={handleRichTextChange}
             />
             {form.variables.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted-foreground self-center mr-1">Variable:</span>
                 {form.variables.map((v) => (
-                  <Badge key={v.key} variant="secondary" className="text-xs font-mono cursor-pointer"
+                  <Badge
+                    key={v.key}
+                    variant="secondary"
+                    className="text-xs font-mono cursor-pointer"
                     onClick={() => {
                       navigator.clipboard.writeText(`{{${v.key}}}`);
-                      toast.success(`{{${v.key}}} kopieret`);
+                      toast.success(`{{${v.key}}} kopieret — indsæt i editoren`);
                     }}
+                    title={v.description}
                   >
                     {"{{" + v.key + "}}"}
                   </Badge>
@@ -395,6 +409,17 @@ function TemplateEditor({
             )}
           </TabsContent>
 
+          {/* HTML code editor */}
+          <TabsContent value="code" className="mt-3">
+            <Textarea
+              value={form.body_html}
+              onChange={(e) => update("body_html", e.target.value)}
+              className="font-mono text-xs min-h-[400px]"
+              placeholder="<html>...</html>"
+            />
+          </TabsContent>
+
+          {/* Preview */}
           <TabsContent value="preview" className="mt-3">
             <Card>
               <CardContent className="p-0">
@@ -408,6 +433,7 @@ function TemplateEditor({
             </Card>
           </TabsContent>
 
+          {/* Trigger */}
           <TabsContent value="trigger" className="mt-3 space-y-4">
             <div>
               <Label>Trigger-type</Label>
@@ -482,10 +508,11 @@ function TemplateEditor({
             )}
 
             {form.trigger_type === "manual" && (
-              <p className="text-sm text-muted-foreground">Denne skabelon sendes manuelt via "Send test"-knappen.</p>
+              <p className="text-sm text-muted-foreground">Denne skabelon sendes manuelt via "Send test" herunder.</p>
             )}
           </TabsContent>
 
+          {/* Settings */}
           <TabsContent value="settings" className="mt-3 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -504,7 +531,7 @@ function TemplateEditor({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Variable</CardTitle>
+                <CardTitle className="text-sm">Variable (placeholders)</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {form.variables.map((v, i) => (
@@ -538,6 +565,30 @@ function TemplateEditor({
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Inline test sender – always visible */}
+        <Card className="border-dashed">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Send className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-foreground shrink-0">Send test-email</span>
+              <Input
+                type="email"
+                placeholder="din@email.dk"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                className="max-w-xs h-9"
+                onKeyDown={(e) => e.key === "Enter" && sendTest()}
+              />
+              <Button size="sm" onClick={sendTest} disabled={sending || !testEmail || !form.id}>
+                {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Send"}
+              </Button>
+              {!form.id && (
+                <span className="text-xs text-muted-foreground">Gem skabelonen først</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
