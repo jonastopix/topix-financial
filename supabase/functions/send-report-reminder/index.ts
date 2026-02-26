@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       console.log('[send-report-reminder] Using fallback template');
     }
 
-    const reportUrl = "https://boardroom.topix.dk/reports";
+    const reportUrl = "https://topix.lovable.app/reports";
 
     // Helper to build email for a specific company
     function buildEmail(companyName: string, period: string, isTest: boolean) {
