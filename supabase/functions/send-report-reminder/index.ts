@@ -91,9 +91,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ⚠️ EMAIL WHITELIST: Only send to approved test addresses
-    const EMAIL_WHITELIST = ["jonas@topix.dk"];
-
     // Email toggle
     const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -132,9 +129,8 @@ Deno.serve(async (req) => {
 
         const email = userData.user.email;
 
-        if (!emailEnabled || !EMAIL_WHITELIST.includes(email.toLowerCase())) {
-          const reason = !emailEnabled ? "test-mode" : "not in whitelist";
-          console.log(`[BLOCKED] Would send reminder to: ${email} (${company.name}) for ${expectedPeriod} — ${reason}`);
+        if (!emailEnabled) {
+          console.log(`[BLOCKED] Would send reminder to: ${email} (${company.name}) for ${expectedPeriod} — test-mode`);
           skipped++;
           continue;
         }
