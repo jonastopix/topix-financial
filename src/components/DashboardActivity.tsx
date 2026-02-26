@@ -22,17 +22,17 @@ interface ActivityEvent {
 }
 
 const DashboardActivity = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const { data: events = [] } = useQuery({
-    queryKey: ["dashboard-activity", user?.id],
+    queryKey: ["dashboard-activity", companyId],
     queryFn: async () => {
       const activity: ActivityEvent[] = [];
 
       const { data: reports } = await supabase
         .from("financial_reports")
         .select("id, report_period, uploaded_at")
-        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .order("uploaded_at", { ascending: false })
         .limit(2);
 
@@ -46,17 +46,18 @@ const DashboardActivity = () => {
         });
       });
 
-      const { data: conv } = await supabase
+      const { data: convs } = await supabase
         .from("conversations")
         .select("id")
-        .eq("member_id", user!.id)
-        .maybeSingle();
+        .eq("company_id", companyId!)
+        .limit(1);
 
-      if (conv?.id) {
+      const convId = convs?.[0]?.id;
+      if (convId) {
         const { data: msgs } = await supabase
           .from("messages")
           .select("id, content, created_at, message_type")
-          .eq("conversation_id", conv.id)
+          .eq("conversation_id", convId)
           .order("created_at", { ascending: false })
           .limit(2);
 
@@ -74,7 +75,7 @@ const DashboardActivity = () => {
       const { data: milestones } = await supabase
         .from("milestones")
         .select("id, title, progress, updated_at")
-        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .order("updated_at", { ascending: false })
         .limit(2);
 
@@ -91,7 +92,7 @@ const DashboardActivity = () => {
       activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       return activity.slice(0, 5);
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
