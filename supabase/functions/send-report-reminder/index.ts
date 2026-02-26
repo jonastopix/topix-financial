@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     // Get all companies with status 'active'
     const { data: companies, error: compErr } = await supabase
       .from("companies")
-      .select("id, name")
+      .select("id, name, start_date, created_at")
       .eq("status", "active");
 
     if (compErr) throw compErr;
@@ -66,10 +66,26 @@ Deno.serve(async (req) => {
     const reportedCompanyIds = new Set((existingReports || []).map((r: any) => r.company_id));
 
     // Find companies missing reports
-    const missingCompanies = companies.filter((c: any) => !reportedCompanyIds.has(c.id));
+    const missingCompanies = companies.filter((c: any) => {
+      if (reportedCompanyIds.has(c.id)) return false;
+
+      // Only remind companies that should have reported for this period.
+      // A company's earliest reportable month is the month BEFORE their start.
+      // E.g. company starting March 2026 -> earliest report period is February 2026.
+      const companyStart = new Date(c.start_date || c.created_at);
+      const earliestReportMonth = new Date(companyStart.getFullYear(), companyStart.getMonth() - 1, 1);
+      const expectedMonth = prevMonth.getTime();
+
+      if (expectedMonth < earliestReportMonth.getTime()) {
+        console.log(`[send-report-reminder] Skipping ${c.name}: too new (started ${companyStart.toISOString()}, earliest report: ${earliestReportMonth.toISOString()})`);
+        return false;
+      }
+
+      return true;
+    });
 
     if (!missingCompanies.length) {
-      console.log(`[send-report-reminder] All companies have reported for ${expectedPeriod}`);
+      console.log(`[send-report-reminder] All eligible companies have reported for ${expectedPeriod}`);
       return new Response(JSON.stringify({ sent: 0, skipped: companies.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

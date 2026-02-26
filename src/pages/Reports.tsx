@@ -96,7 +96,8 @@ const Reports = () => {
     setDbReports(reportsList);
     setConversationId(convRes.data?.id || null);
     if (profileRes.data?.created_at) {
-      setProgramStart(new Date(profileRes.data.created_at));
+      const created = new Date(profileRes.data.created_at);
+      setProgramStart(new Date(created.getFullYear(), created.getMonth() - 1, 1));
     }
 
     if (reportsList.length > 0 && convRes.data?.id) {
