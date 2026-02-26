@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
-  BarChart3,
+  BarChart3, Pin, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
@@ -22,6 +22,7 @@ interface Message {
   message_type?: string;
   context_type?: string | null;
   context_meta?: any;
+  pinned_at?: string | null;
 }
 
 interface ConversationWithProfile {
@@ -87,6 +88,9 @@ const Chat = () => {
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
   const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [pinnedOpen, setPinnedOpen] = useState(true);
 
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
@@ -258,6 +262,19 @@ const Chat = () => {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${activeConvId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Message;
+          setMessages((prev) => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -308,6 +325,27 @@ const Chat = () => {
   }, [messages, topicFilter]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
+
+  const pinnedMessages = useMemo(() => 
+    messages.filter(m => m.pinned_at).sort((a, b) => 
+      new Date(b.pinned_at!).getTime() - new Date(a.pinned_at!).getTime()
+    ), [messages]);
+
+  const togglePin = async (msg: Message) => {
+    const newVal = msg.pinned_at ? null : new Date().toISOString();
+    await supabase.from("messages").update({ pinned_at: newVal } as any).eq("id", msg.id);
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pinned_at: newVal } : m));
+  };
+
+  const scrollToMessage = (msgId: string) => {
+    const el = messageRefs.current.get(msgId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary/50");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary/50"), 2000);
+    }
+  };
+
   const getInitialsLocal = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
@@ -558,8 +596,42 @@ const Chat = () => {
                 })}
               </div>
 
+              {/* Pinned messages panel */}
+              {pinnedMessages.length > 0 && (
+                <div className="mx-4 mt-3 mb-0 rounded-lg border border-primary/20 bg-primary/5">
+                  <button
+                    onClick={() => setPinnedOpen(!pinnedOpen)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-primary"
+                  >
+                    <Pin className="h-3 w-3" />
+                    Pinned ({pinnedMessages.length})
+                    {pinnedOpen ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
+                  </button>
+                  {pinnedOpen && (
+                    <div className="px-3 pb-2 space-y-1">
+                      {pinnedMessages.map(pm => (
+                        <button
+                          key={pm.id}
+                          onClick={() => scrollToMessage(pm.id)}
+                          className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-primary/10 transition-colors group"
+                        >
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                            {format(new Date(pm.created_at), "d. MMM", { locale: da })}
+                          </span>
+                          <span className="text-xs text-foreground truncate flex-1">{pm.content}</span>
+                          <Pin
+                            className="h-3 w-3 text-primary/50 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                            onClick={(e) => { e.stopPropagation(); togglePin(pm); }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                 {filteredMessages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -585,8 +657,23 @@ const Chat = () => {
 
                   if (isSystem) {
                     return (
-                      <div key={msg.id} className="flex justify-center">
-                        <div className="max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
+                      <div
+                        key={msg.id}
+                        ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
+                        className={`flex justify-center group/msg transition-all duration-300 ${msg.pinned_at ? "relative" : ""}`}
+                      >
+                        <button
+                          onClick={() => togglePin(msg)}
+                          className={`self-center mr-1 p-1 rounded-md transition-all ${
+                            msg.pinned_at
+                              ? "text-primary opacity-100"
+                              : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                          }`}
+                          title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                        >
+                          <Pin className="h-3.5 w-3.5" />
+                        </button>
+                        <div className={`max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 py-3 ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}>
                           <div className="flex items-center gap-2 mb-1">
                             <Sparkles className="h-3.5 w-3.5 text-primary" />
                             <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
@@ -616,8 +703,24 @@ const Chat = () => {
                   }
 
                   return (
-                    <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div className="max-w-[75%]">
+                    <div
+                      key={msg.id}
+                      ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
+                      className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} ${msg.pinned_at ? "relative" : ""} transition-all duration-300`}
+                    >
+                      {/* Pin button on hover */}
+                      <button
+                        onClick={() => togglePin(msg)}
+                        className={`self-center mx-1 p-1 rounded-md transition-all ${
+                          msg.pinned_at
+                            ? "text-primary opacity-100"
+                            : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                        } ${isMine ? "order-first" : "order-last"}`}
+                        title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                      >
+                        <Pin className="h-3.5 w-3.5" />
+                      </button>
+                      <div className={`max-w-[75%] ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}>
                         {/* Topic tag above message */}
                         {topicInfo && (
                           <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
