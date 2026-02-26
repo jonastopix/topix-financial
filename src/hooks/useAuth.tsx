@@ -15,8 +15,10 @@ interface AuthContext {
   ownCompanyName: string | null;
   /** True when viewing a different company than the advisor's own */
   isCompanyOverride: boolean;
+  needsOnboarding: boolean;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
+  setOnboardingComplete: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -31,8 +33,10 @@ const AuthContext = createContext<AuthContext>({
   ownCompanyId: null,
   ownCompanyName: null,
   isCompanyOverride: false,
+  needsOnboarding: false,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
+  setOnboardingComplete: () => {},
   signOut: async () => {},
 });
 
@@ -44,6 +48,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
 
@@ -65,10 +70,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setOverrideCompanyName(null);
   }, []);
 
+  const setOnboardingComplete = useCallback(() => {
+    setNeedsOnboarding(false);
+  }, []);
+
   const fetchUserData = async (userId: string) => {
     const [rolesRes, profileRes, companyRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId),
-      supabase.from("profiles").select("full_name, company_name, avatar_url").eq("user_id", userId).maybeSingle(),
+      supabase.from("profiles").select("full_name, company_name, avatar_url, onboarded_at").eq("user_id", userId).maybeSingle(),
       supabase
         .from("company_members" as any)
         .select("company_id, companies:company_id(id, name)" as any)
@@ -76,8 +85,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .limit(1)
         .maybeSingle(),
     ]);
-    setIsAdvisor(rolesRes.data?.some((r) => r.role === "advisor") ?? false);
+    const isAdv = rolesRes.data?.some((r) => r.role === "advisor") ?? false;
+    setIsAdvisor(isAdv);
     setProfile(profileRes.data);
+    // Advisors never need onboarding
+    const profileData = profileRes.data as any;
+    setNeedsOnboarding(!isAdv && profileData && !profileData.onboarded_at);
 
     const cm = companyRes.data as any;
     if (cm?.company_id) {
@@ -103,6 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
           setIsAdvisor(false);
           setProfile(null);
+          setNeedsOnboarding(false);
           setOwnCompanyId(null);
           setOwnCompanyName(null);
           setOverrideCompanyId(null);
@@ -130,7 +144,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user, session, loading, isAdvisor, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
-      isCompanyOverride, setCompanyOverride, clearCompanyOverride,
+      isCompanyOverride, needsOnboarding,
+      setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       signOut,
     }}>
       {children}
