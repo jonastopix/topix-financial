@@ -1,23 +1,56 @@
 
 
-## Tilfoej "Se original fil"-knap paa MemberDetail-siden
+# Plan: Månedlige rapporterings-påmindelser via email
 
-### Problem
-Knappen "Se original fil" blev kun tilfoejet til `Reports.tsx` (medlemmets egen rapportside), men **ikke** til `MemberDetail.tsx` — som er den side advisors bruger til at se et specifikt medlems data. Saa som advisor kan du ikke tilgaa den originale fil fra medlemsvisningen.
+## Oversigt
+Opsætning af automatiske email-påmindelser til medlemmer, der ikke har uploadet deres månedlige rapport. Påmindelser sendes d. 10. og d. 20. i den efterfølgende måned. Hvis rapporten allerede er uploadet, sendes ingen mail.
 
-### Loesning
+## Komponenter
 
-**Fil: `src/pages/MemberDetail.tsx`**
+### 1. Email-template til påmindelse
+Ny fil: `supabase/functions/send-report-reminder/_templates/reminder.tsx`
+- React Email template i samme stil som den eksisterende invitations-template
+- Viser virksomhedsnavn og hvilken måned der mangler rapport for
+- CTA-knap der linker til rapporteringssiden
 
-1. Tilfoej `file_path` til `Report`-interfacet (linje 53-62), saa vi har stien til den uploadede fil.
+### 2. Edge Function: `send-report-reminder`
+Ny fil: `supabase/functions/send-report-reminder/index.ts`
+- Kaldes via cron (ingen JWT-verifikation, men validerer en intern header/secret)
+- Logik:
+  1. Beregn hvilken måned der skal tjekkes (forrige måned ift. dags dato)
+  2. Hent alle virksomheder med deres medlemmer (via `companies` + `company_members` + `profiles`)
+  3. For hver virksomhed: tjek om der findes en `financial_reports`-record for den pågældende periode
+  4. Hvis IKKE: hent medlemmets email og send påmindelse via Resend
+- Bruger eksisterende `RESEND_API_KEY` og `EMAIL_SENDING_ENABLED` test-mode toggle
+- Logger hvilke mails der sendes/skippes
 
-2. Tilfoej en `handleViewOriginalFile`-funktion (samme moenster som i Reports.tsx) der:
-   - Henter signed URL fra `financial-documents` bucket
-   - Aabner filen i et nyt vindue
+### 3. Cron-job via pg_cron
+To scheduled jobs:
+- **10. i hver måned kl. 08:00 UTC**: Kalder `send-report-reminder` edge function
+- **20. i hver måned kl. 08:00 UTC**: Kalder `send-report-reminder` edge function
 
-3. Tilfoej en "Se original fil"-knap i det udvidede rapportkort (i expanded-sektionen ved linje 456-522), placeret lige foer kommentar-sektionen. Knappen vises kun hvis `report.file_path` eksisterer.
+Bruger `pg_cron` + `pg_net` til at kalde edge function via HTTP POST.
 
-4. Importér `ExternalLink`-ikonet fra lucide-react (allerede importeret i Reports.tsx som reference).
+### 4. Konfiguration i `supabase/config.toml`
+Tilføj `verify_jwt = false` for den nye function.
 
-### Resultat
-Advisors vil kunne klikke paa en rapport i medlemsvisningen, udvide den, og se en "Se original fil"-knap der aabner dokumentet i et nyt vindue via en sikker signed URL (gyldig i 1 time).
+## Tekniske detaljer
+
+### Rapport-periode matching
+`financial_reports.report_period` indeholder perioden som tekst (f.eks. "Februar 2026"). Edge function matcher dette mod den forventede periode for at afgøre om rapport er indleveret.
+
+### Email-indhold
+- Emne: "Påmindelse: Rapport for [måned] mangler"
+- Afsender: `MOLA Founder <noreply@boardroom.topix.dk>` (samme som invitation)
+- Indhold: Kort besked om at rapporten mangler, med link til platformen
+
+### Sikkerhed
+- Edge function tjekker en authorization header (service role key fra cron)
+- Respekterer `EMAIL_SENDING_ENABLED` toggle ligesom invitation-emails
+
+### Berørte filer
+- **Ny**: `supabase/functions/send-report-reminder/index.ts`
+- **Ny**: `supabase/functions/send-report-reminder/_templates/reminder.tsx`
+- **Opdateret**: `supabase/config.toml` (tilføj function config)
+- **Database**: Aktivér `pg_cron` + `pg_net` extensions, opret 2 cron schedules
+
