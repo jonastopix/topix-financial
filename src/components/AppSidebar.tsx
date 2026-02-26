@@ -228,7 +228,8 @@ const AppSidebar = () => {
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
           {isAdvisor && (
             <div className="space-y-2">
-              {/* Company picker */}
+              {/* Company picker – hidden in "view as member" mode */}
+              {!viewingAsMember && (
               <div className="relative">
                 <button
                   onClick={() => setShowCompanyPicker((v) => !v)}
@@ -275,6 +276,7 @@ const AppSidebar = () => {
                   </div>
                 )}
               </div>
+              )}
 
               {/* View as member toggle */}
               <button
