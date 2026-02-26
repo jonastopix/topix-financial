@@ -35,14 +35,19 @@ serve(async (req) => {
 Du modtager et base-budget med 12 månedlige værdier per kategori.
 Din opgave er at generere et realistisk ${scenarioLabel} scenarie.
 
+VIGTIGST AF ALT: Du SKAL ændre tallene! Returnér ALDRIG de samme værdier som base-budgettet. Hvert tal SKAL være anderledes end input.
+
 REGLER:
 1. For et OPTIMISTISK scenarie: Øg indtægter med 10-25%, reducer variable omkostninger med 5-15%, fasthold eller let reducer faste omkostninger.
 2. For et PESSIMISTISK scenarie: Reducer indtægter med 10-25%, øg variable omkostninger med 5-15%, fasthold eller let øg faste omkostninger.
-3. Bevar sæsonmønstre fra base-budgettet.
+3. Bevar sæsonmønstre fra base-budgettet men ændr størrelserne.
 4. Justeringerne skal være realistiske og varierede — ikke blot en flad procentjustering.
-5. Personaleomkostninger ændres minimalt (0-5%) medmindre det er et ekstremt scenarie.
-6. Returnér PRÆCIS samme kategorier med samme keys og grupper.
-7. Alle værdier skal være hele tal (afrundet).`;
+5. Personaleomkostninger ændres minimalt (2-5%).
+6. Returnér PRÆCIS samme kategorier med samme "key" værdier.
+7. Alle værdier skal være hele tal (afrundet).
+8. GENTAGER: Tallene SKAL være forskellige fra base-budgettet!`;
+
+    console.log("Sending to AI, scenario:", scenarioLabel, "categories:", baseRows.length);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -56,7 +61,7 @@ REGLER:
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `Her er base-budgettet:\n\n${baseSummary}\n\nGenerer et ${scenarioLabel} scenarie. Retning: ${scenarioDirection}`,
+            content: `Her er base-budgettet:\n\n${baseSummary}\n\nGenerer et ${scenarioLabel} scenarie. Retning: ${scenarioDirection}.\n\nHUSK: Alle tal SKAL ændres i forhold til base. Returnér IKKE de originale værdier.`,
           },
         ],
         tools: [
@@ -64,7 +69,7 @@ REGLER:
             type: "function",
             function: {
               name: "generate_scenario",
-              description: `Genererer et ${scenarioLabel} budget-scenarie baseret på base-budgettet`,
+              description: `Genererer et ${scenarioLabel} budget-scenarie med ÆNDREDE tal i forhold til base-budgettet`,
               parameters: {
                 type: "object",
                 properties: {
@@ -77,7 +82,7 @@ REGLER:
                         monthly: {
                           type: "array",
                           items: { type: "number" },
-                          description: "12 månedlige værdier for det nye scenarie",
+                          description: "12 månedlige værdier - SKAL være forskellige fra base",
                         },
                       },
                       required: ["key", "monthly"],
@@ -109,6 +114,21 @@ REGLER:
     }
 
     const parsed = JSON.parse(toolCall.function.arguments);
+    console.log("AI returned categories:", parsed.categories?.length, "reasoning:", parsed.reasoning?.substring(0, 100));
+    
+    // Validate that values actually changed
+    let changedCount = 0;
+    let totalCount = 0;
+    for (const cat of (parsed.categories || [])) {
+      const baseRow = baseRows.find((r: any) => r.key === cat.key);
+      if (baseRow) {
+        for (let i = 0; i < Math.min(cat.monthly.length, baseRow.values.length); i++) {
+          totalCount++;
+          if (cat.monthly[i] !== baseRow.values[i]) changedCount++;
+        }
+      }
+    }
+    console.log(`Values changed: ${changedCount}/${totalCount}`);
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
