@@ -97,8 +97,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setOwnCompanyId(cm.company_id);
       setOwnCompanyName(cm.companies?.name || null);
     } else {
-      setOwnCompanyId(null);
-      setOwnCompanyName(null);
+      // No company membership — check for pending invitation
+      const userEmail = (await supabase.auth.getUser()).data.user?.email;
+      if (userEmail) {
+        try {
+          const { data: invResult } = await supabase.functions.invoke(
+            "process-pending-invitation",
+            { body: { user_id: userId, email: userEmail } }
+          );
+          if (invResult?.success) {
+            setOwnCompanyId(invResult.company_id);
+            setOwnCompanyName(invResult.company_name);
+          } else {
+            setOwnCompanyId(null);
+            setOwnCompanyName(null);
+          }
+        } catch (e) {
+          console.error("Failed to process pending invitation:", e);
+          setOwnCompanyId(null);
+          setOwnCompanyName(null);
+        }
+      } else {
+        setOwnCompanyId(null);
+        setOwnCompanyName(null);
+      }
     }
   };
 
