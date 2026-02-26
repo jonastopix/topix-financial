@@ -17,7 +17,7 @@ import RichTextEditor from "@/components/RichTextEditor";
 import {
   Plus, Mail, Send, Pencil, Trash2, Clock, Zap, Hand,
   Code, Eye, Settings2, ArrowLeft, Type, Loader2, History,
-  CheckCircle, XCircle, FlaskConical,
+  CheckCircle, XCircle, FlaskConical, Copy, Info, Link,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -63,6 +63,15 @@ const EVENT_OPTIONS = [
   { value: "invitation_sent", label: "Invitation sendt" },
   { value: "new_user", label: "Ny bruger oprettet" },
   { value: "milestone_deadline", label: "Milestone deadline nærmer sig" },
+  { value: "membership_days", label: "X dage efter medlemsskabs-start" },
+];
+
+const PLATFORM_URLS: { label: string; url: string; variable: string; description: string }[] = [
+  { label: "Signup / Accept invitation", url: "https://boardroom.topix.dk/auth", variable: "signup_url", description: "Link til login/signup – bruges i invitationer" },
+  { label: "Rapportering", url: "https://boardroom.topix.dk/reports", variable: "report_url", description: "Link til rapport-upload – bruges i påmindelser" },
+  { label: "Dashboard", url: "https://boardroom.topix.dk/", variable: "dashboard_url", description: "Link til forsiden / dashboard" },
+  { label: "Milepæle", url: "https://boardroom.topix.dk/milestones", variable: "milestones_url", description: "Link til milepæle-oversigt" },
+  { label: "Budget", url: "https://boardroom.topix.dk/budget", variable: "budget_url", description: "Link til budget-oversigt" },
 ];
 
 function replaceVariables(html: string, variables: EmailTemplate["variables"]) {
@@ -259,6 +268,27 @@ export default function EmailTemplates() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => {
+                        const dup = {
+                          ...newTemplate(),
+                          name: `${t.name} (kopi)`,
+                          subject: t.subject,
+                          body_html: t.body_html,
+                          sender_name: t.sender_name,
+                          sender_email: t.sender_email,
+                          trigger_type: t.trigger_type,
+                          trigger_config: { ...t.trigger_config },
+                          variables: [...t.variables],
+                        };
+                        setEditing(dup);
+                      }}
+                      title="Duplikér"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => {
                         if (confirm("Slet denne skabelon?")) deleteMutation.mutate(t.id);
@@ -346,6 +376,35 @@ export default function EmailTemplates() {
             </Card>
           )}
         </div>
+
+        {/* Platform URL reference */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Link className="h-4 w-4" />
+              Platform-links til brug i skabeloner
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground mb-3">
+              Brug disse links som variable i dine e-mail skabeloner. Klik for at kopiere.
+            </p>
+            {PLATFORM_URLS.map((u) => (
+              <div
+                key={u.variable}
+                className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 rounded-md p-2 -mx-2 transition-colors"
+                onClick={() => {
+                  navigator.clipboard.writeText(u.url);
+                  toast.success(`${u.url} kopieret`);
+                }}
+              >
+                <code className="bg-muted px-2 py-0.5 rounded text-xs shrink-0">{`{{${u.variable}}}`}</code>
+                <span className="text-muted-foreground flex-1 truncate">{u.description}</span>
+                <span className="text-xs font-mono text-muted-foreground">{u.url}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
@@ -592,21 +651,40 @@ function TemplateEditor({
             )}
 
             {form.trigger_type === "event" && (
-              <div>
-                <Label>Hændelse</Label>
-                <Select
-                  value={form.trigger_config?.event || ""}
-                  onValueChange={(v) => update("trigger_config", { event: v })}
-                >
-                  <SelectTrigger className="w-64">
-                    <SelectValue placeholder="Vælg hændelse" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EVENT_OPTIONS.map((e) => (
-                      <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div>
+                  <Label>Hændelse</Label>
+                  <Select
+                    value={form.trigger_config?.event || ""}
+                    onValueChange={(v) => update("trigger_config", { ...form.trigger_config, event: v })}
+                  >
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="Vælg hændelse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EVENT_OPTIONS.map((e) => (
+                        <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {form.trigger_config?.event === "membership_days" && (
+                  <div>
+                    <Label>Antal dage efter medlemsskabs-start</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={365}
+                      className="w-32"
+                      value={form.trigger_config?.days || 30}
+                      onChange={(e) => update("trigger_config", { ...form.trigger_config, days: parseInt(e.target.value) || 30 })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      E-mailen sendes automatisk X dage efter virksomhedens start_date
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
