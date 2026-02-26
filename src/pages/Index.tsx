@@ -10,6 +10,7 @@ import AIProgressWidget from "@/components/AIProgressWidget";
 import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import DashboardActivity from "@/components/DashboardActivity";
+import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getKeyFigures, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
@@ -45,7 +46,7 @@ function budgetPeriodToKey(period: string): string | null {
 const Dashboard = () => {
   const { user, profile, companyId } = useAuth();
 
-  const { data: dashboardData } = useQuery({
+  const { data: dashboardData, isLoading } = useQuery({
     queryKey: ["dashboard-kpis", companyId, user?.id],
     queryFn: async () => {
       const [reportsRes, convRes, budgetRes] = await Promise.all([
@@ -224,6 +225,14 @@ const Dashboard = () => {
   const ytdResultBudget = budgetData.ytdRevenue != null && budgetData.ytdExpenses != null
     ? budgetBadge(kpiData.ytdResult, budgetData.ytdRevenue - budgetData.ytdExpenses, true)
     : null;
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <DashboardSkeleton />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
