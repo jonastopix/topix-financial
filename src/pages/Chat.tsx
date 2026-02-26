@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
-  BarChart3, Pin,
+  BarChart3, Pin, Maximize2, Minimize2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
@@ -90,6 +90,7 @@ const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
@@ -357,8 +358,8 @@ const Chat = () => {
   };
 
   return (
-    <AppLayout>
-      {isAdvisor && (
+    <AppLayout fullscreen={isFullscreen}>
+      {isAdvisor && !isFullscreen && (
         <div className="mb-2">
           <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
@@ -367,7 +368,7 @@ const Chat = () => {
         </div>
       )}
 
-      <div className="glass-card rounded-xl overflow-hidden flex" style={{ height: isAdvisor ? "calc(100vh - 120px)" : "calc(100vh - 80px)" }}>
+      <div className={`glass-card overflow-hidden flex ${isFullscreen ? "h-screen" : "rounded-xl"}`} style={isFullscreen ? undefined : { height: isAdvisor ? "calc(100vh - 120px)" : "calc(100vh - 80px)" }}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {isAdvisor && (
           <div className="w-[340px] border-r border-border flex flex-col bg-card/50">
@@ -560,8 +561,17 @@ const Chat = () => {
                 </div>
               ) : null}
 
-              {/* Topic filter chips */}
+              {/* Topic filter chips + fullscreen toggle */}
               <div className="px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto">
+                {isFullscreen && (
+                  <button
+                    onClick={() => setIsFullscreen(false)}
+                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors mr-1"
+                    title="Afslut fuldskærm"
+                  >
+                    <Minimize2 className="h-4 w-4" />
+                  </button>
+                )}
                 {TOPIC_CONFIG.map(t => {
                   const isActive = topicFilter === t.key;
                   const TopicIcon = t.icon;
@@ -586,6 +596,15 @@ const Chat = () => {
                     </button>
                   );
                 })}
+                {!isFullscreen && (
+                  <button
+                    onClick={() => setIsFullscreen(true)}
+                    className="ml-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
+                    title="Fuldskærm"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Pinned messages – compact bar */}

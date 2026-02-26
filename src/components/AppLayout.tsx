@@ -4,10 +4,21 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppLayoutProps {
   children: ReactNode;
+  fullscreen?: boolean;
 }
 
-const AppLayout = ({ children }: AppLayoutProps) => {
+const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const isMobile = useIsMobile();
+
+  if (fullscreen) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="min-h-screen">
+          <div className="h-screen">{children}</div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
