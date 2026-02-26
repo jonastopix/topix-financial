@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Send,
   ClipboardList,
+  ExternalLink,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -53,6 +54,7 @@ interface CompanyContext {
 interface Report {
   id: string;
   file_name: string;
+  file_path: string;
   report_type: string;
   status: string;
   report_period: string | null;
@@ -235,6 +237,17 @@ const MemberDetail = () => {
       setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
     }
     setSubmittingComment(null);
+  };
+
+  const handleViewOriginalFile = async (filePath: string) => {
+    const { data, error } = await supabase.storage
+      .from("financial-documents")
+      .createSignedUrl(filePath, 3600);
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank");
+    } else {
+      console.error("Could not create signed URL:", error);
+    }
   };
 
   const getInitials = (name: string) =>
@@ -464,6 +477,17 @@ const MemberDetail = () => {
                             <p className="text-[10px] text-muted-foreground mt-4">
                               Behandlet {format(new Date(report.processed_at), "d. MMM yyyy HH:mm", { locale: da })}
                             </p>
+                          )}
+
+                          {/* View original file button */}
+                          {report.file_path && (
+                            <button
+                              onClick={() => handleViewOriginalFile(report.file_path)}
+                              className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors font-medium"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              Se original fil
+                            </button>
                           )}
 
                           {/* Chat comments section */}
