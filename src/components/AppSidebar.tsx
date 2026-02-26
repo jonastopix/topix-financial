@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import AdvisorNotifications from "@/components/AdvisorNotifications";
 import {
   LayoutDashboard,
   FileText,
@@ -183,15 +184,18 @@ const AppSidebar = () => {
               </p>
             </div>
           </div>
-          {isMobile && (
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 rounded-lg text-sidebar-muted hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors"
-              aria-label="Luk menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {isAdvisor && <AdvisorNotifications />}
+            {isMobile && (
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 rounded-lg text-sidebar-muted hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors"
+                aria-label="Luk menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

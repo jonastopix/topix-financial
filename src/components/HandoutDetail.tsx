@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
+import { createAdvisorNotification } from "@/lib/advisorNotifications";
 
 interface HandoutDetailProps {
   config: HandoutConfig;
@@ -185,6 +186,19 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
     } else {
       setHandoutStatus(newStatus);
       toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
+
+      // Create advisor notification when handout is completed
+      if (newStatus === "completed" && companyId && effectiveUserId) {
+        await createAdvisorNotification({
+          type: "handout_completed",
+          title: `Handout udfyldt: ${config.title}`,
+          body: `${companyName || "Medlem"} har udfyldt handout "${config.title}"`,
+          companyId,
+          memberId: effectiveUserId,
+          referenceId: handoutId || undefined,
+          referenceType: "handout",
+        });
+      }
     }
   };
 

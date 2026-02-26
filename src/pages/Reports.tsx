@@ -20,6 +20,7 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -41,6 +42,7 @@ import {
 interface DbReport {
   id: string;
   file_name: string;
+  file_path: string;
   report_type: string;
   report_period: string | null;
   company_name: string | null;
@@ -83,7 +85,7 @@ const Reports = () => {
     const [reportsRes, convRes, profileRes] = await Promise.all([
       (supabase
         .from("financial_reports")
-        .select("id, file_name, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
+        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
         .eq("company_id", companyId)
         .order("uploaded_at", { ascending: false }),
       supabase.from("conversations").select("id").eq("member_id", user.id).maybeSingle(),
@@ -212,6 +214,16 @@ const Reports = () => {
 
   const handlePipelineComplete = () => {
     setRefreshKey((k) => k + 1);
+  };
+
+  const handleViewOriginalFile = async (report: DbReport) => {
+    if (!report.file_path) return;
+    const { data } = await supabase.storage
+      .from("financial-documents")
+      .createSignedUrl(report.file_path, 3600);
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank");
+    }
   };
 
   const renderExtractedData = (data: Json | null) => {
@@ -528,6 +540,16 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-5">
+                    {/* Original file download button */}
+                    {report.file_path && report.file_path.includes("/") && (
+                      <button
+                        onClick={() => handleViewOriginalFile(report)}
+                        className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Se original fil ({report.file_name})
+                      </button>
+                    )}
                     {report.extracted_data && (
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
