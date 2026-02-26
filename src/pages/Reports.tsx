@@ -88,7 +88,9 @@ const Reports = () => {
         .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
         .eq("company_id", companyId)
         .order("uploaded_at", { ascending: false }),
-      supabase.from("conversations").select("id").eq("member_id", user.id).maybeSingle(),
+      companyId
+        ? supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle()
+        : Promise.resolve({ data: null }),
       companyId
         ? supabase.from("companies").select("start_date").eq("id", companyId).maybeSingle()
         : Promise.resolve({ data: null }),
