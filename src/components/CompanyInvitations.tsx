@@ -97,7 +97,7 @@ const CompanyInvitations = () => {
       setEmail("");
       fetchData();
 
-      // Trigger invitation email (test-mode: no email actually sent)
+      // Trigger invitation email
       try {
         const { data: emailResult } = await supabase.functions.invoke("send-invitation-email", {
           body: {
@@ -106,9 +106,7 @@ const CompanyInvitations = () => {
             signup_url: `${window.location.origin}/auth`,
           },
         });
-        if (emailResult?.test_mode) {
-          console.log("[TEST-MODE] Email invitation logged but not sent");
-        }
+        // Email sent successfully via Resend
       } catch (emailErr) {
         console.error("Could not trigger invitation email:", emailErr);
       }

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ViewModeProvider } from "@/hooks/useViewMode";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Reports from "./pages/Reports";
 import Milestones from "./pages/Milestones";
@@ -44,36 +45,38 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <ViewModeProvider>
-          <Routes>
-            <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="/budget" element={<ProtectedRoute><Budget /></ProtectedRoute>} />
-            <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
-            <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
-            <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
-            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-            
-            <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
-            <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/admin/config" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          </ViewModeProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <ViewModeProvider>
+            <Routes>
+              <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+              <Route path="/budget" element={<ProtectedRoute><Budget /></ProtectedRoute>} />
+              <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
+              <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
+              <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
+              <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+              
+              <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
+              <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/admin/config" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            </ViewModeProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
