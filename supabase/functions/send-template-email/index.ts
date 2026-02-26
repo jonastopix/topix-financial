@@ -92,8 +92,8 @@ Deno.serve(async (req) => {
     let bodyHtml = template.body_html
     for (const [key, value] of Object.entries(vars)) {
       const placeholder = `{{${key}}}`
-      subject = subject.replaceAll(placeholder, value)
-      bodyHtml = bodyHtml.replaceAll(placeholder, value)
+      while (subject.includes(placeholder)) subject = subject.replace(placeholder, value)
+      while (bodyHtml.includes(placeholder)) bodyHtml = bodyHtml.replace(placeholder, value)
     }
 
     if (!test_email) {
@@ -107,14 +107,28 @@ Deno.serve(async (req) => {
     if (!resendApiKey) throw new Error('RESEND_API_KEY not configured')
     const resend = new Resend(resendApiKey)
 
+    const finalSubject = `[TEST] ${subject}`
     const { error: sendErr } = await resend.emails.send({
       from: `${template.sender_name} <${template.sender_email}>`,
       to: [test_email],
-      subject: `[TEST] ${subject}`,
+      subject: finalSubject,
       html: bodyHtml,
     })
 
-    if (sendErr) throw new Error(`Send failed: ${JSON.stringify(sendErr)}`)
+    if (sendErr) {
+      // Log failure
+      await adminSupabase.from('email_send_log').insert({
+        template_id, recipient_email: test_email, subject: finalSubject,
+        status: 'failed', error_message: JSON.stringify(sendErr), is_test: true,
+      })
+      throw new Error(`Send failed: ${JSON.stringify(sendErr)}`)
+    }
+
+    // Log success
+    await adminSupabase.from('email_send_log').insert({
+      template_id, recipient_email: test_email, subject: finalSubject,
+      status: 'sent', is_test: true,
+    })
 
     console.log(`[send-template-email] Test sent to ${test_email} (template: ${template.name})`)
 

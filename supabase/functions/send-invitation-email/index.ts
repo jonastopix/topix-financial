@@ -69,14 +69,16 @@ Deno.serve(async (req) => {
     let subjectTpl = FALLBACK_SUBJECT;
     let bodyTpl = FALLBACK_HTML;
     let senderFrom = FALLBACK_SENDER;
+    let templateId: string | null = null;
 
     const { data: tpl } = await adminSupabase
       .from('email_templates')
-      .select('subject, body_html, sender_name, sender_email, enabled')
+      .select('id, subject, body_html, sender_name, sender_email, enabled')
       .eq('name', 'Invitation til virksomhed')
       .maybeSingle();
 
     if (tpl && tpl.enabled) {
+      templateId = tpl.id;
       subjectTpl = tpl.subject;
       bodyTpl = tpl.body_html;
       senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
@@ -98,6 +100,16 @@ Deno.serve(async (req) => {
     const { error } = await resend.emails.send({
       from: senderFrom, to: [email], subject, html,
     });
+
+    // Log to email_send_log
+    if (templateId) {
+      await adminSupabase.from('email_send_log').insert({
+        template_id: templateId, recipient_email: email, subject,
+        status: error ? 'failed' : 'sent',
+        error_message: error ? JSON.stringify(error) : null,
+        is_test: false,
+      });
+    }
 
     if (error) {
       console.error("Resend error:", error);
