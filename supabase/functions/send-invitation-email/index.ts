@@ -52,23 +52,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // TEST-MODE TOGGLE: Check if email sending is enabled
-    const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
-
-    if (!emailEnabled) {
-      console.log(`[TEST-MODE] Email NOT sent to: ${email}`);
-      console.log(`[TEST-MODE] Company: ${company_name}`);
-      console.log(`[TEST-MODE] Signup URL: ${signup_url}`);
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          test_mode: true, 
-          message: `Email not sent (test-mode). Would send to: ${email}` 
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Email sending is now always enabled (test-mode removed)
 
     // LIVE MODE: Actually send the email
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
