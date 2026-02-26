@@ -98,6 +98,7 @@ const BudgetComparison = () => {
 
   // Load user + available report periods
   useEffect(() => {
+    if (!companyId) return;
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
@@ -107,7 +108,7 @@ const BudgetComparison = () => {
       const { data: reports } = await supabase
         .from("financial_reports")
         .select("report_period, extracted_data")
-        .eq("user_id", user.id)
+        .eq("company_id", companyId)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false });
 
@@ -137,17 +138,17 @@ const BudgetComparison = () => {
       const { data: targets } = await supabase
         .from("budget_targets")
         .select("category, budget_amount, period")
-        .eq("user_id", user.id);
+        .eq("company_id", companyId);
       if (targets) setAllBudgetTargets(targets);
 
       setLoading(false);
     };
     init();
-  }, []);
+  }, [companyId]);
 
   // Load budget data when period or user changes
   useEffect(() => {
-    if (!selectedPeriod || !userId) return;
+    if (!selectedPeriod || !companyId) return;
 
     const load = async () => {
       // Try both Danish period format and internal budget key format
@@ -158,7 +159,7 @@ const BudgetComparison = () => {
       const { data } = await supabase
         .from("budget_targets")
         .select("category, budget_amount, period")
-        .eq("user_id", userId)
+        .eq("company_id", companyId)
         .in("period", periodsToQuery);
 
       let savedMap: Map<string, number> | undefined;
@@ -187,7 +188,7 @@ const BudgetComparison = () => {
       })));
     };
     load();
-  }, [selectedPeriod, userId, reportActuals]);
+  }, [selectedPeriod, companyId, reportActuals]);
 
   const handlePeriodChange = (period: string) => {
     if (editing) { setEditing(false); setEditValues({}); }

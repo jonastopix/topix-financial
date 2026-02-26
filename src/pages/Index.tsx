@@ -56,11 +56,11 @@ const Dashboard = () => {
           .eq("status", "processed")
           .order("uploaded_at", { ascending: false })
           .limit(24),
-        supabase.from("conversations").select("id").eq("member_id", user!.id).maybeSingle(),
+        supabase.from("conversations").select("id").eq("company_id", companyId!).limit(1),
         supabase.from("budget_targets").select("category, period, budget_amount").eq("company_id", companyId!),
       ]);
 
-      const conversationId = convRes.data?.id || null;
+      const conversationId = convRes.data?.[0]?.id || null;
       const reports = (reportsRes.data || []) as ReportData[];
       const sorted = reports
         .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r), period: r.report_period }))
