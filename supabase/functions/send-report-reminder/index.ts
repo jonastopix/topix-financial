@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
           );
 
           const { error: sendErr } = await resend!.emails.send({
-            from: "MOLA Founder <noreply@boardroom.topix.dk>",
+            from: "The Boardroom <noreply@boardroom.topix.dk>",
             to: [email],
             subject: `Påmindelse: Rapport for ${expectedPeriod} mangler`,
             html,
