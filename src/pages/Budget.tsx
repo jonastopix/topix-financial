@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { parseReportPeriodToKey, formatCompact } from "@/lib/financialUtils";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ArrowLeft } from "lucide-react";
 import {
   Calculator, TrendingUp, TrendingDown, DollarSign, Building2, Users, Megaphone,
   Pencil, Save, X, ChevronRight, BarChart3, Layers, Sparkles, Shield, Zap, Copy, Info, Upload,
   Plus, Trash2,
 } from "lucide-react";
+import { useNavigationReset } from "@/hooks/useNavigationReset";
 import BudgetImport from "@/components/BudgetImport";
 import BudgetFromAccounts from "@/components/BudgetFromAccounts";
 import {
@@ -157,6 +158,17 @@ const Budget = () => {
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [editLabelValue, setEditLabelValue] = useState("");
   const [generatingScenario, setGeneratingScenario] = useState<ScenarioKey | null>(null);
+  const [changingTemplate, setChangingTemplate] = useState(false);
+
+  // Navigation reset: when sidebar is clicked while on this page, reset sub-views
+  const resetKey = useNavigationReset();
+  useEffect(() => {
+    if (resetKey) {
+      setChangingTemplate(false);
+      setEditing(false);
+      setEditValues({});
+    }
+  }, [resetKey]);
 
   // Load from DB
   useEffect(() => {
@@ -323,9 +335,11 @@ const Budget = () => {
   }, []);
 
   const handleChangeTemplate = () => {
-    setSelectedTemplate(null);
-    setScenarioData(null);
-    setLabelOverrides({});
+    setChangingTemplate(true);
+  };
+
+  const handleBackFromTemplatePicker = () => {
+    setChangingTemplate(false);
   };
 
   // ─── Add manual category ───
@@ -392,7 +406,7 @@ const Budget = () => {
     setEditLabelValue("");
   };
 
-  // If no template selected and no data loaded, show picker
+  // If no template selected and no data loaded, show picker (first time)
   if (dbLoaded && !selectedTemplate && !scenarioData) {
     return (
       <AppLayout>
@@ -406,6 +420,45 @@ const Budget = () => {
           </p>
         </div>
         <TemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
+      </AppLayout>
+    );
+  }
+
+  // Changing template from existing budget
+  if (changingTemplate) {
+    return (
+      <AppLayout>
+        <div className="mb-8">
+          <button
+            onClick={handleBackFromTemplatePicker}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Tilbage til budget
+          </button>
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+            <Calculator className="h-6 w-6 text-primary" />
+            Skift budgetskabelon
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Vælg en ny skabelon — dette nulstiller dit nuværende budget
+          </p>
+        </div>
+        <TemplatePicker
+          onSelect={(tmpl) => {
+            setSelectedTemplate(null);
+            setScenarioData(null);
+            setLabelOverrides({});
+            handleTemplateSelect(tmpl);
+            setChangingTemplate(false);
+          }}
+          userId={user?.id || ""}
+          companyId={companyId || ""}
+          onImportComplete={(result) => {
+            handleImportComplete(result);
+            setChangingTemplate(false);
+          }}
+        />
       </AppLayout>
     );
   }

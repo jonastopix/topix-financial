@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { useNavigationReset } from "@/hooks/useNavigationReset";
 
 interface HandoutSummary {
   module: HandoutModule;
@@ -22,6 +23,13 @@ const Handouts = () => {
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
 
+  // Navigation reset: when sidebar is clicked while on this page, go back to list
+  const resetKey = useNavigationReset();
+  useEffect(() => {
+    if (resetKey) {
+      setActiveModule(null);
+    }
+  }, [resetKey]);
   useEffect(() => {
     if (!user || !companyId) return;
     const load = async () => {

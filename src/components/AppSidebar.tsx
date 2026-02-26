@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
@@ -46,6 +46,7 @@ const advisorNavItems = [
 
 const AppSidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const { user, profile, signOut, isAdvisor, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
@@ -197,10 +198,13 @@ const AppSidebar = () => {
           {[...baseNavItems, ...(effectiveAdvisor ? advisorNavItems : [])].map((item) => {
             const isActive = location.pathname === item.path;
             return (
-              <Link
+              <button
                 key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                onClick={() => {
+                  navigate(item.path, { state: { resetKey: Date.now() } });
+                  if (isMobile) setIsOpen(false);
+                }}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group w-full text-left ${
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
@@ -220,7 +224,7 @@ const AppSidebar = () => {
                 {isActive && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />
                 )}
-              </Link>
+              </button>
             );
           })}
         </nav>
