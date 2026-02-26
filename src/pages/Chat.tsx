@@ -358,14 +358,16 @@ const Chat = () => {
 
   return (
     <AppLayout>
-      <div className="mb-2">
-        <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-primary" />
-          {isAdvisor ? "Indbakke" : "Chat med rådgivere"}
-        </h1>
-      </div>
+      {isAdvisor && (
+        <div className="mb-2">
+          <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            Indbakke
+          </h1>
+        </div>
+      )}
 
-      <div className="glass-card rounded-xl overflow-hidden flex" style={{ height: "calc(100vh - 120px)" }}>
+      <div className="glass-card rounded-xl overflow-hidden flex" style={{ height: isAdvisor ? "calc(100vh - 120px)" : "calc(100vh - 80px)" }}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {isAdvisor && (
           <div className="w-[340px] border-r border-border flex flex-col bg-card/50">
@@ -533,36 +535,30 @@ const Chat = () => {
         <div className="flex-1 flex flex-col">
           {activeConvId ? (
             <>
-              {/* Header */}
-              <div className="p-4 border-b border-border flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-primary">
-                    {getInitialsLocal(
-                      isAdvisor
-                        ? activeConv?.profile?.full_name || "??"
-                        : "MJ"
-                    )}
-                  </span>
+              {/* Header — only show for advisor view */}
+              {isAdvisor ? (
+                <div className="px-5 py-3 border-b border-border flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-xs font-semibold text-primary">
+                      {getInitialsLocal(activeConv?.profile?.full_name || "??")}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      {activeConv?.profile?.full_name || "Ukendt"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {activeConv?.profile?.company_name || ""}
+                    </p>
+                  </div>
+                  {activeConv?.hasRecentReport && (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                      <FileText className="h-3 w-3" />
+                      Ny rapport indsendt
+                    </span>
+                  )}
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {isAdvisor
-                      ? activeConv?.profile?.full_name || "Ukendt"
-                      : "Morten & Jonas"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isAdvisor
-                      ? activeConv?.profile?.company_name || ""
-                      : "Dine rådgivere"}
-                  </p>
-                </div>
-                {isAdvisor && activeConv?.hasRecentReport && (
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-                    <FileText className="h-3 w-3" />
-                    Ny rapport indsendt
-                  </span>
-                )}
-              </div>
+              ) : null}
 
               {/* Topic filter chips */}
               <div className="px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto">
