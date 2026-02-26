@@ -54,7 +54,9 @@ Deno.serve(async (req) => {
     const EMAIL_WHITELIST = ["jonas@topix.dk"];
 
     // ⚠️ TEST-MODE TOGGLE: Check if email sending is enabled
-    const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
+    const rawEmailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED");
+    console.log(`[DEBUG] EMAIL_SENDING_ENABLED raw value: "${rawEmailEnabled}"`);
+    const emailEnabled = rawEmailEnabled?.trim().toLowerCase() === "true";
 
     if (!emailEnabled || !EMAIL_WHITELIST.includes(email.toLowerCase())) {
       const reason = !emailEnabled ? "test-mode" : "not in whitelist";
