@@ -20,6 +20,7 @@ import MemberDetail from "./pages/MemberDetail";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import AdminConfig from "./pages/AdminConfig";
+import EmailTemplates from "./pages/EmailTemplates";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
+              <Route path="/admin/emails" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </ViewModeProvider>

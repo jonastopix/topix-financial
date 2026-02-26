@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.send-report-reminder]
 verify_jwt = false
+
+[functions.send-template-email]
+verify_jwt = false
