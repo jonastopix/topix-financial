@@ -40,7 +40,9 @@ const AttentionNeeded = () => {
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
-      const currentKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+      const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      const prevKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
 
       const { data: reports } = await (supabase
         .from("financial_reports")
@@ -63,17 +65,17 @@ const AttentionNeeded = () => {
           .filter(Boolean)
       );
 
-      if (!reportKeys.has(currentKey)) {
-        const daysLeft = new Date(currentYear, currentMonth + 1, 0).getDate() - now.getDate();
+      if (!reportKeys.has(prevKey)) {
+        const daysSinceMonthEnd = now.getDate();
         attentionItems.push({
           id: "missing-report",
           type: "report",
-          title: `${DANISH_MONTHS[currentMonth]}-rapport mangler`,
-          description: `Upload din saldobalance for ${DANISH_MONTHS[currentMonth]} ${currentYear}`,
-          urgency: daysLeft <= 5 ? "high" : "medium",
+          title: `${DANISH_MONTHS[prevMonth]}-rapport mangler`,
+          description: `Upload din saldobalance for ${DANISH_MONTHS[prevMonth]} ${prevYear}`,
+          urgency: daysSinceMonthEnd >= 15 ? "high" : "medium",
           action: "Upload nu",
           link: "/reports",
-          daysLeft,
+          daysLeft: daysSinceMonthEnd,
         });
       }
 
