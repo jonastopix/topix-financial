@@ -351,7 +351,7 @@ const Budget = () => {
         </TabsContent>
 
         <TabsContent value="maaned">
-          <BudgetVsActualTab scenarioData={scenarioData} year={year} userId={user?.id} />
+          <BudgetVsActualTab scenarioData={scenarioData} year={year} companyId={companyId || undefined} />
         </TabsContent>
 
         <TabsContent value="import">

@@ -53,7 +53,7 @@ const Handouts = () => {
       }));
     };
     load();
-  }, [user, activeModule]);
+  }, [user, activeModule, companyId]);
 
   if (activeModule) {
     return (

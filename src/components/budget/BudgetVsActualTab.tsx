@@ -13,18 +13,18 @@ import {
 interface Props {
   scenarioData: Record<ScenarioKey, BudgetRow[]>;
   year: string;
-  userId: string | undefined;
+  companyId: string | undefined;
 }
 
-export default function BudgetVsActualTab({ scenarioData, year, userId }: Props) {
+export default function BudgetVsActualTab({ scenarioData, year, companyId }: Props) {
   const { data: reports } = useQuery({
-    queryKey: ["financial-reports-actuals", userId, year],
-    enabled: !!userId,
+    queryKey: ["financial-reports-actuals", companyId, year],
+    enabled: !!companyId,
     queryFn: async () => {
       const { data } = await supabase
         .from("financial_reports")
         .select("report_period, extracted_data")
-        .eq("user_id", userId!)
+        .eq("company_id", companyId!)
         .eq("status", "processed");
       return data || [];
     },
