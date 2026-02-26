@@ -426,6 +426,54 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          body_html: string
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          sender_email: string
+          sender_name: string
+          subject: string
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+          updated_by: string | null
+          variables: Json
+        }
+        Insert: {
+          body_html?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          sender_email?: string
+          sender_name?: string
+          subject?: string
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          sender_email?: string
+          sender_name?: string
+          subject?: string
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+        }
+        Relationships: []
+      }
       financial_reports: {
         Row: {
           ai_analysis: Json | null
