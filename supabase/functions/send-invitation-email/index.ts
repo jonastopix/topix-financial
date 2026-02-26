@@ -24,17 +24,19 @@ Deno.serve(async (req) => {
     }
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-    const token = authHeader.replace('Bearer ', '');
-    // Accept service-role key directly (for internal calls like monday-webhook or test)
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Accept service-role key directly (for internal calls like monday-webhook)
     const isServiceRole = serviceRoleKey && token === serviceRoleKey;
     if (!isServiceRole) {
-      const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-      if (claimsError || !claimsData?.claims) {
+      // Validate user JWT
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+      const authClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+      if (userError || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -50,23 +52,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ⚠️ EMAIL WHITELIST: Only send to approved test addresses
-    const EMAIL_WHITELIST = ["jonas@topix.dk"];
-
-    // ⚠️ TEST-MODE TOGGLE: Check if email sending is enabled
+    // TEST-MODE TOGGLE: Check if email sending is enabled
     const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
 
-    if (!emailEnabled || !EMAIL_WHITELIST.includes(email.toLowerCase())) {
-      const reason = !emailEnabled ? "test-mode" : "not in whitelist";
-      console.log(`[BLOCKED] Email NOT sent to: ${email} (${reason})`);
-      console.log(`[BLOCKED] Company: ${company_name}`);
-      console.log(`[BLOCKED] Signup URL: ${signup_url}`);
+    if (!emailEnabled) {
+      console.log(`[TEST-MODE] Email NOT sent to: ${email}`);
+      console.log(`[TEST-MODE] Company: ${company_name}`);
+      console.log(`[TEST-MODE] Signup URL: ${signup_url}`);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           test_mode: true, 
-          message: `Email not sent (${reason}). Would send to: ${email}` 
+          message: `Email not sent (test-mode). Would send to: ${email}` 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
