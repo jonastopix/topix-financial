@@ -85,10 +85,11 @@ const DANISH_MONTHS = [
 
 interface AIFinancialAnalysisProps {
   conversationId?: string | null;
+  companyId?: string | null;
   userId?: string | null;
 }
 
-const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProps) => {
+const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialAnalysisProps) => {
   const [allReports, setAllReports] = useState<ReportWithAnalysis[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -98,12 +99,12 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
 
   // Fetch all processed reports
   useEffect(() => {
-    if (!userId) return;
+    if (!companyId) return;
     const fetch = async () => {
       const { data } = await supabase
         .from("financial_reports")
         .select("id, report_period, company_name, cvr_number, extracted_data, ai_analysis, uploaded_at, status")
-        .eq("user_id", userId)
+        .eq("company_id", companyId)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false });
 
@@ -119,7 +120,7 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
       setExpandedYear(currentYear);
     };
     fetch();
-  }, [userId]);
+  }, [companyId]);
 
   const selectedReport = useMemo(
     () => allReports.find(r => r.id === selectedReportId) || null,
@@ -160,7 +161,7 @@ const AIFinancialAnalysis = ({ conversationId, userId }: AIFinancialAnalysisProp
       const { data: historicalReports } = await supabase
         .from("financial_reports")
         .select("extracted_data, report_period")
-        .eq("user_id", userId!)
+        .eq("company_id", companyId!)
         .eq("status", "processed")
         .neq("id", target.id)
         .order("uploaded_at", { ascending: true })

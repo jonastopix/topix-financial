@@ -82,22 +82,25 @@ const Reports = () => {
   const loadData = useCallback(async () => {
     if (!user) return;
 
-    const [reportsRes, convRes, profileRes] = await Promise.all([
+    const [reportsRes, convRes, companyRes] = await Promise.all([
       (supabase
         .from("financial_reports")
         .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
         .eq("company_id", companyId)
         .order("uploaded_at", { ascending: false }),
       supabase.from("conversations").select("id").eq("member_id", user.id).maybeSingle(),
-      supabase.from("profiles").select("created_at").eq("user_id", user.id).maybeSingle(),
+      companyId
+        ? supabase.from("companies").select("start_date").eq("id", companyId).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
     const reportsList = reportsRes.data || [];
     setDbReports(reportsList);
     setConversationId(convRes.data?.id || null);
-    if (profileRes.data?.created_at) {
-      const created = new Date(profileRes.data.created_at);
-      setProgramStart(new Date(created.getFullYear(), created.getMonth() - 1, 1));
+    if (companyRes.data?.start_date) {
+      setProgramStart(new Date(companyRes.data.start_date));
+    } else {
+      setProgramStart(null);
     }
 
     if (reportsList.length > 0 && convRes.data?.id) {
@@ -450,7 +453,7 @@ const Reports = () => {
 
       {/* AI Financial Analysis */}
       <div className="mb-8">
-        <AIFinancialAnalysis conversationId={conversationId} userId={user?.id || null} />
+        <AIFinancialAnalysis conversationId={conversationId} companyId={companyId} userId={user?.id || null} />
       </div>
 
       {/* Detaljeret Finansiel Oversigt */}

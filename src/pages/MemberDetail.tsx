@@ -49,6 +49,7 @@ interface CompanyContext {
   city: string | null;
   website: string | null;
   logo_url: string | null;
+  start_date: string | null;
 }
 
 interface Report {
@@ -148,7 +149,7 @@ const MemberDetail = () => {
       // Fetch company context via company_members
       const { data: cmData } = await supabase
         .from("company_members" as any)
-        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website, logo_url)" as any)
+        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
@@ -405,7 +406,7 @@ const MemberDetail = () => {
           <div className="mb-8">
             <DeliveryOverview
               reports={reports}
-              programStart={profile.created_at ? (() => { const c = new Date(profile.created_at); return new Date(c.getFullYear(), c.getMonth() - 1, 1); })() : null}
+              programStart={companyCtx?.start_date ? new Date(companyCtx.start_date) : null}
             />
           </div>
 
