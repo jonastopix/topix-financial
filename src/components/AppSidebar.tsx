@@ -17,6 +17,7 @@ import {
   UserCog,
   Eye,
   EyeOff,
+  Mail,
   Building2,
   ChevronDown,
   Check,
@@ -42,6 +43,7 @@ const baseNavItems = [
 
 const advisorNavItems = [
   { icon: UserCog, label: "Medlemmer", path: "/members" },
+  { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
 ];
 
