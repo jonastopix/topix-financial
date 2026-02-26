@@ -29,11 +29,11 @@ export const InvitationEmail = ({ companyName, signupUrl }: InvitationEmailProps
         </Text>
         <Section style={buttonContainer}>
           <Link href={signupUrl} target="_blank" style={button}>
-            Opret din konto
+            Acceptér invitation
           </Link>
         </Section>
         <Text style={text}>
-          Når du opretter dig med denne e-mail, bliver du automatisk tilknyttet {companyName}.
+          Når du accepterer invitationen med denne e-mail, bliver du automatisk tilknyttet {companyName}.
         </Text>
         <Text style={footer}>
           Denne invitation er sendt fra The Boardroom. Hvis du ikke forventer denne besked, kan du ignorere den.
