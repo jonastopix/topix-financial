@@ -104,7 +104,7 @@ const Chat = () => {
         supabase.from("profiles").select("user_id, full_name, company_name, avatar_url"),
         supabase
           .from("messages")
-          .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type")
+          .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, pinned_at")
           .order("created_at", { ascending: false })
           .limit(500),
         // Fetch recent reports (last 7 days) for advisor view
@@ -358,17 +358,14 @@ const Chat = () => {
 
   return (
     <AppLayout>
-      <div className="mb-6">
-        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
-          <MessageCircle className="h-6 w-6 text-primary" />
+      <div className="mb-2">
+        <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+          <MessageCircle className="h-5 w-5 text-primary" />
           {isAdvisor ? "Indbakke" : "Chat med rådgivere"}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isAdvisor ? "Alle medlemssamtaler samlet ét sted" : "Skriv direkte til dine rådgivere"}
-        </p>
       </div>
 
-      <div className="glass-card rounded-xl overflow-hidden flex" style={{ height: "calc(100vh - 200px)" }}>
+      <div className="glass-card rounded-xl overflow-hidden flex" style={{ height: "calc(100vh - 120px)" }}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {isAdvisor && (
           <div className="w-[340px] border-r border-border flex flex-col bg-card/50">
@@ -622,7 +619,7 @@ const Chat = () => {
               )}
 
               {/* Messages */}
-              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
                 {filteredMessages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -654,11 +651,19 @@ const Chat = () => {
                         className="flex justify-center group/msg transition-all duration-300"
                       >
                         <div
-                          className={`max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 py-3 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
-                          onDoubleClick={() => togglePin(msg)}
-                          title="Dobbeltklik for at pinne/unpinne"
+                          className={`max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-5 py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
                         >
-                          {msg.pinned_at && <Pin className="absolute top-2 right-2 h-3 w-3 text-primary/40" />}
+                          <button
+                            onClick={() => togglePin(msg)}
+                            className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
+                              msg.pinned_at
+                                ? "text-primary opacity-100 hover:text-destructive"
+                                : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                            }`}
+                            title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                          >
+                            <Pin className="h-3.5 w-3.5" />
+                          </button>
                           <div className="flex items-center gap-2 mb-1">
                             <Sparkles className="h-3.5 w-3.5 text-primary" />
                             <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
@@ -694,11 +699,19 @@ const Chat = () => {
                       className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} transition-all duration-300`}
                     >
                       <div
-                        className={`max-w-[75%] relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
-                        onDoubleClick={() => togglePin(msg)}
-                        title="Dobbeltklik for at pinne/unpinne"
+                        className={`max-w-[70%] relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
                       >
-                        {msg.pinned_at && <Pin className="absolute -top-1 -right-1 h-3 w-3 text-primary bg-background rounded-full p-0.5 box-content shadow-sm z-10" />}
+                        <button
+                          onClick={() => togglePin(msg)}
+                          className={`absolute ${isMine ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1 rounded-md transition-all z-10 ${
+                            msg.pinned_at
+                              ? "text-primary opacity-100 hover:text-destructive"
+                              : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                          }`}
+                          title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                        >
+                          <Pin className="h-3.5 w-3.5" />
+                        </button>
                         {/* Topic tag above message */}
                         {topicInfo && (
                           <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
