@@ -19,12 +19,12 @@ interface InvitationEmailProps {
 export const InvitationEmail = ({ companyName, signupUrl }: InvitationEmailProps) => (
   <Html>
     <Head />
-    <Preview>Du er inviteret til {companyName} på MOLA Founder</Preview>
+    <Preview>Du er inviteret til {companyName} på The Boardroom</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>Velkommen til MOLA Founder</Heading>
+        <Heading style={h1}>Velkommen til The Boardroom</Heading>
         <Text style={text}>
-          Du er blevet inviteret til at blive en del af <strong>{companyName}</strong> på MOLA Founder — 
+          Du er blevet inviteret til at blive en del af <strong>{companyName}</strong> på The Boardroom — 
           en platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.
         </Text>
         <Section style={buttonContainer}>
@@ -36,7 +36,7 @@ export const InvitationEmail = ({ companyName, signupUrl }: InvitationEmailProps
           Når du opretter dig med denne e-mail, bliver du automatisk tilknyttet {companyName}.
         </Text>
         <Text style={footer}>
-          Denne invitation er sendt fra MOLA Founder. Hvis du ikke forventer denne besked, kan du ignorere den.
+          Denne invitation er sendt fra The Boardroom. Hvis du ikke forventer denne besked, kan du ignorere den.
         </Text>
       </Container>
     </Body>

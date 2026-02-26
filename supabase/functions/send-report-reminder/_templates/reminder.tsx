@@ -36,7 +36,7 @@ export const ReminderEmail = ({ companyName, period, reportUrl }: ReminderEmailP
           </Link>
         </Section>
         <Text style={footer}>
-          Denne påmindelse er sendt fra MOLA Founder. Hvis rapporten allerede er uploadet, kan du ignorere denne besked.
+          Denne påmindelse er sendt fra The Boardroom. Hvis rapporten allerede er uploadet, kan du ignorere denne besked.
         </Text>
       </Container>
     </Body>
