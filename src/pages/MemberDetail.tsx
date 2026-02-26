@@ -405,7 +405,7 @@ const MemberDetail = () => {
           <div className="mb-8">
             <DeliveryOverview
               reports={reports}
-              programStart={profile.created_at ? new Date(profile.created_at) : null}
+              programStart={profile.created_at ? (() => { const c = new Date(profile.created_at); return new Date(c.getFullYear(), c.getMonth() - 1, 1); })() : null}
             />
           </div>
 
