@@ -1,52 +1,42 @@
 
-# Navigation: Altid kunne komme tilbage
 
-## Problem
-1. Sidebar-links bruger `<Link>` som ignorerer klik hvis man allerede er pa ruten -- sa man sidder fast i sub-views
-2. Flere sider mangler tydelige tilbageknapper nar man er i en under-visning
+# Pin beskeder i chatten
 
-## Losning
+## Hvad der bygges
+En pin-funktion sa brugere kan fremhaeve vigtige beskeder i en samtale. Pinnede beskeder vises i et kompakt panel ovenover beskedlisten, sa man altid hurtigt kan finde dem.
 
-### 1. Sidebar: Tving navigation selv pa aktiv rute
-**Fil: `src/components/AppSidebar.tsx`**
+## Brugeroplevelse
+- Hover over en besked -> et lille pin-ikon dukker op
+- Klik pa pin-ikonet for at pinne/unpinne
+- Ovenover beskedlisten vises et sammenfoldeligt "Pinned" panel med alle pinnede beskeder
+- Klik pa en pinned besked scroller ned til den i samtalen
 
-Erstatter `<Link>` med en `onClick`-handler der bruger `useNavigate`. Nar brugeren klikker pa det aktive menupunkt, navigeres med et nyt `state.key` (timestamp), sa React Router registrerer det som en ny navigation.
+## Teknisk plan
 
-```text
-Klik pa "Budget" (allerede aktiv)
-  -> navigate("/budget", { state: { resetKey: Date.now() } })
-  -> Budget-siden ser nyt resetKey og nulstiller intern state
+### 1. Database: Tilfoj `pinned_at` kolonne til `messages`
+- Tilfojer en nullable `timestamp with time zone` kolonne `pinned_at` til `messages`-tabellen
+- Null = ikke pinned, vaerdi = pinned tidspunkt
+- Opdaterer eksisterende RLS-policies sa bade advisors og members kan update `pinned_at` (advisors har allerede UPDATE, members far en ny policy for pin)
+
+```sql
+ALTER TABLE public.messages ADD COLUMN pinned_at timestamptz DEFAULT NULL;
+
+-- Members can pin/unpin messages in own conversations
+CREATE POLICY "Members can update own conversation messages"
+  ON public.messages FOR UPDATE
+  USING (EXISTS (
+    SELECT 1 FROM conversations
+    WHERE conversations.id = messages.conversation_id
+    AND conversations.member_id = auth.uid()
+  ));
 ```
 
-### 2. Sider lytter til navigation-reset
-Opretter en simpel hook `useNavigationReset` der returnerer en key baseret pa `location.state?.resetKey`. Sider bruger denne key i `useEffect` til at nulstille sub-views.
+### 2. UI: Chat-siden (`src/pages/Chat.tsx`)
+- **Pin-knap pa beskeder**: Ved hover vises et `Pin`-ikon (fra lucide-react). Klik toggler `pinned_at` via Supabase update
+- **Pinned-panel**: Et sammenfoldeligt panel ovenover beskedlisten der viser pinnede beskeder i kompakt form (afsender, uddrag, dato). Klik pa en pinned besked scroller til den
+- **Visuel markering**: Pinnede beskeder far en lille pin-indikator og let baggrundsfremhaevning direkte i beskedlisten
 
-**Ny fil: `src/hooks/useNavigationReset.ts`**
-- Returnerer `resetKey` fra `location.state`
-- Sider kan bruge dette som dependency i useEffect
+### Filer der aendres
+- **Database migration**: Tilfojer `pinned_at` kolonne + RLS policy
+- **`src/pages/Chat.tsx`**: Pin-knap, pinned-panel, scroll-to-message logik
 
-### 3. Tilbageknapper pa sub-views
-Tilfojer en genbrugelig "Tilbage"-knap-komponent og placerer den pa relevante sider:
-
-**Sider der far tilbageknap:**
-- **Budget** (`src/pages/Budget.tsx`): Nar man er i "Skift skabelon"-visningen, vises en tilbageknap der gar tilbage til budget-oversigten
-- **Handouts** (`src/pages/Handouts.tsx`): Har allerede `onBack` -- men tilfojer en synlig tilbageknap i header-omradet (den eksisterer i `HandoutDetail`, verificerer den er tydelig)
-
-### 4. Reset-logik per side
-
-**Budget:**
-- Nar `resetKey` aendres og der allerede er valgt en template + data, forbliv pa oversigten (nulstil evt. "skift skabelon"-tilstand)
-- `handleChangeTemplate`-visningen nulstilles ved sidebar-klik
-
-**Handouts:**
-- Nar `resetKey` aendres, nulstil `activeModule` til `null` sa man ser oversigtslisten
-
-## Teknisk implementering
-
-### Filer der oprettes:
-- `src/hooks/useNavigationReset.ts` -- simpel hook (5-10 linjer)
-
-### Filer der aendres:
-- `src/components/AppSidebar.tsx` -- erstat `<Link>` med klikbar `<button>`/`<div>` + `useNavigate` med state
-- `src/pages/Budget.tsx` -- tilbageknap i template-picker + lytte pa resetKey
-- `src/pages/Handouts.tsx` -- lytte pa resetKey for at nulstille activeModule
