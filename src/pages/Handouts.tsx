@@ -3,6 +3,7 @@ import { ClipboardList } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
 import HandoutDetail from "@/components/HandoutDetail";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
@@ -22,7 +23,7 @@ const Handouts = () => {
     moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
-
+  const [isLoading, setIsLoading] = useState(true);
   // Navigation reset: when sidebar is clicked while on this page, go back to list
   const resetKey = useNavigationReset();
   useEffect(() => {
@@ -32,6 +33,7 @@ const Handouts = () => {
   }, [resetKey]);
   useEffect(() => {
     if (!user || !companyId) return;
+    setIsLoading(true);
     const load = async () => {
       const { data } = await supabase
         .from("handouts")
@@ -51,6 +53,7 @@ const Handouts = () => {
         );
         return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null };
       }));
+      setIsLoading(false);
     };
     load();
   }, [user, activeModule, companyId]);
@@ -88,18 +91,38 @@ const Handouts = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {summaries.map(s => (
-          <HandoutCard
-            key={s.module}
-            config={handoutConfigs[s.module]}
-            status={s.status}
-            progress={s.progress}
-            completedAt={s.completedAt}
-            onClick={() => setActiveModule(s.module)}
-          />
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="glass-card rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-10 w-10 rounded-xl" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-3 w-full" />
+              <div className="flex justify-between">
+                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-3 w-8" />
+              </div>
+              <Skeleton className="h-1.5 w-full rounded-full" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {summaries.map(s => (
+            <HandoutCard
+              key={s.module}
+              config={handoutConfigs[s.module]}
+              status={s.status}
+              progress={s.progress}
+              completedAt={s.completedAt}
+              onClick={() => setActiveModule(s.module)}
+            />
+          ))}
+        </div>
+      )}
     </AppLayout>
   );
 };
