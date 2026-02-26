@@ -20,21 +20,21 @@ const statusConfig = {
 };
 
 const RecentReports = () => {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const { data: reports = [] } = useQuery({
-    queryKey: ["recent-reports", user?.id],
+    queryKey: ["recent-reports", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("financial_reports")
         .select("id, report_period, status, uploaded_at")
-        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .order("uploaded_at", { ascending: false })
         .limit(4);
       if (error) throw error;
       return (data || []) as Report[];
     },
-    enabled: !!user,
+    enabled: !!user && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
