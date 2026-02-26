@@ -1,37 +1,37 @@
 
-# Fix: Korrekt dataisolering ved "Vis som virksomhed" + Leveringsoverblik baseret på virksomhedens forløbsdatoer
 
-## Problem
-1. **AI Finansiel Analyse** henter rapporter via `user_id` i stedet for `company_id`. Når en rådgiver viser som en anden virksomhed, ses stadig rådgiverens egne data (NordService).
-2. **Leveringsoverblik (programStart)** beregnes ud fra brugerens `profiles.created_at` i stedet for virksomhedens faktiske `start_date` fra `companies`-tabellen. Hver virksomhed har individuelle start- og slutdatoer, som bør bruges.
+# Onboarding-side for nye inviterede brugere
 
-## Løsning
+## Oversigt
+Nye brugere der accepterer en invitation og logger ind for forste gang, bliver modt af en onboarding-side hvor de kan udfylde deres profil og se information om den virksomhed de er blevet tilknyttet. Derefter sendes de videre til dashboardet.
 
-### 1. AIFinancialAnalysis: Skift fra user_id til company_id
-**Fil:** `src/components/AIFinancialAnalysis.tsx`
-- Ændre props fra `userId` til `companyId`
-- Ændre query fra `.eq("user_id", userId)` til `.eq("company_id", companyId)`
-- Opdatere alle steder der bruger komponenten (Reports.tsx, MemberDetail.tsx) til at sende `companyId` i stedet for `userId`
+## Hvordan vi detecter "forste gang"
+Vi tilfojer et `onboarded_at` felt til `profiles`-tabellen. Hvis det er `null`, vises onboarding-siden. Nar brugeren fuldforer onboarding, saettes feltet til `now()`.
 
-### 2. Reports.tsx: Brug virksomhedens start_date som programStart
-**Fil:** `src/pages/Reports.tsx`
-- Hent `start_date` fra `companies`-tabellen via `companyId` i stedet for `profiles.created_at`
-- Brug `companies.start_date` direkte som `programStart` for DeliveryOverview
+## Trin
 
-### 3. MemberDetail.tsx: Brug virksomhedens start_date
-**Fil:** `src/pages/MemberDetail.tsx`
-- Hent virksomhedens `start_date` fra `companies`-tabellen
-- Send den som `programStart` til DeliveryOverview i stedet for at beregne fra `profile.created_at`
+### 1. Database-migration
+- Tilfoj kolonne `onboarded_at timestamptz` (nullable, default null) til `profiles`-tabellen
+- Saet `onboarded_at = now()` for alle eksisterende profiler, sa de ikke ser onboarding
 
-### 4. Opdater AIFinancialAnalysis-kald i Reports.tsx og MemberDetail.tsx
-Skift props fra `userId={user.id}` til `companyId={companyId}` begge steder.
+### 2. Opret `src/pages/Onboarding.tsx`
+En venlig velkomstside pa dansk med:
+- Velkomstbesked med virksomhedsnavnet brugeren er tilknyttet
+- Felt til at opdatere fulde navn (pre-udfyldt fra signup)
+- Evt. profilbillede-upload
+- "Kom i gang"-knap der saetter `onboarded_at` og navigerer til dashboard
 
-## Teknisk opsummering
+### 3. Opdater `useAuth.tsx`
+- Tilfoj `needsOnboarding: boolean` til auth context (baseret pa `onboarded_at === null`)
+- Hent `onboarded_at` sammen med profil-data
 
-| Fil | Ændring |
-|-----|---------|
-| `src/components/AIFinancialAnalysis.tsx` | Props: `userId` -> `companyId`, query filter: `user_id` -> `company_id` |
-| `src/pages/Reports.tsx` | Hent `companies.start_date` via companyId, brug som programStart. Send `companyId` til AIFinancialAnalysis |
-| `src/pages/MemberDetail.tsx` | Hent virksomhedens `start_date`, brug som programStart. Send `companyId` til AIFinancialAnalysis |
+### 4. Opdater `App.tsx` routing
+- Tilfoj `/onboarding` route
+- I `ProtectedRoute`: hvis bruger er logget ind men `needsOnboarding === true`, redirect til `/onboarding`
 
-Ingen databaseændringer nødvendige -- alle tabeller har allerede `company_id` og `start_date`.
+## Tekniske detaljer
+- Onboarding-siden bruger eksisterende UI-komponenter (Card, Button, Input)
+- Profil-opdatering sker via `supabase.from('profiles').update()`
+- Ingen nye RLS-policies nodvendige -- eksisterende "Users can update own profile" daekker det
+- Siden er pa dansk og folger appens eksisterende design-stil
+
