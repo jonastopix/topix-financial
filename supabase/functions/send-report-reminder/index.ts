@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const EMAIL_WHITELIST = ["jonas@topix.dk"];
 
     // Email toggle
-    const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED") === "true";
+    const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     let resend: InstanceType<typeof Resend> | null = null;
     if (emailEnabled) {
