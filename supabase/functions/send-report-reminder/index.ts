@@ -64,14 +64,16 @@ Deno.serve(async (req) => {
     let subjectTpl = FALLBACK_SUBJECT;
     let bodyTpl = FALLBACK_HTML;
     let senderFrom = FALLBACK_SENDER;
+    let templateId: string | null = null;
 
     const { data: tpl } = await supabase
       .from('email_templates')
-      .select('subject, body_html, sender_name, sender_email, enabled')
+      .select('id, subject, body_html, sender_name, sender_email, enabled')
       .eq('name', 'Rapport-påmindelse')
       .maybeSingle();
 
     if (tpl && tpl.enabled) {
+      templateId = tpl.id;
       subjectTpl = tpl.subject;
       bodyTpl = tpl.body_html;
       senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
@@ -104,6 +106,15 @@ Deno.serve(async (req) => {
       const { error: sendErr } = await resend.emails.send({
         from: senderFrom, to: [testEmail], subject, html,
       });
+
+      if (templateId) {
+        await supabase.from('email_send_log').insert({
+          template_id: templateId, recipient_email: testEmail, subject,
+          status: sendErr ? 'failed' : 'sent',
+          error_message: sendErr ? JSON.stringify(sendErr) : null,
+          is_test: true,
+        });
+      }
       if (sendErr) throw new Error(`Send failed: ${JSON.stringify(sendErr)}`);
 
       console.log(`[TEST] Reminder sent to: ${testEmail}`);
@@ -171,6 +182,14 @@ Deno.serve(async (req) => {
           const { error: sendErr } = await resend!.emails.send({
             from: senderFrom, to: [email], subject, html,
           });
+          if (templateId) {
+            await supabase.from('email_send_log').insert({
+              template_id: templateId, recipient_email: email, subject,
+              status: sendErr ? 'failed' : 'sent',
+              error_message: sendErr ? JSON.stringify(sendErr) : null,
+              is_test: false,
+            });
+          }
           if (sendErr) { console.error(`Failed ${email}:`, sendErr); continue; }
           console.log(`[LIVE] Sent to: ${email} (${company.name})`);
           sent++;

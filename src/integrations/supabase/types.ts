@@ -426,6 +426,47 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          error_message: string | null
+          id: string
+          is_test: boolean
+          recipient_email: string
+          sent_at: string
+          status: string
+          subject: string
+          template_id: string
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          is_test?: boolean
+          recipient_email: string
+          sent_at?: string
+          status?: string
+          subject: string
+          template_id: string
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          is_test?: boolean
+          recipient_email?: string
+          sent_at?: string
+          status?: string
+          subject?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_send_log_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_templates: {
         Row: {
           body_html: string

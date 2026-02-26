@@ -16,8 +16,23 @@ import { toast } from "sonner";
 import RichTextEditor from "@/components/RichTextEditor";
 import {
   Plus, Mail, Send, Pencil, Trash2, Clock, Zap, Hand,
-  Code, Eye, Settings2, ArrowLeft, Type, Loader2,
+  Code, Eye, Settings2, ArrowLeft, Type, Loader2, History,
+  CheckCircle, XCircle, FlaskConical,
 } from "lucide-react";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface SendLogEntry {
+  id: string;
+  template_id: string;
+  recipient_email: string;
+  subject: string;
+  status: string;
+  error_message: string | null;
+  sent_at: string;
+  is_test: boolean;
+}
 
 interface EmailTemplate {
   id: string;
@@ -87,6 +102,7 @@ export default function EmailTemplates() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
+  const [showLog, setShowLog] = useState(false);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["email-templates"],
@@ -98,6 +114,20 @@ export default function EmailTemplates() {
       if (error) throw error;
       return (data || []) as unknown as EmailTemplate[];
     },
+  });
+
+  const { data: sendLog = [], isLoading: logLoading } = useQuery({
+    queryKey: ["email-send-log"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_send_log" as any)
+        .select("*")
+        .order("sent_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as unknown as SendLogEntry[];
+    },
+    enabled: showLog,
   });
 
   const saveMutation = useMutation({
@@ -243,6 +273,79 @@ export default function EmailTemplates() {
             })}
           </div>
         )}
+
+        {/* Send log */}
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLog((v) => !v)}
+            className="gap-2"
+          >
+            <History className="h-3.5 w-3.5" />
+            {showLog ? "Skjul sendt-log" : "Vis sendt-log"}
+          </Button>
+
+          {showLog && (
+            <Card className="mt-3">
+              <CardContent className="p-0">
+                {logLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : sendLog.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">Ingen afsendelser endnu</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tidspunkt</TableHead>
+                        <TableHead>Modtager</TableHead>
+                        <TableHead>Emne</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Type</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sendLog.map((log) => {
+                        const tplName = templates.find((t) => t.id === log.template_id)?.name;
+                        return (
+                          <TableRow key={log.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {format(new Date(log.sent_at), "d. MMM yyyy HH:mm", { locale: da })}
+                            </TableCell>
+                            <TableCell className="text-sm">{log.recipient_email}</TableCell>
+                            <TableCell className="text-sm max-w-[200px] truncate">{log.subject}</TableCell>
+                            <TableCell>
+                              {log.status === "sent" ? (
+                                <Badge variant="outline" className="text-xs gap-1 text-green-600">
+                                  <CheckCircle className="h-3 w-3" /> Sendt
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-xs gap-1">
+                                  <XCircle className="h-3 w-3" /> Fejl
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {log.is_test ? (
+                                <Badge variant="secondary" className="text-xs gap-1">
+                                  <FlaskConical className="h-3 w-3" /> Test
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">{tplName || "Produktion"}</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </AppLayout>
   );
