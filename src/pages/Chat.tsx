@@ -75,7 +75,7 @@ const MESSAGE_TOPICS: { key: MessageTopic; label: string }[] = [
 ];
 
 const Chat = () => {
-  const { user, isAdvisor: rawAdvisor } = useAuth();
+  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
@@ -103,16 +103,32 @@ const Chat = () => {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
+  // Reset active conversation when company changes
+  useEffect(() => {
+    setActiveConvId(null);
+    setMessages([]);
+  }, [companyId]);
+
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
     if (!user) return;
 
     const loadConversations = async () => {
+      // Build conversations query — filter by company_id when viewing as a specific company
+      let convsQuery = supabase
+        .from("conversations")
+        .select("*")
+        .order("last_message_at", { ascending: false });
+      
+      if (isCompanyOverride && companyId) {
+        convsQuery = convsQuery.eq("company_id", companyId);
+      } else if (!isAdvisor) {
+        // Members only see their own conversation (RLS handles this, but be explicit)
+        convsQuery = convsQuery.eq("member_id", user.id);
+      }
+
       const [convsRes, profilesRes, msgsRes, reportsRes] = await Promise.all([
-        supabase
-          .from("conversations")
-          .select("*")
-          .order("last_message_at", { ascending: false }),
+        convsQuery,
         supabase.from("profiles").select("user_id, full_name, company_name, avatar_url"),
         supabase
           .from("messages")
@@ -187,7 +203,7 @@ const Chat = () => {
     };
 
     loadConversations();
-  }, [user, isAdvisor, activeConvId]);
+  }, [user, isAdvisor, activeConvId, companyId, isCompanyOverride]);
 
   // Filtered & searched conversations for advisor
   const filteredConversations = useMemo(() => {
