@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
-  BarChart3, Pin, ChevronDown, ChevronRight,
+  BarChart3, Pin,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
@@ -90,7 +90,6 @@ const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [pinnedOpen, setPinnedOpen] = useState(true);
 
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
@@ -596,37 +595,29 @@ const Chat = () => {
                 })}
               </div>
 
-              {/* Pinned messages panel */}
+              {/* Pinned messages – compact bar */}
               {pinnedMessages.length > 0 && (
-                <div className="mx-4 mt-3 mb-0 rounded-lg border border-primary/20 bg-primary/5">
-                  <button
-                    onClick={() => setPinnedOpen(!pinnedOpen)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-primary"
-                  >
-                    <Pin className="h-3 w-3" />
-                    Pinned ({pinnedMessages.length})
-                    {pinnedOpen ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
-                  </button>
-                  {pinnedOpen && (
-                    <div className="px-3 pb-2 space-y-1">
-                      {pinnedMessages.map(pm => (
-                        <button
-                          key={pm.id}
-                          onClick={() => scrollToMessage(pm.id)}
-                          className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-primary/10 transition-colors group"
+                <div className="flex items-center gap-2 px-4 py-1.5 border-b border-primary/10 bg-primary/5">
+                  <Pin className="h-3 w-3 text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-1.5" style={{ scrollbarWidth: "none" }}>
+                    {pinnedMessages.map(pm => (
+                      <button
+                        key={pm.id}
+                        onClick={() => scrollToMessage(pm.id)}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-primary/10 transition-colors group flex-shrink-0 max-w-[200px]"
+                      >
+                        <span className="text-[10px] text-foreground truncate">{pm.content}</span>
+                        <span
+                          onClick={(e) => { e.stopPropagation(); togglePin(pm); }}
+                          className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity text-xs leading-none"
+                          title="Fjern pin"
                         >
-                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                            {format(new Date(pm.created_at), "d. MMM", { locale: da })}
-                          </span>
-                          <span className="text-xs text-foreground truncate flex-1">{pm.content}</span>
-                          <Pin
-                            className="h-3 w-3 text-primary/50 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                            onClick={(e) => { e.stopPropagation(); togglePin(pm); }}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                          ×
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{pinnedMessages.length} pinned</span>
                 </div>
               )}
 
@@ -660,20 +651,14 @@ const Chat = () => {
                       <div
                         key={msg.id}
                         ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                        className={`flex justify-center group/msg transition-all duration-300 ${msg.pinned_at ? "relative" : ""}`}
+                        className="flex justify-center group/msg transition-all duration-300"
                       >
-                        <button
-                          onClick={() => togglePin(msg)}
-                          className={`self-center mr-1 p-1 rounded-md transition-all ${
-                            msg.pinned_at
-                              ? "text-primary opacity-100"
-                              : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                          }`}
-                          title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                        <div
+                          className={`max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 py-3 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
+                          onDoubleClick={() => togglePin(msg)}
+                          title="Dobbeltklik for at pinne/unpinne"
                         >
-                          <Pin className="h-3.5 w-3.5" />
-                        </button>
-                        <div className={`max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 py-3 ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}>
+                          {msg.pinned_at && <Pin className="absolute top-2 right-2 h-3 w-3 text-primary/40" />}
                           <div className="flex items-center gap-2 mb-1">
                             <Sparkles className="h-3.5 w-3.5 text-primary" />
                             <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
@@ -706,21 +691,14 @@ const Chat = () => {
                     <div
                       key={msg.id}
                       ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                      className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} ${msg.pinned_at ? "relative" : ""} transition-all duration-300`}
+                      className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} transition-all duration-300`}
                     >
-                      {/* Pin button on hover */}
-                      <button
-                        onClick={() => togglePin(msg)}
-                        className={`self-center mx-1 p-1 rounded-md transition-all ${
-                          msg.pinned_at
-                            ? "text-primary opacity-100"
-                            : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                        } ${isMine ? "order-first" : "order-last"}`}
-                        title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                      <div
+                        className={`max-w-[75%] relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
+                        onDoubleClick={() => togglePin(msg)}
+                        title="Dobbeltklik for at pinne/unpinne"
                       >
-                        <Pin className="h-3.5 w-3.5" />
-                      </button>
-                      <div className={`max-w-[75%] ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}>
+                        {msg.pinned_at && <Pin className="absolute -top-1 -right-1 h-3 w-3 text-primary bg-background rounded-full p-0.5 box-content shadow-sm z-10" />}
                         {/* Topic tag above message */}
                         {topicInfo && (
                           <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
