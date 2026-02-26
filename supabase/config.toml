@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.process-pending-invitation]
 verify_jwt = false
+
+[functions.send-report-reminder]
+verify_jwt = false
