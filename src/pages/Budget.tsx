@@ -602,7 +602,7 @@ const Budget = () => {
 
       // Apply AI results to scenario rows
       const updatedRows = scenarioData.base.map(r => {
-        const aiCat = data.categories.find((c: any) => c.key === r.key);
+        const aiCat = data.categories.find((c: any) => c.key === r.key || c.key === r.label);
         return {
           ...r,
           values: aiCat?.monthly || [...r.values],
