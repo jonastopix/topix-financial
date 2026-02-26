@@ -1,37 +1,32 @@
 
+# Fix: "Kræver opmærksomhed" tjekker forkert måned
 
-# Onboarding-side for nye inviterede brugere
+## Problem
+Dashboardet viser "Februar-rapport mangler" d. 26. februar, men man kan forst uploade en rapport for en given maaned naar maaneden er slut. Saa i februar skal systemet kun tjekke om **januar**-rapporten mangler -- ikke februar.
 
-## Oversigt
-Nye brugere der accepterer en invitation og logger ind for forste gang, bliver modt af en onboarding-side hvor de kan udfylde deres profil og se information om den virksomhed de er blevet tilknyttet. Derefter sendes de videre til dashboardet.
+## Losning
+AEndr logikken i `AttentionNeeded.tsx` saa den tjekker for den **forrige maaneds** rapport i stedet for den nuvaerende maaned.
 
-## Hvordan vi detecter "forste gang"
-Vi tilfojer et `onboarded_at` felt til `profiles`-tabellen. Hvis det er `null`, vises onboarding-siden. Nar brugeren fuldforer onboarding, saettes feltet til `now()`.
+## Teknisk detalje
+I `src/components/AttentionNeeded.tsx` (linje 41-76):
 
-## Trin
+- Beregn forrige maaned i stedet for nuvaerende:
+  - Hvis vi er i januar, tjek december forrige aar
+  - Ellers tjek maaned - 1
 
-### 1. Database-migration
-- Tilfoj kolonne `onboarded_at timestamptz` (nullable, default null) til `profiles`-tabellen
-- Saet `onboarded_at = now()` for alle eksisterende profiler, sa de ikke ser onboarding
+- Opdater `currentKey`, `title`, `description` og `daysLeft`-beregning til at referere til forrige maaned
 
-### 2. Opret `src/pages/Onboarding.tsx`
-En venlig velkomstside pa dansk med:
-- Velkomstbesked med virksomhedsnavnet brugeren er tilknyttet
-- Felt til at opdatere fulde navn (pre-udfyldt fra signup)
-- Evt. profilbillede-upload
-- "Kom i gang"-knap der saetter `onboarded_at` og navigerer til dashboard
+- `daysLeft` giver nu mening som "dage siden maaneden sluttede" eller kan fjernes, da deadline-konceptet er anderledes (man bor uploade saa hurtigt som muligt i den nye maaned)
 
-### 3. Opdater `useAuth.tsx`
-- Tilfoj `needsOnboarding: boolean` til auth context (baseret pa `onboarded_at === null`)
-- Hent `onboarded_at` sammen med profil-data
+Konkret aendring:
+```
+// Fra:
+const currentKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
 
-### 4. Opdater `App.tsx` routing
-- Tilfoj `/onboarding` route
-- I `ProtectedRoute`: hvis bruger er logget ind men `needsOnboarding === true`, redirect til `/onboarding`
+// Til:
+const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+const prevKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
+```
 
-## Tekniske detaljer
-- Onboarding-siden bruger eksisterende UI-komponenter (Card, Button, Input)
-- Profil-opdatering sker via `supabase.from('profiles').update()`
-- Ingen nye RLS-policies nodvendige -- eksisterende "Users can update own profile" daekker det
-- Siden er pa dansk og folger appens eksisterende design-stil
-
+Og tjek `prevKey` i stedet for `currentKey`. Titlen bliver f.eks. "Januar-rapport mangler" naar vi er i februar.
