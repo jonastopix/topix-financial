@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      advisor_notifications: {
+        Row: {
+          body: string | null
+          company_id: string
+          created_at: string
+          id: string
+          member_id: string
+          read_at: string | null
+          reference_id: string | null
+          reference_type: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          member_id: string
+          read_at?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          body?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+          read_at?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_config: {
         Row: {
           config_key: string
