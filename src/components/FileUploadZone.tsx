@@ -3,6 +3,7 @@ import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target } f
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
+import { createAdvisorNotification } from "@/lib/advisorNotifications";
 import * as pdfjsLib from "pdfjs-dist";
 import {
   AlertDialog,
@@ -160,6 +161,22 @@ const FileUploadZone = ({
         if (insertError || !reportRecord) throw new Error(insertError?.message || "Kunne ikke oprette rapport");
         updateFile(fileId, { reportId: reportRecord.id });
 
+        // === STEP 1b: Upload original file to Storage ===
+        const storagePath = `${companyId}/${reportRecord.id}/${file.name}`;
+        const { error: storageError } = await supabase.storage
+          .from("financial-documents")
+          .upload(storagePath, file, { upsert: true });
+        
+        if (!storageError) {
+          // Update file_path in DB to the actual storage path
+          await supabase
+            .from("financial_reports")
+            .update({ file_path: storagePath } as any)
+            .eq("id", reportRecord.id);
+        } else {
+          console.warn("Storage upload failed (continuing pipeline):", storageError.message);
+        }
+
         // === STEP 2: Extract data via AI ===
         updateFile(fileId, { status: "processing" });
         const fileContent = await extractTextFromFile(file);
@@ -217,6 +234,20 @@ const FileUploadZone = ({
             contextType: "report",
             contextId: reportRecord.id,
             contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
+          });
+        }
+
+        // Create advisor notification
+        if (userId && companyId) {
+          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
+          await createAdvisorNotification({
+            type: "report_uploaded",
+            title: `Ny ${reportLabel.toLowerCase()} fra ${extractedData.company_name || "medlem"}`,
+            body: `${reportLabel} for ${extractedData.report_period}`,
+            companyId,
+            memberId: userId,
+            referenceId: reportRecord.id,
+            referenceType: "report",
           });
         }
 
