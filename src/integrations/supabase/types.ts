@@ -555,6 +555,7 @@ export type Database = {
           processed_at: string | null
           report_period: string | null
           report_type: string
+          reviewed_at: string | null
           status: string
           uploaded_at: string
           user_id: string
@@ -571,6 +572,7 @@ export type Database = {
           processed_at?: string | null
           report_period?: string | null
           report_type: string
+          reviewed_at?: string | null
           status?: string
           uploaded_at?: string
           user_id: string
@@ -587,6 +589,7 @@ export type Database = {
           processed_at?: string | null
           report_period?: string | null
           report_type?: string
+          reviewed_at?: string | null
           status?: string
           uploaded_at?: string
           user_id?: string
