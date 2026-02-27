@@ -2,7 +2,17 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { UserPlus, Trash2, Mail, Loader2, Clock, CheckCircle2, Users } from "lucide-react";
+import { UserPlus, Trash2, Mail, Loader2, Clock, CheckCircle2, Users, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 interface Invitation {
   id: string;
@@ -19,6 +29,8 @@ const CompanyInvitations = () => {
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
 
   const fetchData = async () => {
     if (!companyId) return;
@@ -38,7 +50,6 @@ const CompanyInvitations = () => {
 
     setInvitations((invRes.data as any) || []);
 
-    // Fetch profile info for members
     const memberData = (memRes.data as any) || [];
     if (memberData.length > 0) {
       const userIds = memberData.map((m: any) => m.user_id);
@@ -77,12 +88,22 @@ const CompanyInvitations = () => {
       return;
     }
 
+    // Show confirmation dialog instead of sending directly
+    setPendingEmail(trimmed);
+    setShowConfirm(true);
+  };
+
+  const confirmInvite = async () => {
+    if (!companyId || !user || !pendingEmail) return;
+
+    setShowConfirm(false);
     setSending(true);
+
     const { error } = await supabase
       .from("company_invitations" as any)
       .insert({
         company_id: companyId,
-        email: trimmed,
+        email: pendingEmail,
         invited_by: user.id,
       } as any);
 
@@ -93,7 +114,7 @@ const CompanyInvitations = () => {
         toast.error("Kunne ikke oprette invitation");
       }
     } else {
-      toast.success(`Invitation oprettet til ${trimmed}`);
+      toast.success(`Invitation oprettet til ${pendingEmail}`);
       setEmail("");
       fetchData();
 
@@ -101,17 +122,17 @@ const CompanyInvitations = () => {
       try {
         const { data: emailResult } = await supabase.functions.invoke("send-invitation-email", {
           body: {
-            email: trimmed,
+            email: pendingEmail,
             company_name: companyName || "Din virksomhed",
             signup_url: `${window.location.origin}/auth`,
           },
         });
-        // Email sent successfully via Resend
       } catch (emailErr) {
         console.error("Could not trigger invitation email:", emailErr);
       }
     }
     setSending(false);
+    setPendingEmail("");
   };
 
   const handleDelete = async (id: string) => {
@@ -232,6 +253,32 @@ const CompanyInvitations = () => {
           </p>
         </div>
       )}
+      {/* Confirmation dialog */}
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Bekræft invitation
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                <p>Du er ved at invitere:</p>
+                <p className="text-base font-semibold text-foreground bg-secondary px-3 py-2 rounded-lg">{pendingEmail}</p>
+                <p>til virksomheden:</p>
+                <p className="text-base font-semibold text-foreground bg-secondary px-3 py-2 rounded-lg">{companyName}</p>
+                <p className="text-xs text-destructive font-medium mt-2">
+                  Denne handling kan ikke fortrydes automatisk.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuller</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmInvite}>Ja, send invitation</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
