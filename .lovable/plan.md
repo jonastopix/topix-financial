@@ -1,58 +1,61 @@
 
 
-## Introduktion af Admin-rolle
+# Vis deltagere i chat-tråden
 
-Formalet er at adskille "admin" fra "advisor", sa advisors kun har adgang til radgivningsfunktioner (Chat, Medlemmer, og mulighed for at se virksomhedsdata via "Vis som virksomhed"), mens admin (jonas@topix.dk) beholder fuld adgang til alt.
+## Oversigt
+Tilf en deltager-sektion i chat-headeren der viser navnene p de teammedlemmer der tilhorer virksomheden, samt alle advisors. Alle advisors deler samme trad per virksomhed.
 
-### Hvad aendres
+## Hvordan det virker i dag
+- Hver virksomhed har en samlet conversation (deduplikeret pa company_id)
+- Headeren viser kun virksomhedens navn og logo
+- Der er ingen synlighed over hvem der er med i traden
 
-**1. Database: Tilfoej 'admin' til app_role enum og tildel rollen**
-- Tilfoej `admin` som vaerdi i `app_role` enum
-- Tildel admin-rollen til jonas@topix.dk baseret pa email-opslag
+## Plan
 
-**2. useAuth hook: Expose `isAdmin`**
-- Tilfoej `isAdmin` boolean til AuthContext, baseret pa om brugeren har `admin`-rollen i `user_roles`
+### 1. Hent deltagere for aktiv conversation
+Nar en conversation valges, hent:
+- **Teammedlemmer**: Fra `company_members` + `profiles` baseret pa conversationens `company_id`
+- **Advisors**: Fra `user_roles` (role = advisor/admin) + `profiles`
 
-**3. Sidebar: Begrans advisor-navigation**
-- Advisors ser kun: Chat og Medlemmer (udover de standard-sider de kan tilga via "Vis som virksomhed")
-- Admin ser alt inkl. Import, E-mail skabeloner, Platformconfig og Indstillinger
-- Advisors ser IKKE: Import rapporter, E-mail skabeloner, Platformconfig
-- "Indstillinger" vises kun for medlemmer og admins, ikke advisors
+### 2. Vis deltagere i chat-headeren
+Under virksomhedsnavnet i headeren (linje ~714-718), tilf en linje med:
+- Stablede avatar-cirkler (overlappende, max 4-5 synlige)
+- Navne som komma-separeret tekst i lille skrift, f.eks. "Jonas, Maria, Peter + 2 advisors"
+- Kort og kompakt sa det ikke tager for meget plads
 
-**4. Route-beskyttelse**
-- `/admin/config`, `/admin/emails`, `/admin/import` kraever admin-rolle (redirect til `/` hvis ikke admin)
-- `/settings` skjules for advisors (de har ikke en virksomhed at konfigurere)
+## Teknisk implementering
 
-**5. AdminConfig-siden: Advisor-administration kun for admin**
-- Tjek for `isAdmin` i stedet for `isAdvisor` pa AdminConfig-siden
+### Fil: `src/pages/Chat.tsx`
 
-### Tekniske detaljer
+**Ny state og data-fetch:**
+- Tilf `participants` state med liste af `{ user_id, full_name, avatar_url, isAdvisor }`
+- I en `useEffect` der korer nar `activeConvId` andres, hent:
+  1. Company members via `company_members` joined med `profiles` for den aktive conversations `company_id`
+  2. Alle advisors via `user_roles` (role in advisor, admin) joined med `profiles`
+- Kombiner til en samlet deltagerliste
 
-```text
-Filer der aendres:
-- supabase migration (ny)     -> ALTER TYPE app_role ADD VALUE 'admin'; INSERT admin role
-- src/hooks/useAuth.tsx        -> tilfoej isAdmin
-- src/components/AppSidebar.tsx -> opdel advisorNavItems i adminNavItems
-- src/pages/AdminConfig.tsx    -> brug isAdmin guard
-- src/pages/EmailTemplates.tsx -> brug isAdmin guard  
-- src/pages/BulkImport.tsx     -> brug isAdmin guard
-- src/App.tsx                  -> AdminRoute wrapper
-```
+**Header-andring (advisor-view, linje ~694-725):**
+- Under virksomhedsnavnet, tilf en lille linje med:
+  - Stablede avatarer (3-4 max synlige, med +N indicator)
+  - Navne i `text-[11px] text-muted-foreground`
+  - Format: "Jonas P., Maria H. + 2 radgivere"
 
-Migration SQL:
+**Member-view:**
+- For medlemmer vises ogsa en kompakt deltagerliste, men her er det primart "Dine radgivere: Jonas, Maria" eller lignende
+
+### Queries
 ```sql
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'admin';
+-- Team members for company
+SELECT p.user_id, p.full_name, p.avatar_url
+FROM company_members cm
+JOIN profiles p ON p.user_id = cm.user_id
+WHERE cm.company_id = :company_id
 
--- Tildel admin-rolle til jonas@topix.dk
-INSERT INTO public.user_roles (user_id, role)
-SELECT id, 'admin'
-FROM auth.users
-WHERE email = 'jonas@topix.dk'
-ON CONFLICT DO NOTHING;
+-- All advisors
+SELECT p.user_id, p.full_name, p.avatar_url
+FROM user_roles ur
+JOIN profiles p ON p.user_id = ur.user_id
+WHERE ur.role IN ('advisor', 'admin')
 ```
 
-Sidebar-logik:
-- `advisorNavItems` reduceres til kun `Medlemmer`
-- Nyt `adminNavItems` array: Import, E-mail skabeloner, Platformconfig
-- Chat og de ovrige sider forbliver i `baseNavItems` (tilgaengelige for alle)
-- Indstillinger fjernes fra baseNavItems for advisors (ikke-admin)
+Ingen database-andringer krevet - alle novendige tabeller og RLS-policies er allerede pa plads.
