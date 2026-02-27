@@ -56,7 +56,8 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 2. FORTEGN — I dansk regnskab:
    - Omsætning/indtægter vises ofte som NEGATIVE tal (kreditposter). Konvertér dem til POSITIVE tal.
    - Omkostninger vises ofte som POSITIVE tal (debetposter). Behold dem som positive.
-   - Resultat: Overskud = positiv, Underskud = negativ
+   - Resultat: Aflæs NØJAGTIGT som det står i dokumentet. Underskud = negativ, Overskud = positiv. ÆNDR IKKE fortegnet!
+   - VIGTIGT: Resultat inkluderer ALLE omkostninger inkl. finansieringsomkostninger (renter, gebyrer). Resultat er IKKE blot omsætning minus driftsomkostninger.
    - Aktiver: normalt positive
    - Passiver/gæld: kan vises som negative (kreditside) — returner som POSITIVE tal
 
@@ -245,31 +246,10 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
     const extractedData = JSON.parse(toolCall.function.arguments);
 
-    // === Post-processing: Sanity checks on extracted data ===
+    // === Post-processing: Normalize signs (no heuristic flipping) ===
     const kf = extractedData.key_figures;
     if (kf) {
-      // Sign validation for resultat: If revenue is positive and expenses are high,
-      // but resultat is positive with similar magnitude to what we'd expect as negative, flip it.
-      const totalExpenses = Math.abs(kf.loenninger ?? 0) + Math.abs(kf.direkte_omkostninger ?? 0) +
-        Math.abs(kf.marketing ?? 0) + Math.abs(kf.lokaler ?? 0) + Math.abs(kf.admin ?? 0) +
-        Math.abs(kf.tech_software ?? 0) + Math.abs(kf.afskrivninger ?? 0);
-      
-      // If we have revenue and expenses, check if resultat sign makes sense
-      if (kf.omsaetning != null && kf.resultat_foer_skat != null && totalExpenses > 0) {
-        const expectedResult = kf.omsaetning - totalExpenses;
-        const actualResult = kf.resultat_foer_skat;
-        
-        // If expected is negative but actual is positive (or vice versa) with similar magnitude, flip
-        if (expectedResult < 0 && actualResult > 0 && Math.abs(Math.abs(actualResult) - Math.abs(expectedResult)) < Math.abs(expectedResult) * 0.5) {
-          console.log(`Sign correction: resultat ${actualResult} → ${-actualResult} (expected ~${expectedResult.toFixed(0)})`);
-          kf.resultat_foer_skat = -actualResult;
-        } else if (expectedResult > 0 && actualResult < 0 && Math.abs(Math.abs(actualResult) - Math.abs(expectedResult)) < Math.abs(expectedResult) * 0.5) {
-          console.log(`Sign correction: resultat ${actualResult} → ${-actualResult} (expected ~${expectedResult.toFixed(0)})`);
-          kf.resultat_foer_skat = -actualResult;
-        }
-      }
-
-      // Ensure expenses are stored as positive values (absolute)
+      // Ensure expense fields are stored as positive values (absolute)
       for (const field of ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger']) {
         if (kf[field] != null && kf[field] < 0) {
           kf[field] = Math.abs(kf[field]);
@@ -280,6 +260,10 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
       if (kf.omsaetning != null && kf.omsaetning < 0) {
         kf.omsaetning = Math.abs(kf.omsaetning);
       }
+
+      // Log resultat for debugging — trust the AI extraction, don't flip signs
+      // (The old heuristic missed financial costs like renter/gebyrer and incorrectly flipped negative results)
+      console.log(`Extracted resultat_foer_skat: ${kf.resultat_foer_skat}, omsaetning: ${kf.omsaetning}`);
     }
 
     // Check for duplicate report (same company, same period)
