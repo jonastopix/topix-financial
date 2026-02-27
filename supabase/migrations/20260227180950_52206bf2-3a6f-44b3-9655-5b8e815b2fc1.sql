@@ -1,0 +1,1 @@
+ALTER TABLE public.financial_reports ADD COLUMN IF NOT EXISTS reviewed_at timestamp with time zone DEFAULT NULL;

@@ -83,6 +83,7 @@ const Chat = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
+  const [unreviewedReportIds, setUnreviewedReportIds] = useState<string[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -151,8 +152,9 @@ const Chat = () => {
         isAdvisor
           ? supabase
               .from("financial_reports")
-              .select("user_id, file_name, uploaded_at, status")
+              .select("id, user_id, file_name, uploaded_at, status, reviewed_at")
               .gte("uploaded_at", new Date(Date.now() - 7 * 86400000).toISOString())
+              .is("reviewed_at", null)
               .order("uploaded_at", { ascending: false })
           : Promise.resolve({ data: [] }),
       ]);
@@ -161,6 +163,9 @@ const Chat = () => {
       const profiles = profilesRes.data || [];
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
+
+      // Track unreviewed report IDs for mark-as-read
+      setUnreviewedReportIds(recentReports.map((r: any) => r.id));
 
       const reportsByUser = new Map<string, { name: string }>();
       recentReports.forEach((r: any) => {
@@ -414,6 +419,18 @@ const Chat = () => {
     setShowMessages(false);
   };
 
+  const handleMarkReportsAsRead = async () => {
+    if (unreviewedReportIds.length === 0) return;
+    const now = new Date().toISOString();
+    await supabase
+      .from("financial_reports")
+      .update({ reviewed_at: now } as any)
+      .in("id", unreviewedReportIds);
+    setUnreviewedReportIds([]);
+    // Refresh conversations to update report badges
+    setConversations(prev => prev.map(c => ({ ...c, hasRecentReport: false, recentReportName: undefined })));
+  };
+
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
@@ -501,6 +518,15 @@ const Chat = () => {
                   );
                 })}
               </div>
+              {activeFilter === "rapporter" && stats.withReports > 0 && (
+                <button
+                  onClick={handleMarkReportsAsRead}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary whitespace-nowrap"
+                >
+                  <CheckCheck className="h-3 w-3" />
+                  Markér alle som læst
+                </button>
+              )}
             </div>
 
             {/* Conversation list */}
