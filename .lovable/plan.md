@@ -1,71 +1,107 @@
 
 
-# Fix: Komplet gennemgang af Excel-indlæsning og AI-extraction
+# Deterministisk Excel-extraction med template-detektion
 
-## Grundproblem (root cause)
+## Problemet
 
-Problemet er fundamentalt: Nar en Excel-fil (.xlsx) uploades, laeser koden den som `file.text()` (linje 124 i FileUploadZone.tsx). Men xlsx-filer er ZIP-arkiver med XML indeni -- sa `file.text()` producerer **ulaeselig binaer tekst**. Det betyder:
+Den nuvaerende pipeline sender Excel-data som CSV-tekst til en AI, som hallucinererer vaerdier, firmanavne og perioder. KJ Auto's regnskabsrapporter foelger et fast template med kendte ark ("DATA", "P&L Top Line") og faste celleadresser. Det er spild af AI-kald og fejlkilde at lade AI gaette paa vaerdier der staar i kendte celler.
 
-1. AI'en modtager volapyk og hallucinererer firmanavn, CVR og periode
-2. Regex-overrides (`extractPeriodFromText`, `extractCvrFromText`) kan ikke finde noget i binaer tekst
-3. `knownCompanyName` retter kun firmanavnet, men perioden forbliver forkert
-4. AI-analysen bruger det hallucinererede firmanavn fra extracted_data
+## Loesning: Hybrid template-baseret extraction
 
-PDF-upload fungerer derimod korrekt fordi siderne renderes som billeder (vision mode).
-
-## Plan: 4 aendringer
-
-### 1. Installer SheetJS og pars Excel korrekt (client-side)
-
-Installer `xlsx`-pakken (SheetJS) og omskriv `extractTextFromFile` i FileUploadZone.tsx sa Excel-filer parses til laeseligt CSV-format:
+### Arkitektur
 
 ```text
-Excel (binary ZIP) --> SheetJS parser --> CSV-lignende tekst --> sendes til AI
+Excel upload
+    |
+    v
+SheetJS parser (allerede installeret)
+    |
+    v
+Template-detektor: Har filen "DATA" + "P&L Top Line" ark?
+    |                    |
+   JA                   NEJ
+    |                    |
+    v                    v
+Deterministisk       AI-baseret extraction
+cell-reading         (nuvaerende pipeline)
+    |                    |
+    v                    v
+Mappes til key_figures format
+    |
+    v
+Gem i DB + AI-analyse (uaendret)
 ```
 
-Den parsede tekst vil indeholde korrekte headers som "Resultatopgorelse for perioden 01.10.25 - 31.10.25" og "CVR 39199971", sa bade AI og regex-overrides kan laese dem.
+### Fil 1: `src/lib/excelTemplates.ts` (NY)
 
-### 2. Haerdn AI-prompten med kendt firmanavn
+Opretter den deterministiske extractor baseret paa brugerens ChatGPT-kode, tilpasset til projektet:
 
-I `extract-financial-data/index.ts`: Hvis `knownCompanyName` er sat, injicer det direkte i systemprompten -- ikke kun som post-processing override. Tilfoej til prompten:
+- `detectTemplate(workbook)` — checker om arket "DATA" og "P&L Top Line" findes
+- `extractKJAutoTemplate(workbook)` — laeser specifikke celler:
+  - Firmanavn fra DATA!A2
+  - CVR fra DATA!A5
+  - Periode fra "P&L Top Line"!C3
+  - Omsaetning fra C28/J28
+  - DB I fra C173/J173
+  - DB II fra C30/J30
+  - EBT fra DATA!C346/F346
+- Sanity checks (omsaetning C28 vs C29)
+- Returnerer data i same format som AI-extractionen (`ExtractedData`)
 
-> "Virksomhedens navn er: Carma Studio. Brug KUN dette navn. Returner ALDRIG et andet firmanavn."
+Mapper til eksisterende `key_figures`:
+- `omsaetning` = turnover.month (absolutvaerdi)
+- `omsaetning_aar` = turnover.ytd (absolutvaerdi)
+- `daekningsbidrag` = db1.month
+- `daekningsbidrag_aar` = db1.ytd
+- `resultat_foer_skat` = ebt.month (behold fortegn)
+- `resultat_foer_skat_aar` = ebt.ytd (behold fortegn)
 
-### 3. Fix AI-analyse (ai-financial-feedback) 
+Inkluderer ogsaa administrations-, lokale-, driftsmiddel-omkostninger og EBITDA fra kendte cellepositioner.
 
-Sikr at `companyContext.name` altid bruger det kendte firmanavn fra databasen (companies-tabellen) i stedet for det AI-ekstraherede. Slaa virksomhedsnavnet op via `company_id` pa rapporten.
+### Fil 2: `src/components/FileUploadZone.tsx` (AENDRING)
 
-### 4. Styrk regex-overrides som fallback
+I `processFile`-funktionen, efter SheetJS-parsning:
 
-Udvid `extractPeriodFromText` og `extractCvrFromText` til at haandtere flere formater:
-- Perioder som "Oktober 2025", "Okt 2025", "10/2025"
-- CVR uden "CVR" prefix (bare 8-cifret tal efter kendte patterns)
-- Datoformater som "01/10/2025 - 31/10/2025"
+1. Foer AI-kaldet: kald `detectTemplate(workbook)` 
+2. Hvis template genkendes: kald `extractKJAutoTemplate(workbook)` 
+3. Hvis PASS: spring `extract-financial-data` edge function over, gem direkte i DB
+4. Hvis FAIL eller ukendt template: fald tilbage til eksisterende AI-pipeline
+
+Konkret flow:
+- Filen laeses allerede som ArrayBuffer for SheetJS (linje 127-128)
+- Tilfoej template-detektion lige efter SheetJS-parsning
+- Hvis deterministisk extraction lykkes, spring AI-extraction over og gaa direkte til step 3 (AI-analyse)
+
+### Fil 3: `supabase/functions/extract-financial-data/index.ts` (MINDRE AENDRING)
+
+Ingen store aendringer. Funktionen forbliver som fallback for filer uden genkendt template. Tilfoej et felt `extraction_method: "deterministic" | "ai"` til det gemte `extracted_data` saa vi kan se hvilken metode der blev brugt.
+
+## Vigtige designvalg
+
+1. **DB I bruges som "Daekningsbidrag"** — C173/J173 er den klassiske definition (omsaetning minus vareforbrug). DB II (C30/J30) gemmes separat som reference.
+
+2. **Formel-evaluering**: Mange celler i denne template indeholder formler (=SUM, =DATA!C346). SheetJS cacher normalt formler ved `read()`, men som fallback inkluderes en minimal formel-evaluator der haandterer simple references og SUM().
+
+3. **Template-detektion er konservativ**: Kun filer med BAADE "DATA" og "P&L Top Line" ark behandles deterministisk. Alt andet gaar til AI.
+
+4. **Alle 5 uploadede filer** (Aug, Okt, Nov, Dec 2025 + Jan 2026) vil automatisk haandteres korrekt efter denne aendring.
 
 ## Tekniske detaljer
 
-### Fil 1: `package.json`
-- Tilfoej dependency: `xlsx` (SheetJS Community Edition)
+### Celle-mapping (KJ Auto template)
 
-### Fil 2: `src/components/FileUploadZone.tsx`
-- Importer SheetJS
-- Omskriv `extractTextFromFile` for Excel: `XLSX.read(buffer) -> sheet_to_csv()` for alle sheets
-- Behold PDF-logikken uaendret
+| Metric | Maaned-celle | YTD-celle |
+|--------|-------------|-----------|
+| Omsaetning | P&L Top Line!C28 | P&L Top Line!J28 |
+| DB I | P&L Top Line!C173 | P&L Top Line!J173 |
+| DB II | P&L Top Line!C30 | P&L Top Line!J30 |
+| EBT | DATA!C346 (fallback: P&L!C370) | DATA!F346 (fallback: P&L!J370) |
+| Admin omk. | Parsees fra CSV-sektion | Parsees fra CSV-sektion |
+| Lokaleomk. | Parsees fra CSV-sektion | Parsees fra CSV-sektion |
 
-### Fil 3: `supabase/functions/extract-financial-data/index.ts`
-- Injicer `knownCompanyName` i systemprompten (ikke kun post-processing)
-- Udvid regex-overrides med flere formater
-- Tilfoej logging af modtaget fileContent-laengde og foerste 200 tegn (debugging)
+### Validering
 
-### Fil 4: `src/components/FileUploadZone.tsx` (pipeline-sektion)
-- Naar AI-analyse kaldes: brug `knownCompanyName || extractedData.company_name` som companyContext.name
-- Sikr at det rigtige navn propageres til milestones og activity messages
-
-## Forventet resultat
-
-- Excel-filer parses korrekt til laeseligt tekst foer AI modtager dem
-- Periode, CVR og firmanavn laeeses deterministisk fra teksten (regex)  
-- AI'en far eksplicit besked om korrekt firmanavn i prompten
-- AI-analysen refererer til det rigtige firma
-- Ingen flere hallucineringer af forkerte navne eller perioder
+- Omsaetning C28 skal matche C29 (kontrol) inden for 0.5 kr tolerance
+- Alle 8 paakraevede vaerdier skal vaere til stede (ellers FAIL)
+- CVR skal kunne parses fra DATA!A5
 
