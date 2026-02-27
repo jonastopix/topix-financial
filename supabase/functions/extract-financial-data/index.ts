@@ -42,67 +42,81 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const systemPrompt = `Du er en ekspert i dansk regnskab og bogføring. Du modtager det rå tekstindhold fra en dansk finansiel rapport (saldobalance eller resultatopgørelse).
+    const systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.
 
-DIN OPGAVE: Udtræk NØJAGTIGE tal fra dokumentet. Opfind ALDRIG tal. Hvis et tal ikke kan findes, udelad feltet.
+DIN ROLLE: Du aflæser tal PRÆCIST som de fremgår af dokumentet og normaliserer dem til en standardiseret format. Du opfinder ALDRIG tal.
 
-VIGTIGE REGLER FOR KORREKT AFLÆSNING:
+═══════════════════════════════════════════════════
+TRIN 1: IDENTIFICÉR RAPPORTTYPEN
+═══════════════════════════════════════════════════
+- "resultatopgørelse": Viser omsætning, omkostninger, bruttofortjeneste, resultat. Typisk fra e-conomic.
+- "saldobalance": Viser kontonumre med debet/kredit-kolonner, balance-poster.
+- Filnavnet "${fileName || ''}" kan give hint, men INDHOLDET bestemmer typen.
 
-1. RAPPORTTYPE — Bestem typen ud fra indholdet:
-   - "saldobalance": Indeholder kontonumre, debitor/kreditor-kolonner, balance-poster (aktiver, passiver, egenkapital)
-   - "resultatopgørelse": Indeholder primært omsætning, omkostninger, bruttofortjeneste, resultat
-   - Filnavnet "${fileName || ''}" kan give hint, men INDHOLDET bestemmer typen
+═══════════════════════════════════════════════════
+TRIN 2: FORSTÅ KOLONNE-STRUKTUREN
+═══════════════════════════════════════════════════
+Danske resultatopgørelser har typisk FIRE talkolonner:
+  Kolonne 1: "Perioden Faktisk" — den enkelte måneds tal
+  Kolonne 2: "Perioden Året før" — samme måned sidste år  
+  Kolonne 3: "År til dato Faktisk" — akkumuleret indeværende år
+  Kolonne 4: "År til dato Året før" — akkumuleret sidste år
 
-2. FORTEGN — I dansk regnskab:
-   - Omsætning/indtægter vises ofte som NEGATIVE tal (kreditposter). Konvertér dem til POSITIVE tal.
-   - Omkostninger vises ofte som POSITIVE tal (debetposter). Behold dem som positive.
-   - Resultat: Aflæs NØJAGTIGT som det står i dokumentet. Underskud = negativ, Overskud = positiv. ÆNDR IKKE fortegnet!
-   - VIGTIGT: Resultat inkluderer ALLE omkostninger inkl. finansieringsomkostninger (renter, gebyrer). Resultat er IKKE blot omsætning minus driftsomkostninger.
-   - Aktiver: normalt positive
-   - Passiver/gæld: kan vises som negative (kreditside) — returner som POSITIVE tal
+DU SKAL BRUGE:
+- Kolonne 1 ("Perioden Faktisk") til alle periodefeltter (omsaetning, loenninger, resultat_foer_skat osv.)
+- Kolonne 3 ("År til dato Faktisk") til alle _aar-felter (omsaetning_aar, resultat_foer_skat_aar osv.)
 
-3. PERIODER — Dokumentet har typisk TO kolonner med tal:
-   - "Perioden" / "Faktisk" (venstre kolonne): Tal for EN ENKELT MÅNED
-   - "År til dato" / "Å.t.d." (højre kolonne): Akkumulerede tal fra årets start
-   - Rapportperioden: skriv den som "August 2025", "Oktober 2025" etc.
+KRITISK: Læs kolonnenumrene fra VENSTRE mod HØJRE. Forveksl IKKE "Perioden Faktisk" med "Perioden Året før"!
 
-4. KRITISK: PERIOD vs. ÅR TIL DATO
-   - key_figures SKAL indeholde PERIODENS tal (den enkelte måned), IKKE år-til-dato-tal.
-   - Felter der slutter på "_aar" (f.eks. omsaetning_aar, resultat_foer_skat_aar) skal indeholde år-til-dato-tal.
-   - Hvis en post har 0,00 i periodekolonnen, så er værdien 0 for den måned — brug IKKE år-til-dato-værdien i stedet!
-   - Eksempel: Hvis "Gager" viser "0,00" i perioden og "-135.238,14" i år-til-dato, så er loenninger=0 (IKKE 135238).
+═══════════════════════════════════════════════════
+TRIN 3: REGNSKABSKONVENTIONER FOR FORTEGN
+═══════════════════════════════════════════════════
+I dansk bogføring (specielt e-conomic resultatopgørelser):
 
-5. NØGLETAL — Udtræk kun det du FAKTISK kan se i dokumentet:
-    - omsaetning: Total omsætning/nettoomsætning FOR PERIODEN (den enkelte måned)
-    - omsaetning_aar: Omsætning år til dato
-    - direkte_omkostninger: Vareforbrug/produktionsomkostninger FOR PERIODEN
-    - daekningsbidrag: Bruttofortjeneste/dækningsbidrag FOR PERIODEN
-    - daekningsbidrag_aar: Dækningsbidrag år til dato
-    - loenninger: Personaleomkostninger/lønninger FOR PERIODEN
-    - marketing: Salgs- og marketingomkostninger FOR PERIODEN
-    - lokaler: Lokaleomkostninger FOR PERIODEN
-    - admin: Administrative omkostninger FOR PERIODEN
-    - afskrivninger: Af- og nedskrivninger FOR PERIODEN
-    - resultat_foer_skat: Resultat før skat FOR PERIODEN
-    - resultat_foer_skat_aar: Resultat før skat å.t.d.
-    - resultat_efter_skat: Resultat efter skat FOR PERIODEN
-    - resultat_efter_skat_aar: Resultat efter skat å.t.d.
-    - aktiver_i_alt: Sum af aktiver (kun saldobalance)
-    - passiver_i_alt: Sum af passiver (kun saldobalance)
-    - egenkapital: Egenkapital i alt (kun saldobalance)
-    - bank_balance: Likvide beholdninger/bank
-    - debitorer: Tilgodehavender fra salg
-    - kreditorer: Leverandørgæld
+A) OMSÆTNING/INDTÆGTER:
+   - Kan stå som POSITIVE tal (normalt i resultatopgørelser)
+   - Kan stå som NEGATIVE tal (kreditside i saldobalancer)
+   - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
-6. KATEGORISERING AF OMKOSTNINGER:
-    - "marketing": Saml ALLE salgs- og marketingrelaterede poster FOR PERIODEN
-    - "lokaler": Saml ALLE lokaleomkostninger FOR PERIODEN
-    - "admin": Saml ALLE administrative/kontoromkostninger FOR PERIODEN
-    - Hvis en post kan tilhøre flere kategorier, vælg den mest specifikke
+B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger):
+   - Står typisk som NEGATIVE tal (f.eks. -11.205,94)
+   - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
-7. BELØB — Returnér som rene tal UDEN tusindtalsseparatorer. Eksempel: 1234567.89
+C) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
+   - ⚠️ AFLÆS NØJAGTIGT SOM DET STÅR I DOKUMENTET — ÆNDR ALDRIG FORTEGNET! ⚠️
+   - Negativt tal = UNDERSKUD/TAB (f.eks. -26.169,42 betyder tab)
+   - Positivt tal = OVERSKUD (f.eks. 400.831,54 betyder overskud)
+   - Find linjen "Resultat før skat" eller "Resultat for skat" og aflæs PRÆCIST fra den korrekte kolonne
+   - Inkluderer ALLE omkostninger inkl. finansieringsomkostninger (renter, gebyrer mv.)
 
-8. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb. Brug PERIODENS tal for period_amount og ÅR-TIL-DATO for ytd_amount.`;
+D) BALANCE-POSTER (aktiver, passiver, egenkapital, bank):
+   - Aktiver: returnér som positive
+   - Passiver/gæld: returnér som positive (selvom de står som negative/kredit)
+   - Bank/likvider: returnér som positive (selvom de står som negative/kredit)
+   - Egenkapital: behold fortegn som det er (negativ egenkapital er mulig)
+
+═══════════════════════════════════════════════════
+TRIN 4: PERIODE vs. ÅR TIL DATO
+═══════════════════════════════════════════════════
+- Felter UDEN "_aar" = PERIODENS tal (én enkelt måned fra Kolonne 1)
+- Felter MED "_aar" = År-til-dato tal (fra Kolonne 3)
+- Hvis en post viser 0,00 i periodekolonnen, er værdien 0 — brug IKKE år-til-dato!
+
+═══════════════════════════════════════════════════
+TRIN 5: RAPPORTPERIODE
+═══════════════════════════════════════════════════
+- Skriv som "December 2025", "Oktober 2025" osv.
+- Bestem ud fra datoer i dokumenthovedet (f.eks. "01.12.25 - 31.12.25" = December 2025)
+
+═══════════════════════════════════════════════════
+BELØBSFORMAT
+═══════════════════════════════════════════════════
+Returnér som rene tal UDEN tusindtalsseparatorer: 1234567.89 (brug punktum som decimalseparator).
+
+═══════════════════════════════════════════════════
+LINE_ITEMS
+═══════════════════════════════════════════════════
+Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TIL-DATO for ytd_amount. Behold originale fortegn.`;
 
     // Build user message — prefer images (vision) for accurate table reading
     let userContent: any;
@@ -132,7 +146,7 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -246,24 +260,33 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
     const extractedData = JSON.parse(toolCall.function.arguments);
 
-    // === Post-processing: Normalize signs (no heuristic flipping) ===
+    // === Post-processing: Normalize signs ===
     const kf = extractedData.key_figures;
     if (kf) {
       // Ensure expense fields are stored as positive values (absolute)
-      for (const field of ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger']) {
+      const expenseFields = ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger'];
+      for (const field of expenseFields) {
         if (kf[field] != null && kf[field] < 0) {
+          console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
           kf[field] = Math.abs(kf[field]);
         }
       }
       
-      // Ensure omsaetning is positive
-      if (kf.omsaetning != null && kf.omsaetning < 0) {
-        kf.omsaetning = Math.abs(kf.omsaetning);
+      // Ensure omsaetning fields are positive
+      for (const field of ['omsaetning', 'omsaetning_aar']) {
+        if (kf[field] != null && kf[field] < 0) {
+          console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
+          kf[field] = Math.abs(kf[field]);
+        }
       }
 
-      // Log resultat for debugging — trust the AI extraction, don't flip signs
-      // (The old heuristic missed financial costs like renter/gebyrer and incorrectly flipped negative results)
-      console.log(`Extracted resultat_foer_skat: ${kf.resultat_foer_skat}, omsaetning: ${kf.omsaetning}`);
+      // Ensure daekningsbidrag_aar is also normalized if negative (it follows omsaetning convention)
+      // but daekningsbidrag for period can be legitimately negative
+
+      // NEVER touch resultat fields — their sign is meaningful (negative = loss, positive = profit)
+      console.log(`[CFO Extraction] Period: ${extractedData.report_period}`);
+      console.log(`  omsaetning: ${kf.omsaetning}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
+      console.log(`  omsaetning_aar: ${kf.omsaetning_aar}, resultat_foer_skat_aar: ${kf.resultat_foer_skat_aar}`);
     }
 
     // Check for duplicate report (same company, same period)
