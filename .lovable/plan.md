@@ -1,51 +1,31 @@
 
 
-## Plan: Mobilvenlig chat, ubesvaret-fokus og udvidede advisor-notifikationer
+## Fix: Inviterede brugere skal lande på "Opret konto"-formularen
 
-### 1. Mobilvenlig chat
+### Problem
+Invitationsmailen linker til `https://topix.lovable.app/auth`, som viser login-formularen som standard. Nye brugere ved ikke, at de skal klikke "Opret konto" for at skifte visning.
 
-Chatten har i dag en fast sidebar-bredde (340px) og et to-panel layout der ikke fungerer pa mobil. Losningen:
+### Losning
 
-- **Mobil: vis kun en af panelerne ad gangen.** Pa mobil vises samtalelisten som standard. Nar man trykker pa en samtale, vises beskedpanelet i fuldskarm med en "tilbage"-knap.
-- Juster padding, font-storrelser og input-felter til touch-venlig storrelse
-- Skjul topic-filter chips i en horisontal scroll-container pa mobil
-- Gor sidebar-bredden responsiv (fuld bredde pa mobil i stedet for 340px)
+**1. Auth-siden: Understot `?mode=signup` query-parameter** (`src/pages/Auth.tsx`)
+- Laes URL query-parameteren `mode` ved indlasning
+- Hvis `mode=signup`, saet `isLogin` til `false` sa signup-formularen vises direkte
+- Brugeren lander dermed pa "Opret konto" med det samme
 
-### 2. Advisor-chat: Ubesvaret som standard-filter
+**2. Invitationslinket: Opdater URL** (`src/pages/Members.tsx`)
+- Aendr `signup_url` fra `https://topix.lovable.app/auth` til `https://topix.lovable.app/auth?mode=signup`
+- Gaelder for `handleStandaloneInvite`-funktionen
 
-- Saet `activeFilter` til `"ubesvaret"` som standard nar brugeren er advisor (i stedet for `"alle"`)
-- Bevar sogning, sa advisors kan finde andre samtaler via sogefeltet
-- Nar der ikke er nogen ubesvarede, vises en tom-tilstand med opfordring til at soge eller skifte filter
+**3. E-mail-skabelonen: Opdater fallback-tekst** (`supabase/functions/send-invitation-email/index.ts`)
+- Knapteksten i fallback-HTML'en siger allerede "Accepter invitation", sa den er fin
+- Ingen aendringer nodvendige i edge-funktionen
 
-### 3. Udvidede advisor-notifikationer
+### Resultat
+Nar Morten (eller andre inviterede) klikker pa linket i mailen, lander de direkte pa "Opret konto"-formularen med felter til navn, virksomhed, email og adgangskode.
 
-Nuvarende system understotter kun `report_uploaded` og `handout_completed`. Udvidelsen:
-
-**A. Nye besked-notifikationer:**
-- Nar et medlem sender en besked, oprettes en `advisor_notification` med type `new_message` og reference_type `chat`
-- Tilfojes i besked-send logikken (client-side i Chat.tsx nar afsender ikke er advisor)
-
-**B. Rapport-upload notifikationer:**
-- Bekraft at der allerede oprettes notifikationer ved rapport-upload (se eksisterende flow)
-
-**C. Handout-indsendelse notifikationer:**
-- Bekraft at der allerede oprettes notifikationer ved handout-indsendelse
-
-**D. Notifikations-type udvidelse i UI:**
-- Tilfoej `MessageCircle`-ikon for `new_message` type i AdvisorNotifications-komponenten
-- Klik pa besked-notifikation navigerer til `/chat`
-
-### Teknisk overblik
-
-**Filer der andres:**
-
-| Fil | Andring |
+### Filer der aendres
+| Fil | Aendring |
 |-----|---------|
-| `src/pages/Chat.tsx` | Responsivt layout med mobil-panel-toggle, standard "ubesvaret" filter for advisors |
-| `src/components/AdvisorNotifications.tsx` | Ny `new_message` type med MessageCircle-ikon, navigation til /chat |
-| `src/components/AppLayout.tsx` | Ingen andringer nodvendige |
-
-**Ingen database-andringer nodvendige** -- `advisor_notifications`-tabellen understotter allerede fleksible typer via text-felter.
-
-**Besked-notifikation trigger:** Nar et medlem (ikke-advisor) sender en besked, kalder klienten `createAdvisorNotification` med type `new_message`, sa advisors far besked i klokken.
+| `src/pages/Auth.tsx` | Tilfoej useSearchParams, saet isLogin baseret pa `?mode=signup` |
+| `src/pages/Members.tsx` | Aendr signup_url til at inkludere `?mode=signup` |
 
