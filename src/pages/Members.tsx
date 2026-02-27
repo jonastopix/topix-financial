@@ -636,7 +636,7 @@ const Members = () => {
         body: {
           email: standaloneEmail.trim().toLowerCase(),
           company_name: "The Boardroom",
-          signup_url: "https://topix.lovable.app/auth",
+          signup_url: "https://topix.lovable.app/auth?mode=signup",
         },
       });
       if (error) throw error;
