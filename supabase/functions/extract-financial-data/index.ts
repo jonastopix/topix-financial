@@ -14,26 +14,58 @@ const DANISH_MONTHS: Record<string, string> = {
   "09": "September", "10": "Oktober", "11": "November", "12": "December",
 };
 
+const DANISH_MONTH_NAMES: Record<string, string> = {
+  "januar": "01", "februar": "02", "marts": "03", "april": "04",
+  "maj": "05", "juni": "06", "juli": "07", "august": "08",
+  "september": "09", "oktober": "10", "november": "11", "december": "12",
+  "jan": "01", "feb": "02", "mar": "03", "apr": "04",
+  "jun": "06", "jul": "07", "aug": "08", "sep": "09",
+  "okt": "10", "nov": "11", "dec": "12",
+};
+
 function extractPeriodFromText(text: string): string | null {
-  // Match patterns like "01.10.25 - 31.10.25" or "01.12.2025 - 31.12.2025"
-  const match = text.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s*-\s*\d{2}\.(\d{2})\.(\d{2,4})/);
-  if (match) {
-    const endMonth = match[4];
-    let endYear = match[5];
+  // Pattern 1: "01.10.25 - 31.10.25" or "01.12.2025 - 31.12.2025" or "01/10/2025 - 31/10/2025"
+  const dateRange = text.match(/(\d{2})[.\/](\d{2})[.\/](\d{2,4})\s*[-–]\s*\d{2}[.\/](\d{2})[.\/](\d{2,4})/);
+  if (dateRange) {
+    const endMonth = dateRange[4];
+    let endYear = dateRange[5];
     if (endYear.length === 2) {
       endYear = (parseInt(endYear) >= 50 ? "19" : "20") + endYear;
     }
     const monthName = DANISH_MONTHS[endMonth];
-    if (monthName) {
-      return `${monthName} ${endYear}`;
+    if (monthName) return `${monthName} ${endYear}`;
+  }
+
+  // Pattern 2: "Oktober 2025", "Okt 2025"
+  const namedMonth = text.match(/\b(januar|februar|marts|april|maj|juni|juli|august|september|oktober|november|december|jan|feb|mar|apr|jun|jul|aug|sep|okt|nov|dec)\s+(\d{4})\b/i);
+  if (namedMonth) {
+    const monthNum = DANISH_MONTH_NAMES[namedMonth[1].toLowerCase()];
+    if (monthNum) {
+      const monthName = DANISH_MONTHS[monthNum];
+      return `${monthName} ${namedMonth[2]}`;
     }
   }
+
+  // Pattern 3: "10/2025" or "10-2025"
+  const shortDate = text.match(/\b(\d{2})[\/\-](\d{4})\b/);
+  if (shortDate) {
+    const monthName = DANISH_MONTHS[shortDate[1]];
+    if (monthName) return `${monthName} ${shortDate[2]}`;
+  }
+
   return null;
 }
 
 function extractCvrFromText(text: string): string | null {
-  const match = text.match(/CVR\s*:?\s*(\d{8})/i);
-  return match ? match[1] : null;
+  // Pattern 1: "CVR: 12345678" or "CVR 12345678" or "CVR-nr. 12345678"
+  const cvrLabeled = text.match(/CVR[\s\-.:nNrR]*\s*(\d{8})\b/i);
+  if (cvrLabeled) return cvrLabeled[1];
+
+  // Pattern 2: 8-digit number after "SE" or "Reg" prefix
+  const seLabeled = text.match(/\b(?:SE|Reg\.?\s*(?:nr\.?)?)\s*(\d{8})\b/i);
+  if (seLabeled) return seLabeled[1];
+
+  return null;
 }
 
 // ── Post-processing validation ──────────────────────────────────────────────
@@ -133,13 +165,24 @@ serve(async (req) => {
 
     const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName } = await req.json();
 
+    // Debug logging for incoming content
+    console.log(`[extract-financial-data] fileContent length: ${fileContent?.length ?? 0}, pageImages: ${pageImages?.length ?? 0}`);
+    if (fileContent) {
+      console.log(`[extract-financial-data] First 300 chars: ${fileContent.slice(0, 300)}`);
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.
+    // Build company name instruction for system prompt
+    const companyNameInstruction = knownCompanyName
+      ? `\n\n═══════════════════════════════════════════════════\nVIGTIGT: FIRMANAVN\n═══════════════════════════════════════════════════\nVirksomhedens navn er: "${knownCompanyName}". Brug KUN dette navn som company_name. Returner ALDRIG et andet firmanavn.\n`
+      : "";
+
+    const systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
 
 DIN ROLLE: Du aflæser tal PRÆCIST som de fremgår af dokumentet og normaliserer dem til en standardiseret format. Du opfinder ALDRIG tal.
 
