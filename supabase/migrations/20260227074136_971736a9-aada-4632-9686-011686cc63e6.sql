@@ -1,0 +1,1 @@
+UPDATE financial_reports SET ai_analysis = NULL WHERE company_id = (SELECT id FROM companies WHERE name = 'Carma Studio')
