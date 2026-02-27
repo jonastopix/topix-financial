@@ -1,31 +1,55 @@
 
 
-## Fix: Inviterede brugere skal lande på "Opret konto"-formularen
+## Chat per virksomhed i stedet for per bruger
 
-### Problem
-Invitationsmailen linker til `https://topix.lovable.app/auth`, som viser login-formularen som standard. Nye brugere ved ikke, at de skal klikke "Opret konto" for at skifte visning.
+Chatten skal omstruktureres, så der er en samtale pr. virksomhed i stedet for pr. bruger. Alle teammedlemmer i samme virksomhed deler den samme samtale.
 
-### Losning
+### Hvad ændres
 
-**1. Auth-siden: Understot `?mode=signup` query-parameter** (`src/pages/Auth.tsx`)
-- Laes URL query-parameteren `mode` ved indlasning
-- Hvis `mode=signup`, saet `isLogin` til `false` sa signup-formularen vises direkte
-- Brugeren lander dermed pa "Opret konto" med det samme
+**1. Visning i sidebar (advisor-visning)**
+- Virksomhedsnavnet vises som primært navn i stedet for brugernavnet
+- Initialerne i avataren baseres pa virksomhedsnavnet
+- Virksomhedens logo vises hvis tilgaengeligt
+- Soegning filtrerer pa virksomhedsnavn
 
-**2. Invitationslinket: Opdater URL** (`src/pages/Members.tsx`)
-- Aendr `signup_url` fra `https://topix.lovable.app/auth` til `https://topix.lovable.app/auth?mode=signup`
-- Gaelder for `handleStandaloneInvite`-funktionen
+**2. Visning i message-header**
+- Virksomhedsnavnet vises som overskrift i stedet for brugernavnet
+- Afsendernavne vises pa individuelle beskeder, sa man kan se hvem der skrev
 
-**3. E-mail-skabelonen: Opdater fallback-tekst** (`supabase/functions/send-invitation-email/index.ts`)
-- Knapteksten i fallback-HTML'en siger allerede "Accepter invitation", sa den er fin
-- Ingen aendringer nodvendige i edge-funktionen
+**3. Konsolidering af samtaler**
+- Conversation-listen grupperes/dedupliceres pa `company_id`
+- Hvis der er flere conversations for samme virksomhed, vises den med seneste aktivitet
+- Alle teammedlemmer fra en virksomhed kan laese og skrive i samme conversation
 
-### Resultat
-Nar Morten (eller andre inviterede) klikker pa linket i mailen, lander de direkte pa "Opret konto"-formularen med felter til navn, virksomhed, email og adgangskode.
+**4. Database-trigger opdatering**
+- `handle_new_user`-funktionen skal opdateres, sa nye brugere der tilknyttes en eksisterende virksomhed far den eksisterende conversation i stedet for at oprette en ny
+- Kun oprette en ny conversation hvis virksomheden ikke allerede har en
 
-### Filer der aendres
-| Fil | Aendring |
-|-----|---------|
-| `src/pages/Auth.tsx` | Tilfoej useSearchParams, saet isLogin baseret pa `?mode=signup` |
-| `src/pages/Members.tsx` | Aendr signup_url til at inkludere `?mode=signup` |
+**5. RLS-politikker**
+- Opdatere "Members can view own conversation" til at bruge `company_id = user_company_id(auth.uid())` i stedet for `member_id = auth.uid()` (dette er allerede delvist pa plads via "Company members" policies)
+- Tilsvarende for INSERT og UPDATE
 
+### Tekniske detaljer
+
+**Chat.tsx aendringer:**
+- I `ConversationWithProfile` interfacet: tilfoej `companyName` og `companyLogoUrl` felter
+- I `loadConversations`: join med `companies` tabellen via `company_id` for at hente virksomhedsnavn
+- Deduplicer conversations pa `company_id` (behold den med seneste `last_message_at`)
+- Erstat `conv.profile?.full_name` med virksomhedsnavn i sidebar-listen
+- I message-omradet: vis afsendernavn (fra profiles) pa hver besked sa man kan skelne teammedlemmer
+
+**Database migration:**
+- Opdater `handle_new_user()` triggeren til at genbruge eksisterende conversation for virksomheden:
+  ```text
+  -- Tjek om virksomheden allerede har en conversation
+  -- Hvis ja: brug den eksisterende (opret ikke ny)
+  -- Hvis nej: opret en ny conversation med company_id
+  ```
+
+**Besked-visning:**
+- Hver besked viser afsenderens navn (hentes fra profiles-queryen der allerede eksisterer)
+- Advisor-beskeder vises stadig som "Du:" for advisors
+
+**Ingen breaking changes:**
+- `member_id` pa conversations beholdes som "oprettet af" reference
+- Eksisterende data fungerer stadig - conversations med samme `company_id` konsolideres i UI'et
