@@ -33,12 +33,14 @@ import {
 } from "lucide-react";
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1069,18 +1071,39 @@ const Members = () => {
                                     <span className="text-[10px] text-muted-foreground ml-auto">{m.role}</span>
                                   </Link>
                                   {m.role !== 'owner' && (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleRemoveMember(c, m); }}
-                                      disabled={removingMember === m.user_id}
-                                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
-                                      title={`Fjern ${m.full_name}`}
-                                    >
-                                      {removingMember === m.user_id ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                      ) : (
-                                        <X className="h-3 w-3" />
-                                      )}
-                                    </button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <button
+                                          onClick={(e) => e.stopPropagation()}
+                                          disabled={removingMember === m.user_id}
+                                          className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                                          title={`Fjern ${m.full_name}`}
+                                        >
+                                          {removingMember === m.user_id ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            <X className="h-3 w-3" />
+                                          )}
+                                        </button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Fjern teammedlem?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Er du sikker på, at du vil fjerne <strong>{m.full_name}</strong> fra {c.name}? Denne handling kan ikke fortrydes.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Annuller</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => handleRemoveMember(c, m)}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Fjern
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   )}
                                 </div>
                               ))}
