@@ -1,28 +1,32 @@
 
 
-## Oprydning af Jeppe Chris' duplikerede brugerkonto
+## Gensend invitation til specifik virksomhed
 
-### Baggrund
-Jeppe Chris (kontakt@jeppechris.dk) har to brugerkonti tilknyttet Stadio ApS:
+### Hvad der bygges
+En "Gensend invitation"-knap i den udvidede virksomhedsvisning pa Members-siden, sa radgivere kan gensende invitations-emailen til virksomheder der allerede har en pending invitation.
 
-| | Oprindelig konto (beholdes) | Duplikat (slettes) |
-|---|---|---|
-| User ID | `e5c1657b-...` | `cdfa53b9-...` |
-| Oprettet | 25. feb | 27. feb |
-| Onboardet | Ja | Nej |
-| Data (beskeder, rapporter, milestones) | Ja | Ingen |
+### Funktionalitet
+- Nar en virksomhed udvides, vises en "Gensend invitation"-knap i Actions-sektionen, hvis der findes en pending invitation for virksomheden
+- Knappen gensender invitations-emailen via den eksisterende `send-invitation-email` edge function
+- Der oprettes IKKE en ny invitation-record -- den eksisterende pending invitation genbruges
+- En bekraftelses-toast vises efter afsendelse
 
-### Handlinger (i rækkefølge)
+### Teknisk implementation
 
-1. **Slet conversation** for duplikat-brugeren (`18e60352-...`)
-2. **Slet company_member** for duplikat-brugeren (`c3dfe51d-...`)
-3. **Slet profil** for duplikat-brugeren (`45e3a995-...`)
-4. **Slet auth-bruger** `cdfa53b9-ec5e-45a1-91cf-8c353bc3210f` via admin API
+**Fil: `src/pages/Members.tsx`**
 
-### Teknisk detalje
-- Alle sletninger udføres via database insert-tool (DELETE statements)
-- Auth-brugeren slettes via Supabase admin auth API i en edge function eller direkte SQL mod `auth.users`
-- Invitation-records (`accepted`) for Stadio ApS bevares uændret, da de peger på den korrekte invitation
+1. Udvid `loadCompanies` til ogsa at hente `company_invitations` med status `pending`, og tilfoej invitation-data (email, company_id) til `CompanyData`-interfacet
+2. Tilfoej en `handleResendInvitation`-funktion der:
+   - Finder den pending invitation for virksomheden
+   - Kalder `send-invitation-email` edge function med den eksisterende invitations email og virksomhedsnavn
+   - Viser success/error toast
+3. Tilfoej en "Gensend invitation"-knap i Actions-sektionen (ved linje ~977-1004), med `Send`-ikon, der kun vises nar virksomheden har en pending invitation
+4. Tilfoej loading-state for gensend-handlingen
 
-### Resultat
-Jeppe Chris vil kun fremgå én gang under Stadio ApS med sin oprindelige, onboardede konto.
+### UI
+- Knappen placeres i "Rapporter & Chat"-boksen sammen med de andre action-knapper
+- Stil: sekundar knap med `Send`-ikon, tekst "Gensend invitation"
+- Knappen disables under afsendelse og viser en spinner
+
+### Ingen databaseaendringer nødvendige
+Den eksisterende `send-invitation-email` edge function og `company_invitations`-tabellen genbruges som de er.
