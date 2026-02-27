@@ -84,6 +84,10 @@ Deno.serve(async (req) => {
       senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
       console.log('[send-invitation-email] Using DB template');
     } else {
+      // Use fallback template but still get template id for logging
+      if (tpl) {
+        templateId = tpl.id;
+      }
       console.log('[send-invitation-email] Using fallback template');
     }
 
@@ -101,7 +105,7 @@ Deno.serve(async (req) => {
       from: senderFrom, to: [email], subject, html,
     });
 
-    // Log to email_send_log
+    // Log to email_send_log — always log, even with fallback template
     if (templateId) {
       await adminSupabase.from('email_send_log').insert({
         template_id: templateId, recipient_email: email, subject,
@@ -109,6 +113,30 @@ Deno.serve(async (req) => {
         error_message: error ? JSON.stringify(error) : null,
         is_test: false,
       });
+    } else {
+      // No template in DB at all — create a minimal one for logging
+      const { data: newTpl } = await adminSupabase
+        .from('email_templates')
+        .insert({
+          name: 'Invitation til virksomhed',
+          subject: FALLBACK_SUBJECT,
+          body_html: FALLBACK_HTML,
+          sender_name: 'The Boardroom',
+          sender_email: 'noreply@boardroom.topix.dk',
+          trigger_type: 'manual',
+          enabled: false,
+        })
+        .select('id')
+        .single();
+
+      if (newTpl) {
+        await adminSupabase.from('email_send_log').insert({
+          template_id: newTpl.id, recipient_email: email, subject,
+          status: error ? 'failed' : 'sent',
+          error_message: error ? JSON.stringify(error) : null,
+          is_test: false,
+        });
+      }
     }
 
     if (error) {
