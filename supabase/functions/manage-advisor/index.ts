@@ -296,6 +296,13 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Prevent removing own admin role
+      if (targetUser.id === userId) {
+        return new Response(JSON.stringify({ error: 'Du kan ikke fjerne din egen admin-rolle' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // Check current admin status
       const { data: existingAdmin } = await adminSupabase
         .from('user_roles')
