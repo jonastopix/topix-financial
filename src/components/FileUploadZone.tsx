@@ -531,7 +531,7 @@ const FileUploadZone = ({
 
       const { data: extractedData, error: extractError } = await supabase.functions.invoke(
         "extract-financial-data",
-        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true } }
+        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true, knownCompanyName: companyName || undefined } }
       );
 
       if (extractError) throw extractError;
