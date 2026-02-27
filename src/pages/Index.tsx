@@ -298,7 +298,7 @@ const Dashboard = () => {
 
       {/* KPI cards – År til dato */}
       <div className="mb-6">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato {kpiData.period ? `· ${kpiData.period?.match(/\d{4}/)?.[0] ?? ""}` : ""}</p>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato (kalenderår) {kpiData.period ? `· ${kpiData.period?.match(/\d{4}/)?.[0] ?? ""}` : ""}</p>
         <div className="grid grid-cols-3 gap-3 sm:gap-4">
           <KPICard
             title="YTD Omsætning"
