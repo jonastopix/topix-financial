@@ -103,6 +103,7 @@ const Chat = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Mobile: track whether we're showing the message panel
   const [showMessages, setShowMessages] = useState(false);
+  const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
 
   // Set default filter for advisors on mount
   useEffect(() => {
@@ -128,6 +129,47 @@ const Chat = () => {
     setMessages([]);
     setShowMessages(false);
   }, [companyId]);
+
+  // Fetch participants for active conversation
+  useEffect(() => {
+    if (!activeConvId) { setParticipants([]); return; }
+    const conv = conversations.find(c => c.id === activeConvId);
+    const cid = conv?.company_id;
+    if (!cid) return;
+
+    const load = async () => {
+      const [membersRes, advisorsRes] = await Promise.all([
+        supabase
+          .from("company_members")
+          .select("user_id, profiles!inner(user_id, full_name, avatar_url)")
+          .eq("company_id", cid) as any,
+        supabase
+          .from("user_roles")
+          .select("user_id, profiles!inner(user_id, full_name, avatar_url)")
+          .in("role", ["advisor", "admin"]) as any,
+      ]);
+
+      const seen = new Set<string>();
+      const list: typeof participants = [];
+
+      for (const row of membersRes.data || []) {
+        const p = row.profiles;
+        if (p && !seen.has(p.user_id)) {
+          seen.add(p.user_id);
+          list.push({ user_id: p.user_id, full_name: p.full_name, avatar_url: p.avatar_url, isAdvisor: false });
+        }
+      }
+      for (const row of advisorsRes.data || []) {
+        const p = row.profiles;
+        if (p && !seen.has(p.user_id)) {
+          seen.add(p.user_id);
+          list.push({ user_id: p.user_id, full_name: p.full_name, avatar_url: p.avatar_url, isAdvisor: true });
+        }
+      }
+      setParticipants(list);
+    };
+    load();
+  }, [activeConvId, conversations]);
 
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
@@ -715,6 +757,48 @@ const Chat = () => {
                       <p className="text-sm font-semibold text-foreground truncate">
                         {activeConv?.companyName || "Ukendt"}
                       </p>
+                      {participants.length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex -space-x-1.5">
+                            {participants.slice(0, 4).map((p) => (
+                              <div
+                                key={p.user_id}
+                                className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center overflow-hidden"
+                                title={p.full_name}
+                              >
+                                {p.avatar_url ? (
+                                  <img src={p.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                                ) : (
+                                  <span className="text-[8px] font-medium text-muted-foreground">
+                                    {getInitialsLocal(p.full_name || "?")}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {participants.length > 4 && (
+                              <div className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center">
+                                <span className="text-[8px] font-medium text-muted-foreground">+{participants.length - 4}</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground truncate">
+                            {(() => {
+                              const members = participants.filter(p => !p.isAdvisor);
+                              const advisors = participants.filter(p => p.isAdvisor);
+                              const shortName = (name: string) => {
+                                const parts = name.split(" ");
+                                return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
+                              };
+                              const names = members.slice(0, 2).map(p => shortName(p.full_name));
+                              if (members.length > 2) names.push(`+${members.length - 2}`);
+                              const advisorCount = advisors.length;
+                              const parts = [...names];
+                              if (advisorCount > 0) parts.push(`${advisorCount} rådgiver${advisorCount > 1 ? "e" : ""}`);
+                              return parts.join(", ");
+                            })()}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     {activeConv?.hasRecentReport && !isMobile && (
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
@@ -722,6 +806,39 @@ const Chat = () => {
                         Ny rapport indsendt
                       </span>
                     )}
+                  </div>
+                ) : participants.filter(p => p.isAdvisor).length > 0 ? (
+                  <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
+                    {isMobile && (
+                      <button
+                        onClick={handleBackToList}
+                        className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </button>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex -space-x-1.5">
+                        {participants.filter(p => p.isAdvisor).slice(0, 3).map((p) => (
+                          <div
+                            key={p.user_id}
+                            className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center overflow-hidden"
+                            title={p.full_name}
+                          >
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                            ) : (
+                              <span className="text-[8px] font-medium text-muted-foreground">
+                                {getInitialsLocal(p.full_name || "?")}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        Dine rådgivere: {participants.filter(p => p.isAdvisor).map(p => p.full_name.split(" ")[0]).join(", ")}
+                      </span>
+                    </div>
                   </div>
                 ) : null}
 
