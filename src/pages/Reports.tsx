@@ -50,6 +50,7 @@ import {
   parseReportPeriodToKey, getKeyFigures, formatDKK, formatCompact,
   SHORT_MONTHS, reportStatusConfig, type ReportData,
 } from "@/lib/financialUtils";
+import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 
 interface DbReport {
   id: string;
@@ -79,7 +80,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 };
 
 const Reports = () => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, isAdvisor } = useAuth();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
@@ -312,6 +313,14 @@ const Reports = () => {
       </div>
     );
   };
+
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

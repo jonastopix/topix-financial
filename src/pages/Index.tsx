@@ -13,6 +13,7 @@ import DashboardActivity from "@/components/DashboardActivity";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { getKeyFigures, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 function getGreeting() {
@@ -44,7 +45,7 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId } = useAuth();
+  const { user, profile, companyId, isAdvisor } = useAuth();
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ["dashboard-kpis", companyId, user?.id],
@@ -221,6 +222,14 @@ const Dashboard = () => {
   const ytdResultBudget = budgetData.ytdRevenue != null && budgetData.ytdExpenses != null
     ? budgetBadge(kpiData.ytdResult, budgetData.ytdRevenue - budgetData.ytdExpenses, true)
     : null;
+
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
 
   if (isLoading) {
     return (
