@@ -1,37 +1,41 @@
 
 
-## Profilbillede-upload og visning i chat
+## Fix mobil-layout -- hele vejen rundt
 
-### Oversigt
-Brugere (og advisors) kan uploade et profilbillede fra Indstillinger-siden. Billedet vises ved siden af beskeder i chatten, så det er tydeligt hvem der skriver -- specielt nyttigt med flere advisors og teammedlemmer i samme trad.
+### Problemet
+Screenshottet viser at indhold klippes af pa venstre side pa mobil -- hilsen, sektionsoverskrifter og KPI-kort er alle forskudt. Hovedarsagen er **`App.css`** som indeholder Vite's standard-skabelon styles (`#root { max-width: 1280px; margin: 0 auto; padding: 2rem; }`) der konflikter med app-layoutet.
 
-### Hvad der bliver lavet
+### Hvad der skal fikses
 
-**1. Ny storage bucket til profilbilleder**
-- Opretter en public `avatars` bucket via SQL-migration
-- RLS-politikker sa brugere kun kan uploade/overskrive deres eget billede
+**1. Fjern Vite-skabelonens `App.css`**
+- Hele filen er ubrugt arv fra Vite's starter-template
+- `max-width`, `padding: 2rem` og `text-align: center` pa `#root` forarsager layout-forskydning pa alle skarmstorrelser
+- Filen slettes helt (eller tommes), da ingen komponenter afhanger af dens klasser
 
-**2. Profilbillede-upload i Indstillinger**
-- Tilfojer en avatar-upload sektion i profil-kortet pa Settings-siden
-- Viser nuvaerende billede (eller initialer som fallback) med en "Upload billede" knap
-- Gemmer URL i `profiles.avatar_url` feltet (som allerede eksisterer i databasen)
+**2. Forbedre mobil-padding i AppLayout**
+- Ojg `pt-16` til `pt-14` for bedre plads under hamburger-knappen
+- Sikre at `px-4` giver nok luft pa begge sider
 
-**3. Avatars i chat-beskeder**
-- Viser afsenderens profilbillede ved siden af hver besked i chatten
-- Bruger initialer som fallback hvis intet billede er uploadet
-- Fungerer for bade medlemmer og advisors
+**3. Forbedre dashboard-grid pa mobil**
+- "Seneste maned" KPI-kortene: `grid-cols-2` er fint, men tekst og badges kan overflowe pa sma skarme -- reducer font-sizes og paddings yderligere
+- "Ar til dato" sektionen: `grid-cols-1 sm:grid-cols-3` er korrekt, ingen andring nodvendig
+- 4-kolonne snapshot grid (`grid-cols-2 lg:grid-cols-4`): OK
+- Sektionsoverskriften "SENESTE MANED" og "AR TIL DATO" clippes pga. `App.css` padding -- fixes automatisk nar `App.css` fjernes
+
+**4. KPICard mobil-optimering**
+- Reducer padding yderligere pa sma skarme: `p-3` er allerede sat, men sikre at value-teksten ikke wrapper darligt
+- Badges (`ChangeBadge` + budget-badge) kan overflowe i 2-kolonne grid -- tilf0j `text-[9px]` pa mobile og `overflow-hidden` / `truncate` pa badge-containeren
+
+**5. Hamburger-knappens placering**
+- Knappen sidder `fixed top-4 left-4` -- fint, men indholdet bag den overlappes delvist. Sikre at greeting-teksten har tilstrakkelig top-margin
 
 ### Tekniske detaljer
 
-**Database**:
-- SQL-migration: Opret `avatars` storage bucket med RLS-politikker (authenticated users kan uploade til deres egen mappe)
+**Filer der andres:**
 
-**Settings.tsx**:
-- Tilfojer avatar-preview (rund cirkel) + upload-knap i profil-sektionen
-- Upload-logik: upload til `avatars/{user_id}/avatar`, gem public URL i `profiles.avatar_url`
+1. **`src/App.css`** -- Slet alt indhold (filen importeres muligvis i `main.tsx`, sa vi tomme den i stedet for at slette)
+2. **`src/components/AppLayout.tsx`** -- Juster mobil-padding fra `px-4 py-6 pt-16` til `px-5 py-6 pt-16` for lidt mere sideluft
+3. **`src/components/KPICard.tsx`** -- Tilf0j `min-w-0` pa badge-containeren for at forhindre overflow, reducer badge-tekst pa mobil
+4. **`src/pages/Index.tsx`** -- Tilf0j `overflow-hidden` pa KPI-grid containere for at forhindre horisontal scroll
 
-**Chat.tsx**:
-- `profilesMap` udvides til ogsa at inkludere `avatar_url`
-- Ved rendering af beskeder: vis lille rundt profilbillede til venstre for indkommende beskeder (og til hojre for egne)
-- Participants-listen bruger allerede `avatar_url` -- dette fortsaetter uaendret
-
+Alle andringer er rent CSS/className-baserede og paavirker ikke funktionalitet.
