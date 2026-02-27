@@ -197,6 +197,15 @@ const Budget = () => {
     setYear(result.year || "2025");
   }, []);
 
+  // ─── Advisor without company ───
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
+
   // ─── Template picker (first time) ───
   if (dbLoaded && !selectedTemplate && !scenarioData) {
     return (
@@ -279,13 +288,6 @@ const Budget = () => {
 
   const rows = scenarioData[activeScenario];
 
-  if (isAdvisor && !companyId) {
-    return (
-      <AppLayout>
-        <AdvisorCompanyPrompt />
-      </AppLayout>
-    );
-  }
 
   return (
     <AppLayout>
