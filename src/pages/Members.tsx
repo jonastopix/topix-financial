@@ -507,7 +507,7 @@ const Members = () => {
             body: {
               email: c.contact_email.trim().toLowerCase(),
               company_name: c.name,
-              signup_url: `${window.location.origin}/auth`,
+              signup_url: `https://topix.lovable.app/auth`,
             },
           });
         } catch (emailErr) {
