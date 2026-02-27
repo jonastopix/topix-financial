@@ -20,6 +20,7 @@ interface AuthContext {
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   setOnboardingComplete: () => void;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -39,6 +40,7 @@ const AuthContext = createContext<AuthContext>({
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
   setOnboardingComplete: () => {},
+  refreshProfile: async () => {},
   signOut: async () => {},
 });
 
@@ -76,6 +78,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const setOnboardingComplete = useCallback(() => {
     setNeedsOnboarding(false);
   }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, company_name, avatar_url, onboarded_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (data) setProfile(data);
+  }, [user]);
 
   const fetchUserData = async (userId: string) => {
     const [rolesRes, profileRes, companyRes] = await Promise.all([
@@ -174,7 +186,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
-      signOut,
+      refreshProfile, signOut,
     }}>
       {children}
     </AuthContext.Provider>

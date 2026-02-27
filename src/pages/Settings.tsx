@@ -19,7 +19,7 @@ interface CompanyData {
 }
 
 const Settings = () => {
-  const { user, profile, isAdvisor, isAdmin } = useAuth();
+  const { user, profile, isAdvisor, isAdmin, refreshProfile } = useAuth();
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -178,6 +178,7 @@ const Settings = () => {
       toast.error("Kunne ikke gemme billede-URL");
     } else {
       setAvatarUrl(publicUrl);
+      await refreshProfile();
       toast.success("Profilbillede opdateret");
     }
     setUploadingAvatar(false);
@@ -207,6 +208,7 @@ const Settings = () => {
       toast.error("Kunne ikke opdatere profil");
     } else {
       setAvatarUrl(null);
+      await refreshProfile();
       toast.success("Profilbillede fjernet");
     }
     setUploadingAvatar(false);
