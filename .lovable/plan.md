@@ -1,55 +1,58 @@
 
 
-## Chat per virksomhed i stedet for per bruger
+## Introduktion af Admin-rolle
 
-Chatten skal omstruktureres, så der er en samtale pr. virksomhed i stedet for pr. bruger. Alle teammedlemmer i samme virksomhed deler den samme samtale.
+Formalet er at adskille "admin" fra "advisor", sa advisors kun har adgang til radgivningsfunktioner (Chat, Medlemmer, og mulighed for at se virksomhedsdata via "Vis som virksomhed"), mens admin (jonas@topix.dk) beholder fuld adgang til alt.
 
-### Hvad ændres
+### Hvad aendres
 
-**1. Visning i sidebar (advisor-visning)**
-- Virksomhedsnavnet vises som primært navn i stedet for brugernavnet
-- Initialerne i avataren baseres pa virksomhedsnavnet
-- Virksomhedens logo vises hvis tilgaengeligt
-- Soegning filtrerer pa virksomhedsnavn
+**1. Database: Tilfoej 'admin' til app_role enum og tildel rollen**
+- Tilfoej `admin` som vaerdi i `app_role` enum
+- Tildel admin-rollen til jonas@topix.dk baseret pa email-opslag
 
-**2. Visning i message-header**
-- Virksomhedsnavnet vises som overskrift i stedet for brugernavnet
-- Afsendernavne vises pa individuelle beskeder, sa man kan se hvem der skrev
+**2. useAuth hook: Expose `isAdmin`**
+- Tilfoej `isAdmin` boolean til AuthContext, baseret pa om brugeren har `admin`-rollen i `user_roles`
 
-**3. Konsolidering af samtaler**
-- Conversation-listen grupperes/dedupliceres pa `company_id`
-- Hvis der er flere conversations for samme virksomhed, vises den med seneste aktivitet
-- Alle teammedlemmer fra en virksomhed kan laese og skrive i samme conversation
+**3. Sidebar: Begrans advisor-navigation**
+- Advisors ser kun: Chat og Medlemmer (udover de standard-sider de kan tilga via "Vis som virksomhed")
+- Admin ser alt inkl. Import, E-mail skabeloner, Platformconfig og Indstillinger
+- Advisors ser IKKE: Import rapporter, E-mail skabeloner, Platformconfig
+- "Indstillinger" vises kun for medlemmer og admins, ikke advisors
 
-**4. Database-trigger opdatering**
-- `handle_new_user`-funktionen skal opdateres, sa nye brugere der tilknyttes en eksisterende virksomhed far den eksisterende conversation i stedet for at oprette en ny
-- Kun oprette en ny conversation hvis virksomheden ikke allerede har en
+**4. Route-beskyttelse**
+- `/admin/config`, `/admin/emails`, `/admin/import` kraever admin-rolle (redirect til `/` hvis ikke admin)
+- `/settings` skjules for advisors (de har ikke en virksomhed at konfigurere)
 
-**5. RLS-politikker**
-- Opdatere "Members can view own conversation" til at bruge `company_id = user_company_id(auth.uid())` i stedet for `member_id = auth.uid()` (dette er allerede delvist pa plads via "Company members" policies)
-- Tilsvarende for INSERT og UPDATE
+**5. AdminConfig-siden: Advisor-administration kun for admin**
+- Tjek for `isAdmin` i stedet for `isAdvisor` pa AdminConfig-siden
 
 ### Tekniske detaljer
 
-**Chat.tsx aendringer:**
-- I `ConversationWithProfile` interfacet: tilfoej `companyName` og `companyLogoUrl` felter
-- I `loadConversations`: join med `companies` tabellen via `company_id` for at hente virksomhedsnavn
-- Deduplicer conversations pa `company_id` (behold den med seneste `last_message_at`)
-- Erstat `conv.profile?.full_name` med virksomhedsnavn i sidebar-listen
-- I message-omradet: vis afsendernavn (fra profiles) pa hver besked sa man kan skelne teammedlemmer
+```text
+Filer der aendres:
+- supabase migration (ny)     -> ALTER TYPE app_role ADD VALUE 'admin'; INSERT admin role
+- src/hooks/useAuth.tsx        -> tilfoej isAdmin
+- src/components/AppSidebar.tsx -> opdel advisorNavItems i adminNavItems
+- src/pages/AdminConfig.tsx    -> brug isAdmin guard
+- src/pages/EmailTemplates.tsx -> brug isAdmin guard  
+- src/pages/BulkImport.tsx     -> brug isAdmin guard
+- src/App.tsx                  -> AdminRoute wrapper
+```
 
-**Database migration:**
-- Opdater `handle_new_user()` triggeren til at genbruge eksisterende conversation for virksomheden:
-  ```text
-  -- Tjek om virksomheden allerede har en conversation
-  -- Hvis ja: brug den eksisterende (opret ikke ny)
-  -- Hvis nej: opret en ny conversation med company_id
-  ```
+Migration SQL:
+```sql
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'admin';
 
-**Besked-visning:**
-- Hver besked viser afsenderens navn (hentes fra profiles-queryen der allerede eksisterer)
-- Advisor-beskeder vises stadig som "Du:" for advisors
+-- Tildel admin-rolle til jonas@topix.dk
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'admin'
+FROM auth.users
+WHERE email = 'jonas@topix.dk'
+ON CONFLICT DO NOTHING;
+```
 
-**Ingen breaking changes:**
-- `member_id` pa conversations beholdes som "oprettet af" reference
-- Eksisterende data fungerer stadig - conversations med samme `company_id` konsolideres i UI'et
+Sidebar-logik:
+- `advisorNavItems` reduceres til kun `Medlemmer`
+- Nyt `adminNavItems` array: Import, E-mail skabeloner, Platformconfig
+- Chat og de ovrige sider forbliver i `baseNavItems` (tilgaengelige for alle)
+- Indstillinger fjernes fra baseNavItems for advisors (ikke-admin)
