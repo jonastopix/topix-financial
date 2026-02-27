@@ -42,6 +42,7 @@ interface ConversationWithProfile {
   lastContextType?: string | null;
   hasRecentReport: boolean;
   recentReportName?: string;
+  recentReportIds?: string[];
 }
 
 type InboxFilter = "alle" | "ubesvaret" | "rapporter" | "besvaret";
@@ -177,14 +178,18 @@ const Chat = () => {
       // Track unreviewed report IDs for mark-as-read
       setUnreviewedReportIds(recentReports.map((r: any) => r.id));
 
-      // Build report lookup by company_id
-      const reportsByCompany = new Map<string, { name: string }>();
+      // Build report lookup by company_id (name + IDs)
+      const reportsByCompany = new Map<string, { name: string; ids: string[] }>();
       recentReports.forEach((r: any) => {
-        // Find which company this user belongs to via conversations
         const userConv = convs.find((c: any) => c.member_id === r.user_id);
         const cid = userConv?.company_id;
-        if (cid && !reportsByCompany.has(cid)) {
-          reportsByCompany.set(cid, { name: r.file_name });
+        if (cid) {
+          const existing = reportsByCompany.get(cid);
+          if (existing) {
+            existing.ids.push(r.id);
+          } else {
+            reportsByCompany.set(cid, { name: r.file_name, ids: [r.id] });
+          }
         }
       });
 
@@ -224,6 +229,7 @@ const Chat = () => {
           lastContextType: lastMsg?.context_type,
           hasRecentReport: !!report,
           recentReportName: report?.name,
+          recentReportIds: report?.ids,
         };
       });
 
@@ -437,6 +443,20 @@ const Chat = () => {
     }
   };
 
+  const handleMarkSingleReportRead = async (convId: string, reportIds: string[], e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!reportIds.length) return;
+    const now = new Date().toISOString();
+    await supabase
+      .from("financial_reports")
+      .update({ reviewed_at: now } as any)
+      .in("id", reportIds);
+    setUnreviewedReportIds(prev => prev.filter(id => !reportIds.includes(id)));
+    setConversations(prev => prev.map(c =>
+      c.id === convId ? { ...c, hasRecentReport: false, recentReportName: undefined, recentReportIds: [] } : c
+    ));
+  };
+
   // Mobile: select conversation and show message panel
   const handleSelectConversation = (convId: string) => {
     setActiveConvId(convId);
@@ -639,6 +659,13 @@ const Chat = () => {
                                     ? conv.recentReportName.slice(0, 20) + "…"
                                     : conv.recentReportName
                                   : "Ny rapport"}
+                                <span
+                                  onClick={(e) => handleMarkSingleReportRead(conv.id, conv.recentReportIds || [], e)}
+                                  className="ml-0.5 hover:text-destructive cursor-pointer text-xs leading-none"
+                                  title="Markér som læst"
+                                >
+                                  ×
+                                </span>
                               </span>
                             )}
                             {isUnread && lastMsgIsFromMember && (
