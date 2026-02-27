@@ -244,7 +244,7 @@ const AppSidebar = () => {
           })}
         </nav>
 
-        <div className="px-4 py-3 border-t border-sidebar-border space-y-2 overflow-y-auto max-h-[40vh] shrink-0">
+        <div className="px-4 py-3 border-t border-sidebar-border space-y-2 shrink-0">
           {isAdvisor && (
             <div className="space-y-2">
               {/* Company picker – hidden in "view as member" mode */}
@@ -266,7 +266,7 @@ const AppSidebar = () => {
                 </button>
 
                 {showCompanyPicker && (
-                  <div className="absolute bottom-full left-0 right-0 mb-1 bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto z-50">
+                  <div className="fixed bottom-[140px] left-4 w-[calc(var(--sidebar-width,280px)-2rem)] bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto z-[9999]">
                     {isCompanyOverride && (
                       <button
                         onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
