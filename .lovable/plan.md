@@ -1,73 +1,71 @@
 
 
-## Plan: Forbedret finansiel dataekstraktion med validering
+# Fix: Komplet gennemgang af Excel-indlæsning og AI-extraction
 
-### Problemet
-Den nuværende extraction mangler validering og raw-data, hvilket gør det svært at opdage fejl. ChatGPT-prompten har flere gode ideer vi kan adoptere uden at omskrive hele systemet.
+## Grundproblem (root cause)
 
-### Tilgang
-Vi opgraderer den eksisterende edge function med tre nøgleforbedringer, men beholder vores tool-calling arkitektur (som fungerer godt).
+Problemet er fundamentalt: Nar en Excel-fil (.xlsx) uploades, laeser koden den som `file.text()` (linje 124 i FileUploadZone.tsx). Men xlsx-filer er ZIP-arkiver med XML indeni -- sa `file.text()` producerer **ulaeselig binaer tekst**. Det betyder:
 
-### Ændringer
+1. AI'en modtager volapyk og hallucinererer firmanavn, CVR og periode
+2. Regex-overrides (`extractPeriodFromText`, `extractCvrFromText`) kan ikke finde noget i binaer tekst
+3. `knownCompanyName` retter kun firmanavnet, men perioden forbliver forkert
+4. AI-analysen bruger det hallucinererede firmanavn fra extracted_data
 
-#### 1. Tilføj validering til tool-schema og prompt (extract-financial-data/index.ts)
+PDF-upload fungerer derimod korrekt fordi siderne renderes som billeder (vision mode).
 
-Udvid tool-parametrene med et `validation`-objekt:
+## Plan: 4 aendringer
+
+### 1. Installer SheetJS og pars Excel korrekt (client-side)
+
+Installer `xlsx`-pakken (SheetJS) og omskriv `extractTextFromFile` i FileUploadZone.tsx sa Excel-filer parses til laeseligt CSV-format:
+
 ```text
-validation: {
-  status: "PASS" | "FAIL" | "UNSURE",
-  checks: [
-    { name: "daekningsbidrag_sum", result: "PASS|FAIL|SKIP", details: "..." },
-    { name: "resultat_consistency", result: "PASS|FAIL|SKIP", details: "..." },
-    { name: "balance_equation", result: "PASS|FAIL|SKIP", details: "..." }
-  ]
-}
+Excel (binary ZIP) --> SheetJS parser --> CSV-lignende tekst --> sendes til AI
 ```
 
-Prompten instruerer AI'en til at:
-- Tjekke at omsaetning - direkte_omkostninger er lig med daekningsbidrag (tolerance 1 kr.)
-- Tjekke at subtotaler stemmer med summen af underposter
-- Tjekke balance-ligning for saldobalancer
-- Sætte status = "UNSURE" hvis den er i tvivl om et tal
+Den parsede tekst vil indeholde korrekte headers som "Resultatopgorelse for perioden 01.10.25 - 31.10.25" og "CVR 39199971", sa bade AI og regex-overrides kan laese dem.
 
-#### 2. Tilføj raw_sign til line_items
+### 2. Haerdn AI-prompten med kendt firmanavn
 
-Udvid `line_items` med:
-- `raw_sign`: "PLUS" eller "MINUS" - det originale fortegn fra dokumentet
-- `account_no`: kontonummer hvis tilgængeligt
-- `class`: standardiseret klassificering (REVENUE, COGS, OPEX, DEPR, FIN_EXPENSE, TAX, ASSET, LIABILITY, EQUITY)
+I `extract-financial-data/index.ts`: Hvis `knownCompanyName` er sat, injicer det direkte i systemprompten -- ikke kun som post-processing override. Tilfoej til prompten:
 
-Dette giver os mulighed for at debugge fortegnsproblemer efter extraction.
+> "Virksomhedens navn er: Carma Studio. Brug KUN dette navn. Returner ALDRIG et andet firmanavn."
 
-#### 3. Post-processing validering i edge function
+### 3. Fix AI-analyse (ai-financial-feedback) 
 
-Efter AI returnerer data, korer vi vores egne valideringstjek i TypeScript:
-- Tjek at `omsaetning - direkte_omkostninger` matcher `daekningsbidrag` (inden for tolerance)
-- Tjek at resultat_foer_skat har korrekt fortegn ift. de andre poster
-- Log warnings til console hvis valideringen fejler
-- Gem `validation`-objektet i `extracted_data` i databasen
+Sikr at `companyContext.name` altid bruger det kendte firmanavn fra databasen (companies-tabellen) i stedet for det AI-ekstraherede. Slaa virksomhedsnavnet op via `company_id` pa rapporten.
 
-#### 4. Forbedret prompt med eksplicit talformat-instruktion
+### 4. Styrk regex-overrides som fallback
 
-Tilfoej til systemprompten:
-- Eksplicit instruktion om dansk talformat (tusindtalsseparator "." og decimal ",")
-- Parenteser som negativt tal: "(1.234,56)" = -1234.56
-- UKLASSIFICERET fallback: hvis AI'en ikke kan klassificere en linje, sæt class til "UKLASSIFICERET"
+Udvid `extractPeriodFromText` og `extractCvrFromText` til at haandtere flere formater:
+- Perioder som "Oktober 2025", "Okt 2025", "10/2025"
+- CVR uden "CVR" prefix (bare 8-cifret tal efter kendte patterns)
+- Datoformater som "01/10/2025 - 31/10/2025"
 
-### Filer der aendres
+## Tekniske detaljer
 
-| Fil | Aendring |
-|-----|----------|
-| `supabase/functions/extract-financial-data/index.ts` | Udvidet prompt, tool-schema med validation + raw_sign + class, post-processing validering |
+### Fil 1: `package.json`
+- Tilfoej dependency: `xlsx` (SheetJS Community Edition)
 
-### Hvad vi IKKE aendrer
-- Frontend-koden: den bruger allerede `key_figures` fra `extracted_data`, og det format forbliver det samme
-- Dashboard/rapporteringskomponenter: ingen aendringer nødvendige
-- Database-schema: `extracted_data` er allerede JSONB, så det nye format passer ind
+### Fil 2: `src/components/FileUploadZone.tsx`
+- Importer SheetJS
+- Omskriv `extractTextFromFile` for Excel: `XLSX.read(buffer) -> sheet_to_csv()` for alle sheets
+- Behold PDF-logikken uaendret
 
-### Forventet resultat
-- Hver rapport faar en `validation.status` der viser om tallene er konsistente
-- Raw fortegn bevares til debugging
-- AI'en faar en escape-hatch ("UNSURE") i stedet for at gætte forkert
-- Post-processing i edge function fungerer som second line of defense
+### Fil 3: `supabase/functions/extract-financial-data/index.ts`
+- Injicer `knownCompanyName` i systemprompten (ikke kun post-processing)
+- Udvid regex-overrides med flere formater
+- Tilfoej logging af modtaget fileContent-laengde og foerste 200 tegn (debugging)
+
+### Fil 4: `src/components/FileUploadZone.tsx` (pipeline-sektion)
+- Naar AI-analyse kaldes: brug `knownCompanyName || extractedData.company_name` som companyContext.name
+- Sikr at det rigtige navn propageres til milestones og activity messages
+
+## Forventet resultat
+
+- Excel-filer parses korrekt til laeseligt tekst foer AI modtager dem
+- Periode, CVR og firmanavn laeeses deterministisk fra teksten (regex)  
+- AI'en far eksplicit besked om korrekt firmanavn i prompten
+- AI-analysen refererer til det rigtige firma
+- Ingen flere hallucineringer af forkerte navne eller perioder
 
