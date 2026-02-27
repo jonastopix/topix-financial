@@ -93,6 +93,7 @@ interface CompanyData {
   conversationId: string | null;
   circleInfo: CircleInfo[];
   logo_url: string | null;
+  pendingInvitationEmail: string | null;
 }
 
 type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
@@ -130,6 +131,7 @@ const Members = () => {
   const [deleting, setDeleting] = useState(false);
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
 
   // Bulk invite state
   interface UninvitedCompany {
@@ -150,7 +152,7 @@ const Members = () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes] = await Promise.all([
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes] = await Promise.all([
       supabase.from("companies" as any).select("*"),
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
@@ -158,6 +160,7 @@ const Members = () => {
       supabase.from("financial_reports").select("company_id, id, extracted_data"),
       supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
+      supabase.from("company_invitations").select("company_id, email, status").eq("status", "pending"),
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
@@ -167,6 +170,15 @@ const Members = () => {
     const allReports = (reportsRes.data || []) as any[];
     const allCircleMembers = (circleMembersRes.data || []) as any[];
     const allCircleActivity = (circleActivityRes.data || []) as any[];
+    const allInvitations = (invitationsRes.data || []) as any[];
+
+    // Pending invitation email by company
+    const pendingInvitationByCompany = new Map<string, string>();
+    allInvitations.forEach((inv: any) => {
+      if (!pendingInvitationByCompany.has(inv.company_id)) {
+        pendingInvitationByCompany.set(inv.company_id, inv.email);
+      }
+    });
 
     // Build profile map
     const profileMap = new Map(allProfiles.map((p: any) => [p.user_id, p]));
@@ -304,6 +316,7 @@ const Members = () => {
           conversationId: conv?.id || null,
           circleInfo: circleInfoByCompany.get(c.id) || [],
           logo_url: c.logo_url || null,
+          pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
         };
       });
 
@@ -316,6 +329,27 @@ const Members = () => {
   }, [loadCompanies, reloadTrigger]);
 
   // Load unassigned users for merge dialog
+  const handleResendInvitation = async (company: CompanyData) => {
+    if (!company.pendingInvitationEmail) return;
+    setResendingInvitation(company.id);
+    try {
+      const { error } = await supabase.functions.invoke("send-invitation-email", {
+        body: {
+          email: company.pendingInvitationEmail,
+          company_name: company.name,
+          signup_url: "https://topix.lovable.app/auth",
+        },
+      });
+      if (error) throw error;
+      toast.success(`Invitation gensendt til ${company.pendingInvitationEmail}`);
+    } catch (err: any) {
+      console.error("Resend invitation error:", err);
+      toast.error("Kunne ikke gensende invitation: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setResendingInvitation(null);
+    }
+  };
+
   const openMergeDialog = async (company: CompanyData) => {
     setMergeTargetCompany(company);
     setMergeSearch("");
@@ -992,6 +1026,15 @@ const Members = () => {
                               >
                                 <MessageCircle className="h-3 w-3" /> Åbn chat
                               </Link>
+                            )}
+                            {c.pendingInvitationEmail && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
+                                disabled={resendingInvitation === c.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
+                              >
+                                {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Gensend invitation
+                              </button>
                             )}
                             {c.members.length === 0 && c.reportCount === 0 && (
                               <button
