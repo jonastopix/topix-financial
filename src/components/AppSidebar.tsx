@@ -244,7 +244,7 @@ const AppSidebar = () => {
           })}
         </nav>
 
-        <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
+        <div className="px-4 py-3 border-t border-sidebar-border space-y-2 overflow-y-auto max-h-[40vh] shrink-0">
           {isAdvisor && (
             <div className="space-y-2">
               {/* Company picker – hidden in "view as member" mode */}
