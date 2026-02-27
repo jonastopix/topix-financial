@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase } from "lucide-react";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import CompanyInvitations from "@/components/CompanyInvitations";
 
@@ -184,6 +184,34 @@ const Settings = () => {
     if (avatarInputRef.current) avatarInputRef.current.value = "";
   };
 
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    setUploadingAvatar(true);
+
+    const { error: deleteError } = await supabase.storage
+      .from("avatars")
+      .remove([`${user.id}/avatar`]);
+
+    if (deleteError) {
+      toast.error("Kunne ikke slette billede");
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: null })
+      .eq("user_id", user.id);
+
+    if (updateError) {
+      toast.error("Kunne ikke opdatere profil");
+    } else {
+      setAvatarUrl(null);
+      toast.success("Profilbillede fjernet");
+    }
+    setUploadingAvatar(false);
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -324,14 +352,26 @@ const Settings = () => {
                 onChange={handleAvatarUpload}
                 className="hidden"
               />
-              <button
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {avatarUrl ? "Skift billede" : "Upload billede"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {avatarUrl ? "Skift billede" : "Upload billede"}
+                </button>
+                {avatarUrl && (
+                  <button
+                    onClick={handleRemoveAvatar}
+                    disabled={uploadingAvatar}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Fjern
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
             </div>
           </div>
