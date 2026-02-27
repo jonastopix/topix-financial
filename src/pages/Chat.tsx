@@ -45,7 +45,7 @@ interface ConversationWithProfile {
   recentReportIds?: string[];
 }
 
-type InboxFilter = "alle" | "ubesvaret" | "rapporter" | "besvaret";
+type InboxFilter = "alle" | "ubesvaret" | "rapporter";
 type TopicFilter = "all" | "report" | "handout" | "milestone" | "budget" | "sparring";
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
 
@@ -53,7 +53,6 @@ const FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] =
   { key: "alle", label: "Alle", icon: Inbox },
   { key: "ubesvaret", label: "Ubesvaret", icon: AlertCircle },
   { key: "rapporter", label: "Ny rapport", icon: FileText },
-  { key: "besvaret", label: "Besvaret", icon: CheckCheck },
 ];
 
 const TOPIC_CONFIG: { key: TopicFilter; label: string; icon: typeof MessageSquare; color: string }[] = [
@@ -318,9 +317,6 @@ const Chat = () => {
       case "rapporter":
         result = result.filter((c) => c.hasRecentReport);
         break;
-      case "besvaret":
-        result = result.filter((c) => c.unreadCount === 0);
-        break;
     }
 
     // Sort alphabetically by company name for "alle" filter
@@ -337,7 +333,6 @@ const Chat = () => {
     total: conversations.length,
     unanswered: conversations.filter((c) => c.unreadCount > 0).length,
     withReports: conversations.filter((c) => c.hasRecentReport).length,
-    answered: conversations.filter((c) => c.unreadCount === 0).length,
   }), [conversations]);
 
   // Load messages for active conversation
@@ -591,8 +586,7 @@ const Chat = () => {
                 {FILTER_CONFIG.map((f) => {
                   const count = f.key === "alle" ? stats.total
                     : f.key === "ubesvaret" ? stats.unanswered
-                    : f.key === "rapporter" ? stats.withReports
-                    : stats.answered;
+                    : stats.withReports;
                   const isActive = activeFilter === f.key;
                   return (
                     <button
