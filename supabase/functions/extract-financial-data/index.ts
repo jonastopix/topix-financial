@@ -7,6 +7,35 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ── Server-side metadata extraction (override AI hallucinations) ─────────────
+const DANISH_MONTHS: Record<string, string> = {
+  "01": "Januar", "02": "Februar", "03": "Marts", "04": "April",
+  "05": "Maj", "06": "Juni", "07": "Juli", "08": "August",
+  "09": "September", "10": "Oktober", "11": "November", "12": "December",
+};
+
+function extractPeriodFromText(text: string): string | null {
+  // Match patterns like "01.10.25 - 31.10.25" or "01.12.2025 - 31.12.2025"
+  const match = text.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s*-\s*\d{2}\.(\d{2})\.(\d{2,4})/);
+  if (match) {
+    const endMonth = match[4];
+    let endYear = match[5];
+    if (endYear.length === 2) {
+      endYear = (parseInt(endYear) >= 50 ? "19" : "20") + endYear;
+    }
+    const monthName = DANISH_MONTHS[endMonth];
+    if (monthName) {
+      return `${monthName} ${endYear}`;
+    }
+  }
+  return null;
+}
+
+function extractCvrFromText(text: string): string | null {
+  const match = text.match(/CVR\s*:?\s*(\d{8})/i);
+  return match ? match[1] : null;
+}
+
 // ── Post-processing validation ──────────────────────────────────────────────
 interface ValidationCheck {
   name: string;
@@ -395,6 +424,20 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     if (knownCompanyName) {
       console.log(`Overriding AI company_name "${extractedData.company_name}" with known: "${knownCompanyName}"`);
       extractedData.company_name = knownCompanyName;
+    }
+
+    // Server-side period extraction from document text (prevents AI hallucination)
+    if (fileContent) {
+      const periodFromText = extractPeriodFromText(fileContent);
+      if (periodFromText && periodFromText !== extractedData.report_period) {
+        console.log(`Overriding AI report_period "${extractedData.report_period}" with parsed: "${periodFromText}"`);
+        extractedData.report_period = periodFromText;
+      }
+      const cvrFromText = extractCvrFromText(fileContent);
+      if (cvrFromText && cvrFromText !== extractedData.cvr_number) {
+        console.log(`Overriding AI cvr_number "${extractedData.cvr_number}" with parsed: "${cvrFromText}"`);
+        extractedData.cvr_number = cvrFromText;
+      }
     }
 
     // === Post-processing: Normalize signs ===
