@@ -30,13 +30,15 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const token = authHeader.replace('Bearer ', '');
 
-    // Validate caller is an advisor
+    // Validate caller token (compatible with signing keys)
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
     });
-    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
-    if (userError || !user) {
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+    const userId = typeof claimsData?.claims?.sub === 'string' ? claimsData.claims.sub : null;
+
+    if (claimsError || !userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -48,7 +50,7 @@ Deno.serve(async (req) => {
     const { data: callerRole } = await adminSupabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('role', 'advisor')
       .maybeSingle();
 
@@ -119,7 +121,7 @@ Deno.serve(async (req) => {
 
       const { error: inviteErr } = await adminSupabase
         .from('advisor_invitations')
-        .insert({ email: normalizedEmail, invited_by: user.id });
+        .insert({ email: normalizedEmail, invited_by: userId });
 
       if (inviteErr) throw inviteErr;
 
