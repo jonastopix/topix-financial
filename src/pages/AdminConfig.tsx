@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Settings2,
   Save,
@@ -12,6 +13,12 @@ import {
   Trophy,
   Type,
   RotateCcw,
+  ShieldCheck,
+  UserPlus,
+  Trash2,
+  Send,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import {
   APP_BRANDING,
@@ -19,11 +26,24 @@ import {
   GAMIFICATION,
 } from "@/lib/appConfig";
 
+interface AdvisorEntry {
+  email: string;
+  name: string;
+  status: 'active' | 'pending';
+  created_at?: string;
+}
+
 const AdminConfig = () => {
   const { isAdvisor } = useAuth();
   const { branding, performanceScore, gamification, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
+
+  // ─── Advisor management state ───────────────────────────
+  const [advisors, setAdvisors] = useState<AdvisorEntry[]>([]);
+  const [advisorsLoading, setAdvisorsLoading] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   // ─── Branding state ─────────────────────────────────────
   const [brandForm, setBrandForm] = useState({
@@ -78,6 +98,58 @@ const AdminConfig = () => {
     });
   }, [gamification.pointsPerReport, gamification.pointsPerMilestone, gamification.levels]);
 
+  // ─── Load advisors ─────────────────────────────────────
+  const loadAdvisors = async () => {
+    setAdvisorsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "list", email: "placeholder" },
+      });
+      if (error) throw error;
+      setAdvisors(data.advisors || []);
+    } catch (err: any) {
+      console.error("Load advisors error:", err);
+    } finally {
+      setAdvisorsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdvisor) loadAdvisors();
+  }, [isAdvisor]);
+
+  const handleInviteAdvisor = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "invite", email: inviteEmail.trim() },
+      });
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      toast.success(data.message);
+      setInviteEmail("");
+      loadAdvisors();
+    } catch (err: any) {
+      toast.error(err.message || "Kunne ikke invitere advisor");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemoveAdvisor = async (email: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "remove", email },
+      });
+      if (error) throw error;
+      toast.success(data.message || "Advisor fjernet");
+      loadAdvisors();
+    } catch (err: any) {
+      toast.error(err.message || "Kunne ikke fjerne advisor");
+    }
+  };
+
   if (!isAdvisor) return <Navigate to="/" replace />;
 
   const handleSave = async (
@@ -109,6 +181,88 @@ const AdminConfig = () => {
       </div>
 
       <div className="grid gap-6 max-w-3xl">
+        {/* ─── Advisors ────────────────────────────────── */}
+        <section className="glass-card rounded-xl p-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <h2 className="font-display font-semibold text-foreground">Rådgivere</h2>
+            </div>
+          </div>
+
+          {/* Invite form */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="Email på ny rådgiver..."
+              onKeyDown={(e) => e.key === "Enter" && handleInviteAdvisor()}
+              className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <button
+              onClick={handleInviteAdvisor}
+              disabled={inviting || !inviteEmail.trim()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+              Invitér
+            </button>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground mb-4">
+            Hvis brugeren allerede har en konto, får de advisor-rollen med det samme. Ellers sendes en invitation.
+          </p>
+
+          {/* Advisor list */}
+          {advisorsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : advisors.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Ingen rådgivere endnu</p>
+          ) : (
+            <div className="space-y-2">
+              {advisors.map((a) => (
+                <div
+                  key={a.email}
+                  className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      {a.status === 'active' ? (
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Clock className="h-4 w-4 text-chart-warning" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {a.name || a.email}
+                      </p>
+                      {a.name && (
+                        <p className="text-xs text-muted-foreground">{a.email}</p>
+                      )}
+                    </div>
+                    {a.status === 'pending' && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold">
+                        <Send className="h-2.5 w-2.5" /> Afventer signup
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRemoveAdvisor(a.email)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Fjern advisor-rolle"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* ─── Branding ───────────────────────────────────── */}
         <section className="glass-card rounded-xl p-6 animate-fade-in">
           <div className="flex items-center justify-between mb-5">
