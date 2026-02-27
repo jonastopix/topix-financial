@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail, Lock, User, Building2, LogIn, UserPlus } from "lucide-react";
+import { Mail, Lock, User, LogIn, UserPlus } from "lucide-react";
 import { APP_BRANDING } from "@/lib/appConfig";
 
 const Auth = () => {
@@ -12,7 +12,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("");
+  const [companyName] = useState("");
   const [showReset, setShowReset] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -132,19 +132,6 @@ const Auth = () => {
                     required
                     className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     placeholder="Dit fulde navn"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Virksomhed</label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="Virksomhedsnavn (valgfrit)"
                   />
                 </div>
               </div>
