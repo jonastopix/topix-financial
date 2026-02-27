@@ -23,8 +23,8 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar />
-      <main className={`min-h-screen transition-all duration-300 ${isMobile ? "ml-0" : "ml-64"}`}>
-        <div className={`${isMobile ? "px-5 py-6 pt-16" : "p-8"}`}>{children}</div>
+      <main className={`min-h-screen transition-all duration-300 overflow-x-hidden ${isMobile ? "ml-0" : "ml-64"}`}>
+        <div className={`${isMobile ? "px-4 pb-6 pt-16" : "p-8"}`}>{children}</div>
       </main>
     </div>
   );
