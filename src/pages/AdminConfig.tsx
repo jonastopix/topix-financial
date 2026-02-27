@@ -142,8 +142,20 @@ const AdminConfig = () => {
       setInviteEmail("");
       loadAdvisors();
     } catch (err: any) {
-      toast.error(err.message || "Kunne ikke invitere advisor");
-    } finally {
+      let message = err?.message || "Kunne ikke invitere advisor";
+
+      if (err?.context && typeof err.context.json === "function") {
+        try {
+          const payload = await err.context.json();
+          if (payload?.error) {
+            message = payload.error;
+          }
+        } catch {
+          // ignore parsing error and use fallback message
+        }
+      }
+
+      toast.error(message);
       setInviting(false);
     }
   };
