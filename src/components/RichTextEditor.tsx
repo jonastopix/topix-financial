@@ -78,10 +78,21 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
   );
 
   const addLink = () => {
-    const url = window.prompt("URL:", "https://");
-    if (url) {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    const previousUrl = editor.getAttributes("link").href || "";
+    const { from, to } = editor.state.selection;
+    const url = window.prompt("URL:", previousUrl || "https://");
+    if (url === null) return;
+    if (url === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
     }
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from, to })
+      .extendMarkRange("link")
+      .setLink({ href: url })
+      .run();
   };
 
   return (
