@@ -225,12 +225,12 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
     const extractedData = JSON.parse(toolCall.function.arguments);
 
-    // Check for duplicate report (same user, same period, same type)
+    // Check for duplicate report (same company, same period)
     if (reportId) {
-      // Get the current report's user_id
+      // Get the current report's company_id
       const { data: currentReport } = await supabase
         .from("financial_reports")
-        .select("user_id")
+        .select("company_id")
         .eq("id", reportId)
         .single();
 
@@ -238,7 +238,7 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
         const { data: existing } = await supabase
           .from("financial_reports")
           .select("id, report_period")
-          .eq("user_id", currentReport.user_id)
+          .eq("company_id", currentReport.company_id)
           .eq("report_period", extractedData.report_period)
           .eq("status", "processed")
           .neq("id", reportId);

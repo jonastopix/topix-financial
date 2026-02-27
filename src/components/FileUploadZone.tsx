@@ -183,18 +183,17 @@ const FileUploadZone = ({
         updateFile(fileId, { status: "processing" });
         const fileContent = await extractTextFromFile(file);
 
+        // In adminMode, always overwrite duplicates automatically
         const { data: extractedData, error: extractError } = await supabase.functions.invoke(
           "extract-financial-data",
-          { body: { fileContent, reportId: reportRecord.id, fileName: file.name } }
+          { body: { fileContent, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode } }
         );
 
         // Handle duplicate (409) — supabase.functions.invoke puts non-2xx in error
         if (extractError) {
-          // Try to parse duplicate info from the error context
           const errMsg = typeof extractError === "object" && "context" in (extractError as any)
             ? (extractError as any).context
             : extractError;
-          // Check if data still contains duplicate info (some SDK versions)
           const dupData = extractedData ?? (typeof errMsg === "object" ? errMsg : null);
           
           if (dupData?.duplicate) {
