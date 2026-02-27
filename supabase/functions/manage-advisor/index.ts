@@ -6,6 +6,35 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Helper: find a user by email across all pages
+async function findUserByEmail(adminSupabase: any, email: string) {
+  let page = 1;
+  while (true) {
+    const { data } = await adminSupabase.auth.admin.listUsers({ page, perPage: 100 });
+    if (!data?.users?.length) return null;
+    const found = data.users.find((u: any) => u.email?.toLowerCase() === email);
+    if (found) return found;
+    if (data.users.length < 100) return null;
+    page++;
+  }
+}
+
+// Helper: get all users as a map of id→email
+async function getAllUserEmails(adminSupabase: any): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let page = 1;
+  while (true) {
+    const { data } = await adminSupabase.auth.admin.listUsers({ page, perPage: 100 });
+    if (!data?.users?.length) break;
+    for (const u of data.users) {
+      map.set(u.id, u.email || '');
+    }
+    if (data.users.length < 100) break;
+    page++;
+  }
+  return map;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -63,11 +92,8 @@ Deno.serve(async (req) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (action === 'invite') {
-      // Check if user already exists
-      const { data: existingUsers } = await adminSupabase.auth.admin.listUsers();
-      const existingUser = existingUsers?.users?.find(
-        (u: any) => u.email?.toLowerCase() === normalizedEmail
-      );
+      // Check if user already exists (paginated)
+      const existingUser = await findUserByEmail(adminSupabase, normalizedEmail);
 
       if (existingUser) {
         // Check if already advisor
@@ -101,7 +127,6 @@ Deno.serve(async (req) => {
       }
 
       // User doesn't exist — create pending invitation
-      // Check for existing pending invitation
       const { data: existingInvite } = await adminSupabase
         .from('advisor_invitations')
         .select('id')
@@ -125,7 +150,7 @@ Deno.serve(async (req) => {
       const resendApiKey = Deno.env.get("RESEND_API_KEY");
       if (resendApiKey) {
         const resend = new Resend(resendApiKey);
-        const signupUrl = 'https://topix.lovable.app/auth';
+        const signupUrl = 'https://topix.lovable.app/auth?mode=signup';
         
         await resend.emails.send({
           from: 'The Boardroom <noreply@boardroom.topix.dk>',
@@ -145,11 +170,8 @@ Deno.serve(async (req) => {
       });
 
     } else if (action === 'remove') {
-      // Remove advisor role
-      const { data: existingUsers } = await adminSupabase.auth.admin.listUsers();
-      const existingUser = existingUsers?.users?.find(
-        (u: any) => u.email?.toLowerCase() === normalizedEmail
-      );
+      // Remove advisor role (paginated user lookup)
+      const existingUser = await findUserByEmail(adminSupabase, normalizedEmail);
 
       if (existingUser) {
         await adminSupabase
@@ -186,10 +208,8 @@ Deno.serve(async (req) => {
           .select('user_id, full_name')
           .in('user_id', advisorUserIds);
         
-        const { data: allUsers } = await adminSupabase.auth.admin.listUsers();
-        const userEmailMap = new Map(
-          (allUsers?.users || []).map((u: any) => [u.id, u.email])
-        );
+        // Paginated user email lookup
+        const userEmailMap = await getAllUserEmails(adminSupabase);
 
         for (const uid of advisorUserIds) {
           const profile = (profiles || []).find((p: any) => p.user_id === uid);
