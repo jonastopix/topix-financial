@@ -658,6 +658,10 @@ const Members = () => {
   const totalMembers = companies.reduce((sum, c) => sum + c.members.length, 0);
   const totalUnread = companies.reduce((sum, c) => sum + c.unreadCount, 0);
   const companiesWithReports = companies.filter((c) => c.reportCount > 0).length;
+  const invitedCount = companies.filter((c) => c.invitationStatus !== null).length;
+  const acceptedCount = companies.filter((c) => c.invitationStatus === 'accepted').length;
+  const pendingCount = companies.filter((c) => c.invitationStatus === 'pending').length;
+  const notInvitedCount = companies.filter((c) => c.invitationStatus === null).length;
 
   const filteredMergeUsers = unassignedUsers.filter((u) => {
     if (!mergeSearch.trim()) return true;
@@ -707,6 +711,37 @@ const Members = () => {
         <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{companiesWithReports}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Har rapporteret</p>
+        </div>
+      </div>
+
+      {/* Invitation stats */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center">
+            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          </div>
+          <div>
+            <p className="text-lg font-display font-bold text-foreground">{acceptedCount}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accepteret</p>
+          </div>
+        </div>
+        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-chart-warning/15 flex items-center justify-center">
+            <Send className="h-4 w-4 text-chart-warning" />
+          </div>
+          <div>
+            <p className="text-lg font-display font-bold text-foreground">{pendingCount}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Afventer svar</p>
+          </div>
+        </div>
+        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-lg font-display font-bold text-foreground">{notInvitedCount}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ikke inviteret</p>
+          </div>
         </div>
       </div>
 
