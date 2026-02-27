@@ -124,7 +124,7 @@ const CompanyInvitations = () => {
           body: {
             email: pendingEmail,
             company_name: companyName || "Din virksomhed",
-            signup_url: `https://topix.lovable.app/auth`,
+            signup_url: `https://topix.lovable.app/auth?mode=signup`,
           },
         });
       } catch (emailErr) {
