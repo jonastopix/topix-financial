@@ -60,19 +60,44 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-async function extractTextFromFile(file: File): Promise<string> {
+async function extractPdfPageImages(file: File): Promise<string[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const images: string[] = [];
+  
+  for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2.0 }); // High res for readability
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d")!;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    // Convert to JPEG for smaller payload
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    const base64 = dataUrl.split(",")[1];
+    images.push(base64);
+  }
+  
+  console.log(`PDF rendered ${images.length} page images`);
+  return images;
+}
+
+async function extractTextFromFile(file: File): Promise<{ text: string; pageImages?: string[] }> {
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     try {
+      // Render pages as images for vision-based extraction
+      const pageImages = await extractPdfPageImages(file);
+      
+      // Also extract text as fallback context
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const textParts: string[] = [];
-      
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         const pageText = content.items
           .map((item: any) => {
-            // Preserve table structure by adding spaces/newlines
             const str = item.str || "";
             if (item.hasEOL) return str + "\n";
             return str + " ";
@@ -80,25 +105,22 @@ async function extractTextFromFile(file: File): Promise<string> {
           .join("");
         textParts.push(`--- Side ${i} ---\n${pageText}`);
       }
+      const fullText = textParts.join("\n\n").slice(0, 15000);
       
-      const fullText = textParts.join("\n\n");
-      console.log("PDF extracted text length:", fullText.length);
-      console.log("PDF first 500 chars:", fullText.slice(0, 500));
-      return fullText.slice(0, 30000); // More text for better extraction
+      return { text: fullText, pageImages };
     } catch (err) {
-      console.error("PDF.js extraction failed, falling back:", err);
-      // Fallback to raw text
+      console.error("PDF image extraction failed, falling back to text:", err);
       const text = await file.text();
       const readable = text
         .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
         .replace(/\s{3,}/g, "\n")
         .trim();
-      return readable.slice(0, 15000);
+      return { text: readable.slice(0, 15000) };
     }
   }
   
   const text = await file.text();
-  return text.slice(0, 30000);
+  return { text: text.slice(0, 30000) };
 }
 
 const FileUploadZone = ({
@@ -120,6 +142,7 @@ const FileUploadZone = ({
     period: string;
     pendingFile: File | null;
     pendingFileContent: string;
+    pendingPageImages?: string[];
     pendingReportId: string;
     pendingFileId: string;
   }>({ open: false, period: "", pendingFile: null, pendingFileContent: "", pendingReportId: "", pendingFileId: "" });
@@ -181,12 +204,12 @@ const FileUploadZone = ({
 
         // === STEP 2: Extract data via AI ===
         updateFile(fileId, { status: "processing" });
-        const fileContent = await extractTextFromFile(file);
+        const extracted = await extractTextFromFile(file);
 
         // In adminMode, always overwrite duplicates automatically
         const { data: extractedData, error: extractError } = await supabase.functions.invoke(
           "extract-financial-data",
-          { body: { fileContent, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode } }
+          { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode } }
         );
 
         // Handle duplicate (409) — supabase.functions.invoke puts non-2xx in error
@@ -201,7 +224,8 @@ const FileUploadZone = ({
               open: true,
               period: dupData.existing_period,
               pendingFile: file,
-              pendingFileContent: fileContent,
+              pendingFileContent: extracted.text,
+              pendingPageImages: extracted.pageImages,
               pendingReportId: "",
               pendingFileId: fileId,
             });
@@ -214,7 +238,8 @@ const FileUploadZone = ({
             open: true,
             period: extractedData.existing_period,
             pendingFile: file,
-            pendingFileContent: fileContent,
+            pendingFileContent: extracted.text,
+            pendingPageImages: extracted.pageImages,
             pendingReportId: "",
             pendingFileId: fileId,
           });
@@ -466,7 +491,7 @@ const FileUploadZone = ({
   };
 
   const handleOverwrite = useCallback(async () => {
-    const { pendingFile, pendingFileContent, pendingFileId } = overwriteDialog;
+    const { pendingFile, pendingFileContent, pendingPageImages, pendingFileId } = overwriteDialog;
     setOverwriteDialog((prev) => ({ ...prev, open: false }));
 
     if (!pendingFile || !userId) return;
@@ -498,7 +523,7 @@ const FileUploadZone = ({
 
       const { data: extractedData, error: extractError } = await supabase.functions.invoke(
         "extract-financial-data",
-        { body: { fileContent: pendingFileContent, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true } }
+        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true } }
       );
 
       if (extractError) throw extractError;

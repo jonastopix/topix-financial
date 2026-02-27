@@ -34,7 +34,7 @@ serve(async (req) => {
       });
     }
 
-    const { reportId, fileContent, fileName, overwrite } = await req.json();
+    const { reportId, fileContent, pageImages, fileName, overwrite } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -103,6 +103,25 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
 8. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb. Brug PERIODENS tal for period_amount og ÅR-TIL-DATO for ytd_amount.`;
 
+    // Build user message — prefer images (vision) for accurate table reading
+    let userContent: any;
+    if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
+      // Multimodal: send page images + text context
+      const imageParts = pageImages.map((base64: string) => ({
+        type: "image_url",
+        image_url: { url: `data:image/jpeg;base64,${base64}` },
+      }));
+      userContent = [
+        { type: "text", text: `Filnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
+        ...imageParts,
+      ];
+      console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
+    } else {
+      // Fallback: text only
+      userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
+      console.log("Sending text-only content to AI (no images available)");
+    }
+
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -117,7 +136,7 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`,
+              content: userContent,
             },
           ],
           tools: [
@@ -154,6 +173,7 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
                         lokaler: { type: "number", description: "Lokaleomkostninger samlet (husleje, el, vand, etc.)" },
                         admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
                         afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
+                        tech_software: { type: "number", description: "IT, software, hosting" },
                         resultat_foer_skat: { type: "number" },
                         resultat_foer_skat_aar: { type: "number" },
                         resultat_efter_skat: { type: "number" },
