@@ -136,6 +136,7 @@ const Members = () => {
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
 
   // Bulk invite state
   interface UninvitedCompany {
@@ -346,6 +347,28 @@ const Members = () => {
   }, [loadCompanies, reloadTrigger]);
 
   // Load unassigned users for merge dialog
+  const handleRemoveMember = async (company: CompanyData, member: CompanyMember) => {
+    if (member.role === 'owner') return;
+    setRemovingMember(member.user_id);
+    try {
+      // Remove from company_members
+      const { error } = await supabase
+        .from("company_members" as any)
+        .delete()
+        .eq("company_id", company.id)
+        .eq("user_id", member.user_id) as any;
+      if (error) throw error;
+
+      toast.success(`${member.full_name} fjernet fra ${company.name}`);
+      setReloadTrigger((t) => t + 1);
+    } catch (err: any) {
+      console.error("Remove member error:", err);
+      toast.error("Kunne ikke fjerne medlem: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setRemovingMember(null);
+    }
+  };
+
   const handleResendInvitation = async (company: CompanyData) => {
     if (!company.invitationEmail) return;
     setResendingInvitation(company.id);
@@ -1033,18 +1056,33 @@ const Members = () => {
                           ) : (
                             <div className="space-y-1.5">
                               {c.members.map((m) => (
-                                <Link
-                                  key={m.user_id}
-                                  to={`/members/${m.user_id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="flex items-center gap-2 hover:bg-secondary/50 rounded-md p-1 -ml-1 transition-colors"
-                                >
-                                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                    <span className="text-[8px] font-semibold text-primary">{getInitials(m.full_name)}</span>
-                                  </div>
-                                  <span className="text-xs text-foreground truncate">{m.full_name}</span>
-                                  <span className="text-[10px] text-muted-foreground ml-auto">{m.role}</span>
-                                </Link>
+                                <div key={m.user_id} className="flex items-center gap-2 group">
+                                  <Link
+                                    to={`/members/${m.user_id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center gap-2 hover:bg-secondary/50 rounded-md p-1 -ml-1 transition-colors flex-1 min-w-0"
+                                  >
+                                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[8px] font-semibold text-primary">{getInitials(m.full_name)}</span>
+                                    </div>
+                                    <span className="text-xs text-foreground truncate">{m.full_name}</span>
+                                    <span className="text-[10px] text-muted-foreground ml-auto">{m.role}</span>
+                                  </Link>
+                                  {m.role !== 'owner' && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleRemoveMember(c, m); }}
+                                      disabled={removingMember === m.user_id}
+                                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                                      title={`Fjern ${m.full_name}`}
+                                    >
+                                      {removingMember === m.user_id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <X className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
                               ))}
                             </div>
                           )}
