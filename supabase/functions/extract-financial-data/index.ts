@@ -102,7 +102,7 @@ serve(async (req) => {
       });
     }
 
-    const { reportId, fileContent, pageImages, fileName, overwrite } = await req.json();
+    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -390,6 +390,12 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     }
 
     const extractedData = JSON.parse(toolCall.function.arguments);
+
+    // Override company name if provided by caller (prevents AI hallucination)
+    if (knownCompanyName) {
+      console.log(`Overriding AI company_name "${extractedData.company_name}" with known: "${knownCompanyName}"`);
+      extractedData.company_name = knownCompanyName;
+    }
 
     // === Post-processing: Normalize signs ===
     const kf = extractedData.key_figures;

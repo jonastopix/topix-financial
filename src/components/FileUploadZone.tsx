@@ -50,6 +50,7 @@ interface FileUploadZoneProps {
   conversationId?: string | null;
   userId?: string | null;
   companyId?: string | null;
+  companyName?: string | null;
   adminMode?: boolean;
   onExtracted?: (data: ExtractedData) => void;
   onPipelineComplete?: () => void;
@@ -131,6 +132,7 @@ const FileUploadZone = ({
   conversationId,
   userId,
   companyId,
+  companyName,
   adminMode = false,
   onExtracted,
   onPipelineComplete,
@@ -211,7 +213,7 @@ const FileUploadZone = ({
         // In adminMode, always overwrite duplicates automatically
         const { data: extractedData, error: extractError } = await supabase.functions.invoke(
           "extract-financial-data",
-          { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode } }
+          { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode, knownCompanyName: companyName || undefined } }
         );
 
         // Handle duplicate (409) — supabase.functions.invoke puts non-2xx in error

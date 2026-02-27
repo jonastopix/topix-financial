@@ -106,6 +106,7 @@ const BulkImport = () => {
               description="Træk flere PDF/Excel-filer ind på én gang for at importere historisk data"
               userId={ownerUserId}
               companyId={selectedCompanyId}
+              companyName={selectedCompany?.name}
               adminMode
               onPipelineComplete={() => setImportCount((c) => c + 1)}
             />
