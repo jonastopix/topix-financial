@@ -49,6 +49,7 @@ interface FileUploadZoneProps {
   conversationId?: string | null;
   userId?: string | null;
   companyId?: string | null;
+  adminMode?: boolean;
   onExtracted?: (data: ExtractedData) => void;
   onPipelineComplete?: () => void;
 }
@@ -107,6 +108,7 @@ const FileUploadZone = ({
   conversationId,
   userId,
   companyId,
+  adminMode = false,
   onExtracted,
   onPipelineComplete,
 }: FileUploadZoneProps) => {
@@ -224,8 +226,8 @@ const FileUploadZone = ({
         updateFile(fileId, { extractedData });
         onExtracted?.(extractedData);
 
-        // Post activity: report uploaded
-        if (conversationId && userId) {
+        // Post activity: report uploaded (skip in admin mode)
+        if (!adminMode && conversationId && userId) {
           const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
           await postActivityMessage({
             conversationId,
@@ -237,8 +239,8 @@ const FileUploadZone = ({
           });
         }
 
-        // Create advisor notification
-        if (userId && companyId) {
+        // Create advisor notification (skip in admin mode)
+        if (!adminMode && userId && companyId) {
           const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
           await createAdvisorNotification({
             type: "report_uploaded",
@@ -322,8 +324,8 @@ const FileUploadZone = ({
           }
         }
 
-        // === STEP 5: Post AI analysis to chat ===
-        if (analysis && !analysis.error && conversationId && userId) {
+        // === STEP 5: Post AI analysis to chat (skip in admin mode) ===
+        if (!adminMode && analysis && !analysis.error && conversationId && userId) {
           const summaryParts: string[] = [];
           summaryParts.push(`📊 **AI Finansiel Analyse · ${extractedData.report_period}**\n`);
           summaryParts.push(analysis.overview || "");
@@ -378,7 +380,7 @@ const FileUploadZone = ({
         });
       }
     },
-    [userId, companyId, conversationId, onExtracted, onPipelineComplete]
+    [userId, companyId, conversationId, adminMode, onExtracted, onPipelineComplete]
   );
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
@@ -506,8 +508,8 @@ const FileUploadZone = ({
       updateFile(pendingFileId, { extractedData });
       onExtracted?.(extractedData);
 
-      // Post activity
-      if (conversationId && userId) {
+      // Post activity (skip in admin mode)
+      if (!adminMode && conversationId && userId) {
         const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
         await postActivityMessage({
           conversationId,
