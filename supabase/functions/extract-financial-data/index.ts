@@ -60,25 +60,31 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
    - Aktiver: normalt positive
    - Passiver/gæld: kan vises som negative (kreditside) — returner som POSITIVE tal
 
-3. PERIODER — Identificer:
-   - Periodens tal (typisk en enkelt måned)
-   - Å.t.d. (år til dato) tal
-   - Rapportperioden: skriv den som "Oktober 2025", "November 2025" etc.
+3. PERIODER — Dokumentet har typisk TO kolonner med tal:
+   - "Perioden" / "Faktisk" (venstre kolonne): Tal for EN ENKELT MÅNED
+   - "År til dato" / "Å.t.d." (højre kolonne): Akkumulerede tal fra årets start
+   - Rapportperioden: skriv den som "August 2025", "Oktober 2025" etc.
 
-4. NØGLETAL — Udtræk kun det du FAKTISK kan se i dokumentet:
-    - omsaetning: Total omsætning/nettoomsætning for perioden
+4. KRITISK: PERIOD vs. ÅR TIL DATO
+   - key_figures SKAL indeholde PERIODENS tal (den enkelte måned), IKKE år-til-dato-tal.
+   - Felter der slutter på "_aar" (f.eks. omsaetning_aar, resultat_foer_skat_aar) skal indeholde år-til-dato-tal.
+   - Hvis en post har 0,00 i periodekolonnen, så er værdien 0 for den måned — brug IKKE år-til-dato-værdien i stedet!
+   - Eksempel: Hvis "Gager" viser "0,00" i perioden og "-135.238,14" i år-til-dato, så er loenninger=0 (IKKE 135238).
+
+5. NØGLETAL — Udtræk kun det du FAKTISK kan se i dokumentet:
+    - omsaetning: Total omsætning/nettoomsætning FOR PERIODEN (den enkelte måned)
     - omsaetning_aar: Omsætning år til dato
-    - direkte_omkostninger: Vareforbrug/produktionsomkostninger
-    - daekningsbidrag: Bruttofortjeneste/dækningsbidrag
+    - direkte_omkostninger: Vareforbrug/produktionsomkostninger FOR PERIODEN
+    - daekningsbidrag: Bruttofortjeneste/dækningsbidrag FOR PERIODEN
     - daekningsbidrag_aar: Dækningsbidrag år til dato
-    - loenninger: Personaleomkostninger/lønninger
-    - marketing: Salgs- og marketingomkostninger (annoncering, reklame, messer, SoMe, PR, sponsorater, salgsfremmende)
-    - lokaler: Lokaleomkostninger (husleje, el, vand, varme, vedligeholdelse, rengøring, renovation)
-    - admin: Administrative omkostninger (kontorhold, telefon, internet, porto, forsikringer, revisor, advokat, IT, abonnementer, gebyrer)
-    - afskrivninger: Af- og nedskrivninger
-    - resultat_foer_skat: Resultat før skat
+    - loenninger: Personaleomkostninger/lønninger FOR PERIODEN
+    - marketing: Salgs- og marketingomkostninger FOR PERIODEN
+    - lokaler: Lokaleomkostninger FOR PERIODEN
+    - admin: Administrative omkostninger FOR PERIODEN
+    - afskrivninger: Af- og nedskrivninger FOR PERIODEN
+    - resultat_foer_skat: Resultat før skat FOR PERIODEN
     - resultat_foer_skat_aar: Resultat før skat å.t.d.
-    - resultat_efter_skat: Resultat efter skat (hvis tilgængelig)
+    - resultat_efter_skat: Resultat efter skat FOR PERIODEN
     - resultat_efter_skat_aar: Resultat efter skat å.t.d.
     - aktiver_i_alt: Sum af aktiver (kun saldobalance)
     - passiver_i_alt: Sum af passiver (kun saldobalance)
@@ -87,15 +93,15 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
     - debitorer: Tilgodehavender fra salg
     - kreditorer: Leverandørgæld
 
-5. KATEGORISERING AF OMKOSTNINGER:
-    - "marketing": Saml ALLE salgs- og marketingrelaterede poster (annoncering, reklame, messer, Google Ads, SoMe, PR, sponsorater, salgsfremmende foranstaltninger)
-    - "lokaler": Saml ALLE lokaleomkostninger (husleje, el, vand, varme, ejendomsskat, vedligeholdelse af lokaler, rengøring, renovation)
-    - "admin": Saml ALLE administrative/kontoromkostninger (kontorhold, telefon, internet, porto, forsikringer, revisor, advokat, IT-omkostninger, abonnementer, gebyrer, småanskaffelser)
+6. KATEGORISERING AF OMKOSTNINGER:
+    - "marketing": Saml ALLE salgs- og marketingrelaterede poster FOR PERIODEN
+    - "lokaler": Saml ALLE lokaleomkostninger FOR PERIODEN
+    - "admin": Saml ALLE administrative/kontoromkostninger FOR PERIODEN
     - Hvis en post kan tilhøre flere kategorier, vælg den mest specifikke
 
-6. BELØB — Returnér som rene tal UDEN tusindtalsseparatorer. Eksempel: 1234567.89
+7. BELØB — Returnér som rene tal UDEN tusindtalsseparatorer. Eksempel: 1234567.89
 
-7. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb.`;
+8. LINE_ITEMS — Medtag de 15-20 vigtigste poster med korrekte beløb. Brug PERIODENS tal for period_amount og ÅR-TIL-DATO for ytd_amount.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
