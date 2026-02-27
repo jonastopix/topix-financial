@@ -86,7 +86,7 @@ const Chat = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
-  const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string }>>(new Map());
+  const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
   const [unreviewedReportIds, setUnreviewedReportIds] = useState<string[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -213,8 +213,8 @@ const Chat = () => {
       const recentReports = reportsRes.data || [];
 
       // Store profiles map for sender name lookup in messages
-      const pMap = new Map<string, { full_name: string }>();
-      profiles.forEach(p => pMap.set(p.user_id, { full_name: p.full_name }));
+      const pMap = new Map<string, { full_name: string; avatar_url: string | null }>();
+      profiles.forEach(p => pMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url || null }));
       setProfilesMap(pMap);
 
       // Track unreviewed report IDs for mark-as-read
@@ -995,12 +995,28 @@ const Chat = () => {
                       );
                     }
 
+                    const senderProfile = profilesMap.get(msg.sender_id);
+                    const senderName = senderProfile?.full_name || "Medlem";
+                    const senderAvatar = senderProfile?.avatar_url;
+
                     return (
                       <div
                         key={msg.id}
                         ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                        className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} transition-all duration-300`}
+                        className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                       >
+                        {/* Avatar for other people's messages */}
+                        {!isMine && (
+                          <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
+                            {senderAvatar ? (
+                              <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
+                            ) : (
+                              <span className="text-[9px] font-semibold text-muted-foreground">
+                                {getInitialsLocal(senderName)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div
                           className={`${isMobile ? "max-w-[85%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
                         >
@@ -1039,10 +1055,10 @@ const Chat = () => {
                                 : "bg-secondary text-foreground rounded-bl-md"
                             } ${contextType ? "rounded-tl-md" : ""}`}
                           >
-                            {/* Sender name for non-own messages in advisor view */}
-                            {isAdvisor && !isMine && (
+                            {/* Sender name for non-own messages */}
+                            {!isMine && (
                               <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
-                                {profilesMap.get(msg.sender_id)?.full_name || "Medlem"}
+                                {senderName}
                               </p>
                             )}
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -1056,6 +1072,18 @@ const Chat = () => {
                             </div>
                           </div>
                         </div>
+                        {/* Avatar for own messages */}
+                        {isMine && (
+                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
+                            {senderAvatar ? (
+                              <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
+                            ) : (
+                              <span className="text-[9px] font-semibold text-primary">
+                                {getInitialsLocal(senderName)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
