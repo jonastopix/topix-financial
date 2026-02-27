@@ -24,8 +24,8 @@ const DANISH_MONTH_NAMES: Record<string, string> = {
 };
 
 function extractPeriodFromText(text: string): string | null {
-  // Pattern 1: "01.10.25 - 31.10.25" or "01.12.2025 - 31.12.2025" or "01/10/2025 - 31/10/2025"
-  const dateRange = text.match(/(\d{2})[.\/](\d{2})[.\/](\d{2,4})\s*[-–]\s*\d{2}[.\/](\d{2})[.\/](\d{2,4})/);
+  // Pattern 1: "01.10.25 - 31.10.25" or "01-12-2025 til 31-12-2025" or "01/10/2025 - 31/10/2025"
+  const dateRange = text.match(/(\d{2})[.\/-](\d{2})[.\/-](\d{2,4})\s*(?:[-–]|til)\s*\d{2}[.\/-](\d{2})[.\/-](\d{2,4})/);
   if (dateRange) {
     const endMonth = dateRange[4];
     let endYear = dateRange[5];
