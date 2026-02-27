@@ -23,6 +23,9 @@ const Settings = () => {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Company fields
   const [company, setCompany] = useState<CompanyData | null>(null);
@@ -43,6 +46,7 @@ const Settings = () => {
     if (profile) {
       setFullName(profile.full_name || "");
       setCompanyName(profile.company_name || "");
+      setAvatarUrl(profile.avatar_url || null);
     }
   }, [profile]);
 
@@ -128,6 +132,56 @@ const Settings = () => {
     setUploadingLogo(false);
     // Reset file input so re-selecting the same file triggers onChange
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const getInitials = (name: string) =>
+    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Vælg venligst en billedfil");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Billede må max være 2 MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    const filePath = `${user.id}/avatar`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, file, { upsert: true, contentType: file.type });
+
+    if (uploadError) {
+      toast.error("Kunne ikke uploade billede");
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("user_id", user.id);
+
+    if (updateError) {
+      toast.error("Kunne ikke gemme billede-URL");
+    } else {
+      setAvatarUrl(publicUrl);
+      toast.success("Profilbillede opdateret");
+    }
+    setUploadingAvatar(false);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
   };
 
   const handleSave = async () => {
@@ -251,6 +305,37 @@ const Settings = () => {
             <User className="h-4 w-4 text-primary" />
             Profil
           </h2>
+          {/* Avatar upload */}
+          <div className="flex items-center gap-4 mb-5">
+            <div className="h-16 w-16 rounded-full bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profilbillede" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-lg font-semibold text-muted-foreground">
+                  {getInitials(fullName || user?.email || "?")}
+                </span>
+              )}
+            </div>
+            <div>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {avatarUrl ? "Skift billede" : "Upload billede"}
+              </button>
+              <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
