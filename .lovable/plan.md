@@ -1,27 +1,26 @@
 
 
-## Giv rådgivere adgang til Indstillinger
+## Tilføj virksomhedsvalg for rådgivere på Dashboard, Rapportering og Milestones
 
 ### Problem
-Navigationslogikken skjuler "Indstillinger" for rådgivere der ikke er admin. Det betyder at de ikke kan uploade/fjerne profilbillede eller andre personlige indstillinger.
+Dashboard (`/`), Rapportering (`/reports`) og Milestones (`/milestones`) viser tomt indhold eller loader uendeligt for rådgivere uden valgt virksomhed -- samme problem som allerede er løst for Budget, KPI'er og Handouts.
 
-### Losning
-Vis "Indstillinger" for ALLE autentificerede brugere -- det er personlige indstillinger, ikke platformkonfiguration (som forbliver admin-only under "Platformconfig").
+### Løsning
+Tilføj samme mønster som på de tre andre sider: importér `isAdvisor` fra `useAuth` og vis `AdvisorCompanyPrompt` når `isAdvisor && !companyId`.
 
-### Teknisk andring
+### Tekniske ændringer
 
-**Fil: `src/components/AppSidebar.tsx` (linje 210)**
+**3 filer ændres -- identisk mønster i hver:**
 
-Andre betingelsen fra:
-```tsx
-...(!isAdvisor || isAdmin ? [{ ... "Indstillinger" ... }] : [])
-```
-til simpelthen altid inkludere Indstillinger:
-```tsx
-{ icon: SettingsIcon, label: "Indstillinger", path: "/settings" }
-```
+1. **`src/pages/Index.tsx`** (Dashboard)
+   - Importér `AdvisorCompanyPrompt`
+   - Udvid `useAuth()` med `isAdvisor`
+   - Tilføj tidlig return med `<AppLayout><AdvisorCompanyPrompt /></AppLayout>` når `isAdvisor && !companyId`
 
-Dette kan gores ved at flytte Indstillinger-elementet ind i `baseNavItems`-arrayet (linje 33-41), sa det altid vises for alle brugertyper.
+2. **`src/pages/Reports.tsx`** (Rapportering)
+   - Samme mønster: importér, tjek, vis prompt
 
-En enkelt linje-andring -- ingen nye filer, ingen backend-andringer.
+3. **`src/pages/Milestones.tsx`** (Milestones)
+   - Samme mønster: importér, tjek, vis prompt
 
+Ingen nye filer, ingen backend-ændringer. Genbruger den eksisterende `AdvisorCompanyPrompt`-komponent.
