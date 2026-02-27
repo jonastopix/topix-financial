@@ -79,7 +79,26 @@ Deno.serve(async (req) => {
       senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
       console.log('[send-report-reminder] Using DB template');
     } else {
+      if (tpl) templateId = tpl.id;
       console.log('[send-report-reminder] Using fallback template');
+    }
+
+    // Ensure we have a templateId for logging
+    if (!templateId) {
+      const { data: newTpl } = await supabase
+        .from('email_templates')
+        .insert({
+          name: 'Rapport-påmindelse',
+          subject: FALLBACK_SUBJECT,
+          body_html: FALLBACK_HTML,
+          sender_name: 'The Boardroom',
+          sender_email: 'noreply@boardroom.topix.dk',
+          trigger_type: 'cron',
+          enabled: false,
+        })
+        .select('id')
+        .single();
+      if (newTpl) templateId = newTpl.id;
     }
 
     const reportUrl = "https://topix.lovable.app/reports";
