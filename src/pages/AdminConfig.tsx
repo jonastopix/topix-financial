@@ -45,7 +45,7 @@ interface AdvisorEntry {
 }
 
 const AdminConfig = () => {
-  const { isAdvisor } = useAuth();
+  const { isAdvisor, isAdmin } = useAuth();
   const { branding, performanceScore, gamification, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
@@ -126,8 +126,8 @@ const AdminConfig = () => {
   };
 
   useEffect(() => {
-    if (isAdvisor) loadAdvisors();
-  }, [isAdvisor]);
+    if (isAdmin) loadAdvisors();
+  }, [isAdmin]);
 
   const handleInviteAdvisor = async () => {
     if (!inviteEmail.trim()) return;
@@ -173,7 +173,7 @@ const AdminConfig = () => {
     }
   };
 
-  if (!isAdvisor) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleSave = async (
     key: "branding" | "performance_score" | "gamification",

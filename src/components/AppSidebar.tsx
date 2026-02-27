@@ -38,12 +38,13 @@ const baseNavItems = [
   { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
-  
-  { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
 ];
 
 const advisorNavItems = [
   { icon: UserCog, label: "Medlemmer", path: "/members" },
+];
+
+const adminNavItems = [
   { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
@@ -54,7 +55,7 @@ const AppSidebar = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
-  const { user, profile, signOut, isAdvisor, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
+  const { user, profile, signOut, isAdvisor, isAdmin, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
@@ -203,7 +204,13 @@ const AppSidebar = () => {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {[...baseNavItems, ...(effectiveAdvisor ? advisorNavItems : [])].map((item) => {
+          {[
+            ...baseNavItems,
+            // Settings only for non-advisors (members) and admins
+            ...(!isAdvisor || isAdmin ? [{ icon: SettingsIcon, label: "Indstillinger", path: "/settings" }] : []),
+            ...(effectiveAdvisor ? advisorNavItems : []),
+            ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
+          ].map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <button
