@@ -1,0 +1,1 @@
+DELETE FROM financial_reports WHERE company_id = '926f0b16-81c1-4a06-94e1-49c942200094';
