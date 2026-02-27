@@ -175,7 +175,7 @@ const AppSidebar = () => {
             : "translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-6 border-b border-sidebar-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-sidebar-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-display font-bold text-sm">{branding.shortName}</span>

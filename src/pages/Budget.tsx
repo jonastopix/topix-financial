@@ -325,20 +325,20 @@ const Budget = () => {
       </div>
 
       <Tabs defaultValue="oversigt" className="space-y-6">
-        <TabsList className="bg-secondary border border-border">
-          <TabsTrigger value="oversigt" className="text-xs">
+        <TabsList className="bg-secondary border border-border w-full overflow-x-auto justify-start">
+          <TabsTrigger value="oversigt" className="text-xs shrink-0">
             <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
             Oversigt
           </TabsTrigger>
-          <TabsTrigger value="scenarier" className="text-xs">
+          <TabsTrigger value="scenarier" className="text-xs shrink-0">
             <Layers className="h-3.5 w-3.5 mr-1.5" />
             Scenarier
           </TabsTrigger>
-          <TabsTrigger value="maaned" className="text-xs">
+          <TabsTrigger value="maaned" className="text-xs shrink-0">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />
             Månedsoversigt
           </TabsTrigger>
-          <TabsTrigger value="import" className="text-xs">
+          <TabsTrigger value="import" className="text-xs shrink-0">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Importér
           </TabsTrigger>

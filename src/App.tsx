@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ViewModeProvider } from "@/hooks/useViewMode";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ScrollToTop from "@/components/ScrollToTop";
 import Index from "./pages/Index";
 import Reports from "./pages/Reports";
 import Milestones from "./pages/Milestones";
@@ -71,6 +72,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <ViewModeProvider>
+            <ScrollToTop />
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
