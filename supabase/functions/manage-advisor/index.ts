@@ -108,7 +108,38 @@ Deno.serve(async (req) => {
 
     const callerIsAdmin = callerRoles.some((r: any) => r.role === 'admin');
 
-    const { action, email } = await req.json();
+    const body = await req.json();
+    const { action, email, target_user_id } = body;
+
+    if (action === 'remove-member') {
+      if (!target_user_id) {
+        return new Response(JSON.stringify({ error: 'Missing target_user_id' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Delete company_members
+      const { error: cmErr } = await adminSupabase
+        .from('company_members')
+        .delete()
+        .eq('user_id', target_user_id);
+      if (cmErr) throw cmErr;
+
+      // Delete profiles
+      const { error: profErr } = await adminSupabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', target_user_id);
+      if (profErr) throw profErr;
+
+      // Delete auth user
+      const { error: authErr } = await adminSupabase.auth.admin.deleteUser(target_user_id);
+      if (authErr) throw authErr;
+
+      return new Response(JSON.stringify({ success: true, message: 'Medlem fjernet' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     if (!email) {
       return new Response(JSON.stringify({ error: 'Missing email' }), {

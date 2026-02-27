@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Navigate, Link } from "react-router-dom";
+import { useParams, Navigate, Link, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -23,6 +23,7 @@ import {
   ClipboardList,
   ExternalLink,
   Mail,
+  Trash2,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -31,6 +32,19 @@ import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { reportStatusConfig } from "@/lib/financialUtils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
@@ -117,6 +131,8 @@ const handoutStatusLabels: Record<string, { label: string; variant: "default" | 
 
 const MemberDetail = () => {
   const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { isAdvisor: rawAdvisor, user, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
@@ -134,6 +150,27 @@ const MemberDetail = () => {
   const [loading, setLoading] = useState(true);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemoveMember = async () => {
+    if (!userId) return;
+    setRemoving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('manage-advisor', {
+        body: { action: 'remove-member', target_user_id: userId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Medlem fjernet", description: "Brugeren er blevet fjernet fra virksomheden." });
+      navigate('/members');
+    } catch (err: any) {
+      toast({ title: "Fejl", description: err.message || "Kunne ikke fjerne medlem", variant: "destructive" });
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   useEffect(() => {
     if (!userId || !isAdvisor) return;
@@ -429,8 +466,37 @@ const MemberDetail = () => {
               <div className="text-center px-4 border-l border-border">
                 <p className="text-2xl font-display font-bold text-foreground">{milestones.length}</p>
                 <p className="text-[10px] text-muted-foreground uppercase">Milestones</p>
-              </div>
             </div>
+
+            {/* Remove member button */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0">
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Fjern medlem</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Er du sikker på, at du vil fjerne <strong>{profile.full_name}</strong>
+                    {profile.email ? ` (${profile.email})` : ''}? 
+                    Denne handling er permanent og fjerner brugeren fra virksomheden, profilen og kontoen.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuller</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRemoveMember}
+                    disabled={removing}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {removing ? "Fjerner..." : "Fjern medlem"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
           </div>
 
           {/* Delivery Overview */}
