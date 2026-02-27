@@ -7,6 +7,7 @@ import { postActivityMessage } from "@/lib/chatActivity";
 import { createAdvisorNotification } from "@/lib/advisorNotifications";
 import * as pdfjsLib from "pdfjs-dist";
 import * as XLSX from "xlsx";
+import { detectTemplate, extractKJAutoTemplate, templateResultToExtractedData } from "@/lib/excelTemplates";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -226,27 +227,92 @@ const FileUploadZone = ({
           console.warn("Storage upload failed (continuing pipeline):", storageError.message);
         }
 
-        // === STEP 2: Extract data via AI ===
+        // === STEP 2: Extract data (deterministic template or AI) ===
         updateFile(fileId, { status: "processing" });
-        const extracted = await extractTextFromFile(file);
 
-        // In adminMode, always overwrite duplicates automatically
-        const { data: extractedData, error: extractError } = await supabase.functions.invoke(
-          "extract-financial-data",
-          { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode, knownCompanyName: companyName || undefined } }
-        );
+        let extractedData: any;
+        const ext = file.name.toLowerCase().split(".").pop();
 
-        // Handle duplicate (409) — supabase.functions.invoke puts non-2xx in error
-        if (extractError) {
-          const errMsg = typeof extractError === "object" && "context" in (extractError as any)
-            ? (extractError as any).context
-            : extractError;
-          const dupData = extractedData ?? (typeof errMsg === "object" ? errMsg : null);
-          
-          if (dupData?.duplicate) {
+        // Try deterministic template extraction for Excel files
+        if (ext === "xlsx" || ext === "xls") {
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: "array" });
+
+            if (detectTemplate(workbook)) {
+              console.log("🔧 Template detected: KJ_AUTO_REGNSKABSRAPPORT_V1 — using deterministic extraction");
+              const templateResult = extractKJAutoTemplate(workbook);
+              console.log("Template extraction result:", templateResult.status, templateResult.errors);
+
+              if (templateResult.status === "PASS") {
+                const deterministicData = templateResultToExtractedData(templateResult);
+                if (deterministicData) {
+                  // Save extracted data directly to DB
+                  const { error: updateError } = await supabase
+                    .from("financial_reports")
+                    .update({
+                      extracted_data: deterministicData as any,
+                      report_period: deterministicData.report_period,
+                      report_type: deterministicData.report_type,
+                      company_name: deterministicData.company_name,
+                      cvr_number: deterministicData.cvr_number,
+                      status: "processed",
+                      processed_at: new Date().toISOString(),
+                    } as any)
+                    .eq("id", reportRecord.id);
+
+                  if (updateError) {
+                    console.error("DB update error after deterministic extraction:", updateError);
+                    throw new Error("Kunne ikke gemme deterministisk data: " + updateError.message);
+                  }
+
+                  extractedData = deterministicData;
+                  console.log("✅ Deterministic extraction successful:", deterministicData.report_period, deterministicData.company_name);
+                }
+              } else {
+                console.warn("⚠️ Template detected but extraction FAILED, falling back to AI:", templateResult.errors);
+              }
+            }
+          } catch (templateErr) {
+            console.warn("Template extraction error, falling back to AI:", templateErr);
+          }
+        }
+
+        // Fallback: AI-based extraction
+        if (!extractedData) {
+          const extracted = await extractTextFromFile(file);
+
+          // In adminMode, always overwrite duplicates automatically
+          const { data: aiData, error: extractError } = await supabase.functions.invoke(
+            "extract-financial-data",
+            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode, knownCompanyName: companyName || undefined } }
+          );
+
+          // Handle duplicate (409)
+          if (extractError) {
+            const errMsg = typeof extractError === "object" && "context" in (extractError as any)
+              ? (extractError as any).context
+              : extractError;
+            const dupData = aiData ?? (typeof errMsg === "object" ? errMsg : null);
+            
+            if (dupData?.duplicate) {
+              setOverwriteDialog({
+                open: true,
+                period: dupData.existing_period,
+                pendingFile: file,
+                pendingFileContent: extracted.text,
+                pendingPageImages: extracted.pageImages,
+                pendingReportId: "",
+                pendingFileId: fileId,
+              });
+              return;
+            }
+            throw extractError;
+          }
+          if (aiData?.duplicate) {
             setOverwriteDialog({
               open: true,
-              period: dupData.existing_period,
+              period: aiData.existing_period,
               pendingFile: file,
               pendingFileContent: extracted.text,
               pendingPageImages: extracted.pageImages,
@@ -255,21 +321,10 @@ const FileUploadZone = ({
             });
             return;
           }
-          throw extractError;
+          if (aiData?.error) throw new Error(aiData.error);
+
+          extractedData = aiData;
         }
-        if (extractedData?.duplicate) {
-          setOverwriteDialog({
-            open: true,
-            period: extractedData.existing_period,
-            pendingFile: file,
-            pendingFileContent: extracted.text,
-            pendingPageImages: extracted.pageImages,
-            pendingReportId: "",
-            pendingFileId: fileId,
-          });
-          return;
-        }
-        if (extractedData?.error) throw new Error(extractedData.error);
 
         updateFile(fileId, { extractedData });
         onExtracted?.(extractedData);
@@ -657,7 +712,7 @@ const FileUploadZone = ({
                   <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {file.status === "uploading" && "Opretter rapport..."}
-                    {file.status === "processing" && "Udtrækker nøgletal med AI..."}
+                    {file.status === "processing" && "Udtrækker nøgletal..."}
                     {file.status === "analyzing" && (
                       <span className="flex items-center gap-1">
                         <Sparkles className="h-3 w-3 text-primary" />
