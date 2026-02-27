@@ -41,7 +41,7 @@ const Auth = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Tjek din email for at bekræfte din konto");
+      toast.success("Konto oprettet! Du logges ind nu...");
     }
     setLoading(false);
   };
