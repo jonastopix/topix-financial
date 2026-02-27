@@ -323,6 +323,13 @@ const Chat = () => {
         break;
     }
 
+    // Sort alphabetically by company name for "alle" filter
+    if (activeFilter === "alle") {
+      result = [...result].sort((a, b) =>
+        (a.companyName || "").localeCompare(b.companyName || "", "da")
+      );
+    }
+
     return result;
   }, [conversations, searchQuery, activeFilter]);
 
