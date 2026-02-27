@@ -1,6 +1,7 @@
 import { useCallback, useState, useRef } from "react";
 import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { createAdvisorNotification } from "@/lib/advisorNotifications";
@@ -134,6 +135,7 @@ const FileUploadZone = ({
   onExtracted,
   onPipelineComplete,
 }: FileUploadZoneProps) => {
+  const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -385,6 +387,10 @@ const FileUploadZone = ({
 
         // === DONE ===
         updateFile(fileId, { status: "done", milestonesCreated });
+        // Invalidate all financial data queries so dashboard, charts, KPIs update immediately
+        queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+        queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+        queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
         onPipelineComplete?.();
 
         toast({
@@ -546,6 +552,10 @@ const FileUploadZone = ({
       }
 
       updateFile(pendingFileId, { status: "done" });
+      // Invalidate all financial data queries
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       toast({ title: "Rapport overskrevet", description: `Rapporten for ${extractedData.report_period} er blevet opdateret.` });
       onPipelineComplete?.();
     } catch (err: any) {

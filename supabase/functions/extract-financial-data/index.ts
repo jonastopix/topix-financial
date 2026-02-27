@@ -245,6 +245,43 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
 
     const extractedData = JSON.parse(toolCall.function.arguments);
 
+    // === Post-processing: Sanity checks on extracted data ===
+    const kf = extractedData.key_figures;
+    if (kf) {
+      // Sign validation for resultat: If revenue is positive and expenses are high,
+      // but resultat is positive with similar magnitude to what we'd expect as negative, flip it.
+      const totalExpenses = Math.abs(kf.loenninger ?? 0) + Math.abs(kf.direkte_omkostninger ?? 0) +
+        Math.abs(kf.marketing ?? 0) + Math.abs(kf.lokaler ?? 0) + Math.abs(kf.admin ?? 0) +
+        Math.abs(kf.tech_software ?? 0) + Math.abs(kf.afskrivninger ?? 0);
+      
+      // If we have revenue and expenses, check if resultat sign makes sense
+      if (kf.omsaetning != null && kf.resultat_foer_skat != null && totalExpenses > 0) {
+        const expectedResult = kf.omsaetning - totalExpenses;
+        const actualResult = kf.resultat_foer_skat;
+        
+        // If expected is negative but actual is positive (or vice versa) with similar magnitude, flip
+        if (expectedResult < 0 && actualResult > 0 && Math.abs(Math.abs(actualResult) - Math.abs(expectedResult)) < Math.abs(expectedResult) * 0.5) {
+          console.log(`Sign correction: resultat ${actualResult} → ${-actualResult} (expected ~${expectedResult.toFixed(0)})`);
+          kf.resultat_foer_skat = -actualResult;
+        } else if (expectedResult > 0 && actualResult < 0 && Math.abs(Math.abs(actualResult) - Math.abs(expectedResult)) < Math.abs(expectedResult) * 0.5) {
+          console.log(`Sign correction: resultat ${actualResult} → ${-actualResult} (expected ~${expectedResult.toFixed(0)})`);
+          kf.resultat_foer_skat = -actualResult;
+        }
+      }
+
+      // Ensure expenses are stored as positive values (absolute)
+      for (const field of ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger']) {
+        if (kf[field] != null && kf[field] < 0) {
+          kf[field] = Math.abs(kf[field]);
+        }
+      }
+      
+      // Ensure omsaetning is positive
+      if (kf.omsaetning != null && kf.omsaetning < 0) {
+        kf.omsaetning = Math.abs(kf.omsaetning);
+      }
+    }
+
     // Check for duplicate report (same company, same period)
     if (reportId) {
       // Get the current report's company_id
