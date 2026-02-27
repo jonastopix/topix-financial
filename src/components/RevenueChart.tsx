@@ -10,6 +10,22 @@ import { parseReportPeriodToKey, getKeyFigures, SHORT_MONTHS, type ReportData } 
 const RevenueChart = () => {
   const { user, companyId } = useAuth();
 
+  // Fetch company start/end dates to constrain the chart to membership period
+  const { data: company } = useQuery({
+    queryKey: ["company-dates", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("start_date, end_date")
+        .eq("id", companyId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!companyId,
+    staleTime: 10 * 60 * 1000,
+  });
+
   const { data: reports = [] } = useQuery({
     queryKey: ["financial-reports-chart", companyId],
     queryFn: async () => {
@@ -27,24 +43,49 @@ const RevenueChart = () => {
   });
 
   const chartData = useMemo(() => {
-    return reports
-      .map(r => {
-        const key = parseReportPeriodToKey(r.report_period);
-        const kf = getKeyFigures(r);
-        if (!key || !kf) return null;
-        const [year, monthStr] = key.split("-");
+    // Build start/end key boundaries from company membership dates
+    let startKey: string | null = null;
+    let endKey: string | null = null;
+    if (company?.start_date) {
+      const d = new Date(company.start_date);
+      startKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+    if (company?.end_date) {
+      const d = new Date(company.end_date);
+      endKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    // Deduplicate by period key — keep the latest uploaded report per period
+    const byKey = new Map<string, { key: string; revenue: number; expenses: number }>();
+
+    for (const r of reports) {
+      const key = parseReportPeriodToKey(r.report_period);
+      const kf = getKeyFigures(r);
+      if (!key || !kf) continue;
+
+      // Filter: only include months within membership period
+      if (startKey && key < startKey) continue;
+      if (endKey && key > endKey) continue;
+
+      // Skip if we already have this period (first in array = latest uploaded_at)
+      if (byKey.has(key)) continue;
+
+      byKey.set(key, {
+        key,
+        revenue: kf.omsaetning || 0,
+        expenses: Math.abs(kf.loenninger || 0) + Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.marketing || 0) + Math.abs(kf.lokaler || 0) + Math.abs(kf.admin || 0) + Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0),
+      });
+    }
+
+    return Array.from(byKey.values())
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .slice(-12)
+      .map(d => {
+        const [year, monthStr] = d.key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
-        return {
-          key,
-          month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}`,
-          revenue: kf.omsaetning || 0,
-          expenses: Math.abs(kf.loenninger || 0) + Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.marketing || 0) + Math.abs(kf.lokaler || 0) + Math.abs(kf.admin || 0) + Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0),
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a!.key.localeCompare(b!.key))
-      .slice(-12) as { key: string; month: string; revenue: number; expenses: number }[];
-  }, [reports]);
+        return { ...d, month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}` };
+      });
+  }, [reports, company]);
 
   const hasData = chartData.length > 0;
 
