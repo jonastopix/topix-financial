@@ -18,9 +18,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
 import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
+import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 
 const Milestones = () => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, isAdvisor } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [milestoneStats, setMilestoneStats] = useState({ total: 0, done: 0, pct: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -89,6 +90,14 @@ const Milestones = () => {
     setOpen(false);
     setRefreshKey((k) => k + 1);
   };
+
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
