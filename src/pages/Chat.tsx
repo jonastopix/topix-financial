@@ -32,6 +32,8 @@ interface ConversationWithProfile {
   member_id: string;
   last_message_at: string;
   company_id?: string;
+  companyName?: string;
+  companyLogoUrl?: string;
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   unreadCount: number;
   lastMessage?: string;
@@ -83,6 +85,7 @@ const Chat = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
+  const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string }>>(new Map());
   const [unreviewedReportIds, setUnreviewedReportIds] = useState<string[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -132,10 +135,12 @@ const Chat = () => {
     const loadConversations = async () => {
       let convsQuery = supabase
         .from("conversations")
-        .select("*")
+        .select("*, companies:company_id(id, name, logo_url)")
         .order("last_message_at", { ascending: false });
       
       if (isCompanyOverride && companyId) {
+        convsQuery = convsQuery.eq("company_id", companyId);
+      } else if (!isAdvisor && companyId) {
         convsQuery = convsQuery.eq("company_id", companyId);
       } else if (!isAdvisor) {
         convsQuery = convsQuery.eq("member_id", user.id);
@@ -164,13 +169,22 @@ const Chat = () => {
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
 
+      // Store profiles map for sender name lookup in messages
+      const pMap = new Map<string, { full_name: string }>();
+      profiles.forEach(p => pMap.set(p.user_id, { full_name: p.full_name }));
+      setProfilesMap(pMap);
+
       // Track unreviewed report IDs for mark-as-read
       setUnreviewedReportIds(recentReports.map((r: any) => r.id));
 
-      const reportsByUser = new Map<string, { name: string }>();
+      // Build report lookup by company_id
+      const reportsByCompany = new Map<string, { name: string }>();
       recentReports.forEach((r: any) => {
-        if (!reportsByUser.has(r.user_id)) {
-          reportsByUser.set(r.user_id, { name: r.file_name });
+        // Find which company this user belongs to via conversations
+        const userConv = convs.find((c: any) => c.member_id === r.user_id);
+        const cid = userConv?.company_id;
+        if (cid && !reportsByCompany.has(cid)) {
+          reportsByCompany.set(cid, { name: r.file_name });
         }
       });
 
@@ -181,22 +195,25 @@ const Chat = () => {
         msgsByConv.set(m.conversation_id, arr);
       });
 
-      const enriched: ConversationWithProfile[] = convs.map((c) => {
+      const enriched: ConversationWithProfile[] = convs.map((c: any) => {
         const profile = profiles.find((p) => p.user_id === c.member_id) || null;
         const convMsgs = msgsByConv.get(c.id) || [];
-
         const lastMsg = convMsgs[0];
         const unreadCount = convMsgs.filter(
           (m) => m.sender_id !== user.id && !m.read_at
         ).length;
 
-        const report = reportsByUser.get(c.member_id);
+        const companyData = c.companies as any;
+        const companyId = c.company_id || undefined;
+        const report = companyId ? reportsByCompany.get(companyId) : undefined;
 
         return {
           id: c.id,
           member_id: c.member_id,
           last_message_at: c.last_message_at || c.created_at,
-          company_id: c.company_id || undefined,
+          company_id: companyId,
+          companyName: companyData?.name || undefined,
+          companyLogoUrl: companyData?.logo_url || undefined,
           profile: profile
             ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
             : null,
@@ -210,7 +227,18 @@ const Chat = () => {
         };
       });
 
-      setConversations(enriched);
+      // Deduplicate by company_id: keep conversation with latest activity
+      const deduped: ConversationWithProfile[] = [];
+      const seenCompanies = new Set<string>();
+      for (const conv of enriched) {
+        if (conv.company_id) {
+          if (seenCompanies.has(conv.company_id)) continue;
+          seenCompanies.add(conv.company_id);
+        }
+        deduped.push(conv);
+      }
+
+      setConversations(deduped);
 
       // Auto-select for members
       if (!isAdvisor && enriched.length > 0 && !activeConvId) {
@@ -230,8 +258,8 @@ const Chat = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter(
         (c) =>
-          c.profile?.full_name?.toLowerCase().includes(q) ||
-          c.profile?.company_name?.toLowerCase().includes(q)
+          c.companyName?.toLowerCase().includes(q) ||
+          c.profile?.full_name?.toLowerCase().includes(q)
       );
     }
 
@@ -567,12 +595,16 @@ const Chat = () => {
                       <div className="flex items-start gap-3">
                         {/* Avatar with status indicator */}
                         <div className="relative flex-shrink-0">
-                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center overflow-hidden ${
                             isUnread ? "bg-destructive/10" : "bg-primary/10"
                           }`}>
-                            <span className={`text-xs font-semibold ${isUnread ? "text-destructive" : "text-primary"}`}>
-                              {getInitialsLocal(conv.profile?.full_name || "??")}
-                            </span>
+                            {conv.companyLogoUrl ? (
+                              <img src={conv.companyLogoUrl} alt="" className="h-10 w-10 object-cover" />
+                            ) : (
+                              <span className={`text-xs font-semibold ${isUnread ? "text-destructive" : "text-primary"}`}>
+                                {getInitialsLocal(conv.companyName || conv.profile?.full_name || "??")}
+                              </span>
+                            )}
                           </div>
                           {isUnread && (
                             <div className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-destructive border-2 border-card flex items-center justify-center">
@@ -584,16 +616,12 @@ const Chat = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
                             <p className={`text-sm truncate ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
-                              {conv.profile?.full_name || "Ukendt"}
+                              {conv.companyName || conv.profile?.full_name || "Ukendt"}
                             </p>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
                           </div>
-
-                          {conv.profile?.company_name && (
-                            <p className="text-[10px] text-muted-foreground mb-1">{conv.profile.company_name}</p>
-                          )}
 
                           {conv.lastMessage && (
                             <p className={`text-xs truncate ${isUnread ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>
@@ -647,17 +675,18 @@ const Chat = () => {
                         <ArrowLeft className="h-5 w-5" />
                       </button>
                     )}
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-xs font-semibold text-primary">
-                        {getInitialsLocal(activeConv?.profile?.full_name || "??")}
-                      </span>
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                      {activeConv?.companyLogoUrl ? (
+                        <img src={activeConv.companyLogoUrl} alt="" className="h-8 w-8 object-cover" />
+                      ) : (
+                        <span className="text-xs font-semibold text-primary">
+                          {getInitialsLocal(activeConv?.companyName || "??")}
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">
-                        {activeConv?.profile?.full_name || "Ukendt"}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {activeConv?.profile?.company_name || ""}
+                        {activeConv?.companyName || "Ukendt"}
                       </p>
                     </div>
                     {activeConv?.hasRecentReport && !isMobile && (
@@ -859,6 +888,12 @@ const Chat = () => {
                                 : "bg-secondary text-foreground rounded-bl-md"
                             } ${contextType ? "rounded-tl-md" : ""}`}
                           >
+                            {/* Sender name for non-own messages in advisor view */}
+                            {isAdvisor && !isMine && (
+                              <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
+                                {profilesMap.get(msg.sender_id)?.full_name || "Medlem"}
+                              </p>
+                            )}
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                             <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                               <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
