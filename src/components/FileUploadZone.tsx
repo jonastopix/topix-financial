@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef } from "react";
-import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target } from "lucide-react";
+import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target, Info, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -697,6 +697,35 @@ const FileUploadZone = ({
         <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-wider">
           Excel, CSV eller PDF
         </p>
+      </div>
+
+      {/* Upload guide */}
+      <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Info className="h-3.5 w-3.5 text-primary shrink-0" />
+          <p className="text-xs font-medium text-foreground">Anbefalede filtyper</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {[
+            { name: "e-conomic", desc: "Saldobalance / Resultatopgørelse" },
+            { name: "Dinero", desc: "Resultatopgørelse (PDF/Excel)" },
+            { name: "Billy", desc: "Resultatopgørelse (Excel)" },
+          ].map((s) => (
+            <div key={s.name} className="flex items-start gap-2 rounded-md bg-background/60 border border-border/40 px-3 py-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-foreground">{s.name}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-start gap-2 pt-1">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Custom-formaterede Excel-rapporter kan give upræcise resultater. Brug standardeksport fra dit regnskabsprogram for bedste resultat.
+          </p>
+        </div>
       </div>
 
       {/* Uploaded files */}
