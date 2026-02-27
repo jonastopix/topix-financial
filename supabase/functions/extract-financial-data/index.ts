@@ -277,12 +277,17 @@ VIGTIGE REGLER FOR KORREKT AFLÆSNING:
           );
         }
 
-        // If overwriting, delete the old report(s) for that period
+        // If overwriting, delete the old report(s) and their associated milestones
         if (existing && existing.length > 0 && overwrite) {
           for (const old of existing) {
+            // Delete milestones created from this report
+            await supabase.from("milestones").delete().eq("source_report", old.id);
+            // Delete handout_lever_milestones referencing those milestones
+            // (cascade should handle it, but milestones deletion covers it)
+            // Delete the old report itself
             await supabase.from("financial_reports").delete().eq("id", old.id);
           }
-          console.log(`Overwrote ${existing.length} existing report(s) for ${extractedData.report_period}`);
+          console.log(`Overwrote ${existing.length} existing report(s) + associated milestones for ${extractedData.report_period}`);
         }
       }
 
