@@ -17,7 +17,7 @@ function getSignupUrl() {
   return `${appUrl.replace(/\/$/, '')}/auth?mode=signup`;
 }
 
-async function sendAdvisorInvitationEmail(normalizedEmail: string) {
+async function sendAdvisorInvitationEmail(normalizedEmail: string, adminSupabase: any) {
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (!resendApiKey) {
     throw new Error("Email er ikke konfigureret (mangler RESEND_API_KEY)");
@@ -25,13 +25,32 @@ async function sendAdvisorInvitationEmail(normalizedEmail: string) {
 
   const resend = new Resend(resendApiKey);
   const signupUrl = getSignupUrl();
+  const subject = 'Du er inviteret som rådgiver på The Boardroom';
 
   const { data, error } = await resend.emails.send({
     from: 'The Boardroom <noreply@boardroom.topix.dk>',
     to: [normalizedEmail],
-    subject: 'Du er inviteret som rådgiver på The Boardroom',
+    subject,
     html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Velkommen til The Boardroom</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Du er blevet inviteret som <strong>rådgiver</strong> på The Boardroom — en platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Som rådgiver får du adgang til alle virksomheders data, rapporter og chat.</p><div style="text-align:center;margin:32px 0"><a href="${signupUrl}" target="_blank" style="background-color:#6366f1;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Opret din konto</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne invitation er sendt fra The Boardroom. Opret dig med denne e-mailadresse for at aktivere din rådgiverrolle.</p></div></body></html>`,
   });
+
+  // Log to email_send_log
+  const { data: tpl } = await adminSupabase
+    .from('email_templates')
+    .select('id')
+    .eq('name', 'Advisor invitation')
+    .maybeSingle();
+
+  if (tpl) {
+    await adminSupabase.from('email_send_log').insert({
+      template_id: tpl.id,
+      recipient_email: normalizedEmail,
+      subject,
+      status: error ? 'failed' : 'sent',
+      error_message: error ? JSON.stringify(error) : null,
+      is_test: false,
+    });
+  }
 
   if (error) {
     throw new Error(`Kunne ikke sende invitation: ${JSON.stringify(error)}`);
@@ -142,7 +161,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existingInvite) {
-        await sendAdvisorInvitationEmail(normalizedEmail);
+        await sendAdvisorInvitationEmail(normalizedEmail, adminSupabase);
 
         return new Response(JSON.stringify({
           success: true,
@@ -162,7 +181,7 @@ Deno.serve(async (req) => {
       if (inviteErr || !createdInvite) throw inviteErr || new Error('Kunne ikke oprette invitation');
 
       try {
-        await sendAdvisorInvitationEmail(normalizedEmail);
+        await sendAdvisorInvitationEmail(normalizedEmail, adminSupabase);
       } catch (emailError) {
         console.error('[manage-advisor] Failed to send advisor invitation email:', emailError);
 
