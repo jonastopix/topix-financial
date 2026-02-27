@@ -729,7 +729,7 @@ const Members = () => {
 
   return (
     <AppLayout>
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
             <Building2 className="h-6 w-6 text-primary" />
@@ -743,17 +743,21 @@ const Members = () => {
           <Button
             onClick={() => setStandaloneInviteOpen(true)}
             className="gap-2"
+            size="sm"
           >
             <UserPlus className="h-4 w-4" />
-            Inviter ny bruger
+            <span className="hidden sm:inline">Inviter ny bruger</span>
+            <span className="sm:hidden">Inviter</span>
           </Button>
           <Button
             onClick={openBulkInviteDialog}
             className="gap-2"
             variant="outline"
+            size="sm"
           >
             <Send className="h-4 w-4" />
-            Invitér alle
+            <span className="hidden sm:inline">Invitér alle</span>
+            <span className="sm:hidden">Alle</span>
           </Button>
         </div>
       </div>

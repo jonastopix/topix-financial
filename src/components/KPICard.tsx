@@ -81,7 +81,7 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
   const hasSparkline = sparkData && sparkData.length >= 2;
 
   return (
-    <div className={`glass-card rounded-xl p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow} relative overflow-hidden`}>
+    <div className={`glass-card rounded-xl p-3 sm:p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow} relative overflow-hidden`}>
       {/* Sparkline background */}
       {hasSparkline && (
         <div className="absolute bottom-0 left-0 right-0 h-12 opacity-60 group-hover:opacity-80 transition-opacity pointer-events-none">
@@ -109,15 +109,15 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
 
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-3">
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
+          <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
           {icon && (
             <div className={`p-2 rounded-lg ${accent.iconBg}`}>
               <div className={accent.iconText}>{icon}</div>
             </div>
           )}
         </div>
-        <p className="text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
-        <div className="flex flex-wrap items-center gap-2 mt-3">
+        <p className="text-xl sm:text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3">
           {change && <ChangeBadge label={change} dir={trend} />}
           {secondaryChange && <ChangeBadge label={secondaryChange} dir={secondaryTrend} />}
           {budgetLabel && (
