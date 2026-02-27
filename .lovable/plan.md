@@ -1,23 +1,28 @@
 
 
-## Fix: Invitationslink peger på forkert URL
+## Oprydning af Jeppe Chris' duplikerede brugerkonto
 
-### Problem
-Invitationsmailen bruger `window.location.origin` til at generere signup-linket. Hvis rådgiveren sender invitationer fra preview-miljøet, vil linket pege på preview-URL'en som ikke virker for modtagerne.
+### Baggrund
+Jeppe Chris (kontakt@jeppechris.dk) har to brugerkonti tilknyttet Stadio ApS:
 
-Derudover viser loggen at Jeppe Chris ramte en rate limit (429-fejl) da han forsøgte at oprette sig -- det løser sig ved at vente et minut og prøve igen.
+| | Oprindelig konto (beholdes) | Duplikat (slettes) |
+|---|---|---|
+| User ID | `e5c1657b-...` | `cdfa53b9-...` |
+| Oprettet | 25. feb | 27. feb |
+| Onboardet | Ja | Nej |
+| Data (beskeder, rapporter, milestones) | Ja | Ingen |
 
-### Løsning
-Hardcode den published URL (`https://topix.lovable.app`) i stedet for `window.location.origin` i alle steder der genererer signup-links.
+### Handlinger (i rækkefølge)
 
-### Teknisk plan
+1. **Slet conversation** for duplikat-brugeren (`18e60352-...`)
+2. **Slet company_member** for duplikat-brugeren (`c3dfe51d-...`)
+3. **Slet profil** for duplikat-brugeren (`45e3a995-...`)
+4. **Slet auth-bruger** `cdfa53b9-ec5e-45a1-91cf-8c353bc3210f` via admin API
 
-**Fil: `src/pages/Members.tsx`** (linje 510)
-- Erstat `${window.location.origin}/auth` med `https://topix.lovable.app/auth`
+### Teknisk detalje
+- Alle sletninger udføres via database insert-tool (DELETE statements)
+- Auth-brugeren slettes via Supabase admin auth API i en edge function eller direkte SQL mod `auth.users`
+- Invitation-records (`accepted`) for Stadio ApS bevares uændret, da de peger på den korrekte invitation
 
-**Fil: `src/components/CompanyInvitations.tsx`** (linje 127)
-- Erstat `${window.location.origin}/auth` med `https://topix.lovable.app/auth`
-
-### Bemærkning om rate limit
-Jeppe Chris fik en 429-fejl kl. 13:21 i dag. Han skal bare vente ca. 1 minut og prøve at oprette sig igen på `https://topix.lovable.app/auth`. Selve signup-flowet virker korrekt (status 200 ses lige inden rate limit-fejlen).
-
+### Resultat
+Jeppe Chris vil kun fremgå én gang under Stadio ApS med sin oprindelige, onboardede konto.
