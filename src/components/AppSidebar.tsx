@@ -21,6 +21,7 @@ import {
   Building2,
   ChevronDown,
   Check,
+  Upload,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,6 +44,7 @@ const baseNavItems = [
 
 const advisorNavItems = [
   { icon: UserCog, label: "Medlemmer", path: "/members" },
+  { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
 ];

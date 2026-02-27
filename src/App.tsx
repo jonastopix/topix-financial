@@ -21,6 +21,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import AdminConfig from "./pages/AdminConfig";
 import EmailTemplates from "./pages/EmailTemplates";
+import BulkImport from "./pages/BulkImport";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
               <Route path="/admin/emails" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
+              <Route path="/admin/import" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </ViewModeProvider>
