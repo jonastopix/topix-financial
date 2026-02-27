@@ -207,7 +207,7 @@ const AppSidebar = () => {
           {[
             ...baseNavItems,
             // Settings only for non-advisors (members) and admins
-            ...(!isAdvisor || isAdmin ? [{ icon: SettingsIcon, label: "Indstillinger", path: "/settings" }] : []),
+            { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
             ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
           ].map((item) => {
