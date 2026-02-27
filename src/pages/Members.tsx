@@ -27,6 +27,7 @@ import {
   Activity,
   Send,
   AlertTriangle,
+  RotateCcw,
   CheckCircle2,
   Loader2,
 } from "lucide-react";
@@ -346,18 +347,30 @@ const Members = () => {
 
   // Load unassigned users for merge dialog
   const handleResendInvitation = async (company: CompanyData) => {
-    if (!company.pendingInvitationEmail) return;
+    if (!company.invitationEmail) return;
     setResendingInvitation(company.id);
     try {
+      // If invitation was accepted, reset it back to pending first
+      if (company.invitationStatus === 'accepted') {
+        const { error: updateErr } = await supabase
+          .from("company_invitations")
+          .update({ status: 'pending', accepted_at: null })
+          .eq("company_id", company.id)
+          .eq("email", company.invitationEmail)
+          .eq("status", "accepted");
+        if (updateErr) throw updateErr;
+      }
+
       const { error } = await supabase.functions.invoke("send-invitation-email", {
         body: {
-          email: company.pendingInvitationEmail,
+          email: company.invitationEmail,
           company_name: company.name,
           signup_url: "https://topix.lovable.app/auth",
         },
       });
       if (error) throw error;
-      toast.success(`Invitation gensendt til ${company.pendingInvitationEmail}`);
+      toast.success(`Invitation ${company.invitationStatus === 'accepted' ? 'nulstillet og ' : ''}gensendt til ${company.invitationEmail}`);
+      setReloadTrigger((t) => t + 1);
     } catch (err: any) {
       console.error("Resend invitation error:", err);
       toast.error("Kunne ikke gensende invitation: " + (err.message || "Ukendt fejl"));
@@ -1086,13 +1099,22 @@ const Members = () => {
                                 <MessageCircle className="h-3 w-3" /> Åbn chat
                               </Link>
                             )}
-                            {c.pendingInvitationEmail && (
+                            {c.invitationEmail && c.invitationStatus === 'pending' && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
                                 disabled={resendingInvitation === c.id}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
                               >
                                 {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Gensend invitation
+                              </button>
+                            )}
+                            {c.invitationEmail && c.invitationStatus === 'accepted' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
+                                disabled={resendingInvitation === c.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-chart-warning/10 text-chart-warning text-xs font-medium hover:bg-chart-warning/20 transition-colors border border-chart-warning/30 disabled:opacity-50"
+                              >
+                                {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
                               </button>
                             )}
                             {c.members.length === 0 && c.reportCount === 0 && (
