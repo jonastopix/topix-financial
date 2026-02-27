@@ -155,6 +155,12 @@ const Members = () => {
   const [bulkDone, setBulkDone] = useState(false);
   const [selectedBulkIds, setSelectedBulkIds] = useState<Set<string>>(new Set());
 
+  // Standalone invite (no company)
+  const [standaloneInviteOpen, setStandaloneInviteOpen] = useState(false);
+  const [standaloneEmail, setStandaloneEmail] = useState("");
+  const [standaloneName, setStandaloneName] = useState("");
+  const [standaloneSending, setStandaloneSending] = useState(false);
+
   const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
@@ -622,6 +628,30 @@ const Members = () => {
     setReloadTrigger((t) => t + 1);
   };
 
+  const handleStandaloneInvite = async () => {
+    if (!standaloneEmail.trim() || !user) return;
+    setStandaloneSending(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-invitation-email", {
+        body: {
+          email: standaloneEmail.trim().toLowerCase(),
+          company_name: "The Boardroom",
+          signup_url: "https://topix.lovable.app/auth",
+        },
+      });
+      if (error) throw error;
+      toast.success(`Invitation sendt til ${standaloneEmail}`);
+      setStandaloneInviteOpen(false);
+      setStandaloneEmail("");
+      setStandaloneName("");
+    } catch (err: any) {
+      console.error("Standalone invite error:", err);
+      toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setStandaloneSending(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     let result = companies;
 
@@ -709,14 +739,23 @@ const Members = () => {
             Oversigt over alle virksomheder i forløbet
           </p>
         </div>
-        <Button
-          onClick={openBulkInviteDialog}
-          className="gap-2"
-          variant="outline"
-        >
-          <Send className="h-4 w-4" />
-          Invitér alle
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setStandaloneInviteOpen(true)}
+            className="gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Inviter ny bruger
+          </Button>
+          <Button
+            onClick={openBulkInviteDialog}
+            className="gap-2"
+            variant="outline"
+          >
+            <Send className="h-4 w-4" />
+            Invitér alle
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -1447,6 +1486,56 @@ const Members = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Standalone invite dialog */}
+      <Dialog open={standaloneInviteOpen} onOpenChange={setStandaloneInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Inviter ny bruger</DialogTitle>
+            <DialogDescription>
+              Send en invitation til en person, som selv opretter sin virksomhed ved tilmelding.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Navn (valgfrit)</label>
+              <input
+                type="text"
+                value={standaloneName}
+                onChange={(e) => setStandaloneName(e.target.value)}
+                placeholder="F.eks. Jeppe Chris"
+                className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">E-mail *</label>
+              <input
+                type="email"
+                value={standaloneEmail}
+                onChange={(e) => setStandaloneEmail(e.target.value)}
+                placeholder="email@virksomhed.dk"
+                required
+                className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Personen modtager en email med link til at oprette konto. Ved tilmelding oprettes automatisk en ny virksomhed, som de selv udfylder under onboarding.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStandaloneInviteOpen(false)} disabled={standaloneSending}>
+              Annuller
+            </Button>
+            <Button onClick={handleStandaloneInvite} disabled={standaloneSending || !standaloneEmail.trim()}>
+              {standaloneSending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Send invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
