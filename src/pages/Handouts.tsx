@@ -6,6 +6,7 @@ import HandoutDetail from "@/components/HandoutDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
@@ -18,7 +19,7 @@ interface HandoutSummary {
 }
 
 const Handouts = () => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, isAdvisor } = useAuth();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
     moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))
   );
@@ -72,6 +73,14 @@ const Handouts = () => {
   const totalProgress = summaries.length > 0
     ? Math.round(summaries.reduce((s, h) => s + h.progress, 0) / summaries.length)
     : 0;
+
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

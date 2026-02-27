@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { supabase } from "@/integrations/supabase/client";
 import { Calculator, ArrowLeft, BarChart3, Layers, DollarSign, Upload } from "lucide-react";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
@@ -23,7 +24,7 @@ import BudgetScenariosTab from "@/components/budget/BudgetScenariosTab";
 import BudgetVsActualTab from "@/components/budget/BudgetVsActualTab";
 
 const Budget = () => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, isAdvisor } = useAuth();
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>("base");
   const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
@@ -277,6 +278,14 @@ const Budget = () => {
   }
 
   const rows = scenarioData[activeScenario];
+
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

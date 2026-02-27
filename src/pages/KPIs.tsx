@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import {
   TrendingUp,
   TrendingDown,
@@ -106,7 +107,7 @@ const tooltipStyle = {
 };
 
 const KPIs = () => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, isAdvisor } = useAuth();
   const [reports, setReports] = useState<ReportData[]>([]);
   const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
   const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});
@@ -340,6 +341,14 @@ const KPIs = () => {
     setEditBenchmarkValues({});
     setSaving(false);
   };
+
+  if (isAdvisor && !companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyPrompt />
+      </AppLayout>
+    );
+  }
 
   if (loading) {
     return (
