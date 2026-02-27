@@ -93,15 +93,11 @@ const Dashboard = () => {
         // Find the most recent report that has bank_balance
         const bankReport = [...sorted].reverse().find(r => r.kf.bank_balance != null);
 
-        // YTD: sum all reports in the same year as latest
+        // YTD: Always sum individual month values (don't trust _aar fields from AI — they often read the wrong column)
         const currentYearReports = sorted.filter(r => r.key.startsWith(latestYear));
         const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
         const ytdExpenses = currentYearReports.reduce((s, r) => s + totalExpenses(r.kf), 0);
         const ytdResult = currentYearReports.reduce((s, r) => s + (r.kf.resultat_foer_skat ?? 0), 0);
-
-        // Use _aar fields from latest report if available, otherwise use summed values
-        const ytdRevenueFromReport = latest.kf.omsaetning_aar;
-        const ytdResultFromReport = latest.kf.resultat_foer_skat_aar;
 
         kpiData = {
           revenue: latest.kf.omsaetning ?? null,
@@ -115,9 +111,9 @@ const Dashboard = () => {
           revenueYoY: pctChange(latest.kf.omsaetning, yoyReport?.kf.omsaetning),
           resultYoY: pctChange(latest.kf.resultat_foer_skat, yoyReport?.kf.resultat_foer_skat),
           expensesYoY: pctChange(totalExpenses(latest.kf), yoyReport ? totalExpenses(yoyReport.kf) : undefined),
-          // YTD
-          ytdRevenue: ytdRevenueFromReport ?? (currentYearReports.length > 0 ? ytdRevenue : null),
-          ytdResult: ytdResultFromReport ?? (currentYearReports.length > 0 ? ytdResult : null),
+          // YTD — always summed from individual months for reliability
+          ytdRevenue: currentYearReports.length > 0 ? ytdRevenue : null,
+          ytdResult: currentYearReports.length > 0 ? ytdResult : null,
           ytdExpenses: currentYearReports.length > 0 ? ytdExpenses : null,
         };
       }
