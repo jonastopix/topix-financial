@@ -7,6 +7,74 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ── Post-processing validation ──────────────────────────────────────────────
+interface ValidationCheck {
+  name: string;
+  result: "PASS" | "FAIL" | "SKIP";
+  details: string;
+}
+
+function runPostProcessingValidation(extractedData: any): { status: string; checks: ValidationCheck[] } {
+  const kf = extractedData?.key_figures;
+  if (!kf) return { status: "SKIP", checks: [] };
+
+  const checks: ValidationCheck[] = [];
+  const TOLERANCE = 2; // 2 kr tolerance
+
+  // 1. Dækningsbidrag = omsætning - direkte_omkostninger
+  if (kf.omsaetning != null && kf.direkte_omkostninger != null && kf.daekningsbidrag != null) {
+    const expected = kf.omsaetning - kf.direkte_omkostninger;
+    const diff = Math.abs(expected - kf.daekningsbidrag);
+    const pass = diff <= TOLERANCE;
+    checks.push({
+      name: "daekningsbidrag_sum",
+      result: pass ? "PASS" : "FAIL",
+      details: pass
+        ? `OK: ${kf.omsaetning} - ${kf.direkte_omkostninger} = ${expected} ≈ ${kf.daekningsbidrag}`
+        : `MISMATCH: ${kf.omsaetning} - ${kf.direkte_omkostninger} = ${expected}, men daekningsbidrag = ${kf.daekningsbidrag} (diff ${diff.toFixed(2)})`,
+    });
+  } else {
+    checks.push({ name: "daekningsbidrag_sum", result: "SKIP", details: "Mangler felter til beregning" });
+  }
+
+  // 2. Resultat-konsistens: resultat_foer_skat bør være lavere end dækningsbidrag (i P&L)
+  if (kf.resultat_foer_skat != null && kf.daekningsbidrag != null && extractedData.report_type === "resultatopgørelse") {
+    // Resultat should be lower than dækningsbidrag (costs subtract from gross margin)
+    const sensible = kf.resultat_foer_skat <= kf.daekningsbidrag + TOLERANCE;
+    checks.push({
+      name: "resultat_consistency",
+      result: sensible ? "PASS" : "FAIL",
+      details: sensible
+        ? `OK: resultat (${kf.resultat_foer_skat}) ≤ daekningsbidrag (${kf.daekningsbidrag})`
+        : `WARNING: resultat (${kf.resultat_foer_skat}) > daekningsbidrag (${kf.daekningsbidrag}) — mulig fejl`,
+    });
+  } else {
+    checks.push({ name: "resultat_consistency", result: "SKIP", details: "Ikke relevant / mangler data" });
+  }
+
+  // 3. Balance-ligning (kun saldobalance)
+  if (extractedData.report_type === "saldobalance" && kf.aktiver_i_alt != null && kf.passiver_i_alt != null) {
+    const diff = Math.abs(kf.aktiver_i_alt - kf.passiver_i_alt);
+    const pass = diff <= TOLERANCE;
+    checks.push({
+      name: "balance_equation",
+      result: pass ? "PASS" : "FAIL",
+      details: pass
+        ? `OK: aktiver (${kf.aktiver_i_alt}) ≈ passiver (${kf.passiver_i_alt})`
+        : `MISMATCH: aktiver (${kf.aktiver_i_alt}) ≠ passiver (${kf.passiver_i_alt}), diff ${diff.toFixed(2)}`,
+    });
+  } else {
+    checks.push({ name: "balance_equation", result: "SKIP", details: "Ikke saldobalance eller mangler felter" });
+  }
+
+  // Derive overall status
+  const hasFailure = checks.some((c) => c.result === "FAIL");
+  const allSkip = checks.every((c) => c.result === "SKIP");
+  const status = hasFailure ? "FAIL" : allSkip ? "SKIP" : "PASS";
+
+  return { status, checks };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -109,19 +177,47 @@ TRIN 5: RAPPORTPERIODE
 - Bestem ud fra datoer i dokumenthovedet (f.eks. "01.12.25 - 31.12.25" = December 2025)
 
 ═══════════════════════════════════════════════════
-BELØBSFORMAT
+TRIN 6: DANSK TALFORMAT
 ═══════════════════════════════════════════════════
-Returnér som rene tal UDEN tusindtalsseparatorer: 1234567.89 (brug punktum som decimalseparator).
+Dokumenter bruger dansk talformat:
+- Tusindtalsseparator: "." (punkt) — f.eks. 1.234.567
+- Decimalseparator: "," (komma) — f.eks. 1.234,56
+- Negative tal kan angives med minus "-1.234,56" ELLER parenteser "(1.234,56)"
+- Parenteser = negativt tal: (1.234,56) = -1234.56
+- Returnér som rene tal UDEN tusindtalsseparatorer: 1234567.89 (brug punktum som decimalseparator i output).
 
 ═══════════════════════════════════════════════════
-LINE_ITEMS
+TRIN 7: LINE_ITEMS MED KLASSIFICERING
 ═══════════════════════════════════════════════════
-Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TIL-DATO for ytd_amount. Behold originale fortegn.`;
+Medtag de 15-25 vigtigste poster. For HVER linje:
+- name: postens navn som det fremgår
+- period_amount: PERIODENS tal (behold originalt fortegn)
+- ytd_amount: ÅR-TIL-DATO tal (behold originalt fortegn)
+- raw_sign: "PLUS" hvis tallet er positivt i dokumentet, "MINUS" hvis negativt
+- account_no: kontonummer hvis det fremgår, ellers null
+- class: klassificér posten som én af:
+  REVENUE, COGS, OPEX, DEPR, FIN_INCOME, FIN_EXPENSE, TAX, ASSET, LIABILITY, EQUITY
+  Hvis du er usikker → sæt class til "UKLASSIFICERET"
+
+═══════════════════════════════════════════════════
+TRIN 8: VALIDERING (KØR INDEN DU RETURNERER)
+═══════════════════════════════════════════════════
+Før du kalder funktionen, kør disse checks og rapportér i validation-objektet:
+
+1. daekningsbidrag_sum: Tjek at omsaetning - direkte_omkostninger ≈ daekningsbidrag (tolerance 2 kr.)
+2. resultat_consistency: Tjek at resultat_foer_skat ≤ daekningsbidrag (i en resultatopgørelse)
+3. balance_equation: Tjek at aktiver_i_alt ≈ passiver_i_alt (kun saldobalance, tolerance 2 kr.)
+
+Sæt validation.status til:
+- "PASS" hvis alle relevante checks bestod
+- "FAIL" hvis mindst ét check fejlede
+- "UNSURE" hvis du er i tvivl om et tals korrekthed
+
+Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSURE" og beskriv usikkerheden i checks.`;
 
     // Build user message — prefer images (vision) for accurate table reading
     let userContent: any;
     if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
-      // Multimodal: send page images + text context
       const imageParts = pageImages.map((base64: string) => ({
         type: "image_url",
         image_url: { url: `data:image/jpeg;base64,${base64}` },
@@ -132,7 +228,6 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
       ];
       console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
     } else {
-      // Fallback: text only
       userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
       console.log("Sending text-only content to AI (no images available)");
     }
@@ -149,10 +244,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
           model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: userContent,
-            },
+            { role: "user", content: userContent },
           ],
           tools: [
             {
@@ -160,7 +252,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
               function: {
                 name: "extract_financial_data",
                 description:
-                  "Udtrækker nøjagtigt aflæste nøgletal fra en dansk saldobalance eller resultatopgørelse",
+                  "Udtrækker nøjagtigt aflæste nøgletal fra en dansk saldobalance eller resultatopgørelse med validering",
                 parameters: {
                   type: "object",
                   properties: {
@@ -169,7 +261,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
                       enum: ["saldobalance", "resultatopgørelse"],
                       description: "Bestem ud fra indholdet — IKKE kun filnavnet",
                     },
-                    report_period: { 
+                    report_period: {
                       type: "string",
                       description: "F.eks. 'Oktober 2025'. Angiv den måned rapporten primært dækker.",
                     },
@@ -206,12 +298,50 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
                       items: {
                         type: "object",
                         properties: {
-                          name: { type: "string" },
-                          period_amount: { type: "number" },
-                          ytd_amount: { type: "number" },
+                          name: { type: "string", description: "Postens navn som det fremgår i dokumentet" },
+                          period_amount: { type: "number", description: "Periodens tal (originalt fortegn)" },
+                          ytd_amount: { type: "number", description: "År-til-dato tal (originalt fortegn)" },
+                          raw_sign: {
+                            type: "string",
+                            enum: ["PLUS", "MINUS"],
+                            description: "Det originale fortegn i dokumentet for period_amount",
+                          },
+                          account_no: {
+                            type: "string",
+                            description: "Kontonummer hvis det fremgår, ellers null",
+                          },
+                          class: {
+                            type: "string",
+                            enum: ["REVENUE", "COGS", "OPEX", "DEPR", "FIN_INCOME", "FIN_EXPENSE", "TAX", "ASSET", "LIABILITY", "EQUITY", "UKLASSIFICERET"],
+                            description: "Standardiseret regnskabsklassificering",
+                          },
                         },
-                        required: ["name", "period_amount", "ytd_amount"],
+                        required: ["name", "period_amount", "ytd_amount", "raw_sign", "class"],
                       },
+                    },
+                    validation: {
+                      type: "object",
+                      description: "AI-sidens valideringsresultat af de udtrukkede tal",
+                      properties: {
+                        status: {
+                          type: "string",
+                          enum: ["PASS", "FAIL", "UNSURE"],
+                          description: "Overordnet status: PASS=alle checks ok, FAIL=mindst ét fejlede, UNSURE=i tvivl om et tal",
+                        },
+                        checks: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              name: { type: "string", description: "Check-navn: daekningsbidrag_sum, resultat_consistency, balance_equation" },
+                              result: { type: "string", enum: ["PASS", "FAIL", "SKIP"] },
+                              details: { type: "string", description: "Kort forklaring af resultatet" },
+                            },
+                            required: ["name", "result", "details"],
+                          },
+                        },
+                      },
+                      required: ["status", "checks"],
                     },
                   },
                   required: [
@@ -221,6 +351,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
                     "cvr_number",
                     "key_figures",
                     "line_items",
+                    "validation",
                   ],
                 },
               },
@@ -237,7 +368,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
     if (!response.ok) {
       const errText = await response.text();
       console.error("AI gateway error:", response.status, errText);
-      
+
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "For mange forespørgsler. Prøv igen om lidt." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -263,7 +394,6 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
     // === Post-processing: Normalize signs ===
     const kf = extractedData.key_figures;
     if (kf) {
-      // Ensure expense fields are stored as positive values (absolute)
       const expenseFields = ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger'];
       for (const field of expenseFields) {
         if (kf[field] != null && kf[field] < 0) {
@@ -271,8 +401,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
           kf[field] = Math.abs(kf[field]);
         }
       }
-      
-      // Ensure omsaetning fields are positive
+
       for (const field of ['omsaetning', 'omsaetning_aar']) {
         if (kf[field] != null && kf[field] < 0) {
           console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
@@ -280,18 +409,44 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
         }
       }
 
-      // Ensure daekningsbidrag_aar is also normalized if negative (it follows omsaetning convention)
-      // but daekningsbidrag for period can be legitimately negative
-
-      // NEVER touch resultat fields — their sign is meaningful (negative = loss, positive = profit)
+      // NEVER touch resultat fields — their sign is meaningful
       console.log(`[CFO Extraction] Period: ${extractedData.report_period}`);
       console.log(`  omsaetning: ${kf.omsaetning}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
       console.log(`  omsaetning_aar: ${kf.omsaetning_aar}, resultat_foer_skat_aar: ${kf.resultat_foer_skat_aar}`);
     }
 
+    // === Post-processing: Server-side validation ===
+    const serverValidation = runPostProcessingValidation(extractedData);
+    const aiValidation = extractedData.validation;
+
+    // Merge: if AI said PASS but server found FAIL → override to FAIL
+    let finalStatus = aiValidation?.status || serverValidation.status;
+    if (serverValidation.status === "FAIL") {
+      finalStatus = "FAIL";
+    }
+    // If AI said UNSURE, keep UNSURE even if server checks pass
+    if (aiValidation?.status === "UNSURE" && finalStatus === "PASS") {
+      finalStatus = "UNSURE";
+    }
+
+    extractedData.validation = {
+      status: finalStatus,
+      ai_checks: aiValidation?.checks || [],
+      server_checks: serverValidation.checks,
+    };
+
+    // Log validation results
+    console.log(`[Validation] Status: ${finalStatus}`);
+    for (const check of serverValidation.checks) {
+      if (check.result === "FAIL") {
+        console.warn(`[Validation FAIL] ${check.name}: ${check.details}`);
+      } else {
+        console.log(`[Validation ${check.result}] ${check.name}: ${check.details}`);
+      }
+    }
+
     // Check for duplicate report (same company, same period)
     if (reportId) {
-      // Get the current report's company_id
       const { data: currentReport } = await supabase
         .from("financial_reports")
         .select("company_id")
@@ -308,9 +463,7 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
           .neq("id", reportId);
 
         if (existing && existing.length > 0 && !overwrite) {
-          // Delete the new (duplicate) report record
           await supabase.from("financial_reports").delete().eq("id", reportId);
-
           return new Response(
             JSON.stringify({
               duplicate: true,
@@ -321,21 +474,15 @@ Medtag de 15-20 vigtigste poster. Brug PERIODENS tal for period_amount og ÅR-TI
           );
         }
 
-        // If overwriting, delete the old report(s) and their associated milestones
         if (existing && existing.length > 0 && overwrite) {
           for (const old of existing) {
-            // Delete milestones created from this report
             await supabase.from("milestones").delete().eq("source_report", old.id);
-            // Delete handout_lever_milestones referencing those milestones
-            // (cascade should handle it, but milestones deletion covers it)
-            // Delete the old report itself
             await supabase.from("financial_reports").delete().eq("id", old.id);
           }
           console.log(`Overwrote ${existing.length} existing report(s) + associated milestones for ${extractedData.report_period}`);
         }
       }
 
-      // Update the report record with extracted data
       const { error: updateError } = await supabase
         .from("financial_reports")
         .update({
