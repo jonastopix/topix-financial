@@ -7,6 +7,7 @@ interface AuthContext {
   session: Session | null;
   loading: boolean;
   isAdvisor: boolean;
+  isAdmin: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   companyId: string | null;
   companyName: string | null;
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContext>({
   session: null,
   loading: true,
   isAdvisor: false,
+  isAdmin: false,
   profile: null,
   companyId: null,
   companyName: null,
@@ -47,6 +49,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdvisor, setIsAdvisor] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
@@ -85,8 +88,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .limit(1)
         .maybeSingle(),
     ]);
-    const isAdv = rolesRes.data?.some((r) => r.role === "advisor") ?? false;
+    const roles = rolesRes.data?.map((r) => r.role) ?? [];
+    const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
+    setIsAdmin(roles.includes("admin" as any));
     setProfile(profileRes.data);
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
@@ -137,6 +142,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         } else {
           setIsAdvisor(false);
+          setIsAdmin(false);
           setProfile(null);
           setNeedsOnboarding(false);
           setOwnCompanyId(null);
@@ -163,7 +169,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, profile,
+      user, session, loading, isAdvisor, isAdmin, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,

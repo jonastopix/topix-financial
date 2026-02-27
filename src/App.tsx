@@ -39,6 +39,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, isAdmin } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -70,9 +78,9 @@ const App = () => (
               <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
               <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="/admin/config" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
-              <Route path="/admin/emails" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
-              <Route path="/admin/import" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
+              <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
+              <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
+              <Route path="/admin/import" element={<AdminRoute><BulkImport /></AdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </ViewModeProvider>

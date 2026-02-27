@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Building2, Upload, Info } from "lucide-react";
 
 const BulkImport = () => {
-  const { user, isAdvisor, loading } = useAuth();
+  const { user, isAdvisor, isAdmin, loading } = useAuth();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [importCount, setImportCount] = useState(0);
 
@@ -43,7 +43,7 @@ const BulkImport = () => {
   });
 
   if (loading) return null;
-  if (!isAdvisor) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   const selectedCompany = companies?.find((c) => c.id === selectedCompanyId);
 
