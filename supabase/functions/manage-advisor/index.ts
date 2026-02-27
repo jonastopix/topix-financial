@@ -93,19 +93,20 @@ Deno.serve(async (req) => {
 
     const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Check caller is advisor
-    const { data: callerRole } = await adminSupabase
+    // Check caller is advisor or admin
+    const { data: callerRoles } = await adminSupabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
-      .eq('role', 'advisor')
-      .maybeSingle();
+      .in('role', ['advisor', 'admin']);
 
-    if (!callerRole) {
+    if (!callerRoles || callerRoles.length === 0) {
       return new Response(JSON.stringify({ error: 'Forbidden: not an advisor' }), {
         status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    const callerIsAdmin = callerRoles.some((r: any) => r.role === 'admin');
 
     const { action, email } = await req.json();
 
@@ -225,15 +226,21 @@ Deno.serve(async (req) => {
       });
 
     } else if (action === 'list') {
-      // List all advisors + pending invitations
+      // List all advisors + admins + pending invitations
       const { data: roles } = await adminSupabase
         .from('user_roles')
-        .select('user_id')
-        .eq('role', 'advisor');
+        .select('user_id, role')
+        .in('role', ['advisor', 'admin']);
 
-      const advisorUserIds = (roles || []).map((r: any) => r.user_id);
+      // Deduplicate user_ids and track admin status
+      const userRoleMap = new Map<string, Set<string>>();
+      for (const r of (roles || [])) {
+        if (!userRoleMap.has(r.user_id)) userRoleMap.set(r.user_id, new Set());
+        userRoleMap.get(r.user_id)!.add(r.role);
+      }
+      const advisorUserIds = [...userRoleMap.keys()];
       
-      const advisors: { email: string; name: string; status: 'active' }[] = [];
+      const advisors: { email: string; name: string; status: 'active'; isAdmin: boolean }[] = [];
       if (advisorUserIds.length > 0) {
         const { data: profiles } = await adminSupabase
           .from('profiles')
@@ -249,6 +256,7 @@ Deno.serve(async (req) => {
             email: userEmailMap.get(uid) || 'ukendt',
             name: profile?.full_name || '',
             status: 'active',
+            isAdmin: userRoleMap.get(uid)?.has('admin') || false,
           });
         }
       }
@@ -263,12 +271,60 @@ Deno.serve(async (req) => {
         email: p.email,
         name: '',
         status: 'pending' as const,
+        isAdmin: false,
         created_at: p.created_at,
       }));
 
       return new Response(JSON.stringify({ advisors: [...advisors, ...pendingList] }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+
+    } else if (action === 'toggle-admin') {
+      // Only admins can toggle admin role
+      if (!callerIsAdmin) {
+        return new Response(JSON.stringify({ error: 'Kun admins kan ændre admin-rollen' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const allUsersForAdmin = await listAllUsers(adminSupabase);
+      const targetUser = allUsersForAdmin.find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+
+      if (!targetUser) {
+        return new Response(JSON.stringify({ error: 'Bruger ikke fundet' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check current admin status
+      const { data: existingAdmin } = await adminSupabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', targetUser.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (existingAdmin) {
+        // Remove admin role
+        await adminSupabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', targetUser.id)
+          .eq('role', 'admin');
+
+        return new Response(JSON.stringify({ success: true, isAdmin: false, message: `Admin-rolle fjernet fra ${normalizedEmail}` }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } else {
+        // Add admin role
+        await adminSupabase
+          .from('user_roles')
+          .insert({ user_id: targetUser.id, role: 'admin' });
+
+        return new Response(JSON.stringify({ success: true, isAdmin: true, message: `${normalizedEmail} er nu admin` }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), {

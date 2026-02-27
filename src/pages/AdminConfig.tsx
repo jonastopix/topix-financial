@@ -14,6 +14,7 @@ import {
   Type,
   RotateCcw,
   ShieldCheck,
+  Shield,
   UserPlus,
   Trash2,
   Send,
@@ -41,6 +42,7 @@ interface AdvisorEntry {
   email: string;
   name: string;
   status: 'active' | 'pending';
+  isAdmin: boolean;
   created_at?: string;
 }
 
@@ -173,6 +175,19 @@ const AdminConfig = () => {
     }
   };
 
+  const handleToggleAdmin = async (email: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "toggle-admin", email },
+      });
+      if (error) throw error;
+      toast.success(data.message);
+      loadAdvisors();
+    } catch (err: any) {
+      toast.error(err.message || "Kunne ikke ændre admin-rolle");
+    }
+  };
+
   if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleSave = async (
@@ -272,8 +287,27 @@ const AdminConfig = () => {
                         <Send className="h-2.5 w-2.5" /> Afventer signup
                       </span>
                     )}
+                    {a.status === 'active' && a.isAdmin && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold">
+                        <Shield className="h-2.5 w-2.5" /> Admin
+                      </span>
+                    )}
                   </div>
-                  <AlertDialog>
+                  <div className="flex items-center gap-1">
+                    {a.status === 'active' && (
+                      <button
+                        onClick={() => handleToggleAdmin(a.email)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          a.isAdmin
+                            ? "text-primary hover:text-primary/70 hover:bg-primary/10"
+                            : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        }`}
+                        title={a.isAdmin ? "Fjern admin-rolle" : "Gør til admin"}
+                      >
+                        <Shield className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button
                         className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
@@ -300,6 +334,7 @@ const AdminConfig = () => {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  </div>
                 </div>
               ))}
             </div>
