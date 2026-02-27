@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Navigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +19,7 @@ interface CompanyData {
 }
 
 const Settings = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdvisor, isAdmin } = useAuth();
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -227,6 +228,9 @@ const Settings = () => {
       </div>
     </div>
   );
+
+  // Advisors (non-admin) cannot access settings
+  if (isAdvisor && !isAdmin) return <Navigate to="/" replace />;
 
   return (
     <AppLayout>
