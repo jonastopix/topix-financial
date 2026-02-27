@@ -39,6 +39,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AdvisorRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, isAdvisor } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (!isAdvisor) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isAdmin } = useAuth();
   if (loading) return null;
@@ -75,8 +83,8 @@ const App = () => (
               <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
               
-              <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
-              <Route path="/members/:userId" element={<ProtectedRoute><MemberDetail /></ProtectedRoute>} />
+              <Route path="/members" element={<AdvisorRoute><Members /></AdvisorRoute>} />
+              <Route path="/members/:userId" element={<AdvisorRoute><MemberDetail /></AdvisorRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
