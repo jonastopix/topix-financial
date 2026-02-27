@@ -233,8 +233,8 @@ const Dashboard = () => {
   return (
     <AppLayout>
       {/* Greeting */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight">
           {getGreeting()}, {firstName}
         </h1>
       </div>
@@ -242,7 +242,7 @@ const Dashboard = () => {
       {/* KPI cards – Seneste måned */}
       <div className="mb-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned{kpiData.period ? ` · ${kpiData.period}` : ""}</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <KPICard
             title="Omsætning"
             value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
@@ -296,7 +296,7 @@ const Dashboard = () => {
       {/* KPI cards – År til dato */}
       <div className="mb-6">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato (kalenderår) {kpiData.period ? `· ${kpiData.period?.match(/\d{4}/)?.[0] ?? ""}` : ""}</p>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
           <KPICard
             title="YTD Omsætning"
             value={kpiData.ytdRevenue != null ? formatDKK(kpiData.ytdRevenue) : "—"}
@@ -342,7 +342,7 @@ const Dashboard = () => {
       </div>
 
       {/* 4-column snapshot grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <DashboardHandouts />
         <BudgetOverview />
         <DashboardMilestones />
