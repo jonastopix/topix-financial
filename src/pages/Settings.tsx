@@ -311,8 +311,7 @@ const Settings = () => {
     </div>
   );
 
-  // Advisors (non-admin) cannot access settings
-  if (isAdvisor && !isAdmin) return <Navigate to="/" replace />;
+  // Settings is available to all authenticated users (personal profile settings)
 
   return (
     <AppLayout>
