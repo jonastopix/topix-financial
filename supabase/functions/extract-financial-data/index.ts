@@ -211,25 +211,31 @@ KRITISK: Læs kolonnenumrene fra VENSTRE mod HØJRE. Forveksl IKKE "Perioden Fak
 ═══════════════════════════════════════════════════
 TRIN 3: REGNSKABSKONVENTIONER FOR FORTEGN
 ═══════════════════════════════════════════════════
-I dansk bogføring (specielt e-conomic resultatopgørelser):
+I dansk bogføring er fortegnskonventionen FORSKELLIG for saldobalancer og resultatopgørelser:
 
 A) OMSÆTNING/INDTÆGTER:
-   - Kan stå som POSITIVE tal (normalt i resultatopgørelser)
-   - Kan stå som NEGATIVE tal (kreditside i saldobalancer)
+   - I resultatopgørelser: typisk POSITIVE tal
+   - I saldobalancer: typisk NEGATIVE tal (kreditside)
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
 B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger):
-   - Står typisk som NEGATIVE tal (f.eks. -11.205,94)
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
-C) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
-   - ⚠️ AFLÆS NØJAGTIGT SOM DET STÅR I DOKUMENTET — ÆNDR ALDRIG FORTEGNET! ⚠️
-   - Negativt tal = UNDERSKUD/TAB (f.eks. -26.169,42 betyder tab)
-   - Positivt tal = OVERSKUD (f.eks. 400.831,54 betyder overskud)
-   - Find linjen "Resultat før skat" eller "Resultat for skat" og aflæs PRÆCIST fra den korrekte kolonne
-   - Inkluderer ALLE omkostninger inkl. finansieringsomkostninger (renter, gebyrer mv.)
+C) DÆKNINGSBIDRAG:
+   - I resultatopgørelser: POSITIVT = overskud, NEGATIVT = underskud
+   - I saldobalancer: fortegnet er OMVENDT! NEGATIVT = overskud (kredit > debet), POSITIVT = underskud
+   - → RETURNÉR I "NORMAL" KONVENTION: positivt = overskud, negativt = underskud
+   - Dvs. for saldobalancer: VEND fortegnet (gang med -1)
 
-D) BALANCE-POSTER (aktiver, passiver, egenkapital, bank):
+D) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
+   - ⚠️ VIGTIGT: Fortegnskonventionen AFHÆNGER AF RAPPORTTYPEN ⚠️
+   - I RESULTATOPGØRELSER: Aflæs DIREKTE — negativt = tab, positivt = overskud
+   - I SALDOBALANCER: Fortegnet er OMVENDT! Negativt = OVERSKUD (kredit > debet), positivt = TAB
+   - → RETURNÉR I "NORMAL" KONVENTION: positivt = overskud, negativt = tab
+   - Dvs. for saldobalancer: VEND fortegnet (gang med -1)
+   - Find linjen "Resultat før skat" eller "Resultat for skat" og aflæs PRÆCIST fra den korrekte kolonne
+
+E) BALANCE-POSTER (aktiver, passiver, egenkapital, bank):
    - Aktiver: returnér som positive
    - Passiver/gæld: returnér som positive (selvom de står som negative/kredit)
    - Bank/likvider: returnér som positive (selvom de står som negative/kredit)
@@ -501,10 +507,21 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
+      // Dækningsbidrag should also be absolute-valued for consistency
+      for (const field of ['daekningsbidrag', 'daekningsbidrag_aar']) {
+        if (kf[field] != null) {
+          // For saldobalancer: AI should already have flipped the sign per prompt instructions.
+          // But as a safety net, we can log the value for debugging.
+          console.log(`  ${field}: ${kf[field]}`);
+        }
+      }
+
       // NEVER touch resultat fields — their sign is meaningful
-      console.log(`[CFO Extraction] Period: ${extractedData.report_period}`);
+      // The AI prompt now instructs to flip signs for saldobalancer before returning.
+      console.log(`[CFO Extraction] Period: ${extractedData.report_period}, Type: ${extractedData.report_type}`);
       console.log(`  omsaetning: ${kf.omsaetning}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
       console.log(`  omsaetning_aar: ${kf.omsaetning_aar}, resultat_foer_skat_aar: ${kf.resultat_foer_skat_aar}`);
+      console.log(`  daekningsbidrag: ${kf.daekningsbidrag}, daekningsbidrag_aar: ${kf.daekningsbidrag_aar}`);
     }
 
     // === Post-processing: Server-side validation ===
