@@ -21,7 +21,19 @@ import {
   TrendingDown,
   Minus,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
@@ -78,6 +90,8 @@ const Reports = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [programStart, setProgramStart] = useState<Date | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; report: DbReport | null }>({ open: false, report: null });
+  const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -221,6 +235,42 @@ const Reports = () => {
   const handlePipelineComplete = () => {
     setRefreshKey((k) => k + 1);
   };
+
+  const handleDeleteReport = useCallback(async (report: DbReport) => {
+    setDeleting(true);
+    try {
+      // 1. Delete AI-generated milestones linked to this report
+      await supabase.from("milestones").delete().eq("source_report", report.id);
+
+      // 2. Delete chat messages referencing this report
+      await (supabase.from("messages").delete() as any)
+        .eq("context_type", "report")
+        .eq("context_id", report.id);
+
+      // 3. Delete advisor notifications referencing this report
+      await supabase.from("advisor_notifications").delete()
+        .eq("reference_type", "report")
+        .eq("reference_id", report.id);
+
+      // 4. Delete file from storage
+      if (report.file_path && report.file_path.includes("/")) {
+        await supabase.storage.from("financial-documents").remove([report.file_path]);
+      }
+
+      // 5. Delete the report itself
+      const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
+      if (error) throw error;
+
+      setDbReports((prev) => prev.filter((r) => r.id !== report.id));
+      setDeleteDialog({ open: false, report: null });
+      toast({ title: "Rapport slettet", description: `${report.report_period || report.file_name} og alle tilknyttede data er fjernet.` });
+    } catch (err) {
+      console.error("Delete error:", err);
+      toast({ title: "Fejl", description: "Kunne ikke slette rapporten. Prøv igen.", variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  }, []);
 
   const handleViewOriginalFile = async (report: DbReport) => {
     if (!report.file_path) return;
@@ -546,16 +596,30 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-5">
-                    {/* Original file download button */}
-                    {report.file_path && report.file_path.includes("/") && (
+                    {/* Actions row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {report.file_path && report.file_path.includes("/") && (
+                          <button
+                            onClick={() => handleViewOriginalFile(report)}
+                            className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Se original fil
+                          </button>
+                        )}
+                      </div>
                       <button
-                        onClick={() => handleViewOriginalFile(report)}
-                        className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteDialog({ open: true, report });
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/70 hover:text-destructive transition-colors"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Se original fil ({report.file_name})
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Slet rapport
                       </button>
-                    )}
+                    </div>
                     {report.extracted_data && (
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -656,6 +720,36 @@ const Reports = () => {
           })}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !deleting && setDeleteDialog({ open, report: open ? deleteDialog.report : null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Slet rapport?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{deleteDialog.report?.report_period || deleteDialog.report?.file_name}</strong> og alle tilknyttede data slettes permanent:
+              <ul className="mt-2 space-y-1 text-xs list-disc list-inside">
+                <li>AI-analyse og nøgletal</li>
+                <li>AI-genererede milestones</li>
+                <li>Chat-beskeder og kommentarer</li>
+                <li>Rådgivernotifikationer</li>
+                <li>Original fil fra storage</li>
+              </ul>
+              <p className="mt-2 font-medium">Denne handling kan ikke fortrydes.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuller</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteDialog.report && handleDeleteReport(deleteDialog.report)}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Sletter..." : "Slet permanent"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
