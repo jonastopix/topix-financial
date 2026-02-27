@@ -287,9 +287,14 @@ const AdminConfig = () => {
                         <Send className="h-2.5 w-2.5" /> Afventer signup
                       </span>
                     )}
-                    {a.status === 'active' && a.isAdmin && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold">
-                        <Shield className="h-2.5 w-2.5" /> Admin
+                    {a.status === 'active' && (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                        a.isAdmin
+                          ? "bg-primary/15 text-primary"
+                          : "bg-secondary text-muted-foreground"
+                      }`}>
+                        {a.isAdmin ? <Shield className="h-2.5 w-2.5" /> : <ShieldCheck className="h-2.5 w-2.5" />}
+                        {a.isAdmin ? "Admin" : "Advisor"}
                       </span>
                     )}
                   </div>
