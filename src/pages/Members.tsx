@@ -144,6 +144,7 @@ const Members = () => {
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
   const [bulkDone, setBulkDone] = useState(false);
+  const [selectedBulkIds, setSelectedBulkIds] = useState<Set<string>>(new Set());
 
   const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
@@ -469,6 +470,7 @@ const Members = () => {
       }));
 
     setUninvitedCompanies(uninvited);
+    setSelectedBulkIds(new Set(uninvited.filter((c) => c.contact_email.trim()).map((c) => c.id)));
     setBulkSending(false);
     setBulkProgress(0);
     setBulkErrors([]);
@@ -478,7 +480,7 @@ const Members = () => {
 
   const executeBulkInvite = async () => {
     if (!user) return;
-    const toSend = uninvitedCompanies.filter((c) => c.contact_email.trim());
+    const toSend = uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id));
     setBulkSending(true);
     setBulkProgress(0);
     setBulkErrors([]);
@@ -1094,13 +1096,14 @@ const Members = () => {
             <AlertDialogDescription asChild>
               <div className="space-y-3 pt-2">
                 {(() => {
-                  const readyCount = uninvitedCompanies.filter((c) => c.contact_email.trim()).length;
+                  const selectedCount = uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length;
+                  const totalWithEmail = uninvitedCompanies.filter((c) => c.contact_email.trim()).length;
                   const missingCount = uninvitedCompanies.filter((c) => !c.contact_email.trim()).length;
                   return (
                     <div className="flex gap-3 flex-wrap">
                       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground bg-secondary px-3 py-1.5 rounded-lg">
                         <CheckCircle2 className="h-4 w-4 text-primary" />
-                        {readyCount} klar til invitation
+                        {selectedCount} af {totalWithEmail} valgt
                       </span>
                       {missingCount > 0 && (
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg">
@@ -1114,11 +1117,11 @@ const Members = () => {
 
                 {bulkSending || bulkDone ? (
                   <div className="space-y-3">
-                    <Progress value={(bulkProgress / uninvitedCompanies.filter((c) => c.contact_email.trim()).length) * 100} className="h-3" />
+                    <Progress value={(bulkProgress / Math.max(uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length, 1)) * 100} className="h-3" />
                     <p className="text-sm text-muted-foreground">
                       {bulkDone
-                        ? `Færdig — ${bulkProgress - bulkErrors.length} af ${uninvitedCompanies.filter((c) => c.contact_email.trim()).length} sendt`
-                        : `Sender ${bulkProgress} af ${uninvitedCompanies.filter((c) => c.contact_email.trim()).length}...`
+                        ? `Færdig — ${bulkProgress - bulkErrors.length} af ${uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length} sendt`
+                        : `Sender ${bulkProgress} af ${uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length}...`
                       }
                     </p>
                     {bulkErrors.length > 0 && (
@@ -1135,27 +1138,65 @@ const Members = () => {
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-secondary">
                         <tr className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          <th className="px-3 py-2 w-8">
+                            <input
+                              type="checkbox"
+                              checked={uninvitedCompanies.filter((c) => c.contact_email.trim()).every((c) => selectedBulkIds.has(c.id))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedBulkIds(new Set(uninvitedCompanies.filter((c) => c.contact_email.trim()).map((c) => c.id)));
+                                } else {
+                                  setSelectedBulkIds(new Set());
+                                }
+                              }}
+                              className="rounded border-border"
+                            />
+                          </th>
                           <th className="px-3 py-2">Virksomhed</th>
                           <th className="px-3 py-2">Kontaktperson</th>
                           <th className="px-3 py-2">E-mail</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/50">
-                        {uninvitedCompanies.map((c) => (
-                          <tr key={c.id} className={!c.contact_email.trim() ? "opacity-50" : ""}>
-                            <td className="px-3 py-2 text-foreground font-medium">{c.name}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{c.contact_person || "–"}</td>
-                            <td className="px-3 py-2">
-                              {c.contact_email.trim() ? (
-                                <span className="text-foreground">{c.contact_email}</span>
-                              ) : (
-                                <span className="text-destructive text-xs flex items-center gap-1">
-                                  <AlertTriangle className="h-3 w-3" /> Mangler e-mail
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                        {uninvitedCompanies.map((c) => {
+                          const hasEmail = c.contact_email.trim();
+                          return (
+                            <tr
+                              key={c.id}
+                              className={`${!hasEmail ? "opacity-50" : "cursor-pointer hover:bg-secondary/30"}`}
+                              onClick={() => {
+                                if (!hasEmail) return;
+                                setSelectedBulkIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(c.id)) next.delete(c.id);
+                                  else next.add(c.id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedBulkIds.has(c.id)}
+                                  disabled={!hasEmail}
+                                  onChange={() => {}}
+                                  className="rounded border-border"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-foreground font-medium">{c.name}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{c.contact_person || "–"}</td>
+                              <td className="px-3 py-2">
+                                {hasEmail ? (
+                                  <span className="text-foreground">{c.contact_email}</span>
+                                ) : (
+                                  <span className="text-destructive text-xs flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" /> Mangler e-mail
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </ScrollArea>
@@ -1171,7 +1212,7 @@ const Members = () => {
                 <AlertDialogCancel disabled={bulkSending}>Annuller</AlertDialogCancel>
                 <Button
                   onClick={executeBulkInvite}
-                  disabled={bulkSending || uninvitedCompanies.filter((c) => c.contact_email.trim()).length === 0}
+                  disabled={bulkSending || uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length === 0}
                   className="gap-2"
                 >
                   {bulkSending ? (
@@ -1179,7 +1220,7 @@ const Members = () => {
                   ) : (
                     <Send className="h-4 w-4" />
                   )}
-                  Send {uninvitedCompanies.filter((c) => c.contact_email.trim()).length} invitationer
+                  Send {uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length} invitationer
                 </Button>
               </>
             )}
