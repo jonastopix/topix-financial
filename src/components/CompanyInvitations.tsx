@@ -124,7 +124,7 @@ const CompanyInvitations = () => {
           body: {
             email: pendingEmail,
             company_name: companyName || "Din virksomhed",
-            signup_url: `${window.location.origin}/auth`,
+            signup_url: `https://topix.lovable.app/auth`,
           },
         });
       } catch (emailErr) {
@@ -153,7 +153,7 @@ const CompanyInvitations = () => {
     return null;
   }
 
-  const signupUrl = `${window.location.origin}/auth`;
+  const signupUrl = `https://topix.lovable.app/auth`;
 
   return (
     <div className="space-y-6">
