@@ -25,7 +25,22 @@ import {
   UserPlus,
   X,
   Activity,
+  Send,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -115,6 +130,20 @@ const Members = () => {
   const [deleting, setDeleting] = useState(false);
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  // Bulk invite state
+  interface UninvitedCompany {
+    id: string;
+    name: string;
+    contact_person: string;
+    contact_email: string;
+  }
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [uninvitedCompanies, setUninvitedCompanies] = useState<UninvitedCompany[]>([]);
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [bulkDone, setBulkDone] = useState(false);
 
   const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
@@ -419,6 +448,90 @@ const Members = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "da"));
   }, [companies]);
 
+  const openBulkInviteDialog = async () => {
+    // Get all existing invitations (pending/accepted)
+    const { data: existingInvitations } = await supabase
+      .from("company_invitations" as any)
+      .select("company_id, status")
+      .in("status", ["pending", "accepted"]) as any;
+
+    const invitedCompanyIds = new Set(
+      (existingInvitations || []).map((i: any) => i.company_id)
+    );
+
+    const uninvited = companies
+      .filter((c) => !invitedCompanyIds.has(c.id))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        contact_person: c.contact_person,
+        contact_email: c.contact_email,
+      }));
+
+    setUninvitedCompanies(uninvited);
+    setBulkSending(false);
+    setBulkProgress(0);
+    setBulkErrors([]);
+    setBulkDone(false);
+    setBulkDialogOpen(true);
+  };
+
+  const executeBulkInvite = async () => {
+    if (!user) return;
+    const toSend = uninvitedCompanies.filter((c) => c.contact_email.trim());
+    setBulkSending(true);
+    setBulkProgress(0);
+    setBulkErrors([]);
+    setBulkDone(false);
+
+    const errors: string[] = [];
+
+    for (let i = 0; i < toSend.length; i++) {
+      const c = toSend[i];
+      try {
+        const { error } = await supabase
+          .from("company_invitations" as any)
+          .insert({
+            company_id: c.id,
+            email: c.contact_email.trim().toLowerCase(),
+            invited_by: user.id,
+          } as any);
+
+        if (error) throw error;
+
+        // Send email
+        try {
+          await supabase.functions.invoke("send-invitation-email", {
+            body: {
+              email: c.contact_email.trim().toLowerCase(),
+              company_name: c.name,
+              signup_url: `${window.location.origin}/auth`,
+            },
+          });
+        } catch (emailErr) {
+          console.error("Email error for", c.contact_email, emailErr);
+        }
+      } catch (err: any) {
+        errors.push(`${c.name}: ${err.message || "Ukendt fejl"}`);
+      }
+      setBulkProgress(i + 1);
+    }
+
+    setBulkErrors(errors);
+    setBulkDone(true);
+    setBulkSending(false);
+
+    const successCount = toSend.length - errors.length;
+    if (successCount > 0) {
+      toast.success(`${successCount} invitationer sendt`);
+    }
+    if (errors.length > 0) {
+      toast.error(`${errors.length} invitationer fejlede`);
+    }
+
+    setReloadTrigger((t) => t + 1);
+  };
+
   const filtered = useMemo(() => {
     let result = companies;
 
@@ -492,14 +605,24 @@ const Members = () => {
 
   return (
     <AppLayout>
-      <div className="mb-6">
-        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-primary" />
-          Virksomheder
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Oversigt over alle virksomheder i forløbet
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-primary" />
+            Virksomheder
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Oversigt over alle virksomheder i forløbet
+          </p>
+        </div>
+        <Button
+          onClick={openBulkInviteDialog}
+          className="gap-2"
+          variant="outline"
+        >
+          <Send className="h-4 w-4" />
+          Invitér alle
+        </Button>
       </div>
 
       {/* Stats */}
@@ -959,6 +1082,110 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk invite dialog */}
+      <AlertDialog open={bulkDialogOpen} onOpenChange={(open) => { if (!bulkSending) setBulkDialogOpen(open); }}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-primary" />
+              Bulk-invitation
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                {(() => {
+                  const readyCount = uninvitedCompanies.filter((c) => c.contact_email.trim()).length;
+                  const missingCount = uninvitedCompanies.filter((c) => !c.contact_email.trim()).length;
+                  return (
+                    <div className="flex gap-3 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground bg-secondary px-3 py-1.5 rounded-lg">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        {readyCount} klar til invitation
+                      </span>
+                      {missingCount > 0 && (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg">
+                          <AlertTriangle className="h-4 w-4" />
+                          {missingCount} mangler e-mail
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {bulkSending || bulkDone ? (
+                  <div className="space-y-3">
+                    <Progress value={(bulkProgress / uninvitedCompanies.filter((c) => c.contact_email.trim()).length) * 100} className="h-3" />
+                    <p className="text-sm text-muted-foreground">
+                      {bulkDone
+                        ? `Færdig — ${bulkProgress - bulkErrors.length} af ${uninvitedCompanies.filter((c) => c.contact_email.trim()).length} sendt`
+                        : `Sender ${bulkProgress} af ${uninvitedCompanies.filter((c) => c.contact_email.trim()).length}...`
+                      }
+                    </p>
+                    {bulkErrors.length > 0 && (
+                      <div className="bg-destructive/10 rounded-lg p-3 space-y-1">
+                        <p className="text-xs font-semibold text-destructive">{bulkErrors.length} fejlede:</p>
+                        {bulkErrors.map((e, i) => (
+                          <p key={i} className="text-xs text-destructive">{e}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[340px] rounded-lg border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-secondary">
+                        <tr className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          <th className="px-3 py-2">Virksomhed</th>
+                          <th className="px-3 py-2">Kontaktperson</th>
+                          <th className="px-3 py-2">E-mail</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/50">
+                        {uninvitedCompanies.map((c) => (
+                          <tr key={c.id} className={!c.contact_email.trim() ? "opacity-50" : ""}>
+                            <td className="px-3 py-2 text-foreground font-medium">{c.name}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{c.contact_person || "–"}</td>
+                            <td className="px-3 py-2">
+                              {c.contact_email.trim() ? (
+                                <span className="text-foreground">{c.contact_email}</span>
+                              ) : (
+                                <span className="text-destructive text-xs flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" /> Mangler e-mail
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </ScrollArea>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {bulkDone ? (
+              <Button onClick={() => setBulkDialogOpen(false)}>Luk</Button>
+            ) : (
+              <>
+                <AlertDialogCancel disabled={bulkSending}>Annuller</AlertDialogCancel>
+                <Button
+                  onClick={executeBulkInvite}
+                  disabled={bulkSending || uninvitedCompanies.filter((c) => c.contact_email.trim()).length === 0}
+                  className="gap-2"
+                >
+                  {bulkSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  Send {uninvitedCompanies.filter((c) => c.contact_email.trim()).length} invitationer
+                </Button>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
