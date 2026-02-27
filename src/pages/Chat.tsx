@@ -2,11 +2,13 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { createAdvisorNotification } from "@/lib/advisorNotifications";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
-  BarChart3, Pin, Maximize2, Minimize2,
+  BarChart3, Pin, Maximize2, Minimize2, ArrowLeft,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
@@ -29,6 +31,7 @@ interface ConversationWithProfile {
   id: string;
   member_id: string;
   last_message_at: string;
+  company_id?: string;
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   unreadCount: number;
   lastMessage?: string;
@@ -78,12 +81,14 @@ const Chat = () => {
   const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
+  const isMobile = useIsMobile();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Default to "ubesvaret" for advisors
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
   const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
@@ -91,6 +96,15 @@ const Chat = () => {
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Mobile: track whether we're showing the message panel
+  const [showMessages, setShowMessages] = useState(false);
+
+  // Set default filter for advisors on mount
+  useEffect(() => {
+    if (isAdvisor) {
+      setActiveFilter("ubesvaret");
+    }
+  }, [isAdvisor]);
 
   // Escape key to exit fullscreen
   useEffect(() => {
@@ -107,6 +121,7 @@ const Chat = () => {
   useEffect(() => {
     setActiveConvId(null);
     setMessages([]);
+    setShowMessages(false);
   }, [companyId]);
 
   // Load conversations — batch fetch, no N+1
@@ -114,7 +129,6 @@ const Chat = () => {
     if (!user) return;
 
     const loadConversations = async () => {
-      // Build conversations query — filter by company_id when viewing as a specific company
       let convsQuery = supabase
         .from("conversations")
         .select("*")
@@ -123,7 +137,6 @@ const Chat = () => {
       if (isCompanyOverride && companyId) {
         convsQuery = convsQuery.eq("company_id", companyId);
       } else if (!isAdvisor) {
-        // Members only see their own conversation (RLS handles this, but be explicit)
         convsQuery = convsQuery.eq("member_id", user.id);
       }
 
@@ -135,7 +148,6 @@ const Chat = () => {
           .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, pinned_at")
           .order("created_at", { ascending: false })
           .limit(500),
-        // Fetch recent reports (last 7 days) for advisor view
         isAdvisor
           ? supabase
               .from("financial_reports")
@@ -150,7 +162,6 @@ const Chat = () => {
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
 
-      // Recent reports by user
       const reportsByUser = new Map<string, { name: string }>();
       recentReports.forEach((r: any) => {
         if (!reportsByUser.has(r.user_id)) {
@@ -158,7 +169,6 @@ const Chat = () => {
         }
       });
 
-      // Group messages by conversation for quick lookup
       const msgsByConv = new Map<string, typeof allMessages>();
       allMessages.forEach((m) => {
         const arr = msgsByConv.get(m.conversation_id) || [];
@@ -181,6 +191,7 @@ const Chat = () => {
           id: c.id,
           member_id: c.member_id,
           last_message_at: c.last_message_at || c.created_at,
+          company_id: c.company_id || undefined,
           profile: profile
             ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
             : null,
@@ -199,6 +210,7 @@ const Chat = () => {
       // Auto-select for members
       if (!isAdvisor && enriched.length > 0 && !activeConvId) {
         setActiveConvId(enriched[0].id);
+        if (isMobile) setShowMessages(true);
       }
     };
 
@@ -209,7 +221,6 @@ const Chat = () => {
   const filteredConversations = useMemo(() => {
     let result = conversations;
 
-    // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -219,7 +230,6 @@ const Chat = () => {
       );
     }
 
-    // Filter
     switch (activeFilter) {
       case "ubesvaret":
         result = result.filter((c) => c.unreadCount > 0);
@@ -235,7 +245,6 @@ const Chat = () => {
     return result;
   }, [conversations, searchQuery, activeFilter]);
 
-  // Stats for filter badges
   const stats = useMemo(() => ({
     total: conversations.length,
     unanswered: conversations.filter((c) => c.unreadCount > 0).length,
@@ -321,7 +330,7 @@ const Chat = () => {
     if (!trimmed || !activeConvId || !user) return;
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      return; // UI already prevents this, but guard anyway
+      return;
     }
 
     setSending(true);
@@ -339,12 +348,23 @@ const Chat = () => {
 
     if (!error) {
       setNewMessage("");
-      // Don't reset selectedTopic — user might send multiple messages on same topic
+
+      // If sender is a member (not advisor), create advisor notification
+      if (!isAdvisor && activeConv) {
+        createAdvisorNotification({
+          type: "new_message" as any,
+          title: `Ny besked fra ${activeConv.profile?.full_name || "Medlem"}`,
+          body: trimmed.length > 100 ? trimmed.slice(0, 100) + "…" : trimmed,
+          companyId: activeConv.company_id || companyId || "",
+          memberId: user.id,
+          referenceId: activeConvId,
+          referenceType: "chat" as any,
+        });
+      }
     }
     setSending(false);
   };
 
-  // Filter messages by topic
   const filteredMessages = useMemo(() => {
     if (topicFilter === "all") return messages;
     if (topicFilter === "sparring") return messages.filter(m => !m.context_type);
@@ -384,9 +404,23 @@ const Chat = () => {
     }
   };
 
+  // Mobile: select conversation and show message panel
+  const handleSelectConversation = (convId: string) => {
+    setActiveConvId(convId);
+    if (isMobile) setShowMessages(true);
+  };
+
+  const handleBackToList = () => {
+    setShowMessages(false);
+  };
+
+  // Determine what to show on mobile
+  const showSidebar = isAdvisor && (!isMobile || !showMessages);
+  const showMessageArea = !isMobile || showMessages || !isAdvisor;
+
   return (
     <AppLayout fullscreen={isFullscreen}>
-      {isAdvisor && !isFullscreen && (
+      {isAdvisor && !isFullscreen && !isMobile && (
         <div className="mb-2">
           <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
@@ -395,12 +429,19 @@ const Chat = () => {
         </div>
       )}
 
-      <div className={`glass-card overflow-hidden flex ${isFullscreen ? "h-screen" : "rounded-xl"}`} style={isFullscreen ? undefined : { height: isAdvisor ? "calc(100vh - 120px)" : "calc(100vh - 80px)" }}>
+      <div className={`glass-card overflow-hidden flex ${isFullscreen ? "h-screen" : "rounded-xl"}`} style={isFullscreen ? undefined : { height: isAdvisor ? (isMobile ? "calc(100vh - 70px)" : "calc(100vh - 120px)") : "calc(100vh - 80px)" }}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
-        {isAdvisor && (
-          <div className="w-[340px] border-r border-border flex flex-col bg-card/50">
+        {showSidebar && (
+          <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
             {/* Quick stats */}
             <div className="px-4 pt-4 pb-3 border-b border-border space-y-3">
+              {/* Mobile header */}
+              {isMobile && (
+                <h1 className="text-lg font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+                  <MessageCircle className="h-4.5 w-4.5 text-primary" />
+                  Indbakke
+                </h1>
+              )}
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center py-2 rounded-lg bg-secondary/50">
                   <p className={`text-lg font-display font-bold ${stats.unanswered > 0 ? "text-destructive" : "text-foreground"}`}>
@@ -427,12 +468,12 @@ const Chat = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Søg medlem eller virksomhed..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               </div>
 
               {/* Filter tabs */}
-              <div className="flex gap-1">
+              <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {FILTER_CONFIG.map((f) => {
                   const count = f.key === "alle" ? stats.total
                     : f.key === "ubesvaret" ? stats.unanswered
@@ -443,7 +484,7 @@ const Chat = () => {
                     <button
                       key={f.key}
                       onClick={() => setActiveFilter(f.key)}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
                         isActive
                           ? "bg-primary text-primary-foreground"
                           : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
@@ -468,8 +509,16 @@ const Chat = () => {
                 <div className="p-6 text-center">
                   <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
-                    {searchQuery ? "Ingen resultater" : "Ingen samtaler i denne kategori"}
+                    {searchQuery ? "Ingen resultater" : activeFilter === "ubesvaret" ? "Ingen ubesvarede beskeder 🎉" : "Ingen samtaler i denne kategori"}
                   </p>
+                  {activeFilter === "ubesvaret" && !searchQuery && (
+                    <button
+                      onClick={() => setActiveFilter("alle")}
+                      className="text-xs text-primary hover:underline mt-2"
+                    >
+                      Vis alle samtaler
+                    </button>
+                  )}
                 </div>
               ) : (
                 filteredConversations.map((conv) => {
@@ -480,7 +529,7 @@ const Chat = () => {
                   return (
                     <button
                       key={conv.id}
-                      onClick={() => setActiveConvId(conv.id)}
+                      onClick={() => handleSelectConversation(conv.id)}
                       className={`w-full text-left px-4 py-3.5 border-b border-border/30 transition-colors ${
                         isActive
                           ? "bg-primary/5 border-l-2 border-l-primary"
@@ -507,7 +556,6 @@ const Chat = () => {
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          {/* Name + time row */}
                           <div className="flex items-center justify-between mb-0.5">
                             <p className={`text-sm truncate ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
                               {conv.profile?.full_name || "Ukendt"}
@@ -517,12 +565,10 @@ const Chat = () => {
                             </span>
                           </div>
 
-                          {/* Company */}
                           {conv.profile?.company_name && (
                             <p className="text-[10px] text-muted-foreground mb-1">{conv.profile.company_name}</p>
                           )}
 
-                          {/* Last message preview */}
                           {conv.lastMessage && (
                             <p className={`text-xs truncate ${isUnread ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>
                               {lastMsgIsFromMember ? "" : "Du: "}
@@ -530,7 +576,6 @@ const Chat = () => {
                             </p>
                           )}
 
-                          {/* Tags row */}
                           <div className="flex items-center gap-1.5 mt-1.5">
                             {conv.hasRecentReport && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
@@ -560,301 +605,313 @@ const Chat = () => {
         )}
 
         {/* ─── MESSAGE AREA ─── */}
-        <div className="flex-1 flex flex-col">
-          {activeConvId ? (
-            <>
-              {/* Header — only show for advisor view */}
-              {isAdvisor ? (
-                <div className="px-5 py-3 border-b border-border flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-xs font-semibold text-primary">
-                      {getInitialsLocal(activeConv?.profile?.full_name || "??")}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">
-                      {activeConv?.profile?.full_name || "Ukendt"}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {activeConv?.profile?.company_name || ""}
-                    </p>
-                  </div>
-                  {activeConv?.hasRecentReport && (
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-                      <FileText className="h-3 w-3" />
-                      Ny rapport indsendt
-                    </span>
-                  )}
-                </div>
-              ) : null}
-
-              {/* Topic filter chips + fullscreen toggle */}
-              <div className="px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto">
-                {isFullscreen && (
-                  <button
-                    onClick={() => setIsFullscreen(false)}
-                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors mr-1"
-                    title="Afslut fuldskærm"
-                  >
-                    <Minimize2 className="h-4 w-4" />
-                  </button>
-                )}
-                {TOPIC_CONFIG.map(t => {
-                  const isActive = topicFilter === t.key;
-                  const TopicIcon = t.icon;
-                  const count = t.key === "all" ? messages.length
-                    : t.key === "sparring" ? messages.filter(m => !m.context_type).length
-                    : messages.filter(m => m.context_type === t.key).length;
-                  return (
-                    <button
-                      key={t.key}
-                      onClick={() => setTopicFilter(t.key)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
-                        isActive
-                          ? `${t.color} ring-1 ring-current/20`
-                          : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                      }`}
-                    >
-                      <TopicIcon className="h-3 w-3" />
-                      {t.label}
-                      {count > 0 && t.key !== "all" && (
-                        <span className="text-[9px] opacity-70">{count}</span>
-                      )}
-                    </button>
-                  );
-                })}
-                {!isFullscreen && (
-                  <button
-                    onClick={() => setIsFullscreen(true)}
-                    className="ml-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
-                    title="Fuldskærm"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Pinned messages – compact bar */}
-              {pinnedMessages.length > 0 && (
-                <div className="flex items-center gap-2 px-4 py-1.5 border-b border-primary/10 bg-primary/5">
-                  <Pin className="h-3 w-3 text-primary flex-shrink-0" />
-                  <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-1.5" style={{ scrollbarWidth: "none" }}>
-                    {pinnedMessages.map(pm => (
+        {showMessageArea && (
+          <div className="flex-1 flex flex-col">
+            {activeConvId ? (
+              <>
+                {/* Header */}
+                {isAdvisor ? (
+                  <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
+                    {/* Mobile back button */}
+                    {isMobile && (
                       <button
-                        key={pm.id}
-                        onClick={() => scrollToMessage(pm.id)}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-primary/10 transition-colors group flex-shrink-0 max-w-[200px]"
+                        onClick={handleBackToList}
+                        className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                       >
-                        <span className="text-[10px] text-foreground truncate">{pm.content}</span>
-                        <span
-                          onClick={(e) => { e.stopPropagation(); togglePin(pm); }}
-                          className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity text-xs leading-none"
-                          title="Fjern pin"
-                        >
-                          ×
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{pinnedMessages.length} pinned</span>
-                </div>
-              )}
-
-              {/* Messages */}
-              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
-                {filteredMessages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      {topicFilter !== "all" ? "Ingen beskeder med dette emne" : "Ingen beskeder endnu"}
-                    </p>
-                    {topicFilter !== "all" && (
-                      <button
-                        onClick={() => setTopicFilter("all")}
-                        className="text-xs text-primary hover:underline mt-2"
-                      >
-                        Vis alle beskeder
+                        <ArrowLeft className="h-5 w-5" />
                       </button>
                     )}
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-xs font-semibold text-primary">
+                        {getInitialsLocal(activeConv?.profile?.full_name || "??")}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {activeConv?.profile?.full_name || "Ukendt"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {activeConv?.profile?.company_name || ""}
+                      </p>
+                    </div>
+                    {activeConv?.hasRecentReport && !isMobile && (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                        <FileText className="h-3 w-3" />
+                        Ny rapport indsendt
+                      </span>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* Topic filter chips + fullscreen toggle */}
+                <div className="px-3 md:px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                  {isFullscreen && (
+                    <button
+                      onClick={() => setIsFullscreen(false)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors mr-1"
+                      title="Afslut fuldskærm"
+                    >
+                      <Minimize2 className="h-4 w-4" />
+                    </button>
+                  )}
+                  {TOPIC_CONFIG.map(t => {
+                    const isActive = topicFilter === t.key;
+                    const TopicIcon = t.icon;
+                    const count = t.key === "all" ? messages.length
+                      : t.key === "sparring" ? messages.filter(m => !m.context_type).length
+                      : messages.filter(m => m.context_type === t.key).length;
+                    return (
+                      <button
+                        key={t.key}
+                        onClick={() => setTopicFilter(t.key)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
+                          isActive
+                            ? `${t.color} ring-1 ring-current/20`
+                            : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <TopicIcon className="h-3 w-3" />
+                        {isMobile ? "" : t.label}
+                        {count > 0 && t.key !== "all" && (
+                          <span className="text-[9px] opacity-70">{count}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {!isFullscreen && !isMobile && (
+                    <button
+                      onClick={() => setIsFullscreen(true)}
+                      className="ml-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
+                      title="Fuldskærm"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Pinned messages – compact bar */}
+                {pinnedMessages.length > 0 && (
+                  <div className="flex items-center gap-2 px-4 py-1.5 border-b border-primary/10 bg-primary/5">
+                    <Pin className="h-3 w-3 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-1.5" style={{ scrollbarWidth: "none" }}>
+                      {pinnedMessages.map(pm => (
+                        <button
+                          key={pm.id}
+                          onClick={() => scrollToMessage(pm.id)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-primary/10 transition-colors group flex-shrink-0 max-w-[200px]"
+                        >
+                          <span className="text-[10px] text-foreground truncate">{pm.content}</span>
+                          <span
+                            onClick={(e) => { e.stopPropagation(); togglePin(pm); }}
+                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity text-xs leading-none"
+                            title="Fjern pin"
+                          >
+                            ×
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0">{pinnedMessages.length} pinned</span>
                   </div>
                 )}
-                {filteredMessages.map((msg) => {
-                  const isMine = msg.sender_id === user?.id;
-                  const isSystem = msg.message_type === "system" || msg.message_type === "ai";
-                  const contextType = msg.context_type;
-                  const contextMeta = msg.context_meta;
-                  const topicInfo = contextType ? TOPIC_COLORS[contextType] : null;
 
-                  if (isSystem) {
+                {/* Messages */}
+                <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-5">
+                  {filteredMessages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                      <p className="text-sm text-muted-foreground">
+                        {topicFilter !== "all" ? "Ingen beskeder med dette emne" : "Ingen beskeder endnu"}
+                      </p>
+                      {topicFilter !== "all" && (
+                        <button
+                          onClick={() => setTopicFilter("all")}
+                          className="text-xs text-primary hover:underline mt-2"
+                        >
+                          Vis alle beskeder
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {filteredMessages.map((msg) => {
+                    const isMine = msg.sender_id === user?.id;
+                    const isSystem = msg.message_type === "system" || msg.message_type === "ai";
+                    const contextType = msg.context_type;
+                    const contextMeta = msg.context_meta;
+                    const topicInfo = contextType ? TOPIC_COLORS[contextType] : null;
+
+                    if (isSystem) {
+                      return (
+                        <div
+                          key={msg.id}
+                          ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
+                          className="flex justify-center group/msg transition-all duration-300"
+                        >
+                          <div
+                            className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
+                          >
+                            <button
+                              onClick={() => togglePin(msg)}
+                              className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
+                                msg.pinned_at
+                                  ? "text-primary opacity-100 hover:text-destructive"
+                                  : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                              }`}
+                              title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                            >
+                              <Pin className="h-3.5 w-3.5" />
+                            </button>
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Sparkles className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                                {msg.message_type === "ai" ? "AI Analyse" : "System"}
+                              </span>
+                              {topicInfo && (
+                                <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
+                                  <topicInfo.icon className="h-2.5 w-2.5" />
+                                  {topicInfo.label}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground">
+                                {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            {contextType && contextMeta?.title && (
+                              <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
+                                {contextType === "report" && <FileText className="h-3 w-3" />}
+                                {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                {String(contextMeta.title)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={msg.id}
                         ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                        className="flex justify-center group/msg transition-all duration-300"
+                        className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} transition-all duration-300`}
                       >
                         <div
-                          className={`max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-5 py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
+                          className={`${isMobile ? "max-w-[85%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
                         >
-                          <button
-                            onClick={() => togglePin(msg)}
-                            className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
-                              msg.pinned_at
-                                ? "text-primary opacity-100 hover:text-destructive"
-                                : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                            }`}
-                            title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
-                          >
-                            <Pin className="h-3.5 w-3.5" />
-                          </button>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Sparkles className="h-3.5 w-3.5 text-primary" />
-                            <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                              {msg.message_type === "ai" ? "AI Analyse" : "System"}
-                            </span>
-                            {topicInfo && (
-                              <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
-                                <topicInfo.icon className="h-2.5 w-2.5" />
-                                {topicInfo.label}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-muted-foreground">
-                              {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                          {contextType && contextMeta?.title && (
-                            <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
-                              {contextType === "report" && <FileText className="h-3 w-3" />}
-                              {contextType === "milestone" && <Target className="h-3 w-3" />}
-                              {String(contextMeta.title)}
+                          {!isMobile && (
+                            <button
+                              onClick={() => togglePin(msg)}
+                              className={`absolute ${isMine ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1 rounded-md transition-all z-10 ${
+                                msg.pinned_at
+                                  ? "text-primary opacity-100 hover:text-destructive"
+                                  : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                              }`}
+                              title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                            >
+                              <Pin className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {topicInfo && (
+                            <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                              <topicInfo.icon className="h-2.5 w-2.5" />
+                              {topicInfo.label}
                             </div>
                           )}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={msg.id}
-                      ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                      className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} transition-all duration-300`}
-                    >
-                      <div
-                        className={`max-w-[70%] relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
-                      >
-                        <button
-                          onClick={() => togglePin(msg)}
-                          className={`absolute ${isMine ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1 rounded-md transition-all z-10 ${
-                            msg.pinned_at
-                              ? "text-primary opacity-100 hover:text-destructive"
-                              : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                          }`}
-                          title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
-                        >
-                          <Pin className="h-3.5 w-3.5" />
-                        </button>
-                        {/* Topic tag above message */}
-                        {topicInfo && (
-                          <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
-                            <topicInfo.icon className="h-2.5 w-2.5" />
-                            {topicInfo.label}
-                          </div>
-                        )}
-                        {contextType && contextMeta?.title && (
-                          <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
-                            isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
-                          }`}>
-                            {contextType === "report" && <FileText className="h-3 w-3" />}
-                            {contextType === "milestone" && <Target className="h-3 w-3" />}
-                            Re: {String(contextMeta.title)}
-                          </div>
-                        )}
-                        <div
-                          className={`rounded-2xl px-4 py-2.5 ${
-                            isMine
-                              ? "bg-primary text-primary-foreground rounded-br-md"
-                              : "bg-secondary text-foreground rounded-bl-md"
-                          } ${contextType ? "rounded-tl-md" : ""}`}
-                        >
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                          <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
-                            <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-                              {format(new Date(msg.created_at), "HH:mm", { locale: da })}
-                            </span>
-                            {isMine && msg.read_at && (
-                              <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
-                            )}
+                          {contextType && contextMeta?.title && (
+                            <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
+                              isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                            }`}>
+                              {contextType === "report" && <FileText className="h-3 w-3" />}
+                              {contextType === "milestone" && <Target className="h-3 w-3" />}
+                              Re: {String(contextMeta.title)}
+                            </div>
+                          )}
+                          <div
+                            className={`rounded-2xl px-4 py-2.5 ${
+                              isMine
+                                ? "bg-primary text-primary-foreground rounded-br-md"
+                                : "bg-secondary text-foreground rounded-bl-md"
+                            } ${contextType ? "rounded-tl-md" : ""}`}
+                          >
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
+                              <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                                {format(new Date(msg.created_at), "HH:mm", { locale: da })}
+                              </span>
+                              {isMine && msg.read_at && (
+                                <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input with topic selector */}
-              <form onSubmit={handleSend} className="p-4 border-t border-border">
-                {/* Topic selector row */}
-                <div className="flex items-center gap-1.5 mb-2">
-                  <span className="text-[10px] text-muted-foreground mr-1">Emne:</span>
-                  {MESSAGE_TOPICS.map(t => {
-                    const isActive = selectedTopic === t.key;
-                    const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
-                    return (
-                      <button
-                        key={t.key ?? "general"}
-                        type="button"
-                        onClick={() => setSelectedTopic(t.key)}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
-                          isActive
-                            ? topicInfo
-                              ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
-                              : "bg-muted text-foreground ring-1 ring-border"
-                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                        }`}
-                      >
-                        {t.label}
-                      </button>
                     );
                   })}
+                  <div ref={messagesEndRef} />
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <input
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
-                      maxLength={MAX_MESSAGE_LENGTH}
-                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
-                      className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      disabled={sending}
-                    />
-                    {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
-                      <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] ${newMessage.length >= MAX_MESSAGE_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
-                        {newMessage.length}/{MAX_MESSAGE_LENGTH}
-                      </span>
-                    )}
+
+                {/* Input with topic selector */}
+                <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-border">
+                  {/* Topic selector row */}
+                  <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                    <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
+                    {MESSAGE_TOPICS.map(t => {
+                      const isActive = selectedTopic === t.key;
+                      const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
+                      return (
+                        <button
+                          key={t.key ?? "general"}
+                          type="button"
+                          onClick={() => setSelectedTopic(t.key)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
+                            isActive
+                              ? topicInfo
+                                ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
+                                : "bg-muted text-foreground ring-1 ring-border"
+                              : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <button
-                    type="submit"
-                    disabled={sending || !newMessage.trim()}
-                    className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+                        maxLength={MAX_MESSAGE_LENGTH}
+                        placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                        className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        disabled={sending}
+                      />
+                      {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] ${newMessage.length >= MAX_MESSAGE_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
+                          {newMessage.length}/{MAX_MESSAGE_LENGTH}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={sending || !newMessage.trim()}
+                      className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-center">
+                <div>
+                  <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
                 </div>
-              </form>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-center">
-              <div>
-                <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </AppLayout>
   );

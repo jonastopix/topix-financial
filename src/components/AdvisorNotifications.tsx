@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bell, FileText, ClipboardList, Check, ExternalLink } from "lucide-react";
+import { Bell, FileText, ClipboardList, MessageCircle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -83,6 +83,8 @@ const AdvisorNotifications = () => {
       navigate("/reports");
     } else if (n.reference_type === "handout") {
       navigate("/handouts");
+    } else if (n.reference_type === "chat") {
+      navigate("/chat");
     }
     setOpen(false);
   };
@@ -91,7 +93,6 @@ const AdvisorNotifications = () => {
     e.stopPropagation();
     if (!n.reference_id || n.reference_type !== "report") return;
 
-    // Get the report's file_path from DB
     const { data: report } = await supabase
       .from("financial_reports")
       .select("file_path, file_name")
@@ -110,6 +111,15 @@ const AdvisorNotifications = () => {
   };
 
   if (!isAdvisor) return null;
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "report_uploaded": return { Icon: FileText, bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400" };
+      case "new_message": return { Icon: MessageCircle, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
+      case "handout_completed": return { Icon: ClipboardList, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
+      default: return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
+    }
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -154,8 +164,8 @@ const AdvisorNotifications = () => {
             </div>
           ) : (
             notifications.map((n) => {
+              const { Icon, bg, text } = getNotificationIcon(n.type);
               const isReport = n.type === "report_uploaded";
-              const Icon = isReport ? FileText : ClipboardList;
               return (
                 <button
                   key={n.id}
@@ -164,8 +174,8 @@ const AdvisorNotifications = () => {
                     !n.read_at ? "bg-primary/5" : ""
                   }`}
                 >
-                  <div className={`p-1.5 rounded-lg mt-0.5 flex-shrink-0 ${isReport ? "bg-blue-500/10" : "bg-emerald-500/10"}`}>
-                    <Icon className={`h-3.5 w-3.5 ${isReport ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"}`} />
+                  <div className={`p-1.5 rounded-lg mt-0.5 flex-shrink-0 ${bg}`}>
+                    <Icon className={`h-3.5 w-3.5 ${text}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs font-medium text-foreground ${!n.read_at ? "font-semibold" : ""}`}>

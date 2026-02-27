@@ -1,13 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
 interface NotifyOptions {
-  type: "report_uploaded" | "handout_completed";
+  type: "report_uploaded" | "handout_completed" | "new_message";
   title: string;
   body?: string;
   companyId: string;
   memberId: string;
   referenceId?: string;
-  referenceType?: "report" | "handout";
+  referenceType?: "report" | "handout" | "chat";
 }
 
 /**
