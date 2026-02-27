@@ -396,7 +396,7 @@ const Members = () => {
         body: {
           email: company.invitationEmail,
           company_name: company.name,
-          signup_url: "https://topix.lovable.app/auth",
+          signup_url: "https://topix.lovable.app/auth?mode=signup",
         },
       });
       if (error) throw error;
@@ -601,7 +601,7 @@ const Members = () => {
             body: {
               email: c.contact_email.trim().toLowerCase(),
               company_name: c.name,
-              signup_url: `https://topix.lovable.app/auth`,
+              signup_url: `https://topix.lovable.app/auth?mode=signup`,
             },
           });
         } catch (emailErr) {
