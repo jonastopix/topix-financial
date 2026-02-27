@@ -94,6 +94,9 @@ interface CompanyData {
   circleInfo: CircleInfo[];
   logo_url: string | null;
   pendingInvitationEmail: string | null;
+  invitationStatus: 'pending' | 'accepted' | null;
+  invitationAcceptedAt: string | null;
+  invitationEmail: string | null;
 }
 
 type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
@@ -160,7 +163,7 @@ const Members = () => {
       supabase.from("financial_reports").select("company_id, id, extracted_data"),
       supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
-      supabase.from("company_invitations").select("company_id, email, status").eq("status", "pending"),
+      supabase.from("company_invitations").select("company_id, email, status, accepted_at"),
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
@@ -172,10 +175,20 @@ const Members = () => {
     const allCircleActivity = (circleActivityRes.data || []) as any[];
     const allInvitations = (invitationsRes.data || []) as any[];
 
-    // Pending invitation email by company
+    // Invitation info by company (most recent invitation per company)
     const pendingInvitationByCompany = new Map<string, string>();
-    allInvitations.forEach((inv: any) => {
-      if (!pendingInvitationByCompany.has(inv.company_id)) {
+    const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
+    // Sort so most recent comes last (overwrites)
+    const sortedInvitations = [...allInvitations].sort((a: any, b: any) => 
+      new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+    sortedInvitations.forEach((inv: any) => {
+      invitationInfoByCompany.set(inv.company_id, { 
+        status: inv.status, 
+        email: inv.email, 
+        accepted_at: inv.accepted_at 
+      });
+      if (inv.status === 'pending') {
         pendingInvitationByCompany.set(inv.company_id, inv.email);
       }
     });
@@ -317,6 +330,9 @@ const Members = () => {
           circleInfo: circleInfoByCompany.get(c.id) || [],
           logo_url: c.logo_url || null,
           pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
+          invitationStatus: (invitationInfoByCompany.get(c.id)?.status as 'pending' | 'accepted') || null,
+          invitationAcceptedAt: invitationInfoByCompany.get(c.id)?.accepted_at || null,
+          invitationEmail: invitationInfoByCompany.get(c.id)?.email || null,
         };
       });
 
@@ -785,7 +801,19 @@ const Members = () => {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <span className="text-sm font-medium text-foreground truncate block">{c.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-foreground truncate block">{c.name}</span>
+                            {c.invitationStatus === 'pending' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
+                                <Send className="h-2.5 w-2.5" /> Afventer
+                              </span>
+                            )}
+                            {c.invitationStatus === 'accepted' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 dark:text-green-400 text-[10px] font-semibold whitespace-nowrap">
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             {c.cvr_number && (
                               <span className="text-[10px] text-muted-foreground">CVR: {c.cvr_number}</span>
@@ -850,6 +878,16 @@ const Members = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                          {c.invitationStatus === 'pending' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
+                              <Send className="h-2.5 w-2.5" /> Afventer
+                            </span>
+                          )}
+                          {c.invitationStatus === 'accepted' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 dark:text-green-400 text-[10px] font-semibold whitespace-nowrap">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
+                            </span>
+                          )}
                           {c.unreadCount > 0 && (
                             <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
                               {c.unreadCount}
@@ -901,6 +939,27 @@ const Members = () => {
                             <p className="text-xs text-primary flex items-center gap-1 mt-2 font-medium">
                               <Hash className="h-3 w-3" /> {c.slack_channel}
                             </p>
+                          )}
+                          {/* Invitation status */}
+                          {c.invitationStatus && (
+                            <div className="mt-3 pt-2 border-t border-border/30">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                                <Send className="h-3 w-3" /> Invitation
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {c.invitationEmail}
+                              </p>
+                              {c.invitationStatus === 'accepted' && c.invitationAcceptedAt && (
+                                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                  Accepteret {format(new Date(c.invitationAcceptedAt), "d. MMM yyyy", { locale: da })}
+                                </p>
+                              )}
+                              {c.invitationStatus === 'pending' && (
+                                <p className="text-xs text-chart-warning mt-0.5">
+                                  Afventer svar
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
 
