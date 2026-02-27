@@ -22,6 +22,7 @@ import {
   Send,
   ClipboardList,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -39,6 +40,7 @@ interface MemberProfile {
   company_name: string | null;
   avatar_url: string | null;
   created_at: string;
+  email: string | null;
 }
 
 interface CompanyContext {
@@ -131,6 +133,7 @@ const MemberDetail = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId || !isAdvisor) return;
@@ -138,7 +141,7 @@ const MemberDetail = () => {
     const load = async () => {
       setLoading(true);
       const [profileRes, reportsRes, budgetsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
-        supabase.from("profiles").select("full_name, company_name, avatar_url, created_at").eq("user_id", userId).single(),
+        supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
         supabase.from("financial_reports").select("*").eq("user_id", userId).order("uploaded_at", { ascending: false }),
         supabase.from("budget_targets").select("*").eq("user_id", userId).order("category"),
         supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
@@ -156,8 +159,26 @@ const MemberDetail = () => {
       const cm = cmData as any;
       if (cm?.companies) {
         setCompanyCtx(cm.companies as CompanyContext);
+        // Fetch invited email for this company
+        const { data: invData } = await supabase
+          .from("company_invitations")
+          .select("email")
+          .eq("company_id", cm.company_id)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        if (invData && invData.length > 0) {
+          // Find an invitation that matches this user (by accepted status or just pick the first)
+          const profileEmail = profileRes.data?.email?.toLowerCase()?.trim();
+          const diffInvite = invData.find(
+            (inv: any) => inv.email?.toLowerCase()?.trim() !== profileEmail
+          );
+          setInvitedEmail(diffInvite?.email || null);
+        } else {
+          setInvitedEmail(null);
+        }
       } else {
         setCompanyCtx(null);
+        setInvitedEmail(null);
       }
 
       const reportsList = reportsRes.data || [];
@@ -382,6 +403,19 @@ const MemberDetail = () => {
                   <Calendar className="h-3.5 w-3.5" /> Medlem siden {format(new Date(profile.created_at), "MMMM yyyy", { locale: da })}
                 </span>
               </div>
+              {/* Email display */}
+              {profile.email && (
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Mail className="h-3.5 w-3.5" /> {profile.email}
+                  </span>
+                  {invitedEmail && (
+                    <Badge variant="outline" className="text-xs font-normal">
+                      Inviteret som: {invitedEmail}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <div className="text-center px-4">
