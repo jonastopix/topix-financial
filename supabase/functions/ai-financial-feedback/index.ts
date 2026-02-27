@@ -34,12 +34,27 @@ serve(async (req) => {
       });
     }
 
-    let { financialData, historicalData, companyContext } = await req.json();
+    let { financialData, historicalData, companyContext, companyId } = await req.json();
 
-    // If companyContext doesn't include industry, try to look it up
-    if (companyContext?.name && !companyContext.industry) {
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const sb = createClient(supabaseUrl, serviceKey);
+    // Look up the real company name + industry from the database (prevents AI hallucination)
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const sb = createClient(supabaseUrl, serviceKey);
+
+    if (companyId) {
+      const { data: company } = await sb
+        .from("companies")
+        .select("name, industry")
+        .eq("id", companyId)
+        .maybeSingle();
+      if (company) {
+        companyContext = {
+          ...companyContext,
+          name: company.name || companyContext?.name,
+          industry: company.industry || companyContext?.industry,
+        };
+        console.log(`[ai-financial-feedback] Using DB company name: "${company.name}"`);
+      }
+    } else if (companyContext?.name && !companyContext.industry) {
       const { data: company } = await sb
         .from("companies")
         .select("industry")

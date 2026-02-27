@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { createAdvisorNotification } from "@/lib/advisorNotifications";
 import * as pdfjsLib from "pdfjs-dist";
+import * as XLSX from "xlsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,12 +87,12 @@ async function extractPdfPageImages(file: File): Promise<string[]> {
 }
 
 async function extractTextFromFile(file: File): Promise<{ text: string; pageImages?: string[] }> {
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+  const ext = file.name.toLowerCase().split(".").pop();
+
+  // ── PDF: vision-based extraction ──
+  if (file.type === "application/pdf" || ext === "pdf") {
     try {
-      // Render pages as images for vision-based extraction
       const pageImages = await extractPdfPageImages(file);
-      
-      // Also extract text as fallback context
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const textParts: string[] = [];
@@ -108,7 +109,6 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
         textParts.push(`--- Side ${i} ---\n${pageText}`);
       }
       const fullText = textParts.join("\n\n").slice(0, 15000);
-      
       return { text: fullText, pageImages };
     } catch (err) {
       console.error("PDF image extraction failed, falling back to text:", err);
@@ -120,7 +120,27 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
       return { text: readable.slice(0, 15000) };
     }
   }
-  
+
+  // ── Excel (.xlsx / .xls): parse with SheetJS to readable CSV ──
+  if (ext === "xlsx" || ext === "xls") {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const csvParts: string[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { FS: "\t", RS: "\n" });
+        csvParts.push(`=== Sheet: ${sheetName} ===\n${csv}`);
+      }
+      const fullText = csvParts.join("\n\n");
+      console.log(`Excel parsed via SheetJS: ${fullText.length} chars, first 200: ${fullText.slice(0, 200)}`);
+      return { text: fullText.slice(0, 30000) };
+    } catch (err) {
+      console.error("SheetJS parse failed, falling back to raw text:", err);
+    }
+  }
+
+  // ── CSV / other text files ──
   const text = await file.text();
   return { text: text.slice(0, 30000) };
 }
@@ -304,9 +324,10 @@ const FileUploadZone = ({
               financialData: extractedData.key_figures,
               historicalData: historicalData.length > 0 ? historicalData : undefined,
               companyContext: {
-                name: extractedData.company_name,
+                name: companyName || extractedData.company_name,
                 cvr: extractedData.cvr_number,
               },
+              companyId: companyId,
             },
           }
         );
