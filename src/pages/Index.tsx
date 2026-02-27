@@ -237,9 +237,6 @@ const Dashboard = () => {
         <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
           {getGreeting()}, {firstName}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1.5">
-          Dit finansielle overblik for <span className="font-medium text-foreground/70">{currentMonthName} {currentYear}</span>
-        </p>
       </div>
 
       {/* KPI cards – Seneste måned */}
