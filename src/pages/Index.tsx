@@ -242,7 +242,7 @@ const Dashboard = () => {
       {/* KPI cards – Seneste måned */}
       <div className="mb-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned{kpiData.period ? ` · ${kpiData.period}` : ""}</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 overflow-hidden">
           <KPICard
             title="Omsætning"
             value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
@@ -296,7 +296,7 @@ const Dashboard = () => {
       {/* KPI cards – År til dato */}
       <div className="mb-6">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato (kalenderår) {kpiData.period ? `· ${kpiData.period?.match(/\d{4}/)?.[0] ?? ""}` : ""}</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 overflow-hidden">
           <KPICard
             title="YTD Omsætning"
             value={kpiData.ytdRevenue != null ? formatDKK(kpiData.ytdRevenue) : "—"}

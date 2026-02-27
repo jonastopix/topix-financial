@@ -58,7 +58,7 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
 
   const ChangeBadge = ({ label, dir }: { label: string; dir: "up" | "down" | "neutral" }) => (
     <span
-      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+      className={`inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.5 rounded-full truncate ${
         dir === "up"
           ? "bg-primary/10 text-primary"
           : dir === "down"
@@ -117,11 +117,11 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
           )}
         </div>
         <p className="text-xl sm:text-2xl font-display font-bold text-foreground tracking-tight leading-none">{value}</p>
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-2 sm:mt-3 min-w-0">
           {change && <ChangeBadge label={change} dir={trend} />}
           {secondaryChange && <ChangeBadge label={secondaryChange} dir={secondaryTrend} />}
           {budgetLabel && (
-            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+            <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-medium px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${
               budgetFavorable
                 ? "bg-primary/5 text-primary border-primary/20"
                 : "bg-destructive/5 text-destructive border-destructive/20"
