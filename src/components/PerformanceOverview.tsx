@@ -9,6 +9,17 @@ interface PerformanceOverviewProps {
   reports: ReportData[];
 }
 
+/** Sum all operating expenses from key figures */
+function totalExpenses(kf: Record<string, number>): number {
+  return Math.abs(kf.loenninger ?? 0) +
+    Math.abs(kf.direkte_omkostninger ?? 0) +
+    Math.abs(kf.marketing ?? 0) +
+    Math.abs(kf.lokaler ?? 0) +
+    Math.abs(kf.admin ?? 0) +
+    Math.abs(kf.tech_software ?? 0) +
+    Math.abs(kf.afskrivninger ?? 0);
+}
+
 const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const data = useMemo(() => {
     return reports
@@ -24,9 +35,15 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const prev = data.length >= 2 ? data[data.length - 2] : null;
   const kf = latest.kf;
 
+  // YTD: Sum individual months for the current year (don't trust _aar from AI)
+  const [latestYear] = latest.key.split("-");
+  const currentYearReports = data.filter(r => r.key.startsWith(latestYear));
+  const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
+  const ytdResult = currentYearReports.reduce((s, r) => s + (r.kf.resultat_foer_skat ?? 0), 0);
+
   const metrics = [
-    { label: "YTD Omsætning", value: formatDKK(kf.omsaetning_aar), change: null, large: true },
-    { label: "YTD Resultat", value: formatDKK(kf.resultat_foer_skat_aar), change: null, large: true },
+    { label: "YTD Omsætning", value: formatDKK(ytdRevenue), change: null, large: true },
+    { label: "YTD Resultat", value: formatDKK(ytdResult), change: null, large: true },
     {
       label: "Seneste Måned", value: latest.period,
       sub: formatDKK(kf.omsaetning),
