@@ -263,55 +263,52 @@ const MemberDetail = () => {
     }
 
     const obj = data as Record<string, Json | undefined>;
-    const entries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined);
-
-    if (entries.length === 0) {
-      return <p className="text-sm text-muted-foreground">Ingen ekstraheret data</p>;
+    const kf = obj.key_figures as Record<string, number> | undefined;
+    if (!kf) {
+      return <p className="text-sm text-muted-foreground">Ingen nøgletal fundet</p>;
     }
 
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {entries.map(([key, value]) => {
-          // Handle nested objects
-          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-            const nested = value as Record<string, Json | undefined>;
-            return (
-              <div key={key} className="rounded-lg border border-border/50 bg-background/50 p-3 col-span-full">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  {key.replace(/_/g, " ")}
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {Object.entries(nested)
-                    .filter(([, v]) => v !== null && v !== undefined)
-                    .map(([subKey, subVal]) => (
-                      <div key={subKey}>
-                        <p className="text-[10px] text-muted-foreground">{subKey.replace(/_/g, " ")}</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {typeof subVal === "number"
-                            ? subVal.toLocaleString("da-DK")
-                            : String(subVal)}
-                        </p>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            );
-          }
+    const formatVal = (n?: number) =>
+      n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
 
-          // Simple values
-          return (
-            <div key={key} className="rounded-lg border border-border/50 bg-background/50 p-3">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                {key.replace(/_/g, " ")}
-              </p>
-              <p className="text-sm font-medium text-foreground mt-0.5">
-                {typeof value === "number"
-                  ? value.toLocaleString("da-DK")
-                  : String(value)}
-              </p>
+    const stats = [
+      { label: "Omsætning", value: formatVal(kf.omsaetning), sub: kf.omsaetning_aar != null ? `Å.t.d: ${formatVal(kf.omsaetning_aar)}` : undefined },
+      { label: "Dækningsbidrag", value: formatVal(kf.daekningsbidrag), sub: kf.daekningsbidrag_aar != null ? `Å.t.d: ${formatVal(kf.daekningsbidrag_aar)}` : undefined },
+      { label: "Lønninger", value: formatVal(kf.loenninger) },
+      { label: "Resultat f. skat", value: formatVal(kf.resultat_foer_skat), sub: kf.resultat_foer_skat_aar != null ? `Å.t.d: ${formatVal(kf.resultat_foer_skat_aar)}` : undefined },
+      kf.aktiver_i_alt != null ? { label: "Aktiver", value: formatVal(kf.aktiver_i_alt) } : null,
+      kf.egenkapital != null ? { label: "Egenkapital", value: formatVal(kf.egenkapital) } : null,
+      kf.bank_balance != null ? { label: "Bank", value: formatVal(kf.bank_balance) } : null,
+      kf.debitorer != null ? { label: "Debitorer", value: formatVal(kf.debitorer) } : null,
+      kf.kreditorer != null ? { label: "Kreditorer", value: formatVal(kf.kreditorer) } : null,
+    ].filter(Boolean) as { label: string; value: string; sub?: string }[];
+
+    // Show validation status if available
+    const validation = obj.validation as Record<string, any> | undefined;
+    const validationStatus = validation?.status as string | undefined;
+
+    return (
+      <div>
+        {validationStatus && (
+          <div className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full mb-3 ${
+            validationStatus === "PASS" ? "bg-primary/10 text-primary" :
+            validationStatus === "FAIL" ? "bg-destructive/10 text-destructive" :
+            "bg-chart-warning/10 text-chart-warning"
+          }`}>
+            {validationStatus === "PASS" ? "✓ Validering bestået" :
+             validationStatus === "FAIL" ? "⚠ Valideringsfejl" :
+             "? Usikker validering"}
+          </div>
+        )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {stats.map((s) => (
+            <div key={s.label} className="rounded-lg border border-border/50 bg-background/50 p-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
+              <p className="text-sm font-medium text-foreground mt-0.5">{s.value}</p>
+              {s.sub && <p className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</p>}
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     );
   };
