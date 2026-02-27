@@ -1,0 +1,1 @@
+ALTER TABLE public.conversations DROP CONSTRAINT IF EXISTS conversations_member_id_key;
