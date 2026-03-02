@@ -148,6 +148,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // Log login event
+          if (_event === "SIGNED_IN") {
+            supabase.rpc("log_user_login" as any).then(({ error }) => {
+              if (error) console.error("Failed to log login:", error);
+            });
+          }
           setTimeout(async () => {
             await fetchUserData(session.user.id);
             setLoading(false);

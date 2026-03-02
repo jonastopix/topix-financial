@@ -58,6 +58,11 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+interface LoginInfo {
+  lastLogin: string | null;
+  loginCount: number;
+}
+
 interface CompanyMember {
   user_id: string;
   full_name: string;
@@ -101,6 +106,7 @@ interface CompanyData {
   invitationStatus: 'pending' | 'accepted' | null;
   invitationAcceptedAt: string | null;
   invitationEmail: string | null;
+  loginInfo: Map<string, LoginInfo>;
 }
 
 type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
@@ -174,7 +180,7 @@ const Members = () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes] = await Promise.all([
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes] = await Promise.all([
       supabase.from("companies" as any).select("*"),
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
@@ -183,6 +189,7 @@ const Members = () => {
       supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
       supabase.from("company_invitations").select("company_id, email, status, accepted_at"),
+      supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
@@ -193,6 +200,21 @@ const Members = () => {
     const allCircleMembers = (circleMembersRes.data || []) as any[];
     const allCircleActivity = (circleActivityRes.data || []) as any[];
     const allInvitations = (invitationsRes.data || []) as any[];
+    const allLoginLogs = (loginLogsRes.data || []) as any[];
+
+    // Build login info map: user_id -> { lastLogin, loginCount }
+    const loginInfoMap = new Map<string, LoginInfo>();
+    allLoginLogs.forEach((log: any) => {
+      const existing = loginInfoMap.get(log.user_id);
+      if (!existing) {
+        loginInfoMap.set(log.user_id, { lastLogin: log.logged_in_at, loginCount: 1 });
+      } else {
+        existing.loginCount++;
+        if (log.logged_in_at > (existing.lastLogin || "")) {
+          existing.lastLogin = log.logged_in_at;
+        }
+      }
+    });
 
     // Invitation info by company (most recent invitation per company)
     const pendingInvitationByCompany = new Map<string, string>();
@@ -352,6 +374,15 @@ const Members = () => {
           invitationStatus: (invitationInfoByCompany.get(c.id)?.status as 'pending' | 'accepted') || null,
           invitationAcceptedAt: invitationInfoByCompany.get(c.id)?.accepted_at || null,
           invitationEmail: invitationInfoByCompany.get(c.id)?.email || null,
+          loginInfo: (() => {
+            const companyLoginInfo = new Map<string, LoginInfo>();
+            const companyMembers = membersByCompany.get(c.id) || [];
+            companyMembers.forEach((m) => {
+              const info = loginInfoMap.get(m.user_id);
+              if (info) companyLoginInfo.set(m.user_id, info);
+            });
+            return companyLoginInfo;
+          })(),
         };
       });
 
@@ -1196,8 +1227,21 @@ const Members = () => {
                                     <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                                       <span className="text-[8px] font-semibold text-primary">{getInitials(m.full_name)}</span>
                                     </div>
-                                    <span className="text-xs text-foreground truncate">{m.full_name}</span>
-                                    <span className="text-[10px] text-muted-foreground ml-auto">{m.role}</span>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-xs text-foreground truncate block">{m.full_name}</span>
+                                      {(() => {
+                                        const login = c.loginInfo.get(m.user_id);
+                                        if (!login) return (
+                                          <span className="text-[10px] text-muted-foreground">Aldrig logget ind</span>
+                                        );
+                                        return (
+                                          <span className="text-[10px] text-muted-foreground">
+                                            Sidst aktiv {format(new Date(login.lastLogin!), "d. MMM", { locale: da })} · {login.loginCount} logins
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+                                    <span className="text-[10px] text-muted-foreground">{m.role}</span>
                                   </Link>
                                   {m.role !== 'owner' && (
                                     <AlertDialog>
