@@ -1,29 +1,54 @@
 
 
-## Gensend invitationer til alle pending medlemmer
+## Login-aktivitetslog for brugere
 
-### Baggrund
-Der er 30 virksomhedsinvitationer med status "pending". Signup-linket i koden peger allerede korrekt til `https://topix.lovable.app/auth?mode=signup`. Vi tilføjer en knap så rådgivere kan gensende invitations-emails til alle pending modtagere med et enkelt klik.
+### Hvad bygges
+En ny `user_login_log` tabel der automatisk registrerer hvert login, samt en visning i Members-siden hvor advisors kan se hvornår brugere sidst loggede ind og hvor ofte.
 
-### Teknisk ændring
+### Database-ændringer
 
-**Fil: `src/pages/Members.tsx`**
+**Ny tabel: `user_login_log`**
+- `id` (uuid, PK)
+- `user_id` (uuid, NOT NULL)
+- `logged_in_at` (timestamptz, default now())
+- `ip_address` (text, nullable) -- for fremtidig brug
+- RLS: Advisors kan SELECT alle rækker. Ingen INSERT/UPDATE/DELETE via klient.
 
-Tilføj en "Gensend alle pending invitationer"-knap i advisor-sektionen (ved siden af eksisterende bulk-funktioner):
+**Ny database-funktion: `log_user_login`**
+- SECURITY DEFINER funktion der indsætter en række i `user_login_log`
+- Kaldes fra klienten via `supabase.rpc('log_user_login')` ved login
 
-1. Knappen henter alle `company_invitations` med `status = 'pending'` inklusiv virksomhedsnavne
-2. Viser en bekræftelsesdialog med antal modtagere
-3. Ved bekræftelse: itererer sekventielt gennem listen og kalder `send-invitation-email` edge function for hver med:
-   - `email`: invitationens email
-   - `company_name`: virksomhedens navn
-   - `signup_url`: `https://topix.lovable.app/auth?mode=signup`
-4. Viser real-time progress (fx "Sender 5/30...")
-5. Ved afslutning: toast med antal succesfulde/fejlede
+### Kode-ændringer
+
+**1. `src/hooks/useAuth.tsx`**
+- I `onAuthStateChange`: Når event er `SIGNED_IN`, kald `supabase.rpc('log_user_login')` for at registrere login-tidspunktet.
+
+**2. `src/pages/Members.tsx`**
+- Hent seneste login og antal logins per bruger fra `user_login_log` (via en join/lookup)
+- Vis "Sidst aktiv" og "Antal logins" kolonne/info i virksomhedskortene
+- Advisors kan hurtigt se hvem der er aktive og hvem der aldrig har logget ind
+
+### Teknisk detalje
+
+```text
+Tabel: user_login_log
++------------+--------------+
+| user_id    | logged_in_at |
++------------+--------------+
+| uuid       | timestamptz  |
++------------+--------------+
+
+Funktion: log_user_login()
+- Indsætter (auth.uid(), now())
+- SECURITY DEFINER for at omgå RLS
+```
+
+Flowet:
+1. Bruger logger ind -> `onAuthStateChange` fanger `SIGNED_IN`
+2. Kalder `supabase.rpc('log_user_login')`
+3. Advisor ser data aggregeret på Members-siden
 
 ### Sikkerhed
-- Kun synlig for advisors (eksisterende `isAdvisor` guard)
-- Bruger den eksisterende `send-invitation-email` edge function som allerede validerer JWT
-- Ingen database-ændringer nødvendige — invitationerne forbliver "pending"
+- RLS på tabellen: kun advisors kan læse, ingen kan skrive via klient (kun via SECURITY DEFINER funktion)
+- Ingen ændring af eksisterende funktionalitet
 
-### UI-placering
-Knappen placeres i advisor-toolbaren på Members-siden, med et `RefreshCw`-ikon og teksten "Gensend pending invitationer".
