@@ -932,6 +932,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_login_log: {
+        Row: {
+          id: string
+          ip_address: string | null
+          logged_in_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          ip_address?: string | null
+          logged_in_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          ip_address?: string | null
+          logged_in_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -962,6 +983,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      log_user_login: { Args: never; Returns: undefined }
       user_company_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
