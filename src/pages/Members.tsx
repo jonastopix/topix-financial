@@ -30,6 +30,7 @@ import {
   RotateCcw,
   CheckCircle2,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -160,6 +161,14 @@ const Members = () => {
   const [standaloneEmail, setStandaloneEmail] = useState("");
   const [standaloneName, setStandaloneName] = useState("");
   const [standaloneSending, setStandaloneSending] = useState(false);
+
+  // Bulk resend pending state
+  const [resendAllDialogOpen, setResendAllDialogOpen] = useState(false);
+  const [resendAllPending, setResendAllPending] = useState<{ email: string; company_name: string }[]>([]);
+  const [resendAllSending, setResendAllSending] = useState(false);
+  const [resendAllProgress, setResendAllProgress] = useState(0);
+  const [resendAllDone, setResendAllDone] = useState(false);
+  const [resendAllErrors, setResendAllErrors] = useState<string[]>([]);
 
   const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
@@ -652,6 +661,73 @@ const Members = () => {
     }
   };
 
+  const openResendAllDialog = async () => {
+    // Fetch all pending invitations with company names
+    const { data: pendingInvitations } = await supabase
+      .from("company_invitations")
+      .select("email, company_id")
+      .eq("status", "pending");
+
+    if (!pendingInvitations || pendingInvitations.length === 0) {
+      toast.info("Ingen pending invitationer at gensende");
+      return;
+    }
+
+    // Get company names
+    const companyIds = [...new Set(pendingInvitations.map((i) => i.company_id))];
+    const { data: companiesData } = await supabase
+      .from("companies" as any)
+      .select("id, name")
+      .in("id", companyIds) as any;
+
+    const companyNameMap = new Map((companiesData || []).map((c: any) => [c.id, c.name]));
+
+    const pending = pendingInvitations.map((inv) => ({
+      email: inv.email,
+      company_name: (companyNameMap.get(inv.company_id) as string) || "Ukendt virksomhed",
+    }));
+
+    setResendAllPending(pending);
+    setResendAllSending(false);
+    setResendAllProgress(0);
+    setResendAllDone(false);
+    setResendAllErrors([]);
+    setResendAllDialogOpen(true);
+  };
+
+  const executeResendAll = async () => {
+    setResendAllSending(true);
+    setResendAllProgress(0);
+    setResendAllErrors([]);
+    setResendAllDone(false);
+    const errors: string[] = [];
+
+    for (let i = 0; i < resendAllPending.length; i++) {
+      const item = resendAllPending[i];
+      try {
+        const { error } = await supabase.functions.invoke("send-invitation-email", {
+          body: {
+            email: item.email,
+            company_name: item.company_name,
+            signup_url: "https://topix.lovable.app/auth?mode=signup",
+          },
+        });
+        if (error) throw error;
+      } catch (err: any) {
+        errors.push(`${item.email}: ${err.message || "Ukendt fejl"}`);
+      }
+      setResendAllProgress(i + 1);
+    }
+
+    setResendAllErrors(errors);
+    setResendAllDone(true);
+    setResendAllSending(false);
+
+    const successCount = resendAllPending.length - errors.length;
+    if (successCount > 0) toast.success(`${successCount} invitationer gensendt`);
+    if (errors.length > 0) toast.error(`${errors.length} fejlede`);
+  };
+
   const filtered = useMemo(() => {
     let result = companies;
 
@@ -748,6 +824,16 @@ const Members = () => {
             <UserPlus className="h-4 w-4" />
             <span className="hidden sm:inline">Inviter ny bruger</span>
             <span className="sm:hidden">Inviter</span>
+          </Button>
+          <Button
+            onClick={openResendAllDialog}
+            className="gap-2"
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="hidden sm:inline">Gensend pending</span>
+            <span className="sm:hidden">Gensend</span>
           </Button>
           <Button
             onClick={openBulkInviteDialog}
@@ -1540,6 +1626,61 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Resend all pending dialog */}
+      <AlertDialog open={resendAllDialogOpen} onOpenChange={setResendAllDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gensend pending invitationer</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                {!resendAllSending && !resendAllDone && (
+                  <p>
+                    Der er <strong>{resendAllPending.length}</strong> pending invitationer. Vil du gensende invitations-email til alle?
+                  </p>
+                )}
+                {resendAllSending && (
+                  <div className="space-y-3">
+                    <p>Sender {resendAllProgress}/{resendAllPending.length}...</p>
+                    <Progress value={(resendAllProgress / resendAllPending.length) * 100} className="h-2" />
+                  </div>
+                )}
+                {resendAllDone && (
+                  <div className="space-y-2">
+                    <p className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      {resendAllPending.length - resendAllErrors.length} invitationer gensendt
+                    </p>
+                    {resendAllErrors.length > 0 && (
+                      <div className="text-sm text-destructive space-y-1">
+                        <p>{resendAllErrors.length} fejlede:</p>
+                        {resendAllErrors.map((e, i) => <p key={i} className="text-xs">{e}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {resendAllDone ? (
+              <AlertDialogAction onClick={() => setResendAllDialogOpen(false)}>Luk</AlertDialogAction>
+            ) : (
+              <>
+                <AlertDialogCancel disabled={resendAllSending}>Annuller</AlertDialogCancel>
+                <AlertDialogAction onClick={executeResendAll} disabled={resendAllSending}>
+                  {resendAllSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Gensend alle
+                </AlertDialogAction>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
