@@ -1,40 +1,62 @@
 
 
-## Guided Tour på Dashboard
+# Ren start: Fjern alle medlemmer og gen-invitér
 
-### Hvad bygges
-En interaktiv step-by-step tour der vises automatisk for nye brugere (lige efter onboarding) og guider dem igennem dashboardets vigtigste elementer. Touren kan også genstartes manuelt.
+## Overblik
 
-### Tilgang
-Bygges som en ren React-komponent uden eksterne biblioteker. En overlay med spotlight-effekt (highlight af det aktuelle element) og en tooltip-boble med tekst + navigation (Næste / Spring over).
+Fjern alle 37 medlemmer (beholder admins og advisors), nulstil invitationer, fix alle links, og opdater invitationsmailen til jeres branding. Derefter kan I sende invitationer ud forfra uden parringsproblemer.
 
-### Trin i touren (4-5 steps)
+## Trin
 
-1. **Velkommen** - Generel velkomst overlay (ingen spotlight), forklarer hvad dashboardet viser
-2. **KPI-kort** - Highlighter KPI-grid'et: "Her ser du din seneste måneds nøgletal"
-3. **Rapporter** - Peger mod sidebar "Rapporter" link: "Upload din regnskabsrapport her for at få AI-analyse"
-4. **Chat** - Peger mod sidebar "Chat" link: "Skriv til din rådgiver her"
-5. **Færdig** - Afsluttende besked med konfetti-effekt (canvas-confetti er allerede installeret)
+### 1. Udvid manage-advisor med en "bulk-cleanup" action
 
-### Database-ændring
-Tilføj `tour_completed_at` kolonne til `profiles`-tabellen for at tracke om touren er vist. Dermed vises den kun én gang.
+Tilføj en ny action `bulk-remove-members` til den eksisterende `manage-advisor` edge function, der:
+- Kun kan kaldes af admin/advisor (allerede håndhævet)
+- Finder alle brugere med rollen `member`
+- For hver: sletter `company_members`, `profiles`, `user_roles`, og auth-bruger
+- Returnerer antal slettede
 
-### Nye filer
+### 2. Nulstil invitationer
 
-- **`src/components/GuidedTour.tsx`** - Tour-komponent med:
-  - State for current step
-  - Spotlight overlay (CSS clip-path baseret på target elements getBoundingClientRect)
-  - Tooltip-boble positioneret ved target element
-  - "Næste", "Spring over", "Færdig" knapper
-  - Gemmer `tour_completed_at` i profiles ved afslutning
-  - Bruger `canvas-confetti` på sidste step
+I samme bulk-cleanup: slet alle rækker i `company_invitations` så der er rent bord.
 
-### Ændringer i eksisterende filer
+### 3. Fix links
 
-- **`src/pages/Index.tsx`** - Importér og rendér `<GuidedTour />` komponent. Vis touren hvis bruger ikke er advisor og `tour_completed_at` er null.
-- **`src/hooks/useAuth.tsx`** - Tilføj `tour_completed_at` til profile select query så vi ved om touren skal vises.
+- **monday-webhook**: Ret `signup_url` fra `https://topix.lovable.app/auth` til `https://topix.lovable.app/auth?mode=signup`
 
-### Teknisk detalje
+### 4. Opdater fallback invitationsmail
 
-Tour-steps defineres med CSS-selektorer eller data-attributter (`data-tour="kpi-cards"` etc.) på de relevante dashboard-elementer. Spotlight-effekten laves med en fuld-skærm overlay med `pointer-events: none` og et "hul" klippet ud med CSS `clip-path` omkring target-elementet. Touren kører kun client-side og kræver ingen edge functions.
+I `send-invitation-email/index.ts`: Opdater `FALLBACK_HTML` til at bruge brand-farven `#0fa968` (emerald) i stedet for `#6366f1` (indigo), og opdater font-styling til at matche jeres templates.
+
+### 5. Tilføj "Fjern alle medlemmer"-knap i UI
+
+Tilføj en knap på Members-siden (kun synlig for advisors) med bekræftelsesdialog der:
+- Viser antal medlemmer der vil blive fjernet
+- Kalder `manage-advisor` med `action: 'bulk-remove-members'`
+- Refresher siden efter succes
+
+### 6. Deploy og test
+
+Deployer opdaterede edge functions og verificerer flowet.
+
+---
+
+## Tekniske detaljer
+
+**Filer der ændres:**
+- `supabase/functions/manage-advisor/index.ts` — ny `bulk-remove-members` action
+- `supabase/functions/monday-webhook/index.ts` — fix signup_url (linje 290)
+- `supabase/functions/send-invitation-email/index.ts` — opdater FALLBACK_HTML farver
+- `src/pages/Members.tsx` — tilføj "Fjern alle medlemmer"-knap med bekræftelsesdialog
+
+**Hvad der IKKE røres:**
+- Admin-bruger (jonas@topix.dk)
+- Advisor-brugere (jonas@topix.dk, jh@jonasherlev.dk, morten@molainvest.dk)
+- Virksomheder (de 34 companies bevares — kun medlemmer og invitationer fjernes)
+
+**Data der slettes:**
+- 37 member-profiler og deres auth-konti
+- 5 milestones (tilknyttet brugere)
+- 30 pending + 4 accepted invitationer
+- Relaterede company_members-rækker
 
