@@ -197,13 +197,34 @@ const MemberDetail = () => {
       if (cm?.companies) {
         setCompanyCtx(cm.companies as CompanyContext);
         // Fetch invitation that was accepted by this specific user
-        const { data: invData } = await (supabase
+        let invData: any = null;
+        // Primary: match via accepted_by
+        const { data: invByAcceptor } = await (supabase
           .from("company_invitations") as any)
           .select("email")
           .eq("company_id", cm.company_id)
           .eq("accepted_by", userId)
           .eq("status", "accepted")
           .maybeSingle();
+        invData = invByAcceptor;
+
+        // Fallback for legacy data: if company has exactly 1 member and 1 accepted invitation
+        if (!invData) {
+          const { count: memberCount } = await supabase
+            .from("company_members")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", cm.company_id);
+          if (memberCount === 1) {
+            const { data: singleInv } = await (supabase
+              .from("company_invitations") as any)
+              .select("email")
+              .eq("company_id", cm.company_id)
+              .eq("status", "accepted")
+              .maybeSingle();
+            invData = singleInv;
+          }
+        }
+
         const profileEmail = profileRes.data?.email?.toLowerCase()?.trim();
         const invEmail = (invData as any)?.email?.toLowerCase()?.trim();
         if (invEmail && invEmail !== profileEmail) {
