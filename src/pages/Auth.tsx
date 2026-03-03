@@ -21,21 +21,9 @@ const Auth = () => {
   useEffect(() => {
     if (!inviteToken) return;
     supabase
-      .from("company_invitations")
-      .select("company_id")
-      .eq("token", inviteToken)
-      .eq("status", "pending")
-      .maybeSingle()
+      .rpc("lookup_invite_company", { invite_token: inviteToken })
       .then(({ data }) => {
-        if (!data) return;
-        supabase
-          .from("companies")
-          .select("name")
-          .eq("id", data.company_id)
-          .single()
-          .then(({ data: co }) => {
-            if (co) setInviteCompanyName(co.name);
-          });
+        if (data) setInviteCompanyName(data as string);
       });
   }, [inviteToken]);
 

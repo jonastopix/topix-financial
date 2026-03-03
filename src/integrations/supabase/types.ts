@@ -987,6 +987,7 @@ export type Database = {
         Returns: boolean
       }
       log_user_login: { Args: never; Returns: undefined }
+      lookup_invite_company: { Args: { invite_token: string }; Returns: string }
       user_company_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
