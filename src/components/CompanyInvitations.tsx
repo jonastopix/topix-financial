@@ -297,18 +297,23 @@ const CompanyInvitations = () => {
                   ) : (
                     <CheckCircle2 className="h-4 w-4 text-primary" />
                   )}
-                  <span className="text-sm text-foreground">{inv.email}</span>
                   {inv.status === "pending" ? (
-                    <span className="text-xs text-muted-foreground">Afventer</span>
+                    <>
+                      <span className="text-sm text-foreground">{inv.email}</span>
+                      <span className="text-xs text-muted-foreground">Afventer</span>
+                    </>
                   ) : inv.acceptor_name ? (
-                    <span className="text-xs text-muted-foreground">
-                      → Accepteret af {inv.acceptor_name}
-                      {inv.acceptor_email && inv.acceptor_email.toLowerCase() !== inv.email.toLowerCase()
-                        ? ` (${inv.acceptor_email})`
-                        : ""}
-                    </span>
+                    <>
+                      <span className="text-sm text-foreground">
+                        {inv.acceptor_name}
+                        {inv.acceptor_email ? ` (${inv.acceptor_email})` : ""}
+                      </span>
+                      <span className="text-xs text-muted-foreground">Accepteret</span>
+                    </>
                   ) : (
-                    <span className="text-xs text-muted-foreground">Accepteret</span>
+                    <>
+                      <span className="text-sm text-foreground">Accepteret</span>
+                    </>
                   )}
                 </div>
                 {inv.status === "pending" && (

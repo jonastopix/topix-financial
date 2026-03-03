@@ -465,11 +465,6 @@ const MemberDetail = () => {
                   <span className="flex items-center gap-1.5 text-muted-foreground">
                     <Mail className="h-3.5 w-3.5" /> {profile.email}
                   </span>
-                  {invitedEmail && (
-                    <Badge variant="outline" className="text-xs font-normal">
-                      Inviteret som: {invitedEmail}
-                    </Badge>
-                  )}
                 </div>
               )}
             </div>

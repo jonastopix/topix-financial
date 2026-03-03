@@ -1437,19 +1437,31 @@ const Members = () => {
                               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
                                 <Send className="h-3 w-3" /> Invitation
                               </p>
-                              <p className="text-xs text-muted-foreground">
-                                {c.invitationEmail}
-                              </p>
-                              {c.invitationStatus === 'accepted' && c.invitationAcceptedAt && (
-                                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                                  Accepteret {format(new Date(c.invitationAcceptedAt), "d. MMM yyyy", { locale: da })}
-                                </p>
-                              )}
-                              {c.invitationStatus === 'pending' && (
-                                <p className="text-xs text-chart-warning mt-0.5">
-                                  Afventer svar
-                                </p>
-                              )}
+                              {c.invitationStatus === 'pending' ? (
+                                <>
+                                  <p className="text-xs text-muted-foreground">
+                                    {c.invitationEmail}
+                                  </p>
+                                  <p className="text-xs text-chart-warning mt-0.5">
+                                    Afventer svar
+                                  </p>
+                                </>
+                              ) : c.invitationStatus === 'accepted' ? (
+                                <>
+                                  {c.members.length > 0 ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      Accepteret af {c.members[0].full_name}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">Accepteret</p>
+                                  )}
+                                  {c.invitationAcceptedAt && (
+                                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                      {format(new Date(c.invitationAcceptedAt), "d. MMM yyyy", { locale: da })}
+                                    </p>
+                                  )}
+                                </>
+                              ) : null}
                             </div>
                           )}
                         </div>
