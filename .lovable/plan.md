@@ -1,37 +1,35 @@
 
-## Tilføj login-statistik sektion på Members-siden
+## Send personlig velkomstbesked til 3 accepterede medlemmer
 
-### Hvad bygges
-En ny statistik-række under de eksisterende invitation-stats (linje 902-931) der viser login-aktivitet fordelt på:
-- **Aktive brugere** (logget ind inden for 7 dage) - med grøn indikator
-- **Inaktive brugere** (har logget ind, men ikke inden for 7 dage) - med gul indikator  
-- **Aldrig logget ind** (ingen login-log overhovedet) - med rød/grå indikator
+### Hvad skal gøres
+Sende en velkomstbesked direkte i chatten til de 3 accepterede medlemmer (Simon Frimann, Nille HH Philbert, og Line Almegaard Bakke) så de får en personlig besked der guider dem i gang med platformen.
 
-### Ændringer
+### Forudsætning
+Line Almegaard Bakke mangler en conversation-record i databasen. Den skal oprettes forst.
 
-**`src/pages/Members.tsx`**
+### Trin
 
-1. Beregn login-statistik fra eksisterende `companies` data (som allerede indeholder `loginInfo` per virksomhed):
-   - Gennemløb alle members på tværs af alle companies
-   - Tjek om deres `lastLogin` er inden for 7 dage -> "aktiv"
-   - Har login men ældre end 7 dage -> "inaktiv"
-   - Ingen login-data -> "aldrig logget ind"
+**1. Opret manglende conversation for Line Almegaard Bakke**
+- INSERT i `conversations` med `member_id` = Lines user_id og `company_id` = hendes virksomheds-id
+- Kræver en database-migration
 
-2. Tilføj en ny `grid grid-cols-3` sektion lige efter invitation-stats (efter linje 931) med tre kort:
-   - Kort 1: Aktive brugere (grøn ikon) med antal
-   - Kort 2: Inaktive brugere (gul ikon) med antal
-   - Kort 3: Aldrig logget ind (grå/rød ikon) med antal
+**2. Send velkomstbesked til alle 3 via messages-tabellen**
+- Indsæt en besked i `messages` for hver brugers conversation med `message_type = 'user'` og `sender_id` = advisor-brugerens id
+- Beskeden vil være en personlig velkomst på dansk der guider dem til at komme i gang
+
+### Besked-udkast (kan tilpasses)
+
+> Hej [navn]! Velkommen til The Boardroom. Fedt at du er kommet med. Du kan starte med at uploade din seneste regnskabsrapport under "Rapporter", sa far du automatisk en AI-analyse af din okonomi. Du er ogsa velkommen til at skrive til mig her i chatten hvis du har sporgsmal. Jeg glaeder mig til at folge din rejse!
+
+### Modtagere
+
+| Navn | Virksomhed | Conversation |
+|------|-----------|-------------|
+| Simon Frimann | Two Socks | Eksisterer |
+| Nille HH Philbert | PHILBERT ApS | Eksisterer |
+| Line Almegaard Bakke | Line Bakke | Skal oprettes |
 
 ### Teknisk detalje
-
-Beregningen bruger allerede indlæste data fra `loginInfo` Map'en på hver company, så der er ingen ekstra database-kald nødvendige. Statistikken beregnes med `useMemo` baseret på `companies` state.
-
-```text
-Ny sektion (efter invitation stats):
-+------------------+------------------+------------------+
-| Aktive (7d)      | Inaktive         | Aldrig logget ind|
-| [grøn ikon] 2    | [gul ikon] 1     | [grå ikon] 27   |
-+------------------+------------------+------------------+
-```
-
-Ingen database-ændringer nødvendige - alt data er allerede tilgængeligt.
+- Conversation oprettes via database-migration (da advisor RLS tillader INSERT)
+- Beskeder indsættes som advisor-brugerens id (`23e81de4-...`) som sender
+- Beskederne vil vises i brugerens chat naeste gang de logger ind
