@@ -1,35 +1,40 @@
 
-## Send personlig velkomstbesked til 3 accepterede medlemmer
 
-### Hvad skal gøres
-Sende en velkomstbesked direkte i chatten til de 3 accepterede medlemmer (Simon Frimann, Nille HH Philbert, og Line Almegaard Bakke) så de får en personlig besked der guider dem i gang med platformen.
+## Guided Tour på Dashboard
 
-### Forudsætning
-Line Almegaard Bakke mangler en conversation-record i databasen. Den skal oprettes forst.
+### Hvad bygges
+En interaktiv step-by-step tour der vises automatisk for nye brugere (lige efter onboarding) og guider dem igennem dashboardets vigtigste elementer. Touren kan også genstartes manuelt.
 
-### Trin
+### Tilgang
+Bygges som en ren React-komponent uden eksterne biblioteker. En overlay med spotlight-effekt (highlight af det aktuelle element) og en tooltip-boble med tekst + navigation (Næste / Spring over).
 
-**1. Opret manglende conversation for Line Almegaard Bakke**
-- INSERT i `conversations` med `member_id` = Lines user_id og `company_id` = hendes virksomheds-id
-- Kræver en database-migration
+### Trin i touren (4-5 steps)
 
-**2. Send velkomstbesked til alle 3 via messages-tabellen**
-- Indsæt en besked i `messages` for hver brugers conversation med `message_type = 'user'` og `sender_id` = advisor-brugerens id
-- Beskeden vil være en personlig velkomst på dansk der guider dem til at komme i gang
+1. **Velkommen** - Generel velkomst overlay (ingen spotlight), forklarer hvad dashboardet viser
+2. **KPI-kort** - Highlighter KPI-grid'et: "Her ser du din seneste måneds nøgletal"
+3. **Rapporter** - Peger mod sidebar "Rapporter" link: "Upload din regnskabsrapport her for at få AI-analyse"
+4. **Chat** - Peger mod sidebar "Chat" link: "Skriv til din rådgiver her"
+5. **Færdig** - Afsluttende besked med konfetti-effekt (canvas-confetti er allerede installeret)
 
-### Besked-udkast (kan tilpasses)
+### Database-ændring
+Tilføj `tour_completed_at` kolonne til `profiles`-tabellen for at tracke om touren er vist. Dermed vises den kun én gang.
 
-> Hej [navn]! Velkommen til The Boardroom. Fedt at du er kommet med. Du kan starte med at uploade din seneste regnskabsrapport under "Rapporter", sa far du automatisk en AI-analyse af din okonomi. Du er ogsa velkommen til at skrive til mig her i chatten hvis du har sporgsmal. Jeg glaeder mig til at folge din rejse!
+### Nye filer
 
-### Modtagere
+- **`src/components/GuidedTour.tsx`** - Tour-komponent med:
+  - State for current step
+  - Spotlight overlay (CSS clip-path baseret på target elements getBoundingClientRect)
+  - Tooltip-boble positioneret ved target element
+  - "Næste", "Spring over", "Færdig" knapper
+  - Gemmer `tour_completed_at` i profiles ved afslutning
+  - Bruger `canvas-confetti` på sidste step
 
-| Navn | Virksomhed | Conversation |
-|------|-----------|-------------|
-| Simon Frimann | Two Socks | Eksisterer |
-| Nille HH Philbert | PHILBERT ApS | Eksisterer |
-| Line Almegaard Bakke | Line Bakke | Skal oprettes |
+### Ændringer i eksisterende filer
+
+- **`src/pages/Index.tsx`** - Importér og rendér `<GuidedTour />` komponent. Vis touren hvis bruger ikke er advisor og `tour_completed_at` er null.
+- **`src/hooks/useAuth.tsx`** - Tilføj `tour_completed_at` til profile select query så vi ved om touren skal vises.
 
 ### Teknisk detalje
-- Conversation oprettes via database-migration (da advisor RLS tillader INSERT)
-- Beskeder indsættes som advisor-brugerens id (`23e81de4-...`) som sender
-- Beskederne vil vises i brugerens chat naeste gang de logger ind
+
+Tour-steps defineres med CSS-selektorer eller data-attributter (`data-tour="kpi-cards"` etc.) på de relevante dashboard-elementer. Spotlight-effekten laves med en fuld-skærm overlay med `pointer-events: none` og et "hul" klippet ud med CSS `clip-path` omkring target-elementet. Touren kører kun client-side og kræver ingen edge functions.
+
