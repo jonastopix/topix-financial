@@ -707,18 +707,62 @@ const Members = () => {
       let tokenParam = "";
 
       if (selectedCompany) {
-        // Create company_invitations record
-        const { data: newInv, error: invErr } = await supabase
+        const trimmedEmail = standaloneEmail.trim().toLowerCase();
+        // Look up existing invitation for this (company, email)
+        const { data: existing } = await supabase
           .from("company_invitations")
-          .insert({
-            company_id: selectedCompany.id,
-            email: standaloneEmail.trim().toLowerCase(),
-            invited_by: user.id,
-          })
-          .select("token")
-          .single();
-        if (invErr) throw invErr;
-        if (newInv?.token) tokenParam = `&invite=${newInv.token}`;
+          .select("id, token, status")
+          .eq("company_id", selectedCompany.id)
+          .eq("email", trimmedEmail)
+          .maybeSingle();
+
+        let invToken: string | null = null;
+        let wasResent = false;
+
+        if (existing) {
+          if (existing.status === "accepted") {
+            // Reset to pending
+            const { error: upErr } = await supabase
+              .from("company_invitations")
+              .update({ status: "pending", accepted_at: null })
+              .eq("id", existing.id);
+            if (upErr) throw upErr;
+          }
+          invToken = existing.token;
+          wasResent = true;
+        } else {
+          // Create new invitation
+          const { data: newInv, error: invErr } = await supabase
+            .from("company_invitations")
+            .insert({
+              company_id: selectedCompany.id,
+              email: trimmedEmail,
+              invited_by: user.id,
+            })
+            .select("token")
+            .single();
+          if (invErr) {
+            // Handle race condition: duplicate key
+            if (invErr.code === "23505") {
+              const { data: raceInv } = await supabase
+                .from("company_invitations")
+                .select("token")
+                .eq("company_id", selectedCompany.id)
+                .eq("email", trimmedEmail)
+                .maybeSingle();
+              invToken = raceInv?.token || null;
+              wasResent = true;
+            } else {
+              throw invErr;
+            }
+          } else {
+            invToken = newInv?.token || null;
+          }
+        }
+
+        if (invToken) tokenParam = `&invite=${invToken}`;
+        // Use wasResent for toast message below
+        (selectedCompany as any).__wasResent = wasResent;
       }
 
       const { error } = await supabase.functions.invoke("send-invitation-email", {
@@ -729,7 +773,11 @@ const Members = () => {
         },
       });
       if (error) throw error;
-      toast.success(`Invitation sendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`);
+      const wasResent = selectedCompany && (selectedCompany as any).__wasResent;
+      toast.success(wasResent
+        ? `Invitation gensendt til ${standaloneEmail} (${selectedCompany?.name})`
+        : `Invitation sendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`
+      );
       setStandaloneInviteOpen(false);
       setStandaloneEmail("");
       setStandaloneName("");

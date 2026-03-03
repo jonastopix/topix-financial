@@ -99,49 +99,78 @@ const CompanyInvitations = () => {
     setShowConfirm(false);
     setSending(true);
 
-    const { error } = await supabase
-      .from("company_invitations" as any)
-      .insert({
-        company_id: companyId,
-        email: pendingEmail,
-        invited_by: user.id,
-      } as any);
+    try {
+      // Look up existing invitation for (company, email)
+      const { data: existing } = await supabase
+        .from("company_invitations")
+        .select("id, token, status")
+        .eq("company_id", companyId)
+        .eq("email", pendingEmail)
+        .maybeSingle();
 
-    if (error) {
-      if (error.code === "23505") {
-        toast.error("Denne e-mail er allerede inviteret");
+      let invToken: string | null = null;
+      let wasResent = false;
+
+      if (existing) {
+        if (existing.status === "accepted") {
+          await supabase
+            .from("company_invitations")
+            .update({ status: "pending", accepted_at: null })
+            .eq("id", existing.id);
+        }
+        invToken = existing.token;
+        wasResent = true;
       } else {
-        toast.error("Kunne ikke oprette invitation");
+        const { data: newInv, error: invErr } = await (supabase
+          .from("company_invitations" as any)
+          .insert({
+            company_id: companyId,
+            email: pendingEmail,
+            invited_by: user.id,
+          } as any) as any)
+          .select("token")
+          .single();
+
+        if (invErr) {
+          if (invErr.code === "23505") {
+            // Race condition: fetch existing token
+            const { data: raceInv } = await supabase
+              .from("company_invitations")
+              .select("token")
+              .eq("company_id", companyId)
+              .eq("email", pendingEmail)
+              .maybeSingle();
+            invToken = raceInv?.token || null;
+            wasResent = true;
+          } else {
+            toast.error("Kunne ikke oprette invitation");
+            setSending(false);
+            setPendingEmail("");
+            return;
+          }
+        } else {
+          invToken = newInv?.token || null;
+        }
       }
-    } else {
-      toast.success(`Invitation oprettet til ${pendingEmail}`);
+
+      toast.success(wasResent ? `Invitation gensendt til ${pendingEmail}` : `Invitation oprettet til ${pendingEmail}`);
       setEmail("");
       fetchData();
 
-      // Trigger invitation email — fetch the token for the just-created invitation
-      try {
-        const { data: newInv } = await supabase
-          .from("company_invitations")
-          .select("token")
-          .eq("company_id", companyId)
-          .eq("email", pendingEmail)
-          .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const tokenParam = newInv?.token ? `&invite=${newInv.token}` : "";
-        const { data: emailResult } = await supabase.functions.invoke("send-invitation-email", {
-          body: {
-            email: pendingEmail,
-            company_name: companyName || "Din virksomhed",
-            signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
-          },
-        });
-      } catch (emailErr) {
-        console.error("Could not trigger invitation email:", emailErr);
-      }
+      // Send invitation email
+      const tokenParam = invToken ? `&invite=${invToken}` : "";
+      await supabase.functions.invoke("send-invitation-email", {
+        body: {
+          email: pendingEmail,
+          company_name: companyName || "Din virksomhed",
+          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
+        },
+      });
+    } catch (err: any) {
+      console.error("Invitation error:", err);
+      toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));
     }
+
     setSending(false);
     setPendingEmail("");
   };
