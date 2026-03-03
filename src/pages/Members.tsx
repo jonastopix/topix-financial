@@ -381,7 +381,17 @@ const Members = () => {
           circleInfo: circleInfoByCompany.get(c.id) || [],
           logo_url: c.logo_url || null,
           pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
-          invitationStatus: (invitationInfoByCompany.get(c.id)?.status as 'pending' | 'accepted') || null,
+          // Company status: if it has active members, it's "accepted" even if there are additional pending invitations
+          invitationStatus: (() => {
+            const companyMembers = membersByCompany.get(c.id) || [];
+            const hasActiveMembers = companyMembers.length > 0;
+            const invInfo = invitationInfoByCompany.get(c.id);
+            if (!invInfo) return null;
+            // If the company has active members, it's accepted (regardless of pending team invites)
+            if (hasActiveMembers) return 'accepted' as const;
+            // Otherwise use the most recent invitation status
+            return invInfo.status as 'pending' | 'accepted';
+          })(),
           invitationAcceptedAt: invitationInfoByCompany.get(c.id)?.accepted_at || null,
           invitationEmail: invitationInfoByCompany.get(c.id)?.email || null,
           loginInfo: (() => {
