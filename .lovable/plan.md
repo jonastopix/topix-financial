@@ -1,54 +1,37 @@
 
-
-## Login-aktivitetslog for brugere
+## Tilføj login-statistik sektion på Members-siden
 
 ### Hvad bygges
-En ny `user_login_log` tabel der automatisk registrerer hvert login, samt en visning i Members-siden hvor advisors kan se hvornår brugere sidst loggede ind og hvor ofte.
+En ny statistik-række under de eksisterende invitation-stats (linje 902-931) der viser login-aktivitet fordelt på:
+- **Aktive brugere** (logget ind inden for 7 dage) - med grøn indikator
+- **Inaktive brugere** (har logget ind, men ikke inden for 7 dage) - med gul indikator  
+- **Aldrig logget ind** (ingen login-log overhovedet) - med rød/grå indikator
 
-### Database-ændringer
+### Ændringer
 
-**Ny tabel: `user_login_log`**
-- `id` (uuid, PK)
-- `user_id` (uuid, NOT NULL)
-- `logged_in_at` (timestamptz, default now())
-- `ip_address` (text, nullable) -- for fremtidig brug
-- RLS: Advisors kan SELECT alle rækker. Ingen INSERT/UPDATE/DELETE via klient.
+**`src/pages/Members.tsx`**
 
-**Ny database-funktion: `log_user_login`**
-- SECURITY DEFINER funktion der indsætter en række i `user_login_log`
-- Kaldes fra klienten via `supabase.rpc('log_user_login')` ved login
+1. Beregn login-statistik fra eksisterende `companies` data (som allerede indeholder `loginInfo` per virksomhed):
+   - Gennemløb alle members på tværs af alle companies
+   - Tjek om deres `lastLogin` er inden for 7 dage -> "aktiv"
+   - Har login men ældre end 7 dage -> "inaktiv"
+   - Ingen login-data -> "aldrig logget ind"
 
-### Kode-ændringer
-
-**1. `src/hooks/useAuth.tsx`**
-- I `onAuthStateChange`: Når event er `SIGNED_IN`, kald `supabase.rpc('log_user_login')` for at registrere login-tidspunktet.
-
-**2. `src/pages/Members.tsx`**
-- Hent seneste login og antal logins per bruger fra `user_login_log` (via en join/lookup)
-- Vis "Sidst aktiv" og "Antal logins" kolonne/info i virksomhedskortene
-- Advisors kan hurtigt se hvem der er aktive og hvem der aldrig har logget ind
+2. Tilføj en ny `grid grid-cols-3` sektion lige efter invitation-stats (efter linje 931) med tre kort:
+   - Kort 1: Aktive brugere (grøn ikon) med antal
+   - Kort 2: Inaktive brugere (gul ikon) med antal
+   - Kort 3: Aldrig logget ind (grå/rød ikon) med antal
 
 ### Teknisk detalje
 
-```text
-Tabel: user_login_log
-+------------+--------------+
-| user_id    | logged_in_at |
-+------------+--------------+
-| uuid       | timestamptz  |
-+------------+--------------+
+Beregningen bruger allerede indlæste data fra `loginInfo` Map'en på hver company, så der er ingen ekstra database-kald nødvendige. Statistikken beregnes med `useMemo` baseret på `companies` state.
 
-Funktion: log_user_login()
-- Indsætter (auth.uid(), now())
-- SECURITY DEFINER for at omgå RLS
+```text
+Ny sektion (efter invitation stats):
++------------------+------------------+------------------+
+| Aktive (7d)      | Inaktive         | Aldrig logget ind|
+| [grøn ikon] 2    | [gul ikon] 1     | [grå ikon] 27   |
++------------------+------------------+------------------+
 ```
 
-Flowet:
-1. Bruger logger ind -> `onAuthStateChange` fanger `SIGNED_IN`
-2. Kalder `supabase.rpc('log_user_login')`
-3. Advisor ser data aggregeret på Members-siden
-
-### Sikkerhed
-- RLS på tabellen: kun advisors kan læse, ingen kan skrive via klient (kun via SECURITY DEFINER funktion)
-- Ingen ændring af eksisterende funktionalitet
-
+Ingen database-ændringer nødvendige - alt data er allerede tilgængeligt.
