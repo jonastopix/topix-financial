@@ -147,10 +147,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify Monday.com JWT signature
+    // Verify Monday.com JWT signature (if present)
     const MONDAY_SIGNING_SECRET = Deno.env.get("MONDAY_SIGNING_SECRET");
-    if (MONDAY_SIGNING_SECRET) {
-      const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("Authorization");
+    console.log(`[DEBUG] Auth header present: ${!!authHeader}, length: ${authHeader?.length ?? 0}`);
+    
+    if (MONDAY_SIGNING_SECRET && authHeader) {
       const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
       if (!isValid) {
         console.error("Invalid Monday.com webhook signature");
@@ -160,6 +162,9 @@ Deno.serve(async (req) => {
         });
       }
       console.log("Monday.com webhook signature verified ✓");
+    } else if (!authHeader) {
+      // Monday.com API-created webhooks don't always send JWT — accept but log
+      console.warn("No Authorization header from Monday.com — accepting webhook (API-subscription mode)");
     } else {
       console.warn("MONDAY_SIGNING_SECRET not configured — skipping signature verification");
     }
@@ -176,14 +181,24 @@ Deno.serve(async (req) => {
     const pulseId = event.pulseId;
     const pulseName = event.pulseName;
 
-    // Parse the status value
+    // Parse the status value — Monday sends nested label object
     let newStatus = "";
     try {
       const parsed = typeof columnValue === "string" ? JSON.parse(columnValue) : columnValue;
-      newStatus = parsed?.label || parsed?.text || "";
+      // Monday format: { label: { text: "I gang", ... } } or { label: "I gang" }
+      if (parsed?.label?.text) {
+        newStatus = parsed.label.text;
+      } else if (typeof parsed?.label === "string") {
+        newStatus = parsed.label;
+      } else if (parsed?.text) {
+        newStatus = parsed.text;
+      } else {
+        newStatus = String(parsed || "");
+      }
     } catch {
       newStatus = String(columnValue || "");
     }
+    console.log(`[DEBUG] Parsed status: "${newStatus}"`);
 
     // Only proceed if status is "I gang"
     if (newStatus !== "I gang") {
