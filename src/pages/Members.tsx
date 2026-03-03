@@ -167,6 +167,7 @@ const Members = () => {
   const [standaloneEmail, setStandaloneEmail] = useState("");
   const [standaloneName, setStandaloneName] = useState("");
   const [standaloneSending, setStandaloneSending] = useState(false);
+  const [standaloneCompanyId, setStandaloneCompanyId] = useState<string>("");
 
   // Bulk remove all members state
   const [bulkRemoveDialogOpen, setBulkRemoveDialogOpen] = useState(false);
@@ -699,18 +700,40 @@ const Members = () => {
     if (!standaloneEmail.trim() || !user) return;
     setStandaloneSending(true);
     try {
+      const selectedCompany = standaloneCompanyId
+        ? companies.find((c) => c.id === standaloneCompanyId)
+        : null;
+
+      let tokenParam = "";
+
+      if (selectedCompany) {
+        // Create company_invitations record
+        const { data: newInv, error: invErr } = await supabase
+          .from("company_invitations")
+          .insert({
+            company_id: selectedCompany.id,
+            email: standaloneEmail.trim().toLowerCase(),
+            invited_by: user.id,
+          })
+          .select("token")
+          .single();
+        if (invErr) throw invErr;
+        if (newInv?.token) tokenParam = `&invite=${newInv.token}`;
+      }
+
       const { error } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email: standaloneEmail.trim().toLowerCase(),
-          company_name: "The Boardroom",
-          signup_url: `https://topix.lovable.app/auth?mode=signup`,
+          company_name: selectedCompany?.name || "The Boardroom",
+          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
         },
       });
       if (error) throw error;
-      toast.success(`Invitation sendt til ${standaloneEmail}`);
+      toast.success(`Invitation sendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`);
       setStandaloneInviteOpen(false);
       setStandaloneEmail("");
       setStandaloneName("");
+      setStandaloneCompanyId("");
     } catch (err: any) {
       console.error("Standalone invite error:", err);
       toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));
@@ -1740,12 +1763,12 @@ const Members = () => {
         </AlertDialogContent>
       </AlertDialog>
       {/* Standalone invite dialog */}
-      <Dialog open={standaloneInviteOpen} onOpenChange={setStandaloneInviteOpen}>
+      <Dialog open={standaloneInviteOpen} onOpenChange={(open) => { setStandaloneInviteOpen(open); if (!open) { setStandaloneCompanyId(""); setStandaloneEmail(""); setStandaloneName(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Inviter ny bruger</DialogTitle>
             <DialogDescription>
-              Send en invitation til en person, som selv opretter sin virksomhed ved tilmelding.
+              Send en invitation til en ny person. Vælg eventuelt en virksomhed de skal tilknyttes.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -1770,8 +1793,26 @@ const Members = () => {
                 className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tilknyt virksomhed (valgfrit)</label>
+              <select
+                value={standaloneCompanyId}
+                onChange={(e) => setStandaloneCompanyId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="">Ingen — opretter selv virksomhed</option>
+                {companies
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name, "da"))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+              </select>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Personen modtager en email med link til at oprette konto. Ved tilmelding oprettes automatisk en ny virksomhed, som de selv udfylder under onboarding.
+              {standaloneCompanyId
+                ? "Personen tilknyttes automatisk den valgte virksomhed ved tilmelding."
+                : "Personen opretter selv en ny virksomhed ved tilmelding."}
             </p>
           </div>
           <DialogFooter>
