@@ -171,6 +171,105 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── CLEANUP SHELL COMPANIES ──
+    if (action === 'cleanup-shells') {
+      const { accept_invitation_ids, delete_company_ids } = body;
+
+      // Step 1: Mark active invitations as accepted
+      if (accept_invitation_ids?.length) {
+        await adminSupabase
+          .from('company_invitations')
+          .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+          .in('id', accept_invitation_ids);
+        console.log(`[cleanup-shells] Marked ${accept_invitation_ids.length} invitations as accepted`);
+      }
+
+      // Step 2: Cascade-delete each shell company
+      const results: { company_id: string; status: string; error?: string }[] = [];
+
+      for (const companyId of (delete_company_ids || [])) {
+        try {
+          // Get user_ids for this company
+          const { data: members } = await adminSupabase
+            .from('company_members')
+            .select('user_id')
+            .eq('company_id', companyId);
+          const userIds = (members || []).map((m: any) => m.user_id).filter(Boolean);
+
+          // 1. handout_lever_milestones (via handout_id)
+          const { data: handouts } = await adminSupabase
+            .from('handouts')
+            .select('id')
+            .eq('company_id', companyId);
+          const handoutIds = (handouts || []).map((h: any) => h.id);
+          if (handoutIds.length > 0) {
+            await adminSupabase.from('handout_lever_milestones').delete().in('handout_id', handoutIds);
+          }
+
+          // 2-6. Delete company data tables
+          await adminSupabase.from('handouts').delete().eq('company_id', companyId);
+          await adminSupabase.from('milestones').delete().eq('company_id', companyId);
+          await adminSupabase.from('budget_targets').delete().eq('company_id', companyId);
+          await adminSupabase.from('kpi_targets').delete().eq('company_id', companyId);
+          await adminSupabase.from('kpi_benchmarks').delete().eq('company_id', companyId);
+          await adminSupabase.from('financial_reports').delete().eq('company_id', companyId);
+          await adminSupabase.from('advisor_notifications').delete().eq('company_id', companyId);
+
+          // 7-8. Messages via conversations
+          const { data: convos } = await adminSupabase
+            .from('conversations')
+            .select('id')
+            .eq('company_id', companyId);
+          const convoIds = (convos || []).map((c: any) => c.id);
+          if (convoIds.length > 0) {
+            await adminSupabase.from('messages').delete().in('conversation_id', convoIds);
+          }
+
+          // 9. Conversations
+          await adminSupabase.from('conversations').delete().eq('company_id', companyId);
+
+          // 10. Company members
+          await adminSupabase.from('company_members').delete().eq('company_id', companyId);
+
+          // 11-12. Profiles + auth users
+          for (const uid of userIds) {
+            await adminSupabase.from('profiles').delete().eq('user_id', uid);
+            await adminSupabase.from('user_login_log').delete().eq('user_id', uid);
+            try {
+              await adminSupabase.auth.admin.deleteUser(uid);
+            } catch (e) {
+              console.warn(`[cleanup-shells] Could not delete auth user ${uid}:`, e);
+            }
+          }
+
+          // 13. Nullify company_id on invitations (preserve the invitation)
+          await adminSupabase
+            .from('company_invitations')
+            .update({ company_id: null })
+            .eq('company_id', companyId);
+
+          // 14. Delete the company itself
+          await adminSupabase.from('companies').delete().eq('id', companyId);
+
+          results.push({ company_id: companyId, status: 'deleted' });
+          console.log(`[cleanup-shells] Deleted company ${companyId} with ${userIds.length} users`);
+        } catch (err: any) {
+          console.error(`[cleanup-shells] Error deleting company ${companyId}:`, err);
+          results.push({ company_id: companyId, status: 'error', error: err.message });
+        }
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        accepted: accept_invitation_ids?.length || 0,
+        deleted: results.filter(r => r.status === 'deleted').length,
+        errors: results.filter(r => r.status === 'error'),
+        results,
+      }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action === 'remove-member') {
       if (!target_user_id) {
         return new Response(JSON.stringify({ error: 'Missing target_user_id' }), {
