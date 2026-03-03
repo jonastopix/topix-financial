@@ -1,51 +1,44 @@
 
-Jeg kan se, hvorfor det opleves som om ændringerne “ikke er der”. Der er flere konkrete årsager i koden lige nu:
 
-1) Oversigten blev lagt på **/members**, men du står på **/settings**  
-2) Pending-oversigten på Members vises kun, når der findes pending (ingen tom-state)  
-3) Invitation-data i Members bygges via en “seneste invitation pr. virksomhed”-heuristik, som er skrøbelig  
-4) Fjern medlem i Members bruger stadig direkte delete (ikke den sikre backend-flow), så invitation-state kan blive hængende
+## Problem
 
-## Plan (implementering)
+Topix-casen afslører to konkrete fejl:
 
-### 1) Gør invitationsoverblik synligt og stabilt
-- Byg pending-oversigten fra **company_invitations** (ikke fra company-kortenes afledte status).
-- Vis kortet **altid** (også når der er 0 pending) med tom-state.
-- Brug invitationens egen `created_at` (ikke virksomhedens oprettelsesdato) som “Sendt”.
-- Behold gensend-knap pr. række.
+1. **Backfill-migrationen virkede ikke for Topix** fordi den matchede på email (kontakt@topix.dk ≠ jonas@topix.dk). `accepted_by` er stadig NULL.
+2. **"Inviteret som: kontakt@topix.dk"** på MemberDetail vises fordi koden falder igennem til et match uden `accepted_by`.
+3. **Settings viser "kontakt@topix.dk Accepteret"** uden kontekst om hvem der accepterede — det ser ud som om kontakt@topix.dk er en bruger.
 
-### 2) Placering så du faktisk ser den
-- Behold global oversigt på **Members**.
-- Tilføj samme visuelle pending-sektion på **Settings** (for aktuel virksomhed), så den også er synlig dér, hvor du arbejder nu.
+## Plan
 
-### 3) Ret invitation-livscyklus konsekvent
-- Når en accepteret invitation nulstilles til pending, nulstil også `accepted_by` (ikke kun `accepted_at`).
-- Gælder i:
-  - Members: `handleResendInvitation`
-  - Members: `handleStandaloneInvite`
-  - Settings/CompanyInvitations: `confirmInvite`
+### 1) Ret backfill: sæt `accepted_by` via company_members (ikke kun email-match)
 
-### 4) Ret “Fjern medlem”-flowet som stadig bryder forventningen
-- I Members-siden: stop med lokal `company_members.delete()` som primær vej.
-- Brug samme backend-fjern-flow som MemberDetail (så invitation-reset og oprydning sker ens hver gang).
+Kør en ny migration der sætter `accepted_by` for accepted invitationer, hvor der kun findes ét medlem i virksomheden og invitationen er den eneste accepted for den virksomhed:
 
-### 5) Håndter legacy-data (forklarer Topix-tilfældet)
-- Der findes accepterede invitationer med `accepted_by = null` (fx historiske rækker), så den nye kobling kan ikke altid bruges direkte.
-- Tilføj en backfill-migration:
-  - Sæt `accepted_by` for accepterede invitationer hvor email matcher et eksisterende medlem i samme virksomhed.
-- Tilføj fallback i remove-member:
-  - Hvis ingen `accepted_by`-match, reset invitation hvor email matcher den fjernede profils email i samme virksomhed.
+```sql
+UPDATE public.company_invitations ci
+SET accepted_by = cm.user_id
+FROM public.company_members cm
+WHERE ci.company_id = cm.company_id
+  AND ci.status = 'accepted'
+  AND ci.accepted_by IS NULL
+  AND (SELECT count(*) FROM public.company_members WHERE company_id = ci.company_id) = 1;
+```
 
-## Tekniske detaljer
-- Members inviteringsstatus skal ikke længere komme fra én map-overwrite pr. virksomhed.
-- Query for invitationsoverblik skal inkludere mindst:
-  `id, company_id, email, status, created_at, accepted_at, accepted_by, token`.
-- Existing RLS kan genbruges; ingen ny policy nødvendig.
-- Databaseændring: kun backfill/normalisering af eksisterende data (ingen ny offentlig adgang).
+Dette fixer Topix-casen (én invitation, ét medlem → link dem).
 
-## Verifikation (end-to-end)
-1) Gå til **Members**: pending-kort vises altid (også ved 0).  
-2) Gå til **Settings**: pending-sektion vises for virksomheden.  
-3) Fjern et medlem fra Members → invitation resettes korrekt.  
-4) Geninvitér samme email → virker uden “accepted hænger fast”.  
-5) Topix-case: “inviteret som …” må ikke være misvisende, og geninvitation skal kunne lade sig gøre efter fjernelse.
+### 2) MemberDetail: Gør "Inviteret som"-badge mere meningsfuld
+
+- Behold kun badgen, når invitation-emailen faktisk afviger fra brugerens profil-email (nuværende logik).
+- Sørg for at query altid matcher via `accepted_by` — og tilføj fallback via company_id + status + single-member check, så den virker selv for legacy-data der endnu ikke har `accepted_by` sat.
+
+### 3) Settings/CompanyInvitations: Vis hvem der accepterede
+
+- Når en invitation er accepted og `accepted_by` er sat, vis brugerens navn/email i stedet for kun invitations-emailen.
+- Formatér: "kontakt@topix.dk → Accepteret af Jonas Herlev (jonas@topix.dk)" eller lignende.
+- Når `accepted_by` er NULL men status er accepted, vis bare "Accepteret".
+
+### Filer der rettes
+- **Database-migration** (backfill `accepted_by` via company_members)
+- `src/pages/MemberDetail.tsx` (robustere invitation-query)
+- `src/components/CompanyInvitations.tsx` (vis acceptant-info)
+
