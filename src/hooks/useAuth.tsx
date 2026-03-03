@@ -8,7 +8,7 @@ interface AuthContext {
   loading: boolean;
   isAdvisor: boolean;
   isAdmin: boolean;
-  profile: { full_name: string; company_name: string; avatar_url: string } | null;
+  profile: { full_name: string; company_name: string; avatar_url: string; tour_completed_at: string | null } | null;
   companyId: string | null;
   companyName: string | null;
   /** The advisor's own company (unaffected by override) */
@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, company_name, avatar_url, onboarded_at")
+      .select("full_name, company_name, avatar_url, onboarded_at, tour_completed_at")
       .eq("user_id", user.id)
       .maybeSingle();
     if (data) setProfile(data);
@@ -92,7 +92,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchUserData = async (userId: string) => {
     const [rolesRes, profileRes, companyRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId),
-      supabase.from("profiles").select("full_name, company_name, avatar_url, onboarded_at").eq("user_id", userId).maybeSingle(),
+      supabase.from("profiles").select("full_name, company_name, avatar_url, onboarded_at, tour_completed_at").eq("user_id", userId).maybeSingle(),
       supabase
         .from("company_members" as any)
         .select("company_id, companies:company_id(id, name)" as any)

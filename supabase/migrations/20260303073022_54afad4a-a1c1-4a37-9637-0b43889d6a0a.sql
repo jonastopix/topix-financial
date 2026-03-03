@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN tour_completed_at timestamp with time zone DEFAULT NULL;

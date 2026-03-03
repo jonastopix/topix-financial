@@ -905,6 +905,7 @@ export type Database = {
           full_name: string
           id: string
           onboarded_at: string | null
+          tour_completed_at: string | null
           updated_at: string
           user_id: string
         }
@@ -916,6 +917,7 @@ export type Database = {
           full_name?: string
           id?: string
           onboarded_at?: string | null
+          tour_completed_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -927,6 +929,7 @@ export type Database = {
           full_name?: string
           id?: string
           onboarded_at?: string | null
+          tour_completed_at?: string | null
           updated_at?: string
           user_id?: string
         }

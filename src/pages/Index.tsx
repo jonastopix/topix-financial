@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DollarSign, TrendingUp, Flame, Wallet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
@@ -14,6 +15,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
+import GuidedTour from "@/components/GuidedTour";
 import { getKeyFigures, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 function getGreeting() {
@@ -46,6 +48,13 @@ function budgetPeriodToKey(period: string): string | null {
 
 const Dashboard = () => {
   const { user, profile, companyId, isAdvisor } = useAuth();
+  const [showTour, setShowTour] = useState(false);
+
+  // Show tour for non-advisor users who haven't completed it
+  const shouldShowTour = !isAdvisor && profile && !profile.tour_completed_at;
+
+  // Trigger tour after dashboard data loads
+  const [tourTriggered, setTourTriggered] = useState(false);
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ["dashboard-kpis", companyId, user?.id],
@@ -239,8 +248,17 @@ const Dashboard = () => {
     );
   }
 
+  // Trigger tour after render
+  if (shouldShowTour && !tourTriggered && !isLoading) {
+    setTimeout(() => setShowTour(true), 800);
+    setTourTriggered(true);
+  }
+
   return (
     <AppLayout>
+      {showTour && (
+        <GuidedTour onComplete={() => setShowTour(false)} />
+      )}
       {/* Greeting */}
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight">
@@ -249,7 +267,7 @@ const Dashboard = () => {
       </div>
 
       {/* KPI cards – Seneste måned */}
-      <div className="mb-2">
+      <div className="mb-2" data-tour="kpi-cards">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned{kpiData.period ? ` · ${kpiData.period}` : ""}</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 overflow-hidden">
           <KPICard
