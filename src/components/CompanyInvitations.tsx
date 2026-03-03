@@ -20,7 +20,10 @@ interface Invitation {
   status: string;
   created_at: string;
   accepted_at: string | null;
+  accepted_by: string | null;
   token: string;
+  acceptor_name?: string;
+  acceptor_email?: string;
 }
 
 const CompanyInvitations = () => {
@@ -40,7 +43,7 @@ const CompanyInvitations = () => {
     const [invRes, memRes] = await Promise.all([
       supabase
         .from("company_invitations" as any)
-        .select("id, email, status, created_at, accepted_at, token")
+        .select("id, email, status, created_at, accepted_at, accepted_by, token")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false }),
       supabase
@@ -49,7 +52,31 @@ const CompanyInvitations = () => {
         .eq("company_id", companyId),
     ]);
 
-    setInvitations((invRes.data as any) || []);
+    // Enrich accepted invitations with acceptor profile info
+    const rawInvitations = (invRes.data as any) || [];
+    const acceptedByIds = rawInvitations
+      .filter((i: any) => i.accepted_by)
+      .map((i: any) => i.accepted_by);
+
+    let acceptorProfiles: Record<string, { full_name: string; email: string | null }> = {};
+    if (acceptedByIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", acceptedByIds);
+      (profiles || []).forEach((p: any) => {
+        acceptorProfiles[p.user_id] = { full_name: p.full_name, email: p.email };
+      });
+    }
+
+    setInvitations(rawInvitations.map((inv: any) => {
+      const acceptor = inv.accepted_by ? acceptorProfiles[inv.accepted_by] : null;
+      return {
+        ...inv,
+        acceptor_name: acceptor?.full_name || undefined,
+        acceptor_email: acceptor?.email || undefined,
+      };
+    }));
 
     const memberData = (memRes.data as any) || [];
     if (memberData.length > 0) {
@@ -271,9 +298,18 @@ const CompanyInvitations = () => {
                     <CheckCircle2 className="h-4 w-4 text-primary" />
                   )}
                   <span className="text-sm text-foreground">{inv.email}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {inv.status === "pending" ? "Afventer" : "Accepteret"}
-                  </span>
+                  {inv.status === "pending" ? (
+                    <span className="text-xs text-muted-foreground">Afventer</span>
+                  ) : inv.acceptor_name ? (
+                    <span className="text-xs text-muted-foreground">
+                      → Accepteret af {inv.acceptor_name}
+                      {inv.acceptor_email && inv.acceptor_email.toLowerCase() !== inv.email.toLowerCase()
+                        ? ` (${inv.acceptor_email})`
+                        : ""}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Accepteret</span>
+                  )}
                 </div>
                 {inv.status === "pending" && (
                   <button
