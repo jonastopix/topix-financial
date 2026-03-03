@@ -38,6 +38,7 @@ export const InviteEmail = ({
             <strong>The Boardroom</strong>
           </Link>
           . Klik på knappen herunder for at acceptere invitationen og oprette din konto.
+          Du kan frit vælge hvilken e-mail du vil oprette dig med — du bliver automatisk tilknyttet den rigtige virksomhed via dit invitationslink.
         </Text>
         <Button style={button} href={confirmationUrl}>
           Acceptér invitation
