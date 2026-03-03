@@ -1,44 +1,51 @@
 
-Problem bekræftet. Fejlen er ikke i databasen længere, men i UI-flowet:
 
-- Invitationen for `susanne@two-socks.com` findes allerede som `pending` på virksomheden **Two socks**.
-- `/members`-modalen **Inviter ny bruger** kører altid en ny `insert` i `company_invitations`.
-- Derfor rammer den unik constraint `company_invitations_company_id_email_key` hver gang på samme email+company.
+## Problemer identificeret
 
-Plan for løsning
+Der er fire separate problemer:
 
-1) Gør “Inviter ny bruger” idempotent i `src/pages/Members.tsx`
-- Opdatér `handleStandaloneInvite` så den ikke kun forsøger `insert`.
-- Nyt flow når virksomhed er valgt:
-  - slå eksisterende invitation op på `(company_id, email)` med `.maybeSingle()`
-  - hvis fundet:
-    - hvis status = `accepted`: opdatér til `pending` + `accepted_at = null`
-    - hvis status = `pending`: genbrug token direkte
-  - hvis ikke fundet: opret ny invitation som i dag
-- Send derefter invitation-mail med token (samme funktion som nu).
-- Tilføj tydelig succesbesked:
-  - “Invitation gensendt …” når eksisterende række blev genbrugt
-  - “Invitation sendt …” når ny række blev oprettet.
+### 1. "Inviteret som kontakt@topix.dk" vises forkert på MemberDetail
+**Årsag:** Logikken i `MemberDetail.tsx` (linje 199-215) finder "invitation mismatch" ved at hente de seneste 10 invitationer for virksomheden og finde den første med en anden email end brugerens. Den finder `kontakt@topix.dk` (som er en helt anden invitation) og konkluderer fejlagtigt at Jonas blev "inviteret som kontakt@topix.dk".
 
-2) Håndtér race condition / parallel klik
-- Behold `try/catch`, men ved `23505`:
-  - hent eksisterende token for `(company_id, email)`
-  - fortsæt med mailafsendelse i stedet for at fejle.
-- Det gør flowet robust selv ved samtidige forsøg.
+**Fix:** Ændr logikken så den kun viser mismatch hvis invitationen har `status = 'accepted'` OG invitationens email matcher det tidspunkt brugeren blev oprettet (dvs. kig på om der faktisk er en invitation der blev accepteret af denne bruger). Bedste tilgang: match via `accepted_at` tæt på brugerens `created_at`, eller endnu bedre — gem `accepted_by_user_id` på invitationen i `handle_new_user` triggeren.
 
-3) Samme robusthed i settings-team invitationer
-- Opdatér `src/components/CompanyInvitations.tsx` (`confirmInvite`) med samme “find-or-reset-or-create”-logik.
-- Så undgår vi samme duplicate key-problem i den anden invitation-indgang.
+**Simplere kortsigtet fix:** Fjern den fejlbehæftede heuristik og erstat med en direkte lookup: find en invitation med `status = 'accepted'` hvor `email != profil-email`, og hvor ingen anden bruger har den invitation-email. Alternativt: tilføj `accepted_by` kolonne til `company_invitations` i `handle_new_user` triggeren.
 
-4) Verifikation (end-to-end)
-- Case A: eksisterende `pending` (Susanne) → “Send invitation” må lykkes uden DB-fejl.
-- Case B: eksisterende `accepted` → bliver nulstillet til `pending` og mail sendes.
-- Case C: helt ny email → ny række oprettes og mail sendes.
-- Case D: uden valgt virksomhed → eksisterende “fri signup”-flow forbliver uændret.
-- Bekræft i netværk at vi ikke længere stopper på 409 før mailflow.
+### 2. Signup-link viser generel URL uden token
+**Årsag:** `CompanyInvitations.tsx` linje 196 hardcoder `https://topix.lovable.app/auth` som signup-link, uden invitation-token. Det burde enten vise det specifikke invite-link med token, eller slet ikke vise et generelt link (da det ikke kobler til virksomheden).
 
-Tekniske noter
-- Ingen migrations nødvendige.
-- RLS/policies er allerede på plads for advisor update/insert på `company_invitations`.
-- `single()` undgås ved opslag der kan mangle data; brug `.maybeSingle()` i lookup-trin.
-- Midlertidig workaround (indtil ændringen er ude): brug “Gensend invitation” på virksomhedskortet i Members.
+**Fix:** Fjern den generelle "Del signup-linket" tekst. Invitationsmailen indeholder allerede det korrekte link med token. Alternativt: vis per-invitation det specifikke link med token.
+
+### 3. Accepteret invitation nulstilles ikke ved sletning af teammedlem
+**Årsag:** Når et teammedlem fjernes via `manage-advisor` edge function, nulstilles invitationen ikke. Den forbliver `accepted`, hvilket forhindrer geninvitation.
+
+**Fix:** I `manage-advisor`'s `remove-member` action: nulstil relaterede `company_invitations` til `pending` (eller slet dem), så brugeren kan inviteres igen.
+
+### 4. Kontaktperson-kobling i Members-oversigten
+**Årsag:** Members-oversigten bruger `companies.contact_person` feltet, som ikke nødvendigvis matcher den faktiske ejer/bruger. For Topix vises `-` fordi `contact_person` er tomt. Dette er korrekt, men kan virke forvirrende.
+
+---
+
+## Plan
+
+### A. Tilføj `accepted_by` kolonne (migration)
+```sql
+ALTER TABLE company_invitations ADD COLUMN accepted_by uuid;
+```
+Opdatér `handle_new_user` trigger til at sætte `accepted_by = NEW.id` ved accept.
+
+### B. Fix MemberDetail invitation-mismatch (MemberDetail.tsx)
+Erstat den nuværende heuristik (linje 199-215) med et præcist opslag: find invitation hvor `accepted_by = userId` og `email != profil-email`.
+
+### C. Fix signup-link i CompanyInvitations (CompanyInvitations.tsx)
+Fjern den generelle signup-URL (linje 291-293). Vis i stedet per-invitation det specifikke invite-link med token for pending invitationer.
+
+### D. Nulstil invitation ved fjernelse af medlem (manage-advisor edge function)
+I `remove-member` action: nulstil `company_invitations` med `accepted_by = target_user_id` til `status = 'pending'`, `accepted_at = null`, `accepted_by = null`.
+
+### Filer der ændres
+- **Migration:** Tilføj `accepted_by` kolonne + opdatér `handle_new_user` trigger
+- `src/pages/MemberDetail.tsx` — fix invitation-mismatch logik
+- `src/components/CompanyInvitations.tsx` — fix signup-link til per-invitation token-link
+- `supabase/functions/manage-advisor/index.ts` — nulstil invitation ved member removal
+
