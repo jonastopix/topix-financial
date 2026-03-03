@@ -825,6 +825,28 @@ const Members = () => {
   const pendingCount = companies.filter((c) => c.invitationStatus === 'pending').length;
   const notInvitedCount = companies.filter((c) => c.invitationStatus === null).length;
 
+  const loginStats = useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    let active = 0;
+    let inactive = 0;
+    let never = 0;
+    companies.forEach((c) => {
+      const members = c.members || [];
+      members.forEach((m) => {
+        const info = c.loginInfo.get(m.user_id);
+        if (!info || !info.lastLogin) {
+          never++;
+        } else if (new Date(info.lastLogin) >= sevenDaysAgo) {
+          active++;
+        } else {
+          inactive++;
+        }
+      });
+    });
+    return { active, inactive, never };
+  }, [companies]);
+
   const filteredMergeUsers = unassignedUsers.filter((u) => {
     if (!mergeSearch.trim()) return true;
     const q = mergeSearch.toLowerCase();
@@ -926,6 +948,37 @@ const Members = () => {
           <div>
             <p className="text-lg font-display font-bold text-foreground">{notInvitedCount}</p>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ikke inviteret</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Login activity stats */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center">
+            <Activity className="h-4 w-4 text-green-600 dark:text-green-400" />
+          </div>
+          <div>
+            <p className="text-lg font-display font-bold text-foreground">{loginStats.active}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Aktive (7d)</p>
+          </div>
+        </div>
+        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-chart-warning/15 flex items-center justify-center">
+            <Activity className="h-4 w-4 text-chart-warning" />
+          </div>
+          <div>
+            <p className="text-lg font-display font-bold text-foreground">{loginStats.inactive}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Inaktive</p>
+          </div>
+        </div>
+        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+            <User className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-lg font-display font-bold text-foreground">{loginStats.never}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Aldrig logget ind</p>
           </div>
         </div>
       </div>
