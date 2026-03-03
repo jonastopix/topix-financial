@@ -115,12 +115,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setOwnCompanyName(cm.companies?.name || null);
     } else {
       // No company membership — check for pending invitation
-      const userEmail = (await supabase.auth.getUser()).data.user?.email;
+      const authUser = (await supabase.auth.getUser()).data.user;
+      const userEmail = authUser?.email;
+      const inviteTokenMeta = authUser?.user_metadata?.invite_token;
       if (userEmail) {
         try {
           const { data: invResult } = await supabase.functions.invoke(
             "process-pending-invitation",
-            { body: { user_id: userId, email: userEmail } }
+            { body: { user_id: userId, email: userEmail, invite_token: inviteTokenMeta || null } }
           );
           if (invResult?.success) {
             setOwnCompanyId(invResult.company_id);

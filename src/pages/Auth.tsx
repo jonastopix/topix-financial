@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { APP_BRANDING } from "@/lib/appConfig";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("invite") || "";
   const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -14,6 +15,29 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [companyName] = useState("");
   const [showReset, setShowReset] = useState(false);
+  const [inviteCompanyName, setInviteCompanyName] = useState<string | null>(null);
+
+  // Look up company name from invite token
+  useEffect(() => {
+    if (!inviteToken) return;
+    supabase
+      .from("company_invitations")
+      .select("company_id")
+      .eq("token", inviteToken)
+      .eq("status", "pending")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        supabase
+          .from("companies")
+          .select("name")
+          .eq("id", data.company_id)
+          .single()
+          .then(({ data: co }) => {
+            if (co) setInviteCompanyName(co.name);
+          });
+      });
+  }, [inviteToken]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +61,7 @@ const Auth = () => {
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { full_name: fullName, company_name: companyName },
+        data: { full_name: fullName, company_name: companyName, ...(inviteToken ? { invite_token: inviteToken } : {}) },
       },
     });
     if (error) {
@@ -114,7 +138,9 @@ const Auth = () => {
             {isLogin ? "Log ind på The Boardroom" : "Opret konto"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isLogin ? "Velkommen tilbage" : "Bliv en del af The Boardroom"}
+            {inviteCompanyName && !isLogin
+              ? `Du er inviteret til ${inviteCompanyName}`
+              : isLogin ? "Velkommen tilbage" : "Bliv en del af The Boardroom"}
           </p>
         </div>
 

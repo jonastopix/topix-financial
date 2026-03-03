@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { user_id, email } = await req.json();
+    const { user_id, email, invite_token } = await req.json();
 
     // Security: user can only process their own invitation
     if (user_id !== caller.id) {
@@ -64,14 +64,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Find pending invitation
-    const { data: invitations } = await supabase
-      .from("company_invitations")
-      .select("id, company_id")
-      .eq("status", "pending")
-      .ilike("email", email.trim())
-      .order("created_at", { ascending: false })
-      .limit(1);
+    // 2. Find pending invitation — token-based first, then email fallback
+    let invitations: any[] | null = null;
+
+    if (invite_token) {
+      const { data } = await supabase
+        .from("company_invitations")
+        .select("id, company_id")
+        .eq("status", "pending")
+        .eq("token", invite_token)
+        .limit(1);
+      invitations = data;
+    }
+
+    if (!invitations || invitations.length === 0) {
+      const { data } = await supabase
+        .from("company_invitations")
+        .select("id, company_id")
+        .eq("status", "pending")
+        .ilike("email", email.trim())
+        .order("created_at", { ascending: false })
+        .limit(1);
+      invitations = data;
+    }
 
     const invitation = invitations?.[0];
     if (!invitation) {

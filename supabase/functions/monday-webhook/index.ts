@@ -277,21 +277,24 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (advisor) {
-        const { error: inviteError } = await supabase
+        const { data: invResult, error: inviteError } = await supabase
           .from("company_invitations")
           .insert({
             company_id: newCompany.id,
             email: contactEmail,
             invited_by: advisor.user_id,
             status: "pending",
-          });
+          })
+          .select("token")
+          .single();
 
         if (inviteError) {
           console.error("Error creating invitation:", inviteError);
         } else {
+          const tokenParam = invResult?.token ? `&invite=${invResult.token}` : "";
           console.log(`Invitation created for ${contactEmail} to company ${newCompany.id}`);
 
-          // Trigger invitation email (test-mode controlled by EMAIL_SENDING_ENABLED secret)
+          // Trigger invitation email
           try {
             const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-invitation-email`, {
               method: "POST",
@@ -302,7 +305,7 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 email: contactEmail,
                 company_name: pulseName,
-                signup_url: "https://topix.lovable.app/auth?mode=signup",
+                signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
               }),
             });
             const emailData = await emailRes.json();
