@@ -1,44 +1,74 @@
 
+Målet er klart: `kontakt@topix.dk` skal ikke længere fremstå som “brugeren”, når den reelle aktive bruger er `jonas@topix.dk`.
 
-## Problem
+Status efter gennemgang:
+- Backend-data er faktisk korrekt nu for Topix:
+  - 1 medlem: Jonas
+  - invitationen har `status='accepted'` og `accepted_by = Jonas`
+- Fejlen er derfor primært visningslogik i UI (ikke manglende data-link).
 
-Topix-casen afslører to konkrete fejl:
+Implementeringsplan
 
-1. **Backfill-migrationen virkede ikke for Topix** fordi den matchede på email (kontakt@topix.dk ≠ jonas@topix.dk). `accepted_by` er stadig NULL.
-2. **"Inviteret som: kontakt@topix.dk"** på MemberDetail vises fordi koden falder igennem til et match uden `accepted_by`.
-3. **Settings viser "kontakt@topix.dk Accepteret"** uden kontekst om hvem der accepterede — det ser ud som om kontakt@topix.dk er en bruger.
+1) Fjern invitation-email som primær identitet i alle “accepted”-visninger
+- Problem i dag:
+  - `MemberDetail` viser badge: “Inviteret som: kontakt@topix.dk”
+  - `CompanyInvitations` viser accepted-række med `inv.email` som første tekst
+  - `Members` (expanded company card) viser invitation-email direkte under “Invitation”
+- Løsning:
+  - Når invitation er `accepted`, skal UI vise den accepterende bruger (via `accepted_by`), ikke den oprindelige invitation-email.
+  - Invitation-email må kun vises i `pending`-kontekster (hvor den er operationel og relevant).
 
-## Plan
+2) MemberDetail: stop “Inviteret som”-forvirringen
+- Fil: `src/pages/MemberDetail.tsx`
+- Ændring:
+  - Fjern/stram logik så badge “Inviteret som …” ikke vises for accepterede medlemmer med gyldig `accepted_by`.
+  - Hvis der opstår legacy-edgecase uden `accepted_by`, vis hellere intet badge end potentielt misvisende email.
+- Resultat:
+  - Jonas’ detaljeside viser kun Jonas’ egen email og ikke `kontakt@topix.dk`.
 
-### 1) Ret backfill: sæt `accepted_by` via company_members (ikke kun email-match)
+3) CompanyInvitations: accepted-rækker vises som “accepteret af bruger”
+- Fil: `src/components/CompanyInvitations.tsx`
+- Ændring:
+  - Behold nuværende enrich med acceptor-profil.
+  - Justér rendering:
+    - `pending`: vis invitation-email + “Afventer” (uændret)
+    - `accepted`: vis “Accepteret af {navn} ({email})” som primær tekst
+    - skjul oprindelig invitation-email i accepted-rækker for at undgå at den ligner en aktiv bruger.
+  - Fallback ved manglende acceptor-profil: vis neutral “Accepteret” uden mail.
+- Resultat:
+  - `kontakt@topix.dk` fremstår ikke som aktiv bruger i Settings.
 
-Kør en ny migration der sætter `accepted_by` for accepted invitationer, hvor der kun findes ét medlem i virksomheden og invitationen er den eneste accepted for den virksomhed:
+4) Members-side: invitation-blok skal være status, ikke pseudo-brugeridentitet
+- Fil: `src/pages/Members.tsx`
+- Ændring:
+  - Udvid invitation-info-model med `accepted_by` (og afledt acceptor navn/email fra eksisterende profil/member-data).
+  - I expanded “Invitation”-sektion:
+    - `pending`: vis pending-email + “Afventer svar”
+    - `accepted`: vis “Accepteret af {navn/email}” + dato
+    - skjul rå `invitationEmail` i accepted-state.
+  - Behold `invitationEmail` internt til “Nulstil & gensend” handling (funktionelt behov), men uden at vise den som bruger-identitet.
+- Resultat:
+  - Virksomheden vises korrekt med aktiv bruger-identitet, ikke gammel invite-modtager.
 
-```sql
-UPDATE public.company_invitations ci
-SET accepted_by = cm.user_id
-FROM public.company_members cm
-WHERE ci.company_id = cm.company_id
-  AND ci.status = 'accepted'
-  AND ci.accepted_by IS NULL
-  AND (SELECT count(*) FROM public.company_members WHERE company_id = ci.company_id) = 1;
-```
+5) Tekniske detaljer (konkret regler)
+- Visningsregel:
+  - `if status === 'pending' => show invitation email`
+  - `if status === 'accepted' => show acceptor (accepted_by -> profile/member)`
+- Fallbacks:
+  - Ingen `accepted_by` eller manglende profil => vis neutral accepted-tekst uden email.
+- Ingen schema-ændringer nødvendige.
+- Ingen ny migration nødvendig i denne omgang (problemet er UI-semantik).
 
-Dette fixer Topix-casen (én invitation, ét medlem → link dem).
+6) Verificering (end-to-end)
+- Topix / MemberDetail:
+  - Jonas-side må ikke vise “Inviteret som: kontakt@topix.dk”
+- Settings / CompanyInvitations:
+  - Accepted invitation skal vise accepterende bruger, ikke `kontakt@topix.dk` som primær identitet
+- Members / virksomhedskort:
+  - Invitation-sektion for accepted skal vise “Accepteret af …”
+  - Pending invitationer på andre virksomheder skal fortsat vise invitation-email korrekt
 
-### 2) MemberDetail: Gør "Inviteret som"-badge mere meningsfuld
-
-- Behold kun badgen, når invitation-emailen faktisk afviger fra brugerens profil-email (nuværende logik).
-- Sørg for at query altid matcher via `accepted_by` — og tilføj fallback via company_id + status + single-member check, så den virker selv for legacy-data der endnu ikke har `accepted_by` sat.
-
-### 3) Settings/CompanyInvitations: Vis hvem der accepterede
-
-- Når en invitation er accepted og `accepted_by` er sat, vis brugerens navn/email i stedet for kun invitations-emailen.
-- Formatér: "kontakt@topix.dk → Accepteret af Jonas Herlev (jonas@topix.dk)" eller lignende.
-- Når `accepted_by` er NULL men status er accepted, vis bare "Accepteret".
-
-### Filer der rettes
-- **Database-migration** (backfill `accepted_by` via company_members)
-- `src/pages/MemberDetail.tsx` (robustere invitation-query)
-- `src/components/CompanyInvitations.tsx` (vis acceptant-info)
-
+Filer der rettes
+- `src/pages/MemberDetail.tsx`
+- `src/components/CompanyInvitations.tsx`
+- `src/pages/Members.tsx`
