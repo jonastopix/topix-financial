@@ -293,10 +293,35 @@ Deno.serve(async (req) => {
       }
 
       // Reset any invitations accepted by this user back to pending
-      await adminSupabase
+      const { count: resetByAcceptedBy } = await adminSupabase
         .from('company_invitations')
         .update({ status: 'pending', accepted_at: null, accepted_by: null })
-        .eq('accepted_by', target_user_id);
+        .eq('accepted_by', target_user_id)
+        .select('id', { count: 'exact', head: true });
+
+      // Fallback: if no invitations found via accepted_by, try email-based match
+      if (!resetByAcceptedBy || resetByAcceptedBy === 0) {
+        // Get the user's profile email and company
+        const { data: profileData } = await adminSupabase
+          .from('profiles')
+          .select('email')
+          .eq('user_id', target_user_id)
+          .maybeSingle();
+        const { data: membershipData } = await adminSupabase
+          .from('company_members')
+          .select('company_id')
+          .eq('user_id', target_user_id)
+          .maybeSingle();
+
+        if (profileData?.email && membershipData?.company_id) {
+          await adminSupabase
+            .from('company_invitations')
+            .update({ status: 'pending', accepted_at: null, accepted_by: null })
+            .eq('company_id', membershipData.company_id)
+            .ilike('email', profileData.email.trim())
+            .eq('status', 'accepted');
+        }
+      }
 
       // Delete company_members
       const { error: cmErr } = await adminSupabase
