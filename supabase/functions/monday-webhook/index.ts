@@ -40,7 +40,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Only fetch contact_email from Monday
 const EMAIL_COLUMN_ID = "e_mail";
 
 async function fetchMondayContactEmail(itemId: number, apiToken: string): Promise<string | null> {
@@ -98,7 +97,7 @@ Deno.serve(async (req) => {
     // Verify Monday.com JWT signature (if present)
     const MONDAY_SIGNING_SECRET = Deno.env.get("MONDAY_SIGNING_SECRET");
     const authHeader = req.headers.get("Authorization");
-    
+
     if (MONDAY_SIGNING_SECRET && authHeader) {
       const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
       if (!isValid) {
@@ -160,24 +159,7 @@ Deno.serve(async (req) => {
       throw new Error("Missing Supabase configuration");
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // Check if company already exists by name
-    const { data: existing } = await supabase
-      .from("companies")
-      .select("id")
-      .eq("name", pulseName)
-      .maybeSingle();
-
-    if (existing) {
-      console.log(`Company "${pulseName}" already exists, skipping`);
-      return new Response(
-        JSON.stringify({ ok: true, skipped: true, reason: "already_exists", company_id: existing.id }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Fetch only contact email from Monday
+    // Fetch contact email from Monday
     let contactEmail: string | null = null;
     if (MONDAY_API_TOKEN) {
       console.log(`Fetching contact email for pulseId: ${pulseId}`);
@@ -187,83 +169,94 @@ Deno.serve(async (req) => {
       console.warn("MONDAY_API_TOKEN not set - cannot fetch contact email");
     }
 
-    // Create company with name only — user fills in details in Settings after signup
-    const { data: newCompany, error: insertError } = await supabase
-      .from("companies")
-      .insert({
-        name: pulseName,
-        status: "active",
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      console.error("Error creating company:", insertError);
-      throw new Error(`Failed to create company: ${insertError.message}`);
+    if (!contactEmail) {
+      console.warn(`No contact email found for "${pulseName}", cannot send invitation`);
+      return new Response(
+        JSON.stringify({ ok: true, skipped: true, reason: "no_contact_email" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    console.log(`Company "${pulseName}" created with ID: ${newCompany.id}`);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Create invitation and send email if contact email is available
-    let invitationSent = false;
-    if (contactEmail) {
-      const { data: advisor } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "advisor")
-        .limit(1)
-        .maybeSingle();
+    // Check if there's already a pending invitation for this email
+    const { data: existingInvite } = await supabase
+      .from("company_invitations")
+      .select("id")
+      .eq("email", contactEmail)
+      .eq("status", "pending")
+      .maybeSingle();
 
-      if (advisor) {
-        const { data: invResult, error: inviteError } = await supabase
-          .from("company_invitations")
-          .insert({
-            company_id: newCompany.id,
-            email: contactEmail,
-            invited_by: advisor.user_id,
-            status: "pending",
-          })
-          .select("token")
-          .single();
+    if (existingInvite) {
+      console.log(`Pending invitation already exists for ${contactEmail}, skipping`);
+      return new Response(
+        JSON.stringify({ ok: true, skipped: true, reason: "invitation_exists" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-        if (inviteError) {
-          console.error("Error creating invitation:", inviteError);
-        } else {
-          const tokenParam = invResult?.token ? `&invite=${invResult.token}` : "";
-          console.log(`Invitation created for ${contactEmail} to company ${newCompany.id}`);
-          invitationSent = true;
+    // Find an advisor to set as inviter
+    const { data: advisor } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "advisor")
+      .limit(1)
+      .maybeSingle();
 
-          // Trigger invitation email
-          try {
-            const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-invitation-email`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              },
-              body: JSON.stringify({
-                email: contactEmail,
-                company_name: pulseName,
-                signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
-              }),
-            });
-            const emailData = await emailRes.json();
-            console.log("Invitation email result:", JSON.stringify(emailData));
-          } catch (emailErr) {
-            console.error("Could not trigger invitation email:", emailErr);
-          }
-        }
-      } else {
-        console.warn("No advisor found to set as inviter - skipping invitation");
-      }
+    if (!advisor) {
+      console.error("No advisor found to set as inviter");
+      return new Response(
+        JSON.stringify({ ok: false, error: "No advisor found" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create invitation WITHOUT company_id — user creates their own company at signup
+    const { data: invResult, error: inviteError } = await supabase
+      .from("company_invitations")
+      .insert({
+        company_id: null,
+        email: contactEmail,
+        invited_by: advisor.user_id,
+        status: "pending",
+      })
+      .select("token")
+      .single();
+
+    if (inviteError) {
+      console.error("Error creating invitation:", inviteError);
+      throw new Error(`Failed to create invitation: ${inviteError.message}`);
+    }
+
+    const tokenParam = invResult?.token ? `&invite=${invResult.token}` : "";
+    console.log(`Invitation created for ${contactEmail} (no company, token: ${invResult.token})`);
+
+    // Send invitation email
+    try {
+      const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-invitation-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          email: contactEmail,
+          company_name: pulseName,
+          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
+        }),
+      });
+      const emailData = await emailRes.json();
+      console.log("Invitation email result:", JSON.stringify(emailData));
+    } catch (emailErr) {
+      console.error("Could not trigger invitation email:", emailErr);
     }
 
     return new Response(
       JSON.stringify({
         ok: true,
-        company_id: newCompany.id,
-        name: pulseName,
-        invitation_sent: invitationSent,
+        email: contactEmail,
+        monday_item: pulseName,
+        invitation_sent: true,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
