@@ -292,6 +292,12 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Reset any invitations accepted by this user back to pending
+      await adminSupabase
+        .from('company_invitations')
+        .update({ status: 'pending', accepted_at: null, accepted_by: null })
+        .eq('accepted_by', target_user_id);
+
       // Delete company_members
       const { error: cmErr } = await adminSupabase
         .from('company_members')

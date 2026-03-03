@@ -196,20 +196,18 @@ const MemberDetail = () => {
       const cm = cmData as any;
       if (cm?.companies) {
         setCompanyCtx(cm.companies as CompanyContext);
-        // Fetch invited email for this company
-        const { data: invData } = await supabase
-          .from("company_invitations")
+        // Fetch invitation that was accepted by this specific user
+        const { data: invData } = await (supabase
+          .from("company_invitations") as any)
           .select("email")
           .eq("company_id", cm.company_id)
-          .order("created_at", { ascending: false })
-          .limit(10);
-        if (invData && invData.length > 0) {
-          // Find an invitation that matches this user (by accepted status or just pick the first)
-          const profileEmail = profileRes.data?.email?.toLowerCase()?.trim();
-          const diffInvite = invData.find(
-            (inv: any) => inv.email?.toLowerCase()?.trim() !== profileEmail
-          );
-          setInvitedEmail(diffInvite?.email || null);
+          .eq("accepted_by", userId)
+          .eq("status", "accepted")
+          .maybeSingle();
+        const profileEmail = profileRes.data?.email?.toLowerCase()?.trim();
+        const invEmail = (invData as any)?.email?.toLowerCase()?.trim();
+        if (invEmail && invEmail !== profileEmail) {
+          setInvitedEmail((invData as any).email);
         } else {
           setInvitedEmail(null);
         }
