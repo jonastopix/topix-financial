@@ -1,53 +1,54 @@
 
 
-# Token-baseret invitationssystem
+## Plan: Forenkl Monday-webhook og led brugere til Indstillinger efter tour
 
-## Problem i dag
-Invitationer er bundet til en specifik e-mail. Hvis en bruger opretter sig med en anden e-mail, bliver de ikke tilknyttet virksomheden. Det skaber dubletter og forvirring.
+### Overblik
 
-## Løsning
-Invitationslinket indeholder et unikt token (allerede i `company_invitations.token`). Når en bruger klikker linket og opretter sig — uanset hvilken e-mail de bruger — tilknyttes de automatisk den rigtige virksomhed.
+To ændringer:
 
-## Hvad ændres
+1. **Monday-webhook**: Stop med at oprette virksomhed. Send kun en invitation til kontaktpersonens email. Brugeren opretter selv sin virksomhed ved signup (via `handle_new_user` triggeren, som allerede opretter en default virksomhed hvis ingen invitation matcher).
 
-### 1. Auth-siden (`src/pages/Auth.tsx`)
-- Læs `invite` query-parameter fra URL
-- Gem token i signup-metadata: `data: { full_name, invite_token }`
-- Vis evt. virksomhedsnavnet på signup-formularen ("Du er inviteret til X")
+2. **Guided Tour**: Efter tourens afslutning, navigér brugeren til `/settings` så de kan udfylde virksomhedsnavn, CVR, logo etc.
 
-### 2. Database-trigger (`handle_new_user`)
-- **Først** tjek om `raw_user_meta_data->>'invite_token'` er sat
-- Slå token op i `company_invitations` (status=pending)
-- Tilknyt bruger til virksomheden via `company_members`
-- Marker invitation som accepted
-- **Dernæst** fald tilbage til email-matching (bagudkompatibilitet)
+---
 
-### 3. Signup-URL med token
-Alle steder der genererer signup_url ændres:
-- `src/pages/Members.tsx` — advisor-invitationer
-- `src/components/CompanyInvitations.tsx` — team-invitationer  
-- `supabase/functions/send-invitation-email/index.ts` — email-template
-- `supabase/functions/monday-webhook/index.ts` — automatiske invitationer
+### Tekniske detaljer
 
-Format: `https://topix.lovable.app/auth?mode=signup&invite=<token>`
+#### 1. Monday-webhook (`supabase/functions/monday-webhook/index.ts`)
 
-### 4. Edge function (`process-pending-invitation`)
-Tilføj token-baseret lookup som supplement til email-matching, så login-fallback også virker med tokens.
+Nuværende flow: Webhook modtager "I gang" status → opretter virksomhed i `companies` → opretter invitation → sender email.
 
-### 5. Email-template
-Opdater teksten så den ikke siger "med denne e-mail" men i stedet fokuserer på virksomhedstilknytning.
+Nyt flow: Webhook modtager "I gang" → henter kontaktpersonens email fra Monday → opretter invitation **uden company_id** (eller opretter en "placeholder" invitation) → sender email.
 
-## Sikkerhed
-- Tokens er allerede UUID'er (svære at gætte)
-- Kun pending-invitationer accepteres
-- En invitation kan kun bruges én gang
-- Eksisterende email-matching bevares som fallback
+**Problem**: `company_invitations` tabellen kræver `company_id` (NOT NULL). To muligheder:
 
-## Filer der ændres
-- `src/pages/Auth.tsx` — læs invite-token, send i metadata
-- `src/pages/Members.tsx` — inkluder token i signup_url
-- `src/components/CompanyInvitations.tsx` — inkluder token i signup_url
-- `supabase/functions/send-invitation-email/index.ts` — modtag/inkluder token
-- `supabase/functions/process-pending-invitation/index.ts` — token-lookup
-- Database migration: opdater `handle_new_user` trigger til at tjekke token først
+- **A)** Gør `company_id` nullable i `company_invitations` og tilpas `handle_new_user` til at håndtere invitationer uden company_id (brugeren opretter selv sin virksomhed).
+- **B)** Behold virksomhedsoprettelsen men gør den minimal (kun navn fra Monday-item). Fjern al den detaljerede metadata-mapping, da brugeren selv udfylder det i Settings.
+
+**Anbefaling: Option B** — Behold den enkle virksomhedsoprettelse med kun navnet fra Monday. Fjern den detaljerede GraphQL-fetch af metadata (CVR, adresse, telefon etc.), da brugeren selv udfylder det i Settings. Dette kræver ingen databaseændringer og `handle_new_user` fungerer uændret.
+
+Konkret:
+- Fjern `fetchMondayItemData()` og `COLUMN_MAPPING` for metadata-felter
+- Behold kun hentning af `contact_email` (via simpel GraphQL eller column mapping)
+- Opret virksomhed med kun `name: pulseName`
+- Resten forbliver som nu (invitation + email)
+
+#### 2. Guided Tour → Settings redirect (`src/components/GuidedTour.tsx`)
+
+- Ændre sidste steps tekst til at nævne at de nu skal udfylde virksomhedsoplysninger
+- I `finish()` funktionen: efter at gemme `tour_completed_at`, navigér til `/settings` i stedet for blot at lukke touren
+- Kræver at `onComplete` callback modtager en navigation-instruktion, eller at GuidedTour selv bruger `useNavigate`
+
+#### 3. Index.tsx
+
+- Ingen ændring nødvendig — `onComplete` callback lukker touren, og GuidedTour håndterer navigation internt.
+
+---
+
+### Filer der ændres
+
+| Fil | Ændring |
+|-----|---------|
+| `supabase/functions/monday-webhook/index.ts` | Fjern metadata-mapping, behold kun email-hentning + simpel virksomhedsoprettelse |
+| `src/components/GuidedTour.tsx` | Tilføj `useNavigate`, opdater sidste step tekst, navigér til `/settings` ved afslutning |
 
