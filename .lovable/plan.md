@@ -1,28 +1,53 @@
 
 
-# Fix Monday.com webhook signaturvalidering
+# Token-baseret invitationssystem
 
-## Problem
-Alle webhook-events fra Monday.com afvises med "Invalid Monday.com webhook signature". Monday.com retrier hvert ~2 minut, men alle fejler. Floren Engros og fremtidige virksomheder oprettes derfor ikke automatisk.
+## Problem i dag
+Invitationer er bundet til en specifik e-mail. Hvis en bruger opretter sig med en anden e-mail, bliver de ikke tilknyttet virksomheden. Det skaber dubletter og forvirring.
 
-## Årsag
-`MONDAY_SIGNING_SECRET` i edge function-konfigurationen matcher ikke den aktuelle signing secret i Monday.com. Dette sker typisk når Monday.com roterer secrets, eller når appen er blevet gen-installeret/opdateret.
+## Løsning
+Invitationslinket indeholder et unikt token (allerede i `company_invitations.token`). Når en bruger klikker linket og opretter sig — uanset hvilken e-mail de bruger — tilknyttes de automatisk den rigtige virksomhed.
 
-## Plan
+## Hvad ændres
 
-### Trin 1: Opdater MONDAY_SIGNING_SECRET
-Du skal hente den korrekte signing secret fra Monday.com:
-1. Gå til **monday.com → Developer → Apps → din app → Features → Webhooks**
-2. Find **Signing Secret** (ikke API token)
-3. Jeg beder dig om at indsætte den nye værdi via Lovable's secret-manager
+### 1. Auth-siden (`src/pages/Auth.tsx`)
+- Læs `invite` query-parameter fra URL
+- Gem token i signup-metadata: `data: { full_name, invite_token }`
+- Vis evt. virksomhedsnavnet på signup-formularen ("Du er inviteret til X")
 
-### Trin 2: Tilføj debug-logging (midlertidigt)
-Tilføj et log-statement der viser om Authorization-headeren overhovedet er til stede og dens format (uden at afsløre selve værdien), så vi kan bekræfte at verifikationen virker efter opdatering.
+### 2. Database-trigger (`handle_new_user`)
+- **Først** tjek om `raw_user_meta_data->>'invite_token'` er sat
+- Slå token op i `company_invitations` (status=pending)
+- Tilknyt bruger til virksomheden via `company_members`
+- Marker invitation som accepted
+- **Dernæst** fald tilbage til email-matching (bagudkompatibilitet)
 
-### Trin 3: Redeploy og test
-Redeploy `monday-webhook` edge function og verificer i logs at næste Monday-event behandles korrekt. Monday retrier automatisk, så Floren Engros bør oprettes inden for få minutter.
+### 3. Signup-URL med token
+Alle steder der genererer signup_url ændres:
+- `src/pages/Members.tsx` — advisor-invitationer
+- `src/components/CompanyInvitations.tsx` — team-invitationer  
+- `supabase/functions/send-invitation-email/index.ts` — email-template
+- `supabase/functions/monday-webhook/index.ts` — automatiske invitationer
+
+Format: `https://topix.lovable.app/auth?mode=signup&invite=<token>`
+
+### 4. Edge function (`process-pending-invitation`)
+Tilføj token-baseret lookup som supplement til email-matching, så login-fallback også virker med tokens.
+
+### 5. Email-template
+Opdater teksten så den ikke siger "med denne e-mail" men i stedet fokuserer på virksomhedstilknytning.
+
+## Sikkerhed
+- Tokens er allerede UUID'er (svære at gætte)
+- Kun pending-invitationer accepteres
+- En invitation kan kun bruges én gang
+- Eksisterende email-matching bevares som fallback
 
 ## Filer der ændres
-- `supabase/functions/monday-webhook/index.ts` — tilføj debug-logging
-- Secret: `MONDAY_SIGNING_SECRET` — opdateres med ny værdi
+- `src/pages/Auth.tsx` — læs invite-token, send i metadata
+- `src/pages/Members.tsx` — inkluder token i signup_url
+- `src/components/CompanyInvitations.tsx` — inkluder token i signup_url
+- `supabase/functions/send-invitation-email/index.ts` — modtag/inkluder token
+- `supabase/functions/process-pending-invitation/index.ts` — token-lookup
+- Database migration: opdater `handle_new_user` trigger til at tjekke token først
 
