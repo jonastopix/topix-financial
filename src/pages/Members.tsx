@@ -193,7 +193,7 @@ const Members = () => {
       (supabase.from("financial_reports").select("company_id, id, extracted_data") as any).is("deleted_at", null),
       supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
-      supabase.from("company_invitations").select("company_id, email, status, accepted_at"),
+      supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
       supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
     ]);
 
@@ -224,6 +224,8 @@ const Members = () => {
     // Invitation info by company (most recent invitation per company)
     const pendingInvitationByCompany = new Map<string, string>();
     const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
+    // Collect all pending invitations per company for the overview
+    const pendingInvsByCompany = new Map<string, any[]>();
     // Sort so most recent comes last (overwrites)
     const sortedInvitations = [...allInvitations].sort((a: any, b: any) => 
       new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
@@ -236,6 +238,9 @@ const Members = () => {
       });
       if (inv.status === 'pending') {
         pendingInvitationByCompany.set(inv.company_id, inv.email);
+        const arr = pendingInvsByCompany.get(inv.company_id) || [];
+        arr.push({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token });
+        pendingInvsByCompany.set(inv.company_id, arr);
       }
     });
 
@@ -388,7 +393,8 @@ const Members = () => {
             });
             return companyLoginInfo;
           })(),
-        };
+          __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
+        } as any;
       });
 
     setCompanies(enriched);
@@ -404,13 +410,14 @@ const Members = () => {
     if (member.role === 'owner') return;
     setRemovingMember(member.user_id);
     try {
-      // Remove from company_members
-      const { error } = await supabase
-        .from("company_members" as any)
-        .delete()
-        .eq("company_id", company.id)
-        .eq("user_id", member.user_id) as any;
+      // Use backend flow (same as MemberDetail) so invitation-reset happens correctly
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('manage-advisor', {
+        body: { action: 'remove-member', target_user_id: member.user_id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast.success(`${member.full_name} fjernet fra ${company.name}`);
       setReloadTrigger((t) => t + 1);
@@ -430,7 +437,7 @@ const Members = () => {
       if (company.invitationStatus === 'accepted') {
         const { error: updateErr } = await supabase
           .from("company_invitations")
-          .update({ status: 'pending', accepted_at: null })
+          .update({ status: 'pending', accepted_at: null, accepted_by: null })
           .eq("company_id", company.id)
           .eq("email", company.invitationEmail)
           .eq("status", "accepted");
@@ -724,7 +731,7 @@ const Members = () => {
             // Reset to pending
             const { error: upErr } = await supabase
               .from("company_invitations")
-              .update({ status: "pending", accepted_at: null })
+              .update({ status: "pending", accepted_at: null, accepted_by: null })
               .eq("id", existing.id);
             if (upErr) throw upErr;
           }
@@ -1089,10 +1096,15 @@ const Members = () => {
         </div>
       </div>
 
-      {/* Pending invitations overview */}
+      {/* Pending invitations overview — always visible */}
       {(() => {
-        const pendingInvitations = companies.filter(c => c.invitationStatus === 'pending' && c.invitationEmail);
-        return pendingInvitations.length > 0 ? (
+        // Build directly from allPendingInvitations (queried from company_invitations)
+        const pendingInvitations = companies
+          .flatMap(c => {
+            const companyInvs = (c as any).__pendingInvitations || [];
+            return companyInvs.map((inv: any) => ({ ...inv, companyName: c.name, companyId: c.id }));
+          });
+        return (
           <div className="mb-6 glass-card rounded-xl overflow-hidden">
             <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
               <Send className="h-4 w-4 text-chart-warning" />
@@ -1101,29 +1113,38 @@ const Members = () => {
                 {pendingInvitations.length}
               </span>
             </div>
-            <div className="divide-y divide-border">
-              {pendingInvitations.map(c => (
-                <div key={c.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{c.invitationEmail}</p>
-                      <p className="text-xs text-muted-foreground">{c.name} · Sendt {format(new Date(c.created_at), "d. MMM yyyy", { locale: da })}</p>
+            {pendingInvitations.length > 0 ? (
+              <div className="divide-y divide-border">
+                {pendingInvitations.map((inv: any) => (
+                  <div key={inv.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
+                        <p className="text-xs text-muted-foreground">{inv.companyName} · Sendt {format(new Date(inv.created_at), "d. MMM yyyy", { locale: da })}</p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => {
+                        const company = companies.find(c => c.id === inv.companyId);
+                        if (company) handleResendInvitation(company);
+                      }}
+                      disabled={resendingInvitation === inv.companyId}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50 shrink-0"
+                    >
+                      {resendingInvitation === inv.companyId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                      Gensend
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleResendInvitation(c)}
-                    disabled={resendingInvitation === c.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50 shrink-0"
-                  >
-                    {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                    Gensend
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-6 text-center">
+                <p className="text-sm text-muted-foreground">Ingen afventende invitationer</p>
+              </div>
+            )}
           </div>
-        ) : null;
+        );
       })()}
 
       {/* Login activity stats */}

@@ -116,7 +116,7 @@ const CompanyInvitations = () => {
         if (existing.status === "accepted") {
           await supabase
             .from("company_invitations")
-            .update({ status: "pending", accepted_at: null })
+            .update({ status: "pending", accepted_at: null, accepted_by: null })
             .eq("id", existing.id);
         }
         invToken = existing.token;
