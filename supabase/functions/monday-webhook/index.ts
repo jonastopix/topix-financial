@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 email: contactEmail,
                 company_name: pulseName,
-                signup_url: "https://topix.lovable.app/auth",
+                signup_url: "https://topix.lovable.app/auth?mode=signup",
               }),
             });
             const emailData = await emailRes.json();
