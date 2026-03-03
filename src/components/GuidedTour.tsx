@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { X, ChevronRight, PartyPopper, Sparkles } from "lucide-react";
@@ -43,7 +44,7 @@ const STEPS: TourStep[] = [
     selector: null,
     title: "Du er klar! 🚀",
     description:
-      "Start med at uploade din seneste regnskabsrapport — så klarer AI resten. God fornøjelse!",
+      "Lad os starte med at udfylde dine virksomhedsoplysninger — så er du klar til at uploade din første rapport.",
   },
 ];
 
@@ -55,6 +56,7 @@ interface Rect {
 }
 
 export default function GuidedTour({ onComplete }: { onComplete: () => void }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
@@ -115,6 +117,7 @@ export default function GuidedTour({ onComplete }: { onComplete: () => void }) {
         .eq("user_id", user.id);
     }
     onComplete();
+    navigate("/settings");
   };
 
   const next = () => {
