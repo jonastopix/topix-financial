@@ -5,13 +5,11 @@ async function verifyMondayJwt(authHeader: string | null, signingSecret: string)
   if (!authHeader) return false;
 
   try {
-    // Monday sends a JWT in the Authorization header
     const parts = authHeader.split(".");
     if (parts.length !== 3) return false;
 
     const [headerB64, payloadB64, signatureB64] = parts;
 
-    // Import the signing secret as HMAC key
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw",
@@ -21,13 +19,11 @@ async function verifyMondayJwt(authHeader: string | null, signingSecret: string)
       ["verify"]
     );
 
-    // Convert base64url signature to ArrayBuffer
     const signatureStr = signatureB64.replace(/-/g, "+").replace(/_/g, "/");
     const pad = signatureStr.length % 4;
     const paddedSig = pad ? signatureStr + "=".repeat(4 - pad) : signatureStr;
     const sigBytes = Uint8Array.from(atob(paddedSig), (c) => c.charCodeAt(0));
 
-    // Verify signature
     const data = encoder.encode(`${headerB64}.${payloadB64}`);
     const valid = await crypto.subtle.verify("HMAC", key, sigBytes, data);
 
@@ -44,35 +40,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Flexible mapping: Monday column ID -> companies table field
-// We log all columns on first run so you can adjust these IDs
-const COLUMN_MAPPING: Record<string, string> = {
-  // Adjust these column IDs after checking logs from the first webhook call
-  "tekst": "cvr_number",
-  "tekst0": "contact_person",
-  "e_mail": "contact_email",
-  "telefon": "contact_phone",
-  "tekst6": "industry",
-  "tekst8": "website",
-  "tekst3": "address",
-  "tekst4": "city",
-  "tekst5": "postal_code",
-  "tekst7": "slack_channel",
-  // Numeric and date fields — column IDs are guessed, will be verified from logs
-  "tal": "annual_revenue",
-  "dato": "start_date",
-  "dato0": "end_date",
-};
+// Only fetch contact_email from Monday
+const EMAIL_COLUMN_ID = "e_mail";
 
-async function fetchMondayItemData(itemId: number, apiToken: string) {
+async function fetchMondayContactEmail(itemId: number, apiToken: string): Promise<string | null> {
   const query = `query {
     items(ids: [${itemId}]) {
-      name
-      column_values {
+      column_values(ids: ["${EMAIL_COLUMN_ID}"]) {
         id
-        title
         text
-        value
       }
     }
   }`;
@@ -97,37 +73,9 @@ async function fetchMondayItemData(itemId: number, apiToken: string) {
     throw new Error(`Monday GraphQL errors: ${JSON.stringify(json.errors)}`);
   }
 
-  return json.data?.items?.[0] || null;
-}
-
-const NUMERIC_FIELDS = new Set(["annual_revenue"]);
-const DATE_FIELDS = new Set(["start_date", "end_date"]);
-
-function mapColumnValues(columnValues: Array<{ id: string; title: string; text: string; value: string }>) {
-  const companyData: Record<string, string | number> = {};
-
-  // Log all columns for debugging/mapping
-  console.log("=== Monday Column Values ===");
-  for (const col of columnValues) {
-    console.log(`  Column ID: "${col.id}" | Title: "${col.title}" | Text: "${col.text}"`);
-
-    const dbField = COLUMN_MAPPING[col.id];
-    if (dbField && col.text) {
-      if (NUMERIC_FIELDS.has(dbField)) {
-        const num = parseFloat(col.text.replace(/[^0-9.-]/g, ""));
-        if (!isNaN(num)) companyData[dbField] = num;
-      } else if (DATE_FIELDS.has(dbField)) {
-        // Monday dates come as "YYYY-MM-DD" in text
-        const dateMatch = col.text.match(/\d{4}-\d{2}-\d{2}/);
-        if (dateMatch) companyData[dbField] = dateMatch[0];
-      } else {
-        companyData[dbField] = col.text;
-      }
-    }
-  }
-  console.log("=== Mapped company data ===", JSON.stringify(companyData));
-
-  return companyData;
+  const columns = json.data?.items?.[0]?.column_values || [];
+  const emailCol = columns.find((c: { id: string }) => c.id === EMAIL_COLUMN_ID);
+  return emailCol?.text || null;
 }
 
 Deno.serve(async (req) => {
@@ -139,7 +87,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     console.log("Monday webhook received:", JSON.stringify(body));
 
-    // Handle Monday.com webhook challenge verification (must respond before signature check)
+    // Handle Monday.com webhook challenge verification
     if (body.challenge) {
       return new Response(JSON.stringify({ challenge: body.challenge }), {
         status: 200,
@@ -150,7 +98,6 @@ Deno.serve(async (req) => {
     // Verify Monday.com JWT signature (if present)
     const MONDAY_SIGNING_SECRET = Deno.env.get("MONDAY_SIGNING_SECRET");
     const authHeader = req.headers.get("Authorization");
-    console.log(`[DEBUG] Auth header present: ${!!authHeader}, length: ${authHeader?.length ?? 0}`);
     
     if (MONDAY_SIGNING_SECRET && authHeader) {
       const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
@@ -163,10 +110,7 @@ Deno.serve(async (req) => {
       }
       console.log("Monday.com webhook signature verified ✓");
     } else if (!authHeader) {
-      // Monday.com API-created webhooks don't always send JWT — accept but log
-      console.warn("No Authorization header from Monday.com — accepting webhook (API-subscription mode)");
-    } else {
-      console.warn("MONDAY_SIGNING_SECRET not configured — skipping signature verification");
+      console.warn("No Authorization header — accepting webhook (API-subscription mode)");
     }
 
     const event = body.event;
@@ -181,11 +125,10 @@ Deno.serve(async (req) => {
     const pulseId = event.pulseId;
     const pulseName = event.pulseName;
 
-    // Parse the status value — Monday sends nested label object
+    // Parse the status value
     let newStatus = "";
     try {
       const parsed = typeof columnValue === "string" ? JSON.parse(columnValue) : columnValue;
-      // Monday format: { label: { text: "I gang", ... } } or { label: "I gang" }
       if (parsed?.label?.text) {
         newStatus = parsed.label.text;
       } else if (typeof parsed?.label === "string") {
@@ -234,25 +177,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch full item data from Monday API
-    let companyFields: Record<string, string> = {};
+    // Fetch only contact email from Monday
+    let contactEmail: string | null = null;
     if (MONDAY_API_TOKEN) {
-      console.log(`Fetching Monday item data for pulseId: ${pulseId}`);
-      const itemData = await fetchMondayItemData(pulseId, MONDAY_API_TOKEN);
-      if (itemData?.column_values) {
-        companyFields = mapColumnValues(itemData.column_values);
-      }
+      console.log(`Fetching contact email for pulseId: ${pulseId}`);
+      contactEmail = await fetchMondayContactEmail(pulseId, MONDAY_API_TOKEN);
+      console.log(`Contact email: ${contactEmail || "(not found)"}`);
     } else {
-      console.warn("MONDAY_API_TOKEN not set - creating company with name only");
+      console.warn("MONDAY_API_TOKEN not set - cannot fetch contact email");
     }
 
-    // Create company with all mapped data
+    // Create company with name only — user fills in details in Settings after signup
     const { data: newCompany, error: insertError } = await supabase
       .from("companies")
       .insert({
         name: pulseName,
         status: "active",
-        ...companyFields,
       })
       .select("id")
       .single();
@@ -264,11 +204,9 @@ Deno.serve(async (req) => {
 
     console.log(`Company "${pulseName}" created with ID: ${newCompany.id}`);
 
-    // Auto-create invitation if contact email is available
-    const contactEmail = companyFields.contact_email;
+    // Create invitation and send email if contact email is available
+    let invitationSent = false;
     if (contactEmail) {
-      // We need a system user ID for invited_by. Use a service-level approach:
-      // Find any advisor to use as the inviter
       const { data: advisor } = await supabase
         .from("user_roles")
         .select("user_id")
@@ -293,6 +231,7 @@ Deno.serve(async (req) => {
         } else {
           const tokenParam = invResult?.token ? `&invite=${invResult.token}` : "";
           console.log(`Invitation created for ${contactEmail} to company ${newCompany.id}`);
+          invitationSent = true;
 
           // Trigger invitation email
           try {
@@ -324,8 +263,7 @@ Deno.serve(async (req) => {
         ok: true,
         company_id: newCompany.id,
         name: pulseName,
-        fields_mapped: Object.keys(companyFields),
-        invitation_sent: !!contactEmail,
+        invitation_sent: invitationSent,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
