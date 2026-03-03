@@ -173,7 +173,22 @@ Deno.serve(async (req) => {
 
     // ── CLEANUP SHELL COMPANIES ──
     if (action === 'cleanup-shells') {
-      const { accept_invitation_ids, delete_company_ids } = body;
+      const { accept_invitation_ids, delete_company_ids, delete_auth_user_ids } = body;
+
+      // Step 0: Delete standalone auth users (when companies already removed via SQL)
+      const authDeleteResults: string[] = [];
+      for (const uid of (delete_auth_user_ids || [])) {
+        try {
+          await adminSupabase.auth.admin.deleteUser(uid);
+          authDeleteResults.push(uid);
+        } catch (e: any) {
+          console.warn(`[cleanup-shells] Could not delete auth user ${uid}:`, e.message);
+        }
+      }
+      if (authDeleteResults.length) {
+        console.log(`[cleanup-shells] Deleted ${authDeleteResults.length} auth users`);
+      }
+
 
       // Step 1: Mark active invitations as accepted
       if (accept_invitation_ids?.length) {
