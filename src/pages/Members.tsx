@@ -1347,13 +1347,22 @@ const Members = () => {
                                 Team ({c.members.length})
                               </span>
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openMergeDialog(c); }}
-                              className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                              title="Tilknyt bruger"
-                            >
-                              <UserPlus className="h-3 w-3" /> Tilknyt
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setStandaloneCompanyId(c.id); setStandaloneEmail(c.contact_email || ""); setStandaloneName(""); setStandaloneInviteOpen(true); }}
+                                className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
+                                title="Inviter ny bruger"
+                              >
+                                <Send className="h-3 w-3" /> Inviter
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openMergeDialog(c); }}
+                                className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
+                                title="Tilknyt eksisterende bruger"
+                              >
+                                <UserPlus className="h-3 w-3" /> Tilknyt
+                              </button>
+                            </div>
                           </div>
                           {c.members.length === 0 ? (
                             <p className="text-xs text-muted-foreground">Ingen tilknyttede brugere</p>
