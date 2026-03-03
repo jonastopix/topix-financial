@@ -20,6 +20,7 @@ interface Invitation {
   status: string;
   created_at: string;
   accepted_at: string | null;
+  token: string;
 }
 
 const CompanyInvitations = () => {
@@ -39,7 +40,7 @@ const CompanyInvitations = () => {
     const [invRes, memRes] = await Promise.all([
       supabase
         .from("company_invitations" as any)
-        .select("id, email, status, created_at, accepted_at")
+        .select("id, email, status, created_at, accepted_at, token")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false }),
       supabase
@@ -193,8 +194,6 @@ const CompanyInvitations = () => {
     return null;
   }
 
-  const signupUrl = `https://topix.lovable.app/auth`;
-
   return (
     <div className="space-y-6">
       {/* Current members */}
@@ -288,9 +287,25 @@ const CompanyInvitations = () => {
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Del signup-linket med den inviterede: <span className="font-mono text-foreground select-all">{signupUrl}</span>
-          </p>
+          {invitations.some(inv => inv.status === "pending") && (
+            <div className="mt-3 space-y-1">
+              <p className="text-xs text-muted-foreground">Kopiér invitationslink:</p>
+              {invitations.filter(inv => inv.status === "pending").map(inv => (
+                <div key={inv.id} className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground truncate">{inv.email}:</span>
+                  <span
+                    className="text-xs font-mono text-foreground select-all cursor-pointer hover:underline truncate"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://topix.lovable.app/auth?mode=signup&invite=${inv.token}`);
+                      toast.success("Link kopieret");
+                    }}
+                  >
+                    https://topix.lovable.app/auth?mode=signup&invite={inv.token}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {/* Confirmation dialog */}
