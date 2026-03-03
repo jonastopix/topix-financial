@@ -1,38 +1,48 @@
 
 
-## Plan: Fjern virksomhedsoprettelse fra Monday-webhook
+## Oprydningsplan: 27 shell-virksomheder + 2 accepted
 
-Du har ret — det er unødvendigt at oprette en virksomhed i webhook'en. `handle_new_user`-triggeren opretter allerede automatisk en virksomhed når en bruger signer op uden en matchende invitation. Så flowet bør være:
+### Hvad der sker
 
-**Monday "I gang"** → hent kontakt-email → send signup-email → brugeren signer op → `handle_new_user` opretter virksomheden automatisk → brugeren udfylder detaljer i Settings.
+**Markér som accepted (2):**
+- Alina Beauty & Skincare (invitation `29077d00`)
+- Two socks (invitation `7e8c3fb1`)
 
-### Udfordring
+**Slet shell-data for 27 virksomheder** (Aqua Danmark, Box-cut, BRILLEVÆRK, Capture IT, Carma Studio, Courier Copenhagen, CyberSikker, D.A.S. GRUPPEN, Din økonomiafdeling, doggybed, E-skilte, Fortyfivefaces, Friends & Fries, Friis cykler, Insurance Partners, KJ AUTO, Livja, mitkørekort, Olsen & Kompagni, Pro-Vision, Rallysupport, Regnskabsvikar, Rock it Rosie, Smag & Slægt, Studio Mini, Warburg VVS, Wesdex):
 
-`company_invitations.company_id` er **NOT NULL**. Uden en virksomhed kan vi ikke oprette en invitation i den eksisterende tabel. To løsninger:
+For hver virksomhed:
+1. Slet `handout_lever_milestones` (via handout_id)
+2. Slet `handouts` (company_id)
+3. Slet `milestones` (company_id)
+4. Slet `budget_targets` (company_id)
+5. Slet `kpi_targets` + `kpi_benchmarks` (company_id)
+6. Slet `financial_reports` (company_id)
+7. Slet `advisor_notifications` (company_id)
+8. Slet `messages` (via conversation_id)
+9. Slet `conversations` (company_id)
+10. Slet `company_members` (company_id)
+11. Slet `profiles` (user_id)
+12. Slet auth user (admin API)
+13. Slet `companies` (id)
+14. Sæt `company_invitations.company_id = null` (behold invitation som pending)
 
-**A) Gør `company_id` nullable** i `company_invitations` og tilpas `handle_new_user` til at håndtere invitationer uden company_id. Brugeren får sin egen virksomhed som normalt.
+Nogle virksomheder har 2 members (E-skilte, Fortyfivefaces), og Pro-Vision har ingen user_id — håndteres korrekt.
 
-**B) Spring `company_invitations` over** og send bare en signup-email direkte med et generisk link (`/auth?mode=signup`). Ingen token-tracking, ingen invitation-record.
+### Teknisk implementering
 
-### Anbefaling: Option A
+Tilføj en ny `cleanup-shells` action i `manage-advisor/index.ts`. Den modtager to lister:
+- `accept_invitation_ids`: invitationer der markeres accepted
+- `delete_company_ids`: virksomheder der slettes med al tilhørende data
 
-Option A bevarer fuld sporbarhed (hvem blev inviteret, hvornår, status) og token-baseret pairing, men uden at kræve en forud-oprettet virksomhed.
+Edge function bruger service role key til at slette på tværs af tabeller og kalder `auth.admin.deleteUser()` for shell-brugerne.
 
-### Tekniske ændringer
-
-1. **Database-migration**: `ALTER TABLE company_invitations ALTER COLUMN company_id DROP NOT NULL;`
-
-2. **`handle_new_user` trigger**: Tilpas logikken så invitationer uden `company_id` behandles som "opret ny virksomhed" (ligesom ingen invitation), men invitationen markeres stadig som `accepted`.
-
-3. **Monday-webhook** (`supabase/functions/monday-webhook/index.ts`): Fjern al virksomhedsoprettelse. Hent email → opret invitation (med `company_id: null`) → send email. Fjern også "already exists"-check da der ikke oprettes nogen virksomhed.
-
-4. **`lookup_invite_company` RPC**: Tilpas til at returnere `null` gracefully når `company_id` er null (virker allerede via JOIN, men verificeres).
-
-### Filer der ændres
+### Fil der ændres
 
 | Fil | Ændring |
 |-----|---------|
-| Database migration | Gør `company_id` nullable |
-| `handle_new_user` trigger | Håndter invitation uden company_id |
-| `supabase/functions/monday-webhook/index.ts` | Fjern virksomhedsoprettelse, kun email + invitation |
+| `supabase/functions/manage-advisor/index.ts` | Ny `cleanup-shells` action med fuld kaskade-sletning |
+
+### Kald fra klienten
+
+Funktionen kaldes én gang med de konkrete ID'er. Ingen UI-ændringer nødvendige — det er en engangsoperation.
 
