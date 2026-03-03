@@ -7,20 +7,35 @@ import { Lock } from "lucide-react";
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for recovery event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // User is now in recovery mode
+    // First restore any session from the URL hash (recovery token)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setHasSession(true);
+      }
+      setIsReady(true);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+        setHasSession(true);
+        setIsReady(true);
       }
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 6) {
+      toast.error("Adgangskoden skal være mindst 6 tegn");
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
@@ -31,6 +46,36 @@ const ResetPassword = () => {
     }
     setLoading(false);
   };
+
+  if (!isReady) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!hasSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-sm text-center">
+          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
+            <span className="text-primary-foreground font-display font-bold text-lg">BR</span>
+          </div>
+          <h1 className="text-xl font-display font-bold text-foreground mb-2">Ugyldigt eller udløbet link</h1>
+          <p className="text-sm text-muted-foreground mb-4">
+            Dit reset-link er udløbet eller ugyldigt. Anmod om et nyt link.
+          </p>
+          <button
+            onClick={() => navigate("/auth")}
+            className="py-2.5 px-6 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Gå til login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
