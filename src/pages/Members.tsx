@@ -168,6 +168,10 @@ const Members = () => {
   const [standaloneName, setStandaloneName] = useState("");
   const [standaloneSending, setStandaloneSending] = useState(false);
 
+  // Bulk remove all members state
+  const [bulkRemoveDialogOpen, setBulkRemoveDialogOpen] = useState(false);
+  const [bulkRemoving, setBulkRemoving] = useState(false);
+
   // Bulk resend pending state
   const [resendAllDialogOpen, setResendAllDialogOpen] = useState(false);
   const [resendAllPending, setResendAllPending] = useState<{ email: string; company_name: string }[]>([]);
@@ -759,6 +763,24 @@ const Members = () => {
     if (errors.length > 0) toast.error(`${errors.length} fejlede`);
   };
 
+  const executeBulkRemove = async () => {
+    setBulkRemoving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "bulk-remove-members" },
+      });
+      if (error) throw error;
+      toast.success(data?.message || "Alle medlemmer fjernet");
+      setBulkRemoveDialogOpen(false);
+      setReloadTrigger((t) => t + 1);
+    } catch (err: any) {
+      console.error("Bulk remove error:", err);
+      toast.error("Kunne ikke fjerne medlemmer: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setBulkRemoving(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     let result = companies;
 
@@ -887,6 +909,16 @@ const Members = () => {
             <RefreshCw className="h-4 w-4" />
             <span className="hidden sm:inline">Gensend pending</span>
             <span className="sm:hidden">Gensend</span>
+          </Button>
+          <Button
+            onClick={() => setBulkRemoveDialogOpen(true)}
+            className="gap-2"
+            variant="destructive"
+            size="sm"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Fjern alle medlemmer</span>
+            <span className="sm:hidden">Fjern alle</span>
           </Button>
           <Button
             onClick={openBulkInviteDialog}
@@ -1775,6 +1807,43 @@ const Members = () => {
                 </AlertDialogAction>
               </>
             )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk remove all members dialog */}
+      <AlertDialog open={bulkRemoveDialogOpen} onOpenChange={setBulkRemoveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Fjern alle medlemmer
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Dette vil permanent slette <strong>{totalMembers}</strong> medlemmer og deres auth-konti, samt nulstille alle invitationer.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Advisors, admins og virksomheder bevares. Kun member-brugere fjernes.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRemoving}>Annuller</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeBulkRemove}
+              disabled={bulkRemoving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkRemoving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Fjern alle medlemmer
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

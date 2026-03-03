@@ -111,6 +111,66 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, email, target_user_id } = body;
 
+    // ── BULK REMOVE ALL MEMBERS ──
+    if (action === 'bulk-remove-members') {
+      // Find all users with role 'member' (not advisor/admin)
+      const { data: memberRoles } = await adminSupabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'member');
+
+      const memberUserIds = (memberRoles || []).map((r: any) => r.user_id);
+
+      // Also find users who are NOT in user_roles at all but ARE in company_members
+      // (edge case: users without explicit role assignment)
+      const { data: allCompanyMembers } = await adminSupabase
+        .from('company_members')
+        .select('user_id');
+
+      // Get advisor/admin user ids to exclude
+      const { data: privilegedRoles } = await adminSupabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['advisor', 'admin']);
+      const privilegedIds = new Set((privilegedRoles || []).map((r: any) => r.user_id));
+
+      // Combine: all company_members minus privileged users
+      const allCompanyUserIds = new Set((allCompanyMembers || []).map((r: any) => r.user_id));
+      const toDelete = [...allCompanyUserIds].filter(id => !privilegedIds.has(id));
+
+      let deleted = 0;
+      for (const uid of toDelete) {
+        try {
+          // Delete related data
+          await adminSupabase.from('company_members').delete().eq('user_id', uid);
+          await adminSupabase.from('profiles').delete().eq('user_id', uid);
+          await adminSupabase.from('user_roles').delete().eq('user_id', uid);
+          await adminSupabase.auth.admin.deleteUser(uid);
+          deleted++;
+        } catch (err) {
+          console.error(`[bulk-remove] Failed to delete user ${uid}:`, err);
+        }
+      }
+
+      // Also clear ALL company_invitations
+      const { count: invitationsDeleted } = await adminSupabase
+        .from('company_invitations')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000') // delete all
+        .select('id', { count: 'exact', head: true });
+
+      console.log(`[bulk-remove] Deleted ${deleted} members, cleared ${invitationsDeleted || 0} invitations`);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        deleted, 
+        invitations_cleared: invitationsDeleted || 0,
+        message: `${deleted} medlemmer fjernet og alle invitationer nulstillet` 
+      }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action === 'remove-member') {
       if (!target_user_id) {
         return new Response(JSON.stringify({ error: 'Missing target_user_id' }), {
