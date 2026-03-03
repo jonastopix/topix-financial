@@ -1537,14 +1537,12 @@ const Members = () => {
                                 {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
                               </button>
                             )}
-                            {c.members.length === 0 && c.reportCount === 0 && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
-                              >
-                                <Trash2 className="h-3 w-3" /> Slet
-                              </button>
-                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                            >
+                              <Trash2 className="h-3 w-3" /> Slet
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1613,9 +1611,45 @@ const Members = () => {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Slet {deleteTarget?.name}?</DialogTitle>
-            <DialogDescription>
-              Denne virksomhed har ingen tilknyttede brugere eller rapporter. Sletningen kan ikke fortrydes.
+            <DialogTitle className="flex items-center gap-2">
+              {(deleteTarget && (deleteTarget.members.length > 0 || deleteTarget.reportCount > 0)) && (
+                <AlertTriangle className="h-5 w-5 text-chart-warning" />
+              )}
+              Slet {deleteTarget?.name}?
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3">
+                {deleteTarget && (deleteTarget.members.length > 0 || deleteTarget.reportCount > 0) ? (
+                  <>
+                    <p className="text-sm font-medium text-destructive">
+                      Denne virksomhed har tilknyttede data der vil blive påvirket:
+                    </p>
+                    <ul className="space-y-1.5 text-sm">
+                      {deleteTarget.members.length > 0 && (
+                        <li className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                          {deleteTarget.members.length} tilknyttede {deleteTarget.members.length === 1 ? "bruger" : "brugere"} (fjernes fra virksomheden)
+                        </li>
+                      )}
+                      {deleteTarget.reportCount > 0 && (
+                        <li className="flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                          {deleteTarget.reportCount} {deleteTarget.reportCount === 1 ? "rapport" : "rapporter"} (flyttes til papirkurv)
+                        </li>
+                      )}
+                      <li className="flex items-center gap-2">
+                        <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+                        Alle milestones, budgets, KPI'er og handouts slettes permanent
+                      </li>
+                    </ul>
+                    <p className="text-xs text-muted-foreground pt-1 border-t border-border/50">
+                      Denne handling kan ikke fortrydes. Rapporter kan gendannes fra papirkurven.
+                    </p>
+                  </>
+                ) : (
+                  <p>Denne virksomhed har ingen tilknyttede brugere eller data. Sletningen kan ikke fortrydes.</p>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
