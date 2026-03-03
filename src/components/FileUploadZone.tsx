@@ -282,10 +282,9 @@ const FileUploadZone = ({
         if (!extractedData) {
           const extracted = await extractTextFromFile(file);
 
-          // In adminMode, always overwrite duplicates automatically
           const { data: aiData, error: extractError } = await supabase.functions.invoke(
             "extract-financial-data",
-            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, overwrite: adminMode, knownCompanyName: companyName || undefined } }
+            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
           );
 
           // Handle duplicate (409)
