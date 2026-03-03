@@ -29,6 +29,7 @@ const RecentReports = () => {
         .from("financial_reports")
         .select("id, report_period, status, uploaded_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("uploaded_at", { ascending: false })
         .limit(4);
       if (error) throw error;

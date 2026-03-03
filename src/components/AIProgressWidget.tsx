@@ -38,6 +38,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
           .from("financial_reports")
           .select("id, report_period, ai_analysis") as any)
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .not("ai_analysis", "is", null)
           .order("uploaded_at", { ascending: false })
           .limit(3),

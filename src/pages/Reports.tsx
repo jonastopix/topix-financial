@@ -22,6 +22,8 @@ import {
   Minus,
   ExternalLink,
   Trash2,
+  RotateCcw,
+  Archive,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -93,6 +95,10 @@ const Reports = () => {
   const [programStart, setProgramStart] = useState<Date | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; report: DbReport | null }>({ open: false, report: null });
   const [deleting, setDeleting] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedReports, setTrashedReports] = useState<DbReport[]>([]);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -102,6 +108,7 @@ const Reports = () => {
         .from("financial_reports")
         .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .order("uploaded_at", { ascending: false }),
       companyId
         ? supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle()
@@ -240,38 +247,73 @@ const Reports = () => {
   const handleDeleteReport = useCallback(async (report: DbReport) => {
     setDeleting(true);
     try {
-      // 1. Delete AI-generated milestones linked to this report
-      await supabase.from("milestones").delete().eq("source_report", report.id);
-
-      // 2. Delete chat messages referencing this report
-      await (supabase.from("messages").delete() as any)
-        .eq("context_type", "report")
-        .eq("context_id", report.id);
-
-      // 3. Delete advisor notifications referencing this report
-      await supabase.from("advisor_notifications").delete()
-        .eq("reference_type", "report")
-        .eq("reference_id", report.id);
-
-      // 4. Delete file from storage
-      if (report.file_path && report.file_path.includes("/")) {
-        await supabase.storage.from("financial-documents").remove([report.file_path]);
-      }
-
-      // 5. Delete the report itself
-      const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
+      // Soft-delete: set deleted_at timestamp instead of removing data
+      const { error } = await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" } as any).eq("id", report.id) as any);
       if (error) throw error;
 
       setDbReports((prev) => prev.filter((r) => r.id !== report.id));
       setDeleteDialog({ open: false, report: null });
-      toast({ title: "Rapport slettet", description: `${report.report_period || report.file_name} og alle tilknyttede data er fjernet.` });
+      toast({ title: "Rapport flyttet til papirkurv", description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
     } catch (err) {
-      console.error("Delete error:", err);
+      console.error("Soft-delete error:", err);
       toast({ title: "Fejl", description: "Kunne ikke slette rapporten. Prøv igen.", variant: "destructive" });
     } finally {
       setDeleting(false);
     }
   }, []);
+
+  // Load trashed reports (advisor only)
+  const loadTrashedReports = useCallback(async () => {
+    if (!isAdvisor || !companyId) return;
+    const { data } = await (supabase
+      .from("financial_reports")
+      .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
+      .eq("company_id", companyId)
+      .not("deleted_at", "is", null)
+      .order("uploaded_at", { ascending: false });
+    setTrashedReports(data || []);
+  }, [isAdvisor, companyId]);
+
+  useEffect(() => {
+    if (showTrash) loadTrashedReports();
+  }, [showTrash, loadTrashedReports]);
+
+  const handleRestoreReport = async (report: DbReport) => {
+    setRestoring(report.id);
+    try {
+      const { error } = await (supabase.from("financial_reports").update({ deleted_at: null, status: "processed" } as any).eq("id", report.id) as any);
+      if (error) throw error;
+      setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      setRefreshKey((k) => k + 1);
+      toast({ title: "Rapport gendannet", description: `${report.report_period || report.file_name} er gendannet.` });
+    } catch (err) {
+      console.error("Restore error:", err);
+      toast({ title: "Fejl", description: "Kunne ikke gendanne rapporten.", variant: "destructive" });
+    } finally {
+      setRestoring(null);
+    }
+  };
+
+  const handlePermanentDelete = async (report: DbReport) => {
+    setPermanentDeleting(report.id);
+    try {
+      await supabase.from("milestones").delete().eq("source_report", report.id);
+      await (supabase.from("messages").delete() as any).eq("context_type", "report").eq("context_id", report.id);
+      await supabase.from("advisor_notifications").delete().eq("reference_type", "report").eq("reference_id", report.id);
+      if (report.file_path && report.file_path.includes("/")) {
+        await supabase.storage.from("financial-documents").remove([report.file_path]);
+      }
+      const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
+      if (error) throw error;
+      setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
+    } catch (err) {
+      console.error("Permanent delete error:", err);
+      toast({ title: "Fejl", description: "Kunne ikke slette rapporten permanent.", variant: "destructive" });
+    } finally {
+      setPermanentDeleting(null);
+    }
+  };
 
   const handleViewOriginalFile = async (report: DbReport) => {
     if (!report.file_path) return;
@@ -736,15 +778,8 @@ const Reports = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Slet rapport?</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{deleteDialog.report?.report_period || deleteDialog.report?.file_name}</strong> og alle tilknyttede data slettes permanent:
-              <ul className="mt-2 space-y-1 text-xs list-disc list-inside">
-                <li>AI-analyse og nøgletal</li>
-                <li>AI-genererede milestones</li>
-                <li>Chat-beskeder og kommentarer</li>
-                <li>Rådgivernotifikationer</li>
-                <li>Original fil fra storage</li>
-              </ul>
-              <p className="mt-2 font-medium">Denne handling kan ikke fortrydes.</p>
+              <strong>{deleteDialog.report?.report_period || deleteDialog.report?.file_name}</strong> flyttes til papirkurven.
+              <p className="mt-2 text-xs text-muted-foreground">Rapporten og alle tilknyttede data bevares og kan gendannes af en administrator.</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -754,11 +789,72 @@ const Reports = () => {
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Sletter..." : "Slet permanent"}
+              {deleting ? "Sletter..." : "Flyt til papirkurv"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Trash section for advisors */}
+      {isAdvisor && (
+        <div className="mt-12">
+          <button
+            onClick={() => setShowTrash(!showTrash)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <Archive className="h-4 w-4" />
+            Papirkurv
+            {showTrash ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+
+          {showTrash && (
+            <div className="space-y-3">
+              {trashedReports.length === 0 ? (
+                <div className="glass-card rounded-xl p-8 text-center">
+                  <Trash2 className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Papirkurven er tom</p>
+                </div>
+              ) : (
+                trashedReports.map((report) => (
+                  <div key={report.id} className="glass-card rounded-xl p-4 flex items-center justify-between opacity-70">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 rounded-lg bg-muted">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {report.report_period || report.file_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {report.report_type} · {format(new Date(report.uploaded_at), "d. MMM yyyy", { locale: da })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleRestoreReport(report)}
+                        disabled={restoring === report.id}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                      >
+                        <RotateCcw className={`h-3.5 w-3.5 ${restoring === report.id ? "animate-spin" : ""}`} />
+                        Gendan
+                      </button>
+                      <button
+                        onClick={() => handlePermanentDelete(report)}
+                        disabled={permanentDeleting === report.id}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/70 hover:text-destructive transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {permanentDeleting === report.id ? "Sletter..." : "Slet permanent"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </AppLayout>
   );
 };

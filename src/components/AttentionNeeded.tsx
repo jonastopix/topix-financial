@@ -48,6 +48,7 @@ const AttentionNeeded = () => {
         .from("financial_reports")
         .select("report_period") as any)
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .eq("status", "processed");
 
       const reportKeys = new Set(

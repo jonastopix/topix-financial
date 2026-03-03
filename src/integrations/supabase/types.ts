@@ -548,6 +548,7 @@ export type Database = {
           company_id: string
           company_name: string | null
           cvr_number: string | null
+          deleted_at: string | null
           extracted_data: Json | null
           file_name: string
           file_path: string
@@ -565,6 +566,7 @@ export type Database = {
           company_id: string
           company_name?: string | null
           cvr_number?: string | null
+          deleted_at?: string | null
           extracted_data?: Json | null
           file_name: string
           file_path: string
@@ -582,6 +584,7 @@ export type Database = {
           company_id?: string
           company_name?: string | null
           cvr_number?: string | null
+          deleted_at?: string | null
           extracted_data?: Json | null
           file_name?: string
           file_path?: string

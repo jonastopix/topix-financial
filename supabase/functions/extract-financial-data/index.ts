@@ -569,6 +569,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           .eq("company_id", currentReport.company_id)
           .eq("report_period", extractedData.report_period)
           .eq("status", "processed")
+          .is("deleted_at", null)
           .neq("id", reportId);
 
         if (existing && existing.length > 0 && !overwrite) {
@@ -586,9 +587,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         if (existing && existing.length > 0 && overwrite) {
           for (const old of existing) {
             await supabase.from("milestones").delete().eq("source_report", old.id);
-            await supabase.from("financial_reports").delete().eq("id", old.id);
+            // Soft-delete the old report instead of hard-delete
+            await supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" }).eq("id", old.id);
           }
-          console.log(`Overwrote ${existing.length} existing report(s) + associated milestones for ${extractedData.report_period}`);
+          console.log(`Soft-deleted ${existing.length} existing report(s) + removed milestones for ${extractedData.report_period}`);
         }
       }
 

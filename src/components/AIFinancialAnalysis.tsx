@@ -105,6 +105,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         .from("financial_reports")
         .select("id, report_period, company_name, cvr_number, extracted_data, ai_analysis, uploaded_at, status")
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false });
 
@@ -162,6 +163,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         .from("financial_reports")
         .select("extracted_data, report_period")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .eq("status", "processed")
         .neq("id", target.id)
         .order("uploaded_at", { ascending: true })
