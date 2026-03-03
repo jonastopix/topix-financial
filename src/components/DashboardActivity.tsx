@@ -33,6 +33,7 @@ const DashboardActivity = () => {
         .from("financial_reports")
         .select("id, report_period, uploaded_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("uploaded_at", { ascending: false })
         .limit(2);
 

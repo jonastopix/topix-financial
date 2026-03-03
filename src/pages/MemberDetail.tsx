@@ -179,7 +179,7 @@ const MemberDetail = () => {
       setLoading(true);
       const [profileRes, reportsRes, budgetsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
         supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
-        supabase.from("financial_reports").select("*").eq("user_id", userId).order("uploaded_at", { ascending: false }),
+        (supabase.from("financial_reports").select("*") as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }),
         supabase.from("budget_targets").select("*").eq("user_id", userId).order("category"),
         supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
         supabase.from("conversations").select("id").eq("member_id", userId).single(),

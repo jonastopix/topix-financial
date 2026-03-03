@@ -361,8 +361,8 @@ const FileUploadZone = ({
 
         // Fetch historical reports for trend analysis
         const historicalQuery = companyId
-          ? (supabase.from("financial_reports").select("extracted_data, report_period") as any).eq("company_id", companyId).eq("status", "processed").neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12)
-          : supabase.from("financial_reports").select("extracted_data, report_period").eq("user_id", userId).eq("status", "processed").neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12);
+          ? (supabase.from("financial_reports").select("extracted_data, report_period") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12)
+          : supabase.from("financial_reports").select("extracted_data, report_period").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12);
         const { data: historicalReports } = await historicalQuery;
 
         const historicalData = (historicalReports || [])

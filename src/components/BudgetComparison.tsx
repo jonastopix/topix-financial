@@ -109,6 +109,7 @@ const BudgetComparison = () => {
         .from("financial_reports")
         .select("report_period, extracted_data")
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false });
 

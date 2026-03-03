@@ -31,7 +31,7 @@ const CommunityProgress = () => {
       if (isAdvisor) {
         const [profilesRes, reportsRes, milestonesRes, handoutsRes] = await Promise.all([
           supabase.from("profiles").select("user_id, full_name"),
-          supabase.from("financial_reports").select("user_id, status"),
+          (supabase.from("financial_reports").select("user_id, status") as any).is("deleted_at", null),
           supabase.from("milestones").select("user_id, progress"),
           supabase.from("handouts").select("user_id, status"),
         ]);
@@ -60,12 +60,12 @@ const CommunityProgress = () => {
       } else {
         // Member view: fetch own stats + community average for benchmark
         const [reportsRes, milestonesRes, handoutsRes, profileRes, allReportsRes, allMilestonesRes, allHandoutsRes, allProfilesRes] = await Promise.all([
-          supabase.from("financial_reports").select("status").eq("user_id", user!.id),
+          (supabase.from("financial_reports").select("status") as any).eq("user_id", user!.id).is("deleted_at", null),
           supabase.from("milestones").select("progress").eq("user_id", user!.id),
           supabase.from("handouts").select("status").eq("user_id", user!.id),
           supabase.from("profiles").select("full_name").eq("user_id", user!.id).maybeSingle(),
           // For anonymous benchmark — RLS will scope to company members
-          (supabase.from("financial_reports").select("user_id, status") as any).eq("status", "processed"),
+          (supabase.from("financial_reports").select("user_id, status") as any).eq("status", "processed").is("deleted_at", null),
           (supabase.from("milestones").select("user_id, progress") as any),
           (supabase.from("handouts").select("user_id, status") as any).eq("status", "completed"),
           supabase.from("profiles").select("user_id"),
