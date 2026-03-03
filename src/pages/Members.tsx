@@ -1089,6 +1089,43 @@ const Members = () => {
         </div>
       </div>
 
+      {/* Pending invitations overview */}
+      {(() => {
+        const pendingInvitations = companies.filter(c => c.invitationStatus === 'pending' && c.invitationEmail);
+        return pendingInvitations.length > 0 ? (
+          <div className="mb-6 glass-card rounded-xl overflow-hidden">
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
+              <Send className="h-4 w-4 text-chart-warning" />
+              <span className="text-sm font-semibold text-foreground">Afventende invitationer</span>
+              <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning/15 text-chart-warning text-xs font-bold">
+                {pendingInvitations.length}
+              </span>
+            </div>
+            <div className="divide-y divide-border">
+              {pendingInvitations.map(c => (
+                <div key={c.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{c.invitationEmail}</p>
+                      <p className="text-xs text-muted-foreground">{c.name} · Sendt {format(new Date(c.created_at), "d. MMM yyyy", { locale: da })}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleResendInvitation(c)}
+                    disabled={resendingInvitation === c.id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50 shrink-0"
+                  >
+                    {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                    Gensend
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null;
+      })()}
+
       {/* Login activity stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="glass-card rounded-xl p-3 flex items-center gap-3">
