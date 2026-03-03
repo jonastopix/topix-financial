@@ -1,40 +1,31 @@
 project_id = "loiavmastgeieqyiwyyr"
 
-[functions.extract-financial-data]
-verify_jwt = false
-
-[functions.ai-financial-feedback]
-verify_jwt = false
-
-[functions.sync-circle]
-verify_jwt = false
-
-[functions.handout-ai-feedback]
-verify_jwt = false
-
-[functions.import-budget-excel]
-verify_jwt = false
-
-[functions.generate-budget-from-accounts]
-verify_jwt = false
-
-[functions.monday-webhook]
-verify_jwt = false
-
-[functions.send-invitation-email]
-verify_jwt = false
-
-[functions.generate-budget-scenarios]
-verify_jwt = false
-
-[functions.process-pending-invitation]
-verify_jwt = false
-
-[functions.send-report-reminder]
-verify_jwt = false
-
-[functions.send-template-email]
-verify_jwt = false
-
-[functions.manage-advisor]
-verify_jwt = false
+[functions]
+  [functions.ai-financial-feedback]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.extract-financial-data]
+    verify_jwt = false
+  [functions.generate-budget-from-accounts]
+    verify_jwt = false
+  [functions.generate-budget-scenarios]
+    verify_jwt = false
+  [functions.handout-ai-feedback]
+    verify_jwt = false
+  [functions.import-budget-excel]
+    verify_jwt = false
+  [functions.manage-advisor]
+    verify_jwt = false
+  [functions.monday-webhook]
+    verify_jwt = false
+  [functions.process-pending-invitation]
+    verify_jwt = false
+  [functions.send-invitation-email]
+    verify_jwt = false
+  [functions.send-report-reminder]
+    verify_jwt = false
+  [functions.send-template-email]
+    verify_jwt = false
+  [functions.sync-circle]
+    verify_jwt = false
