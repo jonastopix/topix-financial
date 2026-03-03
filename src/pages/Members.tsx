@@ -436,11 +436,23 @@ const Members = () => {
         if (updateErr) throw updateErr;
       }
 
+      // Fetch token for this invitation
+      const { data: invData } = await supabase
+        .from("company_invitations")
+        .select("token")
+        .eq("company_id", company.id)
+        .eq("email", company.invitationEmail)
+        .in("status", ["pending"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const tokenParam = invData?.token ? `&invite=${invData.token}` : "";
       const { error } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email: company.invitationEmail,
           company_name: company.name,
-          signup_url: "https://topix.lovable.app/auth?mode=signup",
+          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
         },
       });
       if (error) throw error;
@@ -639,13 +651,24 @@ const Members = () => {
 
         if (error) throw error;
 
-        // Send email
+        // Fetch token and send email
         try {
+          const { data: invData } = await supabase
+            .from("company_invitations")
+            .select("token")
+            .eq("company_id", c.id)
+            .eq("email", c.contact_email.trim().toLowerCase())
+            .eq("status", "pending")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const tokenParam = invData?.token ? `&invite=${invData.token}` : "";
           await supabase.functions.invoke("send-invitation-email", {
             body: {
               email: c.contact_email.trim().toLowerCase(),
               company_name: c.name,
-              signup_url: `https://topix.lovable.app/auth?mode=signup`,
+              signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
             },
           });
         } catch (emailErr) {
@@ -680,7 +703,7 @@ const Members = () => {
         body: {
           email: standaloneEmail.trim().toLowerCase(),
           company_name: "The Boardroom",
-          signup_url: "https://topix.lovable.app/auth?mode=signup",
+          signup_url: `https://topix.lovable.app/auth?mode=signup`,
         },
       });
       if (error) throw error;
@@ -740,11 +763,22 @@ const Members = () => {
     for (let i = 0; i < resendAllPending.length; i++) {
       const item = resendAllPending[i];
       try {
+        // Fetch token for resend
+        const { data: invData } = await supabase
+          .from("company_invitations")
+          .select("token")
+          .eq("email", item.email)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const tokenParam = invData?.token ? `&invite=${invData.token}` : "";
         const { error } = await supabase.functions.invoke("send-invitation-email", {
           body: {
             email: item.email,
             company_name: item.company_name,
-            signup_url: "https://topix.lovable.app/auth?mode=signup",
+            signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
           },
         });
         if (error) throw error;

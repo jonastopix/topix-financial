@@ -118,13 +118,24 @@ const CompanyInvitations = () => {
       setEmail("");
       fetchData();
 
-      // Trigger invitation email
+      // Trigger invitation email — fetch the token for the just-created invitation
       try {
+        const { data: newInv } = await supabase
+          .from("company_invitations")
+          .select("token")
+          .eq("company_id", companyId)
+          .eq("email", pendingEmail)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const tokenParam = newInv?.token ? `&invite=${newInv.token}` : "";
         const { data: emailResult } = await supabase.functions.invoke("send-invitation-email", {
           body: {
             email: pendingEmail,
             company_name: companyName || "Din virksomhed",
-            signup_url: `https://topix.lovable.app/auth?mode=signup`,
+            signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
           },
         });
       } catch (emailErr) {
@@ -193,7 +204,7 @@ const CompanyInvitations = () => {
           Invitér teammedlem
         </h2>
         <p className="text-xs text-muted-foreground mb-4">
-          Invitér en kollega via e-mail. Når de opretter en konto med den e-mail, bliver de automatisk tilknyttet jeres virksomhed.
+          Invitér en kollega via e-mail. De modtager et link og tilknyttes automatisk jeres virksomhed — uanset hvilken e-mail de opretter sig med.
         </p>
         <form onSubmit={handleInvite} className="flex gap-2">
           <div className="relative flex-1">
