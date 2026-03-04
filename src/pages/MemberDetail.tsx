@@ -319,25 +319,17 @@ const MemberDetail = () => {
 
   const handleViewOriginalFile = async (filePath: string) => {
     const newWindow = window.open('', '_blank');
+    const encodedPath = filePath.split('/').map(s => encodeURIComponent(s)).join('/');
     try {
       const { data, error } = await supabase.storage
         .from("financial-documents")
-        .createSignedUrl(filePath, 3600);
+        .createSignedUrl(encodedPath, 3600);
       if (data?.signedUrl && newWindow) {
         newWindow.location.href = data.signedUrl;
       } else {
-        console.warn("createSignedUrl failed, trying download:", error?.message);
-        const { data: blob, error: dlError } = await supabase.storage
-          .from("financial-documents")
-          .download(filePath);
-        if (blob && newWindow) {
-          const url = URL.createObjectURL(blob);
-          newWindow.location.href = url;
-        } else {
-          console.error("Download also failed:", dlError);
-          newWindow?.close();
-          toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
-        }
+        console.error("Error creating signed URL:", error);
+        newWindow?.close();
+        toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
       }
     } catch (err) {
       console.error("Unexpected error:", err);
