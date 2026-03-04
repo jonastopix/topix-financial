@@ -28,6 +28,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -246,6 +247,10 @@ const Settings = () => {
       toast.error("Vælg en stærkere adgangskode");
       return;
     }
+    if (newPassword !== confirmPassword) {
+      toast.error("De to adgangskoder matcher ikke");
+      return;
+    }
     setSavingPassword(true);
 
     // Verify current password by re-authenticating
@@ -266,6 +271,7 @@ const Settings = () => {
       toast.success("Adgangskode opdateret");
       setCurrentPassword("");
       setNewPassword("");
+      setConfirmPassword("");
     }
     setSavingPassword(false);
   };
@@ -544,10 +550,25 @@ const Settings = () => {
               />
             </div>
             <PasswordStrengthIndicator password={newPassword} />
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                Bekræft ny adgangskode
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="••••••••"
+              />
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-destructive mt-1">Adgangskoderne matcher ikke</p>
+              )}
+            </div>
           </div>
           <button
             onClick={handleChangePassword}
-            disabled={savingPassword || !currentPassword || !newPassword}
+            disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
             className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
