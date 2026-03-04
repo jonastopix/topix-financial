@@ -131,12 +131,18 @@ function inlineEmailStyles(html: string): string {
   }
 
   // Process <a> tags specially — CTA buttons vs regular links
-  const ctaStyle = "display:inline-block;background-color:#0fa968;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;font-family:'Space Grotesk',Arial,sans-serif;text-align:center";
+  const ctaColorMap: Record<string, string> = {
+    green: "#0fa968",
+    blue: "#2563eb",
+    black: "#18181b",
+  };
   const aStyle = "color:#0fa968;text-decoration:underline";
 
   // First handle CTA links (data-cta="true")
   result = result.replace(/<a\s([^>]*data-cta="true"[^>]*)>/gi, (match, attrs) => {
-    // Remove existing style if any, then add CTA style
+    const colorMatch = attrs.match(/data-cta-color="([^"]*)"/i);
+    const bg = ctaColorMap[colorMatch?.[1] ?? ""] ?? "#0fa968";
+    const ctaStyle = `display:inline-block;background-color:${bg};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;font-family:'Space Grotesk',Arial,sans-serif;text-align:center`;
     const cleanAttrs = attrs.replace(/style="[^"]*"/gi, "").trim();
     return `<a ${cleanAttrs} style="${ctaStyle}">`;
   });

@@ -4,7 +4,8 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
   Bold,
@@ -34,6 +35,7 @@ interface RichTextEditorProps {
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
   // Track whether the latest content change came from the editor itself
   const isInternalUpdate = useRef(false);
+  const [ctaColorOpen, setCtaColorOpen] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -116,7 +118,14 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       .run();
   };
 
-  const addCtaButton = () => {
+  const ctaColors = [
+    { label: "Grøn", value: "green", hex: "#0fa968" },
+    { label: "Blå", value: "blue", hex: "#2563eb" },
+    { label: "Sort", value: "black", hex: "#18181b" },
+  ];
+
+  const insertCtaButton = (color: { value: string; hex: string }) => {
+    setCtaColorOpen(false);
     const url = window.prompt("CTA knap URL:", "https://");
     if (!url) return;
     const label = window.prompt("Knap tekst:", "Klik her");
@@ -126,7 +135,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       .chain()
       .focus()
       .insertContent(
-        `<p style="text-align:center"><a href="${url}" data-cta="true">${label}</a></p>`
+        `<p style="text-align:center"><a href="${url}" data-cta="true" data-cta-color="${color.value}">${label}</a></p>`
       )
       .run();
   };
@@ -189,9 +198,29 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
           </ToolBtn>
         )}
 
-        <ToolBtn onClick={addCtaButton} title="Indsæt CTA-knap">
-          <MousePointerClick className="h-3.5 w-3.5" />
-        </ToolBtn>
+        <Popover open={ctaColorOpen} onOpenChange={setCtaColorOpen}>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Indsæt CTA-knap">
+              <MousePointerClick className="h-3.5 w-3.5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2" align="start">
+            <p className="text-xs font-medium text-muted-foreground mb-1.5 px-1">Vælg knapfarve</p>
+            <div className="flex gap-1.5">
+              {ctaColors.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => insertCtaButton(c)}
+                  className="flex flex-col items-center gap-1 rounded-md px-3 py-2 hover:bg-muted transition-colors"
+                >
+                  <span className="h-5 w-5 rounded-full border" style={{ backgroundColor: c.hex }} />
+                  <span className="text-[11px]">{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Vandret linje">
           <Minus className="h-3.5 w-3.5" />
@@ -210,7 +239,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       {/* Editor */}
       <EditorContent
         editor={editor}
-        className="prose prose-sm max-w-none px-4 py-3 min-h-[300px] focus-within:outline-none [&_.tiptap]:outline-none [&_.tiptap]:min-h-[280px] [&_a[data-cta]]:inline-block [&_a[data-cta]]:bg-[#0fa968] [&_a[data-cta]]:text-white [&_a[data-cta]]:no-underline [&_a[data-cta]]:px-6 [&_a[data-cta]]:py-3 [&_a[data-cta]]:rounded-lg [&_a[data-cta]]:font-semibold [&_a[data-cta]]:text-sm"
+        className="prose prose-sm max-w-none px-4 py-3 min-h-[300px] focus-within:outline-none [&_.tiptap]:outline-none [&_.tiptap]:min-h-[280px] [&_a[data-cta]]:inline-block [&_a[data-cta]]:text-white [&_a[data-cta]]:no-underline [&_a[data-cta]]:px-6 [&_a[data-cta]]:py-3 [&_a[data-cta]]:rounded-lg [&_a[data-cta]]:font-semibold [&_a[data-cta]]:text-sm [&_a[data-cta-color=green]]:bg-[#0fa968] [&_a[data-cta-color=blue]]:bg-[#2563eb] [&_a[data-cta-color=black]]:bg-[#18181b]"
       />
     </div>
   );
