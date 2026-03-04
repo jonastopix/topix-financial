@@ -30,7 +30,9 @@ Deno.serve(async (req) => {
   try {
     // Validate auth (accepts both user JWT and service-role key)
     const authHeader = req.headers.get('Authorization');
+    console.log('[send-invitation-email] Auth header present:', !!authHeader);
     if (!authHeader?.startsWith('Bearer ')) {
+      console.log('[send-invitation-email] No Bearer token found');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -41,12 +43,14 @@ Deno.serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
 
     const isServiceRole = token === serviceRoleKey;
+    console.log('[send-invitation-email] Is service role:', isServiceRole);
     if (!isServiceRole) {
       const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
       const authClient = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: authHeader } }
       });
       const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+      console.log('[send-invitation-email] User auth result:', user?.id, 'error:', userError?.message);
       if (userError || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
