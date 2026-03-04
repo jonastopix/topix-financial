@@ -2,37 +2,45 @@
 
 ## Problem
 
-Rich-text editoren (TipTap) genererer semantisk HTML uden inline styles (`<h1>`, `<p>`, `<a>`). Funktionen `wrapInEmailDocument()` wrapper kun indholdet i en ydre container — men tilføjer ingen styles til de indre elementer. E-mail klienter ignorerer CSS classes og kræver inline styles på hvert element. Resultatet: e-mails der ser pæne ud i editoren (fordi CSS styling virker der), men som er ustylet/ødelagt i inboxen.
+1. **Datoen er forkert**: Oversigten viser `created_at` (27. feb) i stedet for den senest afsendte dato. Christina's invitation blev senest gensendt 4. marts, men UI'et viser stadig den oprindelige oprettelsesdato.
 
-## Løsning
+2. **Ingen slet-knap**: Der er ingen mulighed for at slette en afventende invitation.
 
-Udvid `wrapInEmailDocument()` i `src/pages/EmailTemplates.tsx` med en post-processing funktion der injicerer inline styles på alle relevante HTML-elementer **før** de gemmes i databasen.
+## Plan
 
-### Konkret implementation
+### 1. Vis senest afsendte dato i stedet for oprettelsesdato
 
-**Fil: `src/pages/EmailTemplates.tsx`**
+**Tilgang**: Hent den seneste `sent_at` fra `email_send_log` for hver pending invitation (baseret på `recipient_email`), og brug den i stedet for `created_at`.
 
-Erstat den simple `wrapInEmailDocument` med en version der:
+**Ændringer i `src/pages/Members.tsx`**:
+- I data-fetch logikken: efter invitationer er hentet, lav et ekstra query mod `email_send_log` for de relevante emails
+- Byg et map fra email → seneste `sent_at`
+- Brug `lastSentAt || created_at` som fallback i visningen (linje 1215)
 
-1. Kører en `inlineEmailStyles(html)` funktion over TipTap-outputtet
-2. Regex-baseret replacement der tilføjer inline styles til:
-   - `<h1>` → `style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:20px 0 12px;font-family:'Space Grotesk',Arial,sans-serif"`
-   - `<h2>` → `style="color:#1a1a2e;font-size:20px;font-weight:bold;margin:16px 0 10px"`  
-   - `<h3>` → `style="color:#1a1a2e;font-size:16px;font-weight:bold;margin:14px 0 8px"`
-   - `<p>` → `style="color:#333;font-size:14px;line-height:24px;margin:8px 0"`
-   - `<a ` → tilføjer `style="color:#0fa968;text-decoration:underline"` (bevarer eksisterende attributter)
-   - `<ul>`, `<ol>`, `<li>` → korrekt spacing og styling
-   - `<hr>` → `style="border:none;border-top:1px solid #e5e5e5;margin:24px 0"`
-3. Bevarer eksisterende `style` attributter (merger i stedet for at overskrive)
-4. Wrapper resultatet i det eksisterende email-document shell
+### 2. Tilføj slet-knap for afventende invitationer
 
-### Vigtige detaljer
+**Ændringer i `src/pages/Members.tsx`**:
+- Ny handler `handleDeleteInvitation(invitationId)` der kalder `supabase.from("company_invitations").delete().eq("id", invitationId)`
+- Tilføj en slet-knap (Trash2 ikon) ved siden af Gensend-knappen i pending-invitation oversigten (linje ~1218-1232)
+- Bekræftelsesdialog inden sletning for at undga utilsigtede sletninger
+- Reload data efter sletning
 
-- Styles matche det eksisterende brand (grøn `#0fa968`, mørk `#1a1a2e`, grå `#333`)
-- Links der ligner knapper (f.eks. "Acceptér invitation") kan ikke automatisk styles som knapper — men basal link-styling sikres
-- `extractBodyContent()` forbliver uændret (den stripper kun wrapperen)
-- Preview-tab'en viser allerede det korrekte resultat fordi den renderer HTML direkte
+**RLS**: Sletning er allerede tilladt for advisors via eksisterende policy på `company_invitations` (company members can delete company invitations). For standalone invitationer (company_id = null) skal vi tilføje en ny RLS policy.
 
-### Filer der rettes
-- `src/pages/EmailTemplates.tsx` (udvid `wrapInEmailDocument` med inline style injection)
+### 3. Database-migration
+
+Ny RLS policy på `company_invitations`:
+```sql
+CREATE POLICY "Advisors can delete invitations"
+ON public.company_invitations
+FOR DELETE
+TO authenticated
+USING (has_role(auth.uid(), 'advisor'::app_role));
+```
+
+### Tekniske detaljer
+
+- `email_send_log` har allerede data med seneste afsendelse per email
+- Queryet bliver: `SELECT recipient_email, MAX(sent_at) FROM email_send_log WHERE recipient_email IN (...) GROUP BY recipient_email`
+- Fallback til `created_at` hvis ingen log-entry findes
 
