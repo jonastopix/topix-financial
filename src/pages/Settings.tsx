@@ -26,6 +26,7 @@ const Settings = () => {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -237,16 +238,33 @@ const Settings = () => {
   };
 
   const handleChangePassword = async () => {
+    if (!currentPassword) {
+      toast.error("Indtast din nuværende adgangskode");
+      return;
+    }
     if (getPasswordScore(newPassword) < 2) {
       toast.error("Vælg en stærkere adgangskode");
       return;
     }
     setSavingPassword(true);
+
+    // Verify current password by re-authenticating
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user?.email || "",
+      password: currentPassword,
+    });
+    if (signInError) {
+      toast.error("Nuværende adgangskode er forkert");
+      setSavingPassword(false);
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       toast.error(error.message);
     } else {
       toast.success("Adgangskode opdateret");
+      setCurrentPassword("");
       setNewPassword("");
     }
     setSavingPassword(false);
@@ -503,6 +521,18 @@ const Settings = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                Nuværende adgangskode
+              </label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="••••••••"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                 Ny adgangskode
               </label>
               <input
@@ -517,7 +547,7 @@ const Settings = () => {
           </div>
           <button
             onClick={handleChangePassword}
-            disabled={savingPassword || !newPassword}
+            disabled={savingPassword || !currentPassword || !newPassword}
             className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
