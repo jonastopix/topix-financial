@@ -115,6 +115,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
   const [ctaUrl, setCtaUrl] = useState("https://");
   const [ctaLabel, setCtaLabel] = useState("Klik her");
   const [ctaColor, setCtaColor] = useState<(typeof CTA_COLORS)[number]>(CTA_COLORS[0]);
+  const [ctaEditing, setCtaEditing] = useState(false); // true = editing existing CTA
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
 
@@ -135,6 +136,35 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
     onUpdate: ({ editor: e }) => {
       isInternalUpdate.current = true;
       onChange(e.getHTML());
+    },
+    editorProps: {
+      handleClick: (view, pos) => {
+        // Detect click on CTA link and open edit popover
+        const resolved = view.state.doc.resolve(pos);
+        const marks = resolved.marks();
+        const linkMark = marks.find((m) => m.type.name === "link" && m.attrs["data-cta"]);
+        if (linkMark) {
+          const colorVal = linkMark.attrs["data-cta-color"] || "green";
+          const matchedColor = CTA_COLORS.find((c) => c.value === colorVal) || CTA_COLORS[0];
+          setCtaUrl(linkMark.attrs.href || "https://");
+          setCtaColor(matchedColor);
+          setCtaEditing(true);
+
+          // Find the text content of the CTA node
+          const $pos = resolved;
+          const node = $pos.parent;
+          setCtaLabel(node.textContent || "Klik her");
+
+          // Select the CTA text so updates apply to it
+          const from = $pos.before() + 1;
+          const to = from + node.content.size;
+          editor?.commands.setTextSelection({ from, to });
+
+          setCtaOpen(true);
+          return true;
+        }
+        return false;
+      },
     },
   });
 
@@ -178,40 +208,65 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
     if (!editor || !ctaUrl || ctaUrl === "https://") return;
     setCtaOpen(false);
 
-    // Insert a paragraph with the CTA link
-    editor
-      .chain()
-      .focus()
-      .insertContent({
-        type: "paragraph",
-        attrs: { textAlign: "center" },
-        content: [
-          {
-            type: "text",
-            marks: [
-              {
-                type: "link",
-                attrs: {
-                  href: ctaUrl,
-                  target: "_blank",
-                  rel: "noopener noreferrer nofollow",
-                  class: "text-primary underline",
-                  "data-cta": "true",
-                  "data-cta-color": ctaColor.value,
+    if (ctaEditing) {
+      // Update existing CTA: replace selected text content and link attributes
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange("link")
+        .setLink({
+          href: ctaUrl,
+          target: "_blank",
+          rel: "noopener noreferrer nofollow",
+          class: "text-primary underline",
+          "data-cta": "true",
+          "data-cta-color": ctaColor.value,
+        } as any)
+        .command(({ tr, state }) => {
+          const { from, to } = state.selection;
+          if (from !== to) {
+            tr.insertText(ctaLabel || "Klik her", from, to);
+          }
+          return true;
+        })
+        .run();
+    } else {
+      // Insert new CTA
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "paragraph",
+          attrs: { textAlign: "center" },
+          content: [
+            {
+              type: "text",
+              marks: [
+                {
+                  type: "link",
+                  attrs: {
+                    href: ctaUrl,
+                    target: "_blank",
+                    rel: "noopener noreferrer nofollow",
+                    class: "text-primary underline",
+                    "data-cta": "true",
+                    "data-cta-color": ctaColor.value,
+                  },
                 },
-              },
-            ],
-            text: ctaLabel || "Klik her",
-          },
-        ],
-      })
-      .run();
+              ],
+              text: ctaLabel || "Klik her",
+            },
+          ],
+        })
+        .run();
+    }
 
     // Reset form
     setCtaUrl("https://");
     setCtaLabel("Klik her");
     setCtaColor(CTA_COLORS[0]);
-  }, [editor, ctaUrl, ctaLabel, ctaColor]);
+    setCtaEditing(false);
+  }, [editor, ctaUrl, ctaLabel, ctaColor, ctaEditing]);
 
   if (!editor) return null;
 
@@ -321,17 +376,25 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
           </Popover>
 
           {/* CTA button */}
-          <Popover open={ctaOpen} onOpenChange={setCtaOpen}>
+          <Popover open={ctaOpen} onOpenChange={(open) => {
+            setCtaOpen(open);
+            if (!open) {
+              setCtaEditing(false);
+              setCtaUrl("https://");
+              setCtaLabel("Klik her");
+              setCtaColor(CTA_COLORS[0]);
+            }
+          }}>
             <PopoverTrigger asChild>
               <span>
-                <ToolBtn onClick={() => setCtaOpen((o) => !o)} label="Indsæt CTA-knap">
+                <ToolBtn onClick={() => { setCtaEditing(false); setCtaOpen((o) => !o); }} label="Indsæt CTA-knap">
                   <MousePointerClick className={icon} />
                 </ToolBtn>
               </span>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-3" align="start" sideOffset={8}>
               <div className="space-y-3">
-                <p className="text-xs font-medium text-muted-foreground">Indsæt CTA-knap</p>
+                <p className="text-xs font-medium text-muted-foreground">{ctaEditing ? "Redigér CTA-knap" : "Indsæt CTA-knap"}</p>
 
                 {/* Color picker */}
                 <div className="flex gap-1.5">
@@ -389,9 +452,25 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                   </span>
                 </div>
 
-                <Button size="sm" className="w-full h-8" onClick={handleInsertCta}>
-                  Indsæt knap
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 h-8" onClick={handleInsertCta}>
+                    {ctaEditing ? "Opdatér knap" : "Indsæt knap"}
+                  </Button>
+                  {ctaEditing && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setCtaOpen(false);
+                        setCtaEditing(false);
+                        editor.chain().focus().extendMarkRange("link").unsetLink().run();
+                      }}
+                    >
+                      Fjern
+                    </Button>
+                  )}
+                </div>
               </div>
             </PopoverContent>
           </Popover>
