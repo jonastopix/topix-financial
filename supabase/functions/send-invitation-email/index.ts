@@ -49,9 +49,10 @@ Deno.serve(async (req) => {
       const authClient = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: authHeader } }
       });
-      const { data: { user }, error: userError } = await authClient.auth.getUser(token);
-      console.log('[send-invitation-email] User auth result:', user?.id, 'error:', userError?.message);
-      if (userError || !user) {
+      const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+      const userId = claimsData?.claims?.sub;
+      console.log('[send-invitation-email] JWT claims result:', userId, 'error:', claimsError?.message);
+      if (claimsError || !userId) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
