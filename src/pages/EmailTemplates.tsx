@@ -91,9 +91,62 @@ function cronToDescription(config: Record<string, any>): string {
   return `Den ${day}. i hver måned kl. ${hour.padStart(2, "0")}:${min.padStart(2, "0")}`;
 }
 
+/** Inject inline styles into semantic HTML tags for email client compatibility */
+function inlineEmailStyles(html: string): string {
+  const tagStyles: Record<string, string> = {
+    h1: "color:#1a1a2e;font-size:24px;font-weight:bold;margin:20px 0 12px;font-family:'Space Grotesk',Arial,sans-serif;line-height:1.3",
+    h2: "color:#1a1a2e;font-size:20px;font-weight:bold;margin:16px 0 10px;font-family:'Space Grotesk',Arial,sans-serif;line-height:1.3",
+    h3: "color:#1a1a2e;font-size:16px;font-weight:bold;margin:14px 0 8px;font-family:'Space Grotesk',Arial,sans-serif;line-height:1.3",
+    p: "color:#333333;font-size:14px;line-height:24px;margin:8px 0",
+    ul: "color:#333333;font-size:14px;line-height:24px;margin:8px 0;padding-left:24px",
+    ol: "color:#333333;font-size:14px;line-height:24px;margin:8px 0;padding-left:24px",
+    li: "color:#333333;font-size:14px;line-height:24px;margin:4px 0",
+    hr: "border:none;border-top:1px solid #e5e5e5;margin:24px 0",
+    blockquote: "border-left:3px solid #0fa968;margin:16px 0;padding:8px 16px;color:#555555;font-style:italic",
+    strong: "font-weight:bold",
+    em: "font-style:italic",
+  };
+
+  let result = html;
+
+  // Process self-closing tags (hr)
+  result = result.replace(/<hr\s*\/?>/gi, `<hr style="${tagStyles.hr}" />`);
+
+  // Process tags with existing style attributes — merge styles
+  for (const [tag, styles] of Object.entries(tagStyles)) {
+    if (tag === "hr") continue;
+    // Tags that already have a style attribute
+    const withStyleRe = new RegExp(`<${tag}(\\s[^>]*)style="([^"]*)"([^>]*)>`, "gi");
+    result = result.replace(withStyleRe, (_, before, existingStyle, after) => {
+      return `<${tag}${before}style="${styles};${existingStyle}"${after}>`;
+    });
+    // Tags without a style attribute
+    const withoutStyleRe = new RegExp(`<${tag}(\\s[^>]*)?>(?!.*style=)`, "gi");
+    // More precise: only add if no style was already added
+    const noStyleRe = new RegExp(`<${tag}((?:\\s(?!style=)[^>]*)?)>`, "gi");
+    result = result.replace(noStyleRe, (match, attrs) => {
+      if (match.includes('style="')) return match;
+      return `<${tag}${attrs || ""} style="${styles}">`;
+    });
+  }
+
+  // Process <a> tags specially — preserve href and other attributes
+  const aStyle = "color:#0fa968;text-decoration:underline";
+  result = result.replace(/<a\s([^>]*)style="([^"]*)"([^>]*)>/gi, (_, before, existing, after) => {
+    return `<a ${before}style="${aStyle};${existing}"${after}>`;
+  });
+  result = result.replace(/<a\s((?:(?!style=)[^>])*)>/gi, (match, attrs) => {
+    if (match.includes('style="')) return match;
+    return `<a ${attrs} style="${aStyle}">`;
+  });
+
+  return result;
+}
+
 /** Wrap rich-text HTML in a full email document with inline styles */
 function wrapInEmailDocument(richHtml: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${richHtml}</div></body></html>`;
+  const styledHtml = inlineEmailStyles(richHtml);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${styledHtml}</div></body></html>`;
 }
 
 /** Extract inner body content from full email HTML */
