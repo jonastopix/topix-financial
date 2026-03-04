@@ -491,6 +491,27 @@ const Members = () => {
     }
   };
 
+  const handleResendStandaloneInvitation = async (inv: { id: string; email: string; token: string }) => {
+    setResendingInvitation(inv.id);
+    try {
+      const { error } = await supabase.functions.invoke("send-invitation-email", {
+        body: {
+          email: inv.email,
+          company_name: "The Boardroom",
+          signup_url: `https://topix.lovable.app/auth?mode=signup&invite=${inv.token}`,
+        },
+      });
+      if (error) throw error;
+      toast.success(`Invitation gensendt til ${inv.email}`);
+      setReloadTrigger((t) => t + 1);
+    } catch (err: any) {
+      console.error("Resend standalone invitation error:", err);
+      toast.error("Kunne ikke gensende invitation: " + (err.message || "Ukendt fejl"));
+    } finally {
+      setResendingInvitation(null);
+    }
+  };
+
   const openMergeDialog = async (company: CompanyData) => {
     setMergeTargetCompany(company);
     setMergeSearch("");
@@ -1196,13 +1217,17 @@ const Members = () => {
                     </div>
                     <button
                       onClick={() => {
-                        const company = companies.find(c => c.id === inv.companyId);
-                        if (company) handleResendInvitation(company);
+                        if (inv.companyId) {
+                          const company = companies.find(c => c.id === inv.companyId);
+                          if (company) handleResendInvitation(company);
+                        } else {
+                          handleResendStandaloneInvitation({ id: inv.id, email: inv.email, token: inv.token });
+                        }
                       }}
-                      disabled={resendingInvitation === inv.companyId}
+                      disabled={resendingInvitation === (inv.companyId || inv.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50 shrink-0"
                     >
-                      {resendingInvitation === inv.companyId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                      {resendingInvitation === (inv.companyId || inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                       Gensend
                     </button>
                   </div>
