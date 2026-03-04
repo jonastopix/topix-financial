@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Mail, Lock, User, LogIn, UserPlus } from "lucide-react";
 import { APP_BRANDING } from "@/lib/appConfig";
+import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -41,6 +42,10 @@ const Auth = () => {
     e.preventDefault();
     if (!fullName.trim()) {
       toast.error("Indtast dit fulde navn");
+      return;
+    }
+    if (getPasswordScore(password) < 2) {
+      toast.error("Vælg en stærkere adgangskode");
       return;
     }
     setLoading(true);
@@ -180,6 +185,8 @@ const Auth = () => {
               />
             </div>
           </div>
+
+          {!isLogin && <PasswordStrengthIndicator password={password} />}
 
           <button
             type="submit"
