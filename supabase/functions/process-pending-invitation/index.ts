@@ -25,11 +25,12 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify the caller's JWT using anon client
-    const anonClient = createClient(supabaseUrl, anonKey);
+    // Verify the caller's JWT using getClaims
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user: caller }, error: authError } = await anonClient.auth.getUser(token);
-    if (authError || !caller) {
+    const authClient = createClient(supabaseUrl, anonKey);
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+    const callerId = claimsData?.claims?.sub as string | undefined;
+    if (claimsError || !callerId) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
     const { user_id, email, invite_token } = await req.json();
 
     // Security: user can only process their own invitation
-    if (user_id !== caller.id) {
+    if (user_id !== callerId) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
