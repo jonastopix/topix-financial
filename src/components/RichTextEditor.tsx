@@ -4,7 +4,7 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Bold,
@@ -32,23 +32,40 @@ interface RichTextEditorProps {
 }
 
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+  // Track whether the latest content change came from the editor itself
+  const isInternalUpdate = useRef(false);
+
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Link.configure({ openOnClick: false, HTMLAttributes: { class: "text-primary underline" } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { class: "text-primary underline" },
+      }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       TextStyle,
       Color,
     ],
     content,
     onUpdate: ({ editor }) => {
+      isInternalUpdate.current = true;
       onChange(editor.getHTML());
     },
   });
 
-  // Sync external content changes (e.g. when switching templates)
+  // Only sync external content changes (e.g. switching templates)
+  // Skip when the change originated from the editor itself
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (!editor) return;
+    if (isInternalUpdate.current) {
+      isInternalUpdate.current = false;
+      return;
+    }
+    // Only set content if it actually differs from what the editor has
+    const currentHtml = editor.getHTML();
+    if (content !== currentHtml) {
       editor.commands.setContent(content, false);
     }
   }, [content, editor]);
@@ -57,11 +74,13 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
 
   const ToolBtn = ({
     active,
+    disabled,
     onClick,
     children,
     title,
   }: {
     active?: boolean;
+    disabled?: boolean;
     onClick: () => void;
     children: React.ReactNode;
     title?: string;
@@ -73,6 +92,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       className="h-7 w-7"
       onClick={onClick}
       title={title}
+      disabled={disabled}
     >
       {children}
     </Button>
@@ -102,7 +122,6 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
     const label = window.prompt("Knap tekst:", "Klik her");
     if (!label) return;
 
-    // Insert a CTA button as raw HTML with data-cta attribute
     editor
       .chain()
       .focus()
@@ -180,10 +199,10 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
 
         <div className="flex-1" />
 
-        <ToolBtn onClick={() => editor.chain().focus().undo().run()} title="Fortryd">
+        <ToolBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Fortryd">
           <Undo className="h-3.5 w-3.5" />
         </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().redo().run()} title="Gentag">
+        <ToolBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Gentag">
           <Redo className="h-3.5 w-3.5" />
         </ToolBtn>
       </div>

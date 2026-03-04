@@ -499,7 +499,7 @@ function TemplateEditor({
   const richContent = extractBodyContent(form.body_html);
 
   const handleRichTextChange = useCallback((html: string) => {
-    update("body_html", wrapInEmailDocument(html));
+    setForm((f) => ({ ...f, body_html: wrapInEmailDocument(html) }));
   }, []);
 
   const parseCronDay = () => {
@@ -518,7 +518,10 @@ function TemplateEditor({
   };
 
   const addVariable = () => {
-    if (!variableInput.key) return;
+    if (!variableInput.key.trim()) {
+      toast.error("Udfyld nøgle-feltet først");
+      return;
+    }
     update("variables", [...form.variables, { ...variableInput }]);
     setVariableInput({ key: "", example: "", description: "" });
   };
