@@ -431,38 +431,49 @@ const FileUploadZone = ({
           }
         }
 
-        // === STEP 5: Post AI analysis to chat (skip in admin mode) ===
-        if (!adminMode && analysis && !analysis.error && conversationId && userId) {
-          const summaryParts: string[] = [];
-          summaryParts.push(`📊 **AI Finansiel Analyse · ${extractedData.report_period}**\n`);
-          summaryParts.push(analysis.overview || "");
+        // === STEP 5: Post compact report summary to chat (skip in admin mode) ===
+        if (!adminMode && conversationId && userId) {
+          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
+          const kf = extractedData.key_figures || {};
+          const fmt = (v: number | undefined) => v != null ? new Intl.NumberFormat("da-DK").format(Math.round(v)) + " kr." : "–";
 
-          if (analysis.key_findings?.length > 0) {
-            summaryParts.push(`\n\n**Nøglefund:**`);
-            analysis.key_findings.forEach((f: any, i: number) => {
+          const lines: string[] = [];
+          lines.push(`📊 ${reportLabel} · ${extractedData.report_period}`);
+          lines.push(`Omsætning: ${fmt(kf.omsaetning)} | Udgifter: ${fmt(kf.samlede_omkostninger)} | Resultat: ${fmt(kf.resultat_foer_skat)}`);
+
+          // Add top key findings (titles only, max 3)
+          if (analysis && !analysis.error && analysis.key_findings?.length > 0) {
+            const findingTitles = analysis.key_findings.slice(0, 3).map((f: any) => {
               const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-              summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
+              return `${icon} ${f.title}`;
             });
+            lines.push(findingTitles.join(" · "));
           }
 
-          if (analysis.next_steps?.length > 0) {
-            summaryParts.push(`\n\n**Næste skridt:**`);
-            analysis.next_steps.forEach((s: string, i: number) => {
-              summaryParts.push(`${i + 1}. ${s}`);
-            });
-          }
-
-          if (milestonesCreated > 0) {
-            summaryParts.push(`\n\n🎯 ${milestonesCreated} nye milestones er automatisk oprettet.`);
-          }
+          // Build context_meta with key figures and file_path for the chat card
+          const storagePath = reportRecord.file_path || null;
+          const contextMeta: Record<string, unknown> = {
+            title: `${reportLabel} · ${extractedData.report_period}`,
+            file_path: storagePath,
+            key_figures: {
+              omsaetning: kf.omsaetning,
+              samlede_omkostninger: kf.samlede_omkostninger,
+              resultat_foer_skat: kf.resultat_foer_skat,
+              bruttofortjeneste: kf.bruttofortjeneste,
+            },
+            key_findings: analysis?.key_findings?.slice(0, 3)?.map((f: any) => ({
+              title: f.title,
+              severity: f.severity,
+            })) || [],
+          };
 
           await postActivityMessage({
             conversationId,
             senderId: userId,
-            content: summaryParts.join("\n"),
+            content: lines.join("\n"),
             contextType: "report",
             contextId: reportRecord.id,
-            contextMeta: { title: `AI Analyse · ${extractedData.report_period}` },
+            contextMeta,
           });
         }
 
