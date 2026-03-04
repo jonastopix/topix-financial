@@ -102,22 +102,15 @@ const AdvisorNotifications = () => {
     if (!report?.file_path) return;
 
     const newWindow = window.open('', '_blank');
+    const encodedPath = report.file_path.split('/').map((s: string) => encodeURIComponent(s)).join('/');
     const { data: signedData } = await supabase.storage
       .from("financial-documents")
-      .createSignedUrl(report.file_path, 3600);
+      .createSignedUrl(encodedPath, 3600);
 
     if (signedData?.signedUrl && newWindow) {
       newWindow.location.href = signedData.signedUrl;
     } else {
-      // Fallback: download blob for paths with special characters
-      const { data: blob } = await supabase.storage
-        .from("financial-documents")
-        .download(report.file_path);
-      if (blob && newWindow) {
-        newWindow.location.href = URL.createObjectURL(blob);
-      } else {
-        newWindow?.close();
-      }
+      newWindow?.close();
     }
   };
 
