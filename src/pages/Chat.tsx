@@ -987,7 +987,7 @@ const Chat = () => {
                               </div>
 
                               {/* Key figures grid */}
-                              {kf && (
+                              {kf && Object.values(kf).some(v => v != null) ? (
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
                                   {[
                                     { label: "Omsætning", value: kf.omsaetning },
@@ -1001,6 +1001,9 @@ const Chat = () => {
                                     </div>
                                   ))}
                                 </div>
+                              ) : (
+                                /* Fallback: show message content for legacy messages */
+                                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap mb-3">{msg.content}</p>
                               )}
 
                               {/* Key findings as chips */}
