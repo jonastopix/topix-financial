@@ -2,16 +2,16 @@ import { useMemo, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, ReferenceLine,
+  BarChart, Bar, Legend,
 } from "recharts";
 import {
   parseReportPeriodToKey, getKeyFigures, formatDKK, formatCompact, pctChange,
   SHORT_MONTHS, type ReportData,
 } from "@/lib/financialUtils";
+import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
 
 interface FinancialOverviewProps {
   reports: ReportData[];
-  programStart?: Date | null;
 }
 
 type TabKey = "marginer" | "omkostninger" | "resultat" | "balance";
@@ -23,10 +23,11 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "balance", label: "Balance" },
 ];
 
-const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) => {
+const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
   const [activeTab, setActiveTab] = useState<TabKey>("marginer");
+  const period = usePeriodFilter();
 
-  const chartData = useMemo(() => {
+  const allChartData = useMemo(() => {
     const processed = reports
       .filter(r => r.status === "processed")
       .map(r => {
@@ -42,13 +43,15 @@ const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) =>
     return processed.sort((a, b) => a.key.localeCompare(b.key));
   }, [reports]);
 
-  // Find program start label for reference line
-  const programStartLabel = useMemo(() => {
-    if (!programStart) return null;
-    const y = programStart.getFullYear();
-    const m = programStart.getMonth();
-    return `${SHORT_MONTHS[m]} ${y}`;
-  }, [programStart]);
+  const chartData = useMemo(() => {
+    const allKeys = allChartData.map(d => d.key);
+    const filtered = period.filterKeys(allKeys);
+    return allChartData.filter(d => filtered.includes(d.key));
+  }, [allChartData, period.mode, period.customFrom, period.customTo]);
+
+  const periodLabel = useMemo(() => {
+    return period.getPeriodLabel(chartData.map(d => d.key));
+  }, [chartData, period]);
 
   if (chartData.length < 1) return null;
 
@@ -106,11 +109,23 @@ const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) =>
 
   return (
     <div className="glass-card rounded-xl p-6 animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
           Detaljeret Finansiel Oversigt
         </h2>
+      </div>
+
+      <div className="mb-4">
+        <PeriodSelector
+          mode={period.mode}
+          onModeChange={period.setMode}
+          customFrom={period.customFrom}
+          customTo={period.customTo}
+          onCustomFromChange={period.setCustomFrom}
+          onCustomToChange={period.setCustomTo}
+          periodLabel={periodLabel}
+        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -152,7 +167,6 @@ const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) =>
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, name: string) => [formatDKK(v), { omsaetning: "Omsætning", daekningsbidrag: "Dækningsbidrag", resultat_foer_skat: "Resultat" }[name] || name]} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
               <Legend formatter={(v: string) => ({ omsaetning: "Omsætning", daekningsbidrag: "Dækningsbidrag", resultat_foer_skat: "Resultat" }[v] || v)} />
-              {programStartLabel && <ReferenceLine x={programStartLabel} stroke="hsl(var(--primary))" strokeDasharray="4 4" label={{ value: "Start", position: "top", fontSize: 10, fill: "hsl(var(--primary))" }} />}
               <Area type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={2} />
               <Area type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2) / 0.1)" strokeWidth={2} />
               <Area type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3) / 0.1)" strokeWidth={2} />
@@ -164,7 +178,6 @@ const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) =>
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, name: string) => [formatDKK(v), { loenninger: "Lønninger", direkte_omkostninger: "Direkte omk." }[name] || name]} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
               <Legend formatter={(v: string) => ({ loenninger: "Lønninger", direkte_omkostninger: "Direkte omk." }[v] || v)} />
-              {programStartLabel && <ReferenceLine x={programStartLabel} stroke="hsl(var(--primary))" strokeDasharray="4 4" />}
               <Bar dataKey="loenninger" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="direkte_omkostninger" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -174,7 +187,6 @@ const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) =>
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => [formatDKK(v), "Resultat f. skat"]} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
-              {programStartLabel && <ReferenceLine x={programStartLabel} stroke="hsl(var(--primary))" strokeDasharray="4 4" />}
               <Area type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.15)" strokeWidth={2.5} />
             </AreaChart>
           ) : (
@@ -184,7 +196,6 @@ const FinancialOverview = ({ reports, programStart }: FinancialOverviewProps) =>
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, name: string) => [formatDKK(v), { aktiver_i_alt: "Aktiver", egenkapital: "Egenkapital", bank_balance: "Bank" }[name] || name]} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
               <Legend formatter={(v: string) => ({ aktiver_i_alt: "Aktiver", egenkapital: "Egenkapital", bank_balance: "Bank" }[v] || v)} />
-              {programStartLabel && <ReferenceLine x={programStartLabel} stroke="hsl(var(--primary))" strokeDasharray="4 4" />}
               <Bar dataKey="aktiver_i_alt" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="egenkapital" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="bank_balance" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />

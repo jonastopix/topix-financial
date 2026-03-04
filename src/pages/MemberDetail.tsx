@@ -509,10 +509,7 @@ const MemberDetail = () => {
 
           {/* Delivery Overview */}
           <div className="mb-8">
-            <DeliveryOverview
-              reports={reports}
-              programStart={companyCtx?.start_date ? new Date(companyCtx.start_date) : null}
-            />
+            <DeliveryOverview reports={reports} />
           </div>
 
           {/* Reports section */}

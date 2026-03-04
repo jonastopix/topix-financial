@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -6,25 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { parseReportPeriodToKey, getKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { type PeriodMode } from "@/components/PeriodSelector";
 
 const RevenueChart = () => {
   const { user, companyId } = useAuth();
-
-  // Fetch company start/end dates to constrain the chart to membership period
-  const { data: company } = useQuery({
-    queryKey: ["company-dates", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("start_date, end_date")
-        .eq("id", companyId!)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user && !!companyId,
-    staleTime: 10 * 60 * 1000,
-  });
+  const [mode, setMode] = useState<"last12" | "ytd">("last12");
 
   const { data: reports = [] } = useQuery({
     queryKey: ["financial-reports-chart", companyId],
@@ -44,31 +30,12 @@ const RevenueChart = () => {
   });
 
   const chartData = useMemo(() => {
-    // Build start/end key boundaries from company membership dates
-    let startKey: string | null = null;
-    let endKey: string | null = null;
-    if (company?.start_date) {
-      const d = new Date(company.start_date);
-      startKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    }
-    if (company?.end_date) {
-      const d = new Date(company.end_date);
-      endKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    }
-
-    // Deduplicate by period key — keep the latest uploaded report per period
     const byKey = new Map<string, { key: string; revenue: number; expenses: number }>();
 
     for (const r of reports) {
       const key = parseReportPeriodToKey(r.report_period);
       const kf = getKeyFigures(r);
       if (!key || !kf) continue;
-
-      // Filter: only include months within membership period
-      if (startKey && key < startKey) continue;
-      if (endKey && key > endKey) continue;
-
-      // Skip if we already have this period (first in array = latest uploaded_at)
       if (byKey.has(key)) continue;
 
       byKey.set(key, {
@@ -78,15 +45,21 @@ const RevenueChart = () => {
       });
     }
 
-    return Array.from(byKey.values())
-      .sort((a, b) => a.key.localeCompare(b.key))
-      .slice(-12)
-      .map(d => {
-        const [year, monthStr] = d.key.split("-");
-        const monthIdx = parseInt(monthStr, 10) - 1;
-        return { ...d, month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}` };
-      });
-  }, [reports, company]);
+    let sorted = Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key));
+
+    if (mode === "ytd") {
+      const yearPrefix = `${new Date().getFullYear()}-`;
+      sorted = sorted.filter(d => d.key.startsWith(yearPrefix));
+    } else {
+      sorted = sorted.slice(-12);
+    }
+
+    return sorted.map(d => {
+      const [year, monthStr] = d.key.split("-");
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      return { ...d, month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}` };
+    });
+  }, [reports, mode]);
 
   const hasData = chartData.length > 0;
 
@@ -94,9 +67,21 @@ const RevenueChart = () => {
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-display font-semibold text-foreground">Omsætning vs. Udgifter</h3>
-        <span className="text-xs text-muted-foreground">
-          {hasData ? `${chartData.length} måneder` : "Ingen data endnu"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {(["last12", "ytd"] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
+                mode === m
+                  ? "bg-primary/10 text-primary border border-primary/30"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
+              }`}
+            >
+              {m === "last12" ? "12 mdr" : "År til dato"}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="h-64">
         {hasData ? (

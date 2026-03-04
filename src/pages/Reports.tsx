@@ -7,6 +7,7 @@ import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
 import FinancialOverview from "@/components/FinancialOverview";
 import PerformanceOverview from "@/components/PerformanceOverview";
 import DeliveryOverview from "@/components/DeliveryOverview";
+import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
 import {
   FileText,
   CheckCircle2,
@@ -88,12 +89,13 @@ const Reports = () => {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
+  const trendPeriod = usePeriodFilter();
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMsg[]>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [programStart, setProgramStart] = useState<Date | null>(null);
+  
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; report: DbReport | null }>({ open: false, report: null });
   const [deleting, setDeleting] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
@@ -104,7 +106,7 @@ const Reports = () => {
   const loadData = useCallback(async () => {
     if (!user) return;
 
-    const [reportsRes, convRes, companyRes] = await Promise.all([
+    const [reportsRes, convRes] = await Promise.all([
       (supabase
         .from("financial_reports")
         .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
@@ -114,19 +116,11 @@ const Reports = () => {
       companyId
         ? supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle()
         : Promise.resolve({ data: null }),
-      companyId
-        ? supabase.from("companies").select("start_date").eq("id", companyId).maybeSingle()
-        : Promise.resolve({ data: null }),
     ]);
 
     const reportsList = reportsRes.data || [];
     setDbReports(reportsList);
     setConversationId(convRes.data?.id || null);
-    if (companyRes.data?.start_date) {
-      setProgramStart(new Date(companyRes.data.start_date));
-    } else {
-      setProgramStart(null);
-    }
 
     if (reportsList.length > 0 && convRes.data?.id) {
       const ids = reportsList.map((r) => r.id);
@@ -190,7 +184,8 @@ const Reports = () => {
   // Build trend data for charts
   const trendData = useMemo(() => {
     const sortedKeys = Object.keys(reportsByMonth).sort();
-    return sortedKeys
+    const filteredKeys = trendPeriod.filterKeys(sortedKeys);
+    return filteredKeys
       .map((key) => {
         const r = reportsByMonth[key];
         if (r.status !== "processed") return null;
@@ -209,7 +204,11 @@ const Reports = () => {
         };
       })
       .filter(Boolean) as any[];
-  }, [reportsByMonth]);
+  }, [reportsByMonth, trendPeriod.mode, trendPeriod.customFrom, trendPeriod.customTo]);
+
+  const trendPeriodLabel = useMemo(() => {
+    return trendPeriod.getPeriodLabel(trendData.map((d: any) => d.key));
+  }, [trendData, trendPeriod]);
 
   const handleSubmitComment = async (reportId: string, reportName: string) => {
     const content = (commentInputs[reportId] || "").trim();
@@ -384,7 +383,7 @@ const Reports = () => {
 
       {/* ── Member-Centric Delivery Overview ── */}
       <div className="mb-8">
-        <DeliveryOverview reports={dbReports} programStart={programStart} />
+        <DeliveryOverview reports={dbReports} />
       </div>
 
       {/* ── Trend Charts ── */}
@@ -413,7 +412,18 @@ const Reports = () => {
             <TrendingUp className="h-5 w-5 text-primary" />
             Finansiel udvikling
           </h2>
-          <p className="text-xs text-muted-foreground mb-4">Måned til måned — klik på en serie for at fremhæve</p>
+          <div className="mt-3 mb-4">
+            <PeriodSelector
+              mode={trendPeriod.mode}
+              onModeChange={trendPeriod.setMode}
+              customFrom={trendPeriod.customFrom}
+              customTo={trendPeriod.customTo}
+              onCustomFromChange={trendPeriod.setCustomFrom}
+              onCustomToChange={trendPeriod.setCustomTo}
+              periodLabel={trendPeriodLabel}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">Klik på en serie for at fremhæve</p>
 
           {/* Custom legend with click */}
           <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -568,7 +578,7 @@ const Reports = () => {
 
       {/* Detaljeret Finansiel Oversigt */}
       <div className="mb-8">
-        <FinancialOverview reports={dbReports} programStart={programStart} />
+        <FinancialOverview reports={dbReports} />
       </div>
 
       {/* Performance Oversigt */}
