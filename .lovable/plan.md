@@ -1,46 +1,24 @@
 
 
-## Problem
+## Plan: Fix auth i 2 Edge Functions
 
-1. **Datoen er forkert**: Oversigten viser `created_at` (27. feb) i stedet for den senest afsendte dato. Christina's invitation blev senest gensendt 4. marts, men UI'et viser stadig den oprindelige oprettelsesdato.
+### 1. `process-pending-invitation` — Skift fra `getUser()` til `getClaims()`
 
-2. **Ingen slet-knap**: Der er ingen mulighed for at slette en afventende invitation.
+Linje 28-37 erstattes med standard-mønsteret:
+- Opret `authClient` med `SUPABASE_ANON_KEY`
+- Kald `authClient.auth.getClaims(token)` i stedet for `getUser(token)`
+- Udtræk `userId` fra `claimsData.claims.sub`
+- Brug `userId` i stedet for `caller.id` til security-tjekket (linje 42)
 
-## Plan
+### 2. `generate-budget-scenarios` — Tilføj auth-validering
 
-### 1. Vis senest afsendte dato i stedet for oprettelsesdato
+Funktionen har i dag **ingen auth-check overhovedet**. Tilføj:
+- Authorization header check med Bearer prefix
+- `getClaims(token)` validering via anon client
+- 401-response ved ugyldigt/manglende token
+- Indsættes lige efter OPTIONS-håndteringen (linje 13), før body parsing
 
-**Tilgang**: Hent den seneste `sent_at` fra `email_send_log` for hver pending invitation (baseret på `recipient_email`), og brug den i stedet for `created_at`.
+### Ingen database-ændringer
 
-**Ændringer i `src/pages/Members.tsx`**:
-- I data-fetch logikken: efter invitationer er hentet, lav et ekstra query mod `email_send_log` for de relevante emails
-- Byg et map fra email → seneste `sent_at`
-- Brug `lastSentAt || created_at` som fallback i visningen (linje 1215)
-
-### 2. Tilføj slet-knap for afventende invitationer
-
-**Ændringer i `src/pages/Members.tsx`**:
-- Ny handler `handleDeleteInvitation(invitationId)` der kalder `supabase.from("company_invitations").delete().eq("id", invitationId)`
-- Tilføj en slet-knap (Trash2 ikon) ved siden af Gensend-knappen i pending-invitation oversigten (linje ~1218-1232)
-- Bekræftelsesdialog inden sletning for at undga utilsigtede sletninger
-- Reload data efter sletning
-
-**RLS**: Sletning er allerede tilladt for advisors via eksisterende policy på `company_invitations` (company members can delete company invitations). For standalone invitationer (company_id = null) skal vi tilføje en ny RLS policy.
-
-### 3. Database-migration
-
-Ny RLS policy på `company_invitations`:
-```sql
-CREATE POLICY "Advisors can delete invitations"
-ON public.company_invitations
-FOR DELETE
-TO authenticated
-USING (has_role(auth.uid(), 'advisor'::app_role));
-```
-
-### Tekniske detaljer
-
-- `email_send_log` har allerede data med seneste afsendelse per email
-- Queryet bliver: `SELECT recipient_email, MAX(sent_at) FROM email_send_log WHERE recipient_email IN (...) GROUP BY recipient_email`
-- Fallback til `created_at` hvis ingen log-entry findes
+Begge funktioner har allerede `verify_jwt = false` i `config.toml`, hvilket er korrekt — auth valideres i koden.
 
