@@ -7,6 +7,8 @@ import Color from "@tiptap/extension-color";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -19,7 +21,6 @@ import {
   AlignCenter,
   AlignRight,
   Link as LinkIcon,
-  Unlink,
   Heading1,
   Heading2,
   Heading3,
@@ -37,16 +38,16 @@ const CustomLink = Link.extend({
       ...this.parent?.(),
       "data-cta": {
         default: null,
-        parseHTML: (el) => el.getAttribute("data-cta"),
-        renderHTML: (attrs) => {
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-cta"),
+        renderHTML: (attrs: Record<string, unknown>) => {
           if (!attrs["data-cta"]) return {};
           return { "data-cta": attrs["data-cta"] };
         },
       },
       "data-cta-color": {
         default: null,
-        parseHTML: (el) => el.getAttribute("data-cta-color"),
-        renderHTML: (attrs) => {
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-cta-color"),
+        renderHTML: (attrs: Record<string, unknown>) => {
           if (!attrs["data-cta-color"]) return {};
           return { "data-cta-color": attrs["data-cta-color"] };
         },
@@ -77,7 +78,10 @@ function ToolBtn({
           variant={active ? "secondary" : "ghost"}
           size="icon"
           className="h-7 w-7 shrink-0"
-          onClick={onClick}
+          onClick={(e) => {
+            e.preventDefault();
+            onClick();
+          }}
           disabled={disabled}
           aria-label={label}
         >
@@ -107,7 +111,12 @@ interface RichTextEditorProps {
 // ─── Main component ────────────────────────────────────────────────────────
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
   const isInternalUpdate = useRef(false);
-  const [ctaColorOpen, setCtaColorOpen] = useState(false);
+  const [ctaOpen, setCtaOpen] = useState(false);
+  const [ctaUrl, setCtaUrl] = useState("https://");
+  const [ctaLabel, setCtaLabel] = useState("Klik her");
+  const [ctaColor, setCtaColor] = useState<(typeof CTA_COLORS)[number]>(CTA_COLORS[0]);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
 
   const editor = useEditor({
     extensions: [
@@ -142,44 +151,67 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
   }, [content, editor]);
 
   // ─── Link handler ──────────────────────────────────────────────────────
-  const handleLink = useCallback(() => {
+  const handleLinkOpen = useCallback(() => {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href || "";
-    const { from, to } = editor.state.selection;
-    const url = window.prompt("URL:", previousUrl || "https://");
-    if (url === null) return;
-    if (url === "") {
+    setLinkUrl(previousUrl || "https://");
+    setLinkOpen(true);
+  }, [editor]);
+
+  const handleLinkSubmit = useCallback(() => {
+    if (!editor) return;
+    setLinkOpen(false);
+    if (!linkUrl || linkUrl === "https://") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
     editor
       .chain()
       .focus()
-      .setTextSelection({ from, to })
       .extendMarkRange("link")
-      .setLink({ href: url })
+      .setLink({ href: linkUrl })
       .run();
-  }, [editor]);
+  }, [editor, linkUrl]);
 
   // ─── CTA button handler ────────────────────────────────────────────────
-  const handleInsertCta = useCallback(
-    (color: (typeof CTA_COLORS)[number]) => {
-      if (!editor) return;
-      setCtaColorOpen(false);
-      const url = window.prompt("CTA knap URL:", "https://");
-      if (!url) return;
-      const label = window.prompt("Knap tekst:", "Klik her");
-      if (!label) return;
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          `<p style="text-align:center"><a href="${url}" data-cta="true" data-cta-color="${color.value}">${label}</a></p>`
-        )
-        .run();
-    },
-    [editor]
-  );
+  const handleInsertCta = useCallback(() => {
+    if (!editor || !ctaUrl || ctaUrl === "https://") return;
+    setCtaOpen(false);
+
+    // Insert a paragraph with the CTA link
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "paragraph",
+        attrs: { textAlign: "center" },
+        content: [
+          {
+            type: "text",
+            marks: [
+              {
+                type: "link",
+                attrs: {
+                  href: ctaUrl,
+                  target: "_blank",
+                  rel: "noopener noreferrer nofollow",
+                  class: "text-primary underline",
+                  "data-cta": "true",
+                  "data-cta-color": ctaColor.value,
+                },
+              },
+            ],
+            text: ctaLabel || "Klik her",
+          },
+        ],
+      })
+      .run();
+
+    // Reset form
+    setCtaUrl("https://");
+    setCtaLabel("Klik her");
+    setCtaColor(CTA_COLORS[0]);
+  }, [editor, ctaUrl, ctaLabel, ctaColor]);
 
   if (!editor) return null;
 
@@ -246,42 +278,120 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
 
           <Separator orientation="vertical" className="h-5 mx-1" />
 
-          {/* Links */}
-          <ToolBtn onClick={handleLink} active={editor.isActive("link")} label="Indsæt / redigér link">
-            <LinkIcon className={icon} />
-          </ToolBtn>
-          {editor.isActive("link") && (
-            <ToolBtn onClick={() => editor.chain().focus().unsetLink().run()} label="Fjern link">
-              <Unlink className={icon} />
-            </ToolBtn>
-          )}
-
-          {/* CTA button */}
-          <Popover open={ctaColorOpen} onOpenChange={setCtaColorOpen}>
+          {/* Link */}
+          <Popover open={linkOpen} onOpenChange={setLinkOpen}>
             <PopoverTrigger asChild>
               <span>
-                <ToolBtn onClick={() => setCtaColorOpen((o) => !o)} label="Indsæt CTA-knap">
+                <ToolBtn onClick={handleLinkOpen} active={editor.isActive("link")} label="Indsæt / redigér link">
+                  <LinkIcon className={icon} />
+                </ToolBtn>
+              </span>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-3" align="start" sideOffset={8}>
+              <div className="space-y-2">
+                <Label className="text-xs">URL</Label>
+                <Input
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => e.key === "Enter" && handleLinkSubmit()}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 h-7 text-xs" onClick={handleLinkSubmit}>
+                    Anvend
+                  </Button>
+                  {editor.isActive("link") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setLinkOpen(false);
+                        editor.chain().focus().extendMarkRange("link").unsetLink().run();
+                      }}
+                    >
+                      Fjern link
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* CTA button */}
+          <Popover open={ctaOpen} onOpenChange={setCtaOpen}>
+            <PopoverTrigger asChild>
+              <span>
+                <ToolBtn onClick={() => setCtaOpen((o) => !o)} label="Indsæt CTA-knap">
                   <MousePointerClick className={icon} />
                 </ToolBtn>
               </span>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start" sideOffset={8}>
-              <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Vælg knapfarve</p>
-              <div className="flex gap-1.5">
-                {CTA_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => handleInsertCta(c)}
-                    className="flex flex-col items-center gap-1 rounded-md px-3 py-2 hover:bg-muted transition-colors"
+            <PopoverContent className="w-72 p-3" align="start" sideOffset={8}>
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">Indsæt CTA-knap</p>
+
+                {/* Color picker */}
+                <div className="flex gap-1.5">
+                  {CTA_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setCtaColor(c)}
+                      className={`flex flex-col items-center gap-1 rounded-md px-3 py-1.5 transition-colors ${
+                        ctaColor.value === c.value ? "bg-muted ring-1 ring-primary" : "hover:bg-muted"
+                      }`}
+                    >
+                      <span
+                        className="h-5 w-5 rounded-full border-2"
+                        style={{
+                          backgroundColor: c.hex,
+                          borderColor: c.value === "black" ? "hsl(var(--muted-foreground) / 0.5)" : c.hex,
+                        }}
+                      />
+                      <span className="text-[10px] text-foreground">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* URL */}
+                <div>
+                  <Label className="text-xs">URL</Label>
+                  <Input
+                    value={ctaUrl}
+                    onChange={(e) => setCtaUrl(e.target.value)}
+                    placeholder="https://example.com"
+                    className="h-8 text-sm"
+                  />
+                </div>
+
+                {/* Label */}
+                <div>
+                  <Label className="text-xs">Knaptekst</Label>
+                  <Input
+                    value={ctaLabel}
+                    onChange={(e) => setCtaLabel(e.target.value)}
+                    placeholder="Klik her"
+                    className="h-8 text-sm"
+                    onKeyDown={(e) => e.key === "Enter" && handleInsertCta()}
+                  />
+                </div>
+
+                {/* Preview */}
+                <div className="flex justify-center py-1">
+                  <span
+                    className="inline-block text-white text-xs font-semibold px-5 py-2 rounded-lg"
+                    style={{ backgroundColor: ctaColor.hex }}
                   >
-                    <span
-                      className="h-6 w-6 rounded-full border-2 border-muted-foreground/30"
-                      style={{ backgroundColor: c.hex }}
-                    />
-                    <span className="text-[11px] text-foreground">{c.label}</span>
-                  </button>
-                ))}
+                    {ctaLabel || "Klik her"}
+                  </span>
+                </div>
+
+                <Button size="sm" className="w-full h-8" onClick={handleInsertCta}>
+                  Indsæt knap
+                </Button>
               </div>
             </PopoverContent>
           </Popover>
@@ -306,18 +416,33 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
         <EditorContent
           editor={editor}
           className={[
-            "prose prose-sm max-w-none px-4 py-3 min-h-[300px]",
+            "px-4 py-3 min-h-[300px]",
             "focus-within:outline-none",
             "[&_.tiptap]:outline-none [&_.tiptap]:min-h-[280px]",
+            // Base text
+            "[&_.tiptap_p]:text-sm [&_.tiptap_p]:leading-relaxed [&_.tiptap_p]:my-1.5",
+            // Headings – visually distinct
+            "[&_.tiptap_h1]:text-2xl [&_.tiptap_h1]:font-bold [&_.tiptap_h1]:mt-4 [&_.tiptap_h1]:mb-2 [&_.tiptap_h1]:text-foreground",
+            "[&_.tiptap_h2]:text-xl [&_.tiptap_h2]:font-bold [&_.tiptap_h2]:mt-3 [&_.tiptap_h2]:mb-2 [&_.tiptap_h2]:text-foreground",
+            "[&_.tiptap_h3]:text-lg [&_.tiptap_h3]:font-semibold [&_.tiptap_h3]:mt-2 [&_.tiptap_h3]:mb-1.5 [&_.tiptap_h3]:text-foreground",
+            // Lists
+            "[&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-6 [&_.tiptap_ul]:my-2",
+            "[&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-6 [&_.tiptap_ol]:my-2",
+            "[&_.tiptap_li]:text-sm [&_.tiptap_li]:my-0.5",
+            // Blockquote
+            "[&_.tiptap_blockquote]:border-l-3 [&_.tiptap_blockquote]:border-primary [&_.tiptap_blockquote]:pl-4 [&_.tiptap_blockquote]:italic [&_.tiptap_blockquote]:text-muted-foreground",
+            // HR
+            "[&_.tiptap_hr]:border-border [&_.tiptap_hr]:my-4",
+            // Links
+            "[&_.tiptap_a]:text-primary [&_.tiptap_a]:underline",
             // CTA button styling in editor
-            "[&_a[data-cta]]:inline-block [&_a[data-cta]]:text-white [&_a[data-cta]]:no-underline",
-            "[&_a[data-cta]]:px-6 [&_a[data-cta]]:py-3 [&_a[data-cta]]:rounded-lg",
-            "[&_a[data-cta]]:font-semibold [&_a[data-cta]]:text-sm [&_a[data-cta]]:cursor-default",
-            "[&_a[data-cta-color=green]]:bg-[#0fa968]",
-            "[&_a[data-cta-color=blue]]:bg-[#2563eb]",
-            "[&_a[data-cta-color=black]]:bg-[#18181b]",
-            // Fallback for CTA without color attribute (legacy)
-            "[&_a[data-cta]:not([data-cta-color])]:bg-[#0fa968]",
+            "[&_.tiptap_a[data-cta]]:inline-block [&_.tiptap_a[data-cta]]:text-white [&_.tiptap_a[data-cta]]:no-underline",
+            "[&_.tiptap_a[data-cta]]:px-6 [&_.tiptap_a[data-cta]]:py-3 [&_.tiptap_a[data-cta]]:rounded-lg",
+            "[&_.tiptap_a[data-cta]]:font-semibold [&_.tiptap_a[data-cta]]:text-sm [&_.tiptap_a[data-cta]]:cursor-default",
+            "[&_.tiptap_a[data-cta-color=green]]:bg-[#0fa968]",
+            "[&_.tiptap_a[data-cta-color=blue]]:bg-[#2563eb]",
+            "[&_.tiptap_a[data-cta-color=black]]:bg-[#18181b]",
+            "[&_.tiptap_a[data-cta]:not([data-cta-color])]:bg-[#0fa968]",
           ].join(" ")}
         />
       </div>
