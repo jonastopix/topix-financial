@@ -160,7 +160,12 @@ function inlineEmailStyles(html: string): string {
   return result;
 }
 
-/** Wrap rich-text HTML in a full email document with inline styles */
+/** Wrap rich-text HTML in a full email document WITHOUT inline styles (for editing) */
+function wrapInEmailDocumentRaw(richHtml: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${richHtml}</div></body></html>`;
+}
+
+/** Wrap rich-text HTML in a full email document WITH inline styles (for save/send) */
 function wrapInEmailDocument(richHtml: string): string {
   const styledHtml = inlineEmailStyles(richHtml);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${styledHtml}</div></body></html>`;
@@ -505,7 +510,8 @@ function TemplateEditor({
   const richContent = extractBodyContent(form.body_html);
 
   const handleRichTextChange = useCallback((html: string) => {
-    setForm((f) => ({ ...f, body_html: wrapInEmailDocument(html) }));
+    // Store raw HTML during editing — no inline styles applied yet
+    setForm((f) => ({ ...f, body_html: wrapInEmailDocumentRaw(html) }));
   }, []);
 
   const parseCronDay = () => {
@@ -541,10 +547,13 @@ function TemplateEditor({
       toast.error("Navn er påkrævet");
       return;
     }
+    // Apply inline styles on save so emails render correctly in clients
+    const rawContent = extractBodyContent(form.body_html);
+    const styledBodyHtml = wrapInEmailDocument(rawContent);
     const payload: Partial<EmailTemplate> = {
       name: form.name,
       subject: form.subject,
-      body_html: form.body_html,
+      body_html: styledBodyHtml,
       sender_name: form.sender_name,
       sender_email: form.sender_email,
       trigger_type: form.trigger_type,
