@@ -1,47 +1,69 @@
 
-Problem bekræftet. Jeg har fundet den konkrete årsag i både kode og data:
 
-1) Alle aktive rapporter har stadig `file_path` i legacy-formatet `uploads/...` (ikke en rigtig storage-sti).  
-2) Der findes ingen tilsvarende filer i storage for de rapport-id’er.  
-3) Upload-flowet fortsætter selv når storage-upload fejler, så rapporten bliver “processed” uden originalfil.  
-4) Overwrite-flowet uploader slet ikke originalfilen.
+## Redesign af Rapporteringssiden: Leveringsoverblik + Finansiel udvikling med periodevalg
 
-Det er derfor “Se original fil” fortsat fejler.
+### Problemet
+- **Leveringsoverblik** er bundet til et "12-måneders program" baseret på `start_date`, men platformen kender ikke altid programperioden, og det skaber forvirring.
+- **Finansiel udvikling** viser altid alle data uden mulighed for at vælge periode (seneste 12 mdr, år til dato, custom).
+- Labels og kontekst kan forbedres.
 
-Implementeringsplan
+### Plan
 
-1. Gør upload af originalfil obligatorisk (fix fremadrettet)
-- Fil: `src/components/FileUploadZone.tsx`
-- Tilføj sanitization af filnavn til storage (ASCII-safe: æ/ø/å, mellemrum, specialtegn).
-- Upload til `financial-documents/${companyId}/${reportId}/${safeFileName}`.
-- Hvis storage upload fejler: stop pipeline, vis fejl-toast, og lad ikke rapporten ende som “done”.
-- Opdater `financial_reports.file_path` kun med gyldig storage-sti.
-- Samme upload-step tilføjes i `handleOverwrite` (mangler i dag).
+#### 1. Redesign DeliveryOverview — årsbaseret i stedet for 12-måneders program
 
-2. Centraliser “åbn original fil” logik
-- Ny helper: `src/lib/reportFileAccess.ts`
-- Funktion tager `{ reportId, companyId, filePath, fileName }`.
-- Forsøg signed URL på korrekt sti.
-- Håndter kendte fejl (`InvalidKey`, manglende objekt) med tydelig brugerbesked.
-- Fjern nuværende segment-encoding workaround i siderne og brug helperen.
+**Fil:** `src/components/DeliveryOverview.tsx`
 
-3. Reparationsflow for eksisterende rapporter (dem der allerede er “ødelagte”)
-- På rapporter med legacy-path (`file_path` starter med `uploads/`) vis knap: “Genupload original”.
-- Brugeren vælger fil lokalt → uploades til korrekt/sanitized sti → `financial_reports.file_path` opdateres.
-- Herefter virker “Se original fil” uden at ændre resten af rapportdata.
+Fjern hele "Dit 12-måneders program"-konceptet. Erstat med:
+- **Årsbaseret visning** grupperet efter kalenderår (f.eks. "2025", "2026")
+- Vis alle måneder i hvert år (Jan-Dec), hvor rapporter der er uploadet markeres med checkmark
+- Tæller: "X af Y leveret" per år (hvor Y er antal måneder i året der er relevante — f.eks. hvis virksomheden startede i marts 2026, vis kun Mar-Dec for 2026)
+- Progress-bar per år
+- Bevar farvekodning: grøn=processed, gul=processing, rød=error, tom=mangler
+- Fjern `programStart` prop — komponenten kigger nu kun på hvilke måneder der faktisk har rapporter og grupperer dem
 
-4. Opdater alle entry points
-- `src/pages/Reports.tsx`
-- `src/pages/MemberDetail.tsx`
-- `src/components/AdvisorNotifications.tsx`
-- Alle tre bruger samme helper og samme fejlhåndtering.
+#### 2. Tilføj periodevalg til Finansiel udvikling
 
-Tekniske detaljer (kort)
-- Ingen schema-migration nødvendig.
-- Root cause er ikke kun popup/encoding; det er primært manglende faktiske filer i storage pga upload-fejl + manglende overwrite-upload.
-- Vi bevarer visningsnavn (`file_name`) men bruger sanitized navn i storage-path.
+**Fil:** `src/pages/Reports.tsx` (trend chart-sektionen, linje ~390-549)
 
-Verifikation (E2E)
-1) Upload en ny fil med danske tegn i filnavn → “Se original fil” skal åbne korrekt.  
-2) Kør overwrite på en eksisterende periode → “Se original fil” skal virke bagefter.  
-3) Reparer én af de nuværende broken rapporter via “Genupload original” → verificér åbning fra både Reports og MemberDetail (og notifikation-link hvis relevant).
+Tilføj en period-selector oven over grafen med tre valg:
+- **Seneste 12 mdr** (default) — viser de seneste 12 måneder med data
+- **År til dato** — viser jan-nu for indeværende kalenderår
+- **Vælg periode** — to date-pickers (fra-måned, til-måned) til custom range
+
+Implementer som simpel state + filter i `trendData` useMemo. UI: tabs/knapper i header-linjen ved siden af titlen.
+
+Tilføj tydelig label der viser den valgte periode, f.eks. "Mar 2025 – Feb 2026" under titlen.
+
+#### 3. Tilføj periodevalg til FinancialOverview
+
+**Fil:** `src/components/FinancialOverview.tsx`
+
+Samme periodevalg-mønster som ovenfor. Komponenten modtager allerede `reports` og filtrerer dem — tilføj intern state for periode-filter.
+
+Fjern `programStart` prop og reference-line til programstart (irrelevant nu).
+
+#### 4. Tilføj periodevalg til RevenueChart (Dashboard)
+
+**Fil:** `src/components/RevenueChart.tsx`
+
+Fjern filtrering baseret på `company.start_date/end_date`. Brug samme "seneste 12 mdr" som default, med mulighed for at skifte til "År til dato".
+
+#### 5. Opdater Reports.tsx — fjern programStart-afhængighed
+
+**Fil:** `src/pages/Reports.tsx`
+- Fjern `programStart` state og fetch af `companies.start_date`
+- Fjern `programStart` prop fra `DeliveryOverview` og `FinancialOverview`
+
+### Tekniske detaljer
+
+- Ingen database-ændringer nødvendige
+- Periodevalg er ren client-side filtering af allerede fetchede rapporter
+- Periodevalg-UI genbruges som en lille shared komponent eller inline i hver sektion
+- Custom periode-picker bruger simple `<select>` dropdowns for måned/år (ikke full calendar)
+
+### Opsummering af ændrede filer
+1. `src/components/DeliveryOverview.tsx` — komplet redesign til årsbaseret
+2. `src/pages/Reports.tsx` — fjern programStart, tilføj periodevalg til trend chart
+3. `src/components/FinancialOverview.tsx` — tilføj periodevalg, fjern programStart
+4. `src/components/RevenueChart.tsx` — fjern start/end-dato filtrering, tilføj periodevalg
+
