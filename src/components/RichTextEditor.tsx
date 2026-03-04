@@ -23,6 +23,7 @@ import {
   Undo,
   Redo,
   Minus,
+  MousePointerClick,
 } from "lucide-react";
 
 interface RichTextEditorProps {
@@ -95,6 +96,22 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       .run();
   };
 
+  const addCtaButton = () => {
+    const url = window.prompt("CTA knap URL:", "https://");
+    if (!url) return;
+    const label = window.prompt("Knap tekst:", "Klik her");
+    if (!label) return;
+
+    // Insert a CTA button as raw HTML with data-cta attribute
+    editor
+      .chain()
+      .focus()
+      .insertContent(
+        `<p style="text-align:center"><a href="${url}" data-cta="true">${label}</a></p>`
+      )
+      .run();
+  };
+
   return (
     <div className="border border-input rounded-md overflow-hidden bg-background">
       {/* Toolbar */}
@@ -153,6 +170,10 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
           </ToolBtn>
         )}
 
+        <ToolBtn onClick={addCtaButton} title="Indsæt CTA-knap">
+          <MousePointerClick className="h-3.5 w-3.5" />
+        </ToolBtn>
+
         <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Vandret linje">
           <Minus className="h-3.5 w-3.5" />
         </ToolBtn>
@@ -170,7 +191,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       {/* Editor */}
       <EditorContent
         editor={editor}
-        className="prose prose-sm max-w-none px-4 py-3 min-h-[300px] focus-within:outline-none [&_.tiptap]:outline-none [&_.tiptap]:min-h-[280px]"
+        className="prose prose-sm max-w-none px-4 py-3 min-h-[300px] focus-within:outline-none [&_.tiptap]:outline-none [&_.tiptap]:min-h-[280px] [&_a[data-cta]]:inline-block [&_a[data-cta]]:bg-[#0fa968] [&_a[data-cta]]:text-white [&_a[data-cta]]:no-underline [&_a[data-cta]]:px-6 [&_a[data-cta]]:py-3 [&_a[data-cta]]:rounded-lg [&_a[data-cta]]:font-semibold [&_a[data-cta]]:text-sm"
       />
     </div>
   );
