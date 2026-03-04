@@ -1,24 +1,28 @@
 
 
-## Plan: Fix auth i 2 Edge Functions
+## Password-styrke indikator i signup-formularen
 
-### 1. `process-pending-invitation` — Skift fra `getUser()` til `getClaims()`
+Tilføjer en visuel styrke-indikator under password-feltet ved signup, der evaluerer adgangskoden i realtid.
 
-Linje 28-37 erstattes med standard-mønsteret:
-- Opret `authClient` med `SUPABASE_ANON_KEY`
-- Kald `authClient.auth.getClaims(token)` i stedet for `getUser(token)`
-- Udtræk `userId` fra `claimsData.claims.sub`
-- Brug `userId` i stedet for `caller.id` til security-tjekket (linje 42)
+### Styrke-kriterier
+- Mindst 8 tegn
+- Mindst ét stort bogstav
+- Mindst ét tal
+- Mindst ét specialtegn
 
-### 2. `generate-budget-scenarios` — Tilføj auth-validering
+Scoren (0–4) mapper til farver og labels: Svag (rød) → Rimelig (orange) → God (gul) → Stærk (grøn).
 
-Funktionen har i dag **ingen auth-check overhovedet**. Tilføj:
-- Authorization header check med Bearer prefix
-- `getClaims(token)` validering via anon client
-- 401-response ved ugyldigt/manglende token
-- Indsættes lige efter OPTIONS-håndteringen (linje 13), før body parsing
+### Teknisk plan
 
-### Ingen database-ændringer
+1. **Ny komponent `src/components/PasswordStrengthIndicator.tsx`**
+   - Modtager `password: string` som prop
+   - Beregner score baseret på de 4 kriterier
+   - Viser en progress-bar med dynamisk farve + tekst-label
+   - Viser en checkliste med ikoner for hvert kriterie (opfyldt/ikke opfyldt)
 
-Begge funktioner har allerede `verify_jwt = false` i `config.toml`, hvilket er korrekt — auth valideres i koden.
+2. **Opdatér `src/pages/Auth.tsx`**
+   - Importér og indsæt `PasswordStrengthIndicator` under password-feltet, kun synlig ved signup (`!isLogin`)
+   - Blokér submit hvis score < 2 (kræver mindst "Rimelig")
+
+Ingen database- eller backend-ændringer nødvendige — ren klient-side validering.
 
