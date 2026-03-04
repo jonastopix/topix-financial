@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { createAdvisorNotification } from "@/lib/advisorNotifications";
+import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
 import * as pdfjsLib from "pdfjs-dist";
 import * as XLSX from "xlsx";
 import { detectTemplate, extractKJAutoTemplate, templateResultToExtractedData } from "@/lib/excelTemplates";
@@ -211,21 +212,24 @@ const FileUploadZone = ({
         if (insertError || !reportRecord) throw new Error(insertError?.message || "Kunne ikke oprette rapport");
         updateFile(fileId, { reportId: reportRecord.id });
 
-        // === STEP 1b: Upload original file to Storage ===
-        const storagePath = `${companyId}/${reportRecord.id}/${file.name}`;
+        // === STEP 1b: Upload original file to Storage (MANDATORY) ===
+        const storagePath = buildStoragePath(companyId || "unknown", reportRecord.id, file.name);
         const { error: storageError } = await supabase.storage
           .from("financial-documents")
           .upload(storagePath, file, { upsert: true });
         
-        if (!storageError) {
-          // Update file_path in DB to the actual storage path
-          await supabase
-            .from("financial_reports")
-            .update({ file_path: storagePath } as any)
-            .eq("id", reportRecord.id);
-        } else {
-          console.warn("Storage upload failed (continuing pipeline):", storageError.message);
+        if (storageError) {
+          // Storage upload failed — abort pipeline, clean up DB record
+          console.error("Storage upload failed:", storageError.message);
+          await supabase.from("financial_reports").delete().eq("id", reportRecord.id);
+          throw new Error("Kunne ikke uploade filen til lageret. Prøv igen.");
         }
+
+        // Update file_path in DB to the actual storage path
+        await supabase
+          .from("financial_reports")
+          .update({ file_path: storagePath } as any)
+          .eq("id", reportRecord.id);
 
         // === STEP 2: Extract data (deterministic template or AI) ===
         updateFile(fileId, { status: "processing" });
@@ -603,6 +607,22 @@ const FileUploadZone = ({
 
       if (insertError || !reportRecord) throw new Error(insertError?.message || "Kunne ikke oprette rapport");
       updateFile(pendingFileId, { reportId: reportRecord.id });
+
+      // Upload original file to storage (mandatory for overwrite too)
+      const overwriteStoragePath = buildStoragePath(companyId || "unknown", reportRecord.id, pendingFile.name);
+      const { error: storageErr } = await supabase.storage
+        .from("financial-documents")
+        .upload(overwriteStoragePath, pendingFile, { upsert: true });
+      
+      if (storageErr) {
+        console.error("Overwrite storage upload failed:", storageErr.message);
+        await supabase.from("financial_reports").delete().eq("id", reportRecord.id);
+        throw new Error("Kunne ikke uploade filen til lageret. Prøv igen.");
+      }
+      await supabase
+        .from("financial_reports")
+        .update({ file_path: overwriteStoragePath } as any)
+        .eq("id", reportRecord.id);
 
       const { data: extractedData, error: extractError } = await supabase.functions.invoke(
         "extract-financial-data",

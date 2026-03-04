@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { openReportFile } from "@/lib/reportFileAccess";
 
 interface Notification {
   id: string;
@@ -100,18 +101,7 @@ const AdvisorNotifications = () => {
       .single();
 
     if (!report?.file_path) return;
-
-    const newWindow = window.open('', '_blank');
-    const encodedPath = report.file_path.split('/').map((s: string) => encodeURIComponent(s)).join('/');
-    const { data: signedData } = await supabase.storage
-      .from("financial-documents")
-      .createSignedUrl(encodedPath, 3600);
-
-    if (signedData?.signedUrl && newWindow) {
-      newWindow.location.href = signedData.signedUrl;
-    } else {
-      newWindow?.close();
-    }
+    await openReportFile(report.file_path);
   };
 
   if (!isAdvisor) return null;
