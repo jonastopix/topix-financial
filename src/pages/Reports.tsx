@@ -666,20 +666,10 @@ const Reports = () => {
                             Se original fil
                           </button>
                         ) : (
-                          <label className="inline-flex items-center gap-2 text-xs font-medium text-chart-warning hover:underline cursor-pointer">
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Genupload original
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept=".xlsx,.xls,.csv,.pdf"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) handleReuploadOriginal(report, f);
-                                e.target.value = "";
-                              }}
-                            />
-                          </label>
+                          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Originalfil ikke tilgængelig (uploadet før fillagring)
+                          </span>
                         )}
                       </div>
                       <button
