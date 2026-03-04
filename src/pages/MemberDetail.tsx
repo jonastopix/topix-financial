@@ -318,13 +318,22 @@ const MemberDetail = () => {
   };
 
   const handleViewOriginalFile = async (filePath: string) => {
-    const { data, error } = await supabase.storage
-      .from("financial-documents")
-      .createSignedUrl(filePath, 3600);
-    if (data?.signedUrl) {
-      window.open(data.signedUrl, "_blank");
-    } else {
-      console.error("Could not create signed URL:", error);
+    const newWindow = window.open('', '_blank');
+    try {
+      const { data, error } = await supabase.storage
+        .from("financial-documents")
+        .createSignedUrl(filePath, 3600);
+      if (data?.signedUrl && newWindow) {
+        newWindow.location.href = data.signedUrl;
+      } else {
+        console.error("Could not create signed URL:", error);
+        newWindow?.close();
+        toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      newWindow?.close();
+      toast({ title: "Der opstod en uventet fejl", variant: "destructive" });
     }
   };
 
