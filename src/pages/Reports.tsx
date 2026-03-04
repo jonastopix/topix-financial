@@ -319,15 +319,25 @@ const Reports = () => {
     if (!report.file_path) return;
     const newWindow = window.open('', '_blank');
     try {
+      // Try createSignedUrl first, fall back to download() for paths with special characters
       const { data, error } = await supabase.storage
         .from("financial-documents")
         .createSignedUrl(report.file_path, 3600);
       if (data?.signedUrl && newWindow) {
         newWindow.location.href = data.signedUrl;
       } else {
-        console.error("Error creating signed URL:", error);
-        newWindow?.close();
-        toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
+        console.warn("createSignedUrl failed, trying download:", error?.message);
+        const { data: blob, error: dlError } = await supabase.storage
+          .from("financial-documents")
+          .download(report.file_path);
+        if (blob && newWindow) {
+          const url = URL.createObjectURL(blob);
+          newWindow.location.href = url;
+        } else {
+          console.error("Download also failed:", dlError);
+          newWindow?.close();
+          toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
+        }
       }
     } catch (err) {
       console.error("Unexpected error:", err);
