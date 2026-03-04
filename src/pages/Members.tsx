@@ -208,6 +208,24 @@ const Members = () => {
     const allInvitations = (invitationsRes.data || []) as any[];
     const allLoginLogs = (loginLogsRes.data || []) as any[];
 
+    // Fetch latest sent_at from email_send_log for pending invitation emails
+    const pendingEmails = allInvitations
+      .filter((inv: any) => inv.status === 'pending')
+      .map((inv: any) => inv.email);
+    const lastSentMap = new Map<string, string>();
+    if (pendingEmails.length > 0) {
+      const { data: sendLogs } = await supabase
+        .from("email_send_log")
+        .select("recipient_email, sent_at")
+        .in("recipient_email", pendingEmails)
+        .order("sent_at", { ascending: false });
+      (sendLogs || []).forEach((log: any) => {
+        if (!lastSentMap.has(log.recipient_email)) {
+          lastSentMap.set(log.recipient_email, log.sent_at);
+        }
+      });
+    }
+
     // Build login info map: user_id -> { lastLogin, loginCount }
     const loginInfoMap = new Map<string, LoginInfo>();
     allLoginLogs.forEach((log: any) => {
@@ -240,7 +258,7 @@ const Members = () => {
       if (inv.status === 'pending') {
         pendingInvitationByCompany.set(inv.company_id, inv.email);
         const arr = pendingInvsByCompany.get(inv.company_id) || [];
-        arr.push({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token });
+        arr.push({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null });
         pendingInvsByCompany.set(inv.company_id, arr);
       }
     });
@@ -411,7 +429,7 @@ const Members = () => {
     // Collect standalone pending invitations (no company_id)
     const standalonePending = allInvitations
       .filter((inv: any) => inv.company_id === null && inv.status === 'pending')
-      .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token }));
+      .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
     setStandalonePendingInvitations(standalonePending);
 
     setCompanies(enriched);
@@ -1212,24 +1230,61 @@ const Members = () => {
                       <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
-                        <p className="text-xs text-muted-foreground">{inv.companyName} · Sendt {format(new Date(inv.created_at), "d. MMM yyyy", { locale: da })}</p>
+                        <p className="text-xs text-muted-foreground">{inv.companyName} · Sendt {format(new Date(inv.lastSentAt || inv.created_at), "d. MMM yyyy", { locale: da })}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        if (inv.companyId) {
-                          const company = companies.find(c => c.id === inv.companyId);
-                          if (company) handleResendInvitation(company);
-                        } else {
-                          handleResendStandaloneInvitation({ id: inv.id, email: inv.email, token: inv.token });
-                        }
-                      }}
-                      disabled={resendingInvitation === (inv.companyId || inv.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50 shrink-0"
-                    >
-                      {resendingInvitation === (inv.companyId || inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                      Gensend
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => {
+                          if (inv.companyId) {
+                            const company = companies.find(c => c.id === inv.companyId);
+                            if (company) handleResendInvitation(company);
+                          } else {
+                            handleResendStandaloneInvitation({ id: inv.id, email: inv.email, token: inv.token });
+                          }
+                        }}
+                        disabled={resendingInvitation === (inv.companyId || inv.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
+                      >
+                        {resendingInvitation === (inv.companyId || inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                        Gensend
+                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Slet invitation?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Er du sikker på, at du vil slette invitationen til <strong>{inv.email}</strong>? Dette kan ikke fortrydes.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuller</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={async () => {
+                                const { error } = await supabase
+                                  .from("company_invitations")
+                                  .delete()
+                                  .eq("id", inv.id);
+                                if (error) {
+                                  toast.error("Kunne ikke slette invitationen: " + error.message);
+                                } else {
+                                  toast.success(`Invitation til ${inv.email} er slettet`);
+                                  loadCompanies();
+                                }
+                              }}
+                            >
+                              Slet
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>
