@@ -3,7 +3,8 @@ import { Navigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock } from "lucide-react";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock } from "lucide-react";
+import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -25,6 +26,8 @@ const Settings = () => {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -231,6 +234,22 @@ const Settings = () => {
       toast.success("Profil opdateret");
     }
     setSaving(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (getPasswordScore(newPassword) < 2) {
+      toast.error("Vælg en stærkere adgangskode");
+      return;
+    }
+    setSavingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Adgangskode opdateret");
+      setNewPassword("");
+    }
+    setSavingPassword(false);
   };
 
   const handleSaveCompany = async () => {
@@ -474,6 +493,37 @@ const Settings = () => {
 
         {/* Team invitations */}
         <CompanyInvitations />
+
+        {/* Change password */}
+        <div className="glass-card rounded-xl p-6 animate-fade-in">
+          <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Lock className="h-4 w-4 text-primary" />
+            Skift adgangskode
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                Ny adgangskode
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="••••••••"
+              />
+            </div>
+            <PasswordStrengthIndicator password={newPassword} />
+          </div>
+          <button
+            onClick={handleChangePassword}
+            disabled={savingPassword || !newPassword}
+            className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Opdater adgangskode
+          </button>
+        </div>
 
         {/* Account info */}
         <div className="glass-card rounded-xl p-6 animate-fade-in">
