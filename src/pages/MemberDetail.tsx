@@ -30,6 +30,7 @@ import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { reportStatusConfig } from "@/lib/financialUtils";
+import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -318,24 +319,7 @@ const MemberDetail = () => {
   };
 
   const handleViewOriginalFile = async (filePath: string) => {
-    const newWindow = window.open('', '_blank');
-    const encodedPath = filePath.split('/').map(s => encodeURIComponent(s)).join('/');
-    try {
-      const { data, error } = await supabase.storage
-        .from("financial-documents")
-        .createSignedUrl(encodedPath, 3600);
-      if (data?.signedUrl && newWindow) {
-        newWindow.location.href = data.signedUrl;
-      } else {
-        console.error("Error creating signed URL:", error);
-        newWindow?.close();
-        toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      newWindow?.close();
-      toast({ title: "Der opstod en uventet fejl", variant: "destructive" });
-    }
+    await openReportFile(filePath);
   };
 
   const getInitials = (name: string) =>
@@ -602,7 +586,7 @@ const MemberDetail = () => {
                           )}
 
                           {/* View original file button */}
-                          {report.file_path && (
+                          {report.file_path && !isLegacyPath(report.file_path) && (
                             <button
                               onClick={() => handleViewOriginalFile(report.file_path)}
                               className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors font-medium"

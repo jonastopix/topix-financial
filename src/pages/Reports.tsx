@@ -53,6 +53,7 @@ import {
   SHORT_MONTHS, reportStatusConfig, type ReportData,
 } from "@/lib/financialUtils";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
+import { openReportFile, isLegacyPath, uploadReportFile } from "@/lib/reportFileAccess";
 
 interface DbReport {
   id: string;
@@ -317,24 +318,17 @@ const Reports = () => {
 
   const handleViewOriginalFile = async (report: DbReport) => {
     if (!report.file_path) return;
-    const newWindow = window.open('', '_blank');
-    // Encode each path segment to handle special chars (ø, spaces, etc.)
-    const encodedPath = report.file_path.split('/').map(s => encodeURIComponent(s)).join('/');
-    try {
-      const { data, error } = await supabase.storage
-        .from("financial-documents")
-        .createSignedUrl(encodedPath, 3600);
-      if (data?.signedUrl && newWindow) {
-        newWindow.location.href = data.signedUrl;
-      } else {
-        console.error("Error creating signed URL:", error);
-        newWindow?.close();
-        toast({ title: "Kunne ikke åbne filen", variant: "destructive" });
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      newWindow?.close();
-      toast({ title: "Der opstod en uventet fejl", variant: "destructive" });
+    await openReportFile(report.file_path);
+  };
+
+  const handleReuploadOriginal = async (report: DbReport, file: File) => {
+    if (!companyId) return;
+    const newPath = await uploadReportFile(file, companyId, report.id);
+    if (newPath) {
+      setDbReports(prev => prev.map(r => r.id === report.id ? { ...r, file_path: newPath } : r));
+      toast({ title: "Fil uploadet", description: "Originalfilen er nu tilknyttet rapporten." });
+    } else {
+      toast({ title: "Upload fejlede", description: "Kunne ikke uploade filen. Prøv igen.", variant: "destructive" });
     }
   };
 
@@ -663,7 +657,7 @@ const Reports = () => {
                     {/* Actions row */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        {report.file_path && report.file_path.includes("/") && (
+                        {report.file_path && !isLegacyPath(report.file_path) ? (
                           <button
                             onClick={() => handleViewOriginalFile(report)}
                             className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline"
@@ -671,6 +665,21 @@ const Reports = () => {
                             <ExternalLink className="h-3.5 w-3.5" />
                             Se original fil
                           </button>
+                        ) : (
+                          <label className="inline-flex items-center gap-2 text-xs font-medium text-chart-warning hover:underline cursor-pointer">
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Genupload original
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".xlsx,.xls,.csv,.pdf"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleReuploadOriginal(report, f);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
                         )}
                       </div>
                       <button
