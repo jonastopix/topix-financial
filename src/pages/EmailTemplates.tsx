@@ -130,13 +130,24 @@ function inlineEmailStyles(html: string): string {
     });
   }
 
-  // Process <a> tags specially — preserve href and other attributes
+  // Process <a> tags specially — CTA buttons vs regular links
+  const ctaStyle = "display:inline-block;background-color:#0fa968;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;font-family:'Space Grotesk',Arial,sans-serif;text-align:center";
   const aStyle = "color:#0fa968;text-decoration:underline";
-  result = result.replace(/<a\s([^>]*)style="([^"]*)"([^>]*)>/gi, (_, before, existing, after) => {
+
+  // First handle CTA links (data-cta="true")
+  result = result.replace(/<a\s([^>]*data-cta="true"[^>]*)>/gi, (match, attrs) => {
+    // Remove existing style if any, then add CTA style
+    const cleanAttrs = attrs.replace(/style="[^"]*"/gi, "").trim();
+    return `<a ${cleanAttrs} style="${ctaStyle}">`;
+  });
+
+  // Then handle regular links (without data-cta)
+  result = result.replace(/<a\s([^>]*)style="([^"]*)"([^>]*)>/gi, (match, before, existing, after) => {
+    if (match.includes('data-cta')) return match; // already handled
     return `<a ${before}style="${aStyle};${existing}"${after}>`;
   });
   result = result.replace(/<a\s((?:(?!style=)[^>])*)>/gi, (match, attrs) => {
-    if (match.includes('style="')) return match;
+    if (match.includes('style="') || match.includes('data-cta')) return match;
     return `<a ${attrs} style="${aStyle}">`;
   });
 
