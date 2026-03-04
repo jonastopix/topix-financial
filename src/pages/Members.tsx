@@ -146,6 +146,7 @@ const Members = () => {
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
+  const [standalonePendingInvitations, setStandalonePendingInvitations] = useState<any[]>([]);
 
   // Bulk invite state
   interface UninvitedCompany {
@@ -406,6 +407,12 @@ const Members = () => {
           __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
         } as any;
       });
+
+    // Collect standalone pending invitations (no company_id)
+    const standalonePending = allInvitations
+      .filter((inv: any) => inv.company_id === null && inv.status === 'pending')
+      .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token }));
+    setStandalonePendingInvitations(standalonePending);
 
     setCompanies(enriched);
     setLoading(false);
@@ -722,6 +729,7 @@ const Members = () => {
         : null;
 
       let tokenParam = "";
+      let wasResent = false;
 
       if (selectedCompany) {
         const trimmedEmail = standaloneEmail.trim().toLowerCase();
@@ -734,7 +742,6 @@ const Members = () => {
           .maybeSingle();
 
         let invToken: string | null = null;
-        let wasResent = false;
 
         if (existing) {
           if (existing.status === "accepted") {
@@ -759,7 +766,6 @@ const Members = () => {
             .select("token")
             .single();
           if (invErr) {
-            // Handle race condition: duplicate key
             if (invErr.code === "23505") {
               const { data: raceInv } = await supabase
                 .from("company_invitations")
@@ -778,8 +784,55 @@ const Members = () => {
         }
 
         if (invToken) tokenParam = `&invite=${invToken}`;
-        // Use wasResent for toast message below
-        (selectedCompany as any).__wasResent = wasResent;
+      } else {
+        // No company selected — create a standalone invitation (no company_id)
+        const trimmedEmail = standaloneEmail.trim().toLowerCase();
+        const { data: existing } = await supabase
+          .from("company_invitations")
+          .select("id, token, status")
+          .is("company_id", null)
+          .eq("email", trimmedEmail)
+          .maybeSingle();
+
+        let invToken: string | null = null;
+
+        if (existing) {
+          if (existing.status === "accepted") {
+            await supabase
+              .from("company_invitations")
+              .update({ status: "pending", accepted_at: null, accepted_by: null })
+              .eq("id", existing.id);
+          }
+          invToken = existing.token;
+          wasResent = true;
+        } else {
+          const { data: newInv, error: invErr } = await supabase
+            .from("company_invitations")
+            .insert({
+              email: trimmedEmail,
+              invited_by: user.id,
+            })
+            .select("token")
+            .single();
+          if (invErr) {
+            if (invErr.code === "23505") {
+              const { data: raceInv } = await supabase
+                .from("company_invitations")
+                .select("token")
+                .is("company_id", null)
+                .eq("email", trimmedEmail)
+                .maybeSingle();
+              invToken = raceInv?.token || null;
+              wasResent = true;
+            } else {
+              throw invErr;
+            }
+          } else {
+            invToken = newInv?.token || null;
+          }
+        }
+
+        if (invToken) tokenParam = `&invite=${invToken}`;
       }
 
       const { error } = await supabase.functions.invoke("send-invitation-email", {
@@ -790,15 +843,15 @@ const Members = () => {
         },
       });
       if (error) throw error;
-      const wasResent = selectedCompany && (selectedCompany as any).__wasResent;
       toast.success(wasResent
-        ? `Invitation gensendt til ${standaloneEmail} (${selectedCompany?.name})`
+        ? `Invitation gensendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`
         : `Invitation sendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`
       );
       setStandaloneInviteOpen(false);
       setStandaloneEmail("");
       setStandaloneName("");
       setStandaloneCompanyId("");
+      setReloadTrigger((t) => t + 1);
     } catch (err: any) {
       console.error("Standalone invite error:", err);
       toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));
@@ -1109,11 +1162,18 @@ const Members = () => {
       {/* Pending invitations overview — always visible */}
       {(() => {
         // Build directly from allPendingInvitations (queried from company_invitations)
-        const pendingInvitations = companies
+        const companyPendingInvitations = companies
           .flatMap(c => {
             const companyInvs = (c as any).__pendingInvitations || [];
             return companyInvs.map((inv: any) => ({ ...inv, companyName: c.name, companyId: c.id }));
           });
+        // Include standalone invitations (no company)
+        const standaloneInvs = standalonePendingInvitations.map((inv: any) => ({
+          ...inv,
+          companyName: "Ingen virksomhed",
+          companyId: null,
+        }));
+        const pendingInvitations = [...companyPendingInvitations, ...standaloneInvs];
         return (
           <div className="mb-6 glass-card rounded-xl overflow-hidden">
             <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
