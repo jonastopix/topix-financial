@@ -4,7 +4,7 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,13 +27,37 @@ import {
   MousePointerClick,
 } from "lucide-react";
 
+// Extend the Link mark to preserve data-cta and data-cta-color attributes
+const CustomLink = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      "data-cta": {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-cta"),
+        renderHTML: (attrs) => {
+          if (!attrs["data-cta"]) return {};
+          return { "data-cta": attrs["data-cta"] };
+        },
+      },
+      "data-cta-color": {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-cta-color"),
+        renderHTML: (attrs) => {
+          if (!attrs["data-cta-color"]) return {};
+          return { "data-cta-color": attrs["data-cta-color"] };
+        },
+      },
+    };
+  },
+});
+
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
 }
 
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
-  // Track whether the latest content change came from the editor itself
   const isInternalUpdate = useRef(false);
   const [ctaColorOpen, setCtaColorOpen] = useState(false);
 
@@ -42,7 +66,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
-      Link.configure({
+      CustomLink.configure({
         openOnClick: false,
         HTMLAttributes: { class: "text-primary underline" },
       }),
