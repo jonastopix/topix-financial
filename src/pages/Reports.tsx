@@ -387,7 +387,7 @@ const Reports = () => {
       </div>
 
       {/* ── Trend Charts ── */}
-      {trendData.length >= 2 && (() => {
+      {Object.keys(reportsByMonth).length > 0 && (() => {
         const SERIES = [
           { key: "omsaetning", label: "Omsætning", color: "hsl(160, 84%, 39%)" },
           { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(38, 92%, 50%)" },
@@ -398,7 +398,6 @@ const Reports = () => {
 
         const getLineProps = (seriesKey: string, baseColor: string) => {
           if (!activeSeries) {
-            // Default: omsætning prominent, others subtle
             const isMain = seriesKey === "omsaetning";
             return { strokeWidth: isMain ? 2.5 : 1, opacity: isMain ? 1 : 0.4, strokeDasharray: isMain ? undefined : "4 4" };
           }
@@ -423,6 +422,12 @@ const Reports = () => {
               periodLabel={trendPeriodLabel}
             />
           </div>
+
+          {trendData.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground text-sm">
+              Ingen data i valgt periode
+            </div>
+          ) : (<>
           <p className="text-xs text-muted-foreground mb-4">Klik på en serie for at fremhæve</p>
 
           {/* Custom legend with click */}
@@ -554,6 +559,7 @@ const Reports = () => {
               </div>
             );
           })()}
+          </>)}
         </div>
         );
       })()}
