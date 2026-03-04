@@ -160,26 +160,45 @@ function inlineEmailStyles(html: string): string {
   return result;
 }
 
-/** Wrap rich-text HTML in a full email document WITHOUT inline styles (for editing) */
-function wrapInEmailDocumentRaw(richHtml: string): string {
+/** Wrap raw editor HTML in email document shell (no inline styles — for editing state) */
+function wrapInEmailShell(richHtml: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${richHtml}</div></body></html>`;
 }
 
-/** Wrap rich-text HTML in a full email document WITH inline styles (for save/send) */
+/** Wrap raw editor HTML with full inline styles (for save/send/preview) */
 function wrapInEmailDocument(richHtml: string): string {
-  const styledHtml = inlineEmailStyles(richHtml);
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:20px 12px">${styledHtml}</div></body></html>`;
+  return wrapInEmailShell(inlineEmailStyles(richHtml));
 }
 
-/** Extract inner body content from full email HTML */
+/** Extract inner body content from full email HTML and strip inline styles so editor gets clean HTML */
 function extractBodyContent(fullHtml: string): string {
+  let inner = fullHtml;
   // Try to extract content inside the inner wrapper div
   const match = fullHtml.match(/<div[^>]*style="[^"]*max-width[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/body>/i);
-  if (match) return match[1];
-  // Try body tag
-  const bodyMatch = fullHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  if (bodyMatch) return bodyMatch[1];
-  return fullHtml;
+  if (match) {
+    inner = match[1];
+  } else {
+    const bodyMatch = fullHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (bodyMatch) inner = bodyMatch[1];
+  }
+  // Strip inline style attributes from semantic tags so the editor works with clean HTML
+  // Preserve style on tags that have text-align (editor uses it)
+  inner = inner.replace(/<(h[1-3]|p|ul|ol|li|hr|blockquote|strong|em)(\s[^>]*)?\sstyle="([^"]*)"([^>]*)>/gi,
+    (match, tag, before = "", styleVal, after = "") => {
+      // Keep text-align styles — the editor needs them
+      const alignMatch = styleVal.match(/text-align:\s*\w+/);
+      if (alignMatch) {
+        return `<${tag}${before} style="${alignMatch[0]}"${after}>`;
+      }
+      return `<${tag}${before}${after}>`;
+    }
+  );
+  // Strip style from <a> tags that are NOT CTA buttons (regular links get restyled on save)
+  inner = inner.replace(/<a\s([^>]*)style="([^"]*)"([^>]*)>/gi, (match, before, _style, after) => {
+    if (match.includes("data-cta")) return match; // keep CTA inline styles
+    return `<a ${before}${after}>`.replace(/\s+>/g, ">").replace(/\s{2,}/g, " ");
+  });
+  return inner;
 }
 
 export default function EmailTemplates() {
@@ -510,8 +529,8 @@ function TemplateEditor({
   const richContent = extractBodyContent(form.body_html);
 
   const handleRichTextChange = useCallback((html: string) => {
-    // Store raw HTML during editing — no inline styles applied yet
-    setForm((f) => ({ ...f, body_html: wrapInEmailDocumentRaw(html) }));
+    // Store raw HTML during editing — inline styles applied on save/preview
+    setForm((f) => ({ ...f, body_html: wrapInEmailShell(html) }));
   }, []);
 
   const parseCronDay = () => {
@@ -585,7 +604,9 @@ function TemplateEditor({
     }
   };
 
-  const previewHtml = replaceVariables(form.body_html, form.variables);
+  // Preview always applies inline styles so it matches the final email
+  const rawContent = extractBodyContent(form.body_html);
+  const previewHtml = replaceVariables(wrapInEmailDocument(rawContent), form.variables);
 
   return (
     <AppLayout>
