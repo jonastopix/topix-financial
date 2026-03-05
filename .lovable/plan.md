@@ -1,54 +1,41 @@
 
 
-## Kompakt rapport-notifikation i chatten
+## Fix: Rapport-tæller viser 0 for alle virksomheder
 
-### Problem
-Når et medlem uploader en rapport, postes den fulde AI-analyse (overview, alle nøglefund, næste skridt, milestones) som en lang chatbesked. Det er uoverskueligt for advisors der bare vil have et hurtigt overblik.
+### Root cause
 
-### Løsning
-
-#### 1. Forenkl chat-beskeden ved upload (`src/components/FileUploadZone.tsx`)
-
-Erstat den lange AI-analyse-besked (linje 434-467) med en **kompakt rapport-kort** besked der kun indeholder:
-- Rapporttype + periode (f.eks. "Resultatopgørelse · Januar 2026")
-- 3-4 nøgletal på én linje: Omsætning, Udgifter, Resultat (formateret kort)
-- Max 1-2 linjer "nøglefund" (kun titler, ikke hele anbefalinger)
-- Ingen "Næste skridt", ingen "overview"-tekst, ingen milestone-info
-
-Eksempel på ny besked:
+**Linje 194** i `src/pages/Members.tsx` henter rapporter med:
 ```
-📊 Resultatopgørelse · Januar 2026
-Omsætning: 302.523 kr. | Udgifter: 292.211 kr. | Resultat: 14.414 kr.
-🔴 Kritisk erosion af bruttomarginen · ⚠️ Ubalance mellem løn og værdiskabelse
+select("company_id, id, extracted_data")
 ```
 
-Den eksisterende "📄 Ny rapport uploadet"-besked (linje 336-346) beholdes — den er allerede kort og fin.
+Men `report_period` er **ikke inkluderet** i SELECT. Senere (linje 292) tjekker koden `if (r.report_period)` for at tælle unikke perioder — det er altid `undefined`, så `periodsByCompany` forbliver tom, og alle virksomheder får `reportCount: 0`.
 
-AI-analysen gemmes stadig i DB (`ai_analysis` på `financial_reports`) og er tilgængelig via Rapporter-tab i MemberDetail. Den fjernes bare fra chat-beskeden.
+DB'en bekræfter at Floren Engros har 6 rapporter med gyldige perioder (Juli 2025 – Januar 2026).
 
-#### 2. Tilføj link til original fil i rapport-beskeden
+### Fix
 
-I `context_meta` tilføjes `file_path` så chat-UI kan vise en "Se original fil"-knap direkte i beskeden.
+**Fil:** `src/pages/Members.tsx`, linje 194
 
-#### 3. Redesign system-besked rendering for rapporter (`src/pages/Chat.tsx`)
+Tilføj `report_period` til SELECT:
+```
+select("company_id, id, extracted_data, report_period")
+```
 
-For system/AI-beskeder med `context_type === "report"`: render et kompakt kort i stedet for plain text:
-- Rapport-titel som header
-- Nøgletal i et lille grid (2x2)
-- Nøglefund som korte badges/chips
-- "Se original fil"-knap (bruger `context_meta.file_path` + `openReportFile()`)
-- "Markér som læst"-knap der kalder `handleMarkSingleReportRead`
+Det er en ét-ords fix.
 
-#### 4. Markér som læst på besked-niveau
+### Visuelt blik — vurdering
 
-Tilføj en "Markér som læst" knap/action direkte på rapport-kortet i chatten (ikke kun i sidebar-listen). Denne kalder den eksisterende `handleMarkSingleReportRead` med rapport-id'et fra `context_id`.
+Tabellen er grundlæggende fornuftigt sat op. Kolonnerne viser det vigtigste for en advisor:
+- Virksomhed (med invitationsstatus)
+- Branche, Kontaktperson, By, Omsætning
+- **Perioder** (antal unikke rapportperioder) — dette er mere meningsfuldt end "antal filer"
+- **Chat** (antal ulæste beskeder)
+
+"CHAT"-kolonnen viser `unreadCount` (ulæste beskeder), ikke totalt antal. Det giver mening som handlings-indikator — man ser hurtigt hvem der har ubesvarede beskeder. Kolonneoverskriften "Chat" er dog lidt vag. Den kunne hedde "Ulæste" for klarhed, men det er en mindre kosmetisk ting.
+
+Ingen strukturelle ændringer nødvendige udover bugfixet.
 
 ### Filer der ændres
-1. `src/components/FileUploadZone.tsx` — forenkl AI-analyse chat-besked, tilføj file_path til context_meta
-2. `src/pages/Chat.tsx` — redesign rendering af rapport-system-beskeder til kompakt kort med nøgletal, original-fil link og markér-som-læst
-
-### Bemærkninger
-- AI-analysen gemmes stadig i DB — den fjernes kun fra chat
-- Eksisterende lange beskeder i chatten forbliver som de er (kun nye uploads påvirkes)
-- Ingen database-ændringer nødvendige
+1. `src/pages/Members.tsx` — tilføj `report_period` til financial_reports SELECT (linje 194)
 
