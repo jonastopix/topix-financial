@@ -191,7 +191,7 @@ const Members = () => {
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
       supabase.from("conversations").select("id, company_id, last_message_at"),
-      (supabase.from("financial_reports").select("company_id, id, extracted_data") as any).is("deleted_at", null),
+      (supabase.from("financial_reports").select("company_id, id, extracted_data, report_period") as any).is("deleted_at", null),
       supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
       supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
