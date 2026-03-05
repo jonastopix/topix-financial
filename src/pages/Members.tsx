@@ -1399,7 +1399,7 @@ const Members = () => {
           <button onClick={() => toggleSort("reportCount")} className="col-span-1 flex items-center gap-1 hover:text-foreground transition-colors">
             Perioder <ArrowUpDown className="h-3 w-3" />
           </button>
-          <div className="col-span-1">Chat</div>
+          <div className="col-span-1">Ulæste</div>
         </div>
 
         {loading ? (
