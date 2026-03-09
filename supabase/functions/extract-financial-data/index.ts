@@ -1,9 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Note: XLSX parsing temporarily disabled - will be enabled when compatible Deno library is available
-// import * as XLSX from "https://esm.sh/xlsx@0.20.3";
-import { parseFinancialReport, type ParsedFinancialReport } from "../_shared/financialParser.ts";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
+import { tryDeterministicExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,106 +115,78 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ═══ LAG 0: DETERMINISTISK EXCEL PARSING (hvis relevant) ═══
-    let parsedReport: ParsedFinancialReport | null = null;
-    let extractionMethod = "ai"; // Default til AI-based extraction
-
-    // TODO: Enable Excel parsing when XLSX library is compatible with Deno Deploy
-    // For now, all extraction uses AI-based method
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 4: DETERMINISTIC FIRST ROUTING
+    // ═══════════════════════════════════════════════════════════════════════════
     
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
     
-    if (isExcelFile && false) { // Temporarily disabled
-      console.log("[Parser] Excel parsing temporarily disabled - using AI extraction");
-      /* 
-      try {
-        console.log("[Parser] Attempting deterministic Excel parsing...");
-        
-        const binaryString = atob(excelBase64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
+    let extractedData: any = null;
+    let rawAiOutput: any = null;
+    let extractionMethod = "ai_extraction";
+    let detResult: DeterministicExtractionResult | null = null;
 
-        const workbook = XLSX.read(bytes, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: null });
+    // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
+    if (isExcelFile && excelBase64) {
+      console.log("[Routing] Attempting deterministic extraction...");
+      detResult = await tryDeterministicExtraction(excelBase64, fileName);
 
-        console.log(`[Parser] Parsed ${rows.length} rows from sheet "${firstSheetName}"`);
+      switch (detResult.type) {
+        case "success":
+          // Template matched and extraction successful → use deterministic data
+          extractedData = detResult.extractedData;
+          rawAiOutput = { deterministic: true, template_id: detResult.template_id };
+          extractionMethod = "deterministic_template";
+          console.log(`[Routing] Deterministic success: ${detResult.template_id}`);
+          break;
 
-        parsedReport = parseFinancialReport(rows);
+        case "structural_fail":
+          // Template matched but structural parsing failed → needs_review, NO AI fallback
+          console.log(`[Routing] Structural failure for ${detResult.template_id}: ${detResult.error}`);
+          extractionMethod = "deterministic_failed";
+          
+          // Store minimal data and mark as needs_review
+          if (reportId) {
+            await supabase
+              .from("financial_reports")
+              .update({
+                status: "needs_review",
+                extraction_method: extractionMethod,
+                validation_status: "FAIL",
+                validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", reportId);
+          }
+          
+          return new Response(
+            JSON.stringify({
+              error: "Deterministic parsing failed",
+              template_id: detResult.template_id,
+              details: detResult.error,
+              status: "needs_review",
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
 
-        console.log(`[Parser] Template: ${parsedReport.template_id}, Validation: ${parsedReport.validation.validation_status}`);
-        
-        if (parsedReport.template_id !== "UNKNOWN" && parsedReport.validation.validation_status === "PASS") {
-          extractionMethod = "deterministic";
-          console.log("[Parser] ✓ Deterministic parsing successful - using normalized data");
-        } else {
-          console.log("[Parser] ⚠ Parser validation failed or template not recognized - falling back to AI");
-          parsedReport = null;
-        }
-      } catch (error) {
-        console.error("[Parser] Excel parsing error:", error);
-        parsedReport = null;
+        case "no_match":
+          // No template matched → continue to AI extraction
+          console.log("[Routing] No template match → AI extraction");
+          break;
       }
-      */
-    } else {
-      console.log("[Parser] Using AI extraction method");
     }
 
-    // ═══ BUILD AI PROMPT (adapts based on extraction method) ═══
-    
-    let systemPrompt: string;
-    let userContent: any;
-    
-    if (parsedReport && extractionMethod === "deterministic") {
-      // Parser was successful - AI only needs to provide qualitative feedback
-      systemPrompt = `Du er en erfaren CFO/investor-rådgiver der analyserer validerede, normaliserede regnskabsdata.${companyNameInstruction}
-
-DIN ROLLE: Du modtager KUN færdigbehandlede, normaliserede nøgletal fra et regnskab. Du skal IKKE gætte på fortegn eller normalisering - det er allerede gjort.
-
-KRITISKE REGLER:
-- Du må ALDRIG gætte på fortegn eller normalisering
-- Hvis cash er negativ men equity er positiv: beskriv som "likviditetspres" eller "bankovertræk", IKKE "insolvens"
-- Du må ALDRIG konkludere "negativ egenkapital" medmindre equity_total < 0 i normalized data
-- Du må ALDRIG konkludere "teknisk konkurs" medmindre equity_ratio_pct < 0
-
-FORVENTET OUTPUT:
-1. Overblik (1-2 linjer om virksomhedens overordnede tilstand)
-2. Nøgletal (bullets med de vigtigste tal)
-3. Vurdering (2-3 linjer om styrker og udfordringer)
-4. 2-4 konkrete anbefalinger til ledelsen`;
-
-      // Send normalized metrics to AI
-      const metrics = parsedReport.metrics;
-      userContent = `Her er de validerede, normaliserede nøgletal for ${parsedReport.company_name || "virksomheden"}:
-
-**Periode:** ${parsedReport.period_start || "ukendt"} til ${parsedReport.period_end || "ukendt"}
-
-**Resultatopgørelse:**
-- Omsætning: ${metrics.revenue?.toFixed(2) || "N/A"} kr.
-- Vareforbrug: ${metrics.cogs?.toFixed(2) || "N/A"} kr.
-- Dækningsbidrag: ${metrics.gross_profit?.toFixed(2) || "N/A"} kr. (${metrics.gross_margin_pct?.toFixed(1) || "N/A"}%)
-- Lønninger: ${metrics.payroll?.toFixed(2) || "N/A"} kr.
-- EBITDA: ${metrics.ebitda?.toFixed(2) || "N/A"} kr.
-- EBIT: ${metrics.ebit?.toFixed(2) || "N/A"} kr.
-- Resultat før skat: ${metrics.ebt?.toFixed(2) || "N/A"} kr. (${metrics.ebt_margin_pct?.toFixed(1) || "N/A"}%)
-
-**Balance:**
-- Aktiver i alt: ${metrics.assets_total?.toFixed(2) || "N/A"} kr.
-- Egenkapital: ${metrics.equity_total?.toFixed(2) || "N/A"} kr. (${metrics.equity_ratio_pct?.toFixed(1) || "N/A"}%)
-- Likvider/Bank: ${metrics.cash?.toFixed(2) || "N/A"} kr. ${metrics.cash && metrics.cash < 0 ? "⚠️ Bankovertræk" : ""}
-- Debitorer: ${metrics.trade_receivables?.toFixed(2) || "N/A"} kr.
-- Varelager: ${metrics.inventory?.toFixed(2) || "N/A"} kr.
-- Gæld i alt: ${metrics.debt_total?.toFixed(2) || "N/A"} kr.
-
-Giv din CFO-vurdering og anbefalinger baseret på disse tal.`;
-
-      console.log("[AI] Using deterministic parser metrics for AI feedback");
-    } else {
-      // Fallback til eksisterende AI-based extraction
-      systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
+    // ── LAG 1: AI EXTRACTION (if deterministic didn't succeed) ──
+    if (!extractedData) {
+      console.log("[Routing] Using AI extraction path");
+      
+      // Company name instruction for AI
+      const companyNameInstruction = knownCompanyName 
+        ? `\n\nVIGTIGT: Virksomhedens navn er "${knownCompanyName}". Brug dette navn i company_name feltet.`
+        : "";
+      
+      // Build AI prompt for extraction
+      const systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
 
 DIN ROLLE: Du aflæser tal PRÆCIST som de fremgår af dokumentet og normaliserer dem til en standardiseret format. Du opfinder ALDRIG tal.
 
@@ -328,6 +298,7 @@ Sæt validation.status til:
 Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSURE" og beskriv usikkerheden i checks.`;
 
       // Build user message — prefer images (vision) for accurate table reading
+      let userContent: any;
       if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
         const imageParts = pageImages.map((base64: string) => ({
           type: "image_url",
@@ -342,9 +313,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
         console.log("Sending text-only content to AI (no images available)");
       }
-    }
 
-    const response = await fetch(
+      const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
@@ -494,41 +464,42 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       throw new Error(`AI error: ${response.status}`);
     }
 
-    const aiResult = await response.json();
-    const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+      const aiResult = await response.json();
+      const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
 
-    if (!toolCall) {
-      throw new Error("AI returned no tool call");
-    }
-
-    const extractedData = JSON.parse(toolCall.function.arguments);
-    
-    // Capture raw AI output BEFORE any post-processing (for audit trail)
-    const rawAiOutput = JSON.parse(JSON.stringify(extractedData));
-
-    // Override company name if provided by caller (prevents AI hallucination)
-    if (knownCompanyName) {
-      console.log(`Overriding AI company_name "${extractedData.company_name}" with known: "${knownCompanyName}"`);
-      extractedData.company_name = knownCompanyName;
-    }
-
-    // Server-side period extraction from document text (prevents AI hallucination)
-    if (fileContent) {
-      const periodFromText = extractPeriodFromText(fileContent);
-      if (periodFromText && periodFromText !== extractedData.report_period) {
-        console.log(`Overriding AI report_period "${extractedData.report_period}" with parsed: "${periodFromText}"`);
-        extractedData.report_period = periodFromText;
+      if (!toolCall) {
+        throw new Error("AI returned no tool call");
       }
-      const cvrFromText = extractCvrFromText(fileContent);
-      if (cvrFromText && cvrFromText !== extractedData.cvr_number) {
-        console.log(`Overriding AI cvr_number "${extractedData.cvr_number}" with parsed: "${cvrFromText}"`);
-        extractedData.cvr_number = cvrFromText;
-      }
-    }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // CANONICAL ACCOUNTING ENGINE (Phase 3): buildCanonicalOutput
-    // ═══════════════════════════════════════════════════════════════════════
+      extractedData = JSON.parse(toolCall.function.arguments);
+      
+      // Capture raw AI output BEFORE any post-processing (for audit trail)
+      rawAiOutput = JSON.parse(JSON.stringify(extractedData));
+
+      // Override company name if provided by caller (prevents AI hallucination)
+      if (knownCompanyName) {
+        console.log(`Overriding AI company_name "${extractedData.company_name}" with known: "${knownCompanyName}"`);
+        extractedData.company_name = knownCompanyName;
+      }
+
+      // Server-side period extraction from document text (prevents AI hallucination)
+      if (fileContent) {
+        const periodFromText = extractPeriodFromText(fileContent);
+        if (periodFromText && periodFromText !== extractedData.report_period) {
+          console.log(`Overriding AI report_period "${extractedData.report_period}" with parsed: "${periodFromText}"`);
+          extractedData.report_period = periodFromText;
+        }
+        const cvrFromText = extractCvrFromText(fileContent);
+        if (cvrFromText && cvrFromText !== extractedData.cvr_number) {
+          console.log(`Overriding AI cvr_number "${extractedData.cvr_number}" with parsed: "${cvrFromText}"`);
+          extractedData.cvr_number = cvrFromText;
+        }
+      }
+    }  // End AI extraction block
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CANONICAL ENGINE — ONE CALL FOR BOTH PATHS
+    // ═══════════════════════════════════════════════════════════════════════════
     const canonical = buildCanonicalOutput(extractedData, rawAiOutput, extractionMethod);
     const finalStatus = canonical.validation.status;
     const allErrors = canonical.validation.canonical_checks
@@ -609,6 +580,15 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
+      // Determine final DB status based on validation
+      // - FAIL/UNSURE → needs_review
+      // - PASS + ai_eligible = true → reviewed (will get AI feedback)
+      // - PASS + ai_eligible = false → reviewed (correct parse, not AI-suitable)
+      let dbStatus = "processed";
+      if (finalStatus !== "PASS") {
+        dbStatus = "needs_review";
+      }
+
       // Prepare DB update
       const updatePayload: any = {
         report_type: extractedData.report_type,
@@ -617,22 +597,20 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         cvr_number: extractedData.cvr_number,
         extracted_data: extractedData,
         processed_at: new Date().toISOString(),
-        status: "processed",
+        status: dbStatus,
         extraction_method: extractionMethod,
         validation_status: finalStatus,
         validation_errors: allErrors.length > 0 ? allErrors : null,
         raw_extracted_data: rawAiOutput,
-        // PHASE 3: Full canonical output in normalized_data
+        // Phase 4: Full canonical output in normalized_data
         normalized_data: canonical,
       };
 
-      // Add parser-specific data if deterministic parsing was used
-      if (parsedReport && extractionMethod === "deterministic") {
+      // Add deterministic metadata if present
+      if (extractedData?._deterministic_meta) {
         updatePayload.raw_extracted_data = {
-          raw_lines: parsedReport.raw_lines,
-          company_name: parsedReport.company_name,
-          period_start: parsedReport.period_start,
-          period_end: parsedReport.period_end,
+          ...rawAiOutput,
+          deterministic_meta: extractedData._deterministic_meta,
         };
       }
 

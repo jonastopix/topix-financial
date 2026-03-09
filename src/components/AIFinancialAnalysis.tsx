@@ -54,6 +54,7 @@ interface ReportWithAnalysis {
   uploaded_at: string;
   status: string;
   validation_status?: string | null;
+  extraction_method?: string | null;
 }
 
 const severityConfig = {
@@ -105,7 +106,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     const fetch = async () => {
       const { data } = await supabase
         .from("financial_reports")
-        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status")
+        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status, extraction_method")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .in("status", ["processed", "needs_review"])
@@ -538,6 +539,12 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                               <span className="text-sm text-foreground">{r.report_period || r.uploaded_at.slice(0, 10)}</span>
+                              {/* Deterministic extraction badge */}
+                              {r.extraction_method === "deterministic_template" && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-accent text-accent-foreground">
+                                  DET
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               {hasAnalysis ? (

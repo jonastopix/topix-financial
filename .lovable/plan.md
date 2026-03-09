@@ -1,41 +1,44 @@
+# Phase 4: Template Registry + Rapporttype-Coverage
 
+## Status: ✅ IMPLEMENTERET
 
-## Fix: Rapport-tæller viser 0 for alle virksomheder
+## Ændrede filer
 
-### Root cause
+| Fil | Handling |
+|-----|----------|
+| `supabase/functions/_shared/templateRegistry.ts` | NY — Registry med discriminated union, detection med ambiguity-regel |
+| `supabase/functions/_shared/templates/dkCombinedBalancePnlV1.ts` | NY — Wrapper omkring financialParser med parser_status i validation |
+| `supabase/functions/_shared/canonicalTypes.ts` | ÆNDRET — Tilføjet DeterministicMeta interface + felt i CanonicalOutput |
+| `supabase/functions/_shared/canonicalEngine.ts` | ÆNDRET — deterministic_meta + parser_status som ai_check |
+| `supabase/functions/extract-financial-data/index.ts` | ÆNDRET — Ny routing med discriminated union + ÉN canonical build |
+| `src/components/AIFinancialAnalysis.tsx` | ÆNDRET — extraction_method fetch + DET badge |
 
-**Linje 194** i `src/pages/Members.tsx` henter rapporter med:
+## Routing-logik (discriminated union)
+
+```typescript
+type DeterministicExtractionResult =
+  | { type: "no_match" }                    // → AI fallback
+  | { type: "structural_fail"; ... }        // → needs_review, INGEN AI fallback  
+  | { type: "success"; extractedData: ... } // → canonical engine
 ```
-select("company_id, id, extracted_data")
+
+## Ambiguity-regel
+
+```typescript
+if (!best || best.score < 80) return null;
+if (secondBest && best.score - secondBest.score < 10) return null;
 ```
 
-Men `report_period` er **ikke inkluderet** i SELECT. Senere (linje 292) tjekker koden `if (r.report_period)` for at tælle unikke perioder — det er altid `undefined`, så `periodsByCompany` forbliver tom, og alle virksomheder får `reportCount: 0`.
+## Validation vs AI Eligibility
 
-DB'en bekræfter at Floren Engros har 6 rapporter med gyldige perioder (Juli 2025 – Januar 2026).
+| validation.status | ai_eligible | extraction_method | db status |
+|---|---|---|---|
+| FAIL/UNSURE | any | any | needs_review |
+| PASS | false | deterministic_template | processed |
+| PASS | true | deterministic_template | processed + AI feedback |
 
-### Fix
+## Næste skridt
 
-**Fil:** `src/pages/Members.tsx`, linje 194
-
-Tilføj `report_period` til SELECT:
-```
-select("company_id, id, extracted_data, report_period")
-```
-
-Det er en ét-ords fix.
-
-### Visuelt blik — vurdering
-
-Tabellen er grundlæggende fornuftigt sat op. Kolonnerne viser det vigtigste for en advisor:
-- Virksomhed (med invitationsstatus)
-- Branche, Kontaktperson, By, Omsætning
-- **Perioder** (antal unikke rapportperioder) — dette er mere meningsfuldt end "antal filer"
-- **Chat** (antal ulæste beskeder)
-
-"CHAT"-kolonnen viser `unreadCount` (ulæste beskeder), ikke totalt antal. Det giver mening som handlings-indikator — man ser hurtigt hvem der har ubesvarede beskeder. Kolonneoverskriften "Chat" er dog lidt vag. Den kunne hedde "Ulæste" for klarhed, men det er en mindre kosmetisk ting.
-
-Ingen strukturelle ændringer nødvendige udover bugfixet.
-
-### Filer der ændres
-1. `src/pages/Members.tsx` — tilføj `report_period` til financial_reports SELECT (linje 194)
-
+1. Test med en reel saldobalance Excel-fil
+2. Verificer at DET-badge vises i UI
+3. Udvid med flere templates ved behov
