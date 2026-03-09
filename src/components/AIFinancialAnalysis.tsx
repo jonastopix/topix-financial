@@ -277,19 +277,38 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
           </div>
         </div>
         {selectedReport && (
-          <button
-            onClick={() => generateAnalysis()}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyserer...</>
-            ) : analysis ? (
-              <><RefreshCw className="h-3.5 w-3.5" /> Generer ny</>
+          <>
+            {validationStatus !== "PASS" ? (
+              <div className="glass-card rounded-xl p-6 border-l-4 border-l-amber-500">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground mb-1">
+                      AI-analyse ikke tilgængelig
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Validation returnerede <strong>{validationStatus}</strong>. 
+                      AI-analyse er deaktiveret indtil data er valideret som PASS.
+                    </p>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <><Sparkles className="h-3.5 w-3.5" /> Generer analyse</>
+              <button
+                onClick={() => generateAnalysis()}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {loading ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyserer...</>
+                ) : analysis ? (
+                  <><RefreshCw className="h-3.5 w-3.5" /> Generer ny</>
+                ) : (
+                  <><Sparkles className="h-3.5 w-3.5" /> Generer analyse</>
+                )}
+              </button>
             )}
-          </button>
+          </>
         )}
       </div>
 
