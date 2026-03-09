@@ -112,7 +112,7 @@ interface ClassifiedLine {
   sectionCls?: string;
 }
 
-function classifyLine(name: string, accountNo: string | null): {
+function classifyLineCore(name: string, accountNo: string | null): {
   cls: string;
   method: "label" | "range" | "unclassified";
   ambiguous: boolean;
@@ -154,6 +154,55 @@ function classifyLine(name: string, accountNo: string | null): {
   return { cls: "unclassified", method: "unclassified", ambiguous: false };
 }
 
+// ── Section map builder ──
+// Finds subtotal lines and assigns each detail line to the section closed by
+// the next subtotal below it. Only detail lines (non-subtotal, non-header) get sections.
+
+function matchSubtotalSection(name: string): string | null {
+  const n = name.trim();
+  for (const [re, cls] of SUBTOTAL_SECTION_MAP) {
+    if (re.test(n)) return cls;
+  }
+  return null;
+}
+
+interface SectionBoundary {
+  lineIndex: number;
+  sectionCls: string;
+}
+
+function buildSectionMap(lines: PdfParsedLine[]): Map<number, string> {
+  // Step 1: find all subtotal boundaries
+  const boundaries: SectionBoundary[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].is_subtotal) continue;
+    const cls = matchSubtotalSection(lines[i].name);
+    if (cls && cls !== "__subtotal_skip__") {
+      boundaries.push({ lineIndex: i, sectionCls: cls });
+    }
+  }
+
+  console.log(`[DineroPDF] Section boundaries: ${boundaries.map(b => `${b.sectionCls}@${b.lineIndex}`).join(", ")}`);
+
+  // Step 2: assign detail lines to the section of the next subtotal below them
+  const sectionMap = new Map<number, string>();
+  for (let i = 0; i < lines.length; i++) {
+    // Only detail lines get section assignment — never subtotals or headers
+    if (lines[i].is_subtotal) continue;
+    if (lines[i].period_amount == null) continue; // skip header/non-data lines
+
+    // Find next subtotal boundary after this line
+    for (const b of boundaries) {
+      if (b.lineIndex > i) {
+        sectionMap.set(i, b.sectionCls);
+        break;
+      }
+    }
+  }
+
+  return sectionMap;
+}
+
 // ── Sign convention detection ──
 
 type SignConvention = "CREDIT" | "BUSINESS" | "UNKNOWN";
@@ -168,6 +217,24 @@ function detectSignConvention(classified: ClassifiedLine[]): SignConvention {
     console.log("[DineroPDF] No non-zero revenue anchors for sign detection → UNKNOWN");
     return "UNKNOWN";
   }
+
+  const revNeg = revenueAnchors.every(l => l.rawAmount < 0);
+  const revPos = revenueAnchors.every(l => l.rawAmount > 0);
+  const costPos = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount > 0);
+  const costNeg = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount < 0);
+
+  if (revNeg && costPos) {
+    console.log("[DineroPDF] Sign convention: CREDIT (revenue<0, cost>0)");
+    return "CREDIT";
+  }
+  if (revPos && costNeg) {
+    console.log("[DineroPDF] Sign convention: BUSINESS (revenue>0, cost<0)");
+    return "BUSINESS";
+  }
+
+  console.log("[DineroPDF] Sign convention: UNKNOWN (mixed signs)");
+  return "UNKNOWN";
+}
 
   const revNeg = revenueAnchors.every(l => l.rawAmount < 0);
   const revPos = revenueAnchors.every(l => l.rawAmount > 0);
