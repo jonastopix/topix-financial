@@ -152,6 +152,15 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       return;
     }
 
+    // SAFETY: Bloker hvis validation !== PASS
+    const vStatus = target.validation_status || 
+                    (target.extracted_data as any)?.validation?.status || 
+                    "FAIL";
+    if (vStatus !== "PASS") {
+      toast.error(`AI-analyse er deaktiveret: validation returnerede ${vStatus}. Gennemgå data manuelt.`);
+      return;
+    }
+
     setLoading(true);
     if (report) setSelectedReportId(report.id);
 
