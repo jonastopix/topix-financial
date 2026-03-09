@@ -385,26 +385,39 @@ const FileUploadZone = ({
           });
         }
 
-    // === STEP 3: AI Financial Analysis ===
-    const validationStatus = extractedData.validation?.status || "FAIL";
+    // === STEP 3: AI Financial Analysis — GATE ===
+    const canonical = extractedData.canonical;
+    // If canonical exists, use ONLY canonical.validation.status
+    const validationStatus = canonical
+      ? (canonical.validation?.status ?? "FAIL")
+      : (extractedData.validation?.status ?? "FAIL");
 
-    if (validationStatus !== "PASS") {
-      console.warn(`[SAFETY] AI-analyse deaktiveret: validation_status=${validationStatus}`);
+    const shouldRunAI =
+      validationStatus === "PASS" &&
+      (!canonical || (canonical.ai_eligible === true && !!canonical.ai_eligible_payload));
+
+    if (!shouldRunAI) {
+      const reason = validationStatus !== "PASS"
+        ? `validation_status=${validationStatus}`
+        : `ai_eligible=${canonical?.ai_eligible}, ai_eligible_payload=${!!canonical?.ai_eligible_payload}`;
+      console.warn(`[SAFETY] AI-analyse deaktiveret: ${reason}`);
       
-      // Update report with needs_review status
+      // Update report — no AI, no milestones
       await supabase
         .from("financial_reports")
         .update({ 
-          status: "needs_review",
+          status: validationStatus !== "PASS" ? "needs_review" : "processed",
           ai_analysis: null 
         } as any)
         .eq("id", reportRecord.id);
 
-      toast({
-        title: "Validation fejlede",
-        description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
-        variant: "destructive",
-      });
+      if (validationStatus !== "PASS") {
+        toast({
+          title: "Validation fejlede",
+          description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
+          variant: "destructive",
+        });
+      }
 
       // Skip AI analysis and milestone creation
       updateFile(fileId, { status: "done", milestonesCreated: 0 });
