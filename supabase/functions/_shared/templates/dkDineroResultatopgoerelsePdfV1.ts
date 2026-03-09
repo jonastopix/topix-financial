@@ -83,6 +83,22 @@ const CLASS_TO_LINE_CLASS: Record<string, string> = {
   tax: "TAX",
 };
 
+// ── Subtotal → section mapping (for section-based fallback) ──
+// Maps ALL-CAPS subtotal patterns to the section class they close.
+const SUBTOTAL_SECTION_MAP: [RegExp, string][] = [
+  [/omsætning\s*i\s*alt/i, "revenue"],
+  [/vareforbrug|direkte\s*omkostning|produktionsomkostning/i, "cogs"],
+  [/dækningsbidrag/i, "__subtotal_skip__"], // subtotal line, not a section
+  [/personaleomkostning|løn/i, "payroll"],
+  [/salgsomkostning/i, "sales_costs"],
+  [/lokaleomkostning/i, "facility_costs"],
+  [/transport|kørselsomkostning/i, "vehicle_costs"],
+  [/administrations\s*omkostning/i, "admin_costs"],
+  [/afskrivning/i, "depreciation"],
+  [/finansiel/i, "financial_costs"],
+  [/skat\s*(af|i\s*alt)/i, "tax"],
+];
+
 // ── Classification ──
 
 interface ClassifiedLine {
@@ -90,9 +106,10 @@ interface ClassifiedLine {
   name: string;
   rawAmount: number;
   cls: string;
-  method: "label" | "range" | "unclassified";
+  method: "label" | "range" | "section" | "unclassified";
   ambiguous: boolean;
   matchedClasses?: string[];
+  sectionCls?: string;
 }
 
 function classifyLine(name: string, accountNo: string | null): {
