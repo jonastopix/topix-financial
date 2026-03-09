@@ -1,6 +1,19 @@
 /**
- * PDF Text Parser for e-conomic Saldobalance/Resultatopgørelse reports.
- * Parses pdfjs text output into structured lines with section markers.
+ * Generic PDF Text Parser for Danish accounting reports.
+ *
+ * Despite its historical function name "parseEconomicPdfText", this is a
+ * GENERIC low-level line parser. It handles:
+ *   - Danish number parsing (1.234,56 → 1234.56)
+ *   - Account line extraction via regex (4-digit account numbers + amounts)
+ *   - Section marker detection (RESULTATOPGØRELSE, AKTIVER, PASSIVER)
+ *   - Metadata extraction (company name, CVR, period)
+ *
+ * It contains NO e-conomic-specific business logic. All classification,
+ * sign normalization, and metric derivation happen in the individual templates
+ * that consume this parser's output.
+ *
+ * The is_economic flag in metadata is informational only — templates decide
+ * independently whether to use it.
  */
 
 // ── Danish Number Parsing ──
