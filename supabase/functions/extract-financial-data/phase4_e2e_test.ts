@@ -1440,3 +1440,111 @@ Deno.test("Phase4c — 23. XLSX P&L FAIL case — missing revenue", () => {
   }
 });
 
+// ── Test 24: Business-convention XLSX P&L (real Topix.dk ApS Dec 2025) ──
+Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () => {
+  console.log(`\n══ 24. BUSINESS CONVENTION XLSX P&L ══`);
+
+  // Simulated rows from real e-conomic file: Topix.dk ApS, December 2025
+  // Business convention: revenue positive, costs negative
+  const TOPIX_ROWS: any[][] = [
+    [null, null, null, null, null, null],
+    ["1796416 - Topix.dk ApS", null, null, null, null, null],
+    ["Rapporter » Regnskab » ", null, null, null, null, null],
+    ["Resultatopgørelse for perioden 01.12.25 - 31.12.25", null, null, null, null, null],
+    ["CVR 45281736", null, null, null, null, null],
+    [" ", null, null, null, null, null],
+    [" ", " ", "Perioden", null, "År til dato", null],
+    ["Nr.", "Navn", "Faktisk", "Året før", "Faktisk", "Året før"],
+    [null, "RESULTATOPGØRELSE", null, null, null, null],
+    [null, null, null, null, null, null],
+    [null, "Omsætning", null, null, null, null],
+    [1000, "Salg af varer og tjenesteydelser", 57487.52, null, 587157.55, null],
+    [null, "Omsætning i alt", 57487.52, null, 587157.55, null],
+    [null, null, null, null, null, null],
+    [null, "Vareforbrug", null, null, null, null],
+    [2210, "Underleverandører/fremmed arbejde", -5677.48, null, -46558.16, null],
+    [null, "Vareforbrug i alt", -5677.48, null, -46558.16, null],
+    [null, null, null, null, null, null],
+    [null, "Dækningsbidrag", 51810.04, null, 540599.39, null],
+    [null, null, null, null, null, null],
+    [null, "Lønninger", null, null, null, null],
+    [3020, "Løn funktionærer", 0.00, null, -86673.29, null],
+    [null, "Lønninger i alt", 0.00, null, -86673.29, null],
+    [null, null, null, null, null, null],
+    [null, "Administrationsomkostninger", null, null, null, null],
+    [3600, "Telefon", -90.84, null, -2046.16, null],
+    [null, "Administrationsomkostninger i alt", -90.84, null, -2046.16, null],
+    [null, null, null, null, null, null],
+    [null, "Resultat før afskrivninger", 51719.20, null, 451879.94, null],
+    [null, null, null, null, null, null],
+    [null, "Resultat før skat", 51719.20, null, 451879.94, null],
+    [null, null, null, null, null, null],
+    [null, "Årets resultat", 51719.20, null, 451879.94, null],
+  ];
+
+  // ── Detection ──
+  const ctx: DetectionContext = {
+    fileName: "Resultatopgørelse_for_perioden_01.12.25_-_31.12.25.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: TOPIX_ROWS.slice(0, 200),
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match a template");
+  assertEquals(match.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1");
+  console.log(`Detection score: ${match.score}`);
+  assertEquals(match.score >= 80, true, `Score ${match.score} should be >= 80`);
+
+  // ── Extraction ──
+  const result = match.template.extract({ ...ctx, rows: TOPIX_ROWS });
+  assertEquals(result.success, true, "Extraction should succeed");
+  if (!result.success) return;
+
+  const data = result.data;
+  console.log(`Company: ${data.company_name}`);
+  console.log(`CVR: ${data.cvr_number}`);
+  console.log(`Period: ${data.period_start} - ${data.period_end}`);
+  console.log(`Report period: ${data.report_period}`);
+
+  // Verify metadata
+  assertEquals(data.company_name, "Topix.dk ApS", "Company name should strip leading ID");
+  assertEquals(data.cvr_number, "45281736", "CVR should be extracted");
+  assertEquals(data.period_end, "01-12-2025", "Period end should normalize 2-digit year");
+
+  // ── Canonical ──
+  const canonical = buildCanonicalOutput(data, { deterministic: true }, "deterministic_template");
+  const m = canonical.metrics;
+
+  console.log(`\nCanonical metrics (business convention):`);
+  console.log(`  revenue:      ${m.revenue}`);
+  console.log(`  cogs:         ${m.cogs}`);
+  console.log(`  gross_profit: ${m.gross_profit}`);
+  console.log(`  payroll:      ${m.payroll}`);
+  console.log(`  admin_costs:  ${m.admin_costs}`);
+  console.log(`  ebt:          ${m.ebt}`);
+  console.log(`  net_result:   ${m.net_result}`);
+
+  // ── Assertions: All positive in business convention ──
+  assertEquals(m.revenue! > 0, true, `Revenue ${m.revenue} should be positive`);
+  assertEquals(m.gross_profit! > 0, true, `Gross profit ${m.gross_profit} should be positive`);
+  assertEquals(m.ebt! > 0, true, `EBT ${m.ebt} should be positive`);
+  assertEquals(m.net_result! > 0, true, `Net result ${m.net_result} should be positive`);
+
+  // Payroll should be 0 for period (no payroll in December), but still valid
+  // COGS should be positive (abs of negative cost)
+  assertEquals(m.cogs! >= 0, true, `COGS ${m.cogs} should be >= 0`);
+
+  // Validation
+  console.log(`\nValidation:`);
+  for (const check of canonical.validation.canonical_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+
+  assertEquals(canonical.validation.status, "PASS", "Canonical validation should PASS");
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible");
+  assertEquals(canonical.extraction_method, "deterministic_template");
+
+  console.log(`\n✅ Business-convention XLSX P&L verified — signs correct without blind flipSign`);
+});
