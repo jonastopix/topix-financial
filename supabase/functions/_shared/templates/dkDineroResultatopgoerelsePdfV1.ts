@@ -47,7 +47,7 @@ const LABEL_CLASSES: Record<string, string[]> = {
   cogs: ["vareforbrug", "underleverandør", "direkte omkostning"],
   payroll: ["løn", "am-indkomst", "atp", "feriepenge", "pension", "a-skat"],
   facility_costs: ["husleje", "lokale", "elforbrug", "elektricitet", "vand", "varme", "rengøring"],
-  vehicle_costs: ["parkering", "færge", "transport", "kørsel", "brændstof"],
+  vehicle_costs: ["parkering", "færge", "kørsel", "brændstof"],
   sales_costs: ["reklame", "markedsføring", "annoncering", "messe", "repræsentation", "gaver"],
   admin_costs: ["bogføring", "konsulent", "porto", "software", "forsikring", "telefon", "kontingent", "kontor"],
   depreciation: ["afskrivning", "småanskaffelse"],
@@ -107,7 +107,6 @@ const HARD_OVERRIDE_LABELS: [RegExp, string][] = [
   [/kilometergodtgørelse/i, "vehicle_costs"],
   [/kørselsgodtgørelse/i, "vehicle_costs"],
   [/transportgodtgørelse/i, "vehicle_costs"],
-  [/diverse\s*transport/i, "vehicle_costs"],
 ];
 
 // ── Classification ──
