@@ -172,23 +172,35 @@ interface SectionBoundary {
 }
 
 function buildSectionMap(lines: PdfParsedLine[]): Map<number, string> {
-  // Step 1: find all subtotal boundaries
+  // Step 1: find all subtotal/section boundaries
+  // Dinero uses ALL-CAPS lines as section totals, but many don't match the generic
+  // parser's isSubtotalName (which requires "i alt"/"total"/etc.).
+  // We detect boundaries by:
+  //   a) Lines already flagged as subtotals by the parser, OR
+  //   b) ALL-CAPS lines that match our SUBTOTAL_SECTION_MAP (Dinero-specific pattern)
   const boundaries: SectionBoundary[] = [];
+  const isAllCaps = (s: string) => /^[A-ZÆØÅ][A-ZÆØÅ\s,.&()]+$/.test(s.trim());
+
   for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].is_subtotal) continue;
-    const cls = matchSubtotalSection(lines[i].name);
+    const line = lines[i];
+    // Check if this line is a section boundary — either parser-detected subtotal or ALL-CAPS match
+    const isBoundaryCandidate = line.is_subtotal || isAllCaps(line.name);
+    if (!isBoundaryCandidate) continue;
+
+    const cls = matchSubtotalSection(line.name);
     if (cls && cls !== "__subtotal_skip__") {
       boundaries.push({ lineIndex: i, sectionCls: cls });
     }
   }
 
-  console.log(`[DineroPDF] Section boundaries: ${boundaries.map(b => `${b.sectionCls}@${b.lineIndex}`).join(", ")}`);
+  console.log(`[DineroPDF] Section boundaries: ${boundaries.map(b => `${b.sectionCls}@${b.lineIndex}(${lines[b.lineIndex].name})`).join(", ")}`);
 
   // Step 2: assign detail lines to the section of the next subtotal below them
   const sectionMap = new Map<number, string>();
   for (let i = 0; i < lines.length; i++) {
     // Only detail lines get section assignment — never subtotals or headers
     if (lines[i].is_subtotal) continue;
+    if (isAllCaps(lines[i].name)) continue; // Also skip ALL-CAPS boundary lines
     if (lines[i].period_amount == null) continue; // skip header/non-data lines
 
     // Find next subtotal boundary after this line
