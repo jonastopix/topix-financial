@@ -44,6 +44,7 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   debitorer: "trade_receivables",
   kreditorer: "current_liabilities",
   varelager: "inventory",
+  gaeld_i_alt: "debt_total",
   tech_software: "admin_costs", // merged into admin
 };
 
