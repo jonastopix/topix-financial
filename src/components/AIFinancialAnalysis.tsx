@@ -585,7 +585,10 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
                             onClick={() => {
                               setSelectedReportId(r.id);
                               setExpandedFinding(0);
-                              if (!hasAnalysis) generateAnalysis(r);
+                              // Don't auto-generate if canonical blocked
+                              const rnd = r.normalized_data as any;
+                              const rBlocked = !!rnd?.metrics && !(rnd?.ai_eligible === true && rnd?.ai_eligible_payload);
+                              if (!hasAnalysis && !rBlocked) generateAnalysis(r);
                             }}
                             className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg text-left transition-all ${
                               isSelected
