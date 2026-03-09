@@ -816,12 +816,10 @@ Deno.test("Phase4b — 13. Full real PDF E2E (25.04 Saldobalance)", () => {
 // ═══════════════════════════════════════════════════════
 // TEST 14: Priority label matching — subtotal vs main total
 // ═══════════════════════════════════════════════════════
-Deno.test("Phase4b — 14. findBestLabel prefers exact main total over sub-total", () => {
+Deno.test("Phase4b — 14. findBestLabel prefers exact main total over sub-total", async () => {
   console.log(`\n══ 14. PRIORITY LABEL MATCHING ══`);
 
-  // Import the template to access extract()
-  // We simulate lines that contain both "Anlægsaktiver i alt" and "AKTIVER I ALT"
-  const { parseEconomicPdfText } = await importPdfParser();
+  const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
 
   // Minimal PDF text with both subtotal and main total
   const text = [
