@@ -359,3 +359,87 @@ Deno.test("CASE 8: Golden snapshot of full canonical output", () => {
   assertExists(canonical.ai_eligible_payload?.metrics);
   assertEquals(canonical.ai_eligible_payload?.metrics.revenue, 2000000);
 });
+
+// ══════════════════════════════════════════════════════════════════
+// CASE 9: Combined report (Januar 2026 style) — result signs positive for profit
+// ══════════════════════════════════════════════════════════════════
+Deno.test("CASE 9: Combined report — result signs are positive for profit", () => {
+  // Simulates Januar 2026 Warburg data after deterministic extraction
+  // All result fields arrive pre-normalized (positive = profit)
+  const extractedData = {
+    report_type: "combined",
+    report_period: "Januar 2026",
+    company_name: "Warburg VVS & Kloak ekspres ApS",
+    key_figures: {
+      omsaetning: 1482730.84,
+      direkte_omkostninger: 424012.48,
+      daekningsbidrag: 1058718.36,    // Pre-normalized positive
+      resultat_foer_skat: 235159.08,   // Pre-normalized positive (profit)
+      resultat_efter_skat: 235159.08,  // Pre-normalized positive
+      bank_balance: -408726.10,        // Overdraft — stays negative
+      aktiver_i_alt: 5121980.21,
+      egenkapital: 2327790.71,         // Already positive (flipped by parser)
+    },
+    line_items: [],
+    validation: { status: "PASS", checks: [] },
+  };
+
+  const canonical = buildCanonicalOutput(extractedData, {}, "deterministic_template");
+
+  // Revenue positive
+  assertEquals(canonical.metrics.revenue, 1482730.84);
+  assert(canonical.metrics.revenue! > 0, "Revenue should be positive");
+
+  // Gross profit positive
+  assertEquals(canonical.metrics.gross_profit, 1058718.36);
+  assert(canonical.metrics.gross_profit! > 0, "Gross profit should be positive");
+
+  // EBT positive (the main fix)
+  assertEquals(canonical.metrics.ebt, 235159.08);
+  assert(canonical.metrics.ebt! > 0, "EBT should be positive for profit");
+
+  // Net result positive
+  assertEquals(canonical.metrics.net_result, 235159.08);
+  assert(canonical.metrics.net_result! > 0, "Net result should be positive for profit");
+
+  // Cash negative (overdraft preserved)
+  assertEquals(canonical.metrics.cash, -408726.10);
+  assert(canonical.metrics.cash! < 0, "Cash should stay negative (overdraft)");
+
+  // AI eligible
+  assertEquals(canonical.ai_eligible, true);
+  assertExists(canonical.ai_eligible_payload);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// CASE 10: AI saldobalance — pre-normalized results pass through (no double-flip)
+// ══════════════════════════════════════════════════════════════════
+Deno.test("CASE 10: AI saldobalance — pre-normalized results pass through", () => {
+  // AI extraction prompt explicitly instructs sign normalization
+  // Canonical engine must trust that and NOT flip again
+  const extractedData = {
+    report_type: "saldobalance",
+    report_period: "Oktober 2025",
+    key_figures: {
+      omsaetning: 1000000,          // AI already normalized (positive)
+      daekningsbidrag: 600000,      // AI already normalized (positive = profit)
+      resultat_foer_skat: 200000,   // AI already normalized (positive = profit)
+      aktiver_i_alt: 500000,
+    },
+    line_items: [],
+    validation: { status: "PASS", checks: [] },
+  };
+
+  const canonical = buildCanonicalOutput(extractedData, {}, "ai_extraction");
+
+  // EBT passes through (NO double flip)
+  assertEquals(canonical.metrics.ebt, 200000);
+  assert(canonical.metrics.ebt! > 0, "EBT should remain positive (no double-flip)");
+
+  // Gross profit passes through
+  assertEquals(canonical.metrics.gross_profit, 600000);
+  assert(canonical.metrics.gross_profit! > 0, "Gross profit should remain positive");
+
+  // AI eligible
+  assertEquals(canonical.ai_eligible, true);
+});
