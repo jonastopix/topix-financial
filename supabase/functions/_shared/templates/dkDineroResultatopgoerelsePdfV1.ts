@@ -99,6 +99,17 @@ const SUBTOTAL_SECTION_MAP: [RegExp, string][] = [
   [/skat\s*(af|i\s*alt)/i, "tax"],
 ];
 
+// ── Hard override labels ──
+// These patterns ALWAYS resolve to a specific class, overriding section and range fallback.
+// Used for transport/vehicle labels that commonly appear in payroll sections.
+const HARD_OVERRIDE_LABELS: [RegExp, string][] = [
+  [/kørsel\s*i\s*egen\s*bil/i, "vehicle_costs"],
+  [/kilometergodtgørelse/i, "vehicle_costs"],
+  [/kørselsgodtgørelse/i, "vehicle_costs"],
+  [/transportgodtgørelse/i, "vehicle_costs"],
+  [/diverse\s*transport/i, "vehicle_costs"],
+];
+
 // ── Classification ──
 
 interface ClassifiedLine {
@@ -351,11 +362,36 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
       const amount = line.period_amount;
       if (amount == null) continue;
 
-      const core = classifyLineCore(line.name, line.account_no);
       const sectionCls = sectionMap.get(i) || undefined;
 
+      // Priority 0: Hard override — explicit label patterns that always win
+      let hardOverrideCls: string | null = null;
+      for (const [re, cls] of HARD_OVERRIDE_LABELS) {
+        if (re.test(line.name)) {
+          hardOverrideCls = cls;
+          break;
+        }
+      }
+
+      if (hardOverrideCls) {
+        console.log(`[DineroPDF] Hard override: "${line.name}" → ${hardOverrideCls}`);
+        classified.push({
+          accountNo: line.account_no,
+          name: line.name,
+          rawAmount: amount,
+          cls: hardOverrideCls,
+          method: "label",
+          ambiguous: false,
+          sectionCls,
+        });
+        continue;
+      }
+
+      // Priority 1-3: label-first → section-fallback → range-fallback
+      const core = classifyLineCore(line.name, line.account_no);
+
       let finalCls = core.cls;
-      let finalMethod = core.method;
+      let finalMethod: ClassifiedLine["method"] = core.method;
       let finalAmbiguous = core.ambiguous;
 
       if (core.cls === "unclassified" && sectionCls) {
@@ -558,7 +594,7 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
       details: ebt != null ? `EBT: ${ebt.toFixed(2)}` : "EBT null (upstream dependency missing)",
     });
 
-    // 7. Ambiguity
+    // 7. Ambiguity — core metric conflict
     const ambiguityAffectsCore = depreciationUnsure || financialCostsUnsure;
     checks.push({
       name: "ambiguous_lines",
@@ -570,7 +606,32 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
           : `${ambiguousCount} ambiguous lines (non-core) → accepted`,
     });
 
-    // 8. Defaulted fields
+    // 8. Ambiguity EBT impact gate
+    // Use normalized (abs) amounts for impact calculation; rawAmount as fallback
+    const ambiguousLines = classified.filter(l => l.ambiguous);
+    const ambiguousImpact = ambiguousLines.reduce((sum, l) => sum + Math.abs(normalizeAmount(l.rawAmount)), 0);
+    const AMBIGUOUS_IMPACT_THRESHOLD = 5000;
+    const impactExceedsThreshold = ambiguousImpact > AMBIGUOUS_IMPACT_THRESHOLD;
+
+    if (ambiguousLines.length > 0) {
+      console.log(`[DineroPDF] Remaining ambiguous lines (${ambiguousLines.length}):`);
+      for (const al of ambiguousLines) {
+        console.log(`  - "${al.name}" rawAmount=${al.rawAmount} normalized=${normalizeAmount(al.rawAmount)} label=${al.matchedClasses?.join(",") || "none"} section=${al.sectionCls || "none"}`);
+      }
+      console.log(`[DineroPDF] Ambiguous EBT impact: ${ambiguousImpact.toFixed(2)} (threshold: ${AMBIGUOUS_IMPACT_THRESHOLD})`);
+    }
+
+    checks.push({
+      name: "ambiguous_ebt_impact",
+      result: impactExceedsThreshold ? "FAIL" : "PASS",
+      details: ambiguousLines.length === 0
+        ? "No ambiguous lines"
+        : impactExceedsThreshold
+          ? `UNSURE: ${ambiguousLines.length} ambiguous lines with total impact ${ambiguousImpact.toFixed(2)} exceeds threshold ${AMBIGUOUS_IMPACT_THRESHOLD} → blocks ai_eligible`
+          : `${ambiguousLines.length} ambiguous lines with total impact ${ambiguousImpact.toFixed(2)} within threshold ${AMBIGUOUS_IMPACT_THRESHOLD}`,
+    });
+
+    // 9. Defaulted fields
     if (defaultedFields.length > 0) {
       checks.push({
         name: "defaulted_fields",

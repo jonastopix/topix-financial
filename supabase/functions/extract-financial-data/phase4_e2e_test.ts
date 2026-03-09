@@ -7,7 +7,7 @@
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { detectTemplate, tryDeterministicCsvExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
+import { detectTemplate, tryDeterministicCsvExtraction, tryDeterministicPdfExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
 import { detectReportTemplate } from "../_shared/financialParser.ts";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
 
@@ -1701,20 +1701,22 @@ Deno.test("Phase5 Dinero — T5. Sign: Revenue normalized to positive", () => {
 });
 
 // ═══════════════════════════════════════════════════════
-// TEST T6: Fail-closed — financial_costs missing → ebt null → ai_eligible false
+// TEST T6: financial_costs absent (no matching lines, no ambiguity) → defaulted to 0
 // ═══════════════════════════════════════════════════════
-Deno.test("Phase5 Dinero — T6. Fail-closed: No financial_costs → ebt null → ai_eligible false", () => {
+Deno.test("Phase5 Dinero — T6. financial_costs absent → defaulted 0 → ebt computed → ai_eligible true", () => {
   const result = tryDeterministicCsvExtraction(DINERO_CSV_SAMPLE, "Resultat.csv");
-  console.log(`\n══ T6. FAIL-CLOSED (FINANCIAL_COSTS) ══`);
+  console.log(`\n══ T6. FINANCIAL_COSTS ABSENT → DEFAULTED 0 ══`);
   assertEquals(result.type, "success");
   if (result.type !== "success") return;
 
   const kf = result.extractedData.key_figures;
-  assertEquals(kf.finansielle_omkostninger, null, "financial_costs should be null (no matching lines)");
-  assertEquals(kf.resultat_foer_skat, null, "ebt should be null when financial_costs is null");
-  assertEquals(kf.resultat_efter_skat, null, "net_result should be null when ebt is null");
+  // financial_costs defaults to 0 when absent and not ambiguous
+  assertEquals(kf.finansielle_omkostninger, 0, "financial_costs should be 0 (absent, defaulted)");
+  // ebt should be computed since financial_costs is 0
+  assertExists(kf.resultat_foer_skat, "ebt should exist when financial_costs is defaulted 0");
+  assertExists(kf.resultat_efter_skat, "net_result should exist when ebt exists");
 
-  // Canonical output should block AI
+  // Canonical output should allow AI
   const canonical = buildCanonicalOutput(
     result.extractedData,
     { deterministic: true, template_id: "DK_DINERO_RESULTATOPGOERELSE_V1" },
@@ -1722,7 +1724,7 @@ Deno.test("Phase5 Dinero — T6. Fail-closed: No financial_costs → ebt null �
   );
   console.log(`validation.status: ${canonical.validation.status}`);
   console.log(`ai_eligible: ${canonical.ai_eligible}`);
-  assertEquals(canonical.ai_eligible, false, "ai_eligible should be false without ebt");
+  assertEquals(canonical.ai_eligible, true, "ai_eligible should be true with ebt present");
 });
 
 // ═══════════════════════════════════════════════════════
@@ -1817,9 +1819,9 @@ Deno.test("Phase5 Dinero — T9. Golden snapshot: Canonical output", () => {
   assertExists(canonical.metrics.revenue);
   assertExists(canonical.metrics.cogs);
   assertExists(canonical.metrics.gross_profit);
-  assertEquals(canonical.metrics.financial_costs, null, "No financial costs in sample");
-  assertEquals(canonical.metrics.ebt, null, "EBT null without financial_costs");
-  assertEquals(canonical.ai_eligible, false, "Not AI eligible without ebt");
+  assertEquals(canonical.metrics.financial_costs, 0, "financial_costs defaulted to 0 (absent, no ambiguity)");
+  assertExists(canonical.metrics.ebt, "EBT should be computed with financial_costs=0");
+  assertEquals(canonical.ai_eligible, true, "AI eligible with ebt present");
   assertExists(canonical.deterministic_meta);
   assertEquals(canonical.deterministic_meta!.template_id, "DK_DINERO_RESULTATOPGOERELSE_V1");
 
