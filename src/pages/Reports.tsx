@@ -111,7 +111,7 @@ const Reports = () => {
     const [reportsRes, convRes] = await Promise.all([
       (supabase
         .from("financial_reports")
-        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
+        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false }),
