@@ -542,6 +542,36 @@ https://secure.e-conomic.com/reports/statements/period-total
 Deno.test("Phase4b — 12. PDF e-conomic combined detection ambiguity check", () => {
   console.log(`\n══ 12. PDF AMBIGUITY CHECK ══`);
 
+  const testText = [
+    "22.05.2025, 11.33                            1796416 - Topix.dk ApS - CVR 45281736",
+    "Saldobalance for perioden 01.04.25 - 30.04.25",
+    "RESULTATOPGØRELSE",
+    "| Nr.  | Navn                               | Perioden    | År til dato |",
+    "| 1010 | Salg af varer/ydelser m/moms       | -226.398,43 | -255.279,28 |",
+    "|      | Omsætning i alt                    | -226.398,43 | -255.279,28 |",
+    "|      | Direkte omkostninger i alt         | 313,69      | 729,77      |",
+    "|      | Dækningsbidrag                     | -226.084,74 | -254.549,51 |",
+    "| 2210 | Lønninger                          | 9.901,00    | 9.901,00    |",
+    "|      | Lønninger i alt                    | 18.838,32   | 19.033,32   |",
+    "|      | Salgs- og rejseomkostninger i alt  | 13.444,41   | 246.687,03  |",
+    "|      | Administrationsomkostninger i alt  | 15.987,53   | 74.847,76   |",
+    "|      | Resultat før afskrivninger         | -177.814,48 | 86.018,60   |",
+    "|      | Afskrivninger i alt                | 2.910,65    | 7.776,22    |",
+    "|      | Resultat før skat                  | -174.903,83 | 93.213,69   |",
+    "|      | RESULTAT EFTER SKAT                | -174.903,83 | 93.213,69   |",
+    "AKTIVER",
+    "| 5600 | Debitorer                          | 50.000,00   | 50.000,00   |",
+    "| 5820 | Bankkonto                          | 237.827,22  | 307.777,76  |",
+    "AKTIVER I ALT",
+    "273.435,99  508.773,03",
+    "PASSIVER",
+    "|      | EGENKAPITAL I ALT                  | -174.903,83 | 53.213,69   |",
+    "PASSIVER I ALT",
+    "-273.435,99  -508.773,03",
+    "https://secure.e-conomic.com/reports/statements/period-total",
+  ].join("\n");
+  console.log(`\n══ 12. PDF AMBIGUITY CHECK ══`);
+
   // Full e-conomic combined report text — should score 100 on Template A
   const ctx: DetectionContext = {
     fileName: "25.04_Saldobalance.pdf",
