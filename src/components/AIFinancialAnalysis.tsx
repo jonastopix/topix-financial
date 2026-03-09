@@ -144,6 +144,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
            "FAIL";
   }, [selectedReport]);
 
+  // Canonical gating: block AI if normalized_data.metrics exists but ai_eligible_payload is missing
+  const canonicalBlocked = useMemo(() => {
+    if (!selectedReport) return false;
+    const nd = selectedReport.normalized_data as any;
+    return !!nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload);
+  }, [selectedReport]);
+
   // Group reports by year for history
   const reportsByYear = useMemo(() => {
     const groups: Record<string, ReportWithAnalysis[]> = {};
@@ -160,6 +167,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     const target = report || selectedReport;
     if (!target?.extracted_data) {
       toast.error("Ingen data at analysere.");
+      return;
+    }
+
+    // CANONICAL GATING: block if metrics exist but payload missing
+    const nd = target.normalized_data as any;
+    if (nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
+      toast.error("AI-analyse blokeret: canonical metrics findes, men ai_eligible_payload mangler.");
       return;
     }
 
