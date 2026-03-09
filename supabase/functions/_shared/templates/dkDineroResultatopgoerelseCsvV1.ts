@@ -249,6 +249,17 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
       counts[line.cls] = (counts[line.cls] || 0) + 1;
     }
 
+    // Track which ambiguous lines could have affected specific classes
+    const ambiguousClasses = new Set<string>();
+    for (const line of classified) {
+      if (line.ambiguous && line.matchedClasses) {
+        for (const c of line.matchedClasses) ambiguousClasses.add(c);
+      }
+    }
+
+    // Track defaulted-to-zero fields and their reason
+    const defaultedFields: { field: string; reason: "absent" | "ambiguous_conflict" }[] = [];
+
     // Revenue: abs() to normalize from credit (negative) to positive
     const revenue = sums.revenue != null ? Math.abs(sums.revenue) : null;
     const cogs = sums.cogs != null ? Math.abs(sums.cogs) : null;
@@ -257,15 +268,38 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
     const facilityCosts = sums.facility_costs != null ? Math.abs(sums.facility_costs) : null;
     const vehicleCosts = sums.vehicle_costs != null ? Math.abs(sums.vehicle_costs) : null;
     const adminCosts = sums.admin_costs != null ? Math.abs(sums.admin_costs) : null;
-    const depreciation = sums.depreciation != null ? Math.abs(sums.depreciation) : null;
 
-    // Financial costs: null if no lines matched (fail-closed)
-    const financialCosts =
-      counts.financial_costs != null && counts.financial_costs > 0
-        ? Math.abs(sums.financial_costs)
-        : null;
+    // ── Depreciation: default 0 ONLY if truly absent, null if ambiguous ──
+    let depreciation: number | null;
+    let depreciationUnsure = false;
+    if (counts.depreciation != null && counts.depreciation > 0) {
+      depreciation = Math.abs(sums.depreciation);
+    } else if (ambiguousClasses.has("depreciation")) {
+      depreciation = null;
+      depreciationUnsure = true;
+      console.log("[Dinero] WARNING: depreciation ambiguous → null (not defaulted)");
+    } else {
+      depreciation = 0;
+      defaultedFields.push({ field: "depreciation", reason: "absent" });
+      console.log("[Dinero] depreciation missing → assumed 0 (no matching lines, no ambiguity)");
+    }
 
-    // Tax: null if no lines matched
+    // ── Financial costs: default 0 ONLY if truly absent, null if ambiguous ──
+    let financialCosts: number | null;
+    let financialCostsUnsure = false;
+    if (counts.financial_costs != null && counts.financial_costs > 0) {
+      financialCosts = Math.abs(sums.financial_costs);
+    } else if (ambiguousClasses.has("financial_costs")) {
+      financialCosts = null;
+      financialCostsUnsure = true;
+      console.log("[Dinero] WARNING: financial_costs ambiguous → null (not defaulted)");
+    } else {
+      financialCosts = 0;
+      defaultedFields.push({ field: "financial_costs", reason: "absent" });
+      console.log("[Dinero] financial_costs missing → assumed 0 (no matching lines, no ambiguity)");
+    }
+
+    // Tax: null if no lines matched (acceptable — net_result = ebt)
     const tax =
       counts.tax != null && counts.tax > 0 ? Math.abs(sums.tax) : null;
 
@@ -283,7 +317,7 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
     const ebit =
       ebitda != null && depreciation != null ? ebitda - depreciation : null;
 
-    // EBT: only if financial_costs is known
+    // EBT: only derivable if ebit and financialCosts are both known
     const ebt =
       ebit != null && financialCosts != null ? ebit - financialCosts : null;
 
