@@ -1336,7 +1336,7 @@ Deno.test("Phase4c — 21. XLSX P&L extraction + key metrics", () => {
 
     // Meta
     assertEquals(d._deterministic_meta.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1");
-    assertEquals(d._deterministic_meta.parser_confidence, "MEDIUM");
+    assertEquals(d._deterministic_meta.parser_confidence, "HIGH");
     assertEquals(d._deterministic_meta.column_basis_rule, "single");
 
     console.log(`✅ All sign rules correct — business convention verified`);
