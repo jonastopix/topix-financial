@@ -13,8 +13,18 @@ import {
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
+
+/** Smart date separator label: "I dag", "I går", or "9. marts 2026" */
+function dateSeparatorLabel(date: Date): string {
+  const today = startOfDay(new Date());
+  const d = startOfDay(date);
+  const diff = today.getTime() - d.getTime();
+  if (diff === 0) return "I dag";
+  if (diff === 86400000) return "I går";
+  return format(d, "d. MMMM yyyy", { locale: da });
+}
 
 interface Message {
   id: string;
