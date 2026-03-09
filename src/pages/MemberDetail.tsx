@@ -134,6 +134,7 @@ const handoutStatusLabels: Record<string, { label: string; variant: "default" | 
 const MemberDetail = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { isAdvisor: rawAdvisor, user, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
@@ -144,7 +145,10 @@ const MemberDetail = () => {
   const [budgets, setBudgets] = useState<BudgetTarget[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [handoutSummaries, setHandoutSummaries] = useState<HandoutSummaryItem[]>([]);
-  const [activeHandout, setActiveHandout] = useState<HandoutModule | null>(null);
+  const [activeHandout, setActiveHandout] = useState<HandoutModule | null>(() => {
+    const h = searchParams.get("handout") as HandoutModule | null;
+    return h && moduleOrder.includes(h) ? h : null;
+  });
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
