@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Note: XLSX parsing temporarily disabled - will be enabled when compatible Deno library is available
+// import * as XLSX from "https://esm.sh/xlsx@0.20.3";
+import { parseFinancialReport, type ParsedFinancialReport } from "../_shared/financialParser.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -163,10 +166,10 @@ serve(async (req) => {
       });
     }
 
-    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName } = await req.json();
+    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64 } = await req.json();
 
     // Debug logging for incoming content
-    console.log(`[extract-financial-data] fileContent length: ${fileContent?.length ?? 0}, pageImages: ${pageImages?.length ?? 0}`);
+    console.log(`[extract-financial-data] fileName: ${fileName}, fileContent length: ${fileContent?.length ?? 0}, pageImages: ${pageImages?.length ?? 0}, excelBase64: ${excelBase64?.length ?? 0}`);
     if (fileContent) {
       console.log(`[extract-financial-data] First 300 chars: ${fileContent.slice(0, 300)}`);
     }
@@ -177,12 +180,106 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Build company name instruction for system prompt
-    const companyNameInstruction = knownCompanyName
-      ? `\n\n═══════════════════════════════════════════════════\nVIGTIGT: FIRMANAVN\n═══════════════════════════════════════════════════\nVirksomhedens navn er: "${knownCompanyName}". Brug KUN dette navn som company_name. Returner ALDRIG et andet firmanavn.\n`
-      : "";
+    // ═══ LAG 0: DETERMINISTISK EXCEL PARSING (hvis relevant) ═══
+    let parsedReport: ParsedFinancialReport | null = null;
+    let extractionMethod = "ai"; // Default til AI-based extraction
 
-    const systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
+    // TODO: Enable Excel parsing when XLSX library is compatible with Deno Deploy
+    // For now, all extraction uses AI-based method
+    
+    const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
+    
+    if (isExcelFile && false) { // Temporarily disabled
+      console.log("[Parser] Excel parsing temporarily disabled - using AI extraction");
+      /* 
+      try {
+        console.log("[Parser] Attempting deterministic Excel parsing...");
+        
+        const binaryString = atob(excelBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const workbook = XLSX.read(bytes, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: null });
+
+        console.log(`[Parser] Parsed ${rows.length} rows from sheet "${firstSheetName}"`);
+
+        parsedReport = parseFinancialReport(rows);
+
+        console.log(`[Parser] Template: ${parsedReport.template_id}, Validation: ${parsedReport.validation.validation_status}`);
+        
+        if (parsedReport.template_id !== "UNKNOWN" && parsedReport.validation.validation_status === "PASS") {
+          extractionMethod = "deterministic";
+          console.log("[Parser] ✓ Deterministic parsing successful - using normalized data");
+        } else {
+          console.log("[Parser] ⚠ Parser validation failed or template not recognized - falling back to AI");
+          parsedReport = null;
+        }
+      } catch (error) {
+        console.error("[Parser] Excel parsing error:", error);
+        parsedReport = null;
+      }
+      */
+    } else {
+      console.log("[Parser] Using AI extraction method");
+    }
+
+    // ═══ BUILD AI PROMPT (adapts based on extraction method) ═══
+    
+    let systemPrompt: string;
+    let userContent: any;
+    
+    if (parsedReport && extractionMethod === "deterministic") {
+      // Parser was successful - AI only needs to provide qualitative feedback
+      systemPrompt = `Du er en erfaren CFO/investor-rådgiver der analyserer validerede, normaliserede regnskabsdata.${companyNameInstruction}
+
+DIN ROLLE: Du modtager KUN færdigbehandlede, normaliserede nøgletal fra et regnskab. Du skal IKKE gætte på fortegn eller normalisering - det er allerede gjort.
+
+KRITISKE REGLER:
+- Du må ALDRIG gætte på fortegn eller normalisering
+- Hvis cash er negativ men equity er positiv: beskriv som "likviditetspres" eller "bankovertræk", IKKE "insolvens"
+- Du må ALDRIG konkludere "negativ egenkapital" medmindre equity_total < 0 i normalized data
+- Du må ALDRIG konkludere "teknisk konkurs" medmindre equity_ratio_pct < 0
+
+FORVENTET OUTPUT:
+1. Overblik (1-2 linjer om virksomhedens overordnede tilstand)
+2. Nøgletal (bullets med de vigtigste tal)
+3. Vurdering (2-3 linjer om styrker og udfordringer)
+4. 2-4 konkrete anbefalinger til ledelsen`;
+
+      // Send normalized metrics to AI
+      const metrics = parsedReport.metrics;
+      userContent = `Her er de validerede, normaliserede nøgletal for ${parsedReport.company_name || "virksomheden"}:
+
+**Periode:** ${parsedReport.period_start || "ukendt"} til ${parsedReport.period_end || "ukendt"}
+
+**Resultatopgørelse:**
+- Omsætning: ${metrics.revenue?.toFixed(2) || "N/A"} kr.
+- Vareforbrug: ${metrics.cogs?.toFixed(2) || "N/A"} kr.
+- Dækningsbidrag: ${metrics.gross_profit?.toFixed(2) || "N/A"} kr. (${metrics.gross_margin_pct?.toFixed(1) || "N/A"}%)
+- Lønninger: ${metrics.payroll?.toFixed(2) || "N/A"} kr.
+- EBITDA: ${metrics.ebitda?.toFixed(2) || "N/A"} kr.
+- EBIT: ${metrics.ebit?.toFixed(2) || "N/A"} kr.
+- Resultat før skat: ${metrics.ebt?.toFixed(2) || "N/A"} kr. (${metrics.ebt_margin_pct?.toFixed(1) || "N/A"}%)
+
+**Balance:**
+- Aktiver i alt: ${metrics.assets_total?.toFixed(2) || "N/A"} kr.
+- Egenkapital: ${metrics.equity_total?.toFixed(2) || "N/A"} kr. (${metrics.equity_ratio_pct?.toFixed(1) || "N/A"}%)
+- Likvider/Bank: ${metrics.cash?.toFixed(2) || "N/A"} kr. ${metrics.cash && metrics.cash < 0 ? "⚠️ Bankovertræk" : ""}
+- Debitorer: ${metrics.trade_receivables?.toFixed(2) || "N/A"} kr.
+- Varelager: ${metrics.inventory?.toFixed(2) || "N/A"} kr.
+- Gæld i alt: ${metrics.debt_total?.toFixed(2) || "N/A"} kr.
+
+Giv din CFO-vurdering og anbefalinger baseret på disse tal.`;
+
+      console.log("[AI] Using deterministic parser metrics for AI feedback");
+    } else {
+      // Fallback til eksisterende AI-based extraction
+      systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
 
 DIN ROLLE: Du aflæser tal PRÆCIST som de fremgår af dokumentet og normaliserer dem til en standardiseret format. Du opfinder ALDRIG tal.
 
@@ -293,21 +390,21 @@ Sæt validation.status til:
 
 Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSURE" og beskriv usikkerheden i checks.`;
 
-    // Build user message — prefer images (vision) for accurate table reading
-    let userContent: any;
-    if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
-      const imageParts = pageImages.map((base64: string) => ({
-        type: "image_url",
-        image_url: { url: `data:image/jpeg;base64,${base64}` },
-      }));
-      userContent = [
-        { type: "text", text: `Filnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
-        ...imageParts,
-      ];
-      console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
-    } else {
-      userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
-      console.log("Sending text-only content to AI (no images available)");
+      // Build user message — prefer images (vision) for accurate table reading
+      if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
+        const imageParts = pageImages.map((base64: string) => ({
+          type: "image_url",
+          image_url: { url: `data:image/jpeg;base64,${base64}` },
+        }));
+        userContent = [
+          { type: "text", text: `Filnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
+          ...imageParts,
+        ];
+        console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
+      } else {
+        userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
+        console.log("Sending text-only content to AI (no images available)");
+      }
     }
 
     const response = await fetch(
@@ -594,17 +691,38 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
+      // Prepare DB update with parser data (if available)
+      const updatePayload: any = {
+        report_type: extractedData.report_type,
+        report_period: extractedData.report_period,
+        company_name: extractedData.company_name,
+        cvr_number: extractedData.cvr_number,
+        extracted_data: extractedData,
+        processed_at: new Date().toISOString(),
+        status: "processed",
+        extraction_method: extractionMethod,
+      };
+
+      // Add parser-specific data if deterministic parsing was used
+      if (parsedReport && extractionMethod === "deterministic") {
+        updatePayload.raw_extracted_data = {
+          raw_lines: parsedReport.raw_lines,
+          company_name: parsedReport.company_name,
+          period_start: parsedReport.period_start,
+          period_end: parsedReport.period_end,
+        };
+        updatePayload.normalized_data = {
+          template_id: parsedReport.template_id,
+          normalized_lines: parsedReport.normalized_lines,
+          metrics: parsedReport.metrics,
+        };
+        updatePayload.validation_status = parsedReport.validation.validation_status;
+        updatePayload.validation_errors = parsedReport.validation.validation_errors;
+      }
+
       const { error: updateError } = await supabase
         .from("financial_reports")
-        .update({
-          report_type: extractedData.report_type,
-          report_period: extractedData.report_period,
-          company_name: extractedData.company_name,
-          cvr_number: extractedData.cvr_number,
-          extracted_data: extractedData,
-          processed_at: new Date().toISOString(),
-          status: "processed",
-        })
+        .update(updatePayload)
         .eq("id", reportId);
 
       if (updateError) {

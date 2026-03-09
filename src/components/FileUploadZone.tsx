@@ -33,6 +33,18 @@ interface ExtractedData {
   cvr_number: string;
   key_figures: Record<string, number>;
   line_items: Array<{ name: string; period_amount: number; ytd_amount: number }>;
+  validation?: {
+    status?: string;
+  };
+  extraction_method?: string;
+  normalized_metrics?: {
+    cash?: number;
+    equity_total?: number;
+    equity_ratio_pct?: number;
+    trade_receivables?: number;
+    inventory?: number;
+    revenue?: number;
+  };
 }
 
 interface UploadedFile {
@@ -841,6 +853,18 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
   const formatDKK = (n?: number) =>
     n != null ? `${n.toLocaleString("da-DK")} DKK` : "—";
 
+  // Calculate financial indicators from normalized metrics (if available)
+  const normalized = data.normalized_metrics;
+  const hasNegativeCash = normalized?.cash !== undefined && normalized.cash < 0;
+  const hasPositiveEquity = normalized?.equity_total !== undefined && normalized.equity_total > 0;
+  
+  // High working capital = receivables + inventory is high relative to revenue (> 60%)
+  const workingCapitalRatio = 
+    normalized?.trade_receivables && normalized?.inventory && normalized?.revenue
+      ? ((normalized.trade_receivables + normalized.inventory) / normalized.revenue) * 100
+      : null;
+  const hasHighWorkingCapital = workingCapitalRatio !== null && workingCapitalRatio > 60;
+
   return (
     <div className="mt-2 p-4 rounded-lg bg-secondary/30 border border-border/50 animate-fade-in space-y-3">
       <div className="flex items-center justify-between">
@@ -855,10 +879,50 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
             </span>
           </p>
         </div>
-        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-          {data.report_period}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+            {data.report_period}
+          </span>
+          {data.extraction_method === "deterministic" && (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              Deterministisk
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Validation & Financial Indicators */}
+      {(data.validation?.status || hasPositiveEquity || hasNegativeCash || hasHighWorkingCapital) && (
+        <div className="flex flex-wrap gap-1.5">
+          {data.validation?.status === "PASS" && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              <CheckCircle2 className="h-3 w-3" />
+              Data valideret
+            </span>
+          )}
+          {data.validation?.status === "FAIL" && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" />
+              Validering fejlede
+            </span>
+          )}
+          {hasPositiveEquity && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              Positiv egenkapital
+            </span>
+          )}
+          {hasNegativeCash && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              Bankovertræk
+            </span>
+          )}
+          {hasHighWorkingCapital && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              Høj kapitalbinding
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MiniStat label="Omsætning" value={formatDKK(kf.omsaetning)} sub={`Å.t.d: ${formatDKK(kf.omsaetning_aar)}`} />

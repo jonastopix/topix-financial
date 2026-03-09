@@ -553,16 +553,21 @@ export type Database = {
           cvr_number: string | null
           deleted_at: string | null
           extracted_data: Json | null
+          extraction_method: string | null
           file_name: string
           file_path: string
           id: string
+          normalized_data: Json | null
           processed_at: string | null
+          raw_extracted_data: Json | null
           report_period: string | null
           report_type: string
           reviewed_at: string | null
           status: string
           uploaded_at: string
           user_id: string
+          validation_errors: string[] | null
+          validation_status: string | null
         }
         Insert: {
           ai_analysis?: Json | null
@@ -571,16 +576,21 @@ export type Database = {
           cvr_number?: string | null
           deleted_at?: string | null
           extracted_data?: Json | null
+          extraction_method?: string | null
           file_name: string
           file_path: string
           id?: string
+          normalized_data?: Json | null
           processed_at?: string | null
+          raw_extracted_data?: Json | null
           report_period?: string | null
           report_type: string
           reviewed_at?: string | null
           status?: string
           uploaded_at?: string
           user_id: string
+          validation_errors?: string[] | null
+          validation_status?: string | null
         }
         Update: {
           ai_analysis?: Json | null
@@ -589,16 +599,21 @@ export type Database = {
           cvr_number?: string | null
           deleted_at?: string | null
           extracted_data?: Json | null
+          extraction_method?: string | null
           file_name?: string
           file_path?: string
           id?: string
+          normalized_data?: Json | null
           processed_at?: string | null
+          raw_extracted_data?: Json | null
           report_period?: string | null
           report_type?: string
           reviewed_at?: string | null
           status?: string
           uploaded_at?: string
           user_id?: string
+          validation_errors?: string[] | null
+          validation_status?: string | null
         }
         Relationships: [
           {
