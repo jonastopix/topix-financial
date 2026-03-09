@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
-import { tryDeterministicExtraction, tryDeterministicPdfExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
+import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
