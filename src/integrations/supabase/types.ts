@@ -1001,6 +1001,51 @@ export type Database = {
           },
         ]
       }
+      slack_handout_notification_log: {
+        Row: {
+          company_id: string
+          completed_at: string
+          created_at: string
+          handout_id: string
+          id: string
+          slack_channel_id: string
+          slack_ts: string | null
+        }
+        Insert: {
+          company_id: string
+          completed_at: string
+          created_at?: string
+          handout_id: string
+          id?: string
+          slack_channel_id: string
+          slack_ts?: string | null
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string
+          created_at?: string
+          handout_id?: string
+          id?: string
+          slack_channel_id?: string
+          slack_ts?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_handout_notification_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_handout_notification_log_handout_id_fkey"
+            columns: ["handout_id"]
+            isOneToOne: false
+            referencedRelation: "handouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_notification_log: {
         Row: {
           company_id: string

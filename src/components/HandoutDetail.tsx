@@ -11,7 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
-import { createAdvisorNotification } from "@/lib/advisorNotifications";
+import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { notifyHandoutCompleted } from "@/lib/handoutNotify";
 
 interface HandoutDetailProps {
   config: HandoutConfig;
@@ -158,25 +159,16 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
     debounceSave(responses, checklist, next);
   };
 
-  // Calculate progress
-  const totalFields = config.sections.reduce((sum, s) => {
-    let count = s.questions.filter(q => q.type === "textarea").length;
-    if (s.checklist) count += s.checklist.length;
-    count += s.questions.filter(q => q.type === "numbered_list").reduce((a, q) => a + (q.count || 2), 0);
-    return sum + count;
-  }, 0) + config.leverCount;
-
-  const filledFields = Object.values(responses).filter(v => v.trim()).length
-    + Object.values(checklist).filter(v => v).length
-    + levers.filter(v => v.trim()).length;
-
-  const progress = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
+  // Calculate progress using shared helper
+  const progress = calcHandoutProgress(config, responses, checklist, levers);
   const isCompleted = handoutStatus === "completed";
 
   const toggleCompleted = async () => {
     if (!handoutId || !isOwner) return;
     const newStatus = isCompleted ? "in_progress" : "completed";
     const update: Record<string, any> = { status: newStatus };
+    // Always set a fresh completed_at so the UNIQUE(handout_id, completed_at)
+    // idempotency key works correctly on uncomplete → re-complete cycles.
     if (newStatus === "completed") update.completed_at = new Date().toISOString();
     else update.completed_at = null;
 
@@ -187,17 +179,9 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
       setHandoutStatus(newStatus);
       toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
 
-      // Create advisor notification when handout is completed
-      if (newStatus === "completed" && companyId && effectiveUserId) {
-        await createAdvisorNotification({
-          type: "handout_completed",
-          title: `Handout udfyldt: ${config.title}`,
-          body: `${companyName || "Medlem"} har udfyldt handout "${config.title}"`,
-          companyId,
-          memberId: effectiveUserId,
-          referenceId: handoutId || undefined,
-          referenceType: "handout",
-        });
+      // Server-side notification (Slack + advisor_notifications) — fire-and-forget
+      if (newStatus === "completed") {
+        notifyHandoutCompleted(handoutId);
       }
     }
   };
