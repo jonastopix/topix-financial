@@ -174,8 +174,27 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
         `Revenue flipped from ${value} to ${normalized}`, "HIGH");
     }
 
-    // Expenses: must be positive (safety net for all paths)
-    if (expenseFields.includes(dkField) && value < 0) {
+    // COGS: usually positive, but keep negative for deterministic contra-cost cases
+    if (dkField === "direkte_omkostninger" && value < 0) {
+      const revenueForCheck = typeof kf.omsaetning === "number" ? Math.abs(kf.omsaetning) : null;
+      const grossProfitForCheck = typeof kf.daekningsbidrag === "number" ? kf.daekningsbidrag : null;
+
+      const supportsContraCost =
+        isDeterministic &&
+        !isSaldobalance &&
+        revenueForCheck != null &&
+        grossProfitForCheck != null &&
+        Math.abs((revenueForCheck - value) - grossProfitForCheck) <= TOLERANCE;
+
+      if (!supportsContraCost) {
+        normalized = Math.abs(value);
+        correct(dkField, value, normalized, "expense_must_be_positive",
+          `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
+      }
+    }
+
+    // Other expenses: must be positive (safety net for all paths)
+    if (alwaysPositiveExpenseFields.includes(dkField) && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "expense_must_be_positive",
         `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
