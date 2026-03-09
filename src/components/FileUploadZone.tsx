@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
-import { createAdvisorNotification } from "@/lib/advisorNotifications";
+import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
 import * as pdfjsLib from "pdfjs-dist";
 import * as XLSX from "xlsx";
@@ -358,31 +358,28 @@ const FileUploadZone = ({
         updateFile(fileId, { extractedData });
         onExtracted?.(extractedData);
 
-        // Post activity: report uploaded (skip in admin mode)
+        // Post compact activity: report uploaded (skip in admin mode)
         if (!adminMode && conversationId && userId) {
           const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          await postActivityMessage({
+          const period = extractedData.report_period || "ukendt periode";
+          const messageId = await postActivityMessage({
             conversationId,
             senderId: userId,
-            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${extractedData.report_period}\n${extractedData.company_name} · CVR ${extractedData.cvr_number}`,
+            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${period}`,
             contextType: "report",
             contextId: reportRecord.id,
-            contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
+            contextMeta: {
+              title: `${reportLabel} · ${period}`,
+              report_id: reportRecord.id,
+              report_period: period,
+              file_path: storagePath,
+              file_name: file.name,
+            },
           });
-        }
-
-        // Create advisor notification (skip in admin mode)
-        if (!adminMode && userId && companyId) {
-          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          await createAdvisorNotification({
-            type: "report_uploaded",
-            title: `Ny ${reportLabel.toLowerCase()} fra ${extractedData.company_name || "medlem"}`,
-            body: `${reportLabel} for ${extractedData.report_period}`,
-            companyId,
-            memberId: userId,
-            referenceId: reportRecord.id,
-            referenceType: "report",
-          });
+          // Fire-and-forget: Slack + advisor notification (server-side)
+          if (messageId) {
+            notifyReportUpload(reportRecord.id, messageId);
+          }
         }
 
     // === STEP 3: AI Financial Analysis — GATE ===
@@ -521,51 +518,7 @@ const FileUploadZone = ({
           }
         }
 
-        // === STEP 5: Post compact report summary to chat (skip in admin mode) ===
-        if (!adminMode && conversationId && userId) {
-          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          const kf = extractedData.key_figures || {};
-          const fmt = (v: number | undefined) => v != null ? new Intl.NumberFormat("da-DK").format(Math.round(v)) + " kr." : "–";
-
-          const lines: string[] = [];
-          lines.push(`📊 ${reportLabel} · ${extractedData.report_period}`);
-          lines.push(`Omsætning: ${fmt(kf.omsaetning)} | Udgifter: ${fmt(kf.samlede_omkostninger)} | Resultat: ${fmt(kf.resultat_foer_skat)}`);
-
-          // Add top key findings (titles only, max 3)
-          if (analysis && !analysis.error && analysis.key_findings?.length > 0) {
-            const findingTitles = analysis.key_findings.slice(0, 3).map((f: any) => {
-              const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-              return `${icon} ${f.title}`;
-            });
-            lines.push(findingTitles.join(" · "));
-          }
-
-          // Build context_meta with key figures and file_path for the chat card
-          const storagePath = reportRecord.file_path || null;
-          const contextMeta: Record<string, unknown> = {
-            title: `${reportLabel} · ${extractedData.report_period}`,
-            file_path: storagePath,
-            key_figures: {
-              omsaetning: kf.omsaetning,
-              samlede_omkostninger: kf.samlede_omkostninger,
-              resultat_foer_skat: kf.resultat_foer_skat,
-              bruttofortjeneste: kf.bruttofortjeneste,
-            },
-            key_findings: analysis?.key_findings?.slice(0, 3)?.map((f: any) => ({
-              title: f.title,
-              severity: f.severity,
-            })) || [],
-          };
-
-          await postActivityMessage({
-            conversationId,
-            senderId: userId,
-            content: lines.join("\n"),
-            contextType: "report",
-            contextId: reportRecord.id,
-            contextMeta,
-          });
-        }
+        // AI analysis is saved to DB only — NOT posted to chat
 
         // === DONE ===
         updateFile(fileId, { status: "done", milestonesCreated });
@@ -736,17 +689,27 @@ const FileUploadZone = ({
       updateFile(pendingFileId, { extractedData });
       onExtracted?.(extractedData);
 
-      // Post activity (skip in admin mode)
+      // Post compact activity (skip in admin mode)
       if (!adminMode && conversationId && userId) {
         const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-        await postActivityMessage({
+        const period = extractedData.report_period || "ukendt periode";
+        const messageId = await postActivityMessage({
           conversationId,
           senderId: userId,
-          content: `📄 Rapport overskrevet: **${reportLabel}** for ${extractedData.report_period}\n${extractedData.company_name} · CVR ${extractedData.cvr_number}`,
+          content: `📄 Rapport overskrevet: **${reportLabel}** for ${period}`,
           contextType: "report",
           contextId: reportRecord.id,
-          contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
+          contextMeta: {
+            title: `${reportLabel} · ${period}`,
+            report_id: reportRecord.id,
+            report_period: period,
+            file_path: overwriteStoragePath,
+            file_name: pendingFile.name,
+          },
         });
+        if (messageId) {
+          notifyReportUpload(reportRecord.id, messageId);
+        }
       }
 
       updateFile(pendingFileId, { status: "done" });

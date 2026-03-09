@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -13,8 +13,18 @@ import {
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
+
+/** Smart date separator label: "I dag", "I går", or "9. marts 2026" */
+function dateSeparatorLabel(date: Date): string {
+  const today = startOfDay(new Date());
+  const d = startOfDay(date);
+  const diff = today.getTime() - d.getTime();
+  if (diff === 0) return "I dag";
+  if (diff === 86400000) return "I går";
+  return format(d, "d. MMMM yyyy", { locale: da });
+}
 
 interface Message {
   id: string;
@@ -87,6 +97,7 @@ const Chat = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
@@ -949,30 +960,120 @@ const Chat = () => {
                       )}
                     </div>
                   )}
-                  {filteredMessages.map((msg) => {
+                  {filteredMessages.map((msg, idx) => {
                     const isMine = msg.sender_id === user?.id;
                     const isSystem = msg.message_type === "system" || msg.message_type === "ai";
                     const contextType = msg.context_type;
                     const contextMeta = msg.context_meta;
                     const topicInfo = contextType ? TOPIC_COLORS[contextType] : null;
 
+                    // Date separator logic
+                    const msgDate = new Date(msg.created_at);
+                    const prevMsg = idx > 0 ? filteredMessages[idx - 1] : null;
+                    const prevDate = prevMsg ? new Date(prevMsg.created_at) : null;
+                    const showDateSep = !prevDate || startOfDay(msgDate).getTime() !== startOfDay(prevDate).getTime();
+                    const dateSep = showDateSep ? (
+                      <div key={`sep-${msg.id}`} className="flex items-center gap-3 py-2">
+                        <div className="flex-1 border-t border-border/40" />
+                        <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">
+                          {dateSeparatorLabel(msgDate)}
+                        </span>
+                        <div className="flex-1 border-t border-border/40" />
+                      </div>
+                    ) : null;
+
                     if (isSystem) {
                       // ── Compact Report Card ──
                       if (contextType === "report" && contextMeta) {
-                        const kf = contextMeta.key_figures as Record<string, number | undefined> | undefined;
-                        const findings = (contextMeta.key_findings as { title: string; severity: string }[] | undefined) || [];
                         const filePath = contextMeta.file_path as string | undefined;
+                        const metaReportId = (contextMeta.report_id as string | undefined) || msg.context_id;
+                        const fileName = contextMeta.file_name as string | undefined;
                         const reportId = msg.context_id;
                         const isUnreviewed = reportId ? unreviewedReportIds.includes(reportId) : false;
-                        const fmtKr = (v: number | undefined) => v != null ? new Intl.NumberFormat("da-DK").format(Math.round(v)) + " kr." : "–";
 
                         return (
+                          <React.Fragment key={msg.id}>
+                            {dateSep}
+                            <div
+                              ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
+                              className="flex justify-center group/msg transition-all duration-300"
+                            >
+                              <div className={`w-full max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}>
+                                <button
+                                  onClick={() => togglePin(msg)}
+                                  className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
+                                    msg.pinned_at
+                                      ? "text-primary opacity-100 hover:text-destructive"
+                                      : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                  }`}
+                                  title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                                >
+                                  <Pin className="h-3.5 w-3.5" />
+                                </button>
+
+                                {/* Header */}
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                                    <BarChart3 className="h-4 w-4 text-primary" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-foreground truncate">
+                                      {contextMeta.title ? String(contextMeta.title) : "Ny rapport uploadet"}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                      {fileName && <span className="truncate max-w-[200px]">{fileName}</span>}
+                                      <span>{format(new Date(msg.created_at), "HH:mm", { locale: da })}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Action buttons */}
+                                <div className="flex items-center gap-2 pt-1.5 border-t border-border/30">
+                                  {filePath && (
+                                    <button
+                                      onClick={() => openReportFile(filePath)}
+                                      className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      Se original fil
+                                    </button>
+                                  )}
+                                  {metaReportId && (
+                                    <button
+                                      onClick={() => navigate(`/reports?reportId=${metaReportId}`)}
+                                      className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
+                                    >
+                                      <FileText className="h-3 w-3" />
+                                      Se rapport
+                                    </button>
+                                  )}
+                                  {isAdvisor && isUnreviewed && reportId && activeConvId && (
+                                    <button
+                                      onClick={(e) => handleMarkSingleReportRead(activeConvId, [reportId], e)}
+                                      className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      Markér som læst
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        );
+                      }
+
+                      // ── Generic system message ──
+                      return (
+                        <React.Fragment key={msg.id}>
+                          {dateSep}
                           <div
-                            key={msg.id}
                             ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                             className="flex justify-center group/msg transition-all duration-300"
                           >
-                            <div className={`w-full max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}>
+                            <div
+                              className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
+                            >
                               <button
                                 onClick={() => togglePin(msg)}
                                 className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
@@ -984,128 +1085,32 @@ const Chat = () => {
                               >
                                 <Pin className="h-3.5 w-3.5" />
                               </button>
-
-                              {/* Header */}
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                  <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-foreground truncate">
-                                    {contextMeta.title ? String(contextMeta.title) : "Rapport"}
-                                  </p>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Key figures grid */}
-                              {kf && Object.values(kf).some(v => v != null) ? (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                                  {[
-                                    { label: "Omsætning", value: kf.omsaetning },
-                                    { label: "Udgifter", value: kf.samlede_omkostninger },
-                                    { label: "Resultat", value: kf.resultat_foer_skat },
-                                    { label: "Bruttofort.", value: kf.bruttofortjeneste },
-                                  ].filter(item => item.value != null).map((item) => (
-                                    <div key={item.label} className="rounded-lg bg-secondary/60 px-2.5 py-1.5">
-                                      <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{item.label}</p>
-                                      <p className="text-xs font-semibold text-foreground">{fmtKr(item.value)}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                /* Fallback: show message content for legacy messages */
-                                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap mb-3">{msg.content}</p>
-                              )}
-
-                              {/* Key findings as chips */}
-                              {findings.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mb-3">
-                                  {findings.map((f, i) => {
-                                    const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-                                    return (
-                                      <span key={i} className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-secondary text-foreground/80">
-                                        {icon} {f.title}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
-
-                              {/* Action buttons */}
-                              <div className="flex items-center gap-2 pt-1 border-t border-border/30">
-                                {filePath && (
-                                  <button
-                                    onClick={() => openReportFile(filePath)}
-                                    className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    Se original fil
-                                  </button>
-                                )}
-                                {isAdvisor && isUnreviewed && reportId && activeConvId && (
-                                  <button
-                                    onClick={(e) => handleMarkSingleReportRead(activeConvId, [reportId], e)}
-                                    className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                    Markér som læst
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      // ── Generic system message ──
-                      return (
-                        <div
-                          key={msg.id}
-                          ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                          className="flex justify-center group/msg transition-all duration-300"
-                        >
-                          <div
-                            className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
-                          >
-                            <button
-                              onClick={() => togglePin(msg)}
-                              className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
-                                msg.pinned_at
-                                  ? "text-primary opacity-100 hover:text-destructive"
-                                  : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                              }`}
-                              title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
-                            >
-                              <Pin className="h-3.5 w-3.5" />
-                            </button>
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <Sparkles className="h-3.5 w-3.5 text-primary" />
-                              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                                {msg.message_type === "ai" ? "AI Analyse" : "System"}
-                              </span>
-                              {topicInfo && (
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
-                                  <topicInfo.icon className="h-2.5 w-2.5" />
-                                  {topicInfo.label}
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                                  {msg.message_type === "ai" ? "AI Analyse" : "System"}
                                 </span>
-                              )}
-                              <span className="text-[10px] text-muted-foreground">
-                                {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
-                              </span>
-                            </div>
-                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                            {contextType && contextMeta?.title && (
-                              <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
-                                {contextType === "report" && <FileText className="h-3 w-3" />}
-                                {contextType === "milestone" && <Target className="h-3 w-3" />}
-                                {String(contextMeta.title)}
+                                {topicInfo && (
+                                  <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
+                                    <topicInfo.icon className="h-2.5 w-2.5" />
+                                    {topicInfo.label}
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-muted-foreground">
+                                  {format(new Date(msg.created_at), "HH:mm", { locale: da })}
+                                </span>
                               </div>
-                            )}
+                              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                              {contextType && contextMeta?.title && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
+                                  {contextType === "report" && <FileText className="h-3 w-3" />}
+                                  {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                  {String(contextMeta.title)}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        </React.Fragment>
                       );
                     }
 
@@ -1114,8 +1119,9 @@ const Chat = () => {
                     const senderAvatar = senderProfile?.avatar_url;
 
                     return (
+                      <React.Fragment key={msg.id}>
+                        {dateSep}
                       <div
-                        key={msg.id}
                         ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                         className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                       >
@@ -1199,6 +1205,7 @@ const Chat = () => {
                           </div>
                         )}
                       </div>
+                      </React.Fragment>
                     );
                   })}
                   <div ref={messagesEndRef} />

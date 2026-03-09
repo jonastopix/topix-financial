@@ -12,6 +12,7 @@ interface PostActivityOptions {
 /**
  * Posts a system activity message to the member's chat conversation.
  * Used for automated notifications like report uploads, milestone completions, etc.
+ * Returns the inserted message id, or null on failure.
  */
 export async function postActivityMessage({
   conversationId,
@@ -20,9 +21,9 @@ export async function postActivityMessage({
   contextType = null,
   contextId = null,
   contextMeta = null,
-}: PostActivityOptions): Promise<boolean> {
+}: PostActivityOptions): Promise<string | null> {
   try {
-    const { error } = await supabase.from("messages").insert({
+    const { data, error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: senderId,
       content,
@@ -30,15 +31,15 @@ export async function postActivityMessage({
       context_type: contextType,
       context_id: contextId,
       context_meta: contextMeta,
-    } as any);
+    } as any).select("id").single();
 
     if (error) {
       console.error("Failed to post activity message:", error);
-      return false;
+      return null;
     }
-    return true;
+    return data?.id ?? null;
   } catch (err) {
     console.error("Failed to post activity message:", err);
-    return false;
+    return null;
   }
 }

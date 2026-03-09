@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,6 +89,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 
 const Reports = () => {
   const { user, companyId, isAdvisor, isAdmin } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
@@ -163,7 +165,27 @@ const Reports = () => {
     loadData();
   }, [loadData, refreshKey]);
 
-  // Group reports by month key, taking best report per month
+  // Deep link: auto-expand report from ?reportId= query param
+  const reportCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  useEffect(() => {
+    const reportId = searchParams.get("reportId");
+    if (reportId && dbReports.length > 0) {
+      const exists = dbReports.find(r => r.id === reportId);
+      if (exists) {
+        setExpandedReport(reportId);
+        setTimeout(() => {
+          const el = reportCardRefs.current.get(reportId);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-primary/40");
+            setTimeout(() => el.classList.remove("ring-2", "ring-primary/40"), 3000);
+          }
+        }, 300);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [searchParams, dbReports]);
+
   const reportsByMonth = useMemo(() => {
     const map: Record<string, DbReport> = {};
     // Sort ascending so later (better) reports overwrite
@@ -623,7 +645,7 @@ const Reports = () => {
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (
-              <div key={report.id} className="glass-card rounded-xl animate-fade-in overflow-hidden">
+              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className="glass-card rounded-xl animate-fade-in overflow-hidden transition-all duration-300">
                 <button
                   onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                   className="w-full p-5 text-left hover:bg-secondary/30 transition-colors"

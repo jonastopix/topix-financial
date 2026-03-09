@@ -25,6 +25,8 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.send-slack-chat-notification]
     verify_jwt = false
+  [functions.send-slack-report-notification]
+    verify_jwt = false
   [functions.send-report-reminder]
     verify_jwt = false
   [functions.send-template-email]
