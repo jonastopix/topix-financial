@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
-import { tryDeterministicExtraction, tryDeterministicPdfExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
+import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,6 +121,7 @@ serve(async (req) => {
     
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
     const isPdfFile = fileName && fileName.toLowerCase().endsWith('.pdf');
+    const isCsvFile = fileName && fileName.toLowerCase().endsWith('.csv');
 
     let extractedData: any = null;
     let rawAiOutput: any = null;
@@ -130,6 +131,7 @@ serve(async (req) => {
       file_name: fileName || null,
       is_excel_file: !!isExcelFile,
       is_pdf_file: !!isPdfFile,
+      is_csv_file: !!isCsvFile,
       excel_base64_length: excelBase64?.length ?? 0,
       file_content_length: fileContent?.length ?? 0,
       deterministic_attempted: false,
@@ -148,6 +150,10 @@ serve(async (req) => {
       routingTrace.deterministic_attempted = true;
       console.log("[Routing] Attempting deterministic PDF extraction...");
       detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+    } else if (isCsvFile && fileContent) {
+      routingTrace.deterministic_attempted = true;
+      console.log("[Routing] Attempting deterministic CSV extraction...");
+      detResult = tryDeterministicCsvExtraction(fileContent, fileName);
     }
 
     if (detResult) {

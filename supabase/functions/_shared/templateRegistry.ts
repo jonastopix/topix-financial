@@ -101,12 +101,14 @@ import { dkCombinedBalancePnlV1 } from "./templates/dkCombinedBalancePnlV1.ts";
 import { dkEconomicSaldobalancePdfV1 } from "./templates/dkEconomicSaldobalancePdfV1.ts";
 import { dkEconomicResultatopgoerelsePdfV1 } from "./templates/dkEconomicResultatopgoerelsePdfV1.ts";
 import { dkEconomicResultatopgoerelseXlsxV1 } from "./templates/dkEconomicResultatopgoerelseXlsxV1.ts";
+import { dkDineroResultatopgoerelseCsvV1 } from "./templates/dkDineroResultatopgoerelseCsvV1.ts";
 
 const TEMPLATE_REGISTRY: TemplateEntry[] = [
   dkCombinedBalancePnlV1,
   dkEconomicSaldobalancePdfV1,
   dkEconomicResultatopgoerelsePdfV1,
   dkEconomicResultatopgoerelseXlsxV1,
+  dkDineroResultatopgoerelseCsvV1,
 ];
 
 // ── Detection with Ambiguity Rule ──
@@ -196,6 +198,28 @@ export function tryDeterministicPdfExtraction(
     sheetNames: [],
     headerRows: [],
     rawText: textContent,
+  };
+
+  return runDetectionAndExtraction(ctx, []);
+}
+
+// ── CSV Extraction (Phase 5) ──
+
+export function tryDeterministicCsvExtraction(
+  csvText: string,
+  fileName: string
+): DeterministicExtractionResult {
+  if (!csvText || csvText.length < 20) {
+    console.log("[Registry] CSV text too short for deterministic extraction");
+    return { type: "no_match" };
+  }
+
+  const ctx: DetectionContext = {
+    fileName,
+    fileType: "csv",
+    sheetNames: [],
+    headerRows: [],
+    rawText: csvText,
   };
 
   return runDetectionAndExtraction(ctx, []);
