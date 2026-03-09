@@ -230,16 +230,24 @@ function detectSignConvention(classified: ClassifiedLine[]): SignConvention {
     return "UNKNOWN";
   }
 
-  const revNeg = revenueAnchors.every(l => l.rawAmount < 0);
-  const revPos = revenueAnchors.every(l => l.rawAmount > 0);
-  const costPos = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount > 0);
-  const costNeg = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount < 0);
+  // Use majority-based detection: allow contra-entries (e.g. negative "Feriepenge")
+  const revNegCount = revenueAnchors.filter(l => l.rawAmount < 0).length;
+  const revPosCount = revenueAnchors.filter(l => l.rawAmount > 0).length;
+  const costPosCount = costAnchors.filter(l => l.rawAmount > 0).length;
+  const costNegCount = costAnchors.filter(l => l.rawAmount < 0).length;
 
-  if (revNeg && costPos) {
+  const revMajNeg = revNegCount > revPosCount;
+  const revMajPos = revPosCount > revNegCount;
+  const costMajPos = costAnchors.length === 0 || costPosCount > costNegCount;
+  const costMajNeg = costAnchors.length === 0 || costNegCount > costPosCount;
+
+  console.log(`[DineroPDF] Sign anchors: rev(neg=${revNegCount},pos=${revPosCount}), cost(pos=${costPosCount},neg=${costNegCount})`);
+
+  if (revMajNeg && costMajPos) {
     console.log("[DineroPDF] Sign convention: CREDIT (revenue<0, cost>0)");
     return "CREDIT";
   }
-  if (revPos && costNeg) {
+  if (revMajPos && costMajNeg) {
     console.log("[DineroPDF] Sign convention: BUSINESS (revenue>0, cost<0)");
     return "BUSINESS";
   }
