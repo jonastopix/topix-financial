@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Note: XLSX parsing temporarily disabled - will be enabled when compatible Deno library is available
 // import * as XLSX from "https://esm.sh/xlsx@0.20.3";
 import { parseFinancialReport, type ParsedFinancialReport } from "../_shared/financialParser.ts";
+import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
