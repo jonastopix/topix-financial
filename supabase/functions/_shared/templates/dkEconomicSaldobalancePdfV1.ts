@@ -28,6 +28,52 @@ import {
 
 // ── Label-first Lookup Helpers ──
 
+/**
+ * Normalize a label for comparison: lowercase, collapse whitespace, trim.
+ */
+function normLabel(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Prioritized label match for main totals.
+ * Prefers exact normalized match over substring/contains match.
+ * This prevents "Anlægsaktiver i alt" from stealing "aktiver i alt".
+ */
+function findBestLabel(
+  lines: PdfParsedLine[],
+  pattern: RegExp,
+  section?: PdfSection,
+  exactTarget?: string
+): PdfParsedLine | null {
+  const candidates = lines.filter(
+    (l) =>
+      pattern.test(l.name) &&
+      l.is_subtotal &&
+      (section === undefined || l.section === section)
+  );
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  // If an exact target is given, prefer exact normalized match
+  if (exactTarget) {
+    const target = normLabel(exactTarget);
+    const exact = candidates.find((c) => normLabel(c.name) === target);
+    if (exact) return exact;
+  }
+
+  // Fallback: prefer the shortest name that matches (most specific total)
+  // "AKTIVER I ALT" (14 chars) < "Anlægsaktiver i alt" (19 chars)?
+  // Actually we want the BROADEST total, which tends to be the standalone label.
+  // Standalone totals from the parser have no account_no and their name IS the total.
+  // Prefer: no account_no + name matches pattern more tightly (fewer extra words).
+  // Heuristic: sort by name length ascending — the shortest match is the main total.
+  const sorted = [...candidates].sort(
+    (a, b) => normLabel(a.name).length - normLabel(b.name).length
+  );
+  return sorted[0];
+}
+
 function findByLabel(
   lines: PdfParsedLine[],
   pattern: RegExp,
