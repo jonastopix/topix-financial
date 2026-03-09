@@ -1059,6 +1059,36 @@ export type Database = {
           },
         ]
       }
+      slack_report_notification_log: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          message_id: string
+          report_id: string
+          slack_channel_id: string
+          slack_ts: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          message_id: string
+          report_id: string
+          slack_channel_id: string
+          slack_ts?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          report_id?: string
+          slack_channel_id?: string
+          slack_ts?: string | null
+        }
+        Relationships: []
+      }
       user_login_log: {
         Row: {
           id: string
