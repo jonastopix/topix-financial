@@ -570,34 +570,13 @@ Deno.test("Phase4b — 12. PDF e-conomic combined detection ambiguity check", ()
     "-273.435,99  -508.773,03",
     "https://secure.e-conomic.com/reports/statements/period-total",
   ].join("\n");
-  console.log(`\n══ 12. PDF AMBIGUITY CHECK ══`);
 
-  // Full e-conomic combined report text — should score 100 on Template A
   const ctx: DetectionContext = {
     fileName: "25.04_Saldobalance.pdf",
     fileType: "pdf",
     sheetNames: [],
     headerRows: [],
-    rawText: `
-22.05.2025, 11.33                            1796416 - Topix.dk ApS - CVR 45281736
-Saldobalance for perioden 01.04.25 - 30.04.25
-RESULTATOPGØRELSE
-| Nr.  | Navn                               | Perioden    | År til dato |
-| 1010 | Salg af varer/ydelser m/moms       | -226.398,43 | -255.279,28 |
-|      | Omsætning i alt                    | -226.398,43 | -255.279,28 |
-|      | Dækningsbidrag                     | -226.084,74 | -254.549,51 |
-|      | Resultat før skat                  | -174.903,83 | 93.213,69   |
-|      | RESULTAT EFTER SKAT                | -174.903,83 | 93.213,69   |
-AKTIVER
-| 5820 | Bankkonto                          | 237.827,22  | 307.777,76  |
-AKTIVER I ALT
-| | 273.435,99 | | 508.773,03 |
-PASSIVER
-|      | EGENKAPITAL I ALT                  | -174.903,83 | 53.213,69   |
-PASSIVER I ALT
-| | -273.435,99 | | -508.773,03 |
-https://secure.e-conomic.com/reports/statements/period-total
-    `.trim(),
+    rawText: testText,
   };
 
   const match = detectTemplate(ctx);
