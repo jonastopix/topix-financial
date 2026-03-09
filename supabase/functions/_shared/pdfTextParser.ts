@@ -103,8 +103,8 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       cvrNumber = companyMatch[2];
       continue;
     }
-    // Pattern 2: "SnowWaves ApS (CVR-nr. 39850850)"
-    const companyMatch2 = line.match(/^(.+?)\s*\(CVR[\s\-.:nNrR]*\s*(\d{8})\)/i);
+    // Pattern 2: "SnowWaves ApS (CVR-nr. 39850850)" — strip timestamp prefix if present
+    const companyMatch2 = line.match(/(?:^|\s{2,})([A-ZÆØÅa-zæøå][\w\s&.]+(?:ApS|A\/S|I\/S|IVS|K\/S|P\/S|Holding|Group|Invest))\s*\(CVR[\s\-.:nNrR]*\s*(\d{8})\)/i);
     if (companyMatch2 && !companyName) {
       companyName = companyMatch2[1].trim();
       cvrNumber = companyMatch2[2];
