@@ -570,6 +570,15 @@ export function buildCanonicalOutput(
     details: c.details || "",
   }));
 
+  // Add parser_status as first AI check if present (deterministic path)
+  if (extractedData?.validation?.parser_status) {
+    aiChecks.unshift({
+      name: "deterministic_parser_status",
+      result: extractedData.validation.parser_status === "PASS" ? "PASS" : "FAIL",
+      details: `Parser reported: ${extractedData.validation.parser_status}`,
+    });
+  }
+
   // Extended validation (12 checks)
   const { status, canonical_checks, errors } = runExtendedValidation(
     extractedData, metrics, periodBasis, statementType, aiChecks
@@ -578,14 +587,17 @@ export function buildCanonicalOutput(
   // AI eligibility
   const aiEligible = computeAiEligible(metrics, status, statementType, periodBasis);
 
+  // Extract deterministic metadata if present
+  const deterministicMeta = extractedData?._deterministic_meta || null;
+
   // Build output (without payload yet)
   const output: CanonicalOutput = {
-    template_id: null,
+    template_id: deterministicMeta?.template_id || null,
     statement_type: statementType,
     company_name: extractedData?.company_name || null,
     cvr: extractedData?.cvr_number || null,
-    period_start: null,
-    period_end: null,
+    period_start: extractedData?.period_start || null,
+    period_end: extractedData?.period_end || null,
     report_period_label: extractedData?.report_period || null,
     extraction_method: extractionMethod,
     raw_lines: rawLines,
@@ -602,6 +614,7 @@ export function buildCanonicalOutput(
     },
     ai_eligible: aiEligible,
     ai_eligible_payload: null, // Set below
+    deterministic_meta: deterministicMeta,
   };
 
   output.ai_eligible_payload = buildAiEligiblePayload(output);
