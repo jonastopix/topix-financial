@@ -184,20 +184,23 @@ serve(async (req) => {
     let parsedReport: ParsedFinancialReport | null = null;
     let extractionMethod = "ai"; // Default til AI-based extraction
 
+    // TODO: Enable Excel parsing when XLSX library is compatible with Deno Deploy
+    // For now, all extraction uses AI-based method
+    
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
     
-    if (isExcelFile && excelBase64) {
+    if (isExcelFile && false) { // Temporarily disabled
+      console.log("[Parser] Excel parsing temporarily disabled - using AI extraction");
+      /* 
       try {
         console.log("[Parser] Attempting deterministic Excel parsing...");
         
-        // Decode base64 to binary
         const binaryString = atob(excelBase64);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // Parse with SheetJS
         const workbook = XLSX.read(bytes, { type: "array" });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
@@ -205,7 +208,6 @@ serve(async (req) => {
 
         console.log(`[Parser] Parsed ${rows.length} rows from sheet "${firstSheetName}"`);
 
-        // Run parser
         parsedReport = parseFinancialReport(rows);
 
         console.log(`[Parser] Template: ${parsedReport.template_id}, Validation: ${parsedReport.validation.validation_status}`);
@@ -215,14 +217,15 @@ serve(async (req) => {
           console.log("[Parser] ✓ Deterministic parsing successful - using normalized data");
         } else {
           console.log("[Parser] ⚠ Parser validation failed or template not recognized - falling back to AI");
-          parsedReport = null; // Discard and fallback to AI
+          parsedReport = null;
         }
       } catch (error) {
         console.error("[Parser] Excel parsing error:", error);
-        parsedReport = null; // Fallback to AI
+        parsedReport = null;
       }
+      */
     } else {
-      console.log("[Parser] Not an Excel file or no excelBase64 provided - using AI extraction");
+      console.log("[Parser] Using AI extraction method");
     }
 
     // ═══ BUILD AI PROMPT (adapts based on extraction method) ═══
