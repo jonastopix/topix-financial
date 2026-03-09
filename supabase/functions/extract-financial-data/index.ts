@@ -26,8 +26,20 @@ const DANISH_MONTH_NAMES: Record<string, string> = {
 };
 
 function extractPeriodFromText(text: string): string | null {
+  // Strip "Hentet:" lines to prevent fetch timestamps from matching
+  const cleanedText = text.replace(/^Hentet:.*$/gm, "");
+
+  // Pattern 0 (highest priority): "Saldobalance pr.: 31/01-2026" or "Saldobalance pr. 31.01.26"
+  const prMatch = cleanedText.match(/Saldobalance\s+pr\.?:?\s*\d{2}[.\/\-](\d{2})[.\/\-](\d{2,4})/i);
+  if (prMatch) {
+    let endYear = prMatch[2];
+    if (endYear.length === 2) endYear = (parseInt(endYear) >= 50 ? "19" : "20") + endYear;
+    const monthName = DANISH_MONTHS[prMatch[1]];
+    if (monthName) return `${monthName} ${endYear}`;
+  }
+
   // Pattern 1: "01.10.25 - 31.10.25" or "01-12-2025 til 31-12-2025" or "01/10/2025 - 31/10/2025"
-  const dateRange = text.match(/(\d{2})[.\/-](\d{2})[.\/-](\d{2,4})\s*(?:[-–]|til)\s*\d{2}[.\/-](\d{2})[.\/-](\d{2,4})/);
+  const dateRange = cleanedText.match(/(\d{2})[.\/-](\d{2})[.\/-](\d{2,4})\s*(?:[-–]|til)\s*\d{2}[.\/-](\d{2})[.\/-](\d{2,4})/);
   if (dateRange) {
     const endMonth = dateRange[4];
     let endYear = dateRange[5];
@@ -39,7 +51,7 @@ function extractPeriodFromText(text: string): string | null {
   }
 
   // Pattern 2: "Oktober 2025", "Okt 2025"
-  const namedMonth = text.match(/\b(januar|februar|marts|april|maj|juni|juli|august|september|oktober|november|december|jan|feb|mar|apr|jun|jul|aug|sep|okt|nov|dec)\s+(\d{4})\b/i);
+  const namedMonth = cleanedText.match(/\b(januar|februar|marts|april|maj|juni|juli|august|september|oktober|november|december|jan|feb|mar|apr|jun|jul|aug|sep|okt|nov|dec)\s+(\d{4})\b/i);
   if (namedMonth) {
     const monthNum = DANISH_MONTH_NAMES[namedMonth[1].toLowerCase()];
     if (monthNum) {
@@ -49,7 +61,7 @@ function extractPeriodFromText(text: string): string | null {
   }
 
   // Pattern 3: "10/2025" or "10-2025"
-  const shortDate = text.match(/\b(\d{2})[\/\-](\d{4})\b/);
+  const shortDate = cleanedText.match(/\b(\d{2})[\/\-](\d{4})\b/);
   if (shortDate) {
     const monthName = DANISH_MONTHS[shortDate[1]];
     if (monthName) return `${monthName} ${shortDate[2]}`;
