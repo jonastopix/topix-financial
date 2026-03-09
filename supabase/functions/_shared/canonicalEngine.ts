@@ -561,11 +561,20 @@ export function runExtendedValidation(
 
   // 11. impossible_margin_check
   if (metrics.gross_margin_pct != null) {
-    if (metrics.gross_margin_pct > 100 || metrics.gross_margin_pct < -100) {
+    const hasContraCogs = metrics.cogs != null && metrics.cogs < 0 && metrics.revenue != null && metrics.revenue > 0;
+    const outsideStandardRange = metrics.gross_margin_pct > 100 || metrics.gross_margin_pct < -100;
+
+    if (outsideStandardRange && !hasContraCogs) {
       checks.push({ name: "impossible_margin_check", result: "FAIL", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}% outside ±100%` });
       errors.push(`Impossible gross margin: ${metrics.gross_margin_pct.toFixed(1)}%`);
     } else {
-      checks.push({ name: "impossible_margin_check", result: "PASS", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}%` });
+      checks.push({
+        name: "impossible_margin_check",
+        result: "PASS",
+        details: hasContraCogs
+          ? `Gross margin ${metrics.gross_margin_pct.toFixed(1)}% allowed due to negative COGS (contra-cost)`
+          : `Gross margin ${metrics.gross_margin_pct.toFixed(1)}%`,
+      });
     }
   } else {
     checks.push({ name: "impossible_margin_check", result: "SKIP", details: "No gross margin data" });
