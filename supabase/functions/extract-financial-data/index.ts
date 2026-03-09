@@ -165,10 +165,10 @@ serve(async (req) => {
       });
     }
 
-    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName } = await req.json();
+    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64 } = await req.json();
 
     // Debug logging for incoming content
-    console.log(`[extract-financial-data] fileContent length: ${fileContent?.length ?? 0}, pageImages: ${pageImages?.length ?? 0}`);
+    console.log(`[extract-financial-data] fileName: ${fileName}, fileContent length: ${fileContent?.length ?? 0}, pageImages: ${pageImages?.length ?? 0}, excelBase64: ${excelBase64?.length ?? 0}`);
     if (fileContent) {
       console.log(`[extract-financial-data] First 300 chars: ${fileContent.slice(0, 300)}`);
     }
@@ -178,6 +178,51 @@ serve(async (req) => {
 
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // ═══ LAG 0: DETERMINISTISK EXCEL PARSING (hvis relevant) ═══
+    let parsedReport: ParsedFinancialReport | null = null;
+    let extractionMethod = "ai"; // Default til AI-based extraction
+
+    const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
+    
+    if (isExcelFile && excelBase64) {
+      try {
+        console.log("[Parser] Attempting deterministic Excel parsing...");
+        
+        // Decode base64 to binary
+        const binaryString = atob(excelBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Parse with SheetJS
+        const workbook = XLSX.read(bytes, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: null });
+
+        console.log(`[Parser] Parsed ${rows.length} rows from sheet "${firstSheetName}"`);
+
+        // Run parser
+        parsedReport = parseFinancialReport(rows);
+
+        console.log(`[Parser] Template: ${parsedReport.template_id}, Validation: ${parsedReport.validation.validation_status}`);
+        
+        if (parsedReport.template_id !== "UNKNOWN" && parsedReport.validation.validation_status === "PASS") {
+          extractionMethod = "deterministic";
+          console.log("[Parser] ✓ Deterministic parsing successful - using normalized data");
+        } else {
+          console.log("[Parser] ⚠ Parser validation failed or template not recognized - falling back to AI");
+          parsedReport = null; // Discard and fallback to AI
+        }
+      } catch (error) {
+        console.error("[Parser] Excel parsing error:", error);
+        parsedReport = null; // Fallback to AI
+      }
+    } else {
+      console.log("[Parser] Not an Excel file or no excelBase64 provided - using AI extraction");
+    }
 
     // Build company name instruction for system prompt
     const companyNameInstruction = knownCompanyName
