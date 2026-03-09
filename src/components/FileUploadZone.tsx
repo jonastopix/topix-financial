@@ -303,13 +303,16 @@ const FileUploadZone = ({
           }
         }
 
-        // Fallback: AI-based extraction
+        // Fallback: AI-based extraction (also sends excelBase64 for server-side deterministic)
         if (!extractedData) {
           const extracted = await extractTextFromFile(file);
+          const ext2 = file.name.toLowerCase().split(".").pop();
+          const isExcel = ext2 === "xlsx" || ext2 === "xls";
+          const excelBase64 = isExcel ? await fileToBase64(file) : undefined;
 
           const { data: aiData, error: extractError } = await supabase.functions.invoke(
             "extract-financial-data",
-            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
+            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
           );
 
           // Handle duplicate (409)
@@ -326,6 +329,7 @@ const FileUploadZone = ({
                 pendingFile: file,
                 pendingFileContent: extracted.text,
                 pendingPageImages: extracted.pageImages,
+                pendingExcelBase64: excelBase64,
                 pendingReportId: "",
                 pendingFileId: fileId,
               });
