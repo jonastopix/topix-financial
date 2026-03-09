@@ -795,5 +795,19 @@ Deno.test("Phase4b — 13. Full real PDF E2E (25.04 Saldobalance)", () => {
   assertExists(m.assets_total, "Assets should be extracted");
   assertEquals(canonical.extraction_method, "deterministic_template");
 
+  // ── Critical: main total must NOT be a sub-total ──
+  // "Anlægsaktiver i alt" = 97045.78 (wrong), "AKTIVER I ALT" = 508773.03 (correct)
+  assertEquals(m.assets_total, 508773.03, "assets_total must be AKTIVER I ALT, not Anlægsaktiver i alt");
+  assertEquals(m.liabilities_total, 508773.03, "liabilities_total must be PASSIVER I ALT");
+  
+  // Balance equation: assets = liabilities (passiver)
+  if (m.assets_total != null && m.liabilities_total != null) {
+    const diff = Math.abs(m.assets_total - m.liabilities_total);
+    assertEquals(diff <= 2, true, `Balance equation failed: assets ${m.assets_total} vs liabilities ${m.liabilities_total}`);
+  }
+
+  // ai_eligible should be true for a valid combined report
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible");
+  assertEquals(canonical.validation.status, "PASS", "Validation should PASS");
+
   console.log(`\n✅ Test 13: Full real PDF E2E PASSED`);
-});
