@@ -260,6 +260,7 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
       likvider: cashLine?.ytd_amount ?? null, // Keep sign (overdraft possible)
       debitorer: debitorLine?.ytd_amount ?? null, // Keep sign
       varelager: inventoryLine?.ytd_amount ?? null,
+      gaeld_i_alt: absVal(gaeldLine?.ytd_amount ?? null),
     };
 
     // ═══════════════════════════════════════════════════════════════
