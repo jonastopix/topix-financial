@@ -185,60 +185,8 @@ serve(async (req) => {
         ? `\n\nVIGTIGT: Virksomhedens navn er "${knownCompanyName}". Brug dette navn i company_name feltet.`
         : "";
       
-      // Build AI prompt and call (existing logic follows)
-
-    // ═══ BUILD AI PROMPT (adapts based on extraction method) ═══
-    
-    let systemPrompt: string;
-    let userContent: any;
-    
-    if (parsedReport && extractionMethod === "deterministic") {
-      // Parser was successful - AI only needs to provide qualitative feedback
-      systemPrompt = `Du er en erfaren CFO/investor-rådgiver der analyserer validerede, normaliserede regnskabsdata.${companyNameInstruction}
-
-DIN ROLLE: Du modtager KUN færdigbehandlede, normaliserede nøgletal fra et regnskab. Du skal IKKE gætte på fortegn eller normalisering - det er allerede gjort.
-
-KRITISKE REGLER:
-- Du må ALDRIG gætte på fortegn eller normalisering
-- Hvis cash er negativ men equity er positiv: beskriv som "likviditetspres" eller "bankovertræk", IKKE "insolvens"
-- Du må ALDRIG konkludere "negativ egenkapital" medmindre equity_total < 0 i normalized data
-- Du må ALDRIG konkludere "teknisk konkurs" medmindre equity_ratio_pct < 0
-
-FORVENTET OUTPUT:
-1. Overblik (1-2 linjer om virksomhedens overordnede tilstand)
-2. Nøgletal (bullets med de vigtigste tal)
-3. Vurdering (2-3 linjer om styrker og udfordringer)
-4. 2-4 konkrete anbefalinger til ledelsen`;
-
-      // Send normalized metrics to AI
-      const metrics = parsedReport.metrics;
-      userContent = `Her er de validerede, normaliserede nøgletal for ${parsedReport.company_name || "virksomheden"}:
-
-**Periode:** ${parsedReport.period_start || "ukendt"} til ${parsedReport.period_end || "ukendt"}
-
-**Resultatopgørelse:**
-- Omsætning: ${metrics.revenue?.toFixed(2) || "N/A"} kr.
-- Vareforbrug: ${metrics.cogs?.toFixed(2) || "N/A"} kr.
-- Dækningsbidrag: ${metrics.gross_profit?.toFixed(2) || "N/A"} kr. (${metrics.gross_margin_pct?.toFixed(1) || "N/A"}%)
-- Lønninger: ${metrics.payroll?.toFixed(2) || "N/A"} kr.
-- EBITDA: ${metrics.ebitda?.toFixed(2) || "N/A"} kr.
-- EBIT: ${metrics.ebit?.toFixed(2) || "N/A"} kr.
-- Resultat før skat: ${metrics.ebt?.toFixed(2) || "N/A"} kr. (${metrics.ebt_margin_pct?.toFixed(1) || "N/A"}%)
-
-**Balance:**
-- Aktiver i alt: ${metrics.assets_total?.toFixed(2) || "N/A"} kr.
-- Egenkapital: ${metrics.equity_total?.toFixed(2) || "N/A"} kr. (${metrics.equity_ratio_pct?.toFixed(1) || "N/A"}%)
-- Likvider/Bank: ${metrics.cash?.toFixed(2) || "N/A"} kr. ${metrics.cash && metrics.cash < 0 ? "⚠️ Bankovertræk" : ""}
-- Debitorer: ${metrics.trade_receivables?.toFixed(2) || "N/A"} kr.
-- Varelager: ${metrics.inventory?.toFixed(2) || "N/A"} kr.
-- Gæld i alt: ${metrics.debt_total?.toFixed(2) || "N/A"} kr.
-
-Giv din CFO-vurdering og anbefalinger baseret på disse tal.`;
-
-      console.log("[AI] Using deterministic parser metrics for AI feedback");
-    } else {
-      // Fallback til eksisterende AI-based extraction
-      systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
+      // Build AI prompt for extraction
+      const systemPrompt = `Du er en erfaren CFO der læser danske finansielle rapporter fra bogføringssystemer som e-conomic, Dinero, Billy osv.${companyNameInstruction}
 
 DIN ROLLE: Du aflæser tal PRÆCIST som de fremgår af dokumentet og normaliserer dem til en standardiseret format. Du opfinder ALDRIG tal.
 
