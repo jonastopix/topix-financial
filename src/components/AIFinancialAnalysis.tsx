@@ -15,6 +15,7 @@ import {
   Calendar,
   BarChart3,
   ShieldAlert,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { postActivityMessage } from "@/lib/chatActivity";
