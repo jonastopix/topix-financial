@@ -121,34 +121,50 @@ type SignConvention = "business" | "credit" | "unknown";
 
 /**
  * Infer sign convention from anchor lines:
- *   BUSINESS: revenue > 0, costs < 0
- *   CREDIT:   revenue < 0, costs > 0
+ *   BUSINESS: revenue > 0, individual cost lines < 0
+ *   CREDIT:   revenue < 0, individual cost lines > 0
  *   UNKNOWN:  ambiguous or missing anchors
+ *
+ * Strategy:
+ *   1. Revenue anchor: "omsætning i alt" subtotal (reliable — always a subtotal)
+ *   2. Cost anchor: individual lines (with accountNo) that appear AFTER "omsætning i alt"
+ *      Reason: some files present cost subtotals as absolute (positive) even in business convention,
+ *      but individual cost lines consistently show the raw sign.
  */
 function detectSignConvention(parsedRows: ParsedRow[]): SignConvention {
   let revenueVal: number | null = null;
-  let costVal: number | null = null;
+  let passedRevenue = false;
+  let costLineValues: number[] = [];
 
   for (const row of parsedRows) {
-    if (!row.isSubtotal || row.value == null || row.value === 0) continue;
+    if (row.value == null || row.value === 0) continue;
 
-    // Revenue anchor
-    if (revenueVal == null && /omsætning\s*(i\s*alt|ialt)$/i.test(row.label)) {
+    // Revenue anchor — subtotal "omsætning i alt"
+    if (revenueVal == null && row.isSubtotal && /omsætning\s*(i\s*alt|ialt)$/i.test(row.label)) {
       revenueVal = row.value;
-    }
-    // Cost anchor — first cost subtotal found
-    if (costVal == null && /(lønninger|vareforbrug|direkte\s*omkostninger)\s*(mv\.?)?\s*(i\s*alt|ialt)?$/i.test(row.label)) {
-      costVal = row.value;
+      passedRevenue = true;
+      continue;
     }
 
-    if (revenueVal != null && costVal != null) break;
+    // After revenue subtotal, collect individual cost lines (lines with accountNo, not subtotals)
+    if (passedRevenue && !row.isSubtotal && row.accountNo != null && row.value !== 0) {
+      costLineValues.push(row.value);
+      if (costLineValues.length >= 3) break; // 3 samples is enough
+    }
   }
 
-  console.log(`[DK_ECONOMIC_PNL_XLSX] Sign convention anchors: revenue=${revenueVal}, cost=${costVal}`);
+  // Determine cost sign from individual lines
+  const negativeCosts = costLineValues.filter(v => v < 0).length;
+  const positiveCosts = costLineValues.filter(v => v > 0).length;
+  const costSign = negativeCosts > positiveCosts ? "negative" : positiveCosts > negativeCosts ? "positive" : null;
 
-  if (revenueVal != null && costVal != null) {
-    if (revenueVal > 0 && costVal < 0) return "business";
-    if (revenueVal < 0 && costVal > 0) return "credit";
+  console.log(`[DK_ECONOMIC_PNL_XLSX] Sign convention anchors: revenue=${revenueVal}, costLines=[${costLineValues.join(", ")}], costSign=${costSign}`);
+
+  if (revenueVal != null && costSign != null) {
+    // BUSINESS: revenue positive, individual costs negative
+    if (revenueVal > 0 && costSign === "negative") return "business";
+    // CREDIT: revenue negative, individual costs positive
+    if (revenueVal < 0 && costSign === "positive") return "credit";
   }
 
   return "unknown";
