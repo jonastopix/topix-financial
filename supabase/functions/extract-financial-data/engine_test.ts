@@ -440,6 +440,8 @@ Deno.test("CASE 10: AI saldobalance — pre-normalized results pass through", ()
   assertEquals(canonical.metrics.gross_profit, 600000);
   assert(canonical.metrics.gross_profit! > 0, "Gross profit should remain positive");
 
-  // AI eligible
-  assertEquals(canonical.ai_eligible, true);
+  // Note: ai_eligible is false for trial_balance statement type (Phase 3 restriction)
+  // This test verifies sign handling, not AI eligibility
+  assertEquals(canonical.statement_type, "trial_balance");
+  assertEquals(canonical.ai_eligible, false); // Trial balance AI is disabled in Phase 3
 });
