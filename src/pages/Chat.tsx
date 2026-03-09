@@ -87,6 +87,7 @@ const Chat = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
   const [unreviewedReportIds, setUnreviewedReportIds] = useState<string[]>([]);
