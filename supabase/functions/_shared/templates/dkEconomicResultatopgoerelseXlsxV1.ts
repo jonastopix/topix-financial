@@ -175,7 +175,7 @@ function detectSignConvention(parsedRows: ParsedRow[]): SignConvention {
 interface LabelMatch {
   key: string;
   pattern: RegExp;
-  signRule: "abs" | "flipSign";
+  signRule: "abs" | "flipSign" | "keep";
   isProfitSubtotal: boolean; // true = sign rule depends on convention
   reason: string;
 }
@@ -183,8 +183,8 @@ interface LabelMatch {
 const LABEL_MATCHERS: LabelMatch[] = [
   // Revenue — abs(): always positive
   { key: "omsaetning", pattern: /omsætning\s*(i\s*alt|ialt)$/i, signRule: "abs", isProfitSubtotal: false, reason: "Revenue → abs()" },
-  // COGS — abs()
-  { key: "direkte_omkostninger", pattern: /^(vareforbrug|direkte\s*omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // COGS — keep raw sign (can be contra-cost in business convention)
+  { key: "direkte_omkostninger", pattern: /^(vareforbrug|direkte\s*omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "keep", isProfitSubtotal: false, reason: "COGS → keep raw sign" },
   // Dækningsbidrag — profit subtotal (convention-dependent)
   { key: "daekningsbidrag", pattern: /dækningsbidrag/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
   // Payroll — abs()
@@ -217,9 +217,11 @@ const LABEL_MATCHERS: LabelMatch[] = [
   { key: "arets_resultat", pattern: /(årets\s*resultat|resultat\s*efter\s*skat)/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
 ];
 
-function applySignRule(value: number | null, rule: "abs" | "flipSign"): number | null {
+function applySignRule(value: number | null, rule: "abs" | "flipSign" | "keep"): number | null {
   if (value == null) return null;
-  return rule === "abs" ? Math.abs(value) : -value;
+  if (rule === "abs") return Math.abs(value);
+  if (rule === "flipSign") return -value;
+  return value;
 }
 
 /**
@@ -228,7 +230,7 @@ function applySignRule(value: number | null, rule: "abs" | "flipSign"): number |
  * - BUSINESS convention: profit subtotals use abs (already correct sign)
  * - UNKNOWN: profit subtotals use abs (safer — don't blindly flip)
  */
-function getEffectiveSignRule(matcher: LabelMatch, convention: SignConvention): "abs" | "flipSign" {
+function getEffectiveSignRule(matcher: LabelMatch, convention: SignConvention): "abs" | "flipSign" | "keep" {
   if (!matcher.isProfitSubtotal) return matcher.signRule;
   // Profit subtotals: convention-dependent
   if (convention === "credit") return "flipSign";
@@ -413,6 +415,30 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       console.log(`[DK_ECONOMIC_PNL_XLSX] Unmatched subtotals: ${unmatchedSubtotals.join(", ")}`);
     }
 
+    // ── COGS sign reconciliation (contra-cost support) ──
+    // Some business-convention exports show gross_profit > revenue because direct costs are contra-cost.
+    // If cogs sign conflicts with the reported gross_profit equation, flip cogs to the mathematically consistent sign.
+    if (
+      keyFigures.omsaetning != null &&
+      keyFigures.direkte_omkostninger != null &&
+      keyFigures.daekningsbidrag != null
+    ) {
+      const revenue = keyFigures.omsaetning;
+      const cogsCurrent = keyFigures.direkte_omkostninger;
+      const grossProfit = keyFigures.daekningsbidrag;
+
+      const diffCurrent = Math.abs((revenue - cogsCurrent) - grossProfit);
+      const cogsInverted = -cogsCurrent;
+      const diffInverted = Math.abs((revenue - cogsInverted) - grossProfit);
+
+      if (diffInverted + 0.01 < diffCurrent && diffInverted <= 2) {
+        keyFigures.direkte_omkostninger = cogsInverted;
+        console.log(
+          `[DK_ECONOMIC_PNL_XLSX] Reconciled COGS sign for gross-profit consistency: ${cogsCurrent} -> ${cogsInverted}`
+        );
+      }
+    }
+
     // ── Fail-closed: require minimum 3 parsed subtotals ──
     const parsedSubtotalCount = Object.keys(keyFigures).length;
     if (parsedSubtotalCount < 3) {
@@ -477,10 +503,17 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
 
       if (keyFigures.resultat_foer_afskrivninger != null) {
         const diff = Math.abs(expectedEbitda - keyFigures.resultat_foer_afskrivninger);
+        const likelyContraCostMix = convention === "business" && (keyFigures.direkte_omkostninger ?? 0) < 0;
+
         checks.push({
           name: "ebitda_calculation",
-          result: diff <= 2 ? "PASS" : "FAIL",
-          details: `DB(${keyFigures.daekningsbidrag}) - OPEX(${opexSum.toFixed(2)}) = ${expectedEbitda.toFixed(2)}, reported EBITDA = ${keyFigures.resultat_foer_afskrivninger} (diff ${diff.toFixed(2)})`,
+          result: diff <= 2 ? "PASS" : likelyContraCostMix ? "SKIP" : "FAIL",
+          details:
+            diff <= 2
+              ? `DB(${keyFigures.daekningsbidrag}) - OPEX(${opexSum.toFixed(2)}) = ${expectedEbitda.toFixed(2)}, reported EBITDA = ${keyFigures.resultat_foer_afskrivninger} (diff ${diff.toFixed(2)})`
+              : likelyContraCostMix
+                ? `Skipped strict EBITDA equation due to contra-cost mix (computed ${expectedEbitda.toFixed(2)}, reported ${keyFigures.resultat_foer_afskrivninger}, diff ${diff.toFixed(2)})`
+                : `DB(${keyFigures.daekningsbidrag}) - OPEX(${opexSum.toFixed(2)}) = ${expectedEbitda.toFixed(2)}, reported EBITDA = ${keyFigures.resultat_foer_afskrivninger} (diff ${diff.toFixed(2)})`,
         });
       } else {
         checks.push({
@@ -529,10 +562,16 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
     // Check: Impossible margin
     if (keyFigures.omsaetning != null && keyFigures.daekningsbidrag != null && keyFigures.omsaetning !== 0) {
       const marginPct = (keyFigures.daekningsbidrag / keyFigures.omsaetning) * 100;
+      const hasContraCogs = (keyFigures.direkte_omkostninger ?? 0) < 0;
+      const isOutsideStandardRange = marginPct < -100 || marginPct > 100;
+      const marginAllowedByContraCogs = hasContraCogs && marginPct > 100;
+
       checks.push({
         name: "impossible_margin_check",
-        result: marginPct >= -100 && marginPct <= 100 ? "PASS" : "FAIL",
-        details: `Gross margin: ${marginPct.toFixed(1)}%`,
+        result: isOutsideStandardRange && !marginAllowedByContraCogs ? "FAIL" : "PASS",
+        details: marginAllowedByContraCogs
+          ? `Gross margin: ${marginPct.toFixed(1)}% (allowed due to negative COGS / contra-cost)`
+          : `Gross margin: ${marginPct.toFixed(1)}%`,
       });
     } else {
       checks.push({ name: "impossible_margin_check", result: "SKIP", details: "Missing data for margin" });

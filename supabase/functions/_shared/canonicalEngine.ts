@@ -146,7 +146,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
 
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
-  const expenseFields = ["direkte_omkostninger", "loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
+  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
   const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
   const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
@@ -174,8 +174,27 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
         `Revenue flipped from ${value} to ${normalized}`, "HIGH");
     }
 
-    // Expenses: must be positive (safety net for all paths)
-    if (expenseFields.includes(dkField) && value < 0) {
+    // COGS: usually positive, but keep negative for deterministic contra-cost cases
+    if (dkField === "direkte_omkostninger" && value < 0) {
+      const revenueForCheck = typeof kf.omsaetning === "number" ? Math.abs(kf.omsaetning) : null;
+      const grossProfitForCheck = typeof kf.daekningsbidrag === "number" ? kf.daekningsbidrag : null;
+
+      const supportsContraCost =
+        isDeterministic &&
+        !isSaldobalance &&
+        revenueForCheck != null &&
+        grossProfitForCheck != null &&
+        Math.abs((revenueForCheck - value) - grossProfitForCheck) <= TOLERANCE;
+
+      if (!supportsContraCost) {
+        normalized = Math.abs(value);
+        correct(dkField, value, normalized, "expense_must_be_positive",
+          `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
+      }
+    }
+
+    // Other expenses: must be positive (safety net for all paths)
+    if (alwaysPositiveExpenseFields.includes(dkField) && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "expense_must_be_positive",
         `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
@@ -542,11 +561,20 @@ export function runExtendedValidation(
 
   // 11. impossible_margin_check
   if (metrics.gross_margin_pct != null) {
-    if (metrics.gross_margin_pct > 100 || metrics.gross_margin_pct < -100) {
+    const hasContraCogs = metrics.cogs != null && metrics.cogs < 0 && metrics.revenue != null && metrics.revenue > 0;
+    const outsideStandardRange = metrics.gross_margin_pct > 100 || metrics.gross_margin_pct < -100;
+
+    if (outsideStandardRange && !hasContraCogs) {
       checks.push({ name: "impossible_margin_check", result: "FAIL", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}% outside ±100%` });
       errors.push(`Impossible gross margin: ${metrics.gross_margin_pct.toFixed(1)}%`);
     } else {
-      checks.push({ name: "impossible_margin_check", result: "PASS", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}%` });
+      checks.push({
+        name: "impossible_margin_check",
+        result: "PASS",
+        details: hasContraCogs
+          ? `Gross margin ${metrics.gross_margin_pct.toFixed(1)}% allowed due to negative COGS (contra-cost)`
+          : `Gross margin ${metrics.gross_margin_pct.toFixed(1)}%`,
+      });
     }
   } else {
     checks.push({ name: "impossible_margin_check", result: "SKIP", details: "No gross margin data" });

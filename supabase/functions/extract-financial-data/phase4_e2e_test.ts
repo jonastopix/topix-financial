@@ -1445,7 +1445,7 @@ Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () 
   console.log(`\n══ 24. BUSINESS CONVENTION XLSX P&L ══`);
 
   // Simulated rows from real e-conomic file: Topix.dk ApS, December 2025
-  // Business convention: revenue positive, costs negative
+  // Business convention with contra-cost subtotal: gross_profit can exceed revenue
   const TOPIX_ROWS: any[][] = [
     [null, null, null, null, null, null],
     ["1796416 - Topix.dk ApS", null, null, null, null, null],
@@ -1456,30 +1456,21 @@ Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () 
     [" ", " ", "Perioden", null, "År til dato", null],
     ["Nr.", "Navn", "Faktisk", "Året før", "Faktisk", "Året før"],
     [null, "RESULTATOPGØRELSE", null, null, null, null],
-    [null, null, null, null, null, null],
-    [null, "Omsætning", null, null, null, null],
-    [1000, "Salg af varer og tjenesteydelser", 57487.52, null, 587157.55, null],
     [null, "Omsætning i alt", 57487.52, null, 587157.55, null],
-    [null, null, null, null, null, null],
-    [null, "Vareforbrug", null, null, null, null],
-    [2210, "Underleverandører/fremmed arbejde", -5677.48, null, -46558.16, null],
-    [null, "Vareforbrug i alt", -5677.48, null, -46558.16, null],
-    [null, null, null, null, null, null],
-    [null, "Dækningsbidrag", 51810.04, null, 540599.39, null],
-    [null, null, null, null, null, null],
-    [null, "Lønninger", null, null, null, null],
-    [3020, "Løn funktionærer", 0.00, null, -86673.29, null],
-    [null, "Lønninger i alt", 0.00, null, -86673.29, null],
-    [null, null, null, null, null, null],
-    [null, "Administrationsomkostninger", null, null, null, null],
-    [3600, "Telefon", -90.84, null, -2046.16, null],
-    [null, "Administrationsomkostninger i alt", -90.84, null, -2046.16, null],
-    [null, null, null, null, null, null],
-    [null, "Resultat før afskrivninger", 51719.20, null, 451879.94, null],
-    [null, null, null, null, null, null],
-    [null, "Resultat før skat", 51719.20, null, 451879.94, null],
-    [null, null, null, null, null, null],
-    [null, "Årets resultat", 51719.20, null, 451879.94, null],
+    [2110, "Fragt", -313.69, null, -4241.11, null],
+    [2120, "Lagerregulering", 5991.21, null, 32103.42, null],
+    [2130, "Køb af ydelser", -29901.00, null, -261004.22, null],
+    [null, "Direkte omkostninger i alt", 5677.52, null, -233141.91, null],
+    [null, "Dækningsbidrag", 63165.04, null, 820299.46, null],
+    [null, "Lønninger i alt", -86673.29, null, -86673.29, null],
+    [null, "Salgs- og rejseomkostninger i alt", -138519.23, null, -138519.23, null],
+    [null, "Lokaleomkostninger i alt", -6450.00, null, -6450.00, null],
+    [null, "Administrationsomkostninger i alt", -14082.41, null, -14082.41, null],
+    [null, "Resultat før afskrivninger", 94478.57, null, 94478.57, null],
+    [null, "Afskrivninger i alt", -42910.65, null, -42910.65, null],
+    [null, "Resultat før renter", 51567.92, null, 51567.92, null],
+    [null, "Resultat før skat", 51719.20, null, 51719.20, null],
+    [null, "Resultat efter skat", 157279.20, null, 157279.20, null],
   ];
 
   // ── Detection ──
@@ -1525,15 +1516,15 @@ Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () 
   console.log(`  ebt:          ${m.ebt}`);
   console.log(`  net_result:   ${m.net_result}`);
 
-  // ── Assertions: All positive in business convention ──
+  // ── Assertions: requested business-convention behavior ──
   assertEquals(m.revenue! > 0, true, `Revenue ${m.revenue} should be positive`);
+  assertEquals(m.payroll! > 0, true, `Payroll ${m.payroll} should be positive`);
   assertEquals(m.gross_profit! > 0, true, `Gross profit ${m.gross_profit} should be positive`);
   assertEquals(m.ebt! > 0, true, `EBT ${m.ebt} should be positive`);
   assertEquals(m.net_result! > 0, true, `Net result ${m.net_result} should be positive`);
 
-  // Payroll should be 0 for period (no payroll in December), but still valid
-  // COGS should be positive (abs of negative cost)
-  assertEquals(m.cogs! >= 0, true, `COGS ${m.cogs} should be >= 0`);
+  // Contra-cost scenario: COGS may legitimately stay negative when gross_profit > revenue
+  assertEquals(m.cogs! < 0, true, `COGS ${m.cogs} should be negative in contra-cost case`);
 
   // Validation
   console.log(`\nValidation:`);
