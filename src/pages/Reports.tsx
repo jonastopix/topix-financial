@@ -25,6 +25,7 @@ import {
   Trash2,
   RotateCcw,
   Archive,
+  Bug,
 } from "lucide-react";
 import {
   AlertDialog,
