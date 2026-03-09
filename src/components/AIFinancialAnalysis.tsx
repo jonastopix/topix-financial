@@ -49,6 +49,7 @@ interface ReportWithAnalysis {
   company_name: string | null;
   cvr_number: string | null;
   extracted_data: Json | null;
+  normalized_data: Json | null;
   ai_analysis: Json | null;
   uploaded_at: string;
   status: string;
