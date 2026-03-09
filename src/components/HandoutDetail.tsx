@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowLeft, Save, Check, Loader2, CheckCircle2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
