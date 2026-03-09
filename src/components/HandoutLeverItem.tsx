@@ -21,9 +21,10 @@ interface HandoutLeverItemProps {
   handoutId?: string;
   linkedMilestone?: LeverMilestone | null;
   onMilestoneCreated?: () => void;
+  disabled?: boolean;
 }
 
-const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, onMilestoneCreated }: HandoutLeverItemProps) => {
+const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, onMilestoneCreated, disabled }: HandoutLeverItemProps) => {
   const { user, companyId } = useAuth();
   const [creating, setCreating] = useState(false);
 
