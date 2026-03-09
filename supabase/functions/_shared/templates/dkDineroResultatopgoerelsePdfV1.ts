@@ -391,7 +391,7 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
       const core = classifyLineCore(line.name, line.account_no);
 
       let finalCls = core.cls;
-      let finalMethod = core.method;
+      let finalMethod: ClassifiedLine["method"] = core.method;
       let finalAmbiguous = core.ambiguous;
 
       if (core.cls === "unclassified" && sectionCls) {
