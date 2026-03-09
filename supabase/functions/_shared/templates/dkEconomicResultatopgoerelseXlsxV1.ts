@@ -2,17 +2,9 @@
  * Template: DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1
  * e-conomic Resultatopgørelse XLSX (P&L only)
  *
- * CAUTION: This template was implemented WITHOUT a reference fixture file.
- * First real e-conomic XLSX resultatopgørelse upload is the true acceptance test.
- * If detection or extraction fails on a real file, check:
- *   - Header row position (assumed row 0-2)
- *   - Value column index
- *   - Label spelling variations
- * Upgrade parser_confidence to HIGH after successful validation.
- *
  * Detection: Label/section-based — "Resultatopgørelse" header + P&L subtotals + absence of balance sections
  * Extraction: Label-first, scans rows for Danish P&L subtotals
- * Sign normalization: Done in template (canonical engine receives business-convention values)
+ * Sign normalization: Dynamic — infers convention from anchor lines (revenue/cost signs)
  * Column basis: SINGLE — period_amount only (no YTD split expected in standalone P&L XLSX)
  */
 
@@ -26,10 +18,6 @@ import type {
 } from "../templateRegistry.ts";
 
 // ── Sign normalization helpers ──
-// e-conomic P&L XLSX uses credit convention:
-//   Revenue: negative (credit)
-//   Costs: positive (debit)
-//   Dækningsbidrag/EBT/Net result: negative when profitable (credit)
 
 /** Revenue and cost lines → always positive in canonical output */
 function absVal(val: number | null): number | null {
@@ -37,9 +25,7 @@ function absVal(val: number | null): number | null {
 }
 
 /**
- * Dækningsbidrag, Resultat før skat, Resultat efter skat → flip sign
- * Reason: e-conomic uses credit convention where profit subtotals are negative.
- * Business convention: positive = profit, negative = loss.
+ * Flip sign — used in credit convention where profit subtotals are negative when profitable.
  */
 function flipSign(val: number | null): number | null {
   return val != null ? -val : null;
@@ -50,7 +36,6 @@ function flipSign(val: number | null): number | null {
 function parseDanishNumber(val: any): number | null {
   if (typeof val === "number") return val;
   if (typeof val === "string") {
-    // Danish format: "1.234,56" → remove dots, replace comma with dot
     const cleaned = val.replace(/\./g, "").replace(",", ".").trim();
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
@@ -100,8 +85,6 @@ function scanRows(rows: any[][]): ParsedRow[] {
     const row = rows[i];
     if (!row) continue;
 
-    // Try to find label — usually column 0 or 1
-    // If column 0 is a number (account no), label is column 1
     const col0 = (row[0] ?? "").toString().trim();
     const col0AsNum = parseInt(col0, 10);
     let label: string;
@@ -112,7 +95,6 @@ function scanRows(rows: any[][]): ParsedRow[] {
       label = normalizeLabel(row[1]);
     } else if (col0 !== "") {
       label = normalizeLabel(row[0]);
-      // Check if row[1] has a longer label (sometimes col0 is just category header)
       const col1Label = normalizeLabel(row[1]);
       if (col1Label.length > label.length && col1Label.length > 3) {
         label = col1Label;
@@ -125,7 +107,6 @@ function scanRows(rows: any[][]): ParsedRow[] {
 
     const value = parseDanishNumber(row[valueColIndex]);
 
-    // Detect subtotals: lines with "i alt", "ialt", "dækningsbidrag", "resultat"
     const isSubtotal = /i\s*alt|dækningsbidrag|resultat/i.test(label);
 
     result.push({ label, value, rowIndex: i, isSubtotal, accountNo });
@@ -134,55 +115,109 @@ function scanRows(rows: any[][]): ParsedRow[] {
   return result;
 }
 
+// ── Sign Convention Detection ──
+
+type SignConvention = "business" | "credit" | "unknown";
+
+/**
+ * Infer sign convention from anchor lines:
+ *   BUSINESS: revenue > 0, costs < 0
+ *   CREDIT:   revenue < 0, costs > 0
+ *   UNKNOWN:  ambiguous or missing anchors
+ */
+function detectSignConvention(parsedRows: ParsedRow[]): SignConvention {
+  let revenueVal: number | null = null;
+  let costVal: number | null = null;
+
+  for (const row of parsedRows) {
+    if (!row.isSubtotal || row.value == null || row.value === 0) continue;
+
+    // Revenue anchor
+    if (revenueVal == null && /omsætning\s*(i\s*alt|ialt)$/i.test(row.label)) {
+      revenueVal = row.value;
+    }
+    // Cost anchor — first cost subtotal found
+    if (costVal == null && /(lønninger|vareforbrug|direkte\s*omkostninger)\s*(mv\.?)?\s*(i\s*alt|ialt)?$/i.test(row.label)) {
+      costVal = row.value;
+    }
+
+    if (revenueVal != null && costVal != null) break;
+  }
+
+  console.log(`[DK_ECONOMIC_PNL_XLSX] Sign convention anchors: revenue=${revenueVal}, cost=${costVal}`);
+
+  if (revenueVal != null && costVal != null) {
+    if (revenueVal > 0 && costVal < 0) return "business";
+    if (revenueVal < 0 && costVal > 0) return "credit";
+  }
+
+  return "unknown";
+}
+
 // ── Label matchers for key figures ──
 
 interface LabelMatch {
   key: string;
   pattern: RegExp;
   signRule: "abs" | "flipSign";
+  isProfitSubtotal: boolean; // true = sign rule depends on convention
   reason: string;
 }
 
 const LABEL_MATCHERS: LabelMatch[] = [
-  // Revenue — abs(): credit convention (negative) → positive
-  { key: "omsaetning", pattern: /omsætning\s*(i\s*alt|ialt)$/i, signRule: "abs", reason: "Revenue is negative (credit) in e-conomic → abs() to business convention" },
-  // COGS — abs(): debit (positive), keep positive
-  { key: "direkte_omkostninger", pattern: /^(vareforbrug|direkte\s*omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // Dækningsbidrag — flipSign(): credit subtotal (negative when profitable) → positive
-  { key: "daekningsbidrag", pattern: /dækningsbidrag/i, signRule: "flipSign", reason: "Profit subtotal: negative (credit) = profit → flipSign to positive" },
-  // Payroll — abs(): debit cost
-  { key: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i\s*alt|ialt)$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // Pensions — abs(): debit cost
-  { key: "pensioner_sociale", pattern: /pensioner\s*&?\s*sociale\s*(bidrag)?\s*(i\s*alt|ialt)$/i, signRule: "abs", reason: "Cost line, always positive" },
+  // Revenue — abs(): always positive
+  { key: "omsaetning", pattern: /omsætning\s*(i\s*alt|ialt)$/i, signRule: "abs", isProfitSubtotal: false, reason: "Revenue → abs()" },
+  // COGS — abs()
+  { key: "direkte_omkostninger", pattern: /^(vareforbrug|direkte\s*omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Dækningsbidrag — profit subtotal (convention-dependent)
+  { key: "daekningsbidrag", pattern: /dækningsbidrag/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
+  // Payroll — abs()
+  { key: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i\s*alt|ialt)$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Pensions — abs()
+  { key: "pensioner_sociale", pattern: /pensioner\s*&?\s*sociale\s*(bidrag)?\s*(i\s*alt|ialt)$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
   // Other staff — abs()
-  { key: "oevrige_personale", pattern: /øvrige\s*personaleudgifter\s*(i\s*alt|ialt)$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // Sales costs — abs(): debit cost
-  { key: "salgsomkostninger", pattern: /salgs(omkostninger|-\s*og\s*rejseomkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // Facility costs — abs(): debit cost
-  { key: "lokaleomkostninger", pattern: /lokaleomkostninger\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // Transport/vehicle costs — abs(): debit cost
-  { key: "transportomkostninger", pattern: /(transport|autodrift)\s*(omkostninger)?\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // Admin costs — abs(): debit cost
-  { key: "administrationsomkostninger", pattern: /administrations(omkostninger)?\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // EBITDA — flipSign(): credit subtotal
-  { key: "resultat_foer_afskrivninger", pattern: /resultat\s*før\s*afskrivninger/i, signRule: "flipSign", reason: "Profit subtotal: negative (credit) = profit → flipSign to positive" },
-  // Depreciation — abs(): debit cost
-  { key: "afskrivninger", pattern: /afskrivninger\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // EBIT — flipSign()
-  { key: "indtjeningsbidrag", pattern: /(indtjeningsbidrag|resultat\s*før\s*(renter|finansielle\s*poster))/i, signRule: "flipSign", reason: "Profit subtotal → flipSign" },
+  { key: "oevrige_personale", pattern: /øvrige\s*personaleudgifter\s*(i\s*alt|ialt)$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Sales costs — abs()
+  { key: "salgsomkostninger", pattern: /salgs(omkostninger|-\s*og\s*rejseomkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Facility costs — abs()
+  { key: "lokaleomkostninger", pattern: /lokaleomkostninger\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Transport/vehicle costs — abs()
+  { key: "transportomkostninger", pattern: /(transport|autodrift)\s*(omkostninger)?\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Admin costs — abs()
+  { key: "administrationsomkostninger", pattern: /administrations(omkostninger)?\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // EBITDA — profit subtotal (convention-dependent)
+  { key: "resultat_foer_afskrivninger", pattern: /resultat\s*før\s*afskrivninger/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
+  // Depreciation — abs()
+  { key: "afskrivninger", pattern: /afskrivninger\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // EBIT — profit subtotal (convention-dependent)
+  { key: "indtjeningsbidrag", pattern: /(indtjeningsbidrag|resultat\s*før\s*(renter|finansielle\s*poster))/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
   // Financial costs — abs()
-  { key: "finansieringsudgifter", pattern: /finansierings(udgifter|omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
+  { key: "finansieringsudgifter", pattern: /finansierings(udgifter|omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
   // Extraordinary items — abs()
-  { key: "ekstraordinaere_poster", pattern: /ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, signRule: "abs", reason: "Cost line, always positive" },
-  // EBT — flipSign(): credit subtotal (negative when profitable) → positive
-  { key: "resultat_foer_skat", pattern: /resultat\s*før\s*skat/i, signRule: "flipSign", reason: "EBT: negative (credit) = profit → flipSign to positive" },
-  // Net result — flipSign(): credit subtotal (negative when profitable) → positive
-  { key: "arets_resultat", pattern: /(årets\s*resultat|resultat\s*efter\s*skat)/i, signRule: "flipSign", reason: "Net result: negative (credit) = profit → flipSign to positive" },
+  { key: "ekstraordinaere_poster", pattern: /ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // EBT — profit subtotal (convention-dependent)
+  { key: "resultat_foer_skat", pattern: /resultat\s*før\s*skat/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
+  // Net result — profit subtotal (convention-dependent)
+  { key: "arets_resultat", pattern: /(årets\s*resultat|resultat\s*efter\s*skat)/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
 ];
 
 function applySignRule(value: number | null, rule: "abs" | "flipSign"): number | null {
   if (value == null) return null;
   return rule === "abs" ? Math.abs(value) : -value;
+}
+
+/**
+ * Get effective sign rule for a matcher given the detected convention.
+ * - CREDIT convention: profit subtotals use flipSign (default)
+ * - BUSINESS convention: profit subtotals use abs (already correct sign)
+ * - UNKNOWN: profit subtotals use abs (safer — don't blindly flip)
+ */
+function getEffectiveSignRule(matcher: LabelMatch, convention: SignConvention): "abs" | "flipSign" {
+  if (!matcher.isProfitSubtotal) return matcher.signRule;
+  // Profit subtotals: convention-dependent
+  if (convention === "credit") return "flipSign";
+  // business or unknown → abs (don't flip what might already be correct)
+  return "abs";
 }
 
 // ── Template Definition ──
@@ -203,34 +238,32 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       .join("\n")
       .toLowerCase();
 
-    // ── +40: Header contains "Resultatopgørelse" (NOT "Saldobalance"/"Balance" as title) ──
+    // ── +40: Header contains "Resultatopgørelse" (scan rows 0-5) ──
     const headerText = ctx.headerRows
-      .slice(0, 3)
+      .slice(0, 6)
       .map((r) => (r || []).map((c: any) => (c ?? "").toString()).join(" "))
       .join(" ")
       .toLowerCase();
 
     if (/resultatopgørelse/.test(headerText) && !/saldobalance/.test(headerText)) {
-      // Check that "Balance" in header is NOT a standalone title (row[1] = "Balance" is the combined template)
+      // Check that "Balance" in header is NOT a standalone title (combined template)
       const row1Text = (ctx.headerRows[1] || []).map((c: any) => (c ?? "").toString()).join(" ").trim().toLowerCase();
       if (row1Text === "balance" || row1Text.startsWith("balance")) {
-        // This is the combined template format — score 0
         return 0;
       }
       score += 40;
     } else {
-      return 0; // No "Resultatopgørelse" in header → definitely not this template
-    }
-
-    // ── +20: Absence of "AKTIVER" and "PASSIVER" in all rows ──
-    if (!/\baktiver\b/.test(allText) && !/\bpassiver\b/.test(allText)) {
-      score += 20;
-    } else {
-      // Balance sections present → NOT a pure P&L
       return 0;
     }
 
-    // ── +15: P&L subtotals present (at least 2 of: Omsætning, Dækningsbidrag, Resultat) ──
+    // ── +20: Absence of "AKTIVER" and "PASSIVER" ──
+    if (!/\baktiver\b/.test(allText) && !/\bpassiver\b/.test(allText)) {
+      score += 20;
+    } else {
+      return 0;
+    }
+
+    // ── +15: P&L subtotals present ──
     let subtotalCount = 0;
     if (/omsætning/.test(allText)) subtotalCount++;
     if (/dækningsbidrag/.test(allText)) subtotalCount++;
@@ -257,28 +290,57 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       return { success: false, error: "Insufficient rows for extraction" };
     }
 
-    // ── Parse metadata from header rows ──
-    const companyName = (ctx.rows[0]?.[0] ?? "").toString().trim() || null;
-
-    // Try to find period from header rows (e.g. "01-01-2026 til 31-01-2026")
+    // ── Parse metadata from header rows (0-5) ──
+    let companyName: string | null = null;
+    let cvrNumber: string | null = null;
     let periodStart: string | null = null;
     let periodEnd: string | null = null;
     let reportPeriod: string | null = null;
 
-    for (let i = 0; i < Math.min(5, ctx.rows.length); i++) {
-      const rowText = (ctx.rows[i] || []).map((c: any) => (c ?? "").toString()).join(" ");
-      const periodMatch = rowText.match(/(\d{2}-\d{2}-\d{4})\s*til\s*(\d{2}-\d{2}-\d{4})/);
-      if (periodMatch) {
-        periodStart = periodMatch[1];
-        periodEnd = periodMatch[2];
-        break;
+    for (let i = 0; i < Math.min(6, ctx.rows.length); i++) {
+      const rowText = (ctx.rows[i] || []).map((c: any) => (c ?? "").toString()).join(" ").trim();
+      if (!rowText) continue;
+
+      // CVR extraction: "CVR 45281736" or "CVR-nr. 45281736"
+      if (!cvrNumber) {
+        const cvrMatch = rowText.match(/CVR[\s-]*(?:nr\.?\s*)?(\d{8})/i);
+        if (cvrMatch) {
+          cvrNumber = cvrMatch[1];
+          continue; // CVR line is not company name
+        }
       }
-      // Also try "01.01.2026 - 31.01.2026" format
-      const periodMatch2 = rowText.match(/(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}\.\d{2}\.\d{4})/);
+
+      // Period extraction: support both 2-digit and 4-digit years
+      // Pattern 1: "01-01-2026 til 31-01-2026"
+      const periodMatch1 = rowText.match(/(\d{2}-\d{2}-\d{4})\s*til\s*(\d{2}-\d{2}-\d{4})/);
+      if (periodMatch1) {
+        periodStart = periodMatch1[1];
+        periodEnd = periodMatch1[2];
+        continue;
+      }
+      // Pattern 2: "01.12.25 - 31.12.25" or "01.12.2025 - 31.12.2025"
+      const periodMatch2 = rowText.match(/(\d{2}\.\d{2}\.\d{2,4})\s*-\s*(\d{2}\.\d{2}\.\d{2,4})/);
       if (periodMatch2) {
-        periodStart = periodMatch2[1].replace(/\./g, "-");
-        periodEnd = periodMatch2[2].replace(/\./g, "-");
-        break;
+        periodStart = normalizeDateStr(periodMatch2[1]);
+        periodEnd = normalizeDateStr(periodMatch2[2]);
+        continue;
+      }
+
+      // Company name extraction:
+      // Skip lines that are clearly not company names
+      if (/^(nr\.|nummer|navn|perioden|resultatopgørelse|rapporter)/i.test(rowText)) continue;
+      if (/cvr/i.test(rowText)) continue;
+      if (rowText.length < 3) continue;
+
+      if (!companyName) {
+        // Strip leading numeric ID: "1796416 - Topix.dk ApS" → "Topix.dk ApS"
+        const stripped = rowText.replace(/^\d+\s*[-–]\s*/, "").trim();
+        // Only use stripped version if remainder looks like a name (> 2 chars, not just numbers)
+        if (stripped.length > 2 && !/^\d+$/.test(stripped)) {
+          companyName = stripped;
+        } else if (rowText.length > 2) {
+          companyName = rowText;
+        }
       }
     }
 
@@ -301,6 +363,10 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
     const parsedRows = scanRows(ctx.rows);
     console.log(`[DK_ECONOMIC_PNL_XLSX] Scanned ${parsedRows.length} rows, subtotals: ${parsedRows.filter(r => r.isSubtotal).length}`);
 
+    // ── Detect sign convention from anchor lines ──
+    const convention = detectSignConvention(parsedRows);
+    console.log(`[DK_ECONOMIC_PNL_XLSX] Detected sign convention: ${convention}`);
+
     // ── Extract key figures by label matching ──
     const keyFigures: Record<string, number | null> = {};
     const matchedLabels: string[] = [];
@@ -312,10 +378,10 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       let matched = false;
       for (const matcher of LABEL_MATCHERS) {
         if (matcher.pattern.test(row.label)) {
-          // Only take the first match for each key (subtotals appear once)
           if (!(matcher.key in keyFigures)) {
-            keyFigures[matcher.key] = applySignRule(row.value, matcher.signRule);
-            matchedLabels.push(`${matcher.key}=${keyFigures[matcher.key]} (${row.label}, rule=${matcher.signRule})`);
+            const effectiveRule = getEffectiveSignRule(matcher, convention);
+            keyFigures[matcher.key] = applySignRule(row.value, effectiveRule);
+            matchedLabels.push(`${matcher.key}=${keyFigures[matcher.key]} (${row.label}, rule=${effectiveRule}, convention=${convention})`);
           }
           matched = true;
           break;
@@ -382,7 +448,7 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       checks.push({ name: "gross_profit_sum", result: "SKIP", details: "Missing revenue, cogs or gross_profit" });
     }
 
-    // Check: EBITDA calculation (compute when possible, not default SKIP)
+    // Check: EBITDA calculation
     if (keyFigures.daekningsbidrag != null && keyFigures.loenninger != null) {
       const opexSum = (keyFigures.loenninger ?? 0) +
         (keyFigures.pensioner_sociale ?? 0) +
@@ -411,7 +477,7 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       checks.push({ name: "ebitda_calculation", result: "SKIP", details: "Missing gross_profit or payroll" });
     }
 
-    // Check: EBIT calculation (compute when possible)
+    // Check: EBIT calculation
     if (keyFigures.resultat_foer_afskrivninger != null && keyFigures.afskrivninger != null) {
       const expectedEbit = keyFigures.resultat_foer_afskrivninger - keyFigures.afskrivninger;
       if (keyFigures.indtjeningsbidrag != null) {
@@ -456,6 +522,21 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       checks.push({ name: "impossible_margin_check", result: "SKIP", details: "Missing data for margin" });
     }
 
+    // Check: Sign convention confidence
+    if (convention === "unknown") {
+      checks.push({
+        name: "sign_convention",
+        result: "FAIL",
+        details: "Could not determine sign convention from anchor lines — profit subtotals may be incorrect",
+      });
+    } else {
+      checks.push({
+        name: "sign_convention",
+        result: "PASS",
+        details: `Detected ${convention} convention`,
+      });
+    }
+
     // Balance checks — always SKIP for P&L
     checks.push({ name: "balance_equation", result: "SKIP", details: "P&L only — no balance data" });
 
@@ -464,12 +545,14 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
 
     const validation: ParserValidation = { parser_status: parserStatus, checks };
 
+    // ── Confidence: HIGH only when all conditions met ──
+    const confidenceIsHigh = parserStatus === "PASS" && convention !== "unknown" && parsedSubtotalCount >= 5;
+    const parserConfidence = confidenceIsHigh ? "HIGH" : "MEDIUM";
+
     // ── Deterministic metadata ──
     const deterministicMeta: DeterministicMeta = {
       template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1",
-      // MEDIUM until validated against real e-conomic XLSX P&L fixture
-      // Upgrade to HIGH after successful validation
-      parser_confidence: "MEDIUM",
+      parser_confidence: parserConfidence as "HIGH" | "MEDIUM" | "LOW",
       detection_score: 0, // Set by registry
       parser_validation_status: parserStatus,
       parser_validation_errors: checks.filter((c) => c.result === "FAIL").map((c) => c.details),
@@ -482,7 +565,7 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
     const extractedData: DeterministicExtractedData = {
       report_type: "resultatopgørelse",
       company_name: companyName,
-      cvr_number: null, // XLSX P&L typically doesn't contain CVR
+      cvr_number: cvrNumber,
       period_start: periodStart,
       period_end: periodEnd,
       report_period: reportPeriod,
@@ -495,6 +578,19 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
     return { success: true, data: extractedData };
   },
 };
+
+// ── Helper: Normalize date string (2-digit year → 4-digit) ──
+
+function normalizeDateStr(dateStr: string): string {
+  // "01.12.25" → "01-12-2025", "01.12.2025" → "01-12-2025"
+  const parts = dateStr.split(".");
+  if (parts.length === 3) {
+    const [dd, mm, yy] = parts;
+    const year = yy.length === 2 ? "20" + yy : yy;
+    return `${dd}-${mm}-${year}`;
+  }
+  return dateStr.replace(/\./g, "-");
+}
 
 // ── Helper: Map P&L line name to canonical class ──
 
