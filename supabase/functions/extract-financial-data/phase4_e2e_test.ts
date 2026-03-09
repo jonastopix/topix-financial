@@ -474,3 +474,124 @@ Deno.test("Phase4 E2E — 7+8. Forventning & Konklusion", () => {
     if (!hasDetMeta) console.log(`   - Missing deterministic metadata`);
   }
 });
+
+// ═══════════════════════════════════════════════════════
+// PHASE 4b TESTS: PDF FALLBACK & FAILURE SCENARIOS
+// ═══════════════════════════════════════════════════════
+
+// ── Test 9: PDF with insufficient text → no_match → AI fallback ──
+Deno.test("Phase4b — 9. PDF no usable text → no_match", () => {
+  console.log(`\n══ 9. PDF NO USABLE TEXT ══`);
+
+  // Simulate a scanned PDF with < 50 chars of extracted text
+  const result = tryDeterministicPdfExtraction("Page 1\nImage scan\n", "scanned_report.pdf");
+
+  console.log(`Result type: ${result.type}`);
+  assertEquals(result.type, "no_match");
+  console.log(`✅ PDF with no usable text correctly returns no_match → AI fallback`);
+});
+
+// ── Test 10: PDF with partial header but no data → no_match ──
+Deno.test("Phase4b — 10. PDF partial header, no data → no_match", () => {
+  console.log(`\n══ 10. PDF PARTIAL HEADER ══`);
+
+  // Has some e-conomic markers but not enough for detection threshold (< 80)
+  const partialText = `
+22.05.2025, 11.33
+Some company name
+Nr. Navn Perioden
+  `.trim();
+
+  const result = tryDeterministicPdfExtraction(partialText, "partial.pdf");
+
+  console.log(`Result type: ${result.type}`);
+  // Score would be ~10 (has Nr/Navn/Perioden but no "Saldobalance for perioden", no e-conomic, no AKTIVER/PASSIVER)
+  assertEquals(result.type, "no_match");
+  console.log(`✅ PDF with partial header correctly returns no_match`);
+});
+
+// ── Test 11: PDF with valid detection but structural parse error → structural_fail ──
+Deno.test("Phase4b — 11. PDF valid header, corrupt data → structural_fail", () => {
+  console.log(`\n══ 11. PDF STRUCTURAL FAIL ══`);
+
+  // Has enough detection signals (score ≥ 80) but no extractable data lines
+  const corruptText = `
+22.05.2025, 11.33                            1796416 - Test ApS - CVR 12345678
+Saldobalance for perioden 01.04.25 - 30.04.25
+RESULTATOPGØRELSE
+AKTIVER
+PASSIVER
+https://secure.e-conomic.com/reports/statements/period-total
+  `.trim();
+
+  const result = tryDeterministicPdfExtraction(corruptText, "corrupt.pdf");
+
+  console.log(`Result type: ${result.type}`);
+  // Detection score = 40 (header) + 20 (e-conomic) + 15 (AKTIVER) + 15 (PASSIVER) = 90
+  // But extraction fails: insufficient lines (0 data lines)
+  assertEquals(result.type, "structural_fail");
+  if (result.type === "structural_fail") {
+    console.log(`Template: ${result.template_id}`);
+    console.log(`Error: ${result.error}`);
+    assertEquals(result.template_id, "DK_ECONOMIC_SALDOBALANCE_PDF_V1");
+  }
+  console.log(`✅ PDF structural failure correctly returns structural_fail → needs_review, NO AI fallback`);
+});
+
+// ── Test 12: PDF e-conomic combined detection scores correctly ──
+Deno.test("Phase4b — 12. PDF e-conomic combined detection ambiguity check", () => {
+  console.log(`\n══ 12. PDF AMBIGUITY CHECK ══`);
+
+  // Full e-conomic combined report text — should score 100 on Template A
+  const ctx: DetectionContext = {
+    fileName: "25.04_Saldobalance.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: `
+22.05.2025, 11.33                            1796416 - Topix.dk ApS - CVR 45281736
+Saldobalance for perioden 01.04.25 - 30.04.25
+RESULTATOPGØRELSE
+| Nr.  | Navn                               | Perioden    | År til dato |
+| 1010 | Salg af varer/ydelser m/moms       | -226.398,43 | -255.279,28 |
+|      | Omsætning i alt                    | -226.398,43 | -255.279,28 |
+|      | Dækningsbidrag                     | -226.084,74 | -254.549,51 |
+|      | Resultat før skat                  | -174.903,83 | 93.213,69   |
+|      | RESULTAT EFTER SKAT                | -174.903,83 | 93.213,69   |
+AKTIVER
+| 5820 | Bankkonto                          | 237.827,22  | 307.777,76  |
+AKTIVER I ALT
+| | 273.435,99 | | 508.773,03 |
+PASSIVER
+|      | EGENKAPITAL I ALT                  | -174.903,83 | 53.213,69   |
+PASSIVER I ALT
+| | -273.435,99 | | -508.773,03 |
+https://secure.e-conomic.com/reports/statements/period-total
+    `.trim(),
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match a template");
+  console.log(`Template: ${match!.template.template_id}`);
+  console.log(`Score: ${match!.score}`);
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_SALDOBALANCE_PDF_V1");
+  assertEquals(match!.score >= 90, true, `Score ${match!.score} should be >= 90`);
+
+  // Verify extraction works
+  const result = match!.template.extract({ ...ctx, rows: [] });
+  assertEquals(result.success, true);
+  if (result.success) {
+    console.log(`Company: ${result.data.company_name}`);
+    console.log(`Period: ${result.data.report_period}`);
+    console.log(`Revenue: ${result.data.key_figures.omsaetning}`);
+    console.log(`EBT: ${result.data.key_figures.resultat_foer_skat}`);
+    console.log(`Assets: ${result.data.key_figures.aktiver_i_alt}`);
+    console.log(`Cash: ${result.data.key_figures.likvider}`);
+    console.log(`Column basis: ${result.data._deterministic_meta.column_basis_rule}`);
+    assertEquals(result.data._deterministic_meta.column_basis_rule, "mixed");
+    assertEquals(result.data.report_type, "combined");
+    assertExists(result.data.key_figures.omsaetning, "Revenue should be extracted");
+    assertExists(result.data.key_figures.aktiver_i_alt, "Assets should be extracted");
+  }
+  console.log(`✅ PDF e-conomic combined template detected and extracted correctly`);
+});
