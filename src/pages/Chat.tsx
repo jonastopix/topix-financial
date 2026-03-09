@@ -960,12 +960,27 @@ const Chat = () => {
                       )}
                     </div>
                   )}
-                  {filteredMessages.map((msg) => {
+                  {filteredMessages.map((msg, idx) => {
                     const isMine = msg.sender_id === user?.id;
                     const isSystem = msg.message_type === "system" || msg.message_type === "ai";
                     const contextType = msg.context_type;
                     const contextMeta = msg.context_meta;
                     const topicInfo = contextType ? TOPIC_COLORS[contextType] : null;
+
+                    // Date separator logic
+                    const msgDate = new Date(msg.created_at);
+                    const prevMsg = idx > 0 ? filteredMessages[idx - 1] : null;
+                    const prevDate = prevMsg ? new Date(prevMsg.created_at) : null;
+                    const showDateSep = !prevDate || startOfDay(msgDate).getTime() !== startOfDay(prevDate).getTime();
+                    const dateSep = showDateSep ? (
+                      <div key={`sep-${msg.id}`} className="flex items-center gap-3 py-2">
+                        <div className="flex-1 border-t border-border/40" />
+                        <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">
+                          {dateSeparatorLabel(msgDate)}
+                        </span>
+                        <div className="flex-1 border-t border-border/40" />
+                      </div>
+                    ) : null;
 
                     if (isSystem) {
                       // ── Compact Report Card ──
