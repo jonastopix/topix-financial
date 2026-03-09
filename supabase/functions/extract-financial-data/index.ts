@@ -527,84 +527,47 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // CANONICAL ACCOUNTING ENGINE: extract → normalize → validate → aiInput
+    // CANONICAL ACCOUNTING ENGINE (Phase 3): buildCanonicalOutput
     // ═══════════════════════════════════════════════════════════════════════
+    const canonical = buildCanonicalOutput(extractedData, rawAiOutput, extractionMethod);
+    const finalStatus = canonical.validation.status;
+    const allErrors = canonical.validation.canonical_checks
+      .filter(c => c.result === "FAIL")
+      .map(c => `${c.name}: ${c.details}`);
 
-    // STEP 1: Normalize (sign corrections with auto-correction log)
-    const normalizationResult = normalizeKeyFigures(extractedData);
-
-    // Apply normalized key_figures back to extractedData
-    if (extractedData.key_figures) {
-      extractedData.key_figures = normalizationResult.key_figures;
-    }
-
-    // Log all corrections applied
-    if (normalizationResult.corrections.length > 0) {
-      console.log(`[Canonical] Applied ${normalizationResult.corrections.length} sign correction(s):`);
-      for (const c of normalizationResult.corrections) {
-        console.log(`  [Correction] ${c.field}: ${c.originalValue} → ${c.correctedValue} (${c.reason})`);
-      }
-    }
-
-    // STEP 2: Validate (comprehensive subtotal chain)
-    const canonicalValidation = runCanonicalValidation(extractedData, normalizationResult);
-    const aiValidation = extractedData.validation;
-
-    // STEP 3: Merge AI validation with server-side canonical validation
-    // ═══ FINAL STATUS PRIORITY (strict cascade) ═══
-    // 1. Server FAIL → FAIL (mathematical errors caught server-side)
-    // 2. AI FAIL → FAIL (AI flagged extraction error)
-    // 3. AI UNSURE → UNSURE (AI low confidence)
-    // 4. Canonical UNSURE → UNSURE (nothing could be validated)
-    // 5. Else → PASS
-    let finalStatus: "PASS" | "FAIL" | "UNSURE" = "PASS";
-
-    if (canonicalValidation.status === "FAIL") {
-      finalStatus = "FAIL";
-    } else if (aiValidation?.status === "FAIL") {
-      finalStatus = "FAIL";
-    } else if (aiValidation?.status === "UNSURE") {
-      finalStatus = "UNSURE";
-    } else if (canonicalValidation.status === "UNSURE") {
-      finalStatus = "UNSURE";
-    }
-
-    // Collect all errors (canonical + AI)
-    const allErrors: string[] = [...canonicalValidation.errors];
-    if (aiValidation?.checks) {
-      for (const check of aiValidation.checks) {
-        if (check.result === "FAIL") {
-          allErrors.push(`[AI] ${check.name}: ${check.details}`);
-        }
-      }
-    }
-
-    // STEP 4: Build canonical output for AI analysis input
-    const canonicalOutput = {
+    // Apply canonical validation back to extractedData for backward compat
+    extractedData.validation = {
       status: finalStatus,
-      server_checks: canonicalValidation.checks,
-      ai_checks: aiValidation?.checks || [],
-      corrections: normalizationResult.corrections,
+      server_checks: canonical.validation.canonical_checks,
+      ai_checks: canonical.validation.ai_checks,
+      corrections: canonical.correction_log,
       errors: allErrors,
     };
 
-    extractedData.validation = canonicalOutput;
-
-    // Log final validation summary
-    console.log(`[Canonical] Period: ${extractedData.report_period} | Type: ${extractedData.report_type}`);
-    console.log(`[Canonical] Status: ${finalStatus} (server: ${canonicalValidation.status}, ai: ${aiValidation?.status || "N/A"})`);
-    for (const check of canonicalValidation.checks) {
-      if (check.result === "FAIL") {
-        console.warn(`  ✗ ${check.name}: ${check.details}`);
-      } else if (check.result === "PASS") {
-        console.log(`  ✓ ${check.name}: ${check.details}`);
-      } else {
-        console.log(`  ~ ${check.name}: ${check.details} (SKIP)`);
+    // Apply normalized metrics back to key_figures for backward compat
+    if (extractedData.key_figures && canonical.metrics) {
+      // Keep original Danish key_figures but update values from canonical normalization
+      const kfMap: Record<string, string> = {
+        revenue: "omsaetning", cogs: "direkte_omkostninger", gross_profit: "daekningsbidrag",
+        payroll: "loenninger", sales_costs: "marketing", facility_costs: "lokaler",
+        admin_costs: "admin", depreciation: "afskrivninger", ebt: "resultat_foer_skat",
+        net_result: "resultat_efter_skat", assets_total: "aktiver_i_alt",
+        liabilities_total: "passiver_i_alt", equity_total: "egenkapital",
+        cash: "bank_balance", trade_receivables: "debitorer", current_liabilities: "kreditorer",
+        inventory: "varelager",
+      };
+      for (const [eng, dk] of Object.entries(kfMap)) {
+        const val = (canonical.metrics as any)[eng];
+        if (val != null) extractedData.key_figures[dk] = val;
       }
     }
-    const kf = extractedData.key_figures;
-    if (kf) {
-      console.log(`[Canonical] omsaetning: ${kf.omsaetning}, daekningsbidrag: ${kf.daekningsbidrag}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
+
+    // Log canonical summary
+    console.log(`[Canonical] Period: ${extractedData.report_period} | Type: ${canonical.statement_type} | Basis: ${canonical.selected_period_basis}`);
+    console.log(`[Canonical] Status: ${finalStatus} | ai_eligible: ${canonical.ai_eligible} | Corrections: ${canonical.correction_log.length}`);
+    for (const check of canonical.validation.canonical_checks) {
+      const icon = check.result === "FAIL" ? "✗" : check.result === "PASS" ? "✓" : "~";
+      console.log(`  ${icon} ${check.name}: ${check.details}`);
     }
 
     // Check for duplicate report (same company, same period)
@@ -640,14 +603,13 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         if (existing && existing.length > 0 && overwrite) {
           for (const old of existing) {
             await supabase.from("milestones").delete().eq("source_report", old.id);
-            // Soft-delete the old report instead of hard-delete
             await supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" }).eq("id", old.id);
           }
-          console.log(`Soft-deleted ${existing.length} existing report(s) + removed milestones for ${extractedData.report_period}`);
+          console.log(`Soft-deleted ${existing.length} existing report(s) for ${extractedData.report_period}`);
         }
       }
 
-      // Prepare DB update with parser data (if available)
+      // Prepare DB update
       const updatePayload: any = {
         report_type: extractedData.report_type,
         report_period: extractedData.report_period,
@@ -657,9 +619,11 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         processed_at: new Date().toISOString(),
         status: "processed",
         extraction_method: extractionMethod,
-        // Always set validation fields (for both AI and deterministic)
         validation_status: finalStatus,
         validation_errors: allErrors.length > 0 ? allErrors : null,
+        raw_extracted_data: rawAiOutput,
+        // PHASE 3: Full canonical output in normalized_data
+        normalized_data: canonical,
       };
 
       // Add parser-specific data if deterministic parsing was used
@@ -670,15 +634,6 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           period_start: parsedReport.period_start,
           period_end: parsedReport.period_end,
         };
-        updatePayload.normalized_data = {
-          template_id: parsedReport.template_id,
-          normalized_lines: parsedReport.normalized_lines,
-          metrics: parsedReport.metrics,
-        };
-      } else {
-        // AI extraction: capture raw AI output vs. post-processed data
-        updatePayload.raw_extracted_data = rawAiOutput; // Pre-processing snapshot
-        updatePayload.normalized_data = extractedData;  // Post-processing snapshot
       }
 
       const { error: updateError } = await supabase
@@ -690,6 +645,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         console.error("DB update error:", updateError);
       }
     }
+
+    // Return extractedData + canonical for client-side use
+    extractedData.canonical = canonical;
 
     return new Response(JSON.stringify(extractedData), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
