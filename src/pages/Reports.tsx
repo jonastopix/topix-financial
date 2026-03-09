@@ -183,7 +183,7 @@ const Reports = () => {
   // (delivery overview logic is now in DeliveryOverview component)
 
 
-  // Build trend data for charts
+  // Build trend data for charts (canonical-first)
   const trendData = useMemo(() => {
     const sortedKeys = Object.keys(reportsByMonth).sort();
     const filteredKeys = trendPeriod.filterKeys(sortedKeys);
@@ -191,8 +191,9 @@ const Reports = () => {
       .map((key) => {
         const r = reportsByMonth[key];
         if (r.status !== "processed") return null;
-        const kf = getKeyFigures(r);
-        if (!kf) return null;
+        const result = getCanonicalOrLegacyMetrics(r);
+        if (!result) return null;
+        const kf = result.metrics;
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
         return {
