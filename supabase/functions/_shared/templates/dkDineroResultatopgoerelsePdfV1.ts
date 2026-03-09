@@ -362,8 +362,33 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
       const amount = line.period_amount;
       if (amount == null) continue;
 
-      const core = classifyLineCore(line.name, line.account_no);
       const sectionCls = sectionMap.get(i) || undefined;
+
+      // Priority 0: Hard override — explicit label patterns that always win
+      let hardOverrideCls: string | null = null;
+      for (const [re, cls] of HARD_OVERRIDE_LABELS) {
+        if (re.test(line.name)) {
+          hardOverrideCls = cls;
+          break;
+        }
+      }
+
+      if (hardOverrideCls) {
+        console.log(`[DineroPDF] Hard override: "${line.name}" → ${hardOverrideCls}`);
+        classified.push({
+          accountNo: line.account_no,
+          name: line.name,
+          rawAmount: amount,
+          cls: hardOverrideCls,
+          method: "label",
+          ambiguous: false,
+          sectionCls,
+        });
+        continue;
+      }
+
+      // Priority 1-3: label-first → section-fallback → range-fallback
+      const core = classifyLineCore(line.name, line.account_no);
 
       let finalCls = core.cls;
       let finalMethod = core.method;
