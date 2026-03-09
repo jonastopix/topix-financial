@@ -174,7 +174,7 @@ serve(async (req) => {
             await supabase
               .from("financial_reports")
               .update({
-                status: "needs_review",
+                status: "error",
                 extraction_method: extractionMethod,
                 validation_status: "FAIL",
                 validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
@@ -189,7 +189,7 @@ serve(async (req) => {
               error: "Deterministic parsing failed",
               template_id: detResult.template_id,
               details: detResult.error,
-              status: "needs_review",
+              status: "error",
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
@@ -605,20 +605,19 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         if (existing && existing.length > 0 && overwrite) {
           for (const old of existing) {
             await supabase.from("milestones").delete().eq("source_report", old.id);
-            await supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" }).eq("id", old.id);
+            await supabase
+              .from("financial_reports")
+              .update({ deleted_at: new Date().toISOString(), status: "processed" })
+              .eq("id", old.id);
           }
           console.log(`Soft-deleted ${existing.length} existing report(s) for ${extractedData.report_period}`);
         }
       }
 
       // Determine final DB status based on validation
-      // - FAIL/UNSURE → needs_review
-      // - PASS + ai_eligible = true → reviewed (will get AI feedback)
-      // - PASS + ai_eligible = false → reviewed (correct parse, not AI-suitable)
-      let dbStatus = "processed";
-      if (finalStatus !== "PASS") {
-        dbStatus = "needs_review";
-      }
+      // - PASS -> processed
+      // - FAIL/UNSURE -> error
+      const dbStatus = finalStatus === "PASS" ? "processed" : "error";
 
       // Prepare DB update
       const updatePayload: any = {
