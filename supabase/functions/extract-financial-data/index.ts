@@ -174,7 +174,7 @@ serve(async (req) => {
             await supabase
               .from("financial_reports")
               .update({
-                status: "needs_review",
+                status: "error",
                 extraction_method: extractionMethod,
                 validation_status: "FAIL",
                 validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
@@ -189,7 +189,7 @@ serve(async (req) => {
               error: "Deterministic parsing failed",
               template_id: detResult.template_id,
               details: detResult.error,
-              status: "needs_review",
+              status: "error",
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
