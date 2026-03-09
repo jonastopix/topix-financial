@@ -65,7 +65,7 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
           className="text-sm"
           disabled={disabled}
         />
-        {handoutId && !linkedMilestone && value.trim() && (
+        {handoutId && !linkedMilestone && value.trim() && !disabled && (
           <Button
             size="sm"
             variant="ghost"

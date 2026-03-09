@@ -330,6 +330,8 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
                 handoutId={handoutId || undefined}
                 linkedMilestone={leverMilestones[i] || null}
                 onMilestoneCreated={loadData}
+                disabled={!isOwner}
+              />
               />
             ))}
           </TabsContent>
