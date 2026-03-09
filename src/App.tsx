@@ -24,6 +24,7 @@ import AdminConfig from "./pages/AdminConfig";
 import ReportDebug from "./pages/ReportDebug";
 import EmailTemplates from "./pages/EmailTemplates";
 import BulkImport from "./pages/BulkImport";
+import ReportReviewQueue from "./pages/ReportReviewQueue";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
@@ -92,6 +93,7 @@ const App = () => (
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
               <Route path="/admin/import" element={<AdminRoute><BulkImport /></AdminRoute>} />
+              <Route path="/admin/review-queue" element={<AdminRoute><ReportReviewQueue /></AdminRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
