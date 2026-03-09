@@ -1831,3 +1831,43 @@ Deno.test("Phase5 Dinero — T9. Golden snapshot: Canonical output", () => {
 
   console.log(`\n✅ Dinero CSV golden snapshot verified — fail-closed for missing financial_costs`);
 });
+
+// ═══════════════════════════════════════════════════════
+// REGRESSION: Saldobalance "pr." date parsing
+// ═══════════════════════════════════════════════════════
+
+import { parseEconomicPdfText } from "../_shared/pdfTextParser.ts";
+
+Deno.test("Saldobalance pr. date parsed correctly over Hentet timestamp (4-digit year)", () => {
+  const text = [
+    "Hentet: 09/03-2026 Kl. 14.18",
+    "",
+    "SnowWaves ApS (CVR-nr. 39850850)",
+    "",
+    "Saldobalance pr.: 31/01-2026",
+    "",
+    "1000 Varesalg -100.000,00",
+  ].join("\n");
+
+  const result = parseEconomicPdfText(text);
+  assertEquals(result.metadata.report_period, "Januar 2026", "Should use Saldobalance pr. date, not Hentet timestamp");
+  assertEquals(result.metadata.company_name, "SnowWaves ApS");
+  assertEquals(result.metadata.cvr_number, "39850850");
+  console.log(`\n✅ Saldobalance pr. 4-digit year: report_period=${result.metadata.report_period}`);
+});
+
+Deno.test("Saldobalance pr. date parsed correctly with 2-digit year", () => {
+  const text = [
+    "Hentet: 09/03-2026 Kl. 14.18",
+    "",
+    "SnowWaves ApS",
+    "",
+    "Saldobalance pr.: 31/01-26",
+    "",
+    "1000 Varesalg -100.000,00",
+  ].join("\n");
+
+  const result = parseEconomicPdfText(text);
+  assertEquals(result.metadata.report_period, "Januar 2026", "2-digit year should expand to 2026");
+  console.log(`\n✅ Saldobalance pr. 2-digit year: report_period=${result.metadata.report_period}`);
+});

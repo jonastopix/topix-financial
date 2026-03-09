@@ -98,9 +98,14 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
   let hasAktiver = false;
   let hasPassiver = false;
 
+  let prDateMatched = false; // explicit flag for point-in-time "pr." dates
+
   for (const rawLine of textLines) {
     const line = rawLine.trim();
     if (!line) continue;
+
+    // ── Skip fetch/export timestamps (never a report date) ──
+    if (/^Hentet:/i.test(line)) continue;
 
     // ── e-conomic footer ──
     if (line.includes("secure.e-conomic.com")) {
@@ -143,6 +148,27 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
     }
 
     // ── Period from header ──
+
+    // Pattern 0 (highest priority): Point-in-time "Saldobalance pr.: 31/01-2026"
+    // Requires "Saldobalance" context to avoid matching unrelated "pr." occurrences
+    if (!prDateMatched) {
+      const prMatch = line.match(
+        /Saldobalance\s+pr\.?:?\s*(\d{2})[.\/\-](\d{2})[.\/\-](\d{2,4})/i
+      );
+      if (prMatch) {
+        const [, d, m, rawY] = prMatch;
+        const fullY = rawY.length === 2 ? (parseInt(rawY) >= 50 ? "19" : "20") + rawY : rawY;
+        periodStart = `${d}-${m}-${fullY}`;
+        periodEnd = `${d}-${m}-${fullY}`;
+        const monthIdx = parseInt(m, 10) - 1;
+        if (monthIdx >= 0 && monthIdx < 12) {
+          reportPeriod = `${MONTH_NAMES[monthIdx]} ${fullY}`;
+        }
+        prDateMatched = true;
+        continue;
+      }
+    }
+
     // Pattern 1: "Saldobalance for perioden 01.04.25 - 30.04.25" (dot-separated)
     const periodMatch = line.match(
       /(?:Saldobalance|Resultatopg).+?(\d{2})\.(\d{2})\.(\d{2,4})\s*-\s*(\d{2})\.(\d{2})\.(\d{2,4})/i
