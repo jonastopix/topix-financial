@@ -120,6 +120,7 @@ serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════════════
     
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
+    const isPdfFile = fileName && fileName.toLowerCase().endsWith('.pdf');
     
     let extractedData: any = null;
     let rawAiOutput: any = null;
@@ -128,12 +129,16 @@ serve(async (req) => {
 
     // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
     if (isExcelFile && excelBase64) {
-      console.log("[Routing] Attempting deterministic extraction...");
+      console.log("[Routing] Attempting deterministic Excel extraction...");
       detResult = await tryDeterministicExtraction(excelBase64, fileName);
+    } else if (isPdfFile && fileContent) {
+      console.log("[Routing] Attempting deterministic PDF extraction...");
+      detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+    }
 
+    if (detResult) {
       switch (detResult.type) {
         case "success":
-          // Template matched and extraction successful → use deterministic data
           extractedData = detResult.extractedData;
           rawAiOutput = { deterministic: true, template_id: detResult.template_id };
           extractionMethod = "deterministic_template";
@@ -141,11 +146,9 @@ serve(async (req) => {
           break;
 
         case "structural_fail":
-          // Template matched but structural parsing failed → needs_review, NO AI fallback
           console.log(`[Routing] Structural failure for ${detResult.template_id}: ${detResult.error}`);
           extractionMethod = "deterministic_failed";
           
-          // Store minimal data and mark as needs_review
           if (reportId) {
             await supabase
               .from("financial_reports")
@@ -170,7 +173,6 @@ serve(async (req) => {
           );
 
         case "no_match":
-          // No template matched → continue to AI extraction
           console.log("[Routing] No template match → AI extraction");
           break;
       }
