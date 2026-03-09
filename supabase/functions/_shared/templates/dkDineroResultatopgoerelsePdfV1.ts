@@ -6,6 +6,7 @@
  *   - fileType === "pdf", rawText >= 200 chars
  *   - Anti-match: secure.e-conomic.com, AKTIVER/PASSIVER, Saldobalance, CSV headers
  *   - Positive: "Resultatopgørelse" header (+35), "dinero" brand (+25),
+ *     "Hentet:" watermark (+25), ALL-CAPS subtotals ≥3 (+20),
  *     4-digit accounts without CSV structure (+20 supplement), P&L labels (+15), filename (+10 each)
  *
  * Extraction:
