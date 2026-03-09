@@ -175,11 +175,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
 
     try {
       const ed = target.extracted_data as any;
+      const nd = target.normalized_data as any;
+      const isCanonicalPath = nd?.ai_eligible === true && nd?.ai_eligible_payload;
 
       // Fetch historical data
       const { data: historicalReports } = await supabase
         .from("financial_reports")
-        .select("extracted_data, report_period")
+        .select("extracted_data, normalized_data, report_period, validation_status")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("status", "processed")
@@ -187,23 +189,49 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         .order("uploaded_at", { ascending: true })
         .limit(12);
 
-      const historicalData = (historicalReports || [])
-        .filter(r => r.extracted_data)
-        .map(r => {
-          const d = r.extracted_data as any;
-          return { period: r.report_period || d?.report_period, ...d?.key_figures };
-        });
+      // Build body based on canonical vs legacy path
+      let body: any;
 
-      const { data, error } = await supabase.functions.invoke("ai-financial-feedback", {
-        body: {
-          financialData: ed.key_figures || ed,
-          historicalData: historicalData.length > 0 ? historicalData : undefined,
+      if (isCanonicalPath) {
+        // CANONICAL PATH: only PASS + ai_eligible historical
+        const historicalCanonical = (historicalReports || [])
+          .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
+          .map(r => ({
+            period: r.report_period,
+            ...(r.normalized_data as any)?.metrics,
+            _source: "canonical",
+          }));
+
+        body = {
+          canonicalPayload: nd.ai_eligible_payload,
+          historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
           companyContext: {
-            name: target.company_name || ed.company_name,
-            cvr: target.cvr_number || ed.cvr_number,
+            name: target.company_name || ed?.company_name,
+            cvr: target.cvr_number || ed?.cvr_number,
           },
-        },
-      });
+          companyId,
+        };
+      } else {
+        // LEGACY PATH: only non-canonical historical
+        const legacyHistorical = (historicalReports || [])
+          .filter(r => r.extracted_data)
+          .map(r => {
+            const d = r.extracted_data as any;
+            return { period: r.report_period || d?.report_period, ...d?.key_figures };
+          });
+
+        body = {
+          financialData: ed?.key_figures || ed,
+          historicalData: legacyHistorical.length > 0 ? legacyHistorical : undefined,
+          companyContext: {
+            name: target.company_name || ed?.company_name,
+            cvr: target.cvr_number || ed?.cvr_number,
+          },
+          companyId,
+        };
+      }
+
+      const { data, error } = await supabase.functions.invoke("ai-financial-feedback", { body });
 
       if (error) throw error;
 
