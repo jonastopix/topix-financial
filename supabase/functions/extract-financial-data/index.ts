@@ -625,14 +625,37 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     const serverValidation = runPostProcessingValidation(extractedData);
     const aiValidation = extractedData.validation;
 
-    // Merge: if AI said PASS but server found FAIL → override to FAIL
-    let finalStatus = aiValidation?.status || serverValidation.status;
+    // ═══ FINAL STATUS PRIORITY (strict cascade) ═══
+    // 1. Server FAIL → FAIL (structural/mathematical errors)
+    // 2. AI FAIL → FAIL (extraction errors)
+    // 3. AI UNSURE → UNSURE (low confidence)
+    // 4. Any SKIP → FAIL (conservative: unvalidated = unsafe)
+    // 5. Else → PASS
+    let finalStatus: "PASS" | "FAIL" | "UNSURE" = "PASS";
+
     if (serverValidation.status === "FAIL") {
       finalStatus = "FAIL";
-    }
-    // If AI said UNSURE, keep UNSURE even if server checks pass
-    if (aiValidation?.status === "UNSURE" && finalStatus === "PASS") {
+    } else if (aiValidation?.status === "FAIL") {
+      finalStatus = "FAIL";
+    } else if (aiValidation?.status === "UNSURE") {
       finalStatus = "UNSURE";
+    } else if (serverValidation.status === "SKIP" || aiValidation?.status === "SKIP") {
+      finalStatus = "FAIL"; // Conservative: unvalidated data treated as failed
+    }
+
+    // Collect all validation errors
+    const allErrors: string[] = [];
+    for (const check of serverValidation.checks) {
+      if (check.result === "FAIL") {
+        allErrors.push(`[Server] ${check.name}: ${check.details}`);
+      }
+    }
+    if (aiValidation?.checks) {
+      for (const check of aiValidation.checks) {
+        if (check.result === "FAIL") {
+          allErrors.push(`[AI] ${check.name}: ${check.details}`);
+        }
+      }
     }
 
     extractedData.validation = {
@@ -642,7 +665,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     };
 
     // Log validation results
-    console.log(`[Validation] Status: ${finalStatus}`);
+    console.log(`[Validation] Final Status: ${finalStatus} (Server: ${serverValidation.status}, AI: ${aiValidation?.status || "N/A"})`);
     for (const check of serverValidation.checks) {
       if (check.result === "FAIL") {
         console.warn(`[Validation FAIL] ${check.name}: ${check.details}`);
