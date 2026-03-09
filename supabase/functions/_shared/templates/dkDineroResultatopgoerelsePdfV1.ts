@@ -99,6 +99,17 @@ const SUBTOTAL_SECTION_MAP: [RegExp, string][] = [
   [/skat\s*(af|i\s*alt)/i, "tax"],
 ];
 
+// ── Hard override labels ──
+// These patterns ALWAYS resolve to a specific class, overriding section and range fallback.
+// Used for transport/vehicle labels that commonly appear in payroll sections.
+const HARD_OVERRIDE_LABELS: [RegExp, string][] = [
+  [/kørsel\s*i\s*egen\s*bil/i, "vehicle_costs"],
+  [/kilometergodtgørelse/i, "vehicle_costs"],
+  [/kørselsgodtgørelse/i, "vehicle_costs"],
+  [/transportgodtgørelse/i, "vehicle_costs"],
+  [/diverse\s*transport/i, "vehicle_costs"],
+];
+
 // ── Classification ──
 
 interface ClassifiedLine {
