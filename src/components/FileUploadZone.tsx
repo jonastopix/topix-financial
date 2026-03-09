@@ -344,6 +344,7 @@ const FileUploadZone = ({
               pendingFile: file,
               pendingFileContent: extracted.text,
               pendingPageImages: extracted.pageImages,
+              pendingExcelBase64: excelBase64,
               pendingReportId: "",
               pendingFileId: fileId,
             });
