@@ -555,10 +555,16 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
     // Check: Impossible margin
     if (keyFigures.omsaetning != null && keyFigures.daekningsbidrag != null && keyFigures.omsaetning !== 0) {
       const marginPct = (keyFigures.daekningsbidrag / keyFigures.omsaetning) * 100;
+      const hasContraCogs = (keyFigures.direkte_omkostninger ?? 0) < 0;
+      const isOutsideStandardRange = marginPct < -100 || marginPct > 100;
+      const marginAllowedByContraCogs = hasContraCogs && marginPct > 100;
+
       checks.push({
         name: "impossible_margin_check",
-        result: marginPct >= -100 && marginPct <= 100 ? "PASS" : "FAIL",
-        details: `Gross margin: ${marginPct.toFixed(1)}%`,
+        result: isOutsideStandardRange && !marginAllowedByContraCogs ? "FAIL" : "PASS",
+        details: marginAllowedByContraCogs
+          ? `Gross margin: ${marginPct.toFixed(1)}% (allowed due to negative COGS / contra-cost)`
+          : `Gross margin: ${marginPct.toFixed(1)}%`,
       });
     } else {
       checks.push({ name: "impossible_margin_check", result: "SKIP", details: "Missing data for margin" });
