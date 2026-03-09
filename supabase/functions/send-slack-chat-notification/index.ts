@@ -145,10 +145,12 @@ Deno.serve(async (req) => {
         ? ` • ${contextType.charAt(0).toUpperCase() + contextType.slice(1)}`
         : "";
 
+      const emoji = chatEmoji(contextType);
+
       const rootBlocks = [
         {
           type: "header",
-          text: { type: "plain_text", text: `💬 Ny chat fra ${companyName}`, emoji: true },
+          text: { type: "plain_text", text: `${emoji} Ny chat fra ${companyName}`, emoji: true },
         },
         {
           type: "section",
@@ -220,7 +222,7 @@ Deno.serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${senderName}* fra ${companyName}\n>${preview}`,
+            text: `💬 *${senderName}* fra ${companyName}\n>${preview}`,
           },
         },
         {
@@ -237,7 +239,8 @@ Deno.serve(async (req) => {
       await postToSlack(SLACK_BOT_TOKEN, {
         channel: SLACK_CHANNEL,
         thread_ts: threadTs,
-        text: `${senderName} fra ${companyName}: ${preview}`,
+        reply_broadcast: true,
+        text: `💬 ${senderName} fra ${companyName}: ${preview}`,
         blocks: replyBlocks,
       });
     }
@@ -272,6 +275,16 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+function chatEmoji(contextType: string | null): string {
+  switch (contextType) {
+    case "report": return "📊";
+    case "handout": return "📝";
+    case "milestone": return "🎯";
+    case "file": return "📎";
+    default: return "💬";
+  }
+}
 
 function json(data: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(data), {
