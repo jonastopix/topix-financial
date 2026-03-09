@@ -272,7 +272,7 @@ D) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
 E) BALANCE-POSTER (aktiver, passiver, egenkapital, bank):
    - Aktiver: returnér som positive
    - Passiver/gæld: returnér som positive (selvom de står som negative/kredit)
-   - Bank/likvider: returnér som positive (selvom de står som negative/kredit)
+   - Bank/likvider: BEHOLD ORIGINALT FORTEGN (negativt = overtræk/kassekredit)
    - Egenkapital: behold fortegn som det er (negativ egenkapital er mulig)
 
 ═══════════════════════════════════════════════════
