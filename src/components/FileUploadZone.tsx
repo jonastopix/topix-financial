@@ -33,6 +33,18 @@ interface ExtractedData {
   cvr_number: string;
   key_figures: Record<string, number>;
   line_items: Array<{ name: string; period_amount: number; ytd_amount: number }>;
+  validation?: {
+    status?: string;
+  };
+  extraction_method?: string;
+  normalized_metrics?: {
+    cash?: number;
+    equity_total?: number;
+    equity_ratio_pct?: number;
+    trade_receivables?: number;
+    inventory?: number;
+    revenue?: number;
+  };
 }
 
 interface UploadedFile {
