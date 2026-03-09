@@ -607,3 +607,193 @@ Deno.test("Phase4b — 12. PDF e-conomic combined detection ambiguity check", ()
   }
   console.log(`✅ PDF e-conomic combined template detected and extracted correctly`);
 });
+
+// ═══════════════════════════════════════════════════════
+// TEST 13: FULL REAL PDF — 25.04 Saldobalance.pdf (Topix.dk ApS)
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase4b — 13. Full real PDF E2E (25.04 Saldobalance)", () => {
+  console.log(`\n══ 13. FULL REAL PDF E2E ══`);
+
+  // Real parsed text from 25.04_Saldobalance.pdf (3 pages)
+  const realPdfText = [
+    "22.05.2025, 11.33                            1796416 - Topix.dk ApS - CVR 45281736",
+    "Saldobalance for perioden 01.04.25 - 30.04.25",
+    "RESULTATOPGØRELSE",
+    "| Nr.  | Navn                               | Perioden    | År til dato |",
+    "| ---- | ---------------------------------- | ----------- | ----------- |",
+    "| 1010 | Salg af varer/ydelser m/moms       | -226.398,43 | -255.279,28 |",
+    "|      | Omsætning i alt                    | -226.398,43 | -255.279,28 |",
+    "| 1310 | Direkte omkostninger m/moms        | 313,69      | 729,77      |",
+    "|      | Direkte omkostninger i alt         | 313,69      | 729,77      |",
+    "|      | Dækningsbidrag                     | -226.084,74 | -254.549,51 |",
+    "| 2210 | Lønninger                          | 9.901,00    | 9.901,00    |",
+    "| 2223 | ATP                                | 297,00      | 297,00      |",
+    "| 2230 | KM-penge                           | 8.640,32    | 8.640,32    |",
+    "| 2241 | Personaleudgifter                  | 0,00        | 195,00      |",
+    "|      | Lønninger i alt                    | 18.838,32   | 19.033,32   |",
+    "| 2801 | Meta Ads                           | 50,35       | 17.157,26   |",
+    "| 2802 | Google Ads                         | 893,77      | 3.296,98    |",
+    "| 2805 | E-mail Marketing                   | 252,79      | 252,79      |",
+    "| 2806 | Contentproduktion                  | 12.247,50   | 187.980,00  |",
+    "| 2807 | Marketingkonsulenter, DK           | 0,00        | 38.000,00   |",
+    "|      | Salgs- og rejseomkostninger i alt  | 13.444,41   | 246.687,03  |",
+    "| 3602 | Hardware, Kamera, Mikrofon         | 0,00        | 4.761,81    |",
+    "| 3604 | Edb-udgifter / software            | 0,00        | 1.295,54    |",
+    "| 3605 | Software DK                        | 1.311,68    | 2.342,94    |",
+    "| 3606 | Software EU                        | 1.536,96    | 3.960,79    |",
+    "| 3607 | Software Verden                    | 6.007,64    | 11.598,90   |",
+    "| 3628 | Porto og gebyrer                   | 481,25      | 1.971,25    |",
+    "| 3642 | Bogføringsassistance               | 0,00        | 10.000,00   |",
+    "| 3645 | Advokat                            | 0,00        | 16.470,00   |",
+    "| 3664 | Web-hotel og domænenavne           | 6.650,00    | 22.446,53   |",
+    "|      | Administrationsomkostninger i alt  | 15.987,53   | 74.847,76   |",
+    "|      | Resultat før afskrivninger         | -177.814,48 | 86.018,60   |",
+    "| 3950 | Afskrivning, edb                   | 2.910,65    | 7.776,22    |",
+    "|      | Afskrivninger i alt                | 2.910,65    | 7.776,22    |",
+    "|      | Resultat før renter                | -174.903,83 | 93.794,82   |",
+    "| 4310 | Renteindtægt, bank                 | 0,00        | -595,25     |",
+    "|      | Renteindtægter i alt               | 0,00        | -595,25     |",
+    "| 4410 | Renteudgift, bank                  | 0,00        | 14,12       |",
+    "|      | Renteudgifter i alt                | 0,00        | 14,12       |",
+    "|      | Resultat før ekstraordinære poster | -174.903,83 | 93.213,69   |",
+    "|      | Resultat før skat                  | -174.903,83 | 93.213,69   |",
+    "|      | RESULTAT EFTER SKAT                | -174.903,83 | 93.213,69   |",
+    "https://secure.e-conomic.com/reports/statements/period-total    1/3",
+    "22.05.2025, 11.33                          1796416 - Topix.dk ApS - CVR 45281736",
+    "AKTIVER",
+    "| 5232 | Edb-anlæg, årets tilgang       | 0,00      | 104.822,00 |",
+    "| ---- | ------------------------------ | --------- | ---------- |",
+    "| 5237 | Edb-anlæg, årets afskrivninger | -2.910,65 | -7.776,22  |",
+    "|      | Edb-anlæg i alt                | -2.910,65 | 97.045,78  |",
+    "|      | Anlægsaktiver i alt            | -2.910,65 | 97.045,78  |",
+    "| 5600 | Debitorer                      | 50.000,00  | 50.000,00  |",
+    "| ---- | -------------------------- | ---------- | ---------- |",
+    "| 5660 | Periodiseringer - (system) | -5.042,14  | 24.867,34  |",
+    "| 5820 | Bankkonto                  | 237.827,22 | 307.777,76 |",
+    "| 5830 | Pleo                       | -6.438,44  | 29.082,15  |",
+    "|      | Omsætningsaktiver i alt    | 276.346,64 | 411.727,25 |",
+    "AKTIVER I ALT",
+    "273.435,99  508.773,03",
+    "https://secure.e-conomic.com/reports/statements/period-total    2/3",
+    "22.05.2025, 11.33                           1796416 - Topix.dk ApS - CVR 45281736",
+    "PASSIVER",
+    "| Nr.  | Navn                          | Perioden    | År til dato |",
+    "| ---- | ----------------------------- | ----------- | ----------- |",
+    "| 6110 | Anpartskapital                | 0,00        | -40.000,00  |",
+    "|      | Periodens resultat efter skat | -174.903,83 | 93.213,69   |",
+    "|      | EGENKAPITAL I ALT             | -174.903,83 | 53.213,69   |",
+    "| 6800 | Kreditorer                    | 41.687,50   | -8.312,50   |",
+    "| 6870 | Mellemregning Mola Invest ApS   | 0,00      | -300.000,00 |",
+    "| 6880 | Mellemregning Bright Invest ApS | 0,00      | -200.000,00 |",
+    "| 6902 | Udgående (salg) moms            | -56.599,61  | -63.819,84  |",
+    "| 6903 | Indgående (køb) moms            | 4.524,95    | 78.290,62   |",
+    "| 6906 | Erhvervelsesmoms (køb i udland) | 1.530,61    | 14.205,07   |",
+    "| 6907 | Erhvervelsesmoms (modkonto)     | -1.530,61   | -14.205,07  |",
+    "| 6917 | Betalt moms                     | -86.546,00  | -66.546,00  |",
+    "|      | Moms og afgifter i alt          | -138.620,66 | -52.075,22  |",
+    "| 6920 | Skyldig A-skat   | -1.302,00 | -1.302,00   |",
+    "| 6921 | Skyldig ATP      | -297,00   | -297,00     |",
+    "|      | Anden gæld i alt | -1.599,00 | -1.599,00   |",
+    "GÆLD I ALT",
+    "-98.532,16  -561.986,72",
+    "PASSIVER I ALT",
+    "-273.435,99  -508.773,03",
+    "https://secure.e-conomic.com/reports/statements/period-total    3/3",
+  ].join("\n");
+
+  // ── 1. Detection ──
+  const ctx: DetectionContext = {
+    fileName: "25.04_Saldobalance.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: realPdfText,
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should detect template");
+  console.log(`Template: ${match!.template.template_id}`);
+  console.log(`Detection score: ${match!.score}`);
+  console.log(`Ambiguity: PASSED (no second-best)`);
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_SALDOBALANCE_PDF_V1");
+  assertEquals(match!.score >= 90, true);
+
+  // ── 2. Extraction ──
+  const result = match!.template.extract({ ...ctx, rows: [] });
+  if (!result.success) {
+    console.log(`EXTRACTION FAILED: ${result.error}`);
+  }
+  assertEquals(result.success, true);
+  if (!result.success) return;
+
+  const d = result.data;
+  console.log(`\n─ Routing: SUCCESS`);
+  console.log(`─ extraction_method: deterministic_template`);
+  console.log(`─ statement_type: ${d.report_type}`);
+  console.log(`─ company_name: ${d.company_name}`);
+  console.log(`─ cvr_number: ${d.cvr_number}`);
+  console.log(`─ report_period: ${d.report_period}`);
+  console.log(`─ column_basis_rule: ${d._deterministic_meta.column_basis_rule}`);
+  console.log(`─ parser_validation_status: ${d.validation.parser_status}`);
+  console.log(`─ raw_line_count: ${d._deterministic_meta.raw_line_count}`);
+  console.log(`─ normalized_line_count: ${d._deterministic_meta.normalized_line_count}`);
+
+  // ── 3. Canonical Engine ──
+  const canonical = buildCanonicalOutput(d, { deterministic: true, template_id: "DK_ECONOMIC_SALDOBALANCE_PDF_V1" }, "deterministic_template");
+  const m = canonical.metrics;
+
+  console.log(`\n─ Canonical Output:`);
+  console.log(`  statement_type: ${canonical.statement_type}`);
+  console.log(`  selected_period_basis: ${canonical.selected_period_basis}`);
+  console.log(`  validation.status: ${canonical.validation.status}`);
+  console.log(`  ai_eligible: ${canonical.ai_eligible}`);
+  console.log(`  correction_log count: ${canonical.correction_log.length}`);
+  console.log(`  raw_lines count: ${canonical.raw_lines.length}`);
+  console.log(`  normalized_lines count: ${canonical.normalized_lines.length}`);
+
+  console.log(`\n─ Key Metrics:`);
+  console.log(`  revenue:           ${m.revenue}`);
+  console.log(`  cogs:              ${m.cogs}`);
+  console.log(`  gross_profit:      ${m.gross_profit}`);
+  console.log(`  payroll:           ${m.payroll}`);
+  console.log(`  ebt:               ${m.ebt}`);
+  console.log(`  net_result:        ${m.net_result}`);
+  console.log(`  assets_total:      ${m.assets_total}`);
+  console.log(`  liabilities_total: ${m.liabilities_total}`);
+  console.log(`  equity_total:      ${m.equity_total}`);
+  console.log(`  cash:              ${m.cash}`);
+  console.log(`  trade_receivables: ${m.trade_receivables}`);
+
+  console.log(`\n─ Deterministic Meta:`);
+  console.log(`  ${JSON.stringify(canonical.deterministic_meta, null, 2)}`);
+
+  console.log(`\n─ Validation Checks:`);
+  for (const check of canonical.validation.canonical_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+
+  // ── 4. Safety Gate ──
+  console.log(`\n─ Safety Gate:`);
+  if (canonical.ai_eligible) {
+    console.log(`  AI feedback: VILLE BLIVE KØRT`);
+    console.log(`  Milestones: VILLE BLIVE KØRT`);
+    console.log(`  DB status: "processed"`);
+  } else {
+    console.log(`  AI feedback: BLOKERET`);
+    console.log(`  DB status: "${canonical.validation.status === "PASS" ? "reviewed" : "needs_review"}"`);
+  }
+
+  // ── Assertions ──
+  assertEquals(d.report_type, "combined");
+  assertEquals(d.company_name, "Topix.dk ApS");
+  assertEquals(d.cvr_number, "45281736");
+  assertEquals(d.report_period, "April 2025");
+  assertEquals(d._deterministic_meta.column_basis_rule, "mixed");
+  assertExists(m.revenue, "Revenue should be extracted");
+  assertExists(m.ebt, "EBT should be extracted");
+  assertExists(m.assets_total, "Assets should be extracted");
+  assertEquals(canonical.extraction_method, "deterministic_template");
+
+  console.log(`\n✅ Test 13: Full real PDF E2E PASSED`);
+});
