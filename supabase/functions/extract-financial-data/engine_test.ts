@@ -423,8 +423,9 @@ Deno.test("CASE 10: AI saldobalance — safety net flips raw accounting signs", 
     report_period: "Oktober 2025",
     key_figures: {
       omsaetning: 1000000,
-      daekningsbidrag: -600000,     // AI returned raw sign (negative = profit in saldobalance)
-      resultat_foer_skat: -200000,  // AI returned raw sign (negative = profit in saldobalance)
+      direkte_omkostninger: 400000,   // COGS needed for magnitude match on gross_profit
+      daekningsbidrag: -600000,       // AI returned raw sign (negative = profit in saldobalance)
+      resultat_foer_skat: -200000,    // AI returned raw sign (negative = profit in saldobalance)
       aktiver_i_alt: 500000,
     },
     line_items: [],
@@ -437,7 +438,7 @@ Deno.test("CASE 10: AI saldobalance — safety net flips raw accounting signs", 
   assertEquals(canonical.metrics.ebt, 200000);
   assert(canonical.metrics.ebt! > 0, "EBT should be positive after AI safety net flip");
 
-  // Gross profit is also flipped (magnitude matches)
+  // Gross profit is also flipped (magnitude matches: 1000000 - 400000 = 600000 ≈ |-600000|)
   assertEquals(canonical.metrics.gross_profit, 600000);
   assert(canonical.metrics.gross_profit! > 0, "Gross profit should be positive after AI safety net flip");
 
