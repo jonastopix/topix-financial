@@ -157,6 +157,17 @@ const KPI_LABEL_MAP: Record<string, keyof KPIMetrics> = {
   "passiver ialt": "liabilities_total",
 };
 
+// ── Helper: Coerce value to number (handles string account numbers from raw:true/false) ──
+
+function toNumber(val: any): number | null {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    const n = Number(val.replace(/\s/g, "").replace(",", "."));
+    return isNaN(n) ? null : n;
+  }
+  return null;
+}
+
 // ── LAG 1: Template Detection ──
 
 export function detectReportTemplate(rows: any[][]): ReportTemplate {
@@ -188,8 +199,8 @@ export function detectReportTemplate(rows: any[][]): ReportTemplate {
     let hasBalance = false;
 
     for (let i = 5; i < Math.min(rows.length, 200); i++) {
-      const accountNo = rows[i]?.[0];
-      if (typeof accountNo === "number") {
+      const accountNo = toNumber(rows[i]?.[0]);
+      if (accountNo !== null) {
         if (accountNo >= 998 && accountNo < 6000) hasPnL = true;
         if (accountNo >= 6000) hasBalance = true;
       }
@@ -217,9 +228,9 @@ export function extractRawLines(rows: any[][], template: ReportTemplate): RawLin
     const row = rows[i];
     if (!row || row.length < 3) continue;
 
-    const accountNo = typeof row[0] === "number" ? row[0] : null;
+    const accountNo = toNumber(row[0]);
     const label = row[1]?.toString().trim() || "";
-    const rawValue = typeof row[2] === "number" ? row[2] : null;
+    const rawValue = toNumber(row[2]);
 
     if (!label || label === "") continue;
     if (label.toLowerCase().includes("nummer") || label.toLowerCase().includes("navn")) continue;

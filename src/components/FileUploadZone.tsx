@@ -77,6 +77,14 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
 async function extractPdfPageImages(file: File): Promise<string[]> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -181,6 +189,7 @@ const FileUploadZone = ({
     pendingFile: File | null;
     pendingFileContent: string;
     pendingPageImages?: string[];
+    pendingExcelBase64?: string;
     pendingReportId: string;
     pendingFileId: string;
   }>({ open: false, period: "", pendingFile: null, pendingFileContent: "", pendingReportId: "", pendingFileId: "" });
@@ -294,13 +303,16 @@ const FileUploadZone = ({
           }
         }
 
-        // Fallback: AI-based extraction
+        // Fallback: AI-based extraction (also sends excelBase64 for server-side deterministic)
         if (!extractedData) {
           const extracted = await extractTextFromFile(file);
+          const ext2 = file.name.toLowerCase().split(".").pop();
+          const isExcel = ext2 === "xlsx" || ext2 === "xls";
+          const excelBase64 = isExcel ? await fileToBase64(file) : undefined;
 
           const { data: aiData, error: extractError } = await supabase.functions.invoke(
             "extract-financial-data",
-            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
+            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
           );
 
           // Handle duplicate (409)
@@ -317,6 +329,7 @@ const FileUploadZone = ({
                 pendingFile: file,
                 pendingFileContent: extracted.text,
                 pendingPageImages: extracted.pageImages,
+                pendingExcelBase64: excelBase64,
                 pendingReportId: "",
                 pendingFileId: fileId,
               });
@@ -331,6 +344,7 @@ const FileUploadZone = ({
               pendingFile: file,
               pendingFileContent: extracted.text,
               pendingPageImages: extracted.pageImages,
+              pendingExcelBase64: excelBase64,
               pendingReportId: "",
               pendingFileId: fileId,
             });
@@ -371,26 +385,39 @@ const FileUploadZone = ({
           });
         }
 
-    // === STEP 3: AI Financial Analysis ===
-    const validationStatus = extractedData.validation?.status || "FAIL";
+    // === STEP 3: AI Financial Analysis — GATE ===
+    const canonical = extractedData.canonical;
+    // If canonical exists, use ONLY canonical.validation.status
+    const validationStatus = canonical
+      ? (canonical.validation?.status ?? "FAIL")
+      : (extractedData.validation?.status ?? "FAIL");
 
-    if (validationStatus !== "PASS") {
-      console.warn(`[SAFETY] AI-analyse deaktiveret: validation_status=${validationStatus}`);
+    const shouldRunAI =
+      validationStatus === "PASS" &&
+      (!canonical || (canonical.ai_eligible === true && !!canonical.ai_eligible_payload));
+
+    if (!shouldRunAI) {
+      const reason = validationStatus !== "PASS"
+        ? `validation_status=${validationStatus}`
+        : `ai_eligible=${canonical?.ai_eligible}, ai_eligible_payload=${!!canonical?.ai_eligible_payload}`;
+      console.warn(`[SAFETY] AI-analyse deaktiveret: ${reason}`);
       
-      // Update report with needs_review status
+      // Update report — no AI, no milestones
       await supabase
         .from("financial_reports")
         .update({ 
-          status: "needs_review",
+          status: validationStatus !== "PASS" ? "needs_review" : "processed",
           ai_analysis: null 
         } as any)
         .eq("id", reportRecord.id);
 
-      toast({
-        title: "Validation fejlede",
-        description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
-        variant: "destructive",
-      });
+      if (validationStatus !== "PASS") {
+        toast({
+          title: "Validation fejlede",
+          description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
+          variant: "destructive",
+        });
+      }
 
       // Skip AI analysis and milestone creation
       updateFile(fileId, { status: "done", milestonesCreated: 0 });
@@ -652,7 +679,7 @@ const FileUploadZone = ({
   };
 
   const handleOverwrite = useCallback(async () => {
-    const { pendingFile, pendingFileContent, pendingPageImages, pendingFileId } = overwriteDialog;
+    const { pendingFile, pendingFileContent, pendingPageImages, pendingExcelBase64, pendingFileId } = overwriteDialog;
     setOverwriteDialog((prev) => ({ ...prev, open: false }));
 
     if (!pendingFile || !userId) return;
@@ -700,7 +727,7 @@ const FileUploadZone = ({
 
       const { data: extractedData, error: extractError } = await supabase.functions.invoke(
         "extract-financial-data",
-        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true, knownCompanyName: companyName || undefined } }
+        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, excelBase64: pendingExcelBase64, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true, knownCompanyName: companyName || undefined } }
       );
 
       if (extractError) throw extractError;
