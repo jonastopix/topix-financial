@@ -146,7 +146,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
 
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
-  const expenseFields = ["direkte_omkostninger", "loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
+  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
   const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
   const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
