@@ -126,6 +126,11 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       if (monthIdx >= 0 && monthIdx < 12) {
         reportPeriod = `${MONTH_NAMES[monthIdx]} ${fullY2}`;
       }
+      // Also set section marker if this line contains "Resultatopg"
+      if (/RESULTATOPG/i.test(line)) {
+        currentSection = "PNL";
+        hasResultatopgoerelse = true;
+      }
       continue;
     }
     // Pattern 2: "Resultatopgørelse 01/01-2026 - 31/12-2026" (slash/dash-separated)
@@ -139,6 +144,11 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       const monthIdx = parseInt(m2, 10) - 1;
       if (monthIdx >= 0 && monthIdx < 12) {
         reportPeriod = `${MONTH_NAMES[monthIdx]} ${y2}`;
+      }
+      // Also set section marker if this line contains "Resultatopg"
+      if (/RESULTATOPG/i.test(line)) {
+        currentSection = "PNL";
+        hasResultatopgoerelse = true;
       }
       continue;
     }
