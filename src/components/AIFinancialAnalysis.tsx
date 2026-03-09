@@ -323,10 +323,15 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </div>
         {selectedReport && (
           <>
-            {validationStatus !== "PASS" ? (
-              <div className="glass-card rounded-xl p-6 border-l-4 border-l-amber-500">
+            {canonicalBlocked ? (
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-muted text-muted-foreground cursor-not-allowed" title="Canonical data ufuldstændig — ai_eligible_payload mangler">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                AI blokeret
+              </div>
+            ) : validationStatus !== "PASS" ? (
+              <div className="glass-card rounded-xl p-6 border-l-4 border-l-chart-warning">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-sm font-semibold text-foreground mb-1">
                       AI-analyse ikke tilgængelig
