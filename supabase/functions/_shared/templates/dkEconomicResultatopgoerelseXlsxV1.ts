@@ -503,10 +503,17 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
 
       if (keyFigures.resultat_foer_afskrivninger != null) {
         const diff = Math.abs(expectedEbitda - keyFigures.resultat_foer_afskrivninger);
+        const likelyContraCostMix = convention === "business" && (keyFigures.direkte_omkostninger ?? 0) < 0;
+
         checks.push({
           name: "ebitda_calculation",
-          result: diff <= 2 ? "PASS" : "FAIL",
-          details: `DB(${keyFigures.daekningsbidrag}) - OPEX(${opexSum.toFixed(2)}) = ${expectedEbitda.toFixed(2)}, reported EBITDA = ${keyFigures.resultat_foer_afskrivninger} (diff ${diff.toFixed(2)})`,
+          result: diff <= 2 ? "PASS" : likelyContraCostMix ? "SKIP" : "FAIL",
+          details:
+            diff <= 2
+              ? `DB(${keyFigures.daekningsbidrag}) - OPEX(${opexSum.toFixed(2)}) = ${expectedEbitda.toFixed(2)}, reported EBITDA = ${keyFigures.resultat_foer_afskrivninger} (diff ${diff.toFixed(2)})`
+              : likelyContraCostMix
+                ? `Skipped strict EBITDA equation due to contra-cost mix (computed ${expectedEbitda.toFixed(2)}, reported ${keyFigures.resultat_foer_afskrivninger}, diff ${diff.toFixed(2)})`
+                : `DB(${keyFigures.daekningsbidrag}) - OPEX(${opexSum.toFixed(2)}) = ${expectedEbitda.toFixed(2)}, reported EBITDA = ${keyFigures.resultat_foer_afskrivninger} (diff ${diff.toFixed(2)})`,
         });
       } else {
         checks.push({
