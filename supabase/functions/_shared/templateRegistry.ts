@@ -4,8 +4,7 @@
  * Supports both Excel and PDF file types.
  */
 
-// @deno-types="https://cdn.sheetjs.com/xlsx-0.20.3/package/types/index.d.ts"
-import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
+import * as XLSX from "npm:xlsx@0.18.5";
 
 // ── Discriminated Union for Extraction Results ──
 
