@@ -194,8 +194,17 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
     if (/resultatopgørelse/i.test(text)) score += 35;
     else return 0; // Hard requirement
 
-    // Strong: "dinero" brand in text
+    // Strong: "dinero" brand in text (e.g. "Udskrevet fra dinero.dk")
     if (/dinero/i.test(text)) score += 25;
+
+    // Strong: "Hentet:" watermark — Dinero-specific export header
+    // Example: "Hentet: 09/03-2026 Kl. 14.18"
+    if (/^Hentet:\s*\d{2}\/\d{2}/m.test(text)) score += 25;
+
+    // Strong: ALL-CAPS Danish subtotal pattern — Dinero uses uppercase section totals
+    // like "OMSÆTNING I ALT", "DÆKNINGSBIDRAG I ALT", "LØNNINGER MV. I ALT", "RESULTAT FØR SKAT"
+    const capsSubtotals = text.match(/^[A-ZÆØÅ][A-ZÆØÅ\s,.&]+(?:I ALT|MV\.|FØR SKAT|EFTER SKAT)\s*[-\d.,]*$/gm);
+    if (capsSubtotals && capsSubtotals.length >= 3) score += 20;
 
     // Structural supplement: 4-digit account numbers in non-CSV layout
     // This is a structural signal, not Dinero-unique — it supplements but doesn't replace brand detection.
