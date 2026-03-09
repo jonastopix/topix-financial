@@ -48,10 +48,10 @@ Deno.test("CASE 1: Revenue normaliseres positivt", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// CASE 2: Saldobalance — pre-normalized results pass through (no double-flip)
+// CASE 2: Deterministic saldobalance — pre-normalized results pass through (no flip)
 // ══════════════════════════════════════════════════════════════════
-Deno.test("CASE 2: Saldobalance — pre-normalized results pass through", () => {
-  // All input paths (AI, Excel, PDF) now pre-normalize result fields to business convention
+Deno.test("CASE 2: Deterministic saldobalance — pre-normalized results pass through", () => {
+  // Deterministic paths (Excel, PDF) pre-normalize result fields to business convention
   // (positive = profit). Canonical engine must NOT flip them again.
   const extractedData = {
     report_type: "saldobalance",
@@ -66,7 +66,8 @@ Deno.test("CASE 2: Saldobalance — pre-normalized results pass through", () => 
     line_items: [],
   };
 
-  const { metrics, correction_log } = normalizeToCanonical(extractedData);
+  // Pass "deterministic_template" → no result flip
+  const { metrics, correction_log } = normalizeToCanonical(extractedData, "deterministic_template");
 
   // EBT passes through unchanged (no double-flip)
   assertEquals(metrics.ebt, 200000);
@@ -74,9 +75,9 @@ Deno.test("CASE 2: Saldobalance — pre-normalized results pass through", () => 
   // Equity is flipped from raw accounting sign
   assertEquals(metrics.equity_total, 500000);
 
-  // NO correction for resultat (it's already correct)
+  // NO correction for resultat (deterministic → skip flip)
   const resultCorrection = correction_log.find(c => c.field === "resultat_foer_skat");
-  assertEquals(resultCorrection, undefined, "Should NOT have resultat correction — value arrived pre-normalized");
+  assertEquals(resultCorrection, undefined, "Should NOT have resultat correction — deterministic path");
 
   // Should have equity correction
   const equityCorrection = correction_log.find(c => c.field === "egenkapital");
