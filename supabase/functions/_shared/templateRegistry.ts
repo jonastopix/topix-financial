@@ -203,6 +203,28 @@ export function tryDeterministicPdfExtraction(
   return runDetectionAndExtraction(ctx, []);
 }
 
+// ── CSV Extraction (Phase 5) ──
+
+export function tryDeterministicCsvExtraction(
+  csvText: string,
+  fileName: string
+): DeterministicExtractionResult {
+  if (!csvText || csvText.length < 20) {
+    console.log("[Registry] CSV text too short for deterministic extraction");
+    return { type: "no_match" };
+  }
+
+  const ctx: DetectionContext = {
+    fileName,
+    fileType: "csv",
+    sheetNames: [],
+    headerRows: [],
+    rawText: csvText,
+  };
+
+  return runDetectionAndExtraction(ctx, []);
+}
+
 // ── Shared Detection + Extraction Logic ──
 
 function runDetectionAndExtraction(

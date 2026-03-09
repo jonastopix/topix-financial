@@ -150,6 +150,10 @@ serve(async (req) => {
       routingTrace.deterministic_attempted = true;
       console.log("[Routing] Attempting deterministic PDF extraction...");
       detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+    } else if (isCsvFile && fileContent) {
+      routingTrace.deterministic_attempted = true;
+      console.log("[Routing] Attempting deterministic CSV extraction...");
+      detResult = tryDeterministicCsvExtraction(fileContent, fileName);
     }
 
     if (detResult) {

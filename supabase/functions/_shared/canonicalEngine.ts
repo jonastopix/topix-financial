@@ -48,6 +48,7 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   varelager: "inventory",
   gaeld_i_alt: "debt_total",
   tech_software: "admin_costs", // merged into admin
+  finansielle_omkostninger: "financial_costs",
 };
 
 // Line item class → canonical metric name

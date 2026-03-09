@@ -1,0 +1,428 @@
+/**
+ * DK_DINERO_RESULTATOPGOERELSE_V1
+ * Dinero Resultatopgørelse CSV template
+ *
+ * - Semicolon-separated CSV with header: Konto;Kontonavn;Beløb
+ * - Bookkeeping sign convention (revenue negative/credit, expenses positive/debit)
+ * - Label-first classification with account-range fallback
+ * - Ambiguity detection: lines matching 2+ classes → unclassified + logged
+ * - Conservative metric derivation (no sum-all-lines shortcuts)
+ */
+
+import type {
+  TemplateEntry,
+  DetectionContext,
+  ExtractionContext,
+  DeterministicExtractedData,
+  ParserValidation,
+} from "../templateRegistry.ts";
+
+// ── Label patterns per class (PRIMARY classification) ──
+
+const LABEL_CLASSES: Record<string, string[]> = {
+  revenue: ["salg", "omsætning", "indtægt", "honorar"],
+  cogs: ["vareforbrug", "underleverandør", "direkte omkostning"],
+  payroll: ["løn", "am-indkomst", "atp", "feriepenge", "pension", "a-skat"],
+  facility_costs: ["husleje", "lokale", "el", "vand", "varme", "rengøring"],
+  vehicle_costs: ["parkering", "færge", "transport", "kørsel", "brændstof"],
+  sales_costs: ["reklame", "markedsføring", "annoncering", "messe", "repræsentation", "gaver"],
+  admin_costs: ["bogføring", "konsulent", "porto", "software", "forsikring", "telefon", "kontingent", "kontor"],
+  depreciation: ["afskrivning", "småanskaffelse"],
+  financial_costs: ["rente", "renteudgift", "renteindtægt", "bankgebyr", "finansiel", "kursregulering"],
+  tax: ["selskabsskat", "skat af årets resultat", "årets skat"],
+};
+
+// ── Account number ranges per class (SECONDARY fallback) ──
+
+const RANGE_CLASSES: [string, number, number][] = [
+  ["revenue", 1000, 1999],
+  ["cogs", 2000, 2999],
+  ["payroll", 3000, 3999],
+  ["sales_costs", 4000, 4999],
+  ["facility_costs", 5000, 5999],
+  ["vehicle_costs", 6000, 6999],
+  ["admin_costs", 7000, 7999],
+  ["depreciation", 8000, 8099],
+  ["financial_costs", 8100, 8999],
+  ["tax", 9000, 9999],
+];
+
+// ── Canonical class → line_items class constant ──
+
+const CLASS_TO_LINE_CLASS: Record<string, string> = {
+  revenue: "REVENUE",
+  cogs: "COGS",
+  payroll: "OPEX",
+  facility_costs: "OPEX",
+  vehicle_costs: "OPEX",
+  sales_costs: "OPEX",
+  admin_costs: "OPEX",
+  depreciation: "DEPR",
+  financial_costs: "FIN_EXPENSE",
+  tax: "TAX",
+};
+
+// ── Parse Danish number format ──
+
+function parseDanishAmount(s: string): number | null {
+  if (!s || s.trim() === "") return null;
+  // Remove thousand separators (dots), replace decimal comma with dot
+  const cleaned = s.trim().replace(/\./g, "").replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+// ── Classify a single line ──
+
+interface ClassifiedLine {
+  kontonr: number | null;
+  kontonavn: string;
+  rawAmount: number;
+  cls: string;
+  method: "label" | "range" | "unclassified";
+  ambiguous: boolean;
+  matchedClasses?: string[];
+}
+
+function classifyLine(kontonavn: string, kontonr: number | null): {
+  cls: string;
+  method: "label" | "range" | "unclassified";
+  ambiguous: boolean;
+  matchedClasses?: string[];
+} {
+  const label = kontonavn.toLowerCase().trim();
+
+  // Primary: label matching — find ALL matching classes
+  const matchedClasses: string[] = [];
+  for (const [cls, patterns] of Object.entries(LABEL_CLASSES)) {
+    for (const pattern of patterns) {
+      if (label.includes(pattern)) {
+        if (!matchedClasses.includes(cls)) matchedClasses.push(cls);
+        break; // Don't double-count same class from multiple patterns
+      }
+    }
+  }
+
+  if (matchedClasses.length > 1) {
+    console.log(
+      `[Dinero] AMBIGUOUS label match for "${kontonavn}": ${matchedClasses.join(", ")} → unclassified`
+    );
+    return { cls: "unclassified", method: "unclassified", ambiguous: true, matchedClasses };
+  }
+
+  if (matchedClasses.length === 1) {
+    return { cls: matchedClasses[0], method: "label", ambiguous: false };
+  }
+
+  // Secondary: range fallback
+  if (kontonr != null) {
+    for (const [cls, min, max] of RANGE_CLASSES) {
+      if (kontonr >= min && kontonr <= max) {
+        return { cls, method: "range", ambiguous: false };
+      }
+    }
+  }
+
+  return { cls: "unclassified", method: "unclassified", ambiguous: false };
+}
+
+// ── Template ──
+
+export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
+  template_id: "DK_DINERO_RESULTATOPGOERELSE_V1",
+  label: "Dinero Resultatopgørelse CSV",
+  supported_file_types: ["csv"],
+  statement_type: "pnl",
+
+  detect(ctx: DetectionContext): number {
+    if (ctx.fileType !== "csv") return 0;
+    const text = ctx.rawText;
+    if (!text) return 0;
+
+    let score = 0;
+    const lines = text.split(/\r?\n/).map((l) => l.replace(/^\uFEFF/, ""));
+
+    // Hard requirement: header must match exactly
+    const headerLine = lines[0]?.trim();
+    if (headerLine !== "Konto;Kontonavn;Beløb") return 0;
+    score += 40;
+
+    // Semicolon separator in >= 3 data lines
+    const semiLines = lines.slice(1).filter((l) => l.includes(";")).length;
+    if (semiLines >= 3) score += 10;
+
+    // Filename: must contain "resultat" (case-insensitive)
+    const fn = ctx.fileName.toLowerCase();
+    if (fn.includes("resultat")) score += 20;
+
+    // Filename: must NOT contain "balance" or "saldobalance" (anti-match)
+    if (fn.includes("balance")) return 0;
+    score += 10; // Passed anti-match
+
+    // Label recognition: 5+ lines with known Danish accounting labels
+    let recognizedCount = 0;
+    for (const line of lines.slice(1)) {
+      const parts = line.split(";");
+      if (parts.length < 3) continue;
+      const kontonavn = parts[1]?.toLowerCase().trim() || "";
+      for (const patterns of Object.values(LABEL_CLASSES)) {
+        if (patterns.some((p) => kontonavn.includes(p))) {
+          recognizedCount++;
+          break;
+        }
+      }
+    }
+    if (recognizedCount >= 5) score += 15;
+
+    return score;
+  },
+
+  extract(
+    ctx: ExtractionContext
+  ): { success: true; data: DeterministicExtractedData } | { success: false; error: string } {
+    const text = ctx.rawText;
+    if (!text) return { success: false, error: "No CSV text content" };
+
+    const lines = text.split(/\r?\n/).map((l) => l.replace(/^\uFEFF/, ""));
+
+    // Skip header
+    const dataLines = lines.slice(1).filter((l) => l.trim().length > 0);
+
+    // Parse and classify each line
+    const classified: ClassifiedLine[] = [];
+    let ambiguousCount = 0;
+
+    for (const line of dataLines) {
+      const parts = line.split(";");
+      if (parts.length < 3) continue;
+
+      const kontonrStr = parts[0]?.trim() || "";
+      const kontonavn = parts[1]?.trim() || "";
+      const amountStr = parts[2]?.trim() || "";
+
+      const kontonr = /^\d{4}$/.test(kontonrStr) ? parseInt(kontonrStr) : null;
+      const rawAmount = parseDanishAmount(amountStr);
+
+      if (kontonr == null || rawAmount == null) continue;
+
+      const classification = classifyLine(kontonavn, kontonr);
+      if (classification.ambiguous) ambiguousCount++;
+
+      classified.push({
+        kontonr,
+        kontonavn,
+        rawAmount,
+        ...classification,
+      });
+    }
+
+    console.log(
+      `[Dinero] Parsed ${classified.length} lines, ${ambiguousCount} ambiguous`
+    );
+
+    // Structural fail: less than 3 valid account lines
+    if (classified.length < 3) {
+      return { success: false, error: `Only ${classified.length} valid lines (minimum 3)` };
+    }
+
+    // ── Sign convention check ──
+    const revenueLines = classified.filter((l) => l.cls === "revenue");
+    const nonZeroRevenue = revenueLines.filter((l) => l.rawAmount !== 0);
+    let signConventionOk = true;
+
+    if (nonZeroRevenue.length > 0) {
+      const hasNegativeRevenue = nonZeroRevenue.some((l) => l.rawAmount < 0);
+      if (!hasNegativeRevenue) {
+        signConventionOk = false;
+        console.log("[Dinero] Sign convention FAIL: no negative revenue found");
+      }
+    }
+    // If all revenue is 0, skip convention check (no revenue this period)
+
+    // ── Aggregate metrics by class ──
+    const sums: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+
+    for (const line of classified) {
+      if (line.cls === "unclassified") continue;
+      sums[line.cls] = (sums[line.cls] || 0) + line.rawAmount;
+      counts[line.cls] = (counts[line.cls] || 0) + 1;
+    }
+
+    // Revenue: abs() to normalize from credit (negative) to positive
+    const revenue = sums.revenue != null ? Math.abs(sums.revenue) : null;
+    const cogs = sums.cogs != null ? Math.abs(sums.cogs) : null;
+    const payroll = sums.payroll != null ? Math.abs(sums.payroll) : null;
+    const salesCosts = sums.sales_costs != null ? Math.abs(sums.sales_costs) : null;
+    const facilityCosts = sums.facility_costs != null ? Math.abs(sums.facility_costs) : null;
+    const vehicleCosts = sums.vehicle_costs != null ? Math.abs(sums.vehicle_costs) : null;
+    const adminCosts = sums.admin_costs != null ? Math.abs(sums.admin_costs) : null;
+    const depreciation = sums.depreciation != null ? Math.abs(sums.depreciation) : null;
+
+    // Financial costs: null if no lines matched (fail-closed)
+    const financialCosts =
+      counts.financial_costs != null && counts.financial_costs > 0
+        ? Math.abs(sums.financial_costs)
+        : null;
+
+    // Tax: null if no lines matched
+    const tax =
+      counts.tax != null && counts.tax > 0 ? Math.abs(sums.tax) : null;
+
+    // ── Conservative metric derivation ──
+    const grossProfit = revenue != null && cogs != null ? revenue - cogs : null;
+
+    const opex =
+      (payroll || 0) +
+      (salesCosts || 0) +
+      (facilityCosts || 0) +
+      (vehicleCosts || 0) +
+      (adminCosts || 0);
+    const ebitda = grossProfit != null ? grossProfit - opex : null;
+
+    const ebit =
+      ebitda != null && depreciation != null ? ebitda - depreciation : null;
+
+    // EBT: only if financial_costs is known
+    const ebt =
+      ebit != null && financialCosts != null ? ebit - financialCosts : null;
+
+    // net_result: null if ebt null; ebt if tax null (acceptable); ebt - tax if both known
+    let netResult: number | null = null;
+    if (ebt != null) {
+      netResult = tax != null ? ebt - tax : ebt;
+    }
+
+    // ── Build key_figures (Danish names for canonical engine mapping) ──
+    const keyFigures: Record<string, number | null> = {
+      omsaetning: revenue,
+      direkte_omkostninger: cogs,
+      daekningsbidrag: grossProfit,
+      loenninger: payroll,
+      salgsomkostninger: salesCosts,
+      lokaleomkostninger: facilityCosts,
+      administrationsomkostninger: adminCosts,
+      transportomkostninger: vehicleCosts,
+      resultat_foer_afskrivninger: ebitda,
+      afskrivninger: depreciation,
+      finansielle_omkostninger: financialCosts,
+      resultat_foer_skat: ebt,
+      resultat_efter_skat: netResult,
+    };
+
+    // ── Build line_items ──
+    const lineItems = classified.map((line) => ({
+      name: line.kontonavn,
+      period_amount:
+        line.cls === "revenue" ? Math.abs(line.rawAmount) : Math.abs(line.rawAmount),
+      ytd_amount: null as number | null,
+      raw_sign: line.rawAmount < 0 ? "MINUS" : line.rawAmount > 0 ? "PLUS" : "ZERO",
+      account_no: line.kontonr?.toString() || null,
+      class: CLASS_TO_LINE_CLASS[line.cls] || "UKLASSIFICERET",
+    }));
+
+    // ── Validation checks ──
+    const checks: ParserValidation["checks"] = [];
+
+    // 1. Revenue present
+    checks.push({
+      name: "revenue_present",
+      result: revenue != null && revenue > 0 ? "PASS" : "FAIL",
+      details:
+        revenue != null
+          ? `Revenue: ${revenue.toFixed(2)}`
+          : "No revenue lines found",
+    });
+
+    // 2. Sign convention
+    checks.push({
+      name: "sign_convention",
+      result: signConventionOk ? "PASS" : "FAIL",
+      details: signConventionOk
+        ? "Bookkeeping convention confirmed (negative revenue)"
+        : "Sign convention unclear: no negative revenue found",
+    });
+
+    // 3. Gross profit sum
+    if (revenue != null && cogs != null && grossProfit != null) {
+      const diff = Math.abs(revenue - cogs - grossProfit);
+      checks.push({
+        name: "gross_profit_sum",
+        result: diff <= 2 ? "PASS" : "FAIL",
+        details: `${revenue} - ${cogs} = ${grossProfit} (diff: ${diff.toFixed(2)})`,
+      });
+    } else {
+      checks.push({
+        name: "gross_profit_sum",
+        result: "SKIP",
+        details: "Missing revenue or cogs",
+      });
+    }
+
+    // 4. Financial costs present
+    checks.push({
+      name: "financial_costs_present",
+      result: financialCosts != null ? "PASS" : "FAIL",
+      details:
+        financialCosts != null
+          ? `Financial costs: ${financialCosts.toFixed(2)}`
+          : "No financial cost lines found → ebt/net_result will be null",
+    });
+
+    // 5. EBT present
+    checks.push({
+      name: "ebt_present",
+      result: ebt != null ? "PASS" : "FAIL",
+      details:
+        ebt != null
+          ? `EBT: ${ebt.toFixed(2)}`
+          : "EBT is null (missing financial_costs)",
+    });
+
+    // 6. Ambiguous lines
+    checks.push({
+      name: "ambiguous_lines",
+      result: ambiguousCount === 0 ? "PASS" : "FAIL",
+      details:
+        ambiguousCount === 0
+          ? "No ambiguous label matches"
+          : `${ambiguousCount} lines matched multiple classes → unclassified`,
+    });
+
+    const parserStatus =
+      checks.some((c) => c.result === "FAIL") ? "FAIL" : "PASS";
+    const parserErrors = checks
+      .filter((c) => c.result === "FAIL")
+      .map((c) => `${c.name}: ${c.details}`);
+
+    const validation: ParserValidation = {
+      parser_status: parserStatus as "PASS" | "FAIL",
+      checks,
+    };
+
+    // ── Build output ──
+    const data: DeterministicExtractedData = {
+      report_type: "resultatopgørelse",
+      company_name: null, // Not available in Dinero CSV
+      cvr_number: null,
+      period_start: null,
+      period_end: null,
+      report_period: null,
+      key_figures: keyFigures,
+      line_items: lineItems,
+      validation,
+      _deterministic_meta: {
+        template_id: "DK_DINERO_RESULTATOPGOERELSE_V1",
+        parser_confidence: parserStatus === "PASS" ? "HIGH" : "MEDIUM",
+        detection_score: 0, // Set by registry
+        parser_validation_status: parserStatus as "PASS" | "FAIL",
+        parser_validation_errors: parserErrors,
+        raw_line_count: classified.length,
+        normalized_line_count: classified.filter((l) => l.cls !== "unclassified").length,
+        column_basis_rule: "single",
+      },
+    };
+
+    return { success: true, data };
+  },
+};
