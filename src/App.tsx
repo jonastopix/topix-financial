@@ -24,6 +24,7 @@ import AdminConfig from "./pages/AdminConfig";
 import ReportDebug from "./pages/ReportDebug";
 import EmailTemplates from "./pages/EmailTemplates";
 import BulkImport from "./pages/BulkImport";
+import ReportReviewQueue from "./pages/ReportReviewQueue";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 

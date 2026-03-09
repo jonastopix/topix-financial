@@ -46,6 +46,7 @@ const advisorNavItems = [
 
 const adminNavItems = [
   { icon: Upload, label: "Import rapporter", path: "/admin/import" },
+  { icon: ClipboardList, label: "Review Queue", path: "/admin/review-queue" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
 ];
