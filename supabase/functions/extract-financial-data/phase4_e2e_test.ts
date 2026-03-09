@@ -1819,9 +1819,9 @@ Deno.test("Phase5 Dinero — T9. Golden snapshot: Canonical output", () => {
   assertExists(canonical.metrics.revenue);
   assertExists(canonical.metrics.cogs);
   assertExists(canonical.metrics.gross_profit);
-  assertEquals(canonical.metrics.financial_costs, null, "No financial costs in sample");
-  assertEquals(canonical.metrics.ebt, null, "EBT null without financial_costs");
-  assertEquals(canonical.ai_eligible, false, "Not AI eligible without ebt");
+  assertEquals(canonical.metrics.financial_costs, 0, "financial_costs defaulted to 0 (absent, no ambiguity)");
+  assertExists(canonical.metrics.ebt, "EBT should be computed with financial_costs=0");
+  assertEquals(canonical.ai_eligible, true, "AI eligible with ebt present");
   assertExists(canonical.deterministic_meta);
   assertEquals(canonical.deterministic_meta!.template_id, "DK_DINERO_RESULTATOPGOERELSE_V1");
 
