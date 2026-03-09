@@ -580,6 +580,15 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
+      // Determine final DB status based on validation
+      // - FAIL/UNSURE → needs_review
+      // - PASS + ai_eligible = true → reviewed (will get AI feedback)
+      // - PASS + ai_eligible = false → reviewed (correct parse, not AI-suitable)
+      let dbStatus = "processed";
+      if (finalStatus !== "PASS") {
+        dbStatus = "needs_review";
+      }
+
       // Prepare DB update
       const updatePayload: any = {
         report_type: extractedData.report_type,
@@ -588,22 +597,20 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         cvr_number: extractedData.cvr_number,
         extracted_data: extractedData,
         processed_at: new Date().toISOString(),
-        status: "processed",
+        status: dbStatus,
         extraction_method: extractionMethod,
         validation_status: finalStatus,
         validation_errors: allErrors.length > 0 ? allErrors : null,
         raw_extracted_data: rawAiOutput,
-        // PHASE 3: Full canonical output in normalized_data
+        // Phase 4: Full canonical output in normalized_data
         normalized_data: canonical,
       };
 
-      // Add parser-specific data if deterministic parsing was used
-      if (parsedReport && extractionMethod === "deterministic") {
+      // Add deterministic metadata if present
+      if (extractedData?._deterministic_meta) {
         updatePayload.raw_extracted_data = {
-          raw_lines: parsedReport.raw_lines,
-          company_name: parsedReport.company_name,
-          period_start: parsedReport.period_start,
-          period_end: parsedReport.period_end,
+          ...rawAiOutput,
+          deterministic_meta: extractedData._deterministic_meta,
         };
       }
 
