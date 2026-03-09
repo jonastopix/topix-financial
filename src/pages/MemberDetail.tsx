@@ -165,6 +165,7 @@ const MemberDetail = () => {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleRemoveMember = async () => {
     if (!userId) return;
     setRemoving(true);
     try {
