@@ -195,7 +195,7 @@ export async function tryDeterministicExtraction(
     fileName,
     fileType,
     sheetNames,
-    headerRows: rows.slice(0, 15),
+    headerRows: rows.slice(0, 200), // Need enough rows to detect both PNL + Balance sections
   };
 
   // Detect template
