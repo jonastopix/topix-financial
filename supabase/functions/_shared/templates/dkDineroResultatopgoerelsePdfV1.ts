@@ -83,6 +83,22 @@ const CLASS_TO_LINE_CLASS: Record<string, string> = {
   tax: "TAX",
 };
 
+// ── Subtotal → section mapping (for section-based fallback) ──
+// Maps ALL-CAPS subtotal patterns to the section class they close.
+const SUBTOTAL_SECTION_MAP: [RegExp, string][] = [
+  [/omsætning\s*i\s*alt/i, "revenue"],
+  [/vareforbrug|direkte\s*omkostning|produktionsomkostning/i, "cogs"],
+  [/dækningsbidrag/i, "__subtotal_skip__"], // subtotal line, not a section
+  [/personaleomkostning|løn/i, "payroll"],
+  [/salgsomkostning/i, "sales_costs"],
+  [/lokaleomkostning/i, "facility_costs"],
+  [/transport|kørselsomkostning/i, "vehicle_costs"],
+  [/administrations?\s*omkostning|^administration$/i, "admin_costs"],
+  [/afskrivning/i, "depreciation"],
+  [/finansiel/i, "financial_costs"],
+  [/skat\s*(af|i\s*alt)/i, "tax"],
+];
+
 // ── Classification ──
 
 interface ClassifiedLine {
@@ -90,12 +106,13 @@ interface ClassifiedLine {
   name: string;
   rawAmount: number;
   cls: string;
-  method: "label" | "range" | "unclassified";
+  method: "label" | "range" | "section" | "unclassified";
   ambiguous: boolean;
   matchedClasses?: string[];
+  sectionCls?: string;
 }
 
-function classifyLine(name: string, accountNo: string | null): {
+function classifyLineCore(name: string, accountNo: string | null): {
   cls: string;
   method: "label" | "range" | "unclassified";
   ambiguous: boolean;
@@ -137,6 +154,67 @@ function classifyLine(name: string, accountNo: string | null): {
   return { cls: "unclassified", method: "unclassified", ambiguous: false };
 }
 
+// ── Section map builder ──
+// Finds subtotal lines and assigns each detail line to the section closed by
+// the next subtotal below it. Only detail lines (non-subtotal, non-header) get sections.
+
+function matchSubtotalSection(name: string): string | null {
+  const n = name.trim();
+  for (const [re, cls] of SUBTOTAL_SECTION_MAP) {
+    if (re.test(n)) return cls;
+  }
+  return null;
+}
+
+interface SectionBoundary {
+  lineIndex: number;
+  sectionCls: string;
+}
+
+function buildSectionMap(lines: PdfParsedLine[]): Map<number, string> {
+  // Step 1: find all subtotal/section boundaries
+  // Dinero uses ALL-CAPS lines as section totals, but many don't match the generic
+  // parser's isSubtotalName (which requires "i alt"/"total"/etc.).
+  // We detect boundaries by:
+  //   a) Lines already flagged as subtotals by the parser, OR
+  //   b) ALL-CAPS lines that match our SUBTOTAL_SECTION_MAP (Dinero-specific pattern)
+  const boundaries: SectionBoundary[] = [];
+  const isAllCaps = (s: string) => /^[A-ZÆØÅ][A-ZÆØÅ\s,.&()]+$/.test(s.trim());
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Check if this line is a section boundary — either parser-detected subtotal or ALL-CAPS match
+    const isBoundaryCandidate = line.is_subtotal || isAllCaps(line.name);
+    if (!isBoundaryCandidate) continue;
+
+    const cls = matchSubtotalSection(line.name);
+    if (cls && cls !== "__subtotal_skip__") {
+      boundaries.push({ lineIndex: i, sectionCls: cls });
+    }
+  }
+
+  console.log(`[DineroPDF] Section boundaries: ${boundaries.map(b => `${b.sectionCls}@${b.lineIndex}(${lines[b.lineIndex].name})`).join(", ")}`);
+
+  // Step 2: assign detail lines to the section of the next subtotal below them
+  const sectionMap = new Map<number, string>();
+  for (let i = 0; i < lines.length; i++) {
+    // Only detail lines get section assignment — never subtotals or headers
+    if (lines[i].is_subtotal) continue;
+    if (isAllCaps(lines[i].name)) continue; // Also skip ALL-CAPS boundary lines
+    if (lines[i].period_amount == null) continue; // skip header/non-data lines
+
+    // Find next subtotal boundary after this line
+    for (const b of boundaries) {
+      if (b.lineIndex > i) {
+        sectionMap.set(i, b.sectionCls);
+        break;
+      }
+    }
+  }
+
+  return sectionMap;
+}
+
 // ── Sign convention detection ──
 
 type SignConvention = "CREDIT" | "BUSINESS" | "UNKNOWN";
@@ -152,16 +230,24 @@ function detectSignConvention(classified: ClassifiedLine[]): SignConvention {
     return "UNKNOWN";
   }
 
-  const revNeg = revenueAnchors.every(l => l.rawAmount < 0);
-  const revPos = revenueAnchors.every(l => l.rawAmount > 0);
-  const costPos = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount > 0);
-  const costNeg = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount < 0);
+  // Use majority-based detection: allow contra-entries (e.g. negative "Feriepenge")
+  const revNegCount = revenueAnchors.filter(l => l.rawAmount < 0).length;
+  const revPosCount = revenueAnchors.filter(l => l.rawAmount > 0).length;
+  const costPosCount = costAnchors.filter(l => l.rawAmount > 0).length;
+  const costNegCount = costAnchors.filter(l => l.rawAmount < 0).length;
 
-  if (revNeg && costPos) {
+  const revMajNeg = revNegCount > revPosCount;
+  const revMajPos = revPosCount > revNegCount;
+  const costMajPos = costAnchors.length === 0 || costPosCount > costNegCount;
+  const costMajNeg = costAnchors.length === 0 || costNegCount > costPosCount;
+
+  console.log(`[DineroPDF] Sign anchors: rev(neg=${revNegCount},pos=${revPosCount}), cost(pos=${costPosCount},neg=${costNegCount})`);
+
+  if (revMajNeg && costMajPos) {
     console.log("[DineroPDF] Sign convention: CREDIT (revenue<0, cost>0)");
     return "CREDIT";
   }
-  if (revPos && costNeg) {
+  if (revMajPos && costMajNeg) {
     console.log("[DineroPDF] Sign convention: BUSINESS (revenue>0, cost<0)");
     return "BUSINESS";
   }
@@ -246,27 +332,62 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
       return { success: false, error: `Insufficient parsed lines: ${lines.length} (minimum 3)` };
     }
 
+    // ── Build section map from subtotal boundaries ──
+    const sectionMap = buildSectionMap(lines);
+
     // ── Classify all detail lines (non-subtotals with amounts) ──
+    // Priority: label-first → section-fallback → range-fallback → unclassified
     const classified: ClassifiedLine[] = [];
     let ambiguousCount = 0;
+    let sectionFallbackCount = 0;
 
-    for (const line of lines) {
+    // Helper: detect ALL-CAPS boundary lines (Dinero subtotals not caught by parser)
+    const isAllCaps = (s: string) => /^[A-ZÆØÅ][A-ZÆØÅ\s,.&()]+$/.test(s.trim());
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       if (line.is_subtotal) continue;
+      if (isAllCaps(line.name)) continue; // Skip ALL-CAPS boundary/subtotal lines
       const amount = line.period_amount;
       if (amount == null) continue;
 
-      const classification = classifyLine(line.name, line.account_no);
-      if (classification.ambiguous) ambiguousCount++;
+      const core = classifyLineCore(line.name, line.account_no);
+      const sectionCls = sectionMap.get(i) || undefined;
+
+      let finalCls = core.cls;
+      let finalMethod = core.method;
+      let finalAmbiguous = core.ambiguous;
+
+      if (core.cls === "unclassified" && sectionCls) {
+        // Section fallback — label was unclear, use section
+        finalCls = sectionCls;
+        finalMethod = "section";
+        finalAmbiguous = false;
+        sectionFallbackCount++;
+        console.log(`[DineroPDF] Section fallback: "${line.name}" → ${sectionCls}`);
+      } else if (core.cls !== "unclassified" && sectionCls && core.cls !== sectionCls) {
+        // Conflict: label says X, section says Y → mark ambiguous
+        finalCls = "unclassified";
+        finalMethod = "unclassified";
+        finalAmbiguous = true;
+        console.log(`[DineroPDF] CONFLICT: label=${core.cls}, section=${sectionCls} for "${line.name}" → ambiguous`);
+      }
+
+      if (finalAmbiguous) ambiguousCount++;
 
       classified.push({
         accountNo: line.account_no,
         name: line.name,
         rawAmount: amount,
-        ...classification,
+        cls: finalCls,
+        method: finalMethod as ClassifiedLine["method"],
+        ambiguous: finalAmbiguous,
+        matchedClasses: core.matchedClasses,
+        sectionCls,
       });
     }
 
-    console.log(`[DineroPDF] Classified ${classified.length} detail lines, ${ambiguousCount} ambiguous`);
+    console.log(`[DineroPDF] Classified ${classified.length} detail lines, ${sectionFallbackCount} via section, ${ambiguousCount} ambiguous`);
 
     if (classified.length < 3) {
       return { success: false, error: `Only ${classified.length} classifiable lines (minimum 3)` };
