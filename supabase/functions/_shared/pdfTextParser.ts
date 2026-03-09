@@ -1,6 +1,19 @@
 /**
- * PDF Text Parser for e-conomic Saldobalance/Resultatopgørelse reports.
- * Parses pdfjs text output into structured lines with section markers.
+ * Generic PDF Text Parser for Danish accounting reports.
+ *
+ * Despite its historical function name "parseEconomicPdfText", this is a
+ * GENERIC low-level line parser. It handles:
+ *   - Danish number parsing (1.234,56 → 1234.56)
+ *   - Account line extraction via regex (4-digit account numbers + amounts)
+ *   - Section marker detection (RESULTATOPGØRELSE, AKTIVER, PASSIVER)
+ *   - Metadata extraction (company name, CVR, period)
+ *
+ * It contains NO e-conomic-specific business logic. All classification,
+ * sign normalization, and metric derivation happen in the individual templates
+ * that consume this parser's output.
+ *
+ * The is_economic flag in metadata is informational only — templates decide
+ * independently whether to use it.
  */
 
 // ── Danish Number Parsing ──
@@ -109,6 +122,24 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       companyName = companyMatch2[1].trim();
       cvrNumber = companyMatch2[2];
       continue;
+    }
+    // Pattern 3: Standalone CVR line (e.g. "CVR: 12345678" or "CVR-nr.: 12345678")
+    // Common in Dinero PDFs where company name and CVR are on separate lines
+    if (!cvrNumber) {
+      const cvrOnlyMatch = line.match(/^\s*CVR[\s\-.:nNrR]*\s*(\d{8})\s*$/i);
+      if (cvrOnlyMatch) {
+        cvrNumber = cvrOnlyMatch[1];
+        continue;
+      }
+    }
+    // Pattern 3b: Company name on early lines (lines 1-5) — entity suffix without CVR on same line
+    // Only if we haven't found company name yet and this is an early line (heuristic: short, has entity suffix)
+    if (!companyName && !line.match(/\d{4}\s/) && !line.match(DK_NUM_PATTERN)) {
+      const entityMatch = line.match(/^([A-ZÆØÅa-zæøå][\w\s&.]+(?:ApS|A\/S|I\/S|IVS|K\/S|P\/S|Holding|Group|Invest))\s*$/i);
+      if (entityMatch && line.length < 80) {
+        companyName = entityMatch[1].trim();
+        continue;
+      }
     }
 
     // ── Period from header ──
