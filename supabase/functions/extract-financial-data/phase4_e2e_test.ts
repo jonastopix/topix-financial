@@ -579,6 +579,9 @@ https://secure.e-conomic.com/reports/statements/period-total
 
   // Verify extraction works
   const result = match!.template.extract({ ...ctx, rows: [] });
+  if (!result.success) {
+    console.log(`EXTRACTION FAILED: ${result.error}`);
+  }
   assertEquals(result.success, true);
   if (result.success) {
     console.log(`Company: ${result.data.company_name}`);
