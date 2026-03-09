@@ -874,6 +874,3 @@ function normLabel(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-async function importPdfParser() {
-  return await import("../_shared/pdfTextParser.ts");
-}
