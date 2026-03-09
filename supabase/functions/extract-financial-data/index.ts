@@ -131,6 +131,7 @@ serve(async (req) => {
       file_name: fileName || null,
       is_excel_file: !!isExcelFile,
       is_pdf_file: !!isPdfFile,
+      is_csv_file: !!isCsvFile,
       excel_base64_length: excelBase64?.length ?? 0,
       file_content_length: fileContent?.length ?? 0,
       deterministic_attempted: false,
