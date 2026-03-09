@@ -52,6 +52,7 @@ interface ReportWithAnalysis {
   ai_analysis: Json | null;
   uploaded_at: string;
   status: string;
+  validation_status?: string | null;
 }
 
 const severityConfig = {
