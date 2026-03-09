@@ -869,6 +869,11 @@ Deno.test("Phase4b — 14. findBestLabel prefers exact main total over sub-total
   console.log(`✅ Test 14: Priority label matching PASSED`);
 });
 
+// Helper for test 14
+function normLabel(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 // ═══════════════════════════════════════════════════════
 // PHASE 4c TESTS: DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1
 // ═══════════════════════════════════════════════════════
