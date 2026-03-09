@@ -162,17 +162,7 @@ Deno.serve(async (req) => {
           elements: [
             {
               type: "mrkdwn",
-              text: `${new Date(message.created_at).toLocaleString("da-DK", { timeZone: "Europe/Copenhagen" })}`,
-            },
-          ],
-        },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "Åbn chat →", emoji: true },
-              url: deepLink,
+              text: `${new Date(message.created_at).toLocaleString("da-DK", { timeZone: "Europe/Copenhagen" })} · <${deepLink}|Åbn chat →>`,
             },
           ],
         },
