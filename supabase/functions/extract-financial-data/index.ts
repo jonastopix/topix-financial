@@ -115,53 +115,77 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ═══ LAG 0: DETERMINISTISK EXCEL PARSING (hvis relevant) ═══
-    let parsedReport: ParsedFinancialReport | null = null;
-    let extractionMethod = "ai"; // Default til AI-based extraction
-
-    // TODO: Enable Excel parsing when XLSX library is compatible with Deno Deploy
-    // For now, all extraction uses AI-based method
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 4: DETERMINISTIC FIRST ROUTING
+    // ═══════════════════════════════════════════════════════════════════════════
     
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
     
-    if (isExcelFile && false) { // Temporarily disabled
-      console.log("[Parser] Excel parsing temporarily disabled - using AI extraction");
-      /* 
-      try {
-        console.log("[Parser] Attempting deterministic Excel parsing...");
-        
-        const binaryString = atob(excelBase64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
+    let extractedData: any = null;
+    let rawAiOutput: any = null;
+    let extractionMethod = "ai_extraction";
+    let detResult: DeterministicExtractionResult | null = null;
 
-        const workbook = XLSX.read(bytes, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: null });
+    // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
+    if (isExcelFile && excelBase64) {
+      console.log("[Routing] Attempting deterministic extraction...");
+      detResult = await tryDeterministicExtraction(excelBase64, fileName);
 
-        console.log(`[Parser] Parsed ${rows.length} rows from sheet "${firstSheetName}"`);
+      switch (detResult.type) {
+        case "success":
+          // Template matched and extraction successful → use deterministic data
+          extractedData = detResult.extractedData;
+          rawAiOutput = { deterministic: true, template_id: detResult.template_id };
+          extractionMethod = "deterministic_template";
+          console.log(`[Routing] Deterministic success: ${detResult.template_id}`);
+          break;
 
-        parsedReport = parseFinancialReport(rows);
+        case "structural_fail":
+          // Template matched but structural parsing failed → needs_review, NO AI fallback
+          console.log(`[Routing] Structural failure for ${detResult.template_id}: ${detResult.error}`);
+          extractionMethod = "deterministic_failed";
+          
+          // Store minimal data and mark as needs_review
+          if (reportId) {
+            await supabase
+              .from("financial_reports")
+              .update({
+                status: "needs_review",
+                extraction_method: extractionMethod,
+                validation_status: "FAIL",
+                validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", reportId);
+          }
+          
+          return new Response(
+            JSON.stringify({
+              error: "Deterministic parsing failed",
+              template_id: detResult.template_id,
+              details: detResult.error,
+              status: "needs_review",
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
 
-        console.log(`[Parser] Template: ${parsedReport.template_id}, Validation: ${parsedReport.validation.validation_status}`);
-        
-        if (parsedReport.template_id !== "UNKNOWN" && parsedReport.validation.validation_status === "PASS") {
-          extractionMethod = "deterministic";
-          console.log("[Parser] ✓ Deterministic parsing successful - using normalized data");
-        } else {
-          console.log("[Parser] ⚠ Parser validation failed or template not recognized - falling back to AI");
-          parsedReport = null;
-        }
-      } catch (error) {
-        console.error("[Parser] Excel parsing error:", error);
-        parsedReport = null;
+        case "no_match":
+          // No template matched → continue to AI extraction
+          console.log("[Routing] No template match → AI extraction");
+          break;
       }
-      */
-    } else {
-      console.log("[Parser] Using AI extraction method");
     }
+
+    // ── LAG 1: AI EXTRACTION (if deterministic didn't succeed) ──
+    if (!extractedData) {
+      console.log("[Routing] Using AI extraction path");
+      
+      // Company name instruction for AI
+      const companyNameInstruction = knownCompanyName 
+        ? `\n\nVIGTIGT: Virksomhedens navn er "${knownCompanyName}". Brug dette navn i company_name feltet.`
+        : "";
+      
+      // Build AI prompt and call (existing logic follows)
 
     // ═══ BUILD AI PROMPT (adapts based on extraction method) ═══
     
