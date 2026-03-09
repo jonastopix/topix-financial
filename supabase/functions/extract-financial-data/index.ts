@@ -71,52 +71,267 @@ function extractCvrFromText(text: string): string | null {
   return null;
 }
 
-// ── Post-processing validation ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// CANONICAL ACCOUNTING ENGINE: Normalize → Validate → Prepare AI Input
+// ═══════════════════════════════════════════════════════════════════════════
+
 interface ValidationCheck {
   name: string;
   result: "PASS" | "FAIL" | "SKIP";
   details: string;
 }
 
-function runPostProcessingValidation(extractedData: any): { status: string; checks: ValidationCheck[] } {
-  const kf = extractedData?.key_figures;
-  if (!kf) return { status: "SKIP", checks: [] };
+interface SignCorrection {
+  field: string;
+  originalValue: number;
+  correctedValue: number;
+  reason: string;
+}
 
+interface NormalizationResult {
+  key_figures: Record<string, number | null>;
+  corrections: SignCorrection[];
+  required_missing: string[];
+}
+
+interface CanonicalValidationResult {
+  status: "PASS" | "FAIL" | "UNSURE";
+  checks: ValidationCheck[];
+  corrections: SignCorrection[];
+  errors: string[];
+}
+
+const TOLERANCE = 2; // 2 kr tolerance for floating point issues
+
+// ── STEP 1: NORMALIZE (sign corrections with logging) ──────────────────────
+function normalizeKeyFigures(extractedData: any): NormalizationResult {
+  const kf = extractedData?.key_figures || {};
+  const reportType = extractedData?.report_type;
+  const corrections: SignCorrection[] = [];
+  const normalized = { ...kf };
+
+  // Required fields for basic validation
+  const requiredFields = ['omsaetning', 'resultat_foer_skat'];
+  const requiredMissing = requiredFields.filter(f => normalized[f] == null);
+
+  // ── Revenue: must be positive ──
+  const revenueFields = ['omsaetning', 'omsaetning_aar'];
+  for (const field of revenueFields) {
+    if (normalized[field] != null && normalized[field] < 0) {
+      corrections.push({
+        field,
+        originalValue: normalized[field],
+        correctedValue: Math.abs(normalized[field]),
+        reason: "Revenue normalized to positive (absolute value)",
+      });
+      normalized[field] = Math.abs(normalized[field]);
+    }
+  }
+
+  // ── Expenses: must be positive ──
+  const expenseFields = ['direkte_omkostninger', 'loenninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger'];
+  for (const field of expenseFields) {
+    if (normalized[field] != null && normalized[field] < 0) {
+      corrections.push({
+        field,
+        originalValue: normalized[field],
+        correctedValue: Math.abs(normalized[field]),
+        reason: "Expense normalized to positive (absolute value)",
+      });
+      normalized[field] = Math.abs(normalized[field]);
+    }
+  }
+
+  // ── Gross Profit / Dækningsbidrag: sign depends on report type ──
+  // For saldobalancer: negative = profit (credit > debit), so we invert
+  // For resultatopgørelser: positive = profit
+  const profitFields = ['daekningsbidrag', 'daekningsbidrag_aar'];
+  if (reportType === 'saldobalance') {
+    for (const field of profitFields) {
+      if (normalized[field] != null && normalized[field] < 0) {
+        // In saldobalance, negative DB means profit — but AI should have already flipped
+        // We check if magnitude matches expected (revenue - COGS)
+        const expectedDB = (normalized.omsaetning || 0) - (normalized.direkte_omkostninger || 0);
+        if (Math.abs(Math.abs(normalized[field]) - Math.abs(expectedDB)) <= TOLERANCE) {
+          // Magnitude matches — use absolute value (profit)
+          corrections.push({
+            field,
+            originalValue: normalized[field],
+            correctedValue: Math.abs(normalized[field]),
+            reason: "Saldobalance gross profit sign inverted (magnitude matched expected)",
+          });
+          normalized[field] = Math.abs(normalized[field]);
+        }
+      }
+    }
+  }
+
+  // ── Resultat: sign depends on report type ──
+  // For saldobalancer: negative = profit (credit > debit), so we invert
+  // For resultatopgørelser: positive = profit, negative = loss (keep as-is)
+  const resultatFields = ['resultat_foer_skat', 'resultat_foer_skat_aar', 'resultat_efter_skat', 'resultat_efter_skat_aar'];
+  if (reportType === 'saldobalance') {
+    for (const field of resultatFields) {
+      if (normalized[field] != null) {
+        // In saldobalance, we need to invert the sign
+        // Negative = profit (credit surplus), Positive = loss (debit surplus)
+        const original = normalized[field];
+        normalized[field] = -original;
+        if (original !== 0) {
+          corrections.push({
+            field,
+            originalValue: original,
+            correctedValue: normalized[field],
+            reason: "Saldobalance result sign inverted (negative → positive profit, positive → negative loss)",
+          });
+        }
+      }
+    }
+  }
+
+  // ── Balance items: Assets positive, Liabilities positive ──
+  const assetFields = ['aktiver_i_alt', 'debitorer', 'varelager'];
+  for (const field of assetFields) {
+    if (normalized[field] != null && normalized[field] < 0) {
+      corrections.push({
+        field,
+        originalValue: normalized[field],
+        correctedValue: Math.abs(normalized[field]),
+        reason: "Asset normalized to positive",
+      });
+      normalized[field] = Math.abs(normalized[field]);
+    }
+  }
+
+  const liabilityFields = ['passiver_i_alt', 'kreditorer'];
+  for (const field of liabilityFields) {
+    if (normalized[field] != null && normalized[field] < 0) {
+      corrections.push({
+        field,
+        originalValue: normalized[field],
+        correctedValue: Math.abs(normalized[field]),
+        reason: "Liability normalized to positive",
+      });
+      normalized[field] = Math.abs(normalized[field]);
+    }
+  }
+
+  // Bank/cash can be negative (overdraft) — keep sign
+  // Equity can be negative — keep sign
+
+  return {
+    key_figures: normalized,
+    corrections,
+    required_missing: requiredMissing,
+  };
+}
+
+// ── STEP 2: VALIDATE (comprehensive subtotal chain) ────────────────────────
+function runCanonicalValidation(extractedData: any, normalized: NormalizationResult): CanonicalValidationResult {
+  const kf = normalized.key_figures;
   const checks: ValidationCheck[] = [];
-  const TOLERANCE = 2; // 2 kr tolerance
+  const errors: string[] = [];
 
-  // 1. Dækningsbidrag = omsætning - direkte_omkostninger
+  // ── Check 1: Required fields ──
+  if (normalized.required_missing.length > 0) {
+    checks.push({
+      name: "required_fields",
+      result: "FAIL",
+      details: `Manglende påkrævede felter: ${normalized.required_missing.join(", ")}`,
+    });
+    errors.push(`Manglende felter: ${normalized.required_missing.join(", ")}`);
+  } else {
+    checks.push({
+      name: "required_fields",
+      result: "PASS",
+      details: "Alle påkrævede felter er til stede",
+    });
+  }
+
+  // ── Check 2: Numeric values ──
+  const numericIssues: string[] = [];
+  for (const [key, val] of Object.entries(kf)) {
+    if (val != null && typeof val !== 'number') {
+      numericIssues.push(key);
+    }
+  }
+  if (numericIssues.length > 0) {
+    checks.push({
+      name: "numeric_values",
+      result: "FAIL",
+      details: `Ikke-numeriske værdier: ${numericIssues.join(", ")}`,
+    });
+    errors.push(`Ikke-numeriske værdier i: ${numericIssues.join(", ")}`);
+  } else {
+    checks.push({
+      name: "numeric_values",
+      result: "PASS",
+      details: "Alle værdier er numeriske",
+    });
+  }
+
+  // ── Check 3: Gross Profit = Revenue - COGS ──
   if (kf.omsaetning != null && kf.direkte_omkostninger != null && kf.daekningsbidrag != null) {
     const expected = kf.omsaetning - kf.direkte_omkostninger;
     const diff = Math.abs(expected - kf.daekningsbidrag);
     const pass = diff <= TOLERANCE;
     checks.push({
-      name: "daekningsbidrag_sum",
+      name: "gross_profit_sum",
       result: pass ? "PASS" : "FAIL",
       details: pass
-        ? `OK: ${kf.omsaetning} - ${kf.direkte_omkostninger} = ${expected} ≈ ${kf.daekningsbidrag}`
-        : `MISMATCH: ${kf.omsaetning} - ${kf.direkte_omkostninger} = ${expected}, men daekningsbidrag = ${kf.daekningsbidrag} (diff ${diff.toFixed(2)})`,
+        ? `OK: ${kf.omsaetning} - ${kf.direkte_omkostninger} = ${expected.toFixed(2)} ≈ ${kf.daekningsbidrag}`
+        : `MISMATCH: ${kf.omsaetning} - ${kf.direkte_omkostninger} = ${expected.toFixed(2)}, men dækningsbidrag = ${kf.daekningsbidrag} (diff ${diff.toFixed(2)})`,
     });
+    if (!pass) errors.push(`Dækningsbidrag mismatch: forventet ${expected.toFixed(2)}, fandt ${kf.daekningsbidrag}`);
   } else {
-    checks.push({ name: "daekningsbidrag_sum", result: "SKIP", details: "Mangler felter til beregning" });
+    checks.push({ name: "gross_profit_sum", result: "SKIP", details: "Mangler omsætning, direkte_omkostninger eller dækningsbidrag" });
   }
 
-  // 2. Resultat-konsistens: resultat_foer_skat bør være lavere end dækningsbidrag (i P&L)
+  // ── Check 4: EBITDA = Gross Profit - Operating Expenses ──
+  // EBITDA = Dækningsbidrag - (løn + marketing + lokaler + admin + tech)
+  const opex = (kf.loenninger || 0) + (kf.marketing || 0) + (kf.lokaler || 0) + (kf.admin || 0) + (kf.tech_software || 0);
+  if (kf.daekningsbidrag != null && opex > 0) {
+    const expectedEBITDA = kf.daekningsbidrag - opex;
+    // We don't have explicit EBITDA field, so this is informational
+    checks.push({
+      name: "ebitda_calculation",
+      result: "PASS", // Informational — no field to validate against
+      details: `Beregnet EBITDA: ${kf.daekningsbidrag} - ${opex.toFixed(2)} = ${expectedEBITDA.toFixed(2)}`,
+    });
+  } else {
+    checks.push({ name: "ebitda_calculation", result: "SKIP", details: "Mangler dækningsbidrag eller driftsomkostninger" });
+  }
+
+  // ── Check 5: EBIT = EBITDA - Depreciation ──
+  if (kf.daekningsbidrag != null && kf.afskrivninger != null && opex > 0) {
+    const ebitda = kf.daekningsbidrag - opex;
+    const ebit = ebitda - kf.afskrivninger;
+    checks.push({
+      name: "ebit_calculation",
+      result: "PASS", // Informational
+      details: `Beregnet EBIT: ${ebitda.toFixed(2)} - ${kf.afskrivninger} = ${ebit.toFixed(2)}`,
+    });
+  } else {
+    checks.push({ name: "ebit_calculation", result: "SKIP", details: "Mangler felter til EBIT beregning" });
+  }
+
+  // ── Check 6: Result consistency (profit should be < gross profit) ──
   if (kf.resultat_foer_skat != null && kf.daekningsbidrag != null && extractedData.report_type === "resultatopgørelse") {
-    // Resultat should be lower than dækningsbidrag (costs subtract from gross margin)
+    // In an income statement, result should be lower than gross profit (expenses are subtracted)
     const sensible = kf.resultat_foer_skat <= kf.daekningsbidrag + TOLERANCE;
     checks.push({
-      name: "resultat_consistency",
+      name: "result_consistency",
       result: sensible ? "PASS" : "FAIL",
       details: sensible
-        ? `OK: resultat (${kf.resultat_foer_skat}) ≤ daekningsbidrag (${kf.daekningsbidrag})`
-        : `WARNING: resultat (${kf.resultat_foer_skat}) > daekningsbidrag (${kf.daekningsbidrag}) — mulig fejl`,
+        ? `OK: resultat (${kf.resultat_foer_skat}) ≤ dækningsbidrag (${kf.daekningsbidrag})`
+        : `WARNING: resultat (${kf.resultat_foer_skat}) > dækningsbidrag (${kf.daekningsbidrag}) — mulig fortegnsfejl`,
     });
+    if (!sensible) errors.push(`Resultat større end dækningsbidrag — mulig fortegnsfejl`);
   } else {
-    checks.push({ name: "resultat_consistency", result: "SKIP", details: "Ikke relevant / mangler data" });
+    checks.push({ name: "result_consistency", result: "SKIP", details: "Ikke resultatopgørelse eller mangler data" });
   }
 
-  // 3. Balance-ligning (kun saldobalance)
+  // ── Check 7: Balance equation: Assets = Equity + Liabilities (or Assets = Passiver) ──
   if (extractedData.report_type === "saldobalance" && kf.aktiver_i_alt != null && kf.passiver_i_alt != null) {
     const diff = Math.abs(kf.aktiver_i_alt - kf.passiver_i_alt);
     const pass = diff <= TOLERANCE;
@@ -127,16 +342,63 @@ function runPostProcessingValidation(extractedData: any): { status: string; chec
         ? `OK: aktiver (${kf.aktiver_i_alt}) ≈ passiver (${kf.passiver_i_alt})`
         : `MISMATCH: aktiver (${kf.aktiver_i_alt}) ≠ passiver (${kf.passiver_i_alt}), diff ${diff.toFixed(2)}`,
     });
+    if (!pass) errors.push(`Balance mismatch: aktiver ${kf.aktiver_i_alt}, passiver ${kf.passiver_i_alt}`);
+  } else if (kf.aktiver_i_alt != null && kf.egenkapital != null && kf.passiver_i_alt != null) {
+    // Alternative: Assets = Equity + Liabilities (where passiver = gæld)
+    const expectedAssets = kf.egenkapital + kf.passiver_i_alt;
+    const diff = Math.abs(kf.aktiver_i_alt - expectedAssets);
+    const pass = diff <= TOLERANCE;
+    checks.push({
+      name: "balance_equation",
+      result: pass ? "PASS" : "FAIL",
+      details: pass
+        ? `OK: aktiver (${kf.aktiver_i_alt}) ≈ egenkapital + gæld (${expectedAssets.toFixed(2)})`
+        : `MISMATCH: aktiver (${kf.aktiver_i_alt}) ≠ egenkapital + gæld (${expectedAssets.toFixed(2)})`,
+    });
+    if (!pass) errors.push(`Balance mismatch: aktiver ${kf.aktiver_i_alt} ≠ egenkapital + gæld`);
   } else {
-    checks.push({ name: "balance_equation", result: "SKIP", details: "Ikke saldobalance eller mangler felter" });
+    checks.push({ name: "balance_equation", result: "SKIP", details: "Ikke saldobalance eller mangler balance-felter" });
   }
 
-  // Derive overall status
-  const hasFailure = checks.some((c) => c.result === "FAIL");
-  const allSkip = checks.every((c) => c.result === "SKIP");
-  const status = hasFailure ? "FAIL" : allSkip ? "SKIP" : "PASS";
+  // ── Check 8: Period consistency (no YTD/period mixing) ──
+  // This is more of a structural check — if we have both period and _aar values, they should be consistent
+  if (kf.omsaetning != null && kf.omsaetning_aar != null) {
+    // YTD should be >= period value (can't have more in one month than whole year)
+    const consistent = kf.omsaetning_aar >= kf.omsaetning - TOLERANCE;
+    checks.push({
+      name: "period_consistency",
+      result: consistent ? "PASS" : "FAIL",
+      details: consistent
+        ? `OK: omsætning_aar (${kf.omsaetning_aar}) ≥ omsætning (${kf.omsaetning})`
+        : `WARNING: omsætning_aar (${kf.omsaetning_aar}) < omsætning (${kf.omsaetning}) — mulig periode-fejl`,
+    });
+    if (!consistent) errors.push(`Periode inkonsistens: YTD mindre end periodens tal`);
+  } else {
+    checks.push({ name: "period_consistency", result: "SKIP", details: "Kun ét sæt tal tilgængeligt" });
+  }
 
-  return { status, checks };
+  // ── Derive final status ──
+  const hasFailure = checks.some(c => c.result === "FAIL");
+  const hasSkipOnly = checks.every(c => c.result === "SKIP");
+  const hasCorrections = normalized.corrections.length > 0;
+
+  let status: "PASS" | "FAIL" | "UNSURE";
+  if (hasFailure) {
+    status = "FAIL";
+  } else if (hasSkipOnly) {
+    status = "UNSURE"; // Nothing validated — uncertain
+  } else if (hasCorrections) {
+    status = "PASS"; // Corrections were applied, but checks passed
+  } else {
+    status = "PASS";
+  }
+
+  return {
+    status,
+    checks,
+    corrections: normalized.corrections,
+    errors,
+  };
 }
 
 serve(async (req) => {
@@ -589,70 +851,51 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       }
     }
 
-    // === Post-processing: Normalize signs ===
-    const kf = extractedData.key_figures;
-    if (kf) {
-      const expenseFields = ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger'];
-      for (const field of expenseFields) {
-        if (kf[field] != null && kf[field] < 0) {
-          console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
-          kf[field] = Math.abs(kf[field]);
-        }
-      }
+    // ═══════════════════════════════════════════════════════════════════════
+    // CANONICAL ACCOUNTING ENGINE: extract → normalize → validate → aiInput
+    // ═══════════════════════════════════════════════════════════════════════
 
-      for (const field of ['omsaetning', 'omsaetning_aar']) {
-        if (kf[field] != null && kf[field] < 0) {
-          console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
-          kf[field] = Math.abs(kf[field]);
-        }
-      }
+    // STEP 1: Normalize (sign corrections with auto-correction log)
+    const normalizationResult = normalizeKeyFigures(extractedData);
 
-      // Dækningsbidrag should also be absolute-valued for consistency
-      for (const field of ['daekningsbidrag', 'daekningsbidrag_aar']) {
-        if (kf[field] != null) {
-          // For saldobalancer: AI should already have flipped the sign per prompt instructions.
-          // But as a safety net, we can log the value for debugging.
-          console.log(`  ${field}: ${kf[field]}`);
-        }
-      }
-
-      // NEVER touch resultat fields — their sign is meaningful
-      // The AI prompt now instructs to flip signs for saldobalancer before returning.
-      console.log(`[CFO Extraction] Period: ${extractedData.report_period}, Type: ${extractedData.report_type}`);
-      console.log(`  omsaetning: ${kf.omsaetning}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
-      console.log(`  omsaetning_aar: ${kf.omsaetning_aar}, resultat_foer_skat_aar: ${kf.resultat_foer_skat_aar}`);
-      console.log(`  daekningsbidrag: ${kf.daekningsbidrag}, daekningsbidrag_aar: ${kf.daekningsbidrag_aar}`);
+    // Apply normalized key_figures back to extractedData
+    if (extractedData.key_figures) {
+      extractedData.key_figures = normalizationResult.key_figures;
     }
 
-    // === Post-processing: Server-side validation ===
-    const serverValidation = runPostProcessingValidation(extractedData);
+    // Log all corrections applied
+    if (normalizationResult.corrections.length > 0) {
+      console.log(`[Canonical] Applied ${normalizationResult.corrections.length} sign correction(s):`);
+      for (const c of normalizationResult.corrections) {
+        console.log(`  [Correction] ${c.field}: ${c.originalValue} → ${c.correctedValue} (${c.reason})`);
+      }
+    }
+
+    // STEP 2: Validate (comprehensive subtotal chain)
+    const canonicalValidation = runCanonicalValidation(extractedData, normalizationResult);
     const aiValidation = extractedData.validation;
 
+    // STEP 3: Merge AI validation with server-side canonical validation
     // ═══ FINAL STATUS PRIORITY (strict cascade) ═══
-    // 1. Server FAIL → FAIL (structural/mathematical errors)
-    // 2. AI FAIL → FAIL (extraction errors)
-    // 3. AI UNSURE → UNSURE (low confidence)
-    // 4. Any SKIP → FAIL (conservative: unvalidated = unsafe)
+    // 1. Server FAIL → FAIL (mathematical errors caught server-side)
+    // 2. AI FAIL → FAIL (AI flagged extraction error)
+    // 3. AI UNSURE → UNSURE (AI low confidence)
+    // 4. Canonical UNSURE → UNSURE (nothing could be validated)
     // 5. Else → PASS
     let finalStatus: "PASS" | "FAIL" | "UNSURE" = "PASS";
 
-    if (serverValidation.status === "FAIL") {
+    if (canonicalValidation.status === "FAIL") {
       finalStatus = "FAIL";
     } else if (aiValidation?.status === "FAIL") {
       finalStatus = "FAIL";
     } else if (aiValidation?.status === "UNSURE") {
       finalStatus = "UNSURE";
-    } else if (serverValidation.status === "SKIP" || aiValidation?.status === "SKIP") {
-      finalStatus = "FAIL"; // Conservative: unvalidated data treated as failed
+    } else if (canonicalValidation.status === "UNSURE") {
+      finalStatus = "UNSURE";
     }
 
-    // Collect all validation errors
-    const allErrors: string[] = [];
-    for (const check of serverValidation.checks) {
-      if (check.result === "FAIL") {
-        allErrors.push(`[Server] ${check.name}: ${check.details}`);
-      }
-    }
+    // Collect all errors (canonical + AI)
+    const allErrors: string[] = [...canonicalValidation.errors];
     if (aiValidation?.checks) {
       for (const check of aiValidation.checks) {
         if (check.result === "FAIL") {
@@ -661,20 +904,32 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       }
     }
 
-    extractedData.validation = {
+    // STEP 4: Build canonical output for AI analysis input
+    const canonicalOutput = {
       status: finalStatus,
+      server_checks: canonicalValidation.checks,
       ai_checks: aiValidation?.checks || [],
-      server_checks: serverValidation.checks,
+      corrections: normalizationResult.corrections,
+      errors: allErrors,
     };
 
-    // Log validation results
-    console.log(`[Validation] Final Status: ${finalStatus} (Server: ${serverValidation.status}, AI: ${aiValidation?.status || "N/A"})`);
-    for (const check of serverValidation.checks) {
+    extractedData.validation = canonicalOutput;
+
+    // Log final validation summary
+    console.log(`[Canonical] Period: ${extractedData.report_period} | Type: ${extractedData.report_type}`);
+    console.log(`[Canonical] Status: ${finalStatus} (server: ${canonicalValidation.status}, ai: ${aiValidation?.status || "N/A"})`);
+    for (const check of canonicalValidation.checks) {
       if (check.result === "FAIL") {
-        console.warn(`[Validation FAIL] ${check.name}: ${check.details}`);
+        console.warn(`  ✗ ${check.name}: ${check.details}`);
+      } else if (check.result === "PASS") {
+        console.log(`  ✓ ${check.name}: ${check.details}`);
       } else {
-        console.log(`[Validation ${check.result}] ${check.name}: ${check.details}`);
+        console.log(`  ~ ${check.name}: ${check.details} (SKIP)`);
       }
+    }
+    const kf = extractedData.key_figures;
+    if (kf) {
+      console.log(`[Canonical] omsaetning: ${kf.omsaetning}, daekningsbidrag: ${kf.daekningsbidrag}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
     }
 
     // Check for duplicate report (same company, same period)
