@@ -228,9 +228,9 @@ export function extractRawLines(rows: any[][], template: ReportTemplate): RawLin
     const row = rows[i];
     if (!row || row.length < 3) continue;
 
-    const accountNo = typeof row[0] === "number" ? row[0] : null;
+    const accountNo = toNumber(row[0]);
     const label = row[1]?.toString().trim() || "";
-    const rawValue = typeof row[2] === "number" ? row[2] : null;
+    const rawValue = toNumber(row[2]);
 
     if (!label || label === "") continue;
     if (label.toLowerCase().includes("nummer") || label.toLowerCase().includes("navn")) continue;

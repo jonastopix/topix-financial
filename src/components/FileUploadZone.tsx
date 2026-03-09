@@ -679,7 +679,7 @@ const FileUploadZone = ({
   };
 
   const handleOverwrite = useCallback(async () => {
-    const { pendingFile, pendingFileContent, pendingPageImages, pendingFileId } = overwriteDialog;
+    const { pendingFile, pendingFileContent, pendingPageImages, pendingExcelBase64, pendingFileId } = overwriteDialog;
     setOverwriteDialog((prev) => ({ ...prev, open: false }));
 
     if (!pendingFile || !userId) return;
@@ -727,7 +727,7 @@ const FileUploadZone = ({
 
       const { data: extractedData, error: extractError } = await supabase.functions.invoke(
         "extract-financial-data",
-        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true, knownCompanyName: companyName || undefined } }
+        { body: { fileContent: pendingFileContent, pageImages: pendingPageImages, excelBase64: pendingExcelBase64, reportId: reportRecord.id, fileName: pendingFile.name, overwrite: true, knownCompanyName: companyName || undefined } }
       );
 
       if (extractError) throw extractError;

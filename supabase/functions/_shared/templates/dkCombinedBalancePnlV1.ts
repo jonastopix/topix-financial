@@ -126,7 +126,12 @@ export const dkCombinedBalancePnlV1: TemplateEntry = {
   detect(ctx: DetectionContext): number {
     if (!ctx.headerRows || ctx.headerRows.length < 6) return 0;
     
-    // Check header structure directly (don't rely on full row scan)
+    const toNum = (v: any): number | null => {
+      if (typeof v === "number") return v;
+      if (typeof v === "string") { const n = Number(v.replace(/\s/g, "")); return isNaN(n) ? null : n; }
+      return null;
+    };
+
     // Row 0: Company name (non-empty string)
     const row1 = ctx.headerRows[0]?.[0];
     if (!row1 || typeof row1 !== "string" || row1.trim() === "") return 0;
@@ -147,8 +152,8 @@ export const dkCombinedBalancePnlV1: TemplateEntry = {
     let hasPnL = false;
     let hasBalance = false;
     for (let i = 5; i < ctx.headerRows.length; i++) {
-      const accountNo = ctx.headerRows[i]?.[0];
-      if (typeof accountNo === "number") {
+      const accountNo = toNum(ctx.headerRows[i]?.[0]);
+      if (accountNo !== null) {
         if (accountNo >= 998 && accountNo < 6000) hasPnL = true;
         if (accountNo >= 6000) hasBalance = true;
       }

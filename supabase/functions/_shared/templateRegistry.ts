@@ -157,7 +157,7 @@ export async function tryDeterministicExtraction(
     const workbook = XLSX.read(bytes, { type: "array" });
     sheetNames = workbook.SheetNames;
     const worksheet = workbook.Sheets[sheetNames[0]];
-    rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: null });
+    rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: null });
     console.log(`[Registry] Parsed ${rows.length} rows from sheet "${sheetNames[0]}"`);
   } catch (e: any) {
     console.error("[Registry] Excel parse error:", e.message);
