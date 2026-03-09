@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Calendar,
   BarChart3,
+  ShieldAlert,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -143,6 +144,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
            "FAIL";
   }, [selectedReport]);
 
+  // Canonical gating: block AI if normalized_data.metrics exists but ai_eligible_payload is missing
+  const canonicalBlocked = useMemo(() => {
+    if (!selectedReport) return false;
+    const nd = selectedReport.normalized_data as any;
+    return !!nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload);
+  }, [selectedReport]);
+
   // Group reports by year for history
   const reportsByYear = useMemo(() => {
     const groups: Record<string, ReportWithAnalysis[]> = {};
@@ -159,6 +167,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     const target = report || selectedReport;
     if (!target?.extracted_data) {
       toast.error("Ingen data at analysere.");
+      return;
+    }
+
+    // CANONICAL GATING: block if metrics exist but payload missing
+    const nd = target.normalized_data as any;
+    if (nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
+      toast.error("AI-analyse blokeret: canonical metrics findes, men ai_eligible_payload mangler.");
       return;
     }
 
@@ -308,10 +323,15 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </div>
         {selectedReport && (
           <>
-            {validationStatus !== "PASS" ? (
-              <div className="glass-card rounded-xl p-6 border-l-4 border-l-amber-500">
+            {canonicalBlocked ? (
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-muted text-muted-foreground cursor-not-allowed" title="Canonical data ufuldstændig — ai_eligible_payload mangler">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                AI blokeret
+              </div>
+            ) : validationStatus !== "PASS" ? (
+              <div className="glass-card rounded-xl p-6 border-l-4 border-l-chart-warning">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-sm font-semibold text-foreground mb-1">
                       AI-analyse ikke tilgængelig
@@ -353,8 +373,45 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </div>
       )}
 
-      {/* Analysis content */}
-      {validationStatus === "PASS" && analysis && !loading && (
+      {/* Canonical blocked banner */}
+      {canonicalBlocked && (
+        <div className="glass-card rounded-xl p-6 border-l-4 border-l-chart-warning">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                AI-analyse utilgængelig
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Canonical metrics er tilgængelige, men <strong>ai_eligible_payload</strong> mangler. 
+                Ny AI-kørsel er blokeret indtil data er komplet.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stale/cached analysis when canonical blocked */}
+      {canonicalBlocked && analysis && !loading && (
+        <div className="opacity-60 border-2 border-chart-warning/30 rounded-xl p-1">
+          <div className="flex items-center gap-2 px-5 pt-4 pb-2">
+            <ShieldAlert className="h-4 w-4 text-chart-warning" />
+            <span className="text-xs font-semibold text-chart-warning uppercase tracking-wider">
+              Historisk analyse — ny kørsel blokeret
+            </span>
+          </div>
+          {/* Overview (read-only) */}
+          <div className="mx-4 mb-4 rounded-xl bg-secondary/30 p-5 border-l-4 border-l-muted">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Overblik (cached)
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{analysis.overview}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Analysis content — only when NOT canonical blocked */}
+      {!canonicalBlocked && validationStatus === "PASS" && analysis && !loading && (
         <>
           {/* Overview */}
           <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary">
@@ -528,7 +585,10 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
                             onClick={() => {
                               setSelectedReportId(r.id);
                               setExpandedFinding(0);
-                              if (!hasAnalysis) generateAnalysis(r);
+                              // Don't auto-generate if canonical blocked
+                              const rnd = r.normalized_data as any;
+                              const rBlocked = !!rnd?.metrics && !(rnd?.ai_eligible === true && rnd?.ai_eligible_payload);
+                              if (!hasAnalysis && !rBlocked) generateAnalysis(r);
                             }}
                             className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg text-left transition-all ${
                               isSelected

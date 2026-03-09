@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 import {
-  parseReportPeriodToKey, getKeyFigures, formatDKK, pctChange,
+  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, pctChange,
   type ReportData,
 } from "@/lib/financialUtils";
 
@@ -9,14 +9,14 @@ interface PerformanceOverviewProps {
   reports: ReportData[];
 }
 
-/** Sum all operating expenses from key figures */
-function totalExpenses(kf: Record<string, number>): number {
+/** Sum all operating expenses from key figures. Uses ?? 0 for summation (missing addend = 0). */
+function totalExpenses(kf: Record<string, number | null>): number {
   return Math.abs(kf.loenninger ?? 0) +
     Math.abs(kf.direkte_omkostninger ?? 0) +
-    Math.abs(kf.marketing ?? 0) +
-    Math.abs(kf.lokaler ?? 0) +
-    Math.abs(kf.admin ?? 0) +
-    Math.abs(kf.tech_software ?? 0) +
+    Math.abs((kf as any).marketing ?? 0) +
+    Math.abs(kf.lokaleomkostninger ?? 0) +
+    Math.abs(kf.administrationsomkostninger ?? 0) +
+    Math.abs((kf as any).tech_software ?? 0) +
     Math.abs(kf.afskrivninger ?? 0);
 }
 
@@ -24,8 +24,14 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const data = useMemo(() => {
     return reports
       .filter(r => r.status === "processed")
-      .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r), period: r.report_period }))
-      .filter((d): d is { key: string; kf: Record<string, number>; period: string } => !!d.key && !!d.kf)
+      .map(r => {
+        const result = getCanonicalOrLegacyMetrics(r);
+        if (!result) return null;
+        const key = parseReportPeriodToKey(r.report_period);
+        if (!key) return null;
+        return { key, kf: result.metrics, period: r.report_period! };
+      })
+      .filter(Boolean as any as (v: any) => v is { key: string; kf: Record<string, number | null>; period: string })
       .sort((a, b) => a.key.localeCompare(b.key));
   }, [reports]);
 
@@ -35,7 +41,7 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const prev = data.length >= 2 ? data[data.length - 2] : null;
   const kf = latest.kf;
 
-  // YTD: Sum individual months for the current year (don't trust _aar from AI)
+  // YTD: Sum individual months for the current year (missing addend = 0)
   const [latestYear] = latest.key.split("-");
   const currentYearReports = data.filter(r => r.key.startsWith(latestYear));
   const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
@@ -54,7 +60,8 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const kpis = [
     {
       label: "DB Margin %",
-      value: kf.omsaetning && kf.daekningsbidrag ? `${((kf.daekningsbidrag / kf.omsaetning) * 100).toFixed(1)}%` : "—",
+      value: kf.omsaetning != null && kf.daekningsbidrag != null && kf.omsaetning !== 0
+        ? `${((kf.daekningsbidrag / kf.omsaetning) * 100).toFixed(1)}%` : "—",
     },
     {
       label: "Oms. ændring M/M",
@@ -63,11 +70,13 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
     },
     {
       label: "Løn % af oms.",
-      value: kf.omsaetning && kf.loenninger ? `${((kf.loenninger / kf.omsaetning) * 100).toFixed(1)}%` : "—",
+      value: kf.omsaetning != null && kf.loenninger != null && kf.omsaetning !== 0
+        ? `${((kf.loenninger / kf.omsaetning) * 100).toFixed(1)}%` : "—",
     },
     {
       label: "Netto Resultat %",
-      value: kf.omsaetning && kf.resultat_foer_skat ? `${((kf.resultat_foer_skat / kf.omsaetning) * 100).toFixed(1)}%` : "—",
+      value: kf.omsaetning != null && kf.resultat_foer_skat != null && kf.omsaetning !== 0
+        ? `${((kf.resultat_foer_skat / kf.omsaetning) * 100).toFixed(1)}%` : "—",
       change: pctChange(kf.resultat_foer_skat, prev?.kf.resultat_foer_skat),
     },
   ];
@@ -105,7 +114,7 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
             <div key={i} className="rounded-lg border border-border/30 bg-background/50 p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
               <p className={`text-lg font-bold mt-0.5 ${
-                kpi.change != null ? kpi.change >= 0 ? "text-primary" : "text-destructive" : "text-foreground"
+                (kpi as any).change != null ? (kpi as any).change >= 0 ? "text-primary" : "text-destructive" : "text-foreground"
               }`}>
                 {kpi.value}
               </p>

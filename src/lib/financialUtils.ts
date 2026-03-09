@@ -25,16 +25,58 @@ export interface ReportData {
   id: string;
   report_period: string | null;
   extracted_data: Json | null;
+  normalized_data?: Json | null;
   status: string;
 }
 
 export function getKeyFigures(report: ReportData): Record<string, number> | null {
+  // GUARDRAIL: warn if canonical data exists
+  if ((report as any).normalized_data?.metrics) {
+    console.warn('[canonical-first] getKeyFigures() called but normalized_data.metrics exists. Use getCanonicalOrLegacyMetrics() instead.');
+  }
   if (!report.extracted_data || typeof report.extracted_data !== "object" || Array.isArray(report.extracted_data)) return null;
   return (report.extracted_data as Record<string, Json | undefined>).key_figures as Record<string, number> | null;
 }
 
+// ── Canonical-first metrics helper ──
+export interface ReportMetricsResult {
+  source: "canonical" | "legacy";
+  metrics: Record<string, number | null>;
+}
+
+export function getCanonicalOrLegacyMetrics(report: ReportData): ReportMetricsResult | null {
+  const norm = report.normalized_data as Record<string, any> | null;
+  if (norm?.metrics) {
+    const m = norm.metrics;
+    return {
+      source: "canonical",
+      metrics: {
+        omsaetning: m.revenue ?? null,
+        daekningsbidrag: m.gross_profit ?? null,
+        loenninger: m.payroll ?? null,
+        direkte_omkostninger: m.cogs ?? null,
+        salgsomkostninger: m.sales_costs ?? null,
+        lokaleomkostninger: m.facility_costs ?? null,
+        administrationsomkostninger: m.admin_costs ?? null,
+        afskrivninger: m.depreciation ?? null,
+        resultat_foer_skat: m.ebt ?? null,
+        resultat_efter_skat: m.net_result ?? null,
+        aktiver_i_alt: m.assets_total ?? null,
+        egenkapital: m.equity_total ?? null,
+        bank_balance: m.cash ?? null,        // sign preserved, no flip
+        debitorer: m.trade_receivables ?? null,
+        kreditorer: m.current_liabilities ?? null,
+      },
+    };
+  }
+  // Legacy fallback
+  const kf = getKeyFigures(report);
+  if (kf) return { source: "legacy", metrics: kf };
+  return null;
+}
+
 // ── DKK formatting ──
-export const formatDKK = (n?: number) =>
+export const formatDKK = (n?: number | null) =>
   n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
 
 export const formatDKKFull = (n: number) =>
@@ -47,7 +89,7 @@ export const formatCompact = (n: number) => {
 };
 
 // ── Percentage change ──
-export function pctChange(curr: number | undefined, prev: number | undefined): number | null {
+export function pctChange(curr: number | undefined | null, prev: number | undefined | null): number | null {
   if (curr == null || prev == null || prev === 0) return null;
   return ((curr - prev) / Math.abs(prev)) * 100;
 }

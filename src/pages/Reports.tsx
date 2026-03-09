@@ -51,7 +51,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getKeyFigures, formatDKK, formatCompact,
+  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact,
   SHORT_MONTHS, reportStatusConfig, type ReportData,
 } from "@/lib/financialUtils";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
@@ -67,6 +67,7 @@ interface DbReport {
   uploaded_at: string;
   status: string;
   extracted_data: Json | null;
+  normalized_data: Json | null;
 }
 
 interface ChatMsg {
@@ -110,7 +111,7 @@ const Reports = () => {
     const [reportsRes, convRes] = await Promise.all([
       (supabase
         .from("financial_reports")
-        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
+        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false }),
@@ -182,7 +183,7 @@ const Reports = () => {
   // (delivery overview logic is now in DeliveryOverview component)
 
 
-  // Build trend data for charts
+  // Build trend data for charts (canonical-first)
   const trendData = useMemo(() => {
     const sortedKeys = Object.keys(reportsByMonth).sort();
     const filteredKeys = trendPeriod.filterKeys(sortedKeys);
@@ -190,8 +191,9 @@ const Reports = () => {
       .map((key) => {
         const r = reportsByMonth[key];
         if (r.status !== "processed") return null;
-        const kf = getKeyFigures(r);
-        if (!kf) return null;
+        const result = getCanonicalOrLegacyMetrics(r);
+        if (!result) return null;
+        const kf = result.metrics;
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
         return {
@@ -268,7 +270,7 @@ const Reports = () => {
     if (!isAdvisor || !companyId) return;
     const { data } = await (supabase
       .from("financial_reports")
-      .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data") as any)
+      .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
       .eq("company_id", companyId)
       .not("deleted_at", "is", null)
       .order("uploaded_at", { ascending: false });
