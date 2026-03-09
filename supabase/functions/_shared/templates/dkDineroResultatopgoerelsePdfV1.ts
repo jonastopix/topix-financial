@@ -333,9 +333,13 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
     let ambiguousCount = 0;
     let sectionFallbackCount = 0;
 
+    // Helper: detect ALL-CAPS boundary lines (Dinero subtotals not caught by parser)
+    const isAllCaps = (s: string) => /^[A-ZÆØÅ][A-ZÆØÅ\s,.&()]+$/.test(s.trim());
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (line.is_subtotal) continue;
+      if (isAllCaps(line.name)) continue; // Skip ALL-CAPS boundary/subtotal lines
       const amount = line.period_amount;
       if (amount == null) continue;
 
