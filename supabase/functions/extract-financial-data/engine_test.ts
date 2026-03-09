@@ -48,16 +48,18 @@ Deno.test("CASE 1: Revenue normaliseres positivt", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// CASE 2: Saldobalance equity sign-inversion
+// CASE 2: Saldobalance — pre-normalized results pass through (no double-flip)
 // ══════════════════════════════════════════════════════════════════
-Deno.test("CASE 2: Saldobalance equity sign-inversion (resultat)", () => {
+Deno.test("CASE 2: Saldobalance — pre-normalized results pass through", () => {
+  // All input paths (AI, Excel, PDF) now pre-normalize result fields to business convention
+  // (positive = profit). Canonical engine must NOT flip them again.
   const extractedData = {
     report_type: "saldobalance",
     report_period: "Oktober 2025",
     key_figures: {
       omsaetning: 1000000,
-      resultat_foer_skat: -200000, // In saldobalance: negative = profit
-      egenkapital: 500000,        // Equity stays as-is (not flipped for positive values)
+      resultat_foer_skat: 200000,  // Already normalized: positive = profit
+      egenkapital: -500000,        // Raw accounting sign — canonical should flip
       aktiver_i_alt: 1000000,
       passiver_i_alt: 1000000,
     },
@@ -66,13 +68,19 @@ Deno.test("CASE 2: Saldobalance equity sign-inversion (resultat)", () => {
 
   const { metrics, correction_log } = normalizeToCanonical(extractedData);
 
-  // In saldobalance, result sign is inverted: -200000 → +200000 (profit)
+  // EBT passes through unchanged (no double-flip)
   assertEquals(metrics.ebt, 200000);
 
-  // Should have correction logged
+  // Equity is flipped from raw accounting sign
+  assertEquals(metrics.equity_total, 500000);
+
+  // NO correction for resultat (it's already correct)
   const resultCorrection = correction_log.find(c => c.field === "resultat_foer_skat");
-  assertExists(resultCorrection, "Should have resultat correction");
-  assertEquals(resultCorrection?.rule, "saldobalance_result_sign_inverted");
+  assertEquals(resultCorrection, undefined, "Should NOT have resultat correction — value arrived pre-normalized");
+
+  // Should have equity correction
+  const equityCorrection = correction_log.find(c => c.field === "egenkapital");
+  assertExists(equityCorrection, "Should have equity correction");
 });
 
 // ══════════════════════════════════════════════════════════════════
