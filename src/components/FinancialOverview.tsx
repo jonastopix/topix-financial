@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getKeyFigures, formatDKK, formatCompact, pctChange,
+  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact, pctChange,
   SHORT_MONTHS, type ReportData,
 } from "@/lib/financialUtils";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
@@ -32,13 +32,13 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
       .filter(r => r.status === "processed")
       .map(r => {
         const key = parseReportPeriodToKey(r.report_period);
-        const kf = getKeyFigures(r);
-        if (!key || !kf) return null;
+        const result = getCanonicalOrLegacyMetrics(r);
+        if (!key || !result) return null;
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
-        return { key, label: `${SHORT_MONTHS[monthIdx]} ${year}`, kf };
+        return { key, label: `${SHORT_MONTHS[monthIdx]} ${year}`, kf: result.metrics };
       })
-      .filter(Boolean) as { key: string; label: string; kf: Record<string, number> }[];
+      .filter(Boolean) as { key: string; label: string; kf: Record<string, number | null> }[];
 
     return processed.sort((a, b) => a.key.localeCompare(b.key));
   }, [reports]);
@@ -59,12 +59,13 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
   const prev = chartData.length >= 2 ? chartData[chartData.length - 2] : null;
   const kf = latest.kf;
 
-  const dbMargin = kf.omsaetning && kf.daekningsbidrag
+  // Strict null-checks: only compute margin if both values are non-null and denominator != 0
+  const dbMargin = kf.omsaetning != null && kf.daekningsbidrag != null && kf.omsaetning !== 0
     ? ((kf.daekningsbidrag / kf.omsaetning) * 100) : null;
-  const dbMarginPrev = prev?.kf.omsaetning && prev?.kf.daekningsbidrag
+  const dbMarginPrev = prev?.kf.omsaetning != null && prev?.kf.daekningsbidrag != null && prev.kf.omsaetning !== 0
     ? ((prev.kf.daekningsbidrag / prev.kf.omsaetning) * 100) : null;
 
-  const netMargin = kf.omsaetning && kf.resultat_foer_skat
+  const netMargin = kf.omsaetning != null && kf.resultat_foer_skat != null && kf.omsaetning !== 0
     ? ((kf.resultat_foer_skat / kf.omsaetning) * 100) : null;
 
   const kpis = [
@@ -85,7 +86,7 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
     },
     {
       label: "EBITDA Margin",
-      value: kf.omsaetning && kf.resultat_foer_skat
+      value: kf.omsaetning != null && kf.resultat_foer_skat != null && kf.omsaetning !== 0
         ? `${((kf.resultat_foer_skat / kf.omsaetning) * 100).toFixed(1)}%` : "—",
       change: null,
     },
@@ -95,15 +96,17 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
     const k = d.kf;
     return {
       label: d.label,
-      omsaetning: k.omsaetning || 0,
-      daekningsbidrag: k.daekningsbidrag || 0,
-      resultat_foer_skat: k.resultat_foer_skat || 0,
-      loenninger: k.loenninger || 0,
-      direkte_omkostninger: k.direkte_omkostninger || 0,
-      aktiver_i_alt: k.aktiver_i_alt || 0,
-      passiver_i_alt: k.passiver_i_alt || 0,
-      egenkapital: k.egenkapital || 0,
-      bank_balance: k.bank_balance || 0,
+      // AreaChart: use null for gaps (no false dips)
+      omsaetning: k.omsaetning ?? null,
+      daekningsbidrag: k.daekningsbidrag ?? null,
+      resultat_foer_skat: k.resultat_foer_skat ?? null,
+      // BarChart: use ?? 0 because bars can't render null height
+      loenninger: k.loenninger ?? 0,
+      direkte_omkostninger: k.direkte_omkostninger ?? 0,
+      aktiver_i_alt: k.aktiver_i_alt ?? 0,
+      passiver_i_alt: (k as any).passiver_i_alt ?? 0,
+      egenkapital: k.egenkapital ?? 0,
+      bank_balance: k.bank_balance ?? 0, // sign preserved
     };
   });
 
@@ -167,9 +170,9 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, name: string) => [formatDKK(v), { omsaetning: "Omsætning", daekningsbidrag: "Dækningsbidrag", resultat_foer_skat: "Resultat" }[name] || name]} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
               <Legend formatter={(v: string) => ({ omsaetning: "Omsætning", daekningsbidrag: "Dækningsbidrag", resultat_foer_skat: "Resultat" }[v] || v)} />
-              <Area type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={2} />
-              <Area type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2) / 0.1)" strokeWidth={2} />
-              <Area type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3) / 0.1)" strokeWidth={2} />
+              <Area type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={2} connectNulls />
+              <Area type="monotone" dataKey="daekningsbidrag" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2) / 0.1)" strokeWidth={2} connectNulls />
+              <Area type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3) / 0.1)" strokeWidth={2} connectNulls />
             </AreaChart>
           ) : activeTab === "omkostninger" ? (
             <BarChart data={tabChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
@@ -187,7 +190,7 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => [formatDKK(v), "Resultat f. skat"]} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }} />
-              <Area type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.15)" strokeWidth={2.5} />
+              <Area type="monotone" dataKey="resultat_foer_skat" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.15)" strokeWidth={2.5} connectNulls />
             </AreaChart>
           ) : (
             <BarChart data={tabChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
