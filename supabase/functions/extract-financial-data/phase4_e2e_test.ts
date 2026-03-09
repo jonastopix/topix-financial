@@ -1516,15 +1516,15 @@ Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () 
   console.log(`  ebt:          ${m.ebt}`);
   console.log(`  net_result:   ${m.net_result}`);
 
-  // ── Assertions: All positive in business convention ──
+  // ── Assertions: requested business-convention behavior ──
   assertEquals(m.revenue! > 0, true, `Revenue ${m.revenue} should be positive`);
+  assertEquals(m.payroll! > 0, true, `Payroll ${m.payroll} should be positive`);
   assertEquals(m.gross_profit! > 0, true, `Gross profit ${m.gross_profit} should be positive`);
   assertEquals(m.ebt! > 0, true, `EBT ${m.ebt} should be positive`);
   assertEquals(m.net_result! > 0, true, `Net result ${m.net_result} should be positive`);
 
-  // Payroll should be 0 for period (no payroll in December), but still valid
-  // COGS should be positive (abs of negative cost)
-  assertEquals(m.cogs! >= 0, true, `COGS ${m.cogs} should be >= 0`);
+  // Contra-cost scenario: COGS may legitimately stay negative when gross_profit > revenue
+  assertEquals(m.cogs! < 0, true, `COGS ${m.cogs} should be negative in contra-cost case`);
 
   // Validation
   console.log(`\nValidation:`);
