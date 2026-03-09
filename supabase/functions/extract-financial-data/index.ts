@@ -505,6 +505,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       
       // Capture raw AI output BEFORE any post-processing (for audit trail)
       rawAiOutput = JSON.parse(JSON.stringify(extractedData));
+      rawAiOutput.routing_trace = routingTrace;
 
       // Override company name if provided by caller (prevents AI hallucination)
       if (knownCompanyName) {
