@@ -124,17 +124,41 @@ export const dkCombinedBalancePnlV1: TemplateEntry = {
   statement_type: "combined",  // CORRECTED: Not "saldobalance"
 
   detect(ctx: DetectionContext): number {
-    // Delegate to existing financialParser detection
     if (!ctx.headerRows || ctx.headerRows.length < 6) return 0;
     
-    const template = detectReportTemplate(ctx.headerRows);
+    // Check header structure directly (don't rely on full row scan)
+    // Row 0: Company name (non-empty string)
+    const row1 = ctx.headerRows[0]?.[0];
+    if (!row1 || typeof row1 !== "string" || row1.trim() === "") return 0;
     
-    if (template === "DK_COMBINED_BALANCE_PNL_V1") {
-      // High confidence detection
-      return 92;
+    // Row 1: Must contain "Balance" or "Saldo"
+    const row2 = ctx.headerRows[1]?.[0];
+    if (!row2 || typeof row2 !== "string" || !row2.toLowerCase().includes("balance")) return 0;
+    
+    // Row 4: Must have "Nummer", "Navn", and a period column
+    const row5 = ctx.headerRows[4];
+    if (!row5 || row5.length < 3) return 0;
+    const hasNummer = row5[0]?.toString().toLowerCase().includes("nummer");
+    const hasNavn = row5[1]?.toString().toLowerCase().includes("navn");
+    const hasPeriod = row5[2] && row5[2].toString().trim() !== "";
+    if (!hasNummer || !hasNavn || !hasPeriod) return 0;
+    
+    // Check for account numbers in available rows to confirm PNL+Balance structure
+    let hasPnL = false;
+    let hasBalance = false;
+    for (let i = 5; i < ctx.headerRows.length; i++) {
+      const accountNo = ctx.headerRows[i]?.[0];
+      if (typeof accountNo === "number") {
+        if (accountNo >= 998 && accountNo < 6000) hasPnL = true;
+        if (accountNo >= 6000) hasBalance = true;
+      }
     }
     
-    return 0;
+    if (hasPnL && hasBalance) return 92;  // Full confidence
+    if (hasPnL || hasBalance) return 85;  // Partial — still above threshold
+    
+    // Header matches but no account data in visible rows
+    return 75;  // Below threshold — will fall to AI
   },
 
   extract(ctx: ExtractionContext): { success: true; data: DeterministicExtractedData } | { success: false; error: string } {
