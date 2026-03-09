@@ -371,8 +371,37 @@ const FileUploadZone = ({
           });
         }
 
-        // === STEP 3: AI Financial Analysis ===
-        updateFile(fileId, { status: "analyzing" });
+    // === STEP 3: AI Financial Analysis ===
+    const validationStatus = extractedData.validation?.status || "FAIL";
+
+    if (validationStatus !== "PASS") {
+      console.warn(`[SAFETY] AI-analyse deaktiveret: validation_status=${validationStatus}`);
+      
+      // Update report with needs_review status
+      await supabase
+        .from("financial_reports")
+        .update({ 
+          status: "needs_review",
+          ai_analysis: null 
+        } as any)
+        .eq("id", reportRecord.id);
+
+      toast({
+        title: "Validation fejlede",
+        description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
+        variant: "destructive",
+      });
+
+      // Skip AI analysis and milestone creation
+      updateFile(fileId, { status: "done", milestonesCreated: 0 });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
+      onPipelineComplete?.();
+      return; // STOP flowet her
+    }
+
+    updateFile(fileId, { status: "analyzing" });
 
         // Fetch historical reports for trend analysis
         const historicalQuery = companyId
