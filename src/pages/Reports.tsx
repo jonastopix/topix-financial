@@ -645,7 +645,7 @@ const Reports = () => {
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (
-              <div key={report.id} className="glass-card rounded-xl animate-fade-in overflow-hidden">
+              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className="glass-card rounded-xl animate-fade-in overflow-hidden transition-all duration-300">
                 <button
                   onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                   className="w-full p-5 text-left hover:bg-secondary/30 transition-colors"
