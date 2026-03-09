@@ -93,7 +93,7 @@ const SUBTOTAL_SECTION_MAP: [RegExp, string][] = [
   [/salgsomkostning/i, "sales_costs"],
   [/lokaleomkostning/i, "facility_costs"],
   [/transport|kørselsomkostning/i, "vehicle_costs"],
-  [/administrations\s*omkostning/i, "admin_costs"],
+  [/administrations?\s*omkostning|^administration$/i, "admin_costs"],
   [/afskrivning/i, "depreciation"],
   [/finansiel/i, "financial_costs"],
   [/skat\s*(af|i\s*alt)/i, "tax"],
