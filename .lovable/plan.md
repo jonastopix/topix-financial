@@ -1,20 +1,32 @@
 
 
-## Plan: Create test member and conversation for Topix Test ApS
+## Plan: Replace Slack buttons with mrkdwn links
 
-Run a single migration to insert:
+**File:** `supabase/functions/send-slack-chat-notification/index.ts`
 
-1. **company_member** — link user `229122f6-b36b-40f0-bf63-55de408fc1e3` ("Jonas test virksomhed", jonas+test14@topix.dk) to company `927a4f36-748d-4326-9259-bff940da7e3d` as role `member`
-2. **conversation** — create a conversation for this company with `member_id` set to the same user
+### Changes
 
-```sql
-INSERT INTO public.company_members (company_id, user_id, role)
-VALUES ('927a4f36-748d-4326-9259-bff940da7e3d', '229122f6-b36b-40f0-bf63-55de408fc1e3', 'member')
-ON CONFLICT DO NOTHING;
+**1. Root message (new thread)** — Remove the `actions` block and append the deep link to the `context` block:
 
-INSERT INTO public.conversations (member_id, company_id)
-VALUES ('229122f6-b36b-40f0-bf63-55de408fc1e3', '927a4f36-748d-4326-9259-bff940da7e3d');
+```js
+// Current blocks array has 4 items: header, section, context, actions
+// Change to 3 items: header, section, context (with link added)
+
+const rootBlocks = [
+  { type: "header", ... },  // unchanged
+  { type: "section", ... }, // unchanged
+  {
+    type: "context",
+    elements: [{
+      type: "mrkdwn",
+      text: `${timestamp} · <${deepLink}|Åbn chat →>`,
+    }],
+  },
+  // actions block REMOVED
+];
 ```
 
-After this, you can log in as jonas+test14@topix.dk and send a message from the Topix Test ApS chat to test Slack notifications.
+**2. Reply message (existing thread)** — Already uses a context block with the link, but verify format is consistent. Currently has `<${deepLink}|Åbn besked>` — keep as-is since it's already a mrkdwn link with no button.
+
+Only the root message needs changing (remove the `actions` block, merge link into `context`). Reply format is already correct.
 
