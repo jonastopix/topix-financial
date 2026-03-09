@@ -14,6 +14,21 @@ import {
   RefreshCw,
   Calendar,
   BarChart3,
+  ShieldAlert,
+} from "lucide-react";
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle2,
+  AlertCircle,
+  ChevronRight,
+  ChevronDown,
+  Lightbulb,
+  Target,
+  Loader2,
+  RefreshCw,
+  Calendar,
+  BarChart3,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
