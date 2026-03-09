@@ -124,6 +124,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
   correction_log: CorrectionLogEntry[];
 } {
   const kf = extractedData?.key_figures || {};
+  const lineItems = Array.isArray(extractedData?.line_items) ? extractedData.line_items : [];
   const reportType = extractedData?.report_type || "";
   const isSaldobalance = reportType.toLowerCase().includes("saldo");
   const isDeterministic = extractionMethod === "deterministic_template";
@@ -150,6 +151,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
   const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
   const liabilityFields = ["passiver_i_alt", "kreditorer"];
+  const cashFields = ["bank_balance", "likvider"];
 
   // Helper to log correction
   function correct(field: string, raw: number, normalized: number, rule: string, reason: string, confidence: Confidence = "HIGH") {
