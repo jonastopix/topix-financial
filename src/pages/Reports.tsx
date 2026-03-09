@@ -51,7 +51,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getKeyFigures, formatDKK, formatCompact,
+  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact,
   SHORT_MONTHS, reportStatusConfig, type ReportData,
 } from "@/lib/financialUtils";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
