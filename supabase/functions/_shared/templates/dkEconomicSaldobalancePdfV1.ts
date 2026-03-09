@@ -256,7 +256,7 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
       // Balance: from År til dato column, signs normalized
       aktiver_i_alt: absVal(aktiverLine?.ytd_amount ?? null),
       passiver_i_alt: absVal(passiverLine?.ytd_amount ?? null),
-      egenkapital: flipPnlSign(egenkapitalLine?.ytd_amount ?? null),
+      egenkapital: egenkapitalLine?.ytd_amount ?? null, // Keep sign — YTD equity is already normal convention
       likvider: cashLine?.ytd_amount ?? null, // Keep sign (overdraft possible)
       debitorer: debitorLine?.ytd_amount ?? null, // Keep sign
       varelager: inventoryLine?.ytd_amount ?? null,

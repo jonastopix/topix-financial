@@ -1,34 +1,50 @@
+# Phase 4 + 4b: Template Registry + PDF Support
 
+## Status: ✅ IMPLEMENTERET
 
-## Problem
+## Phase 4 (Excel) — DONE
+- DK_COMBINED_BALANCE_PNL_V1 template for Excel saldobalance
+- Discriminated union routing (no_match / structural_fail / success)
+- Ambiguity rule (score ≥ 80, gap ≥ 10)
 
-Line 259 in `dkEconomicSaldobalancePdfV1.ts` applies `flipPnlSign` (negation) to `egenkapitalLine?.ytd_amount`:
+## Phase 4b (PDF) — DONE
 
-```typescript
-egenkapital: flipPnlSign(egenkapitalLine?.ytd_amount ?? null),
-```
+### Ændrede/nye filer
 
-The PDF shows `EGENKAPITAL I ALT` YTD = **53.213,69** (positive). `flipPnlSign` negates it to **-53.213,69**.
+| Fil | Handling |
+|-----|----------|
+| `supabase/functions/_shared/pdfTextParser.ts` | NY — PDF text parser for e-conomic format |
+| `supabase/functions/_shared/templates/dkEconomicSaldobalancePdfV1.ts` | NY — PDF combined template med label-first extraction |
+| `supabase/functions/_shared/templateRegistry.ts` | ÆNDRET — PDF support, tryDeterministicPdfExtraction, shared routing |
+| `supabase/functions/_shared/canonicalTypes.ts` | ÆNDRET — column_basis_rule i DeterministicMeta |
+| `supabase/functions/extract-financial-data/index.ts` | ÆNDRET — PDF deterministic routing før AI |
+| `supabase/functions/extract-financial-data/phase4_e2e_test.ts` | ÆNDRET — 4 nye PDF tests (9-12) |
 
-This is wrong because equity in the PASSIVER YTD column is already in normal convention — positive = positive equity, negative = negative equity. It doesn't need flipping.
+### 4 Rettelser implementeret
 
-## Root Cause
+1. **Ambiguity konsistent**: Template A (combined) kræver AKTIVER/PASSIVER for score ≥90. Fremtidig Template B (P&L-only) får -60 penalty ved AKTIVER/PASSIVER → ingen reel konkurrence.
 
-`flipPnlSign` was designed for P&L credit-convention lines (where negative = profit). But equity in the balance YTD section already has the correct sign. Anpartskapital (-40.000) + Periodens resultat (93.213,69) = 53.213,69 — the sum is already correct as written.
+2. **Mixed column basis eksplicit**: Template A erklærer `column_basis_rule: "mixed"` — P&L bruger Perioden, Balance bruger År til dato. Gemt i deterministic_meta.
 
-## Fix
+3. **Cash/debitor label-first**: Subtotaler (likvide beholdninger, tilgodehavender) er primær strategi. Kontonumre (5800-5899, 5600-5699) er fallback med warning log.
 
-**One-line change** in `dkEconomicSaldobalancePdfV1.ts` line 259:
+4. **PDF failure tests**: Test 9 (no text → no_match), Test 10 (partial header → no_match), Test 11 (valid detection + corrupt data → structural_fail), Test 12 (full extraction + ambiguity check).
 
-```typescript
-// Before:
-egenkapital: flipPnlSign(egenkapitalLine?.ytd_amount ?? null),
+### Detection scores
 
-// After — keep raw value, equity YTD is already normal convention:
-egenkapital: egenkapitalLine?.ytd_amount ?? null,
-```
+| Scenario | Template A score | Template B score (fremtidig) |
+|----------|-----------------|------------------------------|
+| Combined PDF (AKTIVER+PASSIVER) | 100 | ≤40 (blocked) |
+| P&L-only PDF | ≤60 | ~90 |
+| Non-e-conomic PDF | 0 | 0 |
 
-**Update Test 13** expected equity value from negative to **53213.69**.
+### Sign normalization
 
-**Verify balance equation still passes**: `aktiver_i_alt` (508773.03) vs `passiver_i_alt` (508773.03) — unchanged, still PASS.
-
+Template håndterer sign flipping (ikke canonical engine):
+- Revenue: Math.abs (neg credit → pos)
+- Costs: Math.abs
+- Profit/Result: -value (neg profit in saldo → pos)
+- Assets: Math.abs
+- Liabilities: Math.abs
+- Equity: -value (neg credit → pos equity)
+- Cash/Debitorer: keep raw sign
