@@ -109,19 +109,24 @@ export function inferPeriodBasis(kf: Record<string, any>): PeriodBasis {
 // ── Normalize key_figures to canonical metrics with correction log ──
 //
 // IMPORTANT:
-// P&L/result fields are expected to arrive pre-normalized from all current input paths
-// (AI extraction, deterministic Excel, deterministic PDF).
-// Canonical engine must NOT flip these again.
+// P&L/result fields are expected to arrive pre-normalized from DETERMINISTIC paths
+// (deterministic Excel, deterministic PDF). Canonical engine must NOT flip these again.
+//
+// However, AI extraction is UNRELIABLE — the prompt instructs sign normalization
+// but the model sometimes returns raw accounting signs (negative = profit in saldobalance).
+// For AI-extracted saldobalancer, canonical engine KEEPS the safety-net flip.
+//
 // Only balance-specific fields that intentionally keep raw accounting sign
 // (e.g. equity in some paths) may still require canonical normalization.
 //
-export function normalizeToCanonical(extractedData: any): {
+export function normalizeToCanonical(extractedData: any, extractionMethod?: string): {
   metrics: CanonicalMetrics;
   correction_log: CorrectionLogEntry[];
 } {
   const kf = extractedData?.key_figures || {};
   const reportType = extractedData?.report_type || "";
   const isSaldobalance = reportType.toLowerCase().includes("saldo");
+  const isDeterministic = extractionMethod === "deterministic_template";
   const corrections: CorrectionLogEntry[] = [];
 
   // Start with empty metrics
@@ -141,7 +146,8 @@ export function normalizeToCanonical(extractedData: any): {
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
   const expenseFields = ["direkte_omkostninger", "loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
-  // Note: profitFields and resultatFields are NOT flipped — they arrive pre-normalized
+  const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
+  const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
   const liabilityFields = ["passiver_i_alt", "kreditorer"];
 
@@ -159,23 +165,40 @@ export function normalizeToCanonical(extractedData: any): {
 
     let normalized = value;
 
-    // Revenue: must be positive (safety net — input paths should already normalize)
+    // Revenue: must be positive (safety net for all paths)
     if (revenueFields.includes(dkField) && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "revenue_must_be_positive",
         `Revenue flipped from ${value} to ${normalized}`, "HIGH");
     }
 
-    // Expenses: must be positive (safety net — input paths should already normalize)
+    // Expenses: must be positive (safety net for all paths)
     if (expenseFields.includes(dkField) && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "expense_must_be_positive",
         `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
     }
 
-    // P&L result fields (gross_profit, ebt, net_result) pass through as-is
-    // They arrive pre-normalized from AI extraction, Excel parser, and PDF parser
-    // DO NOT flip them here — that would cause double-inversion
+    // Gross profit in saldobalance: invert sign (AI safety net only)
+    // Deterministic paths pre-normalize → skip
+    if (profitFields.includes(dkField) && isSaldobalance && !isDeterministic && value < 0) {
+      const expectedDB = (Math.abs(kf.omsaetning || 0)) - (Math.abs(kf.direkte_omkostninger || 0));
+      if (Math.abs(Math.abs(value) - Math.abs(expectedDB)) <= TOLERANCE) {
+        normalized = Math.abs(value);
+        correct(dkField, value, normalized, "saldobalance_gross_profit_sign_inverted",
+          `Saldobalance gross profit inverted (AI safety net, magnitude matched)`, "HIGH");
+      }
+    }
+
+    // Resultat in saldobalance: invert sign (AI safety net only)
+    // Deterministic paths pre-normalize → skip
+    if (resultatFields.includes(dkField) && isSaldobalance && !isDeterministic) {
+      normalized = -value;
+      if (value !== 0) {
+        correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
+          `Saldobalance result inverted (AI safety net): ${value} → ${normalized}`, "HIGH");
+      }
+    }
 
     // Assets: must be positive
     if (assetFields.includes(dkField) && value < 0) {
