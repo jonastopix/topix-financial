@@ -216,9 +216,11 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     // BALANCE METRICS — from "År til dato" column (ytd_amount)
     // ═══════════════════════════════════════════════════════════════
 
-    const aktiverLine = findByLabel(lines, /aktiver i alt/i);
-    const passiverLine = findByLabel(lines, /passiver i alt/i);
-    const egenkapitalLine = findByLabel(lines, /egenkapital i alt/i);
+    // Main totals: use findBestLabel to prefer exact "AKTIVER I ALT" over "Anlægsaktiver i alt"
+    const aktiverLine = findBestLabel(lines, /aktiver i alt/i, undefined, "AKTIVER I ALT");
+    const passiverLine = findBestLabel(lines, /passiver i alt/i, undefined, "PASSIVER I ALT");
+    const egenkapitalLine = findBestLabel(lines, /egenkapital i alt/i, undefined, "EGENKAPITAL I ALT");
+    const gaeldLine = findBestLabel(lines, /gæld i alt/i, undefined, "GÆLD I ALT");
 
     // Cash: label-first, account fallback
     const cashLine =
