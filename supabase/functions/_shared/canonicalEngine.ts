@@ -199,6 +199,14 @@ export function normalizeToCanonical(extractedData: any): {
         `Liability ${dkField} flipped from ${value} to ${normalized}`, "MEDIUM");
     }
 
+    // Equity in saldobalance: CREDIT convention → negative = positive equity
+    // egenkapital appears as negative in trial balance when it's actually a surplus
+    if (dkField === "egenkapital" && isSaldobalance && value < 0) {
+      normalized = Math.abs(value);
+      correct(dkField, value, normalized, "saldobalance_equity_sign_inverted",
+        `Saldobalance equity inverted: ${value} → ${normalized} (credit convention)`, "HIGH");
+    }
+
     // tech_software merges into admin_costs
     if (dkField === "tech_software") {
       if (metrics.admin_costs != null) {
