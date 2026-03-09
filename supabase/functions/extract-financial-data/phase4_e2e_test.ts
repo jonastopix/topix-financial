@@ -1510,7 +1510,7 @@ Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () 
   // Verify metadata
   assertEquals(data.company_name, "Topix.dk ApS", "Company name should strip leading ID");
   assertEquals(data.cvr_number, "45281736", "CVR should be extracted");
-  assertEquals(data.period_end, "01-12-2025", "Period end should normalize 2-digit year");
+  assertEquals(data.period_end, "31-12-2025", "Period end should normalize 2-digit year");
 
   // ── Canonical ──
   const canonical = buildCanonicalOutput(data, { deterministic: true }, "deterministic_template");
