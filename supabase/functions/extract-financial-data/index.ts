@@ -687,17 +687,38 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
+      // Prepare DB update with parser data (if available)
+      const updatePayload: any = {
+        report_type: extractedData.report_type,
+        report_period: extractedData.report_period,
+        company_name: extractedData.company_name,
+        cvr_number: extractedData.cvr_number,
+        extracted_data: extractedData,
+        processed_at: new Date().toISOString(),
+        status: "processed",
+        extraction_method: extractionMethod,
+      };
+
+      // Add parser-specific data if deterministic parsing was used
+      if (parsedReport && extractionMethod === "deterministic") {
+        updatePayload.raw_extracted_data = {
+          raw_lines: parsedReport.raw_lines,
+          company_name: parsedReport.company_name,
+          period_start: parsedReport.period_start,
+          period_end: parsedReport.period_end,
+        };
+        updatePayload.normalized_data = {
+          template_id: parsedReport.template_id,
+          normalized_lines: parsedReport.normalized_lines,
+          metrics: parsedReport.metrics,
+        };
+        updatePayload.validation_status = parsedReport.validation.validation_status;
+        updatePayload.validation_errors = parsedReport.validation.validation_errors;
+      }
+
       const { error: updateError } = await supabase
         .from("financial_reports")
-        .update({
-          report_type: extractedData.report_type,
-          report_period: extractedData.report_period,
-          company_name: extractedData.company_name,
-          cvr_number: extractedData.cvr_number,
-          extracted_data: extractedData,
-          processed_at: new Date().toISOString(),
-          status: "processed",
-        })
+        .update(updatePayload)
         .eq("id", reportId);
 
       if (updateError) {
