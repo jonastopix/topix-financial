@@ -1,12 +1,13 @@
 /**
- * Phase 4 E2E Test — Warburg VVS & Kloak ekspres ApS, Januar 2026
+ * Phase 4 + 4b E2E Tests
  * Tests: Template Detection → Extraction → Canonical Engine → Routing
+ * Includes PDF fallback/failure tests (Phase 4b correction #4)
  * 
  * Run: deno test --allow-env --allow-net supabase/functions/extract-financial-data/phase4_e2e_test.ts
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { detectTemplate, tryDeterministicExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
+import { detectTemplate, tryDeterministicPdfExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
 import { detectReportTemplate } from "../_shared/financialParser.ts";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
 
