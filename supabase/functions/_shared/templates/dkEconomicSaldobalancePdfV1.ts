@@ -126,6 +126,10 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     const parsed = parseEconomicPdfText(text);
     const { lines, metadata } = parsed;
 
+    // Debug: show parsed lines summary
+    console.log(`[DK_ECONOMIC_PDF] Parsed ${lines.length} lines, sections: PNL=${lines.filter(l=>l.section==="PNL").length}, AKTIVER=${lines.filter(l=>l.section==="AKTIVER").length}, PASSIVER=${lines.filter(l=>l.section==="PASSIVER").length}, null=${lines.filter(l=>l.section===null).length}`);
+    console.log(`[DK_ECONOMIC_PDF] Subtotals: ${lines.filter(l=>l.is_subtotal).map(l=>`${l.section}:${l.name}`).join(", ")}`);
+
     if (lines.length < 5) {
       return {
         success: false,
