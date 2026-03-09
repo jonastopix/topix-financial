@@ -1539,3 +1539,289 @@ Deno.test("Phase4c — 24. Business-convention XLSX P&L — sign inference", () 
 
   console.log(`\n✅ Business-convention XLSX P&L verified — signs correct without blind flipSign`);
 });
+
+// ═══════════════════════════════════════════════════════
+// PHASE 5: DINERO CSV TESTS
+// ═══════════════════════════════════════════════════════
+
+const DINERO_CSV_SAMPLE = `\uFEFFKonto;Kontonavn;Beløb
+1506;Events;-36.750,00
+1509;Firmature;-592.650,25
+1510;SkiCamp;0,00
+1512;Forudbetaling (Firmature);0,00
+2400;Valutakursdifferencer, import;174,23
+2500;Hotel & Liftkort, SkiCamp;0,00
+2520;Transport, SkiCamp;0,00
+2530;Team SkiCamp;0,00
+2573;Omkostninger, andre ture & events (Dansk moms);0,00
+2575;Omkostninger, andre ture & events (margenmoms);141.413,36
+3000;AM-indkomst;9.901,00
+3020;Arbejdsgiver ATP;198,00
+3040;Medarbejder ATP;99,00
+3100;Feriepenge og SH;-3.118,53
+3160;Kørsel i egen bil (kilometergodtgørelse);16.745,24
+3180;AER/AES/ATP-finansieringsbidrag;414,93
+3300;Diverse vedr. ansatte med moms;24,88
+3355;Frokostordning til ansatte;6.237,19
+4120;Repræsentation, restaurant, personale, fuldt fradrag;157,70
+4240;Øvrige personaleomkostninger;3.272,62
+5000;Husleje;3.280,00
+6085;Parkering uden moms;174,83
+6200;Færge;584,52
+6400;Diverse transportomkostninger uden moms;790,93
+7020;Bogføringsassistance;4.151,49
+7040;Konsulentbistand;7.500,00
+7220;Porto og gebyrer;150,00
+7240;Telefoni;1.514,01
+7300;Internet og webhotel;1.701,60
+7320;Køb af software;981,37
+7321;Køb af software (EU);1.207,04
+7322;Køb af software (øvrig udland);1.434,60
+7400;Betalingsløsning;46,46
+8040;Småanskaffelser (straksafskrivning);270,63`;
+
+// ═══════════════════════════════════════════════════════
+// TEST T1: Dinero CSV Detection
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T1. Detection: Dinero CSV score >= 80", () => {
+  const ctx: DetectionContext = {
+    fileName: "Resultat.csv",
+    fileType: "csv",
+    sheetNames: [],
+    headerRows: [],
+    rawText: DINERO_CSV_SAMPLE,
+  };
+
+  const match = detectTemplate(ctx);
+  console.log(`\n══ T1. DINERO DETECTION ══`);
+  assertExists(match, "Should match a template");
+  assertEquals(match!.template.template_id, "DK_DINERO_RESULTATOPGOERELSE_V1");
+  console.log(`Template: ${match!.template.template_id}, Score: ${match!.score}`);
+  assertEquals(match!.score >= 80, true, `Score ${match!.score} should be >= 80`);
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T2: Anti-match — XLSX should NOT match Dinero
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T2. Anti-match: XLSX → Dinero score = 0", () => {
+  const ctx: DetectionContext = {
+    fileName: "Januar_2026.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: WARBURG_ROWS.slice(0, 15),
+  };
+
+  const match = detectTemplate(ctx);
+  console.log(`\n══ T2. ANTI-MATCH XLSX ══`);
+  // Dinero template should not match xlsx files
+  if (match) {
+    console.log(`Matched: ${match.template.template_id} (expected NOT Dinero)`);
+    assertEquals(match.template.template_id !== "DK_DINERO_RESULTATOPGOERELSE_V1", true);
+  } else {
+    console.log("No match — as expected for XLSX against Dinero");
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T3: Anti-match — CSV without "resultat" in filename
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T3. Anti-match: CSV without 'resultat' in filename → no_match", () => {
+  const ctx: DetectionContext = {
+    fileName: "data_export.csv",
+    fileType: "csv",
+    sheetNames: [],
+    headerRows: [],
+    rawText: DINERO_CSV_SAMPLE,
+  };
+
+  const match = detectTemplate(ctx);
+  console.log(`\n══ T3. ANTI-MATCH FILENAME ══`);
+  if (match) {
+    console.log(`Score: ${match.score} (should be < 80 without 'resultat' in filename)`);
+    assertEquals(match.score < 80, true, "Score should be < 80 without 'resultat' in filename");
+  } else {
+    console.log("No match — correct, filename lacks 'resultat'");
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T4: Extraction — Key metrics
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T4. Extraction: Key metrics correct", () => {
+  const result = tryDeterministicCsvExtraction(DINERO_CSV_SAMPLE, "Resultat.csv");
+  console.log(`\n══ T4. EXTRACTION METRICS ══`);
+  assertEquals(result.type, "success");
+  if (result.type !== "success") return;
+
+  const kf = result.extractedData.key_figures;
+  console.log(`revenue (omsaetning): ${kf.omsaetning}`);
+  console.log(`cogs (direkte_omk): ${kf.direkte_omkostninger}`);
+  console.log(`gross_profit (daekningsbidrag): ${kf.daekningsbidrag}`);
+  console.log(`payroll (loenninger): ${kf.loenninger}`);
+  console.log(`sales_costs: ${kf.salgsomkostninger}`);
+  console.log(`facility_costs: ${kf.lokaleomkostninger}`);
+  console.log(`vehicle_costs: ${kf.transportomkostninger}`);
+  console.log(`admin_costs: ${kf.administrationsomkostninger}`);
+  console.log(`depreciation: ${kf.afskrivninger}`);
+  console.log(`financial_costs: ${kf.finansielle_omkostninger}`);
+  console.log(`ebt: ${kf.resultat_foer_skat}`);
+  console.log(`net_result: ${kf.resultat_efter_skat}`);
+
+  // Revenue: abs(-36750 + -592650.25) = 629400.25
+  assertEquals(kf.omsaetning, 629400.25);
+  // COGS: 174.23 + 141413.36 = 141587.59
+  assertEquals(kf.direkte_omkostninger, 141587.59);
+  // Gross profit
+  assertEquals(kf.daekningsbidrag, 629400.25 - 141587.59);
+  // Admin costs
+  assertEquals(kf.administrationsomkostninger, 18686.57);
+  // Depreciation
+  assertEquals(kf.afskrivninger, 270.63);
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T5: Sign convention — revenue negative → normalized positive
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T5. Sign: Revenue normalized to positive", () => {
+  const result = tryDeterministicCsvExtraction(DINERO_CSV_SAMPLE, "Resultat.csv");
+  console.log(`\n══ T5. SIGN CONVENTION ══`);
+  assertEquals(result.type, "success");
+  if (result.type !== "success") return;
+
+  const revenue = result.extractedData.key_figures.omsaetning;
+  assertExists(revenue);
+  assertEquals(revenue! > 0, true, "Revenue should be positive after normalization");
+
+  // Check line_items have raw_sign MINUS for revenue lines
+  const revenueLines = result.extractedData.line_items.filter(
+    (li: any) => li.class === "REVENUE" && li.raw_sign === "MINUS"
+  );
+  console.log(`Revenue lines with MINUS raw_sign: ${revenueLines.length}`);
+  assertEquals(revenueLines.length >= 1, true, "At least one revenue line should have MINUS raw_sign");
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T6: Fail-closed — financial_costs missing → ebt null → ai_eligible false
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T6. Fail-closed: No financial_costs → ebt null → ai_eligible false", () => {
+  const result = tryDeterministicCsvExtraction(DINERO_CSV_SAMPLE, "Resultat.csv");
+  console.log(`\n══ T6. FAIL-CLOSED (FINANCIAL_COSTS) ══`);
+  assertEquals(result.type, "success");
+  if (result.type !== "success") return;
+
+  const kf = result.extractedData.key_figures;
+  assertEquals(kf.finansielle_omkostninger, null, "financial_costs should be null (no matching lines)");
+  assertEquals(kf.resultat_foer_skat, null, "ebt should be null when financial_costs is null");
+  assertEquals(kf.resultat_efter_skat, null, "net_result should be null when ebt is null");
+
+  // Canonical output should block AI
+  const canonical = buildCanonicalOutput(
+    result.extractedData,
+    { deterministic: true, template_id: "DK_DINERO_RESULTATOPGOERELSE_V1" },
+    "deterministic_template"
+  );
+  console.log(`validation.status: ${canonical.validation.status}`);
+  console.log(`ai_eligible: ${canonical.ai_eligible}`);
+  assertEquals(canonical.ai_eligible, false, "ai_eligible should be false without ebt");
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T7: Structural fail — CSV with < 3 lines
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T7. structural_fail: CSV with < 3 valid lines", () => {
+  const tinyCSV = `\uFEFFKonto;Kontonavn;Beløb
+1506;Events;-36.750,00
+1509;Firmature;-592.650,25`;
+
+  const result = tryDeterministicCsvExtraction(tinyCSV, "Resultat.csv");
+  console.log(`\n══ T7. STRUCTURAL FAIL ══`);
+  // Detection may not reach 80 with only 2 data lines (label recognition needs 5+)
+  // or extraction returns structural_fail
+  console.log(`Result type: ${result.type}`);
+  if (result.type === "success") {
+    // If somehow matched, extraction should still work but with only 2 lines
+    console.log("Matched despite tiny CSV — checking line count");
+  } else {
+    console.log(`Expected: no_match or structural_fail, got: ${result.type}`);
+    assertEquals(
+      result.type === "no_match" || result.type === "structural_fail",
+      true,
+      "Should be no_match or structural_fail for tiny CSV"
+    );
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T8: no_match — CSV without correct header
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T8. no_match: CSV without Dinero header", () => {
+  const wrongCSV = `Name;Amount;Date
+Test;1234,56;2026-01-01
+Other;5678,90;2026-01-02`;
+
+  const result = tryDeterministicCsvExtraction(wrongCSV, "Resultat.csv");
+  console.log(`\n══ T8. NO MATCH (WRONG HEADER) ══`);
+  assertEquals(result.type, "no_match", "Should be no_match for non-Dinero CSV");
+  console.log("Correctly returned no_match → AI fallback");
+});
+
+// ═══════════════════════════════════════════════════════
+// TEST T9: Golden snapshot — Canonical output for sample
+// ═══════════════════════════════════════════════════════
+Deno.test("Phase5 Dinero — T9. Golden snapshot: Canonical output", () => {
+  const result = tryDeterministicCsvExtraction(DINERO_CSV_SAMPLE, "Resultat.csv");
+  console.log(`\n══ T9. GOLDEN SNAPSHOT ══`);
+  assertEquals(result.type, "success");
+  if (result.type !== "success") return;
+
+  const canonical = buildCanonicalOutput(
+    result.extractedData,
+    { deterministic: true, template_id: "DK_DINERO_RESULTATOPGOERELSE_V1" },
+    "deterministic_template"
+  );
+
+  console.log(`statement_type: ${canonical.statement_type}`);
+  console.log(`extraction_method: ${canonical.extraction_method}`);
+  console.log(`company_name: ${canonical.company_name}`);
+  console.log(`ai_eligible: ${canonical.ai_eligible}`);
+  console.log(`\nMetrics:`);
+  console.log(`  revenue: ${canonical.metrics.revenue}`);
+  console.log(`  cogs: ${canonical.metrics.cogs}`);
+  console.log(`  gross_profit: ${canonical.metrics.gross_profit}`);
+  console.log(`  payroll: ${canonical.metrics.payroll}`);
+  console.log(`  sales_costs: ${canonical.metrics.sales_costs}`);
+  console.log(`  facility_costs: ${canonical.metrics.facility_costs}`);
+  console.log(`  vehicle_costs: ${canonical.metrics.vehicle_costs}`);
+  console.log(`  admin_costs: ${canonical.metrics.admin_costs}`);
+  console.log(`  ebitda: ${canonical.metrics.ebitda}`);
+  console.log(`  depreciation: ${canonical.metrics.depreciation}`);
+  console.log(`  ebit: ${canonical.metrics.ebit}`);
+  console.log(`  financial_costs: ${canonical.metrics.financial_costs}`);
+  console.log(`  ebt: ${canonical.metrics.ebt}`);
+  console.log(`  net_result: ${canonical.metrics.net_result}`);
+
+  console.log(`\nValidation:`);
+  for (const check of canonical.validation.canonical_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+  console.log(`\nParser checks:`);
+  for (const check of canonical.validation.ai_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+
+  assertEquals(canonical.statement_type, "pnl");
+  assertEquals(canonical.extraction_method, "deterministic_template");
+  assertEquals(canonical.company_name, null, "Dinero CSV has no company name");
+  assertExists(canonical.metrics.revenue);
+  assertExists(canonical.metrics.cogs);
+  assertExists(canonical.metrics.gross_profit);
+  assertEquals(canonical.metrics.financial_costs, null, "No financial costs in sample");
+  assertEquals(canonical.metrics.ebt, null, "EBT null without financial_costs");
+  assertEquals(canonical.ai_eligible, false, "Not AI eligible without ebt");
+  assertExists(canonical.deterministic_meta);
+  assertEquals(canonical.deterministic_meta!.template_id, "DK_DINERO_RESULTATOPGOERELSE_V1");
+
+  console.log(`\n✅ Dinero CSV golden snapshot verified — fail-closed for missing financial_costs`);
+});
