@@ -332,7 +332,6 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
                 onMilestoneCreated={loadData}
                 disabled={!isOwner}
               />
-              />
             ))}
           </TabsContent>
         )}
