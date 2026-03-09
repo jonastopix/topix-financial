@@ -145,10 +145,12 @@ Deno.serve(async (req) => {
         ? ` • ${contextType.charAt(0).toUpperCase() + contextType.slice(1)}`
         : "";
 
+      const emoji = chatEmoji(contextType);
+
       const rootBlocks = [
         {
           type: "header",
-          text: { type: "plain_text", text: `💬 Ny chat fra ${companyName}`, emoji: true },
+          text: { type: "plain_text", text: `${emoji} Ny chat fra ${companyName}`, emoji: true },
         },
         {
           type: "section",
