@@ -67,6 +67,7 @@ interface DbReport {
   uploaded_at: string;
   status: string;
   extracted_data: Json | null;
+  normalized_data: Json | null;
 }
 
 interface ChatMsg {
