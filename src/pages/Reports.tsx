@@ -239,6 +239,8 @@ const Reports = () => {
         [reportId]: [...(prev[reportId] || []), data as unknown as ChatMsg],
       }));
       setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
+      // Server-side: Slack + advisor notification
+      notifyChatMessage((data as any).id);
     }
     setSubmittingComment(null);
   };

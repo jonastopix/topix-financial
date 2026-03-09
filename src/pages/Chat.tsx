@@ -431,23 +431,12 @@ const Chat = () => {
       insertData.context_type = selectedTopic;
     }
 
-    const { error } = await supabase.from("messages").insert(insertData);
+    const { data, error } = await supabase.from("messages").insert(insertData).select().single();
 
-    if (!error) {
+    if (!error && data) {
       setNewMessage("");
-
-      // If sender is a member (not advisor), create advisor notification
-      if (!isAdvisor && activeConv) {
-        createAdvisorNotification({
-          type: "new_message" as any,
-          title: `Ny besked fra ${activeConv.profile?.full_name || "Medlem"}`,
-          body: trimmed.length > 100 ? trimmed.slice(0, 100) + "…" : trimmed,
-          companyId: activeConv.company_id || companyId || "",
-          memberId: user.id,
-          referenceId: activeConvId,
-          referenceType: "chat" as any,
-        });
-      }
+      // Server-side: Slack notification + advisor bell notification
+      notifyChatMessage((data as any).id);
     }
     setSending(false);
   };
