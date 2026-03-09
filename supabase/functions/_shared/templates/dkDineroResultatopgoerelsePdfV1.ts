@@ -236,24 +236,6 @@ function detectSignConvention(classified: ClassifiedLine[]): SignConvention {
   return "UNKNOWN";
 }
 
-  const revNeg = revenueAnchors.every(l => l.rawAmount < 0);
-  const revPos = revenueAnchors.every(l => l.rawAmount > 0);
-  const costPos = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount > 0);
-  const costNeg = costAnchors.length === 0 || costAnchors.every(l => l.rawAmount < 0);
-
-  if (revNeg && costPos) {
-    console.log("[DineroPDF] Sign convention: CREDIT (revenue<0, cost>0)");
-    return "CREDIT";
-  }
-  if (revPos && costNeg) {
-    console.log("[DineroPDF] Sign convention: BUSINESS (revenue>0, cost<0)");
-    return "BUSINESS";
-  }
-
-  console.log("[DineroPDF] Sign convention: UNKNOWN (mixed signs)");
-  return "UNKNOWN";
-}
-
 // ── Template ──
 
 export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
