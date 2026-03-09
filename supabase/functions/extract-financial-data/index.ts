@@ -121,6 +121,7 @@ serve(async (req) => {
     
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
     const isPdfFile = fileName && fileName.toLowerCase().endsWith('.pdf');
+    const isCsvFile = fileName && fileName.toLowerCase().endsWith('.csv');
 
     let extractedData: any = null;
     let rawAiOutput: any = null;
