@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
-import { createAdvisorNotification } from "@/lib/advisorNotifications";
+import { notifyChatMessage } from "@/lib/chatNotify";
 import { openReportFile } from "@/lib/reportFileAccess";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
@@ -86,6 +87,7 @@ const Chat = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
   const [unreviewedReportIds, setUnreviewedReportIds] = useState<string[]>([]);
@@ -112,6 +114,29 @@ const Chat = () => {
       setActiveFilter("ubesvaret");
     }
   }, [isAdvisor]);
+
+  // Deep linking: auto-select conversation and highlight message from URL params
+  useEffect(() => {
+    const convParam = searchParams.get("conversationId");
+    const msgParam = searchParams.get("messageId");
+    if (convParam && conversations.length > 0) {
+      const conv = conversations.find(c => c.id === convParam);
+      if (conv && activeConvId !== convParam) {
+        // Switch to "alle" filter so the conversation is visible
+        setActiveFilter("alle");
+        setActiveConvId(convParam);
+        if (isMobile) setShowMessages(true);
+      }
+      // Once messages are loaded, scroll to and highlight the target message
+      if (msgParam && messages.length > 0 && activeConvId === convParam) {
+        setTimeout(() => {
+          scrollToMessage(msgParam);
+          // Clear params after navigation
+          setSearchParams({}, { replace: true });
+        }, 300);
+      }
+    }
+  }, [searchParams, conversations, messages, activeConvId]);
 
   // Escape key to exit fullscreen
   useEffect(() => {
@@ -429,23 +454,12 @@ const Chat = () => {
       insertData.context_type = selectedTopic;
     }
 
-    const { error } = await supabase.from("messages").insert(insertData);
+    const { data, error } = await supabase.from("messages").insert(insertData).select().single();
 
-    if (!error) {
+    if (!error && data) {
       setNewMessage("");
-
-      // If sender is a member (not advisor), create advisor notification
-      if (!isAdvisor && activeConv) {
-        createAdvisorNotification({
-          type: "new_message" as any,
-          title: `Ny besked fra ${activeConv.profile?.full_name || "Medlem"}`,
-          body: trimmed.length > 100 ? trimmed.slice(0, 100) + "…" : trimmed,
-          companyId: activeConv.company_id || companyId || "",
-          memberId: user.id,
-          referenceId: activeConvId,
-          referenceType: "chat" as any,
-        });
-      }
+      // Server-side: Slack notification + advisor bell notification
+      notifyChatMessage((data as any).id);
     }
     setSending(false);
   };

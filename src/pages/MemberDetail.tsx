@@ -4,6 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyChatMessage } from "@/lib/chatNotify";
 import {
   ArrowLeft,
   FileText,
@@ -314,6 +315,8 @@ const MemberDetail = () => {
         [reportId]: [...(prev[reportId] || []), data as unknown as ChatMessage],
       }));
       setCommentInputs((prev) => ({ ...prev, [reportId]: "" }));
+      // Server-side: Slack + advisor notification
+      notifyChatMessage((data as any).id);
     }
     setSubmittingComment(null);
   };
