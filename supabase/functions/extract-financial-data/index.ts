@@ -565,6 +565,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     }
 
     const extractedData = JSON.parse(toolCall.function.arguments);
+    
+    // Capture raw AI output BEFORE any post-processing (for audit trail)
+    const rawAiOutput = JSON.parse(JSON.stringify(extractedData));
 
     // Override company name if provided by caller (prevents AI hallucination)
     if (knownCompanyName) {
