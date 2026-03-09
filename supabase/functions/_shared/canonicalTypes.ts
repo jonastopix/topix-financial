@@ -1,5 +1,5 @@
 /**
- * Canonical Output Schema — Phase 3 Hardening
+ * Canonical Output Schema — Phase 4 Template Registry
  * Single source of truth for all financial report normalization.
  */
 
@@ -10,6 +10,17 @@ export type ValidationStatus = "PASS" | "FAIL" | "UNSURE";
 export type CheckResult = "PASS" | "FAIL" | "SKIP";
 export type Confidence = "HIGH" | "MEDIUM" | "LOW";
 export type CorrectionSource = "key_figure" | "line_item" | "derived_metric";
+
+// ── Deterministic Metadata (from template registry) ──
+export interface DeterministicMeta {
+  template_id: string;
+  parser_confidence: Confidence;
+  detection_score: number;
+  parser_validation_status: "PASS" | "FAIL";
+  parser_validation_errors: string[];
+  raw_line_count: number;
+  normalized_line_count: number;
+}
 
 // ── Canonical Metrics (English names, all nullable) ──
 export interface CanonicalMetrics {
