@@ -106,7 +106,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     const fetch = async () => {
       const { data } = await supabase
         .from("financial_reports")
-        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status")
+        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status, extraction_method")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .in("status", ["processed", "needs_review"])
