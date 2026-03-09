@@ -4,6 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyChatMessage } from "@/lib/chatNotify";
 import {
   ArrowLeft,
   FileText,

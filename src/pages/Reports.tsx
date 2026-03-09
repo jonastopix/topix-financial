@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyChatMessage } from "@/lib/chatNotify";
 import FileUploadZone from "@/components/FileUploadZone";
 import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
 import FinancialOverview from "@/components/FinancialOverview";
