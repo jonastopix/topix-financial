@@ -1,44 +1,50 @@
-# Phase 4: Template Registry + Rapporttype-Coverage
+# Phase 4 + 4b: Template Registry + PDF Support
 
 ## Status: ✅ IMPLEMENTERET
 
-## Ændrede filer
+## Phase 4 (Excel) — DONE
+- DK_COMBINED_BALANCE_PNL_V1 template for Excel saldobalance
+- Discriminated union routing (no_match / structural_fail / success)
+- Ambiguity rule (score ≥ 80, gap ≥ 10)
+
+## Phase 4b (PDF) — DONE
+
+### Ændrede/nye filer
 
 | Fil | Handling |
 |-----|----------|
-| `supabase/functions/_shared/templateRegistry.ts` | NY — Registry med discriminated union, detection med ambiguity-regel |
-| `supabase/functions/_shared/templates/dkCombinedBalancePnlV1.ts` | NY — Wrapper omkring financialParser med parser_status i validation |
-| `supabase/functions/_shared/canonicalTypes.ts` | ÆNDRET — Tilføjet DeterministicMeta interface + felt i CanonicalOutput |
-| `supabase/functions/_shared/canonicalEngine.ts` | ÆNDRET — deterministic_meta + parser_status som ai_check |
-| `supabase/functions/extract-financial-data/index.ts` | ÆNDRET — Ny routing med discriminated union + ÉN canonical build |
-| `src/components/AIFinancialAnalysis.tsx` | ÆNDRET — extraction_method fetch + DET badge |
+| `supabase/functions/_shared/pdfTextParser.ts` | NY — PDF text parser for e-conomic format |
+| `supabase/functions/_shared/templates/dkEconomicSaldobalancePdfV1.ts` | NY — PDF combined template med label-first extraction |
+| `supabase/functions/_shared/templateRegistry.ts` | ÆNDRET — PDF support, tryDeterministicPdfExtraction, shared routing |
+| `supabase/functions/_shared/canonicalTypes.ts` | ÆNDRET — column_basis_rule i DeterministicMeta |
+| `supabase/functions/extract-financial-data/index.ts` | ÆNDRET — PDF deterministic routing før AI |
+| `supabase/functions/extract-financial-data/phase4_e2e_test.ts` | ÆNDRET — 4 nye PDF tests (9-12) |
 
-## Routing-logik (discriminated union)
+### 4 Rettelser implementeret
 
-```typescript
-type DeterministicExtractionResult =
-  | { type: "no_match" }                    // → AI fallback
-  | { type: "structural_fail"; ... }        // → needs_review, INGEN AI fallback  
-  | { type: "success"; extractedData: ... } // → canonical engine
-```
+1. **Ambiguity konsistent**: Template A (combined) kræver AKTIVER/PASSIVER for score ≥90. Fremtidig Template B (P&L-only) får -60 penalty ved AKTIVER/PASSIVER → ingen reel konkurrence.
 
-## Ambiguity-regel
+2. **Mixed column basis eksplicit**: Template A erklærer `column_basis_rule: "mixed"` — P&L bruger Perioden, Balance bruger År til dato. Gemt i deterministic_meta.
 
-```typescript
-if (!best || best.score < 80) return null;
-if (secondBest && best.score - secondBest.score < 10) return null;
-```
+3. **Cash/debitor label-first**: Subtotaler (likvide beholdninger, tilgodehavender) er primær strategi. Kontonumre (5800-5899, 5600-5699) er fallback med warning log.
 
-## Validation vs AI Eligibility
+4. **PDF failure tests**: Test 9 (no text → no_match), Test 10 (partial header → no_match), Test 11 (valid detection + corrupt data → structural_fail), Test 12 (full extraction + ambiguity check).
 
-| validation.status | ai_eligible | extraction_method | db status |
-|---|---|---|---|
-| FAIL/UNSURE | any | any | needs_review |
-| PASS | false | deterministic_template | processed |
-| PASS | true | deterministic_template | processed + AI feedback |
+### Detection scores
 
-## Næste skridt
+| Scenario | Template A score | Template B score (fremtidig) |
+|----------|-----------------|------------------------------|
+| Combined PDF (AKTIVER+PASSIVER) | 100 | ≤40 (blocked) |
+| P&L-only PDF | ≤60 | ~90 |
+| Non-e-conomic PDF | 0 | 0 |
 
-1. Test med en reel saldobalance Excel-fil
-2. Verificer at DET-badge vises i UI
-3. Udvid med flere templates ved behov
+### Sign normalization
+
+Template håndterer sign flipping (ikke canonical engine):
+- Revenue: Math.abs (neg credit → pos)
+- Costs: Math.abs
+- Profit/Result: -value (neg profit in saldo → pos)
+- Assets: Math.abs
+- Liabilities: Math.abs
+- Equity: -value (neg credit → pos equity)
+- Cash/Debitorer: keep raw sign
