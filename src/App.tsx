@@ -21,6 +21,7 @@ import MemberDetail from "./pages/MemberDetail";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import AdminConfig from "./pages/AdminConfig";
+import ReportDebug from "./pages/ReportDebug";
 import EmailTemplates from "./pages/EmailTemplates";
 import BulkImport from "./pages/BulkImport";
 import Onboarding from "./pages/Onboarding";
