@@ -139,7 +139,7 @@ export async function tryDeterministicExtraction(
 ): Promise<DeterministicExtractionResult> {
   let XLSX: any;
   try {
-    XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+    XLSX = await import("https://esm.sh/xlsx@0.20.3");
   } catch (e: any) {
     console.log("[Registry] XLSX dynamic import failed:", e.message);
     return { type: "no_match" };
