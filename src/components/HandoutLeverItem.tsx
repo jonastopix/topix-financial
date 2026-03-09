@@ -63,6 +63,7 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Løftestang ${index + 1}`}
           className="text-sm"
+          disabled={disabled}
         />
         {handoutId && !linkedMilestone && value.trim() && (
           <Button
