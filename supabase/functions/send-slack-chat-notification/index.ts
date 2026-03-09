@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${senderName}* fra ${companyName}\n>${preview}`,
+            text: `💬 *${senderName}* fra ${companyName}\n>${preview}`,
           },
         },
         {
@@ -239,7 +239,8 @@ Deno.serve(async (req) => {
       await postToSlack(SLACK_BOT_TOKEN, {
         channel: SLACK_CHANNEL,
         thread_ts: threadTs,
-        text: `${senderName} fra ${companyName}: ${preview}`,
+        reply_broadcast: true,
+        text: `💬 ${senderName} fra ${companyName}: ${preview}`,
         blocks: replyBlocks,
       });
     }
