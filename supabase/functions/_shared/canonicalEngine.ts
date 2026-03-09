@@ -107,6 +107,14 @@ export function inferPeriodBasis(kf: Record<string, any>): PeriodBasis {
 }
 
 // ── Normalize key_figures to canonical metrics with correction log ──
+//
+// IMPORTANT:
+// P&L/result fields are expected to arrive pre-normalized from all current input paths
+// (AI extraction, deterministic Excel, deterministic PDF).
+// Canonical engine must NOT flip these again.
+// Only balance-specific fields that intentionally keep raw accounting sign
+// (e.g. equity in some paths) may still require canonical normalization.
+//
 export function normalizeToCanonical(extractedData: any): {
   metrics: CanonicalMetrics;
   correction_log: CorrectionLogEntry[];
@@ -133,8 +141,7 @@ export function normalizeToCanonical(extractedData: any): {
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
   const expenseFields = ["direkte_omkostninger", "loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
-  const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
-  const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
+  // Note: profitFields and resultatFields are NOT flipped — they arrive pre-normalized
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
   const liabilityFields = ["passiver_i_alt", "kreditorer"];
 
@@ -152,38 +159,23 @@ export function normalizeToCanonical(extractedData: any): {
 
     let normalized = value;
 
-    // Revenue: must be positive
+    // Revenue: must be positive (safety net — input paths should already normalize)
     if (revenueFields.includes(dkField) && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "revenue_must_be_positive",
         `Revenue flipped from ${value} to ${normalized}`, "HIGH");
     }
 
-    // Expenses: must be positive
+    // Expenses: must be positive (safety net — input paths should already normalize)
     if (expenseFields.includes(dkField) && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "expense_must_be_positive",
         `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
     }
 
-    // Gross profit in saldobalance: invert sign
-    if (profitFields.includes(dkField) && isSaldobalance && value < 0) {
-      const expectedDB = (Math.abs(kf.omsaetning || 0)) - (Math.abs(kf.direkte_omkostninger || 0));
-      if (Math.abs(Math.abs(value) - Math.abs(expectedDB)) <= TOLERANCE) {
-        normalized = Math.abs(value);
-        correct(dkField, value, normalized, "saldobalance_gross_profit_sign_inverted",
-          `Saldobalance gross profit inverted (magnitude matched)`, "HIGH");
-      }
-    }
-
-    // Resultat in saldobalance: invert sign
-    if (resultatFields.includes(dkField) && isSaldobalance) {
-      normalized = -value;
-      if (value !== 0) {
-        correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
-          `Saldobalance result inverted: ${value} → ${normalized}`, "HIGH");
-      }
-    }
+    // P&L result fields (gross_profit, ebt, net_result) pass through as-is
+    // They arrive pre-normalized from AI extraction, Excel parser, and PDF parser
+    // DO NOT flip them here — that would cause double-inversion
 
     // Assets: must be positive
     if (assetFields.includes(dkField) && value < 0) {
