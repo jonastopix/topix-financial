@@ -161,8 +161,9 @@ export async function tryDeterministicExtraction(
     rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: null });
     console.log(`[Registry] Parsed ${rows.length} rows from sheet "${sheetNames[0]}"`);
   } catch (e: any) {
-    console.error("[Registry] Excel parse error:", e.message);
-    return { type: "no_match" };
+    const message = e?.message || "Unknown Excel parse error";
+    console.error("[Registry] Excel parse error:", message);
+    return { type: "structural_fail", template_id: "EXCEL_PARSE", error: message };
   }
 
   const fileType: "xlsx" | "xls" = fileName.toLowerCase().endsWith(".xls") && !fileName.toLowerCase().endsWith(".xlsx")
