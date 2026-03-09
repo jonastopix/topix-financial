@@ -89,6 +89,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 
 const Reports = () => {
   const { user, companyId, isAdvisor, isAdmin } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
