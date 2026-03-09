@@ -851,70 +851,51 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       }
     }
 
-    // === Post-processing: Normalize signs ===
-    const kf = extractedData.key_figures;
-    if (kf) {
-      const expenseFields = ['loenninger', 'direkte_omkostninger', 'marketing', 'lokaler', 'admin', 'tech_software', 'afskrivninger'];
-      for (const field of expenseFields) {
-        if (kf[field] != null && kf[field] < 0) {
-          console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
-          kf[field] = Math.abs(kf[field]);
-        }
-      }
+    // ═══════════════════════════════════════════════════════════════════════
+    // CANONICAL ACCOUNTING ENGINE: extract → normalize → validate → aiInput
+    // ═══════════════════════════════════════════════════════════════════════
 
-      for (const field of ['omsaetning', 'omsaetning_aar']) {
-        if (kf[field] != null && kf[field] < 0) {
-          console.log(`Normalizing ${field}: ${kf[field]} → ${Math.abs(kf[field])}`);
-          kf[field] = Math.abs(kf[field]);
-        }
-      }
+    // STEP 1: Normalize (sign corrections with auto-correction log)
+    const normalizationResult = normalizeKeyFigures(extractedData);
 
-      // Dækningsbidrag should also be absolute-valued for consistency
-      for (const field of ['daekningsbidrag', 'daekningsbidrag_aar']) {
-        if (kf[field] != null) {
-          // For saldobalancer: AI should already have flipped the sign per prompt instructions.
-          // But as a safety net, we can log the value for debugging.
-          console.log(`  ${field}: ${kf[field]}`);
-        }
-      }
-
-      // NEVER touch resultat fields — their sign is meaningful
-      // The AI prompt now instructs to flip signs for saldobalancer before returning.
-      console.log(`[CFO Extraction] Period: ${extractedData.report_period}, Type: ${extractedData.report_type}`);
-      console.log(`  omsaetning: ${kf.omsaetning}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
-      console.log(`  omsaetning_aar: ${kf.omsaetning_aar}, resultat_foer_skat_aar: ${kf.resultat_foer_skat_aar}`);
-      console.log(`  daekningsbidrag: ${kf.daekningsbidrag}, daekningsbidrag_aar: ${kf.daekningsbidrag_aar}`);
+    // Apply normalized key_figures back to extractedData
+    if (extractedData.key_figures) {
+      extractedData.key_figures = normalizationResult.key_figures;
     }
 
-    // === Post-processing: Server-side validation ===
-    const serverValidation = runPostProcessingValidation(extractedData);
+    // Log all corrections applied
+    if (normalizationResult.corrections.length > 0) {
+      console.log(`[Canonical] Applied ${normalizationResult.corrections.length} sign correction(s):`);
+      for (const c of normalizationResult.corrections) {
+        console.log(`  [Correction] ${c.field}: ${c.originalValue} → ${c.correctedValue} (${c.reason})`);
+      }
+    }
+
+    // STEP 2: Validate (comprehensive subtotal chain)
+    const canonicalValidation = runCanonicalValidation(extractedData, normalizationResult);
     const aiValidation = extractedData.validation;
 
+    // STEP 3: Merge AI validation with server-side canonical validation
     // ═══ FINAL STATUS PRIORITY (strict cascade) ═══
-    // 1. Server FAIL → FAIL (structural/mathematical errors)
-    // 2. AI FAIL → FAIL (extraction errors)
-    // 3. AI UNSURE → UNSURE (low confidence)
-    // 4. Any SKIP → FAIL (conservative: unvalidated = unsafe)
+    // 1. Server FAIL → FAIL (mathematical errors caught server-side)
+    // 2. AI FAIL → FAIL (AI flagged extraction error)
+    // 3. AI UNSURE → UNSURE (AI low confidence)
+    // 4. Canonical UNSURE → UNSURE (nothing could be validated)
     // 5. Else → PASS
     let finalStatus: "PASS" | "FAIL" | "UNSURE" = "PASS";
 
-    if (serverValidation.status === "FAIL") {
+    if (canonicalValidation.status === "FAIL") {
       finalStatus = "FAIL";
     } else if (aiValidation?.status === "FAIL") {
       finalStatus = "FAIL";
     } else if (aiValidation?.status === "UNSURE") {
       finalStatus = "UNSURE";
-    } else if (serverValidation.status === "SKIP" || aiValidation?.status === "SKIP") {
-      finalStatus = "FAIL"; // Conservative: unvalidated data treated as failed
+    } else if (canonicalValidation.status === "UNSURE") {
+      finalStatus = "UNSURE";
     }
 
-    // Collect all validation errors
-    const allErrors: string[] = [];
-    for (const check of serverValidation.checks) {
-      if (check.result === "FAIL") {
-        allErrors.push(`[Server] ${check.name}: ${check.details}`);
-      }
-    }
+    // Collect all errors (canonical + AI)
+    const allErrors: string[] = [...canonicalValidation.errors];
     if (aiValidation?.checks) {
       for (const check of aiValidation.checks) {
         if (check.result === "FAIL") {
@@ -923,20 +904,32 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       }
     }
 
-    extractedData.validation = {
+    // STEP 4: Build canonical output for AI analysis input
+    const canonicalOutput = {
       status: finalStatus,
+      server_checks: canonicalValidation.checks,
       ai_checks: aiValidation?.checks || [],
-      server_checks: serverValidation.checks,
+      corrections: normalizationResult.corrections,
+      errors: allErrors,
     };
 
-    // Log validation results
-    console.log(`[Validation] Final Status: ${finalStatus} (Server: ${serverValidation.status}, AI: ${aiValidation?.status || "N/A"})`);
-    for (const check of serverValidation.checks) {
+    extractedData.validation = canonicalOutput;
+
+    // Log final validation summary
+    console.log(`[Canonical] Period: ${extractedData.report_period} | Type: ${extractedData.report_type}`);
+    console.log(`[Canonical] Status: ${finalStatus} (server: ${canonicalValidation.status}, ai: ${aiValidation?.status || "N/A"})`);
+    for (const check of canonicalValidation.checks) {
       if (check.result === "FAIL") {
-        console.warn(`[Validation FAIL] ${check.name}: ${check.details}`);
+        console.warn(`  ✗ ${check.name}: ${check.details}`);
+      } else if (check.result === "PASS") {
+        console.log(`  ✓ ${check.name}: ${check.details}`);
       } else {
-        console.log(`[Validation ${check.result}] ${check.name}: ${check.details}`);
+        console.log(`  ~ ${check.name}: ${check.details} (SKIP)`);
       }
+    }
+    const kf = extractedData.key_figures;
+    if (kf) {
+      console.log(`[Canonical] omsaetning: ${kf.omsaetning}, daekningsbidrag: ${kf.daekningsbidrag}, resultat_foer_skat: ${kf.resultat_foer_skat}`);
     }
 
     // Check for duplicate report (same company, same period)
