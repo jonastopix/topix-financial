@@ -164,9 +164,10 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
     }
 
     // ── Skip non-data lines ──
-    // Skip separator lines (only dashes between pipes, no letters/digits)
-    if (/^\|?\s*-+\s*\|/.test(line) && !/[a-zA-ZæøåÆØÅ\d]/.test(line.replace(/[-|\s]/g, ""))) continue;
-    if (/^\|[\s-]+\|/.test(line) && !/[a-zA-ZæøåÆØÅ]/.test(line.replace(/[-|\s]/g, ""))) continue;
+    // Skip separator lines (only dashes/pipes/spaces, no letters)
+    if (/^\|[\s|-]*\|/.test(line) && !/[a-zA-ZæøåÆØÅ]/.test(line.replace(/[-|\s.]/g, ""))) continue;
+    if (/^#\s*(Nr|Navn|Perioden|År)/i.test(line)) continue;
+    if (/^\|\s*Nr\.?\s*\|/i.test(line)) continue;
 
     // ── Pending total: capture numbers from next line ──
     if (pendingTotalLabel) {
