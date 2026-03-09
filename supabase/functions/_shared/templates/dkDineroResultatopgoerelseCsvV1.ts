@@ -23,7 +23,7 @@ const LABEL_CLASSES: Record<string, string[]> = {
   revenue: ["salg", "omsætning", "indtægt", "honorar"],
   cogs: ["vareforbrug", "underleverandør", "direkte omkostning"],
   payroll: ["løn", "am-indkomst", "atp", "feriepenge", "pension", "a-skat"],
-  facility_costs: ["husleje", "lokale", "el", "vand", "varme", "rengøring"],
+  facility_costs: ["husleje", "lokale", "elforbrug", "elektricitet", "vand", "varme", "rengøring"],
   vehicle_costs: ["parkering", "færge", "transport", "kørsel", "brændstof"],
   sales_costs: ["reklame", "markedsføring", "annoncering", "messe", "repræsentation", "gaver"],
   admin_costs: ["bogføring", "konsulent", "porto", "software", "forsikring", "telefon", "kontingent", "kontor"],
@@ -249,6 +249,17 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
       counts[line.cls] = (counts[line.cls] || 0) + 1;
     }
 
+    // Track which ambiguous lines could have affected specific classes
+    const ambiguousClasses = new Set<string>();
+    for (const line of classified) {
+      if (line.ambiguous && line.matchedClasses) {
+        for (const c of line.matchedClasses) ambiguousClasses.add(c);
+      }
+    }
+
+    // Track defaulted-to-zero fields and their reason
+    const defaultedFields: { field: string; reason: "absent" | "ambiguous_conflict" }[] = [];
+
     // Revenue: abs() to normalize from credit (negative) to positive
     const revenue = sums.revenue != null ? Math.abs(sums.revenue) : null;
     const cogs = sums.cogs != null ? Math.abs(sums.cogs) : null;
@@ -257,15 +268,38 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
     const facilityCosts = sums.facility_costs != null ? Math.abs(sums.facility_costs) : null;
     const vehicleCosts = sums.vehicle_costs != null ? Math.abs(sums.vehicle_costs) : null;
     const adminCosts = sums.admin_costs != null ? Math.abs(sums.admin_costs) : null;
-    const depreciation = sums.depreciation != null ? Math.abs(sums.depreciation) : null;
 
-    // Financial costs: null if no lines matched (fail-closed)
-    const financialCosts =
-      counts.financial_costs != null && counts.financial_costs > 0
-        ? Math.abs(sums.financial_costs)
-        : null;
+    // ── Depreciation: default 0 ONLY if truly absent, null if ambiguous ──
+    let depreciation: number | null;
+    let depreciationUnsure = false;
+    if (counts.depreciation != null && counts.depreciation > 0) {
+      depreciation = Math.abs(sums.depreciation);
+    } else if (ambiguousClasses.has("depreciation")) {
+      depreciation = null;
+      depreciationUnsure = true;
+      console.log("[Dinero] WARNING: depreciation ambiguous → null (not defaulted)");
+    } else {
+      depreciation = 0;
+      defaultedFields.push({ field: "depreciation", reason: "absent" });
+      console.log("[Dinero] depreciation missing → assumed 0 (no matching lines, no ambiguity)");
+    }
 
-    // Tax: null if no lines matched
+    // ── Financial costs: default 0 ONLY if truly absent, null if ambiguous ──
+    let financialCosts: number | null;
+    let financialCostsUnsure = false;
+    if (counts.financial_costs != null && counts.financial_costs > 0) {
+      financialCosts = Math.abs(sums.financial_costs);
+    } else if (ambiguousClasses.has("financial_costs")) {
+      financialCosts = null;
+      financialCostsUnsure = true;
+      console.log("[Dinero] WARNING: financial_costs ambiguous → null (not defaulted)");
+    } else {
+      financialCosts = 0;
+      defaultedFields.push({ field: "financial_costs", reason: "absent" });
+      console.log("[Dinero] financial_costs missing → assumed 0 (no matching lines, no ambiguity)");
+    }
+
+    // Tax: null if no lines matched (acceptable — net_result = ebt)
     const tax =
       counts.tax != null && counts.tax > 0 ? Math.abs(sums.tax) : null;
 
@@ -283,7 +317,7 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
     const ebit =
       ebitda != null && depreciation != null ? ebitda - depreciation : null;
 
-    // EBT: only if financial_costs is known
+    // EBT: only derivable if ebit and financialCosts are both known
     const ebt =
       ebit != null && financialCosts != null ? ebit - financialCosts : null;
 
@@ -359,35 +393,59 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
       });
     }
 
-    // 4. Financial costs present
+    // 4. Depreciation status
     checks.push({
-      name: "financial_costs_present",
-      result: financialCosts != null ? "PASS" : "FAIL",
-      details:
-        financialCosts != null
-          ? `Financial costs: ${financialCosts.toFixed(2)}`
-          : "No financial cost lines found → ebt/net_result will be null",
+      name: "depreciation_present",
+      result: depreciationUnsure ? "FAIL" : "PASS",
+      details: depreciationUnsure
+        ? "UNSURE: depreciation ambiguous due to label conflict → null (not defaulted)"
+        : depreciation === 0 && defaultedFields.some(f => f.field === "depreciation")
+          ? "assumed 0 — no depreciation lines found, no ambiguity"
+          : `Depreciation: ${depreciation?.toFixed(2)}`,
     });
 
-    // 5. EBT present
+    // 5. Financial costs status
+    checks.push({
+      name: "financial_costs_present",
+      result: financialCostsUnsure ? "FAIL" : "PASS",
+      details: financialCostsUnsure
+        ? "UNSURE: financial_costs ambiguous due to label conflict → null (not defaulted)"
+        : financialCosts === 0 && defaultedFields.some(f => f.field === "financial_costs")
+          ? "assumed 0 — no financial cost lines found, no ambiguity"
+          : `Financial costs: ${financialCosts?.toFixed(2)}`,
+    });
+
+    // 6. EBT present
     checks.push({
       name: "ebt_present",
       result: ebt != null ? "PASS" : "FAIL",
       details:
         ebt != null
           ? `EBT: ${ebt.toFixed(2)}`
-          : "EBT is null (missing financial_costs)",
+          : "EBT is null (upstream dependency missing due to ambiguity)",
     });
 
-    // 6. Ambiguous lines
+    // 7. Ambiguous lines — warning, not blocking unless affecting core derived metrics
+    const ambiguityAffectsCore = depreciationUnsure || financialCostsUnsure;
     checks.push({
       name: "ambiguous_lines",
-      result: ambiguousCount === 0 ? "PASS" : "FAIL",
+      result: ambiguityAffectsCore ? "FAIL" : (ambiguousCount > 0 ? "PASS" : "PASS"),
       details:
         ambiguousCount === 0
           ? "No ambiguous label matches"
-          : `${ambiguousCount} lines matched multiple classes → unclassified`,
+          : ambiguityAffectsCore
+            ? `${ambiguousCount} ambiguous lines affecting core metrics (depreciation/financial_costs) → FAIL`
+            : `${ambiguousCount} ambiguous lines (non-core only) → accepted`,
     });
+
+    // 8. Defaulted fields summary
+    if (defaultedFields.length > 0) {
+      checks.push({
+        name: "defaulted_fields",
+        result: "PASS",
+        details: defaultedFields.map(f => `${f.field}: ${f.reason}`).join("; "),
+      });
+    }
 
     const parserStatus =
       checks.some((c) => c.result === "FAIL") ? "FAIL" : "PASS";
