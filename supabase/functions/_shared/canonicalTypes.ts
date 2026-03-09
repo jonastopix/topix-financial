@@ -148,4 +148,7 @@ export interface CanonicalOutput {
 
   ai_eligible: boolean;
   ai_eligible_payload: AiEligiblePayload | null;
+  
+  // Phase 4: Deterministic metadata (only present for deterministic extraction)
+  deterministic_meta?: DeterministicMeta | null;
 }
