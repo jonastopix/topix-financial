@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ClipboardList } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
