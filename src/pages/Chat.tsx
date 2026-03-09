@@ -1119,8 +1119,9 @@ const Chat = () => {
                     const senderAvatar = senderProfile?.avatar_url;
 
                     return (
+                      <React.Fragment key={msg.id}>
+                        {dateSep}
                       <div
-                        key={msg.id}
                         ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                         className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                       >
