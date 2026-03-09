@@ -159,19 +159,8 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
     debounceSave(responses, checklist, next);
   };
 
-  // Calculate progress
-  const totalFields = config.sections.reduce((sum, s) => {
-    let count = s.questions.filter(q => q.type === "textarea").length;
-    if (s.checklist) count += s.checklist.length;
-    count += s.questions.filter(q => q.type === "numbered_list").reduce((a, q) => a + (q.count || 2), 0);
-    return sum + count;
-  }, 0) + config.leverCount;
-
-  const filledFields = Object.values(responses).filter(v => v.trim()).length
-    + Object.values(checklist).filter(v => v).length
-    + levers.filter(v => v.trim()).length;
-
-  const progress = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
+  // Calculate progress using shared helper
+  const progress = calcHandoutProgress(config, responses, checklist, levers);
   const isCompleted = handoutStatus === "completed";
 
   const toggleCompleted = async () => {
