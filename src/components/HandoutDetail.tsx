@@ -11,7 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
-import { createAdvisorNotification } from "@/lib/advisorNotifications";
+import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { notifyHandoutCompleted } from "@/lib/handoutNotify";
 
 interface HandoutDetailProps {
   config: HandoutConfig;
