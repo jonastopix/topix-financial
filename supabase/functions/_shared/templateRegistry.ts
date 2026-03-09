@@ -115,15 +115,21 @@ export function detectTemplate(ctx: DetectionContext): DetectionResult | null {
   for (const t of TEMPLATE_REGISTRY) {
     if (!t.supported_file_types.includes(ctx.fileType)) continue;
     const score = t.detect(ctx);
-    if (score > 0) scores.push({ template: t, score });
+    scores.push({ template: t, score });
   }
 
-  scores.sort((a, b) => b.score - a.score);
+  const debugScores = scores
+    .map(({ template, score }) => `${template.template_id}:${score}`)
+    .join(", ");
+  console.log(`[Registry] Detection scores (${ctx.fileType}): ${debugScores || "none"}`);
 
-  const best = scores[0];
+  const positiveScores = scores.filter((entry) => entry.score > 0);
+  positiveScores.sort((a, b) => b.score - a.score);
+
+  const best = positiveScores[0];
   if (!best || best.score < 80) return null;
 
-  const secondBest = scores[1];
+  const secondBest = positiveScores[1];
   if (secondBest && best.score - secondBest.score < 10) {
     console.log(`[Registry] Ambiguous detection: ${best.template.template_id}=${best.score}, ${secondBest.template.template_id}=${secondBest.score} (gap < 10)`);
     return null;
