@@ -107,7 +107,6 @@ const HARD_OVERRIDE_LABELS: [RegExp, string][] = [
   [/kilometergodtgørelse/i, "vehicle_costs"],
   [/kørselsgodtgørelse/i, "vehicle_costs"],
   [/transportgodtgørelse/i, "vehicle_costs"],
-  [/diverse\s*transport/i, "vehicle_costs"],
 ];
 
 // ── Classification ──
