@@ -21,9 +21,10 @@ interface HandoutLeverItemProps {
   handoutId?: string;
   linkedMilestone?: LeverMilestone | null;
   onMilestoneCreated?: () => void;
+  disabled?: boolean;
 }
 
-const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, onMilestoneCreated }: HandoutLeverItemProps) => {
+const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, onMilestoneCreated, disabled }: HandoutLeverItemProps) => {
   const { user, companyId } = useAuth();
   const [creating, setCreating] = useState(false);
 
@@ -62,8 +63,9 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Løftestang ${index + 1}`}
           className="text-sm"
+          disabled={disabled}
         />
-        {handoutId && !linkedMilestone && value.trim() && (
+        {handoutId && !linkedMilestone && value.trim() && !disabled && (
           <Button
             size="sm"
             variant="ghost"

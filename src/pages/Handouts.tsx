@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
 import HandoutDetail from "@/components/HandoutDetail";
@@ -28,6 +29,11 @@ const Handouts = () => {
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Resolved member userId for the selected company (advisor view)
+  const [memberUserId, setMemberUserId] = useState<string | null>(null);
+  // Per-module user_id from existing handout rows
+  const [moduleUserMap, setModuleUserMap] = useState<Record<string, string>>({});
+
   // Deep-link support: ?module=bogholderi opens that handout directly
   useEffect(() => {
     const moduleParam = searchParams.get("module") as HandoutModule | null;
@@ -45,16 +51,42 @@ const Handouts = () => {
       setActiveModule(null);
     }
   }, [resetKey]);
+
+  // Resolve member userId for the selected company (advisor view only)
+  // Use deterministic selection: oldest company_members row (first created member = owner)
+  useEffect(() => {
+    if (!isAdvisor || !companyId) {
+      setMemberUserId(null);
+      return;
+    }
+    supabase
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .then(({ data }) => {
+        setMemberUserId(data?.[0]?.user_id || null);
+      });
+  }, [isAdvisor, companyId]);
+
   useEffect(() => {
     if (!user || !companyId) return;
     setIsLoading(true);
     const load = async () => {
       const { data } = await supabase
         .from("handouts")
-        .select("module, status, responses, checklist, levers, completed_at")
+        .select("module, status, responses, checklist, levers, completed_at, user_id")
         .eq("company_id", companyId);
 
-      const map = new Map((data || []).map(d => [d.module, d]));
+      // Build per-module user_id map for advisor deep-linking
+      const userMap: Record<string, string> = {};
+      const map = new Map((data || []).map(d => {
+        userMap[d.module] = d.user_id;
+        return [d.module, d];
+      }));
+      setModuleUserMap(userMap);
+
       setSummaries(moduleOrder.map(m => {
         const d = map.get(m);
         if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null };
@@ -73,11 +105,33 @@ const Handouts = () => {
   }, [user, activeModule, companyId]);
 
   if (activeModule) {
+    // Resolve the correct member userId for this module
+    const resolvedUserId = isAdvisor
+      ? (moduleUserMap[activeModule] || memberUserId)
+      : undefined; // members use their own user.id via default
+
+    // In advisor view, fail gracefully if we can't resolve a member
+    if (isAdvisor && !resolvedUserId) {
+      return (
+        <AppLayout>
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <p className="text-sm text-muted-foreground">
+              Ingen medlemmer fundet for denne virksomhed. Handout kan ikke vises.
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setActiveModule(null)} className="gap-1.5">
+              <ArrowLeft className="h-4 w-4" /> Tilbage
+            </Button>
+          </div>
+        </AppLayout>
+      );
+    }
+
     return (
       <AppLayout>
         <HandoutDetail
           config={handoutConfigs[activeModule]}
           onBack={() => setActiveModule(null)}
+          userId={resolvedUserId || undefined}
         />
       </AppLayout>
     );

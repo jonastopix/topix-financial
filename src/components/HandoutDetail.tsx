@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowLeft, Save, Check, Loader2, CheckCircle2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -208,10 +208,17 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {saveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Gemmer…</>}
-            {saveStatus === "saved" && <><Check className="h-3 w-3 text-emerald-500" /> Gemt</>}
-          </div>
+          {!isOwner && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+              <Eye className="h-3 w-3" /> Skrivebeskyttet
+            </div>
+          )}
+          {isOwner && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {saveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Gemmer…</>}
+              {saveStatus === "saved" && <><Check className="h-3 w-3 text-emerald-500" /> Gemt</>}
+            </div>
+          )}
           {isOwner && handoutId && (
             <Button
               size="sm"
@@ -323,6 +330,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
                 handoutId={handoutId || undefined}
                 linkedMilestone={leverMilestones[i] || null}
                 onMilestoneCreated={loadData}
+                disabled={!isOwner}
               />
             ))}
           </TabsContent>
