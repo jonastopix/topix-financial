@@ -95,15 +95,24 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       continue;
     }
 
-    // ── Company/CVR from header: "1796416 - Topix.dk ApS - CVR 45281736" ──
+    // ── Company/CVR from header ──
+    // Pattern 1: "1796416 - Topix.dk ApS - CVR 45281736"
     const companyMatch = line.match(/\d+\s*-\s*(.+?)\s*-\s*CVR\s*(\d{8})/);
     if (companyMatch && !companyName) {
       companyName = companyMatch[1].trim();
       cvrNumber = companyMatch[2];
       continue;
     }
+    // Pattern 2: "SnowWaves ApS (CVR-nr. 39850850)"
+    const companyMatch2 = line.match(/^(.+?)\s*\(CVR[\s\-.:nNrR]*\s*(\d{8})\)/i);
+    if (companyMatch2 && !companyName) {
+      companyName = companyMatch2[1].trim();
+      cvrNumber = companyMatch2[2];
+      continue;
+    }
 
-    // ── Period from header: "Saldobalance for perioden 01.04.25 - 30.04.25" ──
+    // ── Period from header ──
+    // Pattern 1: "Saldobalance for perioden 01.04.25 - 30.04.25" (dot-separated)
     const periodMatch = line.match(
       /(?:Saldobalance|Resultatopg).+?(\d{2})\.(\d{2})\.(\d{2,4})\s*-\s*(\d{2})\.(\d{2})\.(\d{2,4})/i
     );
@@ -116,6 +125,20 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       const monthIdx = parseInt(m2, 10) - 1;
       if (monthIdx >= 0 && monthIdx < 12) {
         reportPeriod = `${MONTH_NAMES[monthIdx]} ${fullY2}`;
+      }
+      continue;
+    }
+    // Pattern 2: "Resultatopgørelse 01/01-2026 - 31/12-2026" (slash/dash-separated)
+    const periodMatch2 = line.match(
+      /(?:Saldobalance|Resultatopg).+?(\d{2})\/(\d{2})-(\d{4})\s*-\s*(\d{2})\/(\d{2})-(\d{4})/i
+    );
+    if (periodMatch2 && !periodStart) {
+      const [, d1, m1, y1, d2, m2, y2] = periodMatch2;
+      periodStart = `${d1}-${m1}-${y1}`;
+      periodEnd = `${d2}-${m2}-${y2}`;
+      const monthIdx = parseInt(m2, 10) - 1;
+      if (monthIdx >= 0 && monthIdx < 12) {
+        reportPeriod = `${MONTH_NAMES[monthIdx]} ${y2}`;
       }
       continue;
     }

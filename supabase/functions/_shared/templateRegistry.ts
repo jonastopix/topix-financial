@@ -97,10 +97,12 @@ export interface DetectionResult {
 
 import { dkCombinedBalancePnlV1 } from "./templates/dkCombinedBalancePnlV1.ts";
 import { dkEconomicSaldobalancePdfV1 } from "./templates/dkEconomicSaldobalancePdfV1.ts";
+import { dkEconomicResultatopgoerelsePdfV1 } from "./templates/dkEconomicResultatopgoerelsePdfV1.ts";
 
 const TEMPLATE_REGISTRY: TemplateEntry[] = [
   dkCombinedBalancePnlV1,
   dkEconomicSaldobalancePdfV1,
+  dkEconomicResultatopgoerelsePdfV1,
 ];
 
 // ── Detection with Ambiguity Rule ──
