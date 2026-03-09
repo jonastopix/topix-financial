@@ -386,21 +386,21 @@ Sæt validation.status til:
 
 Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSURE" og beskriv usikkerheden i checks.`;
 
-    // Build user message — prefer images (vision) for accurate table reading
-    let userContent: any;
-    if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
-      const imageParts = pageImages.map((base64: string) => ({
-        type: "image_url",
-        image_url: { url: `data:image/jpeg;base64,${base64}` },
-      }));
-      userContent = [
-        { type: "text", text: `Filnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
-        ...imageParts,
-      ];
-      console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
-    } else {
-      userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
-      console.log("Sending text-only content to AI (no images available)");
+      // Build user message — prefer images (vision) for accurate table reading
+      if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
+        const imageParts = pageImages.map((base64: string) => ({
+          type: "image_url",
+          image_url: { url: `data:image/jpeg;base64,${base64}` },
+        }));
+        userContent = [
+          { type: "text", text: `Filnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
+          ...imageParts,
+        ];
+        console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
+      } else {
+        userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
+        console.log("Sending text-only content to AI (no images available)");
+      }
     }
 
     const response = await fetch(
