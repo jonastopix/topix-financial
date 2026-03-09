@@ -1,0 +1,1 @@
+DELETE FROM public.financial_reports WHERE id::text LIKE '499f958e%' OR id::text LIKE '24eceba5%';
