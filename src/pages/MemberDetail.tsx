@@ -158,7 +158,13 @@ const MemberDetail = () => {
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
 
-  const handleRemoveMember = async () => {
+  // Clear handout deep-link param after consuming
+  useEffect(() => {
+    if (searchParams.has("handout")) {
+      setSearchParams({}, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     if (!userId) return;
     setRemoving(true);
     try {
