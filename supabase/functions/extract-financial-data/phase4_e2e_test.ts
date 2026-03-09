@@ -7,7 +7,7 @@
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { detectTemplate, tryDeterministicPdfExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
+import { detectTemplate, tryDeterministicCsvExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
 import { detectReportTemplate } from "../_shared/financialParser.ts";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
 
