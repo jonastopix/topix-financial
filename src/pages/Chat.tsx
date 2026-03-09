@@ -115,6 +115,29 @@ const Chat = () => {
     }
   }, [isAdvisor]);
 
+  // Deep linking: auto-select conversation and highlight message from URL params
+  useEffect(() => {
+    const convParam = searchParams.get("conversationId");
+    const msgParam = searchParams.get("messageId");
+    if (convParam && conversations.length > 0) {
+      const conv = conversations.find(c => c.id === convParam);
+      if (conv && activeConvId !== convParam) {
+        // Switch to "alle" filter so the conversation is visible
+        setActiveFilter("alle");
+        setActiveConvId(convParam);
+        if (isMobile) setShowMessages(true);
+      }
+      // Once messages are loaded, scroll to and highlight the target message
+      if (msgParam && messages.length > 0 && activeConvId === convParam) {
+        setTimeout(() => {
+          scrollToMessage(msgParam);
+          // Clear params after navigation
+          setSearchParams({}, { replace: true });
+        }, 300);
+      }
+    }
+  }, [searchParams, conversations, messages, activeConvId]);
+
   // Escape key to exit fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
