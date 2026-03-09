@@ -956,6 +956,109 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_conversation_threads: {
+        Row: {
+          company_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          slack_channel_id: string
+          slack_thread_ts: string | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          slack_channel_id: string
+          slack_thread_ts?: string | null
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          slack_channel_id?: string
+          slack_thread_ts?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_conversation_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_conversation_threads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slack_notification_log: {
+        Row: {
+          company_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          message_id: string
+          notification_type: string
+          slack_channel_id: string
+          slack_thread_ts: string | null
+          slack_ts: string | null
+        }
+        Insert: {
+          company_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message_id: string
+          notification_type?: string
+          slack_channel_id: string
+          slack_thread_ts?: string | null
+          slack_ts?: string | null
+        }
+        Update: {
+          company_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          notification_type?: string
+          slack_channel_id?: string
+          slack_thread_ts?: string | null
+          slack_ts?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_notification_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_notification_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slack_notification_log_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_login_log: {
         Row: {
           id: string
