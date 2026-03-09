@@ -358,31 +358,28 @@ const FileUploadZone = ({
         updateFile(fileId, { extractedData });
         onExtracted?.(extractedData);
 
-        // Post activity: report uploaded (skip in admin mode)
+        // Post compact activity: report uploaded (skip in admin mode)
         if (!adminMode && conversationId && userId) {
           const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          await postActivityMessage({
+          const period = extractedData.report_period || "ukendt periode";
+          const messageId = await postActivityMessage({
             conversationId,
             senderId: userId,
-            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${extractedData.report_period}\n${extractedData.company_name} · CVR ${extractedData.cvr_number}`,
+            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${period}`,
             contextType: "report",
             contextId: reportRecord.id,
-            contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
+            contextMeta: {
+              title: `${reportLabel} · ${period}`,
+              report_id: reportRecord.id,
+              report_period: period,
+              file_path: storagePath,
+              file_name: file.name,
+            },
           });
-        }
-
-        // Create advisor notification (skip in admin mode)
-        if (!adminMode && userId && companyId) {
-          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          await createAdvisorNotification({
-            type: "report_uploaded",
-            title: `Ny ${reportLabel.toLowerCase()} fra ${extractedData.company_name || "medlem"}`,
-            body: `${reportLabel} for ${extractedData.report_period}`,
-            companyId,
-            memberId: userId,
-            referenceId: reportRecord.id,
-            referenceType: "report",
-          });
+          // Fire-and-forget: Slack + advisor notification (server-side)
+          if (messageId) {
+            notifyReportUpload(reportRecord.id, messageId);
+          }
         }
 
     // === STEP 3: AI Financial Analysis — GATE ===
