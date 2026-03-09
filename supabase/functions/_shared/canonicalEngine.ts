@@ -585,7 +585,8 @@ export function buildCanonicalOutput(
   const periodBasis = inferPeriodBasis(kf);
 
   // Normalize
-  const { metrics, correction_log } = normalizeToCanonical(extractedData);
+  // Normalize (pass extractionMethod for conditional sign handling)
+  const { metrics, correction_log } = normalizeToCanonical(extractedData, extractionMethod);
 
   // Raw and normalized lines
   const rawLines = buildRawLines(extractedData);
