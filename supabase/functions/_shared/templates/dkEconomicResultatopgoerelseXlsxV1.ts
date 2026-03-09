@@ -415,6 +415,30 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       console.log(`[DK_ECONOMIC_PNL_XLSX] Unmatched subtotals: ${unmatchedSubtotals.join(", ")}`);
     }
 
+    // ── COGS sign reconciliation (contra-cost support) ──
+    // Some business-convention exports show gross_profit > revenue because direct costs are contra-cost.
+    // If cogs sign conflicts with the reported gross_profit equation, flip cogs to the mathematically consistent sign.
+    if (
+      keyFigures.omsaetning != null &&
+      keyFigures.direkte_omkostninger != null &&
+      keyFigures.daekningsbidrag != null
+    ) {
+      const revenue = keyFigures.omsaetning;
+      const cogsCurrent = keyFigures.direkte_omkostninger;
+      const grossProfit = keyFigures.daekningsbidrag;
+
+      const diffCurrent = Math.abs((revenue - cogsCurrent) - grossProfit);
+      const cogsInverted = -cogsCurrent;
+      const diffInverted = Math.abs((revenue - cogsInverted) - grossProfit);
+
+      if (diffInverted + 0.01 < diffCurrent && diffInverted <= 2) {
+        keyFigures.direkte_omkostninger = cogsInverted;
+        console.log(
+          `[DK_ECONOMIC_PNL_XLSX] Reconciled COGS sign for gross-profit consistency: ${cogsCurrent} -> ${cogsInverted}`
+        );
+      }
+    }
+
     // ── Fail-closed: require minimum 3 parsed subtotals ──
     const parsedSubtotalCount = Object.keys(keyFigures).length;
     if (parsedSubtotalCount < 3) {
