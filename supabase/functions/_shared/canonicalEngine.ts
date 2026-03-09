@@ -190,13 +190,36 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
       }
     }
 
-    // Resultat in saldobalance: invert sign (AI safety net only)
+    // Resultat in saldobalance: conditional sign flip (AI safety net)
     // Deterministic paths pre-normalize → skip
-    if (resultatFields.includes(dkField) && isSaldobalance && !isDeterministic) {
-      normalized = -value;
-      if (value !== 0) {
-        correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
-          `Saldobalance result inverted (AI safety net): ${value} → ${normalized}`, "HIGH");
+    // AI sometimes normalizes result to business convention (positive = profit),
+    // sometimes returns raw accounting sign (negative = credit = profit).
+    // Cross-validate against computed profit direction to decide.
+    if (resultatFields.includes(dkField) && isSaldobalance && !isDeterministic && value !== 0) {
+      // Compute expected result direction from available metrics
+      const absGP = Math.abs(kf.daekningsbidrag || kf.daekningsbidrag_aar || 0);
+      const opexTotal = Math.abs(kf.loenninger || 0) + Math.abs(kf.marketing || kf.salgsomkostninger || 0) +
+        Math.abs(kf.lokaler || kf.lokaleomkostninger || 0) +
+        Math.abs(kf.admin || kf.administrationsomkostninger || 0) +
+        Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0);
+
+      if (absGP > 0) {
+        // We can cross-validate: expectedResult positive = profit, negative = loss
+        const expectedResult = absGP - opexTotal;
+        const valueSignMatchesExpected = (value > 0) === (expectedResult > 0);
+
+        if (valueSignMatchesExpected) {
+          // AI already normalized to business convention — keep as-is, no flip
+          // (e.g. positive value when profit expected, or negative when loss expected)
+        } else {
+          // Value sign contradicts computed direction — raw accounting sign, flip it
+          normalized = -value;
+          correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
+            `Saldobalance result inverted (cross-validated): ${value} → ${normalized}`, "HIGH");
+        }
+      } else {
+        // Can't compute expected direction — trust AI normalization, don't flip
+        // (blind flip was causing false losses, safer to trust AI here)
       }
     }
 
