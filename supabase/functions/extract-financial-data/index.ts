@@ -121,17 +121,31 @@ serve(async (req) => {
     
     const isExcelFile = fileName && (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'));
     const isPdfFile = fileName && fileName.toLowerCase().endsWith('.pdf');
-    
+
     let extractedData: any = null;
     let rawAiOutput: any = null;
     let extractionMethod = "ai_extraction";
     let detResult: DeterministicExtractionResult | null = null;
+    const routingTrace: Record<string, any> = {
+      file_name: fileName || null,
+      is_excel_file: !!isExcelFile,
+      is_pdf_file: !!isPdfFile,
+      excel_base64_length: excelBase64?.length ?? 0,
+      file_content_length: fileContent?.length ?? 0,
+      deterministic_attempted: false,
+      deterministic_result: null,
+      deterministic_template_id: null,
+      deterministic_error: null,
+      branch: null,
+    };
 
     // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
     if (isExcelFile && excelBase64) {
+      routingTrace.deterministic_attempted = true;
       console.log("[Routing] Attempting deterministic Excel extraction...");
       detResult = await tryDeterministicExtraction(excelBase64, fileName);
     } else if (isPdfFile && fileContent) {
+      routingTrace.deterministic_attempted = true;
       console.log("[Routing] Attempting deterministic PDF extraction...");
       detResult = tryDeterministicPdfExtraction(fileContent, fileName);
     }
@@ -139,16 +153,23 @@ serve(async (req) => {
     if (detResult) {
       switch (detResult.type) {
         case "success":
+          routingTrace.deterministic_result = "success";
+          routingTrace.deterministic_template_id = detResult.template_id;
+          routingTrace.branch = "deterministic_success";
           extractedData = detResult.extractedData;
-          rawAiOutput = { deterministic: true, template_id: detResult.template_id };
+          rawAiOutput = { deterministic: true, template_id: detResult.template_id, routing_trace: routingTrace };
           extractionMethod = "deterministic_template";
           console.log(`[Routing] Deterministic success: ${detResult.template_id}`);
           break;
 
         case "structural_fail":
+          routingTrace.deterministic_result = "structural_fail";
+          routingTrace.deterministic_template_id = detResult.template_id;
+          routingTrace.deterministic_error = detResult.error;
+          routingTrace.branch = "deterministic_structural_fail";
           console.log(`[Routing] Structural failure for ${detResult.template_id}: ${detResult.error}`);
           extractionMethod = "deterministic_failed";
-          
+
           if (reportId) {
             await supabase
               .from("financial_reports")
@@ -157,11 +178,12 @@ serve(async (req) => {
                 extraction_method: extractionMethod,
                 validation_status: "FAIL",
                 validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
+                raw_extracted_data: { routing_trace: routingTrace },
                 processed_at: new Date().toISOString(),
               })
               .eq("id", reportId);
           }
-          
+
           return new Response(
             JSON.stringify({
               error: "Deterministic parsing failed",
@@ -173,10 +195,16 @@ serve(async (req) => {
           );
 
         case "no_match":
+          routingTrace.deterministic_result = "no_match";
+          routingTrace.branch = "ai_fallback_no_match";
           console.log("[Routing] No template match → AI extraction");
           break;
       }
+    } else {
+      routingTrace.branch = "ai_fallback_not_attempted";
     }
+
+    console.log(`[RoutingTrace] ${JSON.stringify(routingTrace)}`);
 
     // ── LAG 1: AI EXTRACTION (if deterministic didn't succeed) ──
     if (!extractedData) {
@@ -244,7 +272,7 @@ D) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
 E) BALANCE-POSTER (aktiver, passiver, egenkapital, bank):
    - Aktiver: returnér som positive
    - Passiver/gæld: returnér som positive (selvom de står som negative/kredit)
-   - Bank/likvider: returnér som positive (selvom de står som negative/kredit)
+   - Bank/likvider: BEHOLD ORIGINALT FORTEGN (negativt = overtræk/kassekredit)
    - Egenkapital: behold fortegn som det er (negativ egenkapital er mulig)
 
 ═══════════════════════════════════════════════════
@@ -477,6 +505,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       
       // Capture raw AI output BEFORE any post-processing (for audit trail)
       rawAiOutput = JSON.parse(JSON.stringify(extractedData));
+      rawAiOutput.routing_trace = routingTrace;
 
       // Override company name if provided by caller (prevents AI hallucination)
       if (knownCompanyName) {

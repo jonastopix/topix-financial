@@ -124,6 +124,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
   correction_log: CorrectionLogEntry[];
 } {
   const kf = extractedData?.key_figures || {};
+  const lineItems = Array.isArray(extractedData?.line_items) ? extractedData.line_items : [];
   const reportType = extractedData?.report_type || "";
   const isSaldobalance = reportType.toLowerCase().includes("saldo");
   const isDeterministic = extractionMethod === "deterministic_template";
@@ -150,6 +151,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
   const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
   const liabilityFields = ["passiver_i_alt", "kreditorer"];
+  const cashFields = ["bank_balance", "likvider"];
 
   // Helper to log correction
   function correct(field: string, raw: number, normalized: number, rule: string, reason: string, confidence: Confidence = "HIGH") {
@@ -273,6 +275,32 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     metrics[canonicalField] = normalized;
   }
 
+  // Prefer explicit bank/likvider line-item sign over key_figures when available
+  // (AI can hallucinate sign in key_figures on saldobalancer)
+  if (!isDeterministic && cashFields.some((f) => kf[f] != null)) {
+    const bankLine = lineItems.find((li: any) => {
+      const label = (li?.name || "").toString().toLowerCase();
+      return label.includes("bank") || label.includes("likvid");
+    });
+
+    if (bankLine) {
+      const lineVal = bankLine.period_amount ?? bankLine.ytd_amount;
+      if (typeof lineVal === "number" && metrics.cash !== lineVal) {
+        const prev = metrics.cash;
+        metrics.cash = lineVal;
+        corrections.push({
+          field: "cash",
+          source: "line_item",
+          raw_value: prev,
+          normalized_value: lineVal,
+          rule: "cash_prefers_bank_line_sign",
+          reason: `Cash overridden from key_figure (${prev}) to bank line (${lineVal}) to preserve raw sign`,
+          confidence: "HIGH",
+        });
+      }
+    }
+  }
+
   // Derive calculated fields
   if (metrics.revenue != null && metrics.gross_profit != null && metrics.revenue !== 0) {
     metrics.gross_margin_pct = (metrics.gross_profit / metrics.revenue) * 100;
@@ -338,7 +366,7 @@ export function buildProvenance(
   const provenance: Record<string, ProvenanceEntry> = {};
   const kf = extractedData?.key_figures || {};
   const lineItems = extractedData?.line_items || [];
-  const sourceType = extractionMethod === "deterministic" ? "deterministic_template" as const : "ai_extraction" as const;
+  const sourceType = extractionMethod === "deterministic_template" ? "deterministic_template" as const : "ai_extraction" as const;
   const reportType = extractedData?.report_type || null;
 
   // For each non-null metric, find its provenance
