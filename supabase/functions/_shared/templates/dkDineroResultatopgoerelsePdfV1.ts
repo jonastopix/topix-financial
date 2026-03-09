@@ -330,27 +330,58 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
       return { success: false, error: `Insufficient parsed lines: ${lines.length} (minimum 3)` };
     }
 
+    // ── Build section map from subtotal boundaries ──
+    const sectionMap = buildSectionMap(lines);
+
     // ── Classify all detail lines (non-subtotals with amounts) ──
+    // Priority: label-first → section-fallback → range-fallback → unclassified
     const classified: ClassifiedLine[] = [];
     let ambiguousCount = 0;
+    let sectionFallbackCount = 0;
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       if (line.is_subtotal) continue;
       const amount = line.period_amount;
       if (amount == null) continue;
 
-      const classification = classifyLine(line.name, line.account_no);
-      if (classification.ambiguous) ambiguousCount++;
+      const core = classifyLineCore(line.name, line.account_no);
+      const sectionCls = sectionMap.get(i) || undefined;
+
+      let finalCls = core.cls;
+      let finalMethod = core.method;
+      let finalAmbiguous = core.ambiguous;
+
+      if (core.cls === "unclassified" && sectionCls) {
+        // Section fallback — label was unclear, use section
+        finalCls = sectionCls;
+        finalMethod = "section";
+        finalAmbiguous = false;
+        sectionFallbackCount++;
+        console.log(`[DineroPDF] Section fallback: "${line.name}" → ${sectionCls}`);
+      } else if (core.cls !== "unclassified" && sectionCls && core.cls !== sectionCls) {
+        // Conflict: label says X, section says Y → mark ambiguous
+        finalCls = "unclassified";
+        finalMethod = "unclassified";
+        finalAmbiguous = true;
+        console.log(`[DineroPDF] CONFLICT: label=${core.cls}, section=${sectionCls} for "${line.name}" → ambiguous`);
+      }
+
+      if (finalAmbiguous) ambiguousCount++;
 
       classified.push({
         accountNo: line.account_no,
         name: line.name,
         rawAmount: amount,
-        ...classification,
+        cls: finalCls,
+        method: finalMethod as ClassifiedLine["method"],
+        ambiguous: finalAmbiguous,
+        matchedClasses: core.matchedClasses,
+        sectionCls,
       });
     }
 
-    console.log(`[DineroPDF] Classified ${classified.length} detail lines, ${ambiguousCount} ambiguous`);
+    console.log(`[DineroPDF] Classified ${classified.length} detail lines, ${sectionFallbackCount} via section, ${ambiguousCount} ambiguous`);
 
     if (classified.length < 3) {
       return { success: false, error: `Only ${classified.length} classifiable lines (minimum 3)` };
