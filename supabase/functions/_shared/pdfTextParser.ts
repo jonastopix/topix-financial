@@ -296,12 +296,16 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       if (name && name.length > 1) {
         const periodVal = parseDanishNumber(nums[0]);
         const ytdVal = nums.length >= 2 ? parseDanishNumber(nums[1]) : null;
+        // Subtotal detection: lines with account numbers are detail lines.
+        // Lines WITHOUT account numbers: use name-based detection only.
+        // Missing account number does NOT imply subtotal — Dinero PDFs often lack account numbers.
+        const subtotal = isSubtotalName(name);
         lines.push({
           account_no: accountNo,
           name,
           period_amount: periodVal,
           ytd_amount: ytdVal,
-          is_subtotal: !accountNo || isSubtotalName(name),
+          is_subtotal: subtotal,
           section: currentSection,
         });
       }
