@@ -20,6 +20,7 @@ export interface DeterministicMeta {
   parser_validation_errors: string[];
   raw_line_count: number;
   normalized_line_count: number;
+  column_basis_rule?: "single" | "mixed";
 }
 
 // ── Canonical Metrics (English names, all nullable) ──
