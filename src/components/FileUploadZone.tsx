@@ -189,6 +189,7 @@ const FileUploadZone = ({
     pendingFile: File | null;
     pendingFileContent: string;
     pendingPageImages?: string[];
+    pendingExcelBase64?: string;
     pendingReportId: string;
     pendingFileId: string;
   }>({ open: false, period: "", pendingFile: null, pendingFileContent: "", pendingReportId: "", pendingFileId: "" });
