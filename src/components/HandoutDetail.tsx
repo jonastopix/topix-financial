@@ -167,6 +167,8 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
     if (!handoutId || !isOwner) return;
     const newStatus = isCompleted ? "in_progress" : "completed";
     const update: Record<string, any> = { status: newStatus };
+    // Always set a fresh completed_at so the UNIQUE(handout_id, completed_at)
+    // idempotency key works correctly on uncomplete → re-complete cycles.
     if (newStatus === "completed") update.completed_at = new Date().toISOString();
     else update.completed_at = null;
 
@@ -177,17 +179,9 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
       setHandoutStatus(newStatus);
       toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
 
-      // Create advisor notification when handout is completed
-      if (newStatus === "completed" && companyId && effectiveUserId) {
-        await createAdvisorNotification({
-          type: "handout_completed",
-          title: `Handout udfyldt: ${config.title}`,
-          body: `${companyName || "Medlem"} har udfyldt handout "${config.title}"`,
-          companyId,
-          memberId: effectiveUserId,
-          referenceId: handoutId || undefined,
-          referenceType: "handout",
-        });
+      // Server-side notification (Slack + advisor_notifications) — fire-and-forget
+      if (newStatus === "completed") {
+        notifyHandoutCompleted(handoutId);
       }
     }
   };

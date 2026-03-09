@@ -21,11 +21,23 @@ interface HandoutSummary {
 
 const Handouts = () => {
   const { user, companyId, isAdvisor } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
     moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Deep-link support: ?module=bogholderi opens that handout directly
+  useEffect(() => {
+    const moduleParam = searchParams.get("module") as HandoutModule | null;
+    if (moduleParam && moduleOrder.includes(moduleParam)) {
+      setActiveModule(moduleParam);
+      // Clear param so back navigation works cleanly
+      setSearchParams({}, { replace: true });
+    }
+  }, []); // only on mount
+
   // Navigation reset: when sidebar is clicked while on this page, go back to list
   const resetKey = useNavigationReset();
   useEffect(() => {
