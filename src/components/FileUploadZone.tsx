@@ -518,51 +518,7 @@ const FileUploadZone = ({
           }
         }
 
-        // === STEP 5: Post compact report summary to chat (skip in admin mode) ===
-        if (!adminMode && conversationId && userId) {
-          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          const kf = extractedData.key_figures || {};
-          const fmt = (v: number | undefined) => v != null ? new Intl.NumberFormat("da-DK").format(Math.round(v)) + " kr." : "–";
-
-          const lines: string[] = [];
-          lines.push(`📊 ${reportLabel} · ${extractedData.report_period}`);
-          lines.push(`Omsætning: ${fmt(kf.omsaetning)} | Udgifter: ${fmt(kf.samlede_omkostninger)} | Resultat: ${fmt(kf.resultat_foer_skat)}`);
-
-          // Add top key findings (titles only, max 3)
-          if (analysis && !analysis.error && analysis.key_findings?.length > 0) {
-            const findingTitles = analysis.key_findings.slice(0, 3).map((f: any) => {
-              const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-              return `${icon} ${f.title}`;
-            });
-            lines.push(findingTitles.join(" · "));
-          }
-
-          // Build context_meta with key figures and file_path for the chat card
-          const storagePath = reportRecord.file_path || null;
-          const contextMeta: Record<string, unknown> = {
-            title: `${reportLabel} · ${extractedData.report_period}`,
-            file_path: storagePath,
-            key_figures: {
-              omsaetning: kf.omsaetning,
-              samlede_omkostninger: kf.samlede_omkostninger,
-              resultat_foer_skat: kf.resultat_foer_skat,
-              bruttofortjeneste: kf.bruttofortjeneste,
-            },
-            key_findings: analysis?.key_findings?.slice(0, 3)?.map((f: any) => ({
-              title: f.title,
-              severity: f.severity,
-            })) || [],
-          };
-
-          await postActivityMessage({
-            conversationId,
-            senderId: userId,
-            content: lines.join("\n"),
-            contextType: "report",
-            contextId: reportRecord.id,
-            contextMeta,
-          });
-        }
+        // AI analysis is saved to DB only — NOT posted to chat
 
         // === DONE ===
         updateFile(fileId, { status: "done", milestonesCreated });
