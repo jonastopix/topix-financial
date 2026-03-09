@@ -1205,6 +1205,7 @@ const Chat = () => {
                           </div>
                         )}
                       </div>
+                      </React.Fragment>
                     );
                   })}
                   <div ref={messagesEndRef} />
