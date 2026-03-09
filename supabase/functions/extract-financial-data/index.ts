@@ -724,6 +724,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         processed_at: new Date().toISOString(),
         status: "processed",
         extraction_method: extractionMethod,
+        // Always set validation fields (for both AI and deterministic)
+        validation_status: finalStatus,
+        validation_errors: allErrors.length > 0 ? allErrors : null,
       };
 
       // Add parser-specific data if deterministic parsing was used
@@ -739,8 +742,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           normalized_lines: parsedReport.normalized_lines,
           metrics: parsedReport.metrics,
         };
-        updatePayload.validation_status = parsedReport.validation.validation_status;
-        updatePayload.validation_errors = parsedReport.validation.validation_errors;
+      } else {
+        // AI extraction: capture raw AI output vs. post-processed data
+        updatePayload.raw_extracted_data = rawAiOutput; // Pre-processing snapshot
+        updatePayload.normalized_data = extractedData;  // Post-processing snapshot
       }
 
       const { error: updateError } = await supabase
