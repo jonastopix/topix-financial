@@ -98,9 +98,14 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
   let hasAktiver = false;
   let hasPassiver = false;
 
+  let prDateMatched = false; // explicit flag for point-in-time "pr." dates
+
   for (const rawLine of textLines) {
     const line = rawLine.trim();
     if (!line) continue;
+
+    // ── Skip fetch/export timestamps (never a report date) ──
+    if (/^Hentet:/i.test(line)) continue;
 
     // ── e-conomic footer ──
     if (line.includes("secure.e-conomic.com")) {
