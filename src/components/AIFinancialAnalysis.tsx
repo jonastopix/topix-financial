@@ -54,6 +54,7 @@ interface ReportWithAnalysis {
   uploaded_at: string;
   status: string;
   validation_status?: string | null;
+  extraction_method?: string | null;
 }
 
 const severityConfig = {
