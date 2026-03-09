@@ -464,41 +464,42 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       throw new Error(`AI error: ${response.status}`);
     }
 
-    const aiResult = await response.json();
-    const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+      const aiResult = await response.json();
+      const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
 
-    if (!toolCall) {
-      throw new Error("AI returned no tool call");
-    }
-
-    const extractedData = JSON.parse(toolCall.function.arguments);
-    
-    // Capture raw AI output BEFORE any post-processing (for audit trail)
-    const rawAiOutput = JSON.parse(JSON.stringify(extractedData));
-
-    // Override company name if provided by caller (prevents AI hallucination)
-    if (knownCompanyName) {
-      console.log(`Overriding AI company_name "${extractedData.company_name}" with known: "${knownCompanyName}"`);
-      extractedData.company_name = knownCompanyName;
-    }
-
-    // Server-side period extraction from document text (prevents AI hallucination)
-    if (fileContent) {
-      const periodFromText = extractPeriodFromText(fileContent);
-      if (periodFromText && periodFromText !== extractedData.report_period) {
-        console.log(`Overriding AI report_period "${extractedData.report_period}" with parsed: "${periodFromText}"`);
-        extractedData.report_period = periodFromText;
+      if (!toolCall) {
+        throw new Error("AI returned no tool call");
       }
-      const cvrFromText = extractCvrFromText(fileContent);
-      if (cvrFromText && cvrFromText !== extractedData.cvr_number) {
-        console.log(`Overriding AI cvr_number "${extractedData.cvr_number}" with parsed: "${cvrFromText}"`);
-        extractedData.cvr_number = cvrFromText;
-      }
-    }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // CANONICAL ACCOUNTING ENGINE (Phase 3): buildCanonicalOutput
-    // ═══════════════════════════════════════════════════════════════════════
+      extractedData = JSON.parse(toolCall.function.arguments);
+      
+      // Capture raw AI output BEFORE any post-processing (for audit trail)
+      rawAiOutput = JSON.parse(JSON.stringify(extractedData));
+
+      // Override company name if provided by caller (prevents AI hallucination)
+      if (knownCompanyName) {
+        console.log(`Overriding AI company_name "${extractedData.company_name}" with known: "${knownCompanyName}"`);
+        extractedData.company_name = knownCompanyName;
+      }
+
+      // Server-side period extraction from document text (prevents AI hallucination)
+      if (fileContent) {
+        const periodFromText = extractPeriodFromText(fileContent);
+        if (periodFromText && periodFromText !== extractedData.report_period) {
+          console.log(`Overriding AI report_period "${extractedData.report_period}" with parsed: "${periodFromText}"`);
+          extractedData.report_period = periodFromText;
+        }
+        const cvrFromText = extractCvrFromText(fileContent);
+        if (cvrFromText && cvrFromText !== extractedData.cvr_number) {
+          console.log(`Overriding AI cvr_number "${extractedData.cvr_number}" with parsed: "${cvrFromText}"`);
+          extractedData.cvr_number = cvrFromText;
+        }
+      }
+    }  // End AI extraction block
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CANONICAL ENGINE — ONE CALL FOR BOTH PATHS
+    // ═══════════════════════════════════════════════════════════════════════════
     const canonical = buildCanonicalOutput(extractedData, rawAiOutput, extractionMethod);
     const finalStatus = canonical.validation.status;
     const allErrors = canonical.validation.canonical_checks
