@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
-import { createAdvisorNotification } from "@/lib/advisorNotifications";
+import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
 import * as pdfjsLib from "pdfjs-dist";
 import * as XLSX from "xlsx";
