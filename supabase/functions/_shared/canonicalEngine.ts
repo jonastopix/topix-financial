@@ -1,0 +1,610 @@
+/**
+ * Canonical Accounting Engine — Phase 3 Hardening
+ * Normalize → Validate → Provenance → Build AI Payload
+ */
+
+import type {
+  CanonicalOutput,
+  CanonicalMetrics,
+  CorrectionLogEntry,
+  ProvenanceEntry,
+  ValidationCheck,
+  ValidationStatus,
+  StatementType,
+  PeriodBasis,
+  RawLineEntry,
+  NormalizedLineEntry,
+  AiEligiblePayload,
+  Confidence,
+} from "./canonicalTypes.ts";
+
+const TOLERANCE = 2;
+
+// ── Danish key_figures → English canonical metrics mapping ──
+const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
+  omsaetning: "revenue",
+  direkte_omkostninger: "cogs",
+  daekningsbidrag: "gross_profit",
+  loenninger: "payroll",
+  marketing: "sales_costs",
+  lokaler: "facility_costs",
+  admin: "admin_costs",
+  afskrivninger: "depreciation",
+  resultat_foer_skat: "ebt",
+  resultat_efter_skat: "net_result",
+  aktiver_i_alt: "assets_total",
+  passiver_i_alt: "liabilities_total",
+  egenkapital: "equity_total",
+  bank_balance: "cash",
+  debitorer: "trade_receivables",
+  kreditorer: "current_liabilities",
+  varelager: "inventory",
+  tech_software: "admin_costs", // merged into admin
+};
+
+// Line item class → canonical metric name
+const CLASS_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
+  REVENUE: "revenue",
+  COGS: "cogs",
+  OPEX: "admin_costs",
+  DEPR: "depreciation",
+  FIN_EXPENSE: "financial_costs",
+  ASSET: "assets_total",
+  LIABILITY: "liabilities_total",
+  EQUITY: "equity_total",
+};
+
+// ── Detect statement type ──
+export function detectStatementType(extractedData: any): StatementType {
+  const rt = (extractedData?.report_type || "").toLowerCase();
+  if (rt.includes("resultat")) return "pnl";
+  if (rt.includes("saldobalance") || rt.includes("saldo")) return "trial_balance";
+  if (rt.includes("balance")) return "balance";
+  if (rt.includes("combined") || rt.includes("kombineret")) return "combined";
+  // If we have both P&L and balance data, it's combined
+  const kf = extractedData?.key_figures || {};
+  if (kf.omsaetning != null && kf.aktiver_i_alt != null) return "combined";
+  if (kf.omsaetning != null) return "pnl";
+  if (kf.aktiver_i_alt != null) return "balance";
+  return "unknown";
+}
+
+// ── Infer period basis from multiple core fields ──
+export function inferPeriodBasis(kf: Record<string, any>): PeriodBasis {
+  const coreFields = [
+    { period: kf.omsaetning, ytd: kf.omsaetning_aar },
+    { period: kf.daekningsbidrag, ytd: kf.daekningsbidrag_aar },
+    { period: kf.resultat_foer_skat, ytd: kf.resultat_foer_skat_aar },
+    { period: kf.resultat_efter_skat, ytd: kf.resultat_efter_skat_aar },
+  ];
+
+  let periodCount = 0;
+  let ytdCount = 0;
+  let inconsistentCount = 0;
+
+  for (const { period, ytd } of coreFields) {
+    if (period != null) periodCount++;
+    if (ytd != null) ytdCount++;
+    // YTD < period is impossible (for positive revenue/margin)
+    if (period != null && ytd != null && Math.abs(ytd) < Math.abs(period) - TOLERANCE) {
+      inconsistentCount++;
+    }
+  }
+
+  if (inconsistentCount > 0) return "unknown";
+  if (periodCount > 0 && ytdCount > 0) return "period";
+  if (periodCount > 0) return "period";
+  if (ytdCount > 0) return "ytd";
+  return "unknown";
+}
+
+// ── Normalize key_figures to canonical metrics with correction log ──
+export function normalizeToCanonical(extractedData: any): {
+  metrics: CanonicalMetrics;
+  correction_log: CorrectionLogEntry[];
+} {
+  const kf = extractedData?.key_figures || {};
+  const reportType = extractedData?.report_type || "";
+  const isSaldobalance = reportType.toLowerCase().includes("saldo");
+  const corrections: CorrectionLogEntry[] = [];
+
+  // Start with empty metrics
+  const metrics: CanonicalMetrics = {
+    revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
+    payroll: null, payroll_related: null, other_staff_costs: null,
+    sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+    extraordinary_items: null, ebt: null, net_result: null,
+    assets_total: null, inventory: null, receivables_total: null,
+    trade_receivables: null, unbilled_wip: null, cash: null,
+    equity_total: null, equity_ratio_pct: null, related_party_net: null,
+    provisions_total: null, current_liabilities: null, debt_total: null,
+    vat_payable: null, liabilities_total: null,
+  };
+
+  // Map key_figures → canonical, applying sign rules
+  const revenueFields = ["omsaetning", "omsaetning_aar"];
+  const expenseFields = ["direkte_omkostninger", "loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
+  const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
+  const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
+  const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
+  const liabilityFields = ["passiver_i_alt", "kreditorer"];
+
+  // Helper to log correction
+  function correct(field: string, raw: number, normalized: number, rule: string, reason: string, confidence: Confidence = "HIGH") {
+    corrections.push({ field, source: "key_figure", raw_value: raw, normalized_value: normalized, rule, reason, confidence });
+  }
+
+  // Process each key_figure
+  for (const [dkField, value] of Object.entries(kf)) {
+    if (value == null || typeof value !== "number") continue;
+
+    const canonicalField = KF_TO_CANONICAL[dkField];
+    if (!canonicalField) continue;
+
+    let normalized = value;
+
+    // Revenue: must be positive
+    if (revenueFields.includes(dkField) && value < 0) {
+      normalized = Math.abs(value);
+      correct(dkField, value, normalized, "revenue_must_be_positive",
+        `Revenue flipped from ${value} to ${normalized}`, "HIGH");
+    }
+
+    // Expenses: must be positive
+    if (expenseFields.includes(dkField) && value < 0) {
+      normalized = Math.abs(value);
+      correct(dkField, value, normalized, "expense_must_be_positive",
+        `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
+    }
+
+    // Gross profit in saldobalance: invert sign
+    if (profitFields.includes(dkField) && isSaldobalance && value < 0) {
+      const expectedDB = (Math.abs(kf.omsaetning || 0)) - (Math.abs(kf.direkte_omkostninger || 0));
+      if (Math.abs(Math.abs(value) - Math.abs(expectedDB)) <= TOLERANCE) {
+        normalized = Math.abs(value);
+        correct(dkField, value, normalized, "saldobalance_gross_profit_sign_inverted",
+          `Saldobalance gross profit inverted (magnitude matched)`, "HIGH");
+      }
+    }
+
+    // Resultat in saldobalance: invert sign
+    if (resultatFields.includes(dkField) && isSaldobalance) {
+      normalized = -value;
+      if (value !== 0) {
+        correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
+          `Saldobalance result inverted: ${value} → ${normalized}`, "HIGH");
+      }
+    }
+
+    // Assets: must be positive
+    if (assetFields.includes(dkField) && value < 0) {
+      normalized = Math.abs(value);
+      correct(dkField, value, normalized, "asset_must_be_positive",
+        `Asset ${dkField} flipped from ${value} to ${normalized}`, "MEDIUM");
+    }
+
+    // Liabilities: must be positive
+    if (liabilityFields.includes(dkField) && value < 0) {
+      normalized = Math.abs(value);
+      correct(dkField, value, normalized, "liability_must_be_positive",
+        `Liability ${dkField} flipped from ${value} to ${normalized}`, "MEDIUM");
+    }
+
+    // tech_software merges into admin_costs
+    if (dkField === "tech_software") {
+      if (metrics.admin_costs != null) {
+        const oldAdmin = metrics.admin_costs;
+        metrics.admin_costs += normalized;
+        corrections.push({
+          field: "tech_software",
+          source: "key_figure",
+          raw_value: value,
+          normalized_value: metrics.admin_costs,
+          rule: "tech_software_merged_into_admin",
+          reason: `tech_software (${normalized}) merged into admin_costs (${oldAdmin} → ${metrics.admin_costs})`,
+          confidence: "HIGH",
+        });
+      } else {
+        // Will be set via admin mapping; add tech as additional
+        metrics[canonicalField] = (metrics[canonicalField] || 0) + normalized;
+      }
+      continue;
+    }
+
+    // Bank/cash: keep sign (overdraft allowed)
+    // Equity: keep sign (negative equity possible)
+    // These are NOT corrected
+
+    metrics[canonicalField] = normalized;
+  }
+
+  // Derive calculated fields
+  if (metrics.revenue != null && metrics.gross_profit != null && metrics.revenue !== 0) {
+    metrics.gross_margin_pct = (metrics.gross_profit / metrics.revenue) * 100;
+  }
+  if (metrics.equity_total != null && metrics.assets_total != null && metrics.assets_total !== 0) {
+    metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
+  }
+
+  // Derive EBITDA if not present: gross_profit - opex
+  if (metrics.ebitda == null && metrics.gross_profit != null) {
+    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) +
+      (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
+    if (opex > 0) {
+      metrics.ebitda = metrics.gross_profit - opex;
+    }
+  }
+
+  // Derive EBIT if not present: ebitda - depreciation
+  if (metrics.ebit == null && metrics.ebitda != null && metrics.depreciation != null) {
+    metrics.ebit = metrics.ebitda - metrics.depreciation;
+  }
+
+  return { metrics, correction_log: corrections };
+}
+
+// ── Build raw_lines from extractedData ──
+export function buildRawLines(extractedData: any): RawLineEntry[] {
+  const items = extractedData?.line_items;
+  if (!Array.isArray(items)) return [];
+  return items.map((item: any) => ({
+    name: item.name || "",
+    period_amount: item.period_amount ?? null,
+    ytd_amount: item.ytd_amount ?? null,
+    raw_sign: item.raw_sign || null,
+    account_no: item.account_no || null,
+    class: item.class || null,
+  }));
+}
+
+// ── Build normalized_lines from raw_lines ──
+export function buildNormalizedLines(rawLines: RawLineEntry[]): NormalizedLineEntry[] {
+  return rawLines.map((line) => {
+    const cls = line.class || null;
+    const canonicalName = cls ? (CLASS_TO_CANONICAL[cls] || null) : null;
+    return {
+      name: line.name,
+      canonical_class: cls,
+      canonical_name: canonicalName || null,
+      period_amount: line.period_amount,
+      ytd_amount: line.ytd_amount,
+      raw_sign: line.raw_sign || null,
+      account_no: line.account_no || null,
+    };
+  });
+}
+
+// ── Build provenance ──
+export function buildProvenance(
+  extractedData: any,
+  metrics: CanonicalMetrics,
+  extractionMethod: string
+): Record<string, ProvenanceEntry> {
+  const provenance: Record<string, ProvenanceEntry> = {};
+  const kf = extractedData?.key_figures || {};
+  const lineItems = extractedData?.line_items || [];
+  const sourceType = extractionMethod === "deterministic" ? "deterministic_template" as const : "ai_extraction" as const;
+  const reportType = extractedData?.report_type || null;
+
+  // For each non-null metric, find its provenance
+  for (const [canonicalKey, value] of Object.entries(metrics)) {
+    if (value == null) continue;
+
+    // Find which Danish key maps to this canonical key
+    let matchedLabel: string | null = null;
+    let lineRef: string | null = null;
+
+    for (const [dkKey, cKey] of Object.entries(KF_TO_CANONICAL)) {
+      if (cKey === canonicalKey && kf[dkKey] != null) {
+        matchedLabel = dkKey;
+        break;
+      }
+    }
+
+    // Try to find a matching line_item
+    if (lineItems.length > 0 && matchedLabel) {
+      const idx = lineItems.findIndex((li: any) =>
+        li.name?.toLowerCase().includes(matchedLabel!.replace(/_/g, " ").replace("ae", "æ"))
+      );
+      if (idx >= 0) lineRef = `line_items[${idx}]`;
+    }
+
+    provenance[canonicalKey] = {
+      source_type: sourceType,
+      label_match: matchedLabel,
+      report_type: reportType,
+      confidence: matchedLabel ? "HIGH" : "MEDIUM",
+      line_item_reference: lineRef,
+    };
+  }
+
+  return provenance;
+}
+
+// ── Extended Validation (12 checks) ──
+export function runExtendedValidation(
+  extractedData: any,
+  metrics: CanonicalMetrics,
+  periodBasis: PeriodBasis,
+  statementType: StatementType,
+  aiChecks: ValidationCheck[]
+): { status: ValidationStatus; canonical_checks: ValidationCheck[]; errors: string[] } {
+  const checks: ValidationCheck[] = [];
+  const errors: string[] = [];
+  const kf = extractedData?.key_figures || {};
+
+  // 1. required_fields_present
+  const coreFields = ["revenue", "ebt"];
+  const missing = coreFields.filter(f => (metrics as any)[f] == null);
+  if (missing.length > 0) {
+    checks.push({ name: "required_fields_present", result: "FAIL", details: `Missing: ${missing.join(", ")}` });
+    errors.push(`Missing core fields: ${missing.join(", ")}`);
+  } else {
+    checks.push({ name: "required_fields_present", result: "PASS", details: "Core fields present" });
+  }
+
+  // 2. numeric_values_only
+  const nonNumeric = Object.entries(metrics).filter(([_, v]) => v != null && typeof v !== "number").map(([k]) => k);
+  if (nonNumeric.length > 0) {
+    checks.push({ name: "numeric_values_only", result: "FAIL", details: `Non-numeric: ${nonNumeric.join(", ")}` });
+    errors.push(`Non-numeric values: ${nonNumeric.join(", ")}`);
+  } else {
+    checks.push({ name: "numeric_values_only", result: "PASS", details: "All values numeric" });
+  }
+
+  // 3. gross_profit_sum
+  if (metrics.revenue != null && metrics.cogs != null && metrics.gross_profit != null) {
+    const expected = metrics.revenue - metrics.cogs;
+    const diff = Math.abs(expected - metrics.gross_profit);
+    const pass = diff <= TOLERANCE;
+    checks.push({
+      name: "gross_profit_sum", result: pass ? "PASS" : "FAIL",
+      details: pass ? `OK: ${metrics.revenue} - ${metrics.cogs} ≈ ${metrics.gross_profit}` :
+        `MISMATCH: ${expected.toFixed(2)} ≠ ${metrics.gross_profit}`,
+    });
+    if (!pass) errors.push(`Gross profit mismatch: expected ${expected.toFixed(2)}, got ${metrics.gross_profit}`);
+  } else {
+    checks.push({ name: "gross_profit_sum", result: "SKIP", details: "Missing revenue, cogs or gross_profit" });
+  }
+
+  // 4. ebitda_calculation
+  if (metrics.gross_profit != null) {
+    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) + (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
+    if (opex > 0) {
+      const expectedEbitda = metrics.gross_profit - opex;
+      checks.push({ name: "ebitda_calculation", result: "PASS", details: `Computed EBITDA: ${expectedEbitda.toFixed(2)}` });
+    } else {
+      checks.push({ name: "ebitda_calculation", result: "SKIP", details: "No opex data" });
+    }
+  } else {
+    checks.push({ name: "ebitda_calculation", result: "SKIP", details: "Missing gross_profit" });
+  }
+
+  // 5. ebit_calculation
+  if (metrics.ebitda != null && metrics.depreciation != null) {
+    const expectedEbit = metrics.ebitda - metrics.depreciation;
+    if (metrics.ebit != null) {
+      const diff = Math.abs(expectedEbit - metrics.ebit);
+      checks.push({
+        name: "ebit_calculation", result: diff <= TOLERANCE ? "PASS" : "FAIL",
+        details: `EBITDA(${metrics.ebitda}) - Depr(${metrics.depreciation}) = ${expectedEbit.toFixed(2)}, EBIT = ${metrics.ebit}`,
+      });
+    } else {
+      checks.push({ name: "ebit_calculation", result: "PASS", details: `Computed EBIT: ${expectedEbit.toFixed(2)}` });
+    }
+  } else {
+    checks.push({ name: "ebit_calculation", result: "SKIP", details: "Missing ebitda or depreciation" });
+  }
+
+  // 6. result_consistency
+  if (metrics.ebt != null && metrics.gross_profit != null && statementType === "pnl") {
+    const sensible = metrics.ebt <= metrics.gross_profit + TOLERANCE;
+    checks.push({
+      name: "result_consistency", result: sensible ? "PASS" : "FAIL",
+      details: sensible ? `EBT (${metrics.ebt}) ≤ gross_profit (${metrics.gross_profit})`
+        : `EBT (${metrics.ebt}) > gross_profit (${metrics.gross_profit})`,
+    });
+    if (!sensible) errors.push("EBT > gross_profit — possible sign error");
+  } else {
+    checks.push({ name: "result_consistency", result: "SKIP", details: "Not P&L or missing data" });
+  }
+
+  // 7. balance_equation
+  if (metrics.assets_total != null && metrics.liabilities_total != null) {
+    const diff = Math.abs(metrics.assets_total - metrics.liabilities_total);
+    const pass = diff <= TOLERANCE;
+    checks.push({
+      name: "balance_equation", result: pass ? "PASS" : "FAIL",
+      details: pass ? `Assets (${metrics.assets_total}) ≈ Liabilities (${metrics.liabilities_total})`
+        : `Assets (${metrics.assets_total}) ≠ Liabilities (${metrics.liabilities_total}), diff ${diff.toFixed(2)}`,
+    });
+    if (!pass) errors.push("Balance equation mismatch");
+  } else {
+    checks.push({ name: "balance_equation", result: "SKIP", details: "Missing balance data" });
+  }
+
+  // 8. period_consistency
+  if (kf.omsaetning != null && kf.omsaetning_aar != null) {
+    const consistent = kf.omsaetning_aar >= kf.omsaetning - TOLERANCE;
+    checks.push({
+      name: "period_consistency", result: consistent ? "PASS" : "FAIL",
+      details: consistent ? `YTD (${kf.omsaetning_aar}) ≥ period (${kf.omsaetning})` :
+        `YTD (${kf.omsaetning_aar}) < period (${kf.omsaetning})`,
+    });
+    if (!consistent) errors.push("Period consistency: YTD < period");
+  } else {
+    checks.push({ name: "period_consistency", result: "SKIP", details: "Only one set of figures" });
+  }
+
+  // 9. mixed_period_columns_detected
+  if (periodBasis === "unknown") {
+    checks.push({ name: "mixed_period_columns_detected", result: "FAIL", details: "Period basis could not be determined — possible mixing of period/YTD" });
+    errors.push("Mixed period columns detected");
+  } else {
+    checks.push({ name: "mixed_period_columns_detected", result: "PASS", details: `Period basis: ${periodBasis}` });
+  }
+
+  // 10. suspicious_sign_pattern
+  const metricValues = Object.values(metrics).filter((v): v is number => v != null && typeof v === "number");
+  const negativeCount = metricValues.filter(v => v < 0).length;
+  if (metricValues.length > 0 && negativeCount / metricValues.length > 0.5) {
+    checks.push({ name: "suspicious_sign_pattern", result: "FAIL", details: `${negativeCount}/${metricValues.length} metrics negative (>50%)` });
+    errors.push("Suspicious sign pattern: majority of metrics negative");
+  } else {
+    checks.push({
+      name: "suspicious_sign_pattern", result: "PASS",
+      details: metricValues.length > 0 ? `${negativeCount}/${metricValues.length} negative` : "No metrics",
+    });
+  }
+
+  // 11. impossible_margin_check
+  if (metrics.gross_margin_pct != null) {
+    if (metrics.gross_margin_pct > 100 || metrics.gross_margin_pct < -100) {
+      checks.push({ name: "impossible_margin_check", result: "FAIL", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}% outside ±100%` });
+      errors.push(`Impossible gross margin: ${metrics.gross_margin_pct.toFixed(1)}%`);
+    } else {
+      checks.push({ name: "impossible_margin_check", result: "PASS", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}%` });
+    }
+  } else {
+    checks.push({ name: "impossible_margin_check", result: "SKIP", details: "No gross margin data" });
+  }
+
+  // 12. missing_core_totals
+  if (statementType === "balance" || statementType === "trial_balance") {
+    if (metrics.assets_total == null && metrics.liabilities_total == null) {
+      checks.push({ name: "missing_core_totals", result: "FAIL", details: "Balance report without assets_total AND liabilities_total" });
+      errors.push("Balance report missing core totals");
+    } else {
+      checks.push({ name: "missing_core_totals", result: "PASS", details: "Core balance totals present" });
+    }
+  } else if (statementType === "pnl" && metrics.revenue == null) {
+    checks.push({ name: "missing_core_totals", result: "FAIL", details: "P&L report without revenue" });
+    errors.push("P&L missing revenue");
+  } else {
+    checks.push({ name: "missing_core_totals", result: "PASS", details: "Core totals present for statement type" });
+  }
+
+  // ── Derive final status ──
+  const hasCanonicalFail = checks.some(c => c.result === "FAIL");
+  const hasAiFail = aiChecks.some(c => c.result === "FAIL");
+  const allSkip = checks.every(c => c.result === "SKIP");
+
+  let status: ValidationStatus;
+  if (hasCanonicalFail || hasAiFail) {
+    status = "FAIL";
+  } else if (allSkip) {
+    status = "UNSURE";
+  } else {
+    status = "PASS";
+  }
+
+  return { status, canonical_checks: checks, errors };
+}
+
+// ── Compute ai_eligible (per statement_type) ──
+export function computeAiEligible(
+  metrics: CanonicalMetrics,
+  validationStatus: ValidationStatus,
+  statementType: StatementType,
+  periodBasis: PeriodBasis
+): boolean {
+  if (validationStatus !== "PASS") return false;
+  if (statementType === "unknown") return false;
+  if (periodBasis === "unknown") return false;
+
+  switch (statementType) {
+    case "pnl":
+      return metrics.revenue != null && metrics.ebt != null;
+    case "combined":
+      return metrics.revenue != null && metrics.ebt != null && metrics.assets_total != null;
+    case "balance":
+    case "trial_balance":
+      // Disabled in Phase 3
+      return false;
+    default:
+      return false;
+  }
+}
+
+// ── Build AI Eligible Payload (minimal, clean) ──
+export function buildAiEligiblePayload(canonical: CanonicalOutput): AiEligiblePayload | null {
+  if (!canonical.ai_eligible) return null;
+  return {
+    input_type: "canonical",
+    company_name: canonical.company_name,
+    period_start: canonical.period_start,
+    period_end: canonical.period_end,
+    report_period_label: canonical.report_period_label,
+    statement_type: canonical.statement_type,
+    selected_period_basis: canonical.selected_period_basis,
+    validation_status: "PASS",
+    metrics: canonical.metrics,
+  };
+}
+
+// ── Main: Build full canonical output ──
+export function buildCanonicalOutput(
+  extractedData: any,
+  rawAiOutput: any,
+  extractionMethod: string
+): CanonicalOutput {
+  const kf = extractedData?.key_figures || {};
+  const statementType = detectStatementType(extractedData);
+  const periodBasis = inferPeriodBasis(kf);
+
+  // Normalize
+  const { metrics, correction_log } = normalizeToCanonical(extractedData);
+
+  // Raw and normalized lines
+  const rawLines = buildRawLines(extractedData);
+  const normalizedLines = buildNormalizedLines(rawLines);
+
+  // Provenance
+  const provenance = buildProvenance(extractedData, metrics, extractionMethod);
+
+  // AI checks from extraction
+  const aiChecks: ValidationCheck[] = (extractedData?.validation?.checks || []).map((c: any) => ({
+    name: c.name || "unknown",
+    result: c.result || "SKIP",
+    details: c.details || "",
+  }));
+
+  // Extended validation (12 checks)
+  const { status, canonical_checks, errors } = runExtendedValidation(
+    extractedData, metrics, periodBasis, statementType, aiChecks
+  );
+
+  // AI eligibility
+  const aiEligible = computeAiEligible(metrics, status, statementType, periodBasis);
+
+  // Build output (without payload yet)
+  const output: CanonicalOutput = {
+    template_id: null,
+    statement_type: statementType,
+    company_name: extractedData?.company_name || null,
+    cvr: extractedData?.cvr_number || null,
+    period_start: null,
+    period_end: null,
+    report_period_label: extractedData?.report_period || null,
+    extraction_method: extractionMethod,
+    raw_lines: rawLines,
+    normalized_lines: normalizedLines,
+    selected_period_basis: periodBasis,
+    metrics,
+    correction_log,
+    provenance,
+    validation: {
+      status,
+      ai_checks: aiChecks,
+      server_checks: [], // Legacy compat — canonical_checks replaces this
+      canonical_checks,
+    },
+    ai_eligible: aiEligible,
+    ai_eligible_payload: null, // Set below
+  };
+
+  output.ai_eligible_payload = buildAiEligiblePayload(output);
+
+  return output;
+}

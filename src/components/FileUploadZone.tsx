@@ -405,23 +405,45 @@ const FileUploadZone = ({
 
         // Fetch historical reports for trend analysis
         const historicalQuery = companyId
-          ? (supabase.from("financial_reports").select("extracted_data, report_period") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12)
-          : supabase.from("financial_reports").select("extracted_data, report_period").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12);
+          ? (supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12)
+          : supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12);
         const { data: historicalReports } = await historicalQuery;
 
-        const historicalData = (historicalReports || [])
-          .filter((r) => r.extracted_data)
-          .map((r) => {
-            const ed = r.extracted_data as any;
-            return { period: r.report_period || ed?.report_period, ...ed?.key_figures };
-          });
+        // Determine if current report uses canonical path
+        const currentCanonical = extractedData.canonical;
+        const isCanonicalReport = currentCanonical?.ai_eligible === true && currentCanonical?.ai_eligible_payload;
+
+        // Build historical data based on path
+        let historicalCanonical: any[] | undefined;
+        let historicalData: any[] | undefined;
+
+        if (isCanonicalReport) {
+          // CANONICAL PATH: only PASS + ai_eligible historical reports
+          historicalCanonical = (historicalReports || [])
+            .filter((r: any) => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
+            .map((r: any) => ({
+              period: r.report_period,
+              ...(r.normalized_data as any)?.metrics,
+              _source: "canonical",
+            }));
+        } else {
+          // LEGACY PATH: only non-canonical historical reports
+          historicalData = (historicalReports || [])
+            .filter((r: any) => r.extracted_data)
+            .map((r: any) => {
+              const ed = r.extracted_data as any;
+              return { period: r.report_period || ed?.report_period, ...ed?.key_figures };
+            });
+        }
 
         const { data: analysis, error: aiError } = await supabase.functions.invoke(
           "ai-financial-feedback",
           {
             body: {
-              financialData: extractedData.key_figures,
-              historicalData: historicalData.length > 0 ? historicalData : undefined,
+              canonicalPayload: isCanonicalReport ? currentCanonical.ai_eligible_payload : undefined,
+              historicalCanonical: isCanonicalReport && historicalCanonical && historicalCanonical.length > 0 ? historicalCanonical : undefined,
+              financialData: !isCanonicalReport ? extractedData.key_figures : undefined,
+              historicalData: !isCanonicalReport && historicalData && historicalData.length > 0 ? historicalData : undefined,
               companyContext: {
                 name: companyName || extractedData.company_name,
                 cvr: extractedData.cvr_number,
