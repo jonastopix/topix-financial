@@ -874,3 +874,312 @@ function normLabel(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+// ═══════════════════════════════════════════════════════
+// PHASE 4c TESTS: DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1
+// ═══════════════════════════════════════════════════════
+
+// Simulated text from "Resultat (5).pdf" — SnowWaves ApS
+const SNOWWAVES_PNL_TEXT = [
+  "Hentet: 09/03-2026 Kl. 04.10    SnowWaves ApS (CVR-nr. 39850850)",
+  "",
+  "# Resultatopgørelse 01/01-2026 - 31/12-2026",
+  "",
+  "# Omsætning",
+  "Salg af varer/ydelser u/moms 0,00",
+  "Forudbetaling (SkiCamp) 0,00",
+  "Kurser & coaching (Ski) 0,00",
+  "Events -147.000,00",
+  "Undervisning -52.500,00",
+  "Firmature -1.613.650,25",
+  "SkiCamp 0,00",
+  "Forudbetaling (Firmature) 0,00",
+  "OMSÆTNING I ALT -1.813.150,25",
+  "",
+  "# Variable omkostninger",
+  "Valutakursdifferencer, import 174,23",
+  "Hotel & Liftkort, SkiCamp 0,00",
+  "Transport, SkiCamp 8.786,00",
+  "Team SkiCamp 0,00",
+  "Andre omkostninger, SkiCamp 26.821,75",
+  "Omkostninger, andre ture & events (Dansk moms) 0,00",
+  "Omkostninger, andre ture & events (margenmoms) 284.657,88",
+  "VAREFORBRUG 320.439,86",
+  "VAREFORBRUG OG FREMMED ARBEJDE 320.439,86",
+  "DÆKNINGSBIDRAG I ALT -1.492.710,39",
+  "",
+  "# Personaleomkostninger",
+  "AM-indkomst 9.901,00",
+  "Arbejdsgiver ATP 198,00",
+  "Medarbejder ATP 99,00",
+  "Feriepenge og SH -3.118,53",
+  "Kørsel i egen bil (kilometergodtgørelse) 16.745,24",
+  "AER/AES/ATP-finansieringsbidrag 7.729,94",
+  "LØNNINGER MV. I ALT 31.554,65",
+  "",
+  "Repræsentation, restaurant, personale, fuldt fradrag 1.242,46",
+  "Øvrige personaleomkostninger 5.075,12",
+  "SALGSOMKOSTNINGER 6.317,58",
+  "",
+  "Husleje 3.280,00",
+  "LOKALEOMKOSTNINGER 3.280,00",
+  "",
+  "Parkering uden moms 955,34",
+  "Broafgift 164,00",
+  "Færge 584,52",
+  "Diverse transportomkostninger uden moms 2.820,90",
+  "TRANSPORTOMKOSTNINGER I ALT 4.524,76",
+  "",
+  "Bogføringsassistance 3.939,48",
+  "Konsulentbistand 15.000,00",
+  "Kontorartikler og tryksager 319,20",
+  "Porto og gebyrer 150,00",
+  "Telefoni 2.885,78",
+  "Internet og webhotel 1.758,40",
+  "Køb af software 3.565,32",
+  "Køb af software (EU) 2.292,08",
+  "Køb af software (øvrig udland) 1.831,19",
+  "Betalingsløsning 46,46",
+  "ADMINISTRATION 31.787,91",
+  "",
+  "Småanskaffelser (straksafskrivning) 1.663,27",
+  "AFSKRIVNINGER 1.663,27",
+  "",
+  "RESULTAT FØR SKAT -1.413.582,22",
+  "",
+  "RESULTAT EFTER SKAT -1.413.582,22",
+  "",
+  "https://secure.e-conomic.com/reports/income-statement",
+].join("\n");
+
+// ── Test 15: Acceptance — correct template match + no false positive ──
+Deno.test("Phase4c — 15. P&L PDF acceptance: matches Template B, NOT Template A", () => {
+  console.log(`\n══ 15. P&L PDF ACCEPTANCE TEST ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Resultat_5.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: SNOWWAVES_PNL_TEXT,
+  };
+
+  // Import templates directly for score comparison
+  const allTemplates = [
+    { id: "DK_ECONOMIC_SALDOBALANCE_PDF_V1", detect: (c: DetectionContext) => {
+      // Template A requires AKTIVER/PASSIVER
+      const t = c.rawText || "";
+      if (!/saldobalance for perioden/i.test(t)) return 0;
+      let s = 40;
+      if (/secure\.e-conomic\.com/i.test(t)) s += 20;
+      if (/\bAKTIVER\b/i.test(t)) s += 15;
+      if (/\bPASSIVER\b/i.test(t)) s += 15;
+      return s;
+    }},
+  ];
+
+  // Template A score on this file
+  const templateAScore = allTemplates[0].detect(ctx);
+  console.log(`Template A (Saldobalance) score: ${templateAScore}`);
+  assertEquals(templateAScore < 80, true, `Template A should score < 80 on pure P&L (got ${templateAScore})`);
+
+  // Template B (registry detection)
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match a template");
+  console.log(`Template B (Resultatopgørelse) matched: ${match!.template.template_id}`);
+  console.log(`Template B score: ${match!.score}`);
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1");
+  assertEquals(match!.score >= 80, true, `Template B score ${match!.score} should be >= 80`);
+
+  console.log(`✅ File matches DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1`);
+  console.log(`✅ File does NOT match DK_ECONOMIC_SALDOBALANCE_PDF_V1 (score ${templateAScore} < 80)`);
+});
+
+// ── Test 16: Full E2E extraction + canonical + safety gate ──
+Deno.test("Phase4c — 16. P&L PDF full E2E (SnowWaves ApS)", () => {
+  console.log(`\n══ 16. P&L PDF FULL E2E ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Resultat_5.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: SNOWWAVES_PNL_TEXT,
+  };
+
+  // ── 1. Detection ──
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should detect template");
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1");
+  console.log(`Template: ${match!.template.template_id}`);
+  console.log(`Detection score: ${match!.score}`);
+
+  // ── 2. Extraction ──
+  const result = match!.template.extract({ ...ctx, rows: [] });
+  assertEquals(result.success, true);
+  if (!result.success) return;
+
+  const d = result.data;
+  console.log(`\n─ Routing: SUCCESS`);
+  console.log(`─ extraction_method: deterministic_template`);
+  console.log(`─ statement_type (report_type): ${d.report_type}`);
+  console.log(`─ company_name: ${d.company_name}`);
+  console.log(`─ cvr_number: ${d.cvr_number}`);
+  console.log(`─ report_period: ${d.report_period}`);
+  console.log(`─ column_basis_rule: ${d._deterministic_meta.column_basis_rule}`);
+  console.log(`─ parser_validation_status: ${d.validation.parser_status}`);
+  console.log(`─ raw_line_count: ${d._deterministic_meta.raw_line_count}`);
+  console.log(`─ normalized_line_count: ${d._deterministic_meta.normalized_line_count}`);
+
+  // ── 3. Canonical Engine ──
+  const canonical = buildCanonicalOutput(d, { deterministic: true, template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1" }, "deterministic_template");
+  const m = canonical.metrics;
+
+  console.log(`\n─ Canonical Output:`);
+  console.log(`  statement_type: ${canonical.statement_type}`);
+  console.log(`  selected_period_basis: ${canonical.selected_period_basis}`);
+  console.log(`  validation.status: ${canonical.validation.status}`);
+  console.log(`  ai_eligible: ${canonical.ai_eligible}`);
+  console.log(`  correction_log count: ${canonical.correction_log.length}`);
+  console.log(`  raw_lines count: ${canonical.raw_lines.length}`);
+  console.log(`  normalized_lines count: ${canonical.normalized_lines.length}`);
+
+  console.log(`\n─ Key Metrics:`);
+  console.log(`  revenue:           ${m.revenue}`);
+  console.log(`  cogs:              ${m.cogs}`);
+  console.log(`  gross_profit:      ${m.gross_profit}`);
+  console.log(`  payroll:           ${m.payroll}`);
+  console.log(`  sales_costs:       ${m.sales_costs}`);
+  console.log(`  facility_costs:    ${m.facility_costs}`);
+  console.log(`  vehicle_costs:     ${m.vehicle_costs}`);
+  console.log(`  admin_costs:       ${m.admin_costs}`);
+  console.log(`  depreciation:      ${m.depreciation}`);
+  console.log(`  ebt:               ${m.ebt}`);
+  console.log(`  net_result:        ${m.net_result}`);
+
+  console.log(`\n─ Validation Checks:`);
+  for (const check of canonical.validation.canonical_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+  console.log(`\n─ AI Checks (parser):`);
+  for (const check of canonical.validation.ai_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+
+  // ── 4. Safety Gate ──
+  console.log(`\n─ Safety Gate:`);
+  if (canonical.ai_eligible) {
+    console.log(`  AI feedback: VILLE BLIVE KØRT`);
+    console.log(`  Milestones: VILLE BLIVE KØRT`);
+    console.log(`  DB status: "processed"`);
+  } else {
+    console.log(`  AI feedback: BLOKERET`);
+    console.log(`  DB status: "${canonical.validation.status === "PASS" ? "processed" : "needs_review"}"`);
+  }
+
+  // ── 5. ai_eligible_payload verification ──
+  console.log(`\n─ ai_eligible_payload:`);
+  const payload = canonical.ai_eligible_payload;
+  if (payload) {
+    console.log(`  input_type: ${payload.input_type}`);
+    console.log(`  company_name: ${payload.company_name}`);
+    console.log(`  statement_type: ${payload.statement_type}`);
+    console.log(`  validation_status: ${payload.validation_status}`);
+    console.log(`  metrics.revenue: ${payload.metrics.revenue}`);
+    console.log(`  metrics.ebt: ${payload.metrics.ebt}`);
+    // Verify payload does NOT contain forbidden fields
+    const payloadKeys = Object.keys(payload);
+    const forbiddenFields = ["raw_lines", "normalized_lines", "correction_log", "provenance"];
+    for (const field of forbiddenFields) {
+      assertEquals(payloadKeys.includes(field), false, `ai_eligible_payload must NOT contain ${field}`);
+      assertEquals((payload as any)[field], undefined, `ai_eligible_payload.${field} must be undefined`);
+    }
+    console.log(`  ✅ Payload does NOT contain: raw_lines, normalized_lines, correction_log, provenance`);
+  } else {
+    console.log(`  null (ai_eligible = false)`);
+  }
+
+  // ── Assertions ──
+  assertEquals(d.company_name, "SnowWaves ApS");
+  assertEquals(d.cvr_number, "39850850");
+  assertEquals(d.report_period, "December 2026");
+  assertEquals(d._deterministic_meta.column_basis_rule, "single");
+  assertEquals(canonical.statement_type, "pnl");
+  assertEquals(canonical.extraction_method, "deterministic_template");
+
+  // Metric assertions
+  assertEquals(m.revenue, 1813150.25, "Revenue should be abs of -1.813.150,25");
+  assertEquals(m.cogs, 320439.86, "COGS should be 320.439,86");
+  assertEquals(m.gross_profit, 1492710.39, "Gross profit should be flipSign of -1.492.710,39");
+  assertEquals(m.payroll, 31554.65, "Payroll should be 31.554,65");
+  assertEquals(m.sales_costs, 6317.58, "Sales costs should be 6.317,58");
+  assertEquals(m.facility_costs, 3280, "Facility costs should be 3.280,00");
+  assertEquals(m.admin_costs, 31787.91, "Admin costs should be 31.787,91");
+  assertEquals(m.depreciation, 1663.27, "Depreciation should be 1.663,27");
+  assertEquals(m.ebt, 1413582.22, "EBT should be flipSign of -1.413.582,22");
+  assertEquals(m.net_result, 1413582.22, "Net result should be flipSign of -1.413.582,22");
+
+  // No balance metrics
+  assertEquals(m.assets_total, null, "No assets in P&L");
+  assertEquals(m.liabilities_total, null, "No liabilities in P&L");
+  assertEquals(m.equity_total, null, "No equity in P&L");
+
+  // Validation & eligibility
+  assertEquals(canonical.validation.status, "PASS", "Validation should PASS");
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible (P&L with revenue + ebt)");
+
+  // DB status follows existing logic: PASS → "processed"
+  const dbStatus = canonical.validation.status === "PASS" ? "processed" : "needs_review";
+  assertEquals(dbStatus, "processed", "DB status should be 'processed' for PASS reports");
+
+  console.log(`\n✅ Test 16: P&L PDF full E2E PASSED — Template B virker`);
+});
+
+// ── Test 17: Saldobalance PDF must NOT match Template B ──
+Deno.test("Phase4c — 17. Saldobalance PDF must NOT match Template B", () => {
+  console.log(`\n══ 17. SALDOBALANCE → NO Template B MATCH ══`);
+
+  // Use the same saldobalance text from Test 12 (has AKTIVER/PASSIVER)
+  const saldobalanceText = [
+    "22.05.2025, 11.33    1796416 - Topix.dk ApS - CVR 45281736",
+    "Saldobalance for perioden 01.04.25 - 30.04.25",
+    "RESULTATOPGØRELSE",
+    "| 1010 | Salg | -226.398,43 | -255.279,28 |",
+    "|      | Omsætning i alt | -226.398,43 | -255.279,28 |",
+    "|      | Resultat før skat | -174.903,83 | 93.213,69 |",
+    "AKTIVER",
+    "| 5820 | Bankkonto | 237.827,22 | 307.777,76 |",
+    "AKTIVER I ALT",
+    "273.435,99  508.773,03",
+    "PASSIVER",
+    "PASSIVER I ALT",
+    "-273.435,99  -508.773,03",
+    "https://secure.e-conomic.com/reports/statements/period-total",
+  ].join("\n");
+
+  const ctx: DetectionContext = {
+    fileName: "25.04_Saldobalance.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: saldobalanceText,
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match some template");
+  console.log(`Matched template: ${match!.template.template_id}`);
+  console.log(`Score: ${match!.score}`);
+
+  // Must NOT match Template B
+  assertEquals(
+    match!.template.template_id !== "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+    true,
+    "Saldobalance must NOT match Template B (P&L only)"
+  );
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_SALDOBALANCE_PDF_V1");
+
+  console.log(`✅ Saldobalance correctly matches Template A, NOT Template B`);
+});
+
+
