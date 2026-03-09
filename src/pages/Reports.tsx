@@ -165,7 +165,27 @@ const Reports = () => {
     loadData();
   }, [loadData, refreshKey]);
 
-  // Group reports by month key, taking best report per month
+  // Deep link: auto-expand report from ?reportId= query param
+  const reportCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  useEffect(() => {
+    const reportId = searchParams.get("reportId");
+    if (reportId && dbReports.length > 0) {
+      const exists = dbReports.find(r => r.id === reportId);
+      if (exists) {
+        setExpandedReport(reportId);
+        setTimeout(() => {
+          const el = reportCardRefs.current.get(reportId);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-primary/40");
+            setTimeout(() => el.classList.remove("ring-2", "ring-primary/40"), 3000);
+          }
+        }, 300);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [searchParams, dbReports]);
+
   const reportsByMonth = useMemo(() => {
     const map: Record<string, DbReport> = {};
     // Sort ascending so later (better) reports overwrite
