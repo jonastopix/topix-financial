@@ -413,18 +413,18 @@ Deno.test("CASE 9: Combined report — result signs are positive for profit", ()
 });
 
 // ══════════════════════════════════════════════════════════════════
-// CASE 10: AI saldobalance — pre-normalized results pass through (no double-flip)
+// CASE 10: AI saldobalance — safety net flips raw accounting signs
 // ══════════════════════════════════════════════════════════════════
-Deno.test("CASE 10: AI saldobalance — pre-normalized results pass through", () => {
-  // AI extraction prompt explicitly instructs sign normalization
-  // Canonical engine must trust that and NOT flip again
+Deno.test("CASE 10: AI saldobalance — safety net flips raw accounting signs", () => {
+  // AI extraction sometimes returns raw accounting signs despite prompt instructions
+  // Canonical engine keeps the safety-net flip for AI path
   const extractedData = {
     report_type: "saldobalance",
     report_period: "Oktober 2025",
     key_figures: {
-      omsaetning: 1000000,          // AI already normalized (positive)
-      daekningsbidrag: 600000,      // AI already normalized (positive = profit)
-      resultat_foer_skat: 200000,   // AI already normalized (positive = profit)
+      omsaetning: 1000000,
+      daekningsbidrag: -600000,     // AI returned raw sign (negative = profit in saldobalance)
+      resultat_foer_skat: -200000,  // AI returned raw sign (negative = profit in saldobalance)
       aktiver_i_alt: 500000,
     },
     line_items: [],
@@ -433,16 +433,15 @@ Deno.test("CASE 10: AI saldobalance — pre-normalized results pass through", ()
 
   const canonical = buildCanonicalOutput(extractedData, {}, "ai_extraction");
 
-  // EBT passes through (NO double flip)
+  // EBT is flipped by AI safety net: -(-200000) = +200000
   assertEquals(canonical.metrics.ebt, 200000);
-  assert(canonical.metrics.ebt! > 0, "EBT should remain positive (no double-flip)");
+  assert(canonical.metrics.ebt! > 0, "EBT should be positive after AI safety net flip");
 
-  // Gross profit passes through
+  // Gross profit is also flipped (magnitude matches)
   assertEquals(canonical.metrics.gross_profit, 600000);
-  assert(canonical.metrics.gross_profit! > 0, "Gross profit should remain positive");
+  assert(canonical.metrics.gross_profit! > 0, "Gross profit should be positive after AI safety net flip");
 
   // Note: ai_eligible is false for trial_balance statement type (Phase 3 restriction)
-  // This test verifies sign handling, not AI eligibility
   assertEquals(canonical.statement_type, "trial_balance");
-  assertEquals(canonical.ai_eligible, false); // Trial balance AI is disabled in Phase 3
+  assertEquals(canonical.ai_eligible, false);
 });
