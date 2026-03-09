@@ -134,6 +134,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     return selectedReport.ai_analysis as unknown as AnalysisData;
   }, [selectedReport]);
 
+  const validationStatus = useMemo(() => {
+    if (!selectedReport) return "FAIL";
+    return selectedReport.validation_status || 
+           (selectedReport.extracted_data as any)?.validation?.status || 
+           "FAIL";
+  }, [selectedReport]);
+
   // Group reports by year for history
   const reportsByYear = useMemo(() => {
     const groups: Record<string, ReportWithAnalysis[]> = {};
