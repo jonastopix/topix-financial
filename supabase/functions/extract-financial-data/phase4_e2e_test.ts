@@ -1183,3 +1183,260 @@ Deno.test("Phase4c — 17. Saldobalance PDF must NOT match Template B", () => {
 });
 
 
+// ═══════════════════════════════════════════════════════
+// PHASE 4c TESTS: DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1
+// ═══════════════════════════════════════════════════════
+
+// ── Simulated rows for a pure e-conomic Resultatopgørelse XLSX ──
+// Based on expected e-conomic format (credit convention for P&L)
+const ECONOMIC_PNL_XLSX_ROWS: any[][] = [
+  ["TestVirksomhed ApS", null, null],
+  ["Resultatopgørelse", null, null],
+  ["Udskrevet 15-02-2026 10:00 (alle tal i kr.)", null, null],
+  ["01-01-2026 til 31-01-2026", null, null],
+  ["Nummer", "Navn", "Perioden"],
+  [1000, "Omsætning", null],
+  [1010, "Varesalg m. moms", -850000.00],
+  [1995, "Omsætning ialt", -850000.00],
+  [2000, "Vareforbrug", null],
+  [2010, "Varekøb", 200000.00],
+  [2990, "Vareforbrug ialt", 200000.00],
+  [null, "Dækningsbidrag", -650000.00],
+  [3000, "Lønninger", null],
+  [3100, "Løn & Gage", 180000.00],
+  [3190, "Lønninger ialt", 180000.00],
+  [3399, "Salgsomkostninger", null],
+  [3410, "Annoncer", 15000.00],
+  [3498, "Salgsomkostninger ialt", 15000.00],
+  [3499, "Lokaleomkostninger", null],
+  [3510, "Husleje", 25000.00],
+  [3598, "Lokaleomkostninger ialt", 25000.00],
+  [3599, "Administrationsomkostninger", null],
+  [3600, "Kontorartikler", 8000.00],
+  [3698, "Administrationsomkostninger ialt", 8000.00],
+  [3699, "Autodrift", null],
+  [3710, "Benzin", 12000.00],
+  [3898, "Autodrift ialt", 12000.00],
+  [null, "Resultat før afskrivninger", -410000.00],
+  [4499, "Afskrivninger", null],
+  [4550, "Afskrivning driftsmidler", 10000.00],
+  [4597, "Afskrivninger ialt", 10000.00],
+  [null, "Resultat før skat", -400000.00],
+  [null, "Årets resultat", -400000.00],
+];
+
+// ── Test 18: XLSX P&L detection ──
+Deno.test("Phase4c — 18. XLSX P&L detection", () => {
+  console.log(`\n══ 18. XLSX P&L DETECTION ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Resultatopgoerelse_Jan_2026.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: ECONOMIC_PNL_XLSX_ROWS.slice(0, 200),
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match a template");
+  console.log(`Template: ${match!.template.template_id}`);
+  console.log(`Score: ${match!.score}`);
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1");
+  assertEquals(match!.score >= 80, true, `Score ${match!.score} should be >= 80`);
+  console.log(`✅ XLSX P&L correctly detected as DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1`);
+});
+
+// ── Test 19: Anti-match — Combined template must NOT match pure P&L XLSX ──
+Deno.test("Phase4c — 19. Anti-match: Combined must NOT match pure P&L XLSX", () => {
+  console.log(`\n══ 19. ANTI-MATCH: COMBINED vs PURE P&L ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Resultatopgoerelse_Jan_2026.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: ECONOMIC_PNL_XLSX_ROWS.slice(0, 200),
+  };
+
+  // Import the combined template directly to check its score
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match some template");
+
+  // It must NOT match DK_COMBINED_BALANCE_PNL_V1
+  assertEquals(
+    match!.template.template_id !== "DK_COMBINED_BALANCE_PNL_V1",
+    true,
+    "Pure P&L XLSX must NOT match the Combined template"
+  );
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1");
+
+  console.log(`✅ Combined template correctly does NOT match pure P&L XLSX`);
+});
+
+// ── Test 20: Anti-match — XLSX P&L template must NOT match Combined (Warburg) ──
+Deno.test("Phase4c — 20. Anti-match: XLSX P&L must NOT match Combined data", () => {
+  console.log(`\n══ 20. ANTI-MATCH: XLSX P&L vs COMBINED DATA ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Januar_2026-3.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: WARBURG_ROWS.slice(0, 200),
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should match some template");
+
+  // Must match Combined, NOT the XLSX P&L template
+  assertEquals(
+    match!.template.template_id !== "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1",
+    true,
+    "Combined data must NOT match the XLSX P&L template"
+  );
+  assertEquals(match!.template.template_id, "DK_COMBINED_BALANCE_PNL_V1");
+
+  console.log(`✅ Combined data correctly matches Combined template, NOT XLSX P&L`);
+});
+
+// ── Test 21: Extraction + key metrics ──
+Deno.test("Phase4c — 21. XLSX P&L extraction + key metrics", () => {
+  console.log(`\n══ 21. XLSX P&L EXTRACTION ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Resultatopgoerelse_Jan_2026.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: ECONOMIC_PNL_XLSX_ROWS.slice(0, 200),
+  };
+
+  const match = detectTemplate(ctx)!;
+  const result = match.template.extract({ ...ctx, rows: ECONOMIC_PNL_XLSX_ROWS });
+  assertEquals(result.success, true);
+
+  if (result.success) {
+    const d = result.data;
+    console.log(`Company: ${d.company_name}`);
+    console.log(`Report type: ${d.report_type}`);
+    console.log(`Period: ${d.report_period}`);
+    console.log(`Key figures:`, JSON.stringify(d.key_figures, null, 2));
+
+    // Sign tests — business convention:
+    // Revenue: abs(-850000) = 850000 (positive)
+    assertEquals(d.key_figures.omsaetning, 850000, "Revenue should be positive (abs)");
+    // COGS: abs(200000) = 200000
+    assertEquals(d.key_figures.direkte_omkostninger, 200000, "COGS should be positive (abs)");
+    // Dækningsbidrag: flipSign(-650000) = 650000 (positive when profitable)
+    assertEquals(d.key_figures.daekningsbidrag, 650000, "Gross profit should be positive (flipSign)");
+    // EBT: flipSign(-400000) = 400000 (positive when profitable)
+    assertEquals(d.key_figures.resultat_foer_skat, 400000, "EBT should be positive (flipSign)");
+    // Net result: flipSign(-400000) = 400000
+    assertEquals(d.key_figures.arets_resultat, 400000, "Net result should be positive (flipSign)");
+    // Payroll: abs(180000) = 180000
+    assertEquals(d.key_figures.loenninger, 180000, "Payroll should be positive (abs)");
+    // Depreciation: abs(10000) = 10000
+    assertEquals(d.key_figures.afskrivninger, 10000, "Depreciation should be positive (abs)");
+
+    // Meta
+    assertEquals(d._deterministic_meta.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1");
+    assertEquals(d._deterministic_meta.parser_confidence, "MEDIUM");
+    assertEquals(d._deterministic_meta.column_basis_rule, "single");
+
+    console.log(`✅ All sign rules correct — business convention verified`);
+  }
+});
+
+// ── Test 22: Canonical output + ai_eligible ──
+Deno.test("Phase4c — 22. XLSX P&L canonical output + ai_eligible", () => {
+  console.log(`\n══ 22. XLSX P&L CANONICAL OUTPUT ══`);
+
+  const ctx: DetectionContext = {
+    fileName: "Resultatopgoerelse_Jan_2026.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: ECONOMIC_PNL_XLSX_ROWS.slice(0, 200),
+  };
+
+  const match = detectTemplate(ctx)!;
+  const result = match.template.extract({ ...ctx, rows: ECONOMIC_PNL_XLSX_ROWS });
+  if (!result.success) throw new Error("Extraction failed");
+
+  const canonical = buildCanonicalOutput(result.data, { deterministic: true, template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1" }, "deterministic_template");
+
+  console.log(`statement_type: ${canonical.statement_type}`);
+  console.log(`selected_period_basis: ${canonical.selected_period_basis}`);
+  console.log(`extraction_method: ${canonical.extraction_method}`);
+  console.log(`validation.status: ${canonical.validation.status}`);
+  console.log(`ai_eligible: ${canonical.ai_eligible}`);
+
+  const m = canonical.metrics;
+  console.log(`revenue: ${m.revenue}`);
+  console.log(`cogs: ${m.cogs}`);
+  console.log(`gross_profit: ${m.gross_profit}`);
+  console.log(`ebt: ${m.ebt}`);
+  console.log(`net_result: ${m.net_result}`);
+
+  // Validation checks
+  console.log(`\nValidation checks:`);
+  for (const check of canonical.validation.canonical_checks) {
+    const icon = check.result === "PASS" ? "✓" : check.result === "FAIL" ? "✗" : "~";
+    console.log(`  ${icon} ${check.name}: ${check.details}`);
+  }
+
+  assertEquals(canonical.statement_type, "pnl");
+  assertEquals(canonical.extraction_method, "deterministic_template");
+  // ai_eligible depends on canonical validation.status === PASS (not just parser_status)
+  assertEquals(canonical.validation.status, "PASS", "Canonical validation should PASS");
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible (P&L with revenue + ebt, validation PASS)");
+
+  // No balance metrics
+  assertEquals(m.assets_total, null, "No assets in P&L");
+  assertEquals(m.liabilities_total, null, "No liabilities in P&L");
+
+  console.log(`\n✅ XLSX P&L canonical output verified — ai_eligible governed by canonical validation.status`);
+});
+
+// ── Test 23: FAIL case — missing revenue ──
+Deno.test("Phase4c — 23. XLSX P&L FAIL case — missing revenue", () => {
+  console.log(`\n══ 23. XLSX P&L FAIL CASE ══`);
+
+  // Create a broken P&L XLSX with no revenue line
+  const brokenRows: any[][] = [
+    ["BrokenCorp ApS", null, null],
+    ["Resultatopgørelse", null, null],
+    ["01-01-2026 til 31-01-2026", null, null],
+    [null, null, null],
+    ["Nummer", "Navn", "Perioden"],
+    // No omsætning line!
+    [null, "Dækningsbidrag", -100000],
+    [null, "Resultat før skat", -50000],
+    [null, "Årets resultat", -50000],
+  ];
+
+  const ctx: DetectionContext = {
+    fileName: "broken.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: brokenRows.slice(0, 200),
+  };
+
+  const match = detectTemplate(ctx);
+  if (!match) {
+    console.log(`No template matched (score too low) — correct for broken file`);
+    console.log(`✅ Broken file correctly fails at detection stage`);
+    return;
+  }
+
+  if (match.template.template_id === "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1") {
+    const result = match.template.extract({ ...ctx, rows: brokenRows });
+    if (result.success) {
+      const canonical = buildCanonicalOutput(result.data, { deterministic: true }, "deterministic_template");
+      console.log(`Canonical validation: ${canonical.validation.status}`);
+      console.log(`ai_eligible: ${canonical.ai_eligible}`);
+      // Without revenue, validation should FAIL or ai_eligible should be false
+      assertEquals(canonical.ai_eligible, false, "Should NOT be AI eligible without revenue");
+      console.log(`✅ Broken P&L correctly results in ai_eligible=false`);
+    } else {
+      console.log(`Extraction failed (structural_fail): ${result.error}`);
+      console.log(`✅ Broken P&L correctly fails at extraction`);
+    }
+  }
+});
+
