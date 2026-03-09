@@ -276,6 +276,16 @@ Deno.serve(async (req) => {
   }
 });
 
+function chatEmoji(contextType: string | null): string {
+  switch (contextType) {
+    case "report": return "📊";
+    case "handout": return "📝";
+    case "milestone": return "🎯";
+    case "file": return "📎";
+    default: return "💬";
+  }
+}
+
 function json(data: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
