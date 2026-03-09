@@ -123,6 +123,24 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
       cvrNumber = companyMatch2[2];
       continue;
     }
+    // Pattern 3: Standalone CVR line (e.g. "CVR: 12345678" or "CVR-nr.: 12345678")
+    // Common in Dinero PDFs where company name and CVR are on separate lines
+    if (!cvrNumber) {
+      const cvrOnlyMatch = line.match(/^\s*CVR[\s\-.:nNrR]*\s*(\d{8})\s*$/i);
+      if (cvrOnlyMatch) {
+        cvrNumber = cvrOnlyMatch[1];
+        continue;
+      }
+    }
+    // Pattern 3b: Company name on early lines (lines 1-5) — entity suffix without CVR on same line
+    // Only if we haven't found company name yet and this is an early line (heuristic: short, has entity suffix)
+    if (!companyName && !line.match(/\d{4}\s/) && !line.match(DK_NUM_PATTERN)) {
+      const entityMatch = line.match(/^([A-ZÆØÅa-zæøå][\w\s&.]+(?:ApS|A\/S|I\/S|IVS|K\/S|P\/S|Holding|Group|Invest))\s*$/i);
+      if (entityMatch && line.length < 80) {
+        companyName = entityMatch[1].trim();
+        continue;
+      }
+    }
 
     // ── Period from header ──
     // Pattern 1: "Saldobalance for perioden 01.04.25 - 30.04.25" (dot-separated)
