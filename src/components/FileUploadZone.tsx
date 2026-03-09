@@ -689,17 +689,27 @@ const FileUploadZone = ({
       updateFile(pendingFileId, { extractedData });
       onExtracted?.(extractedData);
 
-      // Post activity (skip in admin mode)
+      // Post compact activity (skip in admin mode)
       if (!adminMode && conversationId && userId) {
         const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-        await postActivityMessage({
+        const period = extractedData.report_period || "ukendt periode";
+        const messageId = await postActivityMessage({
           conversationId,
           senderId: userId,
-          content: `📄 Rapport overskrevet: **${reportLabel}** for ${extractedData.report_period}\n${extractedData.company_name} · CVR ${extractedData.cvr_number}`,
+          content: `📄 Rapport overskrevet: **${reportLabel}** for ${period}`,
           contextType: "report",
           contextId: reportRecord.id,
-          contextMeta: { title: `${reportLabel} · ${extractedData.report_period}` },
+          contextMeta: {
+            title: `${reportLabel} · ${period}`,
+            report_id: reportRecord.id,
+            report_period: period,
+            file_path: overwriteStoragePath,
+            file_name: pendingFile.name,
+          },
         });
+        if (messageId) {
+          notifyReportUpload(reportRecord.id, messageId);
+        }
       }
 
       updateFile(pendingFileId, { status: "done" });
