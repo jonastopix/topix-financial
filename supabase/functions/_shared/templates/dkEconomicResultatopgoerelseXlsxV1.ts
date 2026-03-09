@@ -175,7 +175,7 @@ function detectSignConvention(parsedRows: ParsedRow[]): SignConvention {
 interface LabelMatch {
   key: string;
   pattern: RegExp;
-  signRule: "abs" | "flipSign";
+  signRule: "abs" | "flipSign" | "keep";
   isProfitSubtotal: boolean; // true = sign rule depends on convention
   reason: string;
 }
@@ -183,8 +183,8 @@ interface LabelMatch {
 const LABEL_MATCHERS: LabelMatch[] = [
   // Revenue — abs(): always positive
   { key: "omsaetning", pattern: /omsætning\s*(i\s*alt|ialt)$/i, signRule: "abs", isProfitSubtotal: false, reason: "Revenue → abs()" },
-  // COGS — abs()
-  { key: "direkte_omkostninger", pattern: /^(vareforbrug|direkte\s*omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // COGS — keep raw sign (can be contra-cost in business convention)
+  { key: "direkte_omkostninger", pattern: /^(vareforbrug|direkte\s*omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "keep", isProfitSubtotal: false, reason: "COGS → keep raw sign" },
   // Dækningsbidrag — profit subtotal (convention-dependent)
   { key: "daekningsbidrag", pattern: /dækningsbidrag/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
   // Payroll — abs()
@@ -217,9 +217,11 @@ const LABEL_MATCHERS: LabelMatch[] = [
   { key: "arets_resultat", pattern: /(årets\s*resultat|resultat\s*efter\s*skat)/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
 ];
 
-function applySignRule(value: number | null, rule: "abs" | "flipSign"): number | null {
+function applySignRule(value: number | null, rule: "abs" | "flipSign" | "keep"): number | null {
   if (value == null) return null;
-  return rule === "abs" ? Math.abs(value) : -value;
+  if (rule === "abs") return Math.abs(value);
+  if (rule === "flipSign") return -value;
+  return value;
 }
 
 /**
@@ -228,7 +230,7 @@ function applySignRule(value: number | null, rule: "abs" | "flipSign"): number |
  * - BUSINESS convention: profit subtotals use abs (already correct sign)
  * - UNKNOWN: profit subtotals use abs (safer — don't blindly flip)
  */
-function getEffectiveSignRule(matcher: LabelMatch, convention: SignConvention): "abs" | "flipSign" {
+function getEffectiveSignRule(matcher: LabelMatch, convention: SignConvention): "abs" | "flipSign" | "keep" {
   if (!matcher.isProfitSubtotal) return matcher.signRule;
   // Profit subtotals: convention-dependent
   if (convention === "credit") return "flipSign";
