@@ -23,7 +23,7 @@ const LABEL_CLASSES: Record<string, string[]> = {
   revenue: ["salg", "omsætning", "indtægt", "honorar"],
   cogs: ["vareforbrug", "underleverandør", "direkte omkostning"],
   payroll: ["løn", "am-indkomst", "atp", "feriepenge", "pension", "a-skat"],
-  facility_costs: ["husleje", "lokale", "el", "vand", "varme", "rengøring"],
+  facility_costs: ["husleje", "lokale", "elforbrug", "elektricitet", "vand", "varme", "rengøring"],
   vehicle_costs: ["parkering", "færge", "transport", "kørsel", "brændstof"],
   sales_costs: ["reklame", "markedsføring", "annoncering", "messe", "repræsentation", "gaver"],
   admin_costs: ["bogføring", "konsulent", "porto", "software", "forsikring", "telefon", "kontingent", "kontor"],
