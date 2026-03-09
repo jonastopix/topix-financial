@@ -1065,50 +1065,52 @@ const Chat = () => {
 
                       // ── Generic system message ──
                       return (
-                        <div
-                          key={msg.id}
-                          ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                          className="flex justify-center group/msg transition-all duration-300"
-                        >
+                        <React.Fragment key={msg.id}>
+                          {dateSep}
                           <div
-                            className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
+                            ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
+                            className="flex justify-center group/msg transition-all duration-300"
                           >
-                            <button
-                              onClick={() => togglePin(msg)}
-                              className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
-                                msg.pinned_at
-                                  ? "text-primary opacity-100 hover:text-destructive"
-                                  : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                              }`}
-                              title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                            <div
+                              className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
                             >
-                              <Pin className="h-3.5 w-3.5" />
-                            </button>
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <Sparkles className="h-3.5 w-3.5 text-primary" />
-                              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                                {msg.message_type === "ai" ? "AI Analyse" : "System"}
-                              </span>
-                              {topicInfo && (
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
-                                  <topicInfo.icon className="h-2.5 w-2.5" />
-                                  {topicInfo.label}
+                              <button
+                                onClick={() => togglePin(msg)}
+                                className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
+                                  msg.pinned_at
+                                    ? "text-primary opacity-100 hover:text-destructive"
+                                    : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                }`}
+                                title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                              >
+                                <Pin className="h-3.5 w-3.5" />
+                              </button>
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                                  {msg.message_type === "ai" ? "AI Analyse" : "System"}
                                 </span>
-                              )}
-                              <span className="text-[10px] text-muted-foreground">
-                                {format(new Date(msg.created_at), "d. MMM HH:mm", { locale: da })}
-                              </span>
-                            </div>
-                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                            {contextType && contextMeta?.title && (
-                              <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
-                                {contextType === "report" && <FileText className="h-3 w-3" />}
-                                {contextType === "milestone" && <Target className="h-3 w-3" />}
-                                {String(contextMeta.title)}
+                                {topicInfo && (
+                                  <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
+                                    <topicInfo.icon className="h-2.5 w-2.5" />
+                                    {topicInfo.label}
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-muted-foreground">
+                                  {format(new Date(msg.created_at), "HH:mm", { locale: da })}
+                                </span>
                               </div>
-                            )}
+                              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                              {contextType && contextMeta?.title && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
+                                  {contextType === "report" && <FileText className="h-3 w-3" />}
+                                  {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                  {String(contextMeta.title)}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        </React.Fragment>
                       );
                     }
 
