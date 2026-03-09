@@ -373,8 +373,45 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </div>
       )}
 
-      {/* Analysis content */}
-      {validationStatus === "PASS" && analysis && !loading && (
+      {/* Canonical blocked banner */}
+      {canonicalBlocked && (
+        <div className="glass-card rounded-xl p-6 border-l-4 border-l-chart-warning">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                AI-analyse utilgængelig
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Canonical metrics er tilgængelige, men <strong>ai_eligible_payload</strong> mangler. 
+                Ny AI-kørsel er blokeret indtil data er komplet.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stale/cached analysis when canonical blocked */}
+      {canonicalBlocked && analysis && !loading && (
+        <div className="opacity-60 border-2 border-chart-warning/30 rounded-xl p-1">
+          <div className="flex items-center gap-2 px-5 pt-4 pb-2">
+            <ShieldAlert className="h-4 w-4 text-chart-warning" />
+            <span className="text-xs font-semibold text-chart-warning uppercase tracking-wider">
+              Historisk analyse — ny kørsel blokeret
+            </span>
+          </div>
+          {/* Overview (read-only) */}
+          <div className="mx-4 mb-4 rounded-xl bg-secondary/30 p-5 border-l-4 border-l-muted">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Overblik (cached)
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{analysis.overview}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Analysis content — only when NOT canonical blocked */}
+      {!canonicalBlocked && validationStatus === "PASS" && analysis && !loading && (
         <>
           {/* Overview */}
           <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary">
