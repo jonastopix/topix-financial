@@ -298,6 +298,7 @@ Sæt validation.status til:
 Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSURE" og beskriv usikkerheden i checks.`;
 
       // Build user message — prefer images (vision) for accurate table reading
+      let userContent: any;
       if (pageImages && Array.isArray(pageImages) && pageImages.length > 0) {
         const imageParts = pageImages.map((base64: string) => ({
           type: "image_url",
@@ -312,9 +313,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
         console.log("Sending text-only content to AI (no images available)");
       }
-    }
 
-    const response = await fetch(
+      const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
