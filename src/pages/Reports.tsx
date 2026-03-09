@@ -660,6 +660,16 @@ const Reports = () => {
                         <Icon className="h-3.5 w-3.5" />
                         {config.label}
                       </span>
+                      {isAdmin && (
+                        <a
+                          href={`/admin/report-debug/${report.id}`}
+                          onClick={(e) => { e.stopPropagation(); }}
+                          title="Debug rapport"
+                          className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Bug className="h-3.5 w-3.5" />
+                        </a>
+                      )}
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground" />
                       ) : (
