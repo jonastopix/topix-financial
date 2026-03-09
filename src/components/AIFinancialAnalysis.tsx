@@ -297,7 +297,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       )}
 
       {/* Analysis content */}
-      {analysis && !loading && (
+      {validationStatus === "PASS" && analysis && !loading && (
         <>
           {/* Overview */}
           <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary">
