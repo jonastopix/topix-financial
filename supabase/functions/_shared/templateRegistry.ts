@@ -140,13 +140,6 @@ export async function tryDeterministicExtraction(
   excelBase64: string,
   fileName: string
 ): Promise<DeterministicExtractionResult> {
-  let XLSX: any;
-  try {
-    XLSX = await import("https://esm.sh/xlsx@0.20.3");
-  } catch (e: any) {
-    console.log("[Registry] XLSX dynamic import failed:", e.message);
-    return { type: "no_match" };
-  }
 
   let rows: any[][];
   let sheetNames: string[];
