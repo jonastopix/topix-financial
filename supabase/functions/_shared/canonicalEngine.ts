@@ -366,7 +366,7 @@ export function buildProvenance(
   const provenance: Record<string, ProvenanceEntry> = {};
   const kf = extractedData?.key_figures || {};
   const lineItems = extractedData?.line_items || [];
-  const sourceType = extractionMethod === "deterministic" ? "deterministic_template" as const : "ai_extraction" as const;
+  const sourceType = extractionMethod === "deterministic_template" ? "deterministic_template" as const : "ai_extraction" as const;
   const reportType = extractedData?.report_type || null;
 
   // For each non-null metric, find its provenance
