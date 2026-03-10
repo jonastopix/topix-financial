@@ -8,6 +8,8 @@ interface ReportSlim {
   id: string;
   report_period: string | null;
   status: string;
+  manual_report_period_key?: string | null;
+  manual_override_status?: string | null;
 }
 
 interface DeliveryOverviewProps {
