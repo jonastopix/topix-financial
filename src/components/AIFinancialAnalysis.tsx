@@ -15,11 +15,13 @@ import {
   Calendar,
   BarChart3,
   ShieldAlert,
+  Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { postActivityMessage } from "@/lib/chatActivity";
 import type { Json } from "@/integrations/supabase/types";
+import { hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 interface KeyFinding {
   title: string;
@@ -56,6 +58,13 @@ interface ReportWithAnalysis {
   status: string;
   validation_status?: string | null;
   extraction_method?: string | null;
+  report_type?: string;
+  // Manual override fields
+  manual_report_period_label?: string | null;
+  manual_report_period_key?: string | null;
+  manual_normalized_data?: Json | null;
+  manual_override_status?: string | null;
+  manual_report_type?: string | null;
 }
 
 const severityConfig = {
@@ -107,7 +116,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     const fetch = async () => {
       const { data } = await supabase
         .from("financial_reports")
-        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status, extraction_method")
+        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status, extraction_method, report_type, manual_report_period_label, manual_report_period_key, manual_normalized_data, manual_override_status, manual_report_type")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .in("status", ["processed", "needs_review"])
@@ -145,11 +154,21 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
   }, [selectedReport]);
 
   // Canonical gating: block AI if normalized_data.metrics exists but ai_eligible_payload is missing
+  // Manual override bypasses this block since it provides its own corrected data
   const canonicalBlocked = useMemo(() => {
     if (!selectedReport) return false;
+    if (hasManualOverride(selectedReport as unknown as ReportData)) return false;
     const nd = selectedReport.normalized_data as any;
     return !!nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload);
   }, [selectedReport]);
+
+  // Manual override stale-data detection
+  const isManuallyOverridden = useMemo(() => {
+    if (!selectedReport) return false;
+    return hasManualOverride(selectedReport as unknown as ReportData);
+  }, [selectedReport]);
+
+  const isAnalysisStale = isManuallyOverridden && !!analysis;
 
   // Group reports by year for history
   const reportsByYear = useMemo(() => {
@@ -170,18 +189,20 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       return;
     }
 
-    // CANONICAL GATING: block if metrics exist but payload missing
+    const targetIsOverridden = hasManualOverride(target as unknown as ReportData);
+
+    // CANONICAL GATING: block if metrics exist but payload missing (skip if manual override provides data)
     const nd = target.normalized_data as any;
-    if (nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
+    if (!targetIsOverridden && nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
       toast.error("AI-analyse blokeret: canonical metrics findes, men ai_eligible_payload mangler.");
       return;
     }
 
-    // SAFETY: Bloker hvis validation !== PASS
+    // SAFETY: Bloker hvis validation !== PASS (skip if manual override provides corrected data)
     const vStatus = target.validation_status || 
                     (target.extracted_data as any)?.validation?.status || 
                     "FAIL";
-    if (vStatus !== "PASS") {
+    if (!targetIsOverridden && vStatus !== "PASS") {
       toast.error(`AI-analyse er deaktiveret: validation returnerede ${vStatus}. Gennemgå data manuelt.`);
       return;
     }
@@ -194,10 +215,14 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       const nd = target.normalized_data as any;
       const isCanonicalPath = nd?.ai_eligible === true && nd?.ai_eligible_payload;
 
+      // Get effective values for this report
+      const effectiveMetricsResult = getEffectiveMetrics(target as unknown as ReportData);
+      const effectivePeriod = getEffectiveReportPeriod(target as unknown as ReportData);
+
       // Fetch historical data
       const { data: historicalReports } = await supabase
         .from("financial_reports")
-        .select("extracted_data, normalized_data, report_period, validation_status")
+        .select("extracted_data, normalized_data, report_period, validation_status, manual_report_period_label, manual_override_status, manual_normalized_data")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("status", "processed")
@@ -208,7 +233,42 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       // Build body based on canonical vs legacy path
       let body: any;
 
-      if (isCanonicalPath) {
+      if (targetIsOverridden && effectiveMetricsResult) {
+        // MANUAL OVERRIDE PATH: build a compatible canonical-like payload from effective metrics
+        const effectiveReportType = target.manual_report_type || target.report_type || "unknown";
+        const syntheticPayload = {
+          input_type: "canonical" as const,
+          company_name: target.company_name || ed?.company_name,
+          period_start: null,
+          period_end: null,
+          report_period_label: effectivePeriod,
+          statement_type: effectiveReportType === "resultatopgørelse" ? "pnl" : effectiveReportType === "saldobalance" ? "balance" : "combined",
+          selected_period_basis: "period" as const,
+          validation_status: "PASS" as const,
+          metrics: effectiveMetricsResult.metrics,
+        };
+
+        const historicalCanonical = (historicalReports || [])
+          .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
+          .map(r => {
+            const hrEffectivePeriod = getEffectiveReportPeriod(r as unknown as ReportData);
+            return {
+              period: hrEffectivePeriod || r.report_period,
+              ...(r.normalized_data as any)?.metrics,
+              _source: "canonical",
+            };
+          });
+
+        body = {
+          canonicalPayload: syntheticPayload,
+          historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
+          companyContext: {
+            name: target.company_name || ed?.company_name,
+            cvr: target.cvr_number || ed?.cvr_number,
+          },
+          companyId,
+        };
+      } else if (isCanonicalPath) {
         // CANONICAL PATH: only PASS + ai_eligible historical
         const historicalCanonical = (historicalReports || [])
           .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
@@ -268,7 +328,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       // Post to chat
       if (conversationId && userId && data && !data.error) {
         const summaryParts: string[] = [];
-        summaryParts.push(`📊 **AI Finansiel Analyse · ${target.report_period}**\n`);
+        summaryParts.push(`📊 **AI Finansiel Analyse · ${effectivePeriod || target.report_period}**\n`);
         summaryParts.push(data.overview);
         if (data.key_findings?.length > 0) {
           summaryParts.push(`\n\n**Nøglefund:**`);
@@ -315,8 +375,8 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
               AI Finansiel Analyse
             </h2>
             <p className="text-xs text-muted-foreground">
-              {selectedReport?.report_period
-                ? `${selectedReport.report_period} · ${selectedReport.company_name || ""}`
+              {selectedReport
+                ? `${getEffectiveReportPeriod(selectedReport as unknown as ReportData) || selectedReport.report_period || ""} · ${selectedReport.company_name || ""}`
                 : "Upload en rapport for at aktivere AI-analyse"}
             </p>
           </div>
@@ -410,8 +470,33 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </div>
       )}
 
+      {/* Manual override stale-data banner */}
+      {isAnalysisStale && !loading && (
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-accent">
+          <div className="flex items-start gap-3">
+            <Pencil className="h-5 w-5 text-accent-foreground shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                Data er manuelt korrigeret
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Denne rapport har en manuel korrektion. Kør AI-analyse igen for opdaterede resultater baseret på de korrigerede data.
+              </p>
+            </div>
+            <button
+              onClick={() => generateAnalysis()}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Kør igen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Analysis content — only when NOT canonical blocked */}
-      {!canonicalBlocked && validationStatus === "PASS" && analysis && !loading && (
+      {!canonicalBlocked && (validationStatus === "PASS" || isManuallyOverridden) && analysis && !loading && (
         <>
           {/* Overview */}
           <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary">
@@ -598,12 +683,15 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
                           >
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-sm text-foreground">{r.report_period || r.uploaded_at.slice(0, 10)}</span>
+                              <span className="text-sm text-foreground">{getEffectiveReportPeriod(r as unknown as ReportData) || r.uploaded_at.slice(0, 10)}</span>
                               {/* Deterministic extraction badge */}
                               {r.extraction_method === "deterministic_template" && (
                                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-accent text-accent-foreground">
                                   DET
                                 </span>
+                              )}
+                              {hasManualOverride(r as unknown as ReportData) && (
+                                <Pencil className="h-3 w-3 text-muted-foreground" />
                               )}
                             </div>
                             <div className="flex items-center gap-2">

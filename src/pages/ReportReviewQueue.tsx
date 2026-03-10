@@ -24,6 +24,9 @@ type Report = {
   ai_analysis: unknown;
   normalized_data: unknown;
   raw_extracted_data: unknown;
+  manual_report_period_label: string | null;
+  manual_report_period_key: string | null;
+  manual_override_status: string | null;
 };
 
 type Flag = {
@@ -36,6 +39,7 @@ function getFlags(r: Report): Flag[] {
   const nd = r.normalized_data as Record<string, unknown> | null;
   const red = r.raw_extracted_data as Record<string, unknown> | null;
 
+  if (r.manual_override_status === "applied") flags.push({ label: "Manual override", color: "bg-indigo-500 text-white" });
   if (r.status === "needs_review") flags.push({ label: "Needs review", color: "bg-yellow-500 text-white" });
   if (r.validation_status && r.validation_status !== "PASS") flags.push({ label: "Validation fail", color: "bg-destructive text-destructive-foreground" });
   if (r.normalized_data == null && r.status !== "processing") flags.push({ label: "No canonical", color: "bg-orange-500 text-white" });
@@ -72,7 +76,7 @@ export default function ReportReviewQueue() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("financial_reports")
-        .select("id, file_name, company_name, report_period, report_type, uploaded_at, status, extraction_method, validation_status, ai_analysis, normalized_data, raw_extracted_data")
+        .select("id, file_name, company_name, report_period, report_type, uploaded_at, status, extraction_method, validation_status, ai_analysis, normalized_data, raw_extracted_data, manual_report_period_label, manual_report_period_key, manual_override_status")
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false });
       if (error) throw error;
@@ -176,7 +180,17 @@ export default function ReportReviewQueue() {
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs max-w-[200px] truncate" title={r.file_name}>{r.file_name}</TableCell>
                     <TableCell className="text-sm">{r.company_name || "–"}</TableCell>
-                    <TableCell className="text-sm">{r.report_period || "–"}</TableCell>
+                    <TableCell className="text-sm">
+                      {r.manual_override_status === "applied" && r.manual_report_period_label
+                        ? <>
+                            {r.manual_report_period_label}
+                            {r.report_period && r.manual_report_period_label !== r.report_period && (
+                              <span className="block text-[10px] text-muted-foreground">Parser: {r.report_period}</span>
+                            )}
+                          </>
+                        : r.report_period || "–"
+                      }
+                    </TableCell>
                     <TableCell className="text-xs space-y-0.5">
                       <div>{r.report_type}</div>
                       {statementType && <div className="text-muted-foreground">{statementType}</div>}

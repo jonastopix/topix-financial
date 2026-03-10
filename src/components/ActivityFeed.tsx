@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
+import { getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 interface ActivityEvent {
   id: string;
@@ -33,16 +34,17 @@ const ActivityFeed = () => {
 
       const { data: reports } = await supabase
         .from("financial_reports")
-        .select("id, report_period, uploaded_at, status")
+        .select("id, report_period, uploaded_at, status, manual_report_period_label, manual_override_status")
         .eq("company_id", companyId!)
         .order("uploaded_at", { ascending: false })
         .limit(3);
 
       (reports || []).forEach(r => {
+        const effectivePeriod = getEffectiveReportPeriod(r as unknown as ReportData);
         activity.push({
           id: `report-${r.id}`,
           type: "report",
-          description: `Rapport uploadet: ${r.report_period || "ukendt periode"}`,
+          description: `Rapport uploadet: ${effectivePeriod || "ukendt periode"}`,
           timestamp: r.uploaded_at,
           link: "/reports",
         });

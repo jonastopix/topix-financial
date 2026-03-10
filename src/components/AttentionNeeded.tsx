@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { DANISH_MONTHS } from "@/lib/financialUtils";
+import { DANISH_MONTHS, getEffectiveReportPeriodKey, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 
 interface AttentionItem {
   id: string;
@@ -46,23 +46,14 @@ const AttentionNeeded = () => {
 
       const { data: reports } = await (supabase
         .from("financial_reports")
-        .select("report_period") as any)
+        .select(`report_period, ${REPORT_OVERRIDE_SELECT}`) as any)
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("status", "processed");
 
       const reportKeys = new Set(
         (reports || [])
-          .map(r => {
-            if (!r.report_period) return null;
-            for (let i = 0; i < DANISH_MONTHS.length; i++) {
-              if (r.report_period.toLowerCase().includes(DANISH_MONTHS[i].toLowerCase())) {
-                const y = r.report_period.match(/\d{4}/);
-                if (y) return `${y[0]}-${String(i + 1).padStart(2, "0")}`;
-              }
-            }
-            return null;
-          })
+          .map((r: any) => getEffectiveReportPeriodKey(r as ReportData))
           .filter(Boolean)
       );
 

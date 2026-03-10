@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
+import { getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 const typeConfig = {
   message: { icon: MessageSquare, color: "text-chart-info", bg: "bg-chart-info/10" },
@@ -31,17 +32,18 @@ const DashboardActivity = () => {
 
       const { data: reports } = await supabase
         .from("financial_reports")
-        .select("id, report_period, uploaded_at")
+        .select("id, report_period, uploaded_at, manual_report_period_label, manual_override_status")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false })
         .limit(2);
 
       (reports || []).forEach(r => {
+        const effectivePeriod = getEffectiveReportPeriod(r as unknown as ReportData);
         activity.push({
           id: `r-${r.id}`,
           type: "report",
-          description: `Rapport: ${r.report_period || "ukendt"}`,
+          description: `Rapport: ${effectivePeriod || "ukendt"}`,
           timestamp: r.uploaded_at,
           link: "/reports",
         });
