@@ -17,7 +17,7 @@ import { da } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
-import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
+import { MILESTONE_SUGGESTIONS, type MilestoneSuggestion } from "@/lib/milestoneSuggestions";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 
 const Milestones = () => {
