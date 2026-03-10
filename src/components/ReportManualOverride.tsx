@@ -331,26 +331,47 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
             </div>
 
             {/* Section B: Key figures */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nøgletal</h3>
+            <div className="space-y-4">
               <p className="text-[10px] text-muted-foreground">
                 Tomt felt = ingen manuel korrektion (bruger parserens værdi). Brug negativt tal for omkostninger.
               </p>
 
-              <div className="grid grid-cols-1 gap-3">
-                {visibleFields.map(field => (
-                  <div key={field} className="flex items-center gap-3">
-                    <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={metricInputs[field] ?? ""}
-                      onChange={e => setMetricInputs(prev => ({ ...prev, [field]: e.target.value }))}
-                      placeholder="—"
-                      className="flex-1"
-                    />
-                  </div>
-                ))}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Driftsnøgletal</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {PNL_FIELDS.map(field => (
+                    <div key={field} className="flex items-center gap-3">
+                      <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={metricInputs[field] ?? ""}
+                        onChange={e => setMetricInputs(prev => ({ ...prev, [field]: e.target.value }))}
+                        placeholder="—"
+                        className="flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Balancenøgletal</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {BALANCE_FIELDS.map(field => (
+                    <div key={field} className="flex items-center gap-3">
+                      <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={metricInputs[field] ?? ""}
+                        onChange={e => setMetricInputs(prev => ({ ...prev, [field]: e.target.value }))}
+                        placeholder="—"
+                        className="flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
