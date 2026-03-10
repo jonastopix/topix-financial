@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Mail, Lock, User, LogIn, UserPlus } from "lucide-react";
 import { APP_BRANDING } from "@/lib/appConfig";
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
+import { getInitials } from "@/lib/uiUtils";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
