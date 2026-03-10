@@ -54,7 +54,7 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -65,7 +65,8 @@ const Auth = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Konto oprettet! Du logges ind nu...");
+      setSignupEmail(email);
+      setSignupResult(data.session ? "auto" : "confirm");
     }
     setLoading(false);
   };
