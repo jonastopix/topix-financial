@@ -1215,6 +1215,10 @@ export type Database = {
       }
       log_user_login: { Args: never; Returns: undefined }
       lookup_invite_company: { Args: { invite_token: string }; Returns: string }
+      lookup_invite_company_info: {
+        Args: { invite_token: string }
+        Returns: Json
+      }
       user_company_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
