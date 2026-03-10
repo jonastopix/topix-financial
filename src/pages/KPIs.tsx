@@ -125,7 +125,7 @@ const KPIs = () => {
       const [reportsRes, targetsRes, benchmarksRes] = await Promise.all([
         supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status")
+          .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status")
           .eq("company_id", companyId)
           .is("deleted_at", null)
           .eq("status", "processed")
