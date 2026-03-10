@@ -30,7 +30,7 @@ import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
-import { reportStatusConfig } from "@/lib/financialUtils";
+import { reportStatusConfig, getEffectiveReportPeriod, getEffectiveKeyFigures, hasManualOverride, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
