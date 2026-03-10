@@ -75,8 +75,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     if (open) {
       const manualMetrics = (report.manual_normalized_data as any)?.metrics;
       const initMetrics: Record<string, string> = {};
-      const fields = getVisibleFields(reportType);
-      for (const f of fields) {
+      for (const f of ALL_FIELDS) {
         const manualVal = manualMetrics?.[f];
         const existingVal = existingMetrics[f];
         const val = manualVal ?? existingVal;
