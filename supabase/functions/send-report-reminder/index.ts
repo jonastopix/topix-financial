@@ -33,21 +33,21 @@ Deno.serve(async (req) => {
   }
 
   try {
-    let testEmail: string | null = null;
-    try {
-      const body = await req.clone().json();
-      if (body?.test_email) testEmail = body.test_email;
-    } catch { /* no body */ }
-
+    // --- Auth gate: service role required for ALL paths ---
     const authHeader = req.headers.get("Authorization");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const isServiceRole = authHeader === `Bearer ${serviceRoleKey}`;
-
-    if (!testEmail && !isServiceRole) {
+    if (authHeader !== `Bearer ${serviceRoleKey}`) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Parse body only after auth is confirmed
+    let testEmail: string | null = null;
+    try {
+      const body = await req.clone().json();
+      if (body?.test_email) testEmail = body.test_email;
+    } catch { /* no body — normal cron flow */ }
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
