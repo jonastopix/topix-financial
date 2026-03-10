@@ -24,6 +24,9 @@ type Report = {
   ai_analysis: unknown;
   normalized_data: unknown;
   raw_extracted_data: unknown;
+  manual_report_period_label: string | null;
+  manual_report_period_key: string | null;
+  manual_override_status: string | null;
 };
 
 type Flag = {
