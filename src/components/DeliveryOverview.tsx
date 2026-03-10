@@ -31,7 +31,7 @@ const DeliveryOverview = ({ reports }: DeliveryOverviewProps) => {
     [...reports]
       .sort((a, b) => a.id.localeCompare(b.id))
       .forEach((r) => {
-        const key = parseReportPeriodToKey(r.report_period);
+        const key = getEffectiveReportPeriodKey(r as any);
         if (key) {
           const existing = map[key];
           if (!existing || r.status === "processed") map[key] = r;
