@@ -84,33 +84,44 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    console.log("Monday webhook received:", JSON.stringify(body));
 
-    // Handle Monday.com webhook challenge verification
+    // Handle Monday.com webhook challenge verification (must be publicly reachable)
     if (body.challenge) {
+      console.log("Monday webhook challenge received");
       return new Response(JSON.stringify({ challenge: body.challenge }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify Monday.com JWT signature (if present)
+    // ── SIGNATURE VERIFICATION (required for all event processing) ──
     const MONDAY_SIGNING_SECRET = Deno.env.get("MONDAY_SIGNING_SECRET");
-    const authHeader = req.headers.get("Authorization");
-
-    if (MONDAY_SIGNING_SECRET && authHeader) {
-      const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
-      if (!isValid) {
-        console.error("Invalid Monday.com webhook signature");
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      console.log("Monday.com webhook signature verified ✓");
-    } else if (!authHeader) {
-      console.warn("No Authorization header — accepting webhook (API-subscription mode)");
+    if (!MONDAY_SIGNING_SECRET) {
+      console.error("MONDAY_SIGNING_SECRET not configured — refusing to process webhook");
+      return new Response(JSON.stringify({ error: "Server configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.warn("Missing Authorization header on Monday webhook event");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
+    if (!isValid) {
+      console.error("Invalid Monday.com webhook signature");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    console.log("Monday.com webhook signature verified");
 
     const event = body.event;
     if (!event) {
