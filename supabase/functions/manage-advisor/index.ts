@@ -111,6 +111,17 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, email, target_user_id } = body;
 
+    // --- Per-action authorization: default-deny for non-admins ---
+    const ADVISOR_ALLOWED_ACTIONS = ['list'];
+    if (!callerIsAdmin) {
+      if (!action || !ADVISOR_ALLOWED_ACTIONS.includes(action)) {
+        console.warn(`[manage-advisor] DENIED action='${action || '(none)'}' caller=${userId} role=advisor`);
+        return new Response(JSON.stringify({ error: 'Forbidden: admin role required' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // ── BULK REMOVE ALL MEMBERS ──
     if (action === 'bulk-remove-members') {
       // Find all users with role 'member' (not advisor/admin)
