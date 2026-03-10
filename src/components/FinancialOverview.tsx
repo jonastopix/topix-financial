@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact, pctChange,
+  getEffectiveReportPeriodKey, getEffectiveMetrics, formatDKK, formatCompact, pctChange,
   SHORT_MONTHS, type ReportData,
 } from "@/lib/financialUtils";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
