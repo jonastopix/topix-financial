@@ -58,6 +58,13 @@ interface ReportWithAnalysis {
   status: string;
   validation_status?: string | null;
   extraction_method?: string | null;
+  report_type?: string;
+  // Manual override fields
+  manual_report_period_label?: string | null;
+  manual_report_period_key?: string | null;
+  manual_normalized_data?: Json | null;
+  manual_override_status?: string | null;
+  manual_report_type?: string | null;
 }
 
 const severityConfig = {
