@@ -36,7 +36,7 @@ const BudgetOverview = () => {
 
       const budgets = budgetRes.data || [];
       const report = (reportRes.data?.[0] || null) as ReportData | null;
-      const kf = report ? getKeyFigures(report) : null;
+      const kf = report ? getEffectiveKeyFigures(report) : null;
 
       // Sum budget by revenue vs expenses categories
       let budgetRevenue = 0;

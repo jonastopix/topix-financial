@@ -58,7 +58,7 @@ const PerformanceScore = () => {
     if (reports.length === 0) return [];
 
     const sorted = [...reports]
-      .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r) }))
+      .map(r => ({ key: getEffectiveReportPeriodKey(r), kf: getEffectiveKeyFigures(r) }))
       .filter((d): d is { key: string; kf: Record<string, number> } => !!d.key && !!d.kf)
       .sort((a, b) => a.key.localeCompare(b.key));
 

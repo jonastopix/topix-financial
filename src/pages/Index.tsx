@@ -75,7 +75,7 @@ const Dashboard = () => {
       const conversationId = convRes.data?.[0]?.id || null;
       const reports = (reportsRes.data || []) as ReportData[];
       const sorted = reports
-        .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r), period: r.report_period }))
+        .map(r => ({ key: getEffectiveReportPeriodKey(r), kf: getEffectiveKeyFigures(r), period: r.report_period }))
         .filter((d): d is { key: string; kf: Record<string, number>; period: string } => !!d.key && !!d.kf)
         .sort((a, b) => a.key.localeCompare(b.key));
 

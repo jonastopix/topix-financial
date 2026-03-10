@@ -36,7 +36,7 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
     if (!reports) return map;
 
     for (const report of reports) {
-      const periodKey = parseReportPeriodToKey(report.report_period);
+      const periodKey = getEffectiveReportPeriodKey(report as any);
       if (!periodKey) continue;
       const [reportYear, monthStr] = periodKey.split("-");
       if (reportYear !== year) continue;

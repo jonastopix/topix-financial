@@ -33,8 +33,8 @@ const RevenueChart = () => {
     const byKey = new Map<string, { key: string; revenue: number; expenses: number }>();
 
     for (const r of reports) {
-      const key = parseReportPeriodToKey(r.report_period);
-      const kf = getKeyFigures(r);
+      const key = getEffectiveReportPeriodKey(r);
+      const kf = getEffectiveKeyFigures(r);
       if (!key || !kf) continue;
       if (byKey.has(key)) continue;
 

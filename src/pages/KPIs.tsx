@@ -169,9 +169,9 @@ const KPIs = () => {
   const monthlyData = useMemo(() => {
     const byKey = new Map<string, { sortKey: string; month: string; kf: Record<string, number> }>();
     reports.forEach((r) => {
-      const kf = getKeyFigures(r);
+      const kf = getEffectiveKeyFigures(r);
       if (!kf) return;
-      const key = parseReportPeriodToKey(r.report_period);
+      const key = getEffectiveReportPeriodKey(r);
       if (!key) return;
       const [, monthStr] = key.split("-");
       const monthIdx = parseInt(monthStr, 10) - 1;
