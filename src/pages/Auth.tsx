@@ -237,7 +237,7 @@ const Auth = () => {
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => { setIsLogin(!isLogin); setSignupResult(null); }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               {isLogin ? "Har du ikke en konto? Opret" : "Har du allerede en konto? Log ind"}
