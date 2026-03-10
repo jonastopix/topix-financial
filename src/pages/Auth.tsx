@@ -242,6 +242,7 @@ const Auth = () => {
             >
               {isLogin ? "Har du ikke en konto? Opret" : "Har du allerede en konto? Log ind"}
             </button>
+
             {isLogin && (
               <button
                 type="button"
