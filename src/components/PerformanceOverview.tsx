@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 import {
-  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, pctChange,
-  type ReportData,
+  getEffectiveReportPeriodKey, getEffectiveMetrics, getEffectiveReportPeriod,
+  formatDKK, pctChange, type ReportData,
 } from "@/lib/financialUtils";
 
 interface PerformanceOverviewProps {
