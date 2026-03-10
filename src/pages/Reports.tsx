@@ -667,8 +667,14 @@ const Reports = () => {
                         <FileText className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">
-                          {report.report_period || report.file_name}
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          {getEffectiveReportPeriod(report) || report.file_name}
+                          {hasManualOverride(report) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
+                              <Pencil className="h-2.5 w-2.5" />
+                              Manuelt rettet
+                            </span>
+                          )}
                         </p>
                         <div className="flex items-center gap-3 mt-0.5">
                           <span className="text-xs text-muted-foreground capitalize">{report.report_type}</span>
