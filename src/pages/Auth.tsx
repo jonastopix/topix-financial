@@ -126,6 +126,69 @@ const Auth = () => {
     );
   }
 
+  if (signupResult) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            {inviteCompany ? (
+              <>
+                {inviteCompany.logo_url ? (
+                  <img
+                    src={inviteCompany.logo_url}
+                    alt={inviteCompany.name}
+                    className="h-12 w-12 rounded-xl object-cover mx-auto mb-4"
+                  />
+                ) : (
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <span className="text-primary font-display font-bold text-lg">
+                      {getInitials(inviteCompany.name)}
+                    </span>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground mt-1">
+                  Du er inviteret til {inviteCompany.name}
+                </p>
+              </>
+            ) : (
+              <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
+                <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="glass-card rounded-xl p-6 text-center space-y-4">
+            {signupResult === "auto" ? (
+              <>
+                <CheckCircle className="h-10 w-10 text-primary mx-auto" />
+                <h1 className="text-xl font-display font-bold text-foreground">Konto oprettet</h1>
+                <p className="text-sm text-muted-foreground">Vi logger dig ind nu...</p>
+              </>
+            ) : (
+              <>
+                <Mail className="h-10 w-10 text-primary mx-auto" />
+                <h1 className="text-xl font-display font-bold text-foreground">Tjek din mail</h1>
+                <p className="text-sm text-muted-foreground">
+                  Vi har sendt en bekræftelsesmail til <strong className="text-foreground">{signupEmail}</strong>. Du skal bekræfte din konto via mailen, før du kan fortsætte.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Kan du ikke se mailen? Tjek spam eller prøv igen om et øjeblik.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setSignupResult(null); setIsLogin(true); }}
+                  className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Tilbage til login
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
