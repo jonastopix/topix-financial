@@ -27,6 +27,16 @@ export interface ReportData {
   extracted_data: Json | null;
   normalized_data?: Json | null;
   status: string;
+  // Manual override fields
+  manual_report_period_label?: string | null;
+  manual_report_period_key?: string | null;
+  manual_report_type?: string | null;
+  manual_normalized_data?: Json | null;
+  manual_override_note?: string | null;
+  manual_override_by?: string | null;
+  manual_override_at?: string | null;
+  manual_override_source?: string | null;
+  manual_override_status?: string | null;
 }
 
 export function getKeyFigures(report: ReportData): Record<string, number> | null {
@@ -40,7 +50,7 @@ export function getKeyFigures(report: ReportData): Record<string, number> | null
 
 // ── Canonical-first metrics helper ──
 export interface ReportMetricsResult {
-  source: "canonical" | "legacy";
+  source: "canonical" | "legacy" | "manual";
   metrics: Record<string, number | null>;
 }
 
@@ -74,6 +84,80 @@ export function getCanonicalOrLegacyMetrics(report: ReportData): ReportMetricsRe
   if (kf) return { source: "legacy", metrics: kf };
   return null;
 }
+
+// ── Manual override helpers ──
+
+/** Check if a report has an applied manual override */
+export function hasManualOverride(report: ReportData): boolean {
+  return report.manual_override_status === "applied";
+}
+
+/** Check if a report has a draft manual override */
+export function hasManualDraft(report: ReportData): boolean {
+  return report.manual_override_status === "draft";
+}
+
+/** Get effective report period label (manual override takes priority when applied) */
+export function getEffectiveReportPeriod(report: ReportData): string | null {
+  if (hasManualOverride(report) && report.manual_report_period_label) {
+    return report.manual_report_period_label;
+  }
+  return report.report_period;
+}
+
+/** Get effective report period key in YYYY-MM format */
+export function getEffectiveReportPeriodKey(report: ReportData): string | null {
+  if (hasManualOverride(report) && report.manual_report_period_key) {
+    return report.manual_report_period_key;
+  }
+  return parseReportPeriodToKey(report.report_period);
+}
+
+/** Get effective metrics — manual_normalized_data is the sole manual metrics source */
+export function getEffectiveMetrics(report: ReportData): ReportMetricsResult | null {
+  if (hasManualOverride(report) && report.manual_normalized_data) {
+    const mnd = report.manual_normalized_data as Record<string, any>;
+    if (mnd.metrics) {
+      return {
+        source: "manual",
+        metrics: {
+          omsaetning: mnd.metrics.omsaetning ?? null,
+          daekningsbidrag: mnd.metrics.daekningsbidrag ?? null,
+          loenninger: mnd.metrics.loenninger ?? null,
+          direkte_omkostninger: mnd.metrics.direkte_omkostninger ?? null,
+          salgsomkostninger: mnd.metrics.salgsomkostninger ?? null,
+          lokaleomkostninger: mnd.metrics.lokaleomkostninger ?? null,
+          administrationsomkostninger: mnd.metrics.administrationsomkostninger ?? null,
+          afskrivninger: mnd.metrics.afskrivninger ?? null,
+          resultat_foer_skat: mnd.metrics.resultat_foer_skat ?? null,
+          resultat_efter_skat: mnd.metrics.resultat_efter_skat ?? null,
+          aktiver_i_alt: mnd.metrics.aktiver_i_alt ?? null,
+          egenkapital: mnd.metrics.egenkapital ?? null,
+          bank_balance: mnd.metrics.bank_balance ?? null,
+          debitorer: mnd.metrics.debitorer ?? null,
+          kreditorer: mnd.metrics.kreditorer ?? null,
+        },
+      };
+    }
+  }
+  // Fallback to canonical/legacy
+  return getCanonicalOrLegacyMetrics(report);
+}
+
+/** Get effective key figures (legacy compat — uses effective metrics) */
+export function getEffectiveKeyFigures(report: ReportData): Record<string, number> | null {
+  const result = getEffectiveMetrics(report);
+  if (!result) return null;
+  // Filter out null values for legacy compat
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(result.metrics)) {
+    if (v != null) out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+// ── Select fields for queries that need manual override data ──
+export const REPORT_OVERRIDE_SELECT = "manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source";
 
 // ── DKK formatting ──
 export const formatDKK = (n?: number | null) =>
