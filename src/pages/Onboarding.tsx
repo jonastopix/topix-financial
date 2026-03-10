@@ -65,6 +65,20 @@ const Onboarding = () => {
               />
             </div>
 
+            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2.5">
+              <p className="text-xs font-medium text-muted-foreground">Hvad sker der nu?</p>
+              {[
+                { icon: FileText, text: "Upload din første rapport" },
+                { icon: ClipboardList, text: "Udfyld dine første handouts" },
+                { icon: LayoutDashboard, text: "Få overblik på dashboardet" },
+              ].map(({ icon: Icon, text }) => (
+                <div key={text} className="flex items-center gap-2.5">
+                  <Icon className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                  <span className="text-sm text-muted-foreground">{text}</span>
+                </div>
+              ))}
+            </div>
+
             <Button type="submit" className="w-full" disabled={saving || !fullName.trim()}>
               {saving ? "Gemmer..." : "Kom i gang"}
             </Button>

@@ -127,17 +127,39 @@ const Auth = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
-          </div>
-          <h1 className="text-xl font-display font-bold text-foreground">
-            {isLogin ? "Log ind på The Boardroom" : "Opret konto"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {inviteCompanyName && !isLogin
-              ? `Du er inviteret til ${inviteCompanyName}`
-              : isLogin ? "Velkommen tilbage" : "Bliv en del af The Boardroom"}
-          </p>
+          {inviteCompany && !isLogin ? (
+            <>
+              {inviteCompany.logo_url ? (
+                <img
+                  src={inviteCompany.logo_url}
+                  alt={inviteCompany.name}
+                  className="h-12 w-12 rounded-xl object-cover mx-auto mb-4"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-primary font-display font-bold text-lg">
+                    {getInitials(inviteCompany.name)}
+                  </span>
+                </div>
+              )}
+              <h1 className="text-xl font-display font-bold text-foreground">Opret konto</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Du er inviteret til {inviteCompany.name}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
+                <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+              </div>
+              <h1 className="text-xl font-display font-bold text-foreground">
+                {isLogin ? "Log ind på The Boardroom" : "Opret konto"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isLogin ? "Velkommen tilbage" : "Bliv en del af The Boardroom"}
+              </p>
+            </>
+          )}
         </div>
 
         <form onSubmit={isLogin ? handleLogin : handleSignup} className="glass-card rounded-xl p-6 space-y-4">
