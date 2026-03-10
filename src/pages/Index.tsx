@@ -62,7 +62,7 @@ const Dashboard = () => {
       const [reportsRes, convRes, budgetRes] = await Promise.all([
         (supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status") as any)
+          .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .eq("status", "processed")
