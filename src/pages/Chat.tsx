@@ -1223,7 +1223,8 @@ const Chat = () => {
                       </div>
                       </React.Fragment>
                     );
-                  })}
+                  });
+                  })()}
                   <div ref={messagesEndRef} />
                 </div>
 
