@@ -17,6 +17,8 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [companyName] = useState("");
   const [showReset, setShowReset] = useState(false);
+  const [signupResult, setSignupResult] = useState<"auto" | "confirm" | null>(null);
+  const [signupEmail, setSignupEmail] = useState("");
   const [inviteCompany, setInviteCompany] = useState<{ name: string; logo_url: string | null } | null>(null);
 
   // Look up company info from invite token
