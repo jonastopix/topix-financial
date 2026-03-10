@@ -165,7 +165,9 @@ const MemberDetail = () => {
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [expandedReport, setExpandedReport] = useState<string | null>(() => {
+    return searchParams.get("reportId") || null;
+  });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
 
