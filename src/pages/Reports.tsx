@@ -950,6 +950,15 @@ const Reports = () => {
           )}
         </div>
       )}
+      {/* Manual Override Drawer */}
+      {overrideReport && (
+        <ReportManualOverride
+          report={overrideReport}
+          open={!!overrideReport}
+          onOpenChange={(open) => { if (!open) setOverrideReport(null); }}
+          onSaved={() => setRefreshKey(k => k + 1)}
+        />
+      )}
     </AppLayout>
   );
 };
