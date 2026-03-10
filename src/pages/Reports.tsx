@@ -112,6 +112,7 @@ const Reports = () => {
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [overrideReport, setOverrideReport] = useState<DbReport | null>(null);
   
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; report: DbReport | null }>({ open: false, report: null });
   const [deleting, setDeleting] = useState(false);
