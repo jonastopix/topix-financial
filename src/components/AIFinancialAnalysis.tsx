@@ -326,7 +326,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       // Post to chat
       if (conversationId && userId && data && !data.error) {
         const summaryParts: string[] = [];
-        summaryParts.push(`📊 **AI Finansiel Analyse · ${target.report_period}**\n`);
+        summaryParts.push(`📊 **AI Finansiel Analyse · ${effectivePeriod || target.report_period}**\n`);
         summaryParts.push(data.overview);
         if (data.key_findings?.length > 0) {
           summaryParts.push(`\n\n**Nøglefund:**`);
