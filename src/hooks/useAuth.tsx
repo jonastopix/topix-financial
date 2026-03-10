@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
           const { data: invResult } = await supabase.functions.invoke(
             "process-pending-invitation",
-            { body: { user_id: userId, email: userEmail, invite_token: inviteTokenMeta || null } }
+            { body: { user_id: userId, invite_token: inviteTokenMeta || null } }
           );
           if (invResult?.success) {
             setOwnCompanyId(invResult.company_id);
