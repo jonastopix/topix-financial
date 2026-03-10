@@ -152,11 +152,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Compute expected period key (YYYY-MM) for structured matching
+    const expectedPeriodKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+
+    // Fetch minimal fields for effective-period resolution; exclude soft-deleted reports
     const { data: existingReports, error: repErr } = await supabase
-      .from("financial_reports").select("company_id").eq("report_period", expectedPeriod);
+      .from("financial_reports")
+      .select("company_id, report_period, manual_override_status, manual_report_period_label, manual_report_period_key")
+      .is("deleted_at", null);
     if (repErr) throw repErr;
 
-    const reportedIds = new Set((existingReports || []).map((r: any) => r.company_id));
+    // Resolve effective period per report — exclusive, not additive
+    const reportedIds = new Set<string>();
+    for (const r of existingReports || []) {
+      if (r.manual_override_status === 'applied') {
+        // Override applied: only manual period counts, raw period ignored
+        if (r.manual_report_period_key) {
+          if (r.manual_report_period_key === expectedPeriodKey) reportedIds.add(r.company_id);
+        } else if (r.manual_report_period_label === expectedPeriod) {
+          reportedIds.add(r.company_id);
+        }
+      } else {
+        // No applied override: raw report_period only
+        if (r.report_period === expectedPeriod) reportedIds.add(r.company_id);
+      }
+    }
     const missingCompanies = companies.filter((c: any) => {
       if (reportedIds.has(c.id)) return false;
       const start = new Date(c.start_date || c.created_at);
