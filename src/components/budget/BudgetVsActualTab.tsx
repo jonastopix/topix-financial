@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { parseReportPeriodToKey } from "@/lib/financialUtils";
+import { getEffectiveReportPeriodKey } from "@/lib/financialUtils";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import { BvaSummaryCard, varianceColor, varianceIcon } from "./BudgetHelpers";
 import {
