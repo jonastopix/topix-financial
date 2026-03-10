@@ -180,7 +180,17 @@ export default function ReportReviewQueue() {
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs max-w-[200px] truncate" title={r.file_name}>{r.file_name}</TableCell>
                     <TableCell className="text-sm">{r.company_name || "–"}</TableCell>
-                    <TableCell className="text-sm">{r.report_period || "–"}</TableCell>
+                    <TableCell className="text-sm">
+                      {r.manual_override_status === "applied" && r.manual_report_period_label
+                        ? <>
+                            {r.manual_report_period_label}
+                            {r.report_period && r.manual_report_period_label !== r.report_period && (
+                              <span className="block text-[10px] text-muted-foreground">Parser: {r.report_period}</span>
+                            )}
+                          </>
+                        : r.report_period || "–"
+                      }
+                    </TableCell>
                     <TableCell className="text-xs space-y-0.5">
                       <div>{r.report_type}</div>
                       {statementType && <div className="text-muted-foreground">{statementType}</div>}
