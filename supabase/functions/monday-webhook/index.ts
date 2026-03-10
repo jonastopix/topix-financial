@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
     const columnValue = event.value;
     const pulseId = event.pulseId;
     const pulseName = event.pulseName;
+    console.log(`Monday webhook event: pulseId=${pulseId}, pulseName="${pulseName}"`);
 
     // Parse the status value
     let newStatus = "";
