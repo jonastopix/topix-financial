@@ -133,7 +133,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       const manualMetrics = (report.manual_normalized_data as any)?.metrics ?? {};
       const manualPeriodChanged = report.manual_report_period_key !== `${year}-${String(month).padStart(2, "0")}`;
       const manualTypeChanged = report.manual_report_type !== reportType;
-      const manualMetricChanged = visibleFields.some(f => {
+      const manualMetricChanged = ALL_FIELDS.some(f => {
         const parsed = parseMetricValue(metricInputs[f] ?? "");
         if (parsed === undefined) return false;
         const currentManual = manualMetrics[f] ?? null;
