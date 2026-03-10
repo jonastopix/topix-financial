@@ -3,7 +3,7 @@ import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { getKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 
 interface ComparisonRow {
   label: string;
