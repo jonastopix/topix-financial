@@ -1199,8 +1199,11 @@ const Chat = () => {
                               <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                 {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                               </span>
-                              {isMine && msg.read_at && (
-                                <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                              {!isAdvisor && isMine && msg.id === latestReadOwnMsgId && (
+                                <>
+                                  <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                                  <span className="text-[10px] text-primary-foreground/60">Læst</span>
+                                </>
                               )}
                             </div>
                           </div>
