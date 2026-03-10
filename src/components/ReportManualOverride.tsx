@@ -90,7 +90,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     }
   }, [open, report.id]);
 
-  const visibleFields = useMemo(() => getVisibleFields(reportType), [reportType]);
+  
 
   // Parse a metric input: empty/blank → null, number → number, invalid → undefined (error)
   function parseMetricValue(raw: string): number | null | undefined {
