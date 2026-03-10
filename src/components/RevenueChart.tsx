@@ -5,7 +5,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { parseReportPeriodToKey, getKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveReportPeriodKey, getEffectiveKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
 import { type PeriodMode } from "@/components/PeriodSelector";
 
 const RevenueChart = () => {
