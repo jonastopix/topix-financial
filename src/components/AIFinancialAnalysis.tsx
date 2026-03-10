@@ -468,8 +468,33 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </div>
       )}
 
+      {/* Manual override stale-data banner */}
+      {isAnalysisStale && !loading && (
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-accent">
+          <div className="flex items-start gap-3">
+            <Pencil className="h-5 w-5 text-accent-foreground shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                Data er manuelt korrigeret
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Denne rapport har en manuel korrektion. Kør AI-analyse igen for opdaterede resultater baseret på de korrigerede data.
+              </p>
+            </div>
+            <button
+              onClick={() => generateAnalysis()}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Kør igen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Analysis content — only when NOT canonical blocked */}
-      {!canonicalBlocked && validationStatus === "PASS" && analysis && !loading && (
+      {!canonicalBlocked && (validationStatus === "PASS" || isManuallyOverridden) && analysis && !loading && (
         <>
           {/* Overview */}
           <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary">
