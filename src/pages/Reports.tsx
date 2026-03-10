@@ -200,12 +200,10 @@ const Reports = () => {
 
   const reportsByMonth = useMemo(() => {
     const map: Record<string, DbReport> = {};
-    // Sort ascending so later (better) reports overwrite
     const sorted = [...dbReports].sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
     sorted.forEach((r) => {
-      const key = parseReportPeriodToKey(r.report_period);
+      const key = getEffectiveReportPeriodKey(r);
       if (key) {
-        // Prefer processed over others
         const existing = map[key];
         if (!existing || r.status === "processed") {
           map[key] = r;
