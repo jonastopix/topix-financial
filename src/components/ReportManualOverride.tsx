@@ -147,7 +147,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     }
 
     // Validate numeric inputs
-    for (const f of visibleFields) {
+    for (const f of ALL_FIELDS) {
       const parsed = parseMetricValue(metricInputs[f] ?? "");
       if (parsed === undefined) return `"${FIELD_LABELS[f]}" er ikke et gyldigt tal`;
     }
