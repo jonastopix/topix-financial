@@ -47,13 +47,6 @@ const FIELD_LABELS: Record<string, string> = {
   aktiver_i_alt: "Aktiver i alt",
 };
 
-function getVisibleFields(reportType: string): string[] {
-  switch (reportType) {
-    case "resultatopgørelse": return PNL_FIELDS;
-    case "saldobalance": return BALANCE_FIELDS;
-    default: return ALL_FIELDS;
-  }
-}
 
 function parseMonth(key: string | null): { month: number; year: number } {
   if (!key) return { month: new Date().getMonth() + 1, year: new Date().getFullYear() };
@@ -82,8 +75,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     if (open) {
       const manualMetrics = (report.manual_normalized_data as any)?.metrics;
       const initMetrics: Record<string, string> = {};
-      const fields = getVisibleFields(reportType);
-      for (const f of fields) {
+      for (const f of ALL_FIELDS) {
         const manualVal = manualMetrics?.[f];
         const existingVal = existingMetrics[f];
         const val = manualVal ?? existingVal;
@@ -98,7 +90,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     }
   }, [open, report.id]);
 
-  const visibleFields = useMemo(() => getVisibleFields(reportType), [reportType]);
+  
 
   // Parse a metric input: empty/blank → null, number → number, invalid → undefined (error)
   function parseMetricValue(raw: string): number | null | undefined {
@@ -122,9 +114,9 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       return origKey !== newKey;
     })();
 
-    const hasMetricOverride = visibleFields.some(f => {
+    const hasMetricOverride = ALL_FIELDS.some(f => {
       const parsed = parseMetricValue(metricInputs[f] ?? "");
-      if (parsed === undefined) return false; // invalid, caught elsewhere
+      if (parsed === undefined) return false;
       const origVal = existingMetrics[f] ?? null;
       return parsed !== origVal;
     });
@@ -141,7 +133,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       const manualMetrics = (report.manual_normalized_data as any)?.metrics ?? {};
       const manualPeriodChanged = report.manual_report_period_key !== `${year}-${String(month).padStart(2, "0")}`;
       const manualTypeChanged = report.manual_report_type !== reportType;
-      const manualMetricChanged = visibleFields.some(f => {
+      const manualMetricChanged = ALL_FIELDS.some(f => {
         const parsed = parseMetricValue(metricInputs[f] ?? "");
         if (parsed === undefined) return false;
         const currentManual = manualMetrics[f] ?? null;
@@ -155,7 +147,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     }
 
     // Validate numeric inputs
-    for (const f of visibleFields) {
+    for (const f of ALL_FIELDS) {
       const parsed = parseMetricValue(metricInputs[f] ?? "");
       if (parsed === undefined) return `"${FIELD_LABELS[f]}" er ikke et gyldigt tal`;
     }
@@ -339,26 +331,47 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
             </div>
 
             {/* Section B: Key figures */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nøgletal</h3>
+            <div className="space-y-4">
               <p className="text-[10px] text-muted-foreground">
                 Tomt felt = ingen manuel korrektion (bruger parserens værdi). Brug negativt tal for omkostninger.
               </p>
 
-              <div className="grid grid-cols-1 gap-3">
-                {visibleFields.map(field => (
-                  <div key={field} className="flex items-center gap-3">
-                    <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={metricInputs[field] ?? ""}
-                      onChange={e => setMetricInputs(prev => ({ ...prev, [field]: e.target.value }))}
-                      placeholder="—"
-                      className="flex-1"
-                    />
-                  </div>
-                ))}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Driftsnøgletal</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {PNL_FIELDS.map(field => (
+                    <div key={field} className="flex items-center gap-3">
+                      <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={metricInputs[field] ?? ""}
+                        onChange={e => setMetricInputs(prev => ({ ...prev, [field]: e.target.value }))}
+                        placeholder="—"
+                        className="flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Balancenøgletal</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {BALANCE_FIELDS.map(field => (
+                    <div key={field} className="flex items-center gap-3">
+                      <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={metricInputs[field] ?? ""}
+                        onChange={e => setMetricInputs(prev => ({ ...prev, [field]: e.target.value }))}
+                        placeholder="—"
+                        className="flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
