@@ -74,10 +74,15 @@ const Handouts = () => {
     if (!user || !companyId) return;
     setIsLoading(true);
     const load = async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("handouts")
-        .select("module, status, responses, checklist, levers, completed_at, user_id")
-        .eq("company_id", companyId);
+        .select("module, status, responses, checklist, levers, completed_at, user_id");
+      if (isAdvisor) {
+        query = query.eq("company_id", companyId!);
+      } else {
+        query = query.eq("user_id", user!.id);
+      }
+      const { data } = await query;
 
       // Build per-module user_id map for advisor deep-linking
       const userMap: Record<string, string> = {};
