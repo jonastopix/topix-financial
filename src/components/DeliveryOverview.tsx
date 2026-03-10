@@ -117,7 +117,12 @@ const DeliveryOverview = ({ reports }: DeliveryOverviewProps) => {
                     }`}
                   >
                     {status === "processed" ? (
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <div className="relative">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        {report && hasManualOverride(report as any) && (
+                          <Pencil className="h-2 w-2 text-accent-foreground absolute -top-0.5 -right-0.5" />
+                        )}
+                      </div>
                     ) : status === "processing" ? (
                       <Clock className="h-4 w-4 text-chart-warning animate-pulse" />
                     ) : status === "error" ? (

@@ -25,11 +25,11 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
     return reports
       .filter(r => r.status === "processed")
       .map(r => {
-        const result = getCanonicalOrLegacyMetrics(r);
+        const result = getEffectiveMetrics(r);
         if (!result) return null;
-        const key = parseReportPeriodToKey(r.report_period);
+        const key = getEffectiveReportPeriodKey(r);
         if (!key) return null;
-        return { key, kf: result.metrics, period: r.report_period! };
+        return { key, kf: result.metrics, period: getEffectiveReportPeriod(r)! };
       })
       .filter(Boolean as any as (v: any) => v is { key: string; kf: Record<string, number | null>; period: string })
       .sort((a, b) => a.key.localeCompare(b.key));
