@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { user_id, email, invite_token } = await req.json();
+    const { user_id, invite_token } = await req.json();
 
     // Security: user can only process their own invitation
     if (user_id !== callerId) {
@@ -49,6 +49,20 @@ Deno.serve(async (req) => {
 
     // Use service role client for cross-RLS operations
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Resolve the authenticated user's verified email server-side
+    // Never trust body.email — only use auth-confirmed email
+    const { data: authUser, error: authUserError } =
+      await supabase.auth.admin.getUserById(callerId);
+    if (authUserError || !authUser?.user) {
+      console.error("Failed to resolve auth user:", authUserError);
+      return new Response(
+        JSON.stringify({ error: "Could not resolve user" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const verifiedEmail = authUser.user.email?.trim().toLowerCase() || null;
+    const emailConfirmed = !!authUser.user.email_confirmed_at;
 
     // 1. Check if user already has a company membership
     const { data: existingMember } = await supabase
@@ -65,9 +79,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Find pending invitation — token-based first, then email fallback
+    // 2. Find pending invitation — token-based first, then verified email fallback
     let invitations: any[] | null = null;
 
+    // Path A: Token-based lookup (works regardless of email confirmation)
     if (invite_token) {
       const { data } = await supabase
         .from("company_invitations")
@@ -78,12 +93,21 @@ Deno.serve(async (req) => {
       invitations = data;
     }
 
+    // Path B: Email fallback — requires confirmed/verified email
     if (!invitations || invitations.length === 0) {
+      if (!verifiedEmail || !emailConfirmed) {
+        // Fail closed: unverified email cannot use email fallback
+        return new Response(
+          JSON.stringify({ success: false, reason: "no_pending_invitation" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const { data } = await supabase
         .from("company_invitations")
         .select("id, company_id")
         .eq("status", "pending")
-        .ilike("email", email.trim())
+        .eq("email", verifiedEmail)
         .order("created_at", { ascending: false })
         .limit(1);
       invitations = data;
