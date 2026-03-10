@@ -29,7 +29,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { getKeyFigures, parseReportPeriodToKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
 import type { ReportData } from "@/lib/financialUtils";
 import { toast } from "sonner";
 import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
