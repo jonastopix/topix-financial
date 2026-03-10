@@ -160,6 +160,14 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     return !!nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload);
   }, [selectedReport]);
 
+  // Manual override stale-data detection
+  const isManuallyOverridden = useMemo(() => {
+    if (!selectedReport) return false;
+    return hasManualOverride(selectedReport as unknown as ReportData);
+  }, [selectedReport]);
+
+  const isAnalysisStale = isManuallyOverridden && !!analysis;
+
   // Group reports by year for history
   const reportsByYear = useMemo(() => {
     const groups: Record<string, ReportWithAnalysis[]> = {};
