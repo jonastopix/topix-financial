@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ClipboardList, ArrowLeft } from "lucide-react";
+import { ClipboardList, ArrowLeft, Lightbulb, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
