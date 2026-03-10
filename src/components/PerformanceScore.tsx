@@ -3,7 +3,7 @@ import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { getKeyFigures, parseReportPeriodToKey, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface MetricScore {
@@ -42,7 +42,7 @@ const PerformanceScore = () => {
     queryFn: async () => {
       const { data, error } = await (supabase
         .from("financial_reports")
-        .select("id, report_period, extracted_data, status") as any)
+        .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
         .eq("company_id", companyId!)
         .eq("status", "processed")
         .order("uploaded_at", { ascending: false })
@@ -58,7 +58,7 @@ const PerformanceScore = () => {
     if (reports.length === 0) return [];
 
     const sorted = [...reports]
-      .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r) }))
+      .map(r => ({ key: getEffectiveReportPeriodKey(r), kf: getEffectiveKeyFigures(r) }))
       .filter((d): d is { key: string; kf: Record<string, number> } => !!d.key && !!d.kf)
       .sort((a, b) => a.key.localeCompare(b.key));
 

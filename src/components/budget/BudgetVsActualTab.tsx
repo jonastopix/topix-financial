@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { parseReportPeriodToKey } from "@/lib/financialUtils";
+import { getEffectiveReportPeriodKey } from "@/lib/financialUtils";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import { BvaSummaryCard, varianceColor, varianceIcon } from "./BudgetHelpers";
 import {
@@ -36,7 +36,7 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
     if (!reports) return map;
 
     for (const report of reports) {
-      const periodKey = parseReportPeriodToKey(report.report_period);
+      const periodKey = getEffectiveReportPeriodKey(report as any);
       if (!periodKey) continue;
       const [reportYear, monthStr] = periodKey.split("-");
       if (reportYear !== year) continue;

@@ -29,7 +29,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { getKeyFigures, parseReportPeriodToKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
 import type { ReportData } from "@/lib/financialUtils";
 import { toast } from "sonner";
 import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
@@ -125,7 +125,7 @@ const KPIs = () => {
       const [reportsRes, targetsRes, benchmarksRes] = await Promise.all([
         supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status")
+          .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status")
           .eq("company_id", companyId)
           .is("deleted_at", null)
           .eq("status", "processed")
@@ -169,9 +169,9 @@ const KPIs = () => {
   const monthlyData = useMemo(() => {
     const byKey = new Map<string, { sortKey: string; month: string; kf: Record<string, number> }>();
     reports.forEach((r) => {
-      const kf = getKeyFigures(r);
+      const kf = getEffectiveKeyFigures(r);
       if (!kf) return;
-      const key = parseReportPeriodToKey(r.report_period);
+      const key = getEffectiveReportPeriodKey(r);
       if (!key) return;
       const [, monthStr] = key.split("-");
       const monthIdx = parseInt(monthStr, 10) - 1;

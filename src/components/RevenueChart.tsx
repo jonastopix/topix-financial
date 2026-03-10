@@ -5,7 +5,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { parseReportPeriodToKey, getKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveReportPeriodKey, getEffectiveKeyFigures, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
 import { type PeriodMode } from "@/components/PeriodSelector";
 
 const RevenueChart = () => {
@@ -17,7 +17,7 @@ const RevenueChart = () => {
     queryFn: async () => {
       const { data, error } = await (supabase
         .from("financial_reports")
-        .select("id, report_period, extracted_data, status") as any)
+        .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("status", "processed")
@@ -33,8 +33,8 @@ const RevenueChart = () => {
     const byKey = new Map<string, { key: string; revenue: number; expenses: number }>();
 
     for (const r of reports) {
-      const key = parseReportPeriodToKey(r.report_period);
-      const kf = getKeyFigures(r);
+      const key = getEffectiveReportPeriodKey(r);
+      const kf = getEffectiveKeyFigures(r);
       if (!key || !kf) continue;
       if (byKey.has(key)) continue;
 

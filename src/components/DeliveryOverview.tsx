@@ -1,13 +1,15 @@
 import { useMemo } from "react";
-import { CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, Pencil } from "lucide-react";
 import {
-  DANISH_MONTHS, SHORT_MONTHS, parseReportPeriodToKey, reportStatusConfig,
+  DANISH_MONTHS, SHORT_MONTHS, getEffectiveReportPeriodKey, hasManualOverride, reportStatusConfig,
 } from "@/lib/financialUtils";
 
 interface ReportSlim {
   id: string;
   report_period: string | null;
   status: string;
+  manual_report_period_key?: string | null;
+  manual_override_status?: string | null;
 }
 
 interface DeliveryOverviewProps {
@@ -29,7 +31,7 @@ const DeliveryOverview = ({ reports }: DeliveryOverviewProps) => {
     [...reports]
       .sort((a, b) => a.id.localeCompare(b.id))
       .forEach((r) => {
-        const key = parseReportPeriodToKey(r.report_period);
+        const key = getEffectiveReportPeriodKey(r as any);
         if (key) {
           const existing = map[key];
           if (!existing || r.status === "processed") map[key] = r;
@@ -115,7 +117,12 @@ const DeliveryOverview = ({ reports }: DeliveryOverviewProps) => {
                     }`}
                   >
                     {status === "processed" ? (
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <div className="relative">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        {report && hasManualOverride(report as any) && (
+                          <Pencil className="h-2 w-2 text-accent-foreground absolute -top-0.5 -right-0.5" />
+                        )}
+                      </div>
                     ) : status === "processing" ? (
                       <Clock className="h-4 w-4 text-chart-warning animate-pulse" />
                     ) : status === "error" ? (

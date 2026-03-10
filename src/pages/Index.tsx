@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import GuidedTour from "@/components/GuidedTour";
-import { getKeyFigures, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -62,7 +62,7 @@ const Dashboard = () => {
       const [reportsRes, convRes, budgetRes] = await Promise.all([
         (supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status") as any)
+          .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .eq("status", "processed")
@@ -75,7 +75,7 @@ const Dashboard = () => {
       const conversationId = convRes.data?.[0]?.id || null;
       const reports = (reportsRes.data || []) as ReportData[];
       const sorted = reports
-        .map(r => ({ key: parseReportPeriodToKey(r.report_period), kf: getKeyFigures(r), period: r.report_period }))
+        .map(r => ({ key: getEffectiveReportPeriodKey(r), kf: getEffectiveKeyFigures(r), period: r.report_period }))
         .filter((d): d is { key: string; kf: Record<string, number>; period: string } => !!d.key && !!d.kf)
         .sort((a, b) => a.key.localeCompare(b.key));
 

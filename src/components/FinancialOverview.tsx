@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact, pctChange,
+  getEffectiveReportPeriodKey, getEffectiveMetrics, formatDKK, formatCompact, pctChange,
   SHORT_MONTHS, type ReportData,
 } from "@/lib/financialUtils";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
@@ -31,8 +31,8 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
     const processed = reports
       .filter(r => r.status === "processed")
       .map(r => {
-        const key = parseReportPeriodToKey(r.report_period);
-        const result = getCanonicalOrLegacyMetrics(r);
+        const key = getEffectiveReportPeriodKey(r);
+        const result = getEffectiveMetrics(r);
         if (!key || !result) return null;
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;

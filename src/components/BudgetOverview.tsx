@@ -3,7 +3,7 @@ import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { getKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 
 interface ComparisonRow {
   label: string;
@@ -26,7 +26,7 @@ const BudgetOverview = () => {
           .like("period", `${currentYear}-base-%`),
         (supabase
           .from("financial_reports")
-          .select("id, report_period, extracted_data, status") as any)
+          .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .eq("status", "processed")
@@ -36,7 +36,7 @@ const BudgetOverview = () => {
 
       const budgets = budgetRes.data || [];
       const report = (reportRes.data?.[0] || null) as ReportData | null;
-      const kf = report ? getKeyFigures(report) : null;
+      const kf = report ? getEffectiveKeyFigures(report) : null;
 
       // Sum budget by revenue vs expenses categories
       let budgetRevenue = 0;

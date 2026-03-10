@@ -557,6 +557,15 @@ export type Database = {
           file_name: string
           file_path: string
           id: string
+          manual_normalized_data: Json | null
+          manual_override_at: string | null
+          manual_override_by: string | null
+          manual_override_note: string | null
+          manual_override_source: string | null
+          manual_override_status: string | null
+          manual_report_period_key: string | null
+          manual_report_period_label: string | null
+          manual_report_type: string | null
           normalized_data: Json | null
           processed_at: string | null
           raw_extracted_data: Json | null
@@ -580,6 +589,15 @@ export type Database = {
           file_name: string
           file_path: string
           id?: string
+          manual_normalized_data?: Json | null
+          manual_override_at?: string | null
+          manual_override_by?: string | null
+          manual_override_note?: string | null
+          manual_override_source?: string | null
+          manual_override_status?: string | null
+          manual_report_period_key?: string | null
+          manual_report_period_label?: string | null
+          manual_report_type?: string | null
           normalized_data?: Json | null
           processed_at?: string | null
           raw_extracted_data?: Json | null
@@ -603,6 +621,15 @@ export type Database = {
           file_name?: string
           file_path?: string
           id?: string
+          manual_normalized_data?: Json | null
+          manual_override_at?: string | null
+          manual_override_by?: string | null
+          manual_override_note?: string | null
+          manual_override_source?: string | null
+          manual_override_status?: string | null
+          manual_report_period_key?: string | null
+          manual_report_period_label?: string | null
+          manual_report_type?: string | null
           normalized_data?: Json | null
           processed_at?: string | null
           raw_extracted_data?: Json | null

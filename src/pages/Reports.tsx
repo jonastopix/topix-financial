@@ -10,6 +10,7 @@ import FinancialOverview from "@/components/FinancialOverview";
 import PerformanceOverview from "@/components/PerformanceOverview";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
+import ReportManualOverride from "@/components/ReportManualOverride";
 import {
   FileText,
   CheckCircle2,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   Archive,
   Bug,
+  Pencil,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -53,7 +55,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact,
+  getEffectiveReportPeriodKey, getEffectiveMetrics, getEffectiveReportPeriod,
+  hasManualOverride, formatDKK, formatCompact,
   SHORT_MONTHS, reportStatusConfig, type ReportData,
 } from "@/lib/financialUtils";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
@@ -70,6 +73,15 @@ interface DbReport {
   status: string;
   extracted_data: Json | null;
   normalized_data: Json | null;
+  manual_report_period_label: string | null;
+  manual_report_period_key: string | null;
+  manual_report_type: string | null;
+  manual_normalized_data: Json | null;
+  manual_override_status: string | null;
+  manual_override_note: string | null;
+  manual_override_by: string | null;
+  manual_override_at: string | null;
+  manual_override_source: string | null;
 }
 
 interface ChatMsg {
@@ -100,6 +112,7 @@ const Reports = () => {
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [overrideReport, setOverrideReport] = useState<DbReport | null>(null);
   
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; report: DbReport | null }>({ open: false, report: null });
   const [deleting, setDeleting] = useState(false);
@@ -114,7 +127,7 @@ const Reports = () => {
     const [reportsRes, convRes] = await Promise.all([
       (supabase
         .from("financial_reports")
-        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
+        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source") as any)
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false }),
@@ -188,12 +201,10 @@ const Reports = () => {
 
   const reportsByMonth = useMemo(() => {
     const map: Record<string, DbReport> = {};
-    // Sort ascending so later (better) reports overwrite
     const sorted = [...dbReports].sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
     sorted.forEach((r) => {
-      const key = parseReportPeriodToKey(r.report_period);
+      const key = getEffectiveReportPeriodKey(r);
       if (key) {
-        // Prefer processed over others
         const existing = map[key];
         if (!existing || r.status === "processed") {
           map[key] = r;
@@ -214,7 +225,7 @@ const Reports = () => {
       .map((key) => {
         const r = reportsByMonth[key];
         if (r.status !== "processed") return null;
-        const result = getCanonicalOrLegacyMetrics(r);
+        const result = getEffectiveMetrics(r);
         if (!result) return null;
         const kf = result.metrics;
         const [year, monthStr] = key.split("-");
@@ -656,8 +667,14 @@ const Reports = () => {
                         <FileText className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">
-                          {report.report_period || report.file_name}
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          {getEffectiveReportPeriod(report) || report.file_name}
+                          {hasManualOverride(report) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
+                              <Pencil className="h-2.5 w-2.5" />
+                              Manuelt rettet
+                            </span>
+                          )}
                         </p>
                         <div className="flex items-center gap-3 mt-0.5">
                           <span className="text-xs text-muted-foreground capitalize">{report.report_type}</span>
@@ -726,16 +743,28 @@ const Reports = () => {
                           </span>
                         )}
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteDialog({ open: true, report });
-                        }}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/70 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Slet rapport
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOverrideReport(report);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Ret data manuelt
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteDialog({ open: true, report });
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/70 hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Slet rapport
+                        </button>
+                      </div>
                     </div>
                     {report.extracted_data && (
                       <div>
@@ -920,6 +949,15 @@ const Reports = () => {
             </div>
           )}
         </div>
+      )}
+      {/* Manual Override Drawer */}
+      {overrideReport && (
+        <ReportManualOverride
+          report={overrideReport}
+          open={!!overrideReport}
+          onOpenChange={(open) => { if (!open) setOverrideReport(null); }}
+          onSaved={() => setRefreshKey(k => k + 1)}
+        />
       )}
     </AppLayout>
   );
