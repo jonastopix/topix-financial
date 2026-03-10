@@ -279,9 +279,33 @@ const Reports = () => {
     setSubmittingComment(null);
   };
 
-  const handlePipelineComplete = () => {
+  const pendingScrollRef = useRef<string | null>(null);
+
+  const handlePipelineComplete = (reportId?: string) => {
+    if (reportId) {
+      pendingScrollRef.current = reportId;
+      setExpandedReport(reportId);
+    }
     setRefreshKey((k) => k + 1);
   };
+
+  // Post-upload: scroll to newly created report after data reloads
+  useEffect(() => {
+    const targetId = pendingScrollRef.current;
+    if (!targetId || dbReports.length === 0) return;
+    const exists = dbReports.find(r => r.id === targetId);
+    if (exists) {
+      pendingScrollRef.current = null;
+      setTimeout(() => {
+        const el = reportCardRefs.current.get(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("ring-2", "ring-primary/40");
+          setTimeout(() => el.classList.remove("ring-2", "ring-primary/40"), 3000);
+        }
+      }, 300);
+    }
+  }, [dbReports]);
 
   const handleDeleteReport = useCallback(async (report: DbReport) => {
     setDeleting(true);
@@ -370,23 +394,22 @@ const Reports = () => {
     }
   };
 
-  const renderExtractedData = (data: Json | null) => {
-    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-    const obj = data as Record<string, Json | undefined>;
-    const kf = obj.key_figures as Record<string, number> | undefined;
-    if (!kf) return null;
+  const renderEffectiveKeyFigures = (report: DbReport) => {
+    const effectiveResult = getEffectiveMetrics(report as unknown as ReportData);
+    if (!effectiveResult) return null;
+    const kf = effectiveResult.metrics;
 
     const stats = [
-      { label: "Omsætning", value: formatDKK(kf.omsaetning), sub: kf.omsaetning_aar != null ? `Å.t.d: ${formatDKK(kf.omsaetning_aar)}` : undefined },
-      { label: "Dækningsbidrag", value: formatDKK(kf.daekningsbidrag), sub: kf.daekningsbidrag_aar != null ? `Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}` : undefined },
+      { label: "Omsætning", value: formatDKK(kf.omsaetning) },
+      { label: "Dækningsbidrag", value: formatDKK(kf.daekningsbidrag) },
       { label: "Lønninger", value: formatDKK(kf.loenninger) },
-      { label: "Resultat f. skat", value: formatDKK(kf.resultat_foer_skat), sub: kf.resultat_foer_skat_aar != null ? `Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}` : undefined },
+      { label: "Resultat f. skat", value: formatDKK(kf.resultat_foer_skat) },
       kf.aktiver_i_alt != null ? { label: "Aktiver", value: formatDKK(kf.aktiver_i_alt) } : null,
       kf.egenkapital != null ? { label: "Egenkapital", value: formatDKK(kf.egenkapital) } : null,
       kf.bank_balance != null ? { label: "Bank", value: formatDKK(kf.bank_balance) } : null,
       kf.debitorer != null ? { label: "Debitorer", value: formatDKK(kf.debitorer) } : null,
       kf.kreditorer != null ? { label: "Kreditorer", value: formatDKK(kf.kreditorer) } : null,
-    ].filter(Boolean) as { label: string; value: string; sub?: string }[];
+    ].filter(Boolean) as { label: string; value: string }[];
 
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -394,7 +417,6 @@ const Reports = () => {
           <div key={s.label} className="rounded-lg border border-border/50 bg-background/50 p-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
             <p className="text-sm font-medium text-foreground mt-0.5">{s.value}</p>
-            {s.sub && <p className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</p>}
           </div>
         ))}
       </div>
@@ -766,12 +788,18 @@ const Reports = () => {
                         </button>
                       </div>
                     </div>
-                    {report.extracted_data && (
+                    {getEffectiveMetrics(report as unknown as ReportData) && (
                       <div>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
                           Nøgletal
+                          {report.manual_override_status === "applied" && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary normal-case tracking-normal">
+                              <Pencil className="h-3 w-3" />
+                              Manuelt rettet
+                            </span>
+                          )}
                         </h4>
-                        {renderExtractedData(report.extracted_data)}
+                        {renderEffectiveKeyFigures(report)}
                       </div>
                     )}
 

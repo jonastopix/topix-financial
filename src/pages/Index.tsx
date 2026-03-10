@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { DollarSign, TrendingUp, Flame, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -186,7 +187,8 @@ const Dashboard = () => {
         }
       }
 
-      return { kpiData, budgetData, sparklines, conversationId };
+      const hasReports = sorted.length > 0;
+      return { kpiData, budgetData, sparklines, conversationId, hasReports };
     },
     enabled: !!user && !!companyId,
     staleTime: 5 * 60_000,
@@ -202,6 +204,7 @@ const Dashboard = () => {
     monthRevenue: null, monthExpenses: null, ytdRevenue: null, ytdExpenses: null,
   };
   const spark = dashboardData?.sparklines ?? { revenue: [], expenses: [], result: [], bank: [] };
+  const hasReports = dashboardData?.hasReports ?? false;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -267,92 +270,138 @@ const Dashboard = () => {
         </h1>
       </div>
 
-      {/* KPI cards – Seneste måned */}
-      <div className="mb-2" data-tour="kpi-cards">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned{kpiData.period ? ` · ${kpiData.period}` : ""}</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 overflow-hidden">
-          <KPICard
-            title="Omsætning"
-            value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
-            change={revenueChange != null ? `${fmtPct(revenueChange)} M/M` : undefined}
-            trend={revenueChange != null ? (revenueChange >= 0 ? "up" : "down") : "neutral"}
-            secondaryChange={kpiData.revenueYoY != null ? `${fmtPct(kpiData.revenueYoY)} Y/Y` : undefined}
-            secondaryTrend={kpiData.revenueYoY != null ? (kpiData.revenueYoY >= 0 ? "up" : "down") : "neutral"}
-            budgetLabel={monthRevBudget?.label}
-            budgetFavorable={monthRevBudget?.favorable}
-            sparkline={spark.revenue.length >= 2 ? spark.revenue : undefined}
-            subtitle={!revenueChange && kpiData.period ? `fra ${kpiData.period}` : kpiData.period ? undefined : "Upload rapport"}
-            icon={<DollarSign className="h-4 w-4" />}
-            accentColor="emerald"
-          />
-          <KPICard
-            title="Udgifter"
-            value={kpiData.expenses != null ? formatDKK(kpiData.expenses) : "—"}
-            secondaryChange={kpiData.expensesYoY != null ? `${fmtPct(kpiData.expensesYoY)} Y/Y` : undefined}
-            secondaryTrend={kpiData.expensesYoY != null ? (kpiData.expensesYoY <= 0 ? "up" : "down") : "neutral"}
-            budgetLabel={monthExpBudget?.label}
-            budgetFavorable={monthExpBudget?.favorable}
-            sparkline={spark.expenses.length >= 2 ? spark.expenses : undefined}
-            subtitle="samlede driftsomk."
-            icon={<Flame className="h-4 w-4" />}
-            accentColor="amber"
-          />
-          <KPICard
-            title="Resultat"
-            value={kpiData.result != null ? formatDKK(kpiData.result) : "—"}
-            trend={kpiData.result != null ? (kpiData.result >= 0 ? "up" : "down") : "neutral"}
-            secondaryChange={kpiData.resultYoY != null ? `${fmtPct(kpiData.resultYoY)} Y/Y` : undefined}
-            secondaryTrend={kpiData.resultYoY != null ? (kpiData.resultYoY >= 0 ? "up" : "down") : "neutral"}
-            budgetLabel={monthResultBudget?.label}
-            budgetFavorable={monthResultBudget?.favorable}
-            sparkline={spark.result.length >= 2 ? spark.result : undefined}
-            subtitle="før skat"
-            icon={<TrendingUp className="h-4 w-4" />}
-            accentColor="blue"
-          />
-          <KPICard
-            title="Bank"
-            value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
-            sparkline={spark.bank.length >= 2 ? spark.bank : undefined}
-            subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
-            icon={<Wallet className="h-4 w-4" />}
-            accentColor="blue"
-          />
+      {/* Empty state: no reports at all */}
+      {!hasReports && !isAdvisor && (
+        <div className="mb-8">
+          <div className="glass-card rounded-xl p-8 text-center max-w-lg mx-auto">
+            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Upload className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="text-lg font-display font-semibold text-foreground mb-2">
+              Upload din første rapport for at komme i gang
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Når du uploader en resultatopgørelse eller saldobalance, udfylder vi automatisk dit dashboard med nøgletal, trends og AI-analyse.
+            </p>
+            <Link
+              to="/reports"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <FileText className="h-4 w-4" />
+              Gå til rapportering
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* KPI cards – År til dato */}
-      <div className="mb-6">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato (kalenderår) {kpiData.period ? `· ${kpiData.period?.match(/\d{4}/)?.[0] ?? ""}` : ""}</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 overflow-hidden">
-          <KPICard
-            title="YTD Omsætning"
-            value={kpiData.ytdRevenue != null ? formatDKK(kpiData.ytdRevenue) : "—"}
-            budgetLabel={ytdRevBudget?.label}
-            budgetFavorable={ytdRevBudget?.favorable}
-            icon={<DollarSign className="h-4 w-4" />}
-            accentColor="emerald"
-          />
-          <KPICard
-            title="YTD Resultat"
-            value={kpiData.ytdResult != null ? formatDKK(kpiData.ytdResult) : "—"}
-            trend={kpiData.ytdResult != null ? (kpiData.ytdResult >= 0 ? "up" : "down") : "neutral"}
-            budgetLabel={ytdResultBudget?.label}
-            budgetFavorable={ytdResultBudget?.favorable}
-            subtitle="før skat"
-            icon={<TrendingUp className="h-4 w-4" />}
-            accentColor="blue"
-          />
-          <KPICard
-            title="YTD Udgifter"
-            value={kpiData.ytdExpenses != null ? formatDKK(kpiData.ytdExpenses) : "—"}
-            budgetLabel={ytdExpBudget?.label}
-            budgetFavorable={ytdExpBudget?.favorable}
-            icon={<Flame className="h-4 w-4" />}
-            accentColor="amber"
-          />
+      {/* Transitional state: reports exist but no processed KPI data yet */}
+      {hasReports && !kpiData.period && !isAdvisor && (
+        <div className="mb-8">
+          <div className="glass-card rounded-xl p-6 text-center max-w-lg mx-auto">
+            <div className="mx-auto w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-foreground mb-1">
+              Dine rapporter er ved at blive behandlet…
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Nøgletal og trends vises her, så snart dataen er klar.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* KPI cards – only shown when we have processed data */}
+      {kpiData.period && (
+        <>
+        {/* KPI cards – Seneste måned */}
+        <div className="mb-2" data-tour="kpi-cards">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned · {kpiData.period}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 overflow-hidden">
+            <KPICard
+              title="Omsætning"
+              value={kpiData.revenue != null ? formatDKK(kpiData.revenue) : "—"}
+              change={revenueChange != null ? `${fmtPct(revenueChange)} M/M` : undefined}
+              trend={revenueChange != null ? (revenueChange >= 0 ? "up" : "down") : "neutral"}
+              secondaryChange={kpiData.revenueYoY != null ? `${fmtPct(kpiData.revenueYoY)} Y/Y` : undefined}
+              secondaryTrend={kpiData.revenueYoY != null ? (kpiData.revenueYoY >= 0 ? "up" : "down") : "neutral"}
+              budgetLabel={monthRevBudget?.label}
+              budgetFavorable={monthRevBudget?.favorable}
+              sparkline={spark.revenue.length >= 2 ? spark.revenue : undefined}
+              subtitle={!revenueChange && kpiData.period ? `fra ${kpiData.period}` : undefined}
+              icon={<DollarSign className="h-4 w-4" />}
+              accentColor="emerald"
+            />
+            <KPICard
+              title="Udgifter"
+              value={kpiData.expenses != null ? formatDKK(kpiData.expenses) : "—"}
+              secondaryChange={kpiData.expensesYoY != null ? `${fmtPct(kpiData.expensesYoY)} Y/Y` : undefined}
+              secondaryTrend={kpiData.expensesYoY != null ? (kpiData.expensesYoY <= 0 ? "up" : "down") : "neutral"}
+              budgetLabel={monthExpBudget?.label}
+              budgetFavorable={monthExpBudget?.favorable}
+              sparkline={spark.expenses.length >= 2 ? spark.expenses : undefined}
+              subtitle="samlede driftsomk."
+              icon={<Flame className="h-4 w-4" />}
+              accentColor="amber"
+            />
+            <KPICard
+              title="Resultat"
+              value={kpiData.result != null ? formatDKK(kpiData.result) : "—"}
+              trend={kpiData.result != null ? (kpiData.result >= 0 ? "up" : "down") : "neutral"}
+              secondaryChange={kpiData.resultYoY != null ? `${fmtPct(kpiData.resultYoY)} Y/Y` : undefined}
+              secondaryTrend={kpiData.resultYoY != null ? (kpiData.resultYoY >= 0 ? "up" : "down") : "neutral"}
+              budgetLabel={monthResultBudget?.label}
+              budgetFavorable={monthResultBudget?.favorable}
+              sparkline={spark.result.length >= 2 ? spark.result : undefined}
+              subtitle="før skat"
+              icon={<TrendingUp className="h-4 w-4" />}
+              accentColor="blue"
+            />
+            <KPICard
+              title="Bank"
+              value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
+              sparkline={spark.bank.length >= 2 ? spark.bank : undefined}
+              subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
+              icon={<Wallet className="h-4 w-4" />}
+              accentColor="blue"
+            />
+          </div>
+        </div>
+
+        {/* KPI cards – År til dato */}
+        <div className="mb-6">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato (kalenderår) · {kpiData.period?.match(/\d{4}/)?.[0] ?? ""}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 overflow-hidden">
+            <KPICard
+              title="YTD Omsætning"
+              value={kpiData.ytdRevenue != null ? formatDKK(kpiData.ytdRevenue) : "—"}
+              budgetLabel={ytdRevBudget?.label}
+              budgetFavorable={ytdRevBudget?.favorable}
+              icon={<DollarSign className="h-4 w-4" />}
+              accentColor="emerald"
+            />
+            <KPICard
+              title="YTD Resultat"
+              value={kpiData.ytdResult != null ? formatDKK(kpiData.ytdResult) : "—"}
+              trend={kpiData.ytdResult != null ? (kpiData.ytdResult >= 0 ? "up" : "down") : "neutral"}
+              budgetLabel={ytdResultBudget?.label}
+              budgetFavorable={ytdResultBudget?.favorable}
+              subtitle="før skat"
+              icon={<TrendingUp className="h-4 w-4" />}
+              accentColor="blue"
+            />
+            <KPICard
+              title="YTD Udgifter"
+              value={kpiData.ytdExpenses != null ? formatDKK(kpiData.ytdExpenses) : "—"}
+              budgetLabel={ytdExpBudget?.label}
+              budgetFavorable={ytdExpBudget?.favorable}
+              icon={<Flame className="h-4 w-4" />}
+              accentColor="amber"
+            />
+          </div>
+        </div>
+        </>
+      )}
 
       {/* Attention needed */}
       <div className="mb-6">
