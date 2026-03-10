@@ -78,16 +78,53 @@ const AdvisorNotifications = () => {
   };
 
   const handleClick = async (n: Notification) => {
+    // Fire-and-forget: don't block navigation
     if (!n.read_at) markAsRead(n.id);
-    
-    if (n.reference_type === "report") {
-      navigate("/reports");
-    } else if (n.reference_type === "handout") {
-      navigate("/handouts");
-    } else if (n.reference_type === "chat") {
-      navigate("/chat");
-    }
+    // Close popover immediately for responsive feel
     setOpen(false);
+
+    if (n.reference_type === "report") {
+      // Deep-link to member detail with exact report expanded
+      if (n.member_id && n.reference_id) {
+        navigate(`/members/${n.member_id}?reportId=${n.reference_id}`);
+      } else if (n.member_id) {
+        navigate(`/members/${n.member_id}`);
+      } else {
+        navigate("/reports");
+      }
+    } else if (n.reference_type === "handout") {
+      // Look up handout module for deep-link
+      if (n.reference_id && n.member_id) {
+        const { data } = await supabase
+          .from("handouts")
+          .select("module")
+          .eq("id", n.reference_id)
+          .maybeSingle();
+        if (data?.module) {
+          navigate(`/members/${n.member_id}?handout=${data.module}`);
+        } else {
+          navigate(`/members/${n.member_id}`);
+        }
+      } else {
+        navigate("/handouts");
+      }
+    } else if (n.reference_type === "chat") {
+      // Look up conversation_id from message for deep-link
+      if (n.reference_id) {
+        const { data } = await supabase
+          .from("messages")
+          .select("conversation_id")
+          .eq("id", n.reference_id)
+          .maybeSingle();
+        if (data?.conversation_id) {
+          navigate(`/chat?conversationId=${data.conversation_id}&messageId=${n.reference_id}`);
+        } else {
+          navigate("/chat");
+        }
+      } else {
+        navigate("/chat");
+      }
+    }
   };
 
   const handleDownloadFile = async (e: React.MouseEvent, n: Notification) => {
