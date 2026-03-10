@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import GuidedTour from "@/components/GuidedTour";
-import { getKeyFigures, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 function getGreeting() {
   const h = new Date().getHours();
