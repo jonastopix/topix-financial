@@ -15,58 +15,61 @@ Deno.serve(async (req) => {
     // ── Auth ──
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const token = authHeader.replace("Bearer ", "");
     const authClient = createClient(supabaseUrl, anonKey);
     const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
+    const callerId = claimsData.claims.sub as string;
     const { message_id } = await req.json();
     if (!message_id) {
-      return new Response(JSON.stringify({ error: "message_id required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "message_id required" }, 400);
     }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey);
+    // ── Caller→resource access check (JWT-scoped, before service-role) ──
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    // ── Fetch message ──
-    const { data: message, error: msgErr } = await admin
+    const { data: accessCheck, error: accessErr } = await callerClient
       .from("messages")
-      .select("id, conversation_id, sender_id, content, message_type, context_type, context_meta, created_at")
+      .select("id, sender_id, message_type")
       .eq("id", message_id)
-      .single();
+      .maybeSingle();
 
-    if (msgErr || !message) {
-      console.log("Message not found:", message_id);
-      return json({ ok: true, skipped: "message_not_found" });
+    if (accessErr) {
+      console.error("Access check query error:", accessErr);
+      return json({ error: "Internal server error" }, 500);
+    }
+    if (!accessCheck) {
+      return json({ ok: true, skipped: "no_access" });
+    }
+    if (accessCheck.sender_id !== callerId) {
+      return json({ ok: true, skipped: "not_sender" });
     }
 
     // ── Guard: only human user messages ──
-    if (message.message_type !== "user") {
+    if (accessCheck.message_type !== "user") {
       return json({ ok: true, skipped: "not_user_message" });
     }
+
+    // ── All access checks passed — create service-role client ──
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // ── Guard: sender must not be advisor/admin ──
     const { data: senderRoles } = await admin
       .from("user_roles")
       .select("role")
-      .eq("user_id", message.sender_id);
+      .eq("user_id", callerId);
 
     const isAdvisorOrAdmin = (senderRoles || []).some(
       (r: any) => r.role === "advisor" || r.role === "admin"
@@ -85,6 +88,18 @@ Deno.serve(async (req) => {
 
     if (existingLog) {
       return json({ ok: true, skipped: "already_notified" });
+    }
+
+    // ── Fetch full message + context via service role ──
+    const { data: message, error: msgErr } = await admin
+      .from("messages")
+      .select("id, conversation_id, sender_id, content, message_type, context_type, context_meta, created_at")
+      .eq("id", message_id)
+      .single();
+
+    if (msgErr || !message) {
+      console.log("Message not found:", message_id);
+      return json({ ok: true, skipped: "message_not_found" });
     }
 
     // ── Fetch context ──
@@ -269,10 +284,7 @@ Deno.serve(async (req) => {
     return json({ ok: true, isNewThread });
   } catch (err) {
     console.error("send-slack-chat-notification error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: "Internal server error" }, 500);
   }
 });
 

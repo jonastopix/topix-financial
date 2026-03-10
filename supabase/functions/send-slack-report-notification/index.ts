@@ -20,7 +20,6 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const token = authHeader.replace("Bearer ", "");
     const authClient = createClient(supabaseUrl, anonKey);
@@ -29,15 +28,39 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
+    const callerId = claimsData.claims.sub as string;
     const { report_id, message_id } = await req.json();
     if (!report_id || !message_id) {
       return json({ error: "report_id and message_id required" }, 400);
     }
 
+    // ── Caller→resource access check (JWT-scoped, before service-role) ──
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: accessCheck, error: accessErr } = await callerClient
+      .from("financial_reports")
+      .select("id, user_id")
+      .eq("id", report_id)
+      .maybeSingle();
+
+    if (accessErr) {
+      console.error("Access check query error:", accessErr);
+      return json({ error: "Internal server error" }, 500);
+    }
+    if (!accessCheck) {
+      return json({ ok: true, skipped: "no_access" });
+    }
+    if (accessCheck.user_id !== callerId) {
+      return json({ ok: true, skipped: "not_uploader" });
+    }
+
+    // ── All access checks passed — create service-role client ──
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // ── Guard: sender must not be advisor/admin ──
-    const callerId = claimsData.claims.sub as string;
     const { data: callerRoles } = await admin
       .from("user_roles")
       .select("role")
@@ -61,7 +84,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, skipped: "already_notified" });
     }
 
-    // ── Fetch report ──
+    // ── Fetch report (full data via service role) ──
     const { data: report, error: reportErr } = await admin
       .from("financial_reports")
       .select("id, company_id, user_id, file_name, file_path, report_period, report_type, uploaded_at")

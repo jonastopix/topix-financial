@@ -1,12 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ═══════════════════════════════════════════════════════════════
 // CANONICAL SYSTEM PROMPT (Phase 3) — English canonical names
@@ -133,7 +131,7 @@ const ANALYSIS_TOOL = {
   },
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -142,49 +140,60 @@ serve(async (req) => {
     // Validate auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonRes({ error: 'Unauthorized' }, 401);
     }
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const authClient = createClient(supabaseUrl, anonKey);
     const token = authHeader.replace('Bearer ', '');
     const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonRes({ error: 'Unauthorized' }, 401);
     }
 
     let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical } = await req.json();
 
-    // Look up real company name + industry from DB
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const sb = createClient(supabaseUrl, serviceKey);
-
+    // ── Caller→resource access check for company context (JWT-scoped) ──
+    // If companyId is provided, verify caller has RLS access to that company
+    // before any service-role operations
     if (companyId) {
-      const { data: company } = await sb
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: companyAccess, error: companyAccessErr } = await callerClient
         .from("companies")
         .select("name, industry")
         .eq("id", companyId)
         .maybeSingle();
-      if (company) {
-        companyContext = {
-          ...companyContext,
-          name: company.name || companyContext?.name,
-          industry: company.industry || companyContext?.industry,
-        };
-        console.log(`[ai-financial-feedback] Using DB company name: "${company.name}"`);
+
+      if (companyAccessErr) {
+        console.error("Company access check error:", companyAccessErr);
+        return jsonRes({ error: "Internal server error" }, 500);
       }
+      if (!companyAccess) {
+        return jsonRes({ error: "Forbidden" }, 403);
+      }
+
+      // Use the RLS-verified data directly — no service-role fetch needed
+      companyContext = {
+        ...companyContext,
+        name: companyAccess.name || companyContext?.name,
+        industry: companyAccess.industry || companyContext?.industry,
+      };
+      console.log(`[ai-financial-feedback] Using RLS-verified company name: "${companyAccess.name}"`);
     } else if (companyContext?.name && !companyContext.industry) {
-      const { data: company } = await sb
+      // Fallback: look up industry by name via caller's RLS scope
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: company } = await callerClient
         .from("companies")
         .select("industry")
         .eq("name", companyContext.name)
         .maybeSingle();
+
       if (company?.industry) {
         companyContext = { ...companyContext, industry: company.industry };
       }
@@ -272,16 +281,10 @@ Giv din detaljerede finansielle analyse.`;
       console.error("AI gateway error:", response.status, errText);
 
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "For mange forespørgsler. Prøv igen om lidt." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonRes({ error: "For mange forespørgsler. Prøv igen om lidt." }, 429);
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI-kreditter opbrugt. Tilføj flere i indstillinger." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonRes({ error: "AI-kreditter opbrugt. Tilføj flere i indstillinger." }, 402);
       }
       throw new Error(`AI error: ${response.status}`);
     }
@@ -300,9 +303,13 @@ Giv din detaljerede finansielle analyse.`;
     });
   } catch (error) {
     console.error("ai-financial-feedback error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonRes({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
 });
+
+function jsonRes(data: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
