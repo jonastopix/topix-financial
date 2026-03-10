@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, Pencil } from "lucide-react";
 import {
-  DANISH_MONTHS, SHORT_MONTHS, parseReportPeriodToKey, reportStatusConfig,
+  DANISH_MONTHS, SHORT_MONTHS, getEffectiveReportPeriodKey, hasManualOverride, reportStatusConfig,
 } from "@/lib/financialUtils";
 
 interface ReportSlim {
