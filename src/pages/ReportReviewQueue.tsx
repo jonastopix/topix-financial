@@ -39,6 +39,7 @@ function getFlags(r: Report): Flag[] {
   const nd = r.normalized_data as Record<string, unknown> | null;
   const red = r.raw_extracted_data as Record<string, unknown> | null;
 
+  if (r.manual_override_status === "applied") flags.push({ label: "Manual override", color: "bg-indigo-500 text-white" });
   if (r.status === "needs_review") flags.push({ label: "Needs review", color: "bg-yellow-500 text-white" });
   if (r.validation_status && r.validation_status !== "PASS") flags.push({ label: "Validation fail", color: "bg-destructive text-destructive-foreground" });
   if (r.normalized_data == null && r.status !== "processing") flags.push({ label: "No canonical", color: "bg-orange-500 text-white" });
