@@ -171,12 +171,29 @@ const MemberDetail = () => {
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
 
-  // Clear handout deep-link param after consuming
+  // Clear deep-link params after consuming
   useEffect(() => {
-    if (searchParams.has("handout")) {
+    if (searchParams.has("handout") || searchParams.has("reportId")) {
       setSearchParams({}, { replace: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to and highlight deep-linked report after data loads
+  useEffect(() => {
+    if (!expandedReport || loading || reports.length === 0) return;
+    const targetReport = reports.find(r => r.id === expandedReport);
+    if (!targetReport) return;
+    // Wait for DOM render
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`report-${expandedReport}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+        setTimeout(() => el.classList.remove("ring-2", "ring-primary", "ring-offset-2"), 2500);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [loading, reports]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRemoveMember = async () => {
     if (!userId) return;
