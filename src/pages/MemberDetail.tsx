@@ -558,8 +558,19 @@ const MemberDetail = () => {
                               <p className="text-sm font-medium text-foreground truncate">{report.file_name}</p>
                               <div className="flex items-center gap-3 mt-0.5">
                                 <span className="text-xs text-muted-foreground capitalize">{report.report_type}</span>
-                                {report.report_period && (
-                                  <span className="text-xs text-muted-foreground">· {report.report_period}</span>
+                                {(() => {
+                                  const effectivePeriod = getEffectiveReportPeriod(report as unknown as ReportData);
+                                  return effectivePeriod ? (
+                                    <span className="text-xs text-muted-foreground">· {effectivePeriod}</span>
+                                  ) : null;
+                                })()}
+                                <span className="text-xs text-muted-foreground">
+                                  · {format(new Date(report.uploaded_at), "d. MMM yyyy", { locale: da })}
+                                </span>
+                                {hasManualOverride(report as unknown as ReportData) && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent text-accent-foreground">
+                                    <Pencil className="h-2.5 w-2.5" /> Rettet
+                                  </span>
                                 )}
                                 <span className="text-xs text-muted-foreground">
                                   · {format(new Date(report.uploaded_at), "d. MMM yyyy", { locale: da })}
