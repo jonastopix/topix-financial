@@ -743,16 +743,28 @@ const Reports = () => {
                           </span>
                         )}
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteDialog({ open: true, report });
-                        }}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/70 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Slet rapport
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOverrideReport(report);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Ret data manuelt
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteDialog({ open: true, report });
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/70 hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Slet rapport
+                        </button>
+                      </div>
                     </div>
                     {report.extracted_data && (
                       <div>
