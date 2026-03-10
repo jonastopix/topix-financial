@@ -47,13 +47,6 @@ const FIELD_LABELS: Record<string, string> = {
   aktiver_i_alt: "Aktiver i alt",
 };
 
-function getVisibleFields(reportType: string): string[] {
-  switch (reportType) {
-    case "resultatopgørelse": return PNL_FIELDS;
-    case "saldobalance": return BALANCE_FIELDS;
-    default: return ALL_FIELDS;
-  }
-}
 
 function parseMonth(key: string | null): { month: number; year: number } {
   if (!key) return { month: new Date().getMonth() + 1, year: new Date().getFullYear() };
