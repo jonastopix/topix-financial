@@ -29,7 +29,6 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const token = authHeader.replace("Bearer ", "");
     const authClient = createClient(supabaseUrl, anonKey);
@@ -45,22 +44,34 @@ Deno.serve(async (req) => {
       return json({ error: "handout_id required" }, 400);
     }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey);
+    // ── Caller→resource access check (JWT-scoped, before service-role) ──
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    // ── Guard: sender must not be advisor/admin ──
-    const { data: callerRoles } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
+    const { data: accessCheck, error: accessErr } = await callerClient
+      .from("handouts")
+      .select("id, user_id")
+      .eq("id", handout_id)
+      .maybeSingle();
 
-    const isAdvisorOrAdmin = (callerRoles || []).some(
-      (r: any) => r.role === "advisor" || r.role === "admin"
-    );
-    if (isAdvisorOrAdmin) {
+    if (accessErr) {
+      console.error("Access check query error:", accessErr);
+      return json({ error: "Internal server error" }, 500);
+    }
+    if (!accessCheck) {
+      return json({ ok: true, skipped: "no_access" });
+    }
+    if (accessCheck.user_id !== callerId) {
+      // Caller can see it (advisor) but is not the owner — skip notification
       return json({ ok: true, skipped: "sender_is_advisor" });
     }
 
-    // ── Fetch handout ──
+    // ── All access checks passed — create service-role client ──
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(supabaseUrl, serviceRoleKey);
+
+    // ── Fetch handout (full data via service role) ──
     const { data: handout, error: handoutErr } = await admin
       .from("handouts")
       .select("id, module, company_id, user_id, completed_at, status")
@@ -70,11 +81,6 @@ Deno.serve(async (req) => {
     if (handoutErr || !handout) {
       console.log("Handout not found:", handout_id);
       return json({ ok: true, skipped: "handout_not_found" });
-    }
-
-    // ── Ownership check: caller must be the handout owner ──
-    if (handout.user_id !== callerId) {
-      return json({ error: "Forbidden" }, 403);
     }
 
     // ── Must be completed ──

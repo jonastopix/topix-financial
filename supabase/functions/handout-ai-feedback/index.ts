@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -34,34 +33,48 @@ const modulePrompts: Record<string, string> = {
 4. Giver råd om test-kultur og skalerbare kanaler`,
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     // Validate auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonRes({ error: 'Unauthorized' }, 401);
     }
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
     const token = authHeader.replace('Bearer ', '');
+    const authClient = createClient(supabaseUrl, anonKey);
     const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (claimsError || !claimsData?.claims?.sub) {
+      return jsonRes({ error: 'Unauthorized' }, 401);
     }
 
     const { handout_id, module, company_name, industry } = await req.json();
     if (!handout_id || !module) throw new Error("Missing handout_id or module");
 
+    // ── Caller→resource access check (JWT-scoped, before service-role) ──
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: accessCheck, error: accessErr } = await callerClient
+      .from("handouts")
+      .select("id")
+      .eq("id", handout_id)
+      .maybeSingle();
+
+    if (accessErr) {
+      console.error("Access check query error:", accessErr);
+      return jsonRes({ error: "Internal server error" }, 500);
+    }
+    if (!accessCheck) {
+      return jsonRes({ error: "Forbidden" }, 403);
+    }
+
+    // ── All access checks passed — create service-role client ──
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
@@ -140,8 +153,8 @@ Kun hvis svarene faktisk indeholder reel substans, skal du følge instruktionern
 
     if (!aiResponse.ok) {
       const status = aiResponse.status;
-      if (status === 429) return new Response(JSON.stringify({ error: "Rate limit nået, prøv igen om lidt." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (status === 402) return new Response(JSON.stringify({ error: "Betalingskrævet, tilføj credits." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (status === 429) return jsonRes({ error: "Rate limit nået, prøv igen om lidt." }, 429);
+      if (status === 402) return jsonRes({ error: "Betalingskrævet, tilføj credits." }, 402);
       throw new Error(`AI gateway error: ${status}`);
     }
 
@@ -154,14 +167,16 @@ Kun hvis svarene faktisk indeholder reel substans, skal du følge instruktionern
       ai_feedback_at: new Date().toISOString(),
     }).eq("id", handout_id);
 
-    return new Response(JSON.stringify({ feedback: feedbackText }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonRes({ feedback: feedbackText });
   } catch (e) {
     console.error("handout-ai-feedback error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonRes({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });
+
+function jsonRes(data: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
