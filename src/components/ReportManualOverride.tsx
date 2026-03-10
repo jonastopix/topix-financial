@@ -114,9 +114,9 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       return origKey !== newKey;
     })();
 
-    const hasMetricOverride = visibleFields.some(f => {
+    const hasMetricOverride = ALL_FIELDS.some(f => {
       const parsed = parseMetricValue(metricInputs[f] ?? "");
-      if (parsed === undefined) return false; // invalid, caught elsewhere
+      if (parsed === undefined) return false;
       const origVal = existingMetrics[f] ?? null;
       return parsed !== origVal;
     });
