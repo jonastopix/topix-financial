@@ -563,7 +563,7 @@ const MemberDetail = () => {
                   const StatusIcon = config.icon;
 
                   return (
-                    <div key={report.id} className="glass-card rounded-xl overflow-hidden animate-fade-in">
+                    <div key={report.id} id={`report-${report.id}`} className="glass-card rounded-xl overflow-hidden animate-fade-in transition-all duration-300">
                       <button
                         onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                         className="w-full text-left px-5 py-4 hover:bg-secondary/30 transition-colors"
