@@ -10,6 +10,7 @@ import FinancialOverview from "@/components/FinancialOverview";
 import PerformanceOverview from "@/components/PerformanceOverview";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
+import ReportManualOverride from "@/components/ReportManualOverride";
 import {
   FileText,
   CheckCircle2,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   Archive,
   Bug,
+  Pencil,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -53,7 +55,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  parseReportPeriodToKey, getCanonicalOrLegacyMetrics, formatDKK, formatCompact,
+  getEffectiveReportPeriodKey, getEffectiveMetrics, getEffectiveReportPeriod,
+  hasManualOverride, formatDKK, formatCompact,
   SHORT_MONTHS, reportStatusConfig, type ReportData,
 } from "@/lib/financialUtils";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
@@ -70,6 +73,15 @@ interface DbReport {
   status: string;
   extracted_data: Json | null;
   normalized_data: Json | null;
+  manual_report_period_label: string | null;
+  manual_report_period_key: string | null;
+  manual_report_type: string | null;
+  manual_normalized_data: Json | null;
+  manual_override_status: string | null;
+  manual_override_note: string | null;
+  manual_override_by: string | null;
+  manual_override_at: string | null;
+  manual_override_source: string | null;
 }
 
 interface ChatMsg {

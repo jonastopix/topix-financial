@@ -22,6 +22,7 @@ export function parseReportPeriodToKey(period: string | null): string | null {
 
 // ── Key figures extraction ──
 export interface ReportData {
+  report_type?: string;
   id: string;
   report_period: string | null;
   extracted_data: Json | null;
