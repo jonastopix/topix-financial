@@ -224,7 +224,7 @@ const Reports = () => {
       .map((key) => {
         const r = reportsByMonth[key];
         if (r.status !== "processed") return null;
-        const result = getCanonicalOrLegacyMetrics(r);
+        const result = getEffectiveMetrics(r);
         if (!result) return null;
         const kf = result.metrics;
         const [year, monthStr] = key.split("-");
