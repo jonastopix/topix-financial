@@ -337,6 +337,19 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
         )}
       </Tabs>
 
+      {/* Completion prompt at 100% */}
+      {isOwner && handoutId && progress === 100 && !isCompleted && (
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4">
+          <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+          <p className="text-sm text-foreground flex-1">
+            Alt er udfyldt — vil du markere handoutet som færdigt?
+          </p>
+          <Button size="sm" onClick={toggleCompleted} className="gap-1.5 text-xs flex-shrink-0">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Markér som færdig
+          </Button>
+        </div>
+      )}
+
       {/* AI Feedback */}
       {handoutId && (
         <HandoutAIFeedback

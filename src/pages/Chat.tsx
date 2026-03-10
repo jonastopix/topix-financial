@@ -961,7 +961,19 @@ const Chat = () => {
                       )}
                     </div>
                   )}
-                  {filteredMessages.map((msg, idx) => {
+                  {/* Compute latest read own normal message for "Læst" indicator (member-only) */}
+                  {(() => {
+                    let latestReadOwnMsgId: string | null = null;
+                    if (!isAdvisor && user?.id) {
+                      for (let i = filteredMessages.length - 1; i >= 0; i--) {
+                        const m = filteredMessages[i];
+                        if (m.sender_id === user.id && m.read_at && m.message_type !== "system" && m.message_type !== "ai") {
+                          latestReadOwnMsgId = m.id;
+                          break;
+                        }
+                      }
+                    }
+                    return filteredMessages.map((msg, idx) => {
                     const isMine = msg.sender_id === user?.id;
                     const isSystem = msg.message_type === "system" || msg.message_type === "ai";
                     const contextType = msg.context_type;
@@ -1187,8 +1199,11 @@ const Chat = () => {
                               <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                 {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                               </span>
-                              {isMine && msg.read_at && (
-                                <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                              {!isAdvisor && isMine && msg.id === latestReadOwnMsgId && (
+                                <>
+                                  <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                                  <span className="text-[10px] text-primary-foreground/60">Læst</span>
+                                </>
                               )}
                             </div>
                           </div>
@@ -1208,7 +1223,8 @@ const Chat = () => {
                       </div>
                       </React.Fragment>
                     );
-                  })}
+                  });
+                  })()}
                   <div ref={messagesEndRef} />
                 </div>
 
