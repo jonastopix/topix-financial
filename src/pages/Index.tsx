@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { DollarSign, TrendingUp, Flame, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
