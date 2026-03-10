@@ -348,7 +348,7 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
             <CheckCircle2 className="h-3.5 w-3.5" /> Markér som færdig
           </Button>
         </div>
-      )
+      )}
 
       {/* AI Feedback */}
       {handoutId && (
