@@ -113,7 +113,55 @@ serve(async (req) => {
       });
     }
 
-    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64 } = await req.json();
+    // ── Parse request body ──
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Bad request: malformed JSON body' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64 } = body;
+
+    // ── ACCESS CHECK: verify caller can access this report ──
+    const callerId = claimsData.claims.sub;
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (reportId !== undefined && reportId !== null) {
+      // Validate reportId format
+      if (typeof reportId !== 'string' || !uuidPattern.test(reportId)) {
+        return new Response(JSON.stringify({ error: 'Bad request: invalid reportId' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // RLS-scoped access check — uses caller's JWT, not service role
+      const { data: accessCheck, error: accessError } = await authClient
+        .from("financial_reports")
+        .select("id")
+        .eq("id", reportId)
+        .maybeSingle();
+
+      if (accessError) {
+        console.error(`[extract-financial-data] Access check query error for report ${reportId} by user ${callerId}:`, accessError.message);
+        return new Response(JSON.stringify({ error: 'Internal error during access check' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!accessCheck) {
+        console.warn(`[extract-financial-data] Access denied: report=${reportId} caller=${callerId}`);
+        return new Response(JSON.stringify({ error: 'Forbidden: no access to this report' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    } else if (overwrite) {
+      // No reportId but overwrite requested — this requires persistence, which needs a reportId
+      return new Response(JSON.stringify({ error: 'Bad request: overwrite requires a valid reportId' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     // Debug logging for incoming content
     console.log(`[extract-financial-data] fileName: ${fileName}, fileContent length: ${fileContent?.length ?? 0}, pageImages: ${pageImages?.length ?? 0}, excelBase64: ${excelBase64?.length ?? 0}`);
