@@ -203,6 +203,7 @@ const Dashboard = () => {
   const budgetData = dashboardData?.budgetData ?? {
     monthRevenue: null, monthExpenses: null, ytdRevenue: null, ytdExpenses: null,
   };
+  const spark = dashboardData?.sparklines ?? { revenue: [], expenses: [], result: [], bank: [] };
   const hasReports = dashboardData?.hasReports ?? false;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
