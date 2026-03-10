@@ -3,20 +3,28 @@ import { BookOpen, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { moduleOrder } from "@/lib/handoutConfig";
 
 const TOTAL_MODULES = moduleOrder.length; // 5
 
 const DashboardHandouts = () => {
-  const { user, companyId } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
 
   const { data } = useQuery({
-    queryKey: ["dashboard-handouts", companyId],
+    queryKey: ["dashboard-handouts", companyId, isAdvisor, user?.id],
     queryFn: async () => {
-      const { data: handouts } = await (supabase
+      let query = supabase
         .from("handouts")
-        .select("id, status, module") as any)
-        .eq("company_id", companyId!);
+        .select("id, status, module") as any;
+      if (isAdvisor) {
+        query = query.eq("company_id", companyId!);
+      } else {
+        query = query.eq("user_id", user!.id);
+      }
+      const { data: handouts } = await query;
       return handouts || [];
     },
     enabled: !!user && !!companyId,

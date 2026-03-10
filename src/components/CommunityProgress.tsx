@@ -58,17 +58,12 @@ const CommunityProgress = () => {
         stats.sort((a, b) => b.totalScore - a.totalScore);
         return { members: stats, ownStats: null as MemberStats | null };
       } else {
-        // Member view: fetch own stats + community average for benchmark
-        const [reportsRes, milestonesRes, handoutsRes, profileRes, allReportsRes, allMilestonesRes, allHandoutsRes, allProfilesRes] = await Promise.all([
+        // Member view: fetch own stats only (benchmark disabled — RLS restricts cross-user visibility)
+        const [reportsRes, milestonesRes, handoutsRes, profileRes] = await Promise.all([
           (supabase.from("financial_reports").select("status") as any).eq("user_id", user!.id).is("deleted_at", null),
           supabase.from("milestones").select("progress").eq("user_id", user!.id),
           supabase.from("handouts").select("status").eq("user_id", user!.id),
           supabase.from("profiles").select("full_name").eq("user_id", user!.id).maybeSingle(),
-          // For anonymous benchmark — RLS will scope to company members
-          (supabase.from("financial_reports").select("user_id, status") as any).eq("status", "processed").is("deleted_at", null),
-          (supabase.from("milestones").select("user_id, progress") as any),
-          (supabase.from("handouts").select("user_id, status") as any).eq("status", "completed"),
-          supabase.from("profiles").select("user_id"),
         ]);
 
         const rCount = (reportsRes.data || []).filter(r => r.status === "processed").length;
@@ -78,22 +73,11 @@ const CommunityProgress = () => {
         const name = profileRes.data?.full_name || "Dig";
         const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
-        // Calculate anonymous community average
-        const allProfiles = allProfilesRes.data || [];
-        const memberCount = Math.max(allProfiles.length, 1);
-        const allReports = allReportsRes.data || [];
-        const allMilestones = (allMilestonesRes.data || []).filter((m: any) => m.progress >= 100);
-        const allHandouts = allHandoutsRes.data || [];
-
-        const communityAvgScore = memberCount > 1
-          ? Math.round(calcScore(allReports.length, allMilestones.length, allHandouts.length, GAM) / memberCount)
-          : null;
-
         return {
           members: [] as MemberStats[],
           ownStats: { userId: user!.id, name, initials, reportsCount: rCount, milestonesCompleted: mCompleted, handoutsCompleted: hCompleted, totalScore: score },
-          communityAvg: communityAvgScore,
-          communitySize: memberCount,
+          communityAvg: null,
+          communitySize: 0,
         };
       }
     },
