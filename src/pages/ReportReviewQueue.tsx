@@ -76,7 +76,7 @@ export default function ReportReviewQueue() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("financial_reports")
-        .select("id, file_name, company_name, report_period, report_type, uploaded_at, status, extraction_method, validation_status, ai_analysis, normalized_data, raw_extracted_data")
+        .select("id, file_name, company_name, report_period, report_type, uploaded_at, status, extraction_method, validation_status, ai_analysis, normalized_data, raw_extracted_data, manual_report_period_label, manual_report_period_key, manual_override_status")
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false });
       if (error) throw error;
