@@ -15,11 +15,13 @@ import {
   Calendar,
   BarChart3,
   ShieldAlert,
+  Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { postActivityMessage } from "@/lib/chatActivity";
 import type { Json } from "@/integrations/supabase/types";
+import { hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 interface KeyFinding {
   title: string;
