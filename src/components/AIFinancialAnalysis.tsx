@@ -154,8 +154,10 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
   }, [selectedReport]);
 
   // Canonical gating: block AI if normalized_data.metrics exists but ai_eligible_payload is missing
+  // Manual override bypasses this block since it provides its own corrected data
   const canonicalBlocked = useMemo(() => {
     if (!selectedReport) return false;
+    if (hasManualOverride(selectedReport as unknown as ReportData)) return false;
     const nd = selectedReport.normalized_data as any;
     return !!nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload);
   }, [selectedReport]);
