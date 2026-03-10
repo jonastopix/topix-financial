@@ -81,6 +81,16 @@ interface Report {
   uploaded_at: string;
   processed_at: string | null;
   extracted_data: Json | null;
+  normalized_data?: Json | null;
+  manual_report_period_label?: string | null;
+  manual_report_period_key?: string | null;
+  manual_normalized_data?: Json | null;
+  manual_override_status?: string | null;
+  manual_override_note?: string | null;
+  manual_override_by?: string | null;
+  manual_override_at?: string | null;
+  manual_override_source?: string | null;
+  manual_report_type?: string | null;
 }
 
 interface BudgetTarget {
