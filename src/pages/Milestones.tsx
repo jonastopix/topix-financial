@@ -65,6 +65,23 @@ const Milestones = () => {
     setDeadline(undefined);
   };
 
+  const STARTER_PICKS: { title: string; cat: MilestoneCategory }[] = [
+    { title: "Opnå positiv bundlinje", cat: "profit" },
+    { title: "Nå 100 aktive kunder", cat: "kunder" },
+    { title: "Reducér driftsomkostninger med 20%", cat: "profit" },
+  ];
+
+  const openWithSuggestion = (pick: { title: string; cat: MilestoneCategory }) => {
+    const suggestion = MILESTONE_SUGGESTIONS[pick.cat]?.find((s) => s.title === pick.title);
+    if (!suggestion) return;
+    setTitle(suggestion.title);
+    setDescription(suggestion.description);
+    setCategory(pick.cat);
+    setBaseline("");
+    setDeadline(undefined);
+    setOpen(true);
+  };
+
   const handleCreate = async () => {
     if (!title.trim() || !user || !companyId) return;
     setSaving(true);
