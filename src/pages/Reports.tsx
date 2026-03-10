@@ -279,9 +279,33 @@ const Reports = () => {
     setSubmittingComment(null);
   };
 
-  const handlePipelineComplete = () => {
+  const pendingScrollRef = useRef<string | null>(null);
+
+  const handlePipelineComplete = (reportId?: string) => {
+    if (reportId) {
+      pendingScrollRef.current = reportId;
+      setExpandedReport(reportId);
+    }
     setRefreshKey((k) => k + 1);
   };
+
+  // Post-upload: scroll to newly created report after data reloads
+  useEffect(() => {
+    const targetId = pendingScrollRef.current;
+    if (!targetId || dbReports.length === 0) return;
+    const exists = dbReports.find(r => r.id === targetId);
+    if (exists) {
+      pendingScrollRef.current = null;
+      setTimeout(() => {
+        const el = reportCardRefs.current.get(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("ring-2", "ring-primary/40");
+          setTimeout(() => el.classList.remove("ring-2", "ring-primary/40"), 3000);
+        }
+      }, 300);
+    }
+  }, [dbReports]);
 
   const handleDeleteReport = useCallback(async (report: DbReport) => {
     setDeleting(true);

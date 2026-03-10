@@ -328,7 +328,8 @@ const Chat = () => {
       // Auto-select for members
       if (!isAdvisor && enriched.length > 0 && !activeConvId) {
         setActiveConvId(enriched[0].id);
-        if (isMobile) setShowMessages(true);
+        if (enriched.length <= 1) setShowMessages(true);
+        else if (isMobile) setShowMessages(true);
       }
     };
 

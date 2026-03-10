@@ -718,7 +718,7 @@ const FileUploadZone = ({
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       toast({ title: "Rapport overskrevet", description: `Rapporten for ${extractedData.report_period} er blevet opdateret.` });
-      onPipelineComplete?.();
+      onPipelineComplete?.(reportRecord.id);
     } catch (err: any) {
       console.error("Overwrite error:", err);
       updateFile(pendingFileId, { status: "error", errorMessage: err.message });
