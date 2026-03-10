@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Mail,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
