@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ClipboardList, ArrowLeft } from "lucide-react";
+import { ClipboardList, ArrowLeft, Lightbulb, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
@@ -171,6 +171,28 @@ const Handouts = () => {
           </div>
         </div>
       </div>
+
+      {!isAdvisor && !isLoading && summaries.every(s => s.status === "not_started" && s.progress === 0) && (
+        <div className="glass-card rounded-xl p-5 mb-6 flex items-start gap-4">
+          <div className="p-2 rounded-lg bg-accent/50 shrink-0 mt-0.5">
+            <Lightbulb className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-foreground mb-1">Kom godt i gang med handouts</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Handouts hjælper dig med at strukturere og dokumentere de vigtigste områder i din virksomhed. Start med at sætte dine mål, og fortsæt derefter med bogholderiet.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setActiveModule("overordnet")}
+            >
+              Start med Målsætning 12 mdr. <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
