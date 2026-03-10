@@ -187,18 +187,20 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       return;
     }
 
-    // CANONICAL GATING: block if metrics exist but payload missing
+    const targetIsOverridden = hasManualOverride(target as unknown as ReportData);
+
+    // CANONICAL GATING: block if metrics exist but payload missing (skip if manual override provides data)
     const nd = target.normalized_data as any;
-    if (nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
+    if (!targetIsOverridden && nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
       toast.error("AI-analyse blokeret: canonical metrics findes, men ai_eligible_payload mangler.");
       return;
     }
 
-    // SAFETY: Bloker hvis validation !== PASS
+    // SAFETY: Bloker hvis validation !== PASS (skip if manual override provides corrected data)
     const vStatus = target.validation_status || 
                     (target.extracted_data as any)?.validation?.status || 
                     "FAIL";
-    if (vStatus !== "PASS") {
+    if (!targetIsOverridden && vStatus !== "PASS") {
       toast.error(`AI-analyse er deaktiveret: validation returnerede ${vStatus}. Gennemgå data manuelt.`);
       return;
     }
@@ -211,10 +213,14 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       const nd = target.normalized_data as any;
       const isCanonicalPath = nd?.ai_eligible === true && nd?.ai_eligible_payload;
 
+      // Get effective values for this report
+      const effectiveMetricsResult = getEffectiveMetrics(target as unknown as ReportData);
+      const effectivePeriod = getEffectiveReportPeriod(target as unknown as ReportData);
+
       // Fetch historical data
       const { data: historicalReports } = await supabase
         .from("financial_reports")
-        .select("extracted_data, normalized_data, report_period, validation_status")
+        .select("extracted_data, normalized_data, report_period, validation_status, manual_report_period_label, manual_override_status, manual_normalized_data")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("status", "processed")
@@ -225,7 +231,42 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       // Build body based on canonical vs legacy path
       let body: any;
 
-      if (isCanonicalPath) {
+      if (targetIsOverridden && effectiveMetricsResult) {
+        // MANUAL OVERRIDE PATH: build a compatible canonical-like payload from effective metrics
+        const effectiveReportType = target.manual_report_type || target.report_type || "unknown";
+        const syntheticPayload = {
+          input_type: "canonical" as const,
+          company_name: target.company_name || ed?.company_name,
+          period_start: null,
+          period_end: null,
+          report_period_label: effectivePeriod,
+          statement_type: effectiveReportType === "resultatopgørelse" ? "pnl" : effectiveReportType === "saldobalance" ? "balance" : "combined",
+          selected_period_basis: "period" as const,
+          validation_status: "PASS" as const,
+          metrics: effectiveMetricsResult.metrics,
+        };
+
+        const historicalCanonical = (historicalReports || [])
+          .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
+          .map(r => {
+            const hrEffectivePeriod = getEffectiveReportPeriod(r as unknown as ReportData);
+            return {
+              period: hrEffectivePeriod || r.report_period,
+              ...(r.normalized_data as any)?.metrics,
+              _source: "canonical",
+            };
+          });
+
+        body = {
+          canonicalPayload: syntheticPayload,
+          historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
+          companyContext: {
+            name: target.company_name || ed?.company_name,
+            cvr: target.cvr_number || ed?.cvr_number,
+          },
+          companyId,
+        };
+      } else if (isCanonicalPath) {
         // CANONICAL PATH: only PASS + ai_eligible historical
         const historicalCanonical = (historicalReports || [])
           .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
