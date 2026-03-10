@@ -597,7 +597,7 @@ const MemberDetail = () => {
                           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                             Ekstraheret data
                           </h4>
-                          {renderExtractedData(report.extracted_data)}
+                          {renderExtractedData(report)}
 
                           {report.processed_at && (
                             <p className="text-[10px] text-muted-foreground mt-4">
