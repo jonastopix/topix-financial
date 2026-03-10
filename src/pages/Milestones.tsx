@@ -17,7 +17,7 @@ import { da } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
-import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
+import { MILESTONE_SUGGESTIONS, type MilestoneSuggestion } from "@/lib/milestoneSuggestions";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 
 const Milestones = () => {
@@ -63,6 +63,23 @@ const Milestones = () => {
     setBaseline("");
     setCategory("other");
     setDeadline(undefined);
+  };
+
+  const STARTER_PICKS: { title: string; cat: MilestoneCategory }[] = [
+    { title: "Opnå positiv bundlinje", cat: "profit" },
+    { title: "Nå 100 aktive kunder", cat: "kunder" },
+    { title: "Reducér driftsomkostninger med 20%", cat: "profit" },
+  ];
+
+  const openWithSuggestion = (pick: { title: string; cat: MilestoneCategory }) => {
+    const suggestion = MILESTONE_SUGGESTIONS[pick.cat]?.find((s) => s.title === pick.title);
+    if (!suggestion) return;
+    setTitle(suggestion.title);
+    setDescription(suggestion.description);
+    setCategory(pick.cat);
+    setBaseline("");
+    setDeadline(undefined);
+    setOpen(true);
   };
 
   const handleCreate = async () => {
@@ -116,61 +133,107 @@ const Milestones = () => {
         </Button>
       </div>
 
-      {/* Progress overview */}
-      <div className="glass-card rounded-xl p-6 mb-6 animate-fade-in">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="p-3 rounded-xl bg-primary/10">
-            <Target className="h-6 w-6 text-primary" />
+      {milestoneStats.total === 0 ? (
+        /* ── Empty state ── */
+        <div className="flex flex-col items-center text-center py-16 animate-fade-in">
+          <div className="p-5 rounded-2xl bg-primary/10 mb-6">
+            <Target className="h-10 w-10 text-primary" />
           </div>
-          <div>
-            <h3 className="font-display font-semibold text-foreground">Samlet fremgang</h3>
-            <p className="text-sm text-muted-foreground">{milestoneStats.done} af {milestoneStats.total} milestones nået</p>
-          </div>
-          <div className="ml-auto text-right">
-            <p className="text-2xl font-display font-bold text-primary">{milestoneStats.pct}%</p>
-          </div>
-        </div>
-        <div className="h-3 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${milestoneStats.pct}%` }} />
-        </div>
-      </div>
+          <h2 className="text-xl font-display font-bold text-foreground mb-2">
+            Sæt dit første mål
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed">
+            Milestones hjælper dig med at holde fokus på de vigtigste mål for din virksomhed.
+            Start med et af forslagene nedenfor, eller opret dit eget.
+          </p>
 
-      {/* Category filter chips */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        <button
-          onClick={() => setCategoryFilter("all")}
-          className={cn(
-            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-            categoryFilter === "all"
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Alle
-        </button>
-        {CATEGORY_OPTIONS.map((opt) => {
-          const cfg = MILESTONE_CATEGORIES[opt.value];
-          const Icon = cfg.icon;
-          const isActive = categoryFilter === opt.value;
-          return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
+            {STARTER_PICKS.map((pick) => {
+              const cfg = MILESTONE_CATEGORIES[pick.cat];
+              const Icon = cfg.icon;
+              const suggestion = MILESTONE_SUGGESTIONS[pick.cat]?.find((s) => s.title === pick.title);
+              if (!suggestion) return null;
+              return (
+                <button
+                  key={pick.title}
+                  onClick={() => openWithSuggestion(pick)}
+                  className="glass-card rounded-xl p-5 text-left hover:ring-1 hover:ring-primary/30 transition-all group"
+                >
+                  <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium mb-3", cfg.badgeClass)}>
+                    <Icon className="h-3 w-3" />
+                    {cfg.label}
+                  </div>
+                  <h3 className="font-display font-semibold text-foreground text-sm mb-1.5 group-hover:text-primary transition-colors">
+                    {suggestion.title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                    {suggestion.description}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* ── Normal view ── */
+        <>
+          {/* Progress overview */}
+          <div className="glass-card rounded-xl p-6 mb-6 animate-fade-in">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <Target className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-display font-semibold text-foreground">Samlet fremgang</h3>
+                <p className="text-sm text-muted-foreground">{milestoneStats.done} af {milestoneStats.total} milestones nået</p>
+              </div>
+              <div className="ml-auto text-right">
+                <p className="text-2xl font-display font-bold text-primary">{milestoneStats.pct}%</p>
+              </div>
+            </div>
+            <div className="h-3 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${milestoneStats.pct}%` }} />
+            </div>
+          </div>
+
+          {/* Category filter chips */}
+          <div className="flex flex-wrap items-center gap-2 mb-6">
             <button
-              key={opt.value}
-              onClick={() => setCategoryFilter(isActive ? "all" : opt.value)}
+              onClick={() => setCategoryFilter("all")}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-                isActive
-                  ? cfg.badgeClass + " ring-1 ring-current/20"
+                categoryFilter === "all"
+                  ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className="h-3 w-3" />
-              {opt.label}
+              Alle
             </button>
-          );
-        })}
-      </div>
+            {CATEGORY_OPTIONS.map((opt) => {
+              const cfg = MILESTONE_CATEGORIES[opt.value];
+              const Icon = cfg.icon;
+              const isActive = categoryFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setCategoryFilter(isActive ? "all" : opt.value)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                    isActive
+                      ? cfg.badgeClass + " ring-1 ring-current/20"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-3 w-3" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
 
-      <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} refreshKey={refreshKey} categoryFilter={categoryFilter === "all" ? undefined : categoryFilter} />
+          <MilestonesList userId={user?.id || null} companyId={companyId} conversationId={conversationId} refreshKey={refreshKey} categoryFilter={categoryFilter === "all" ? undefined : categoryFilter} />
+        </>
+      )}
 
       {/* Create Dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
