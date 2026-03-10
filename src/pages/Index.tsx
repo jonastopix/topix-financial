@@ -187,7 +187,8 @@ const Dashboard = () => {
         }
       }
 
-      return { kpiData, budgetData, sparklines, conversationId };
+      const hasReports = sorted.length > 0;
+      return { kpiData, budgetData, sparklines, conversationId, hasReports };
     },
     enabled: !!user && !!companyId,
     staleTime: 5 * 60_000,
