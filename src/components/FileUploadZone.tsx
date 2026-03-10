@@ -68,7 +68,7 @@ interface FileUploadZoneProps {
   companyName?: string | null;
   adminMode?: boolean;
   onExtracted?: (data: ExtractedData) => void;
-  onPipelineComplete?: () => void;
+  onPipelineComplete?: (reportId?: string) => void;
 }
 
 const formatFileSize = (bytes: number) => {
