@@ -526,7 +526,7 @@ const FileUploadZone = ({
         queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
         queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
         queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
-        onPipelineComplete?.();
+        onPipelineComplete?.(reportRecord.id);
 
         toast({
           title: "Rapport behandlet",
