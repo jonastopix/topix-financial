@@ -373,8 +373,8 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
               AI Finansiel Analyse
             </h2>
             <p className="text-xs text-muted-foreground">
-              {selectedReport?.report_period
-                ? `${selectedReport.report_period} · ${selectedReport.company_name || ""}`
+              {selectedReport
+                ? `${getEffectiveReportPeriod(selectedReport as unknown as ReportData) || selectedReport.report_period || ""} · ${selectedReport.company_name || ""}`
                 : "Upload en rapport for at aktivere AI-analyse"}
             </p>
           </div>
