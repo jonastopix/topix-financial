@@ -371,6 +371,7 @@ const Dashboard = () => {
               icon={<Wallet className="h-4 w-4" />}
               accentColor="blue"
             />
+          </div>
         </div>
         </>
       )}
