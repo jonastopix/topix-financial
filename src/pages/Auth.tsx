@@ -91,11 +91,11 @@ const Auth = () => {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-              <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+              <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
             </div>
-            <h1 className="text-xl font-display font-bold text-foreground">Nulstil adgangskode</h1>
+            <h1 className="text-xl font-brand font-bold text-foreground">Nulstil adgangskode</h1>
           </div>
-          <form onSubmit={handleReset} className="glass-card rounded-xl p-6 space-y-4">
+          <form onSubmit={handleReset} className="bg-card border border-border shadow-sm rounded-xl p-6 space-y-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Email</label>
               <div className="relative">
@@ -152,12 +152,12 @@ const Auth = () => {
               </>
             ) : (
               <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-                <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+                <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
               </div>
             )}
           </div>
 
-          <div className="glass-card rounded-xl p-6 text-center space-y-4">
+          <div className="bg-card border border-border shadow-sm rounded-xl p-6 text-center space-y-4">
             {signupResult === "auto" ? (
               <>
                 <CheckCircle className="h-10 w-10 text-primary mx-auto" />
@@ -208,7 +208,7 @@ const Auth = () => {
                   </span>
                 </div>
               )}
-              <h1 className="text-xl font-display font-bold text-foreground">Opret konto</h1>
+              <h1 className="text-xl font-brand font-bold text-foreground">Opret konto</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Du er inviteret til {inviteCompany.name}
               </p>
@@ -216,9 +216,9 @@ const Auth = () => {
           ) : (
             <>
               <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-                <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+                <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
               </div>
-              <h1 className="text-xl font-display font-bold text-foreground">
+              <h1 className="text-xl font-brand font-bold text-foreground">
                 {isLogin ? "Log ind på The Boardroom" : "Opret konto"}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
@@ -228,7 +228,7 @@ const Auth = () => {
           )}
         </div>
 
-        <form onSubmit={isLogin ? handleLogin : handleSignup} className="glass-card rounded-xl p-6 space-y-4">
+        <form onSubmit={isLogin ? handleLogin : handleSignup} className="bg-card border border-border shadow-sm rounded-xl p-6 space-y-4">
           {!isLogin && (
             <>
               <div>

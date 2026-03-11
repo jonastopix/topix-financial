@@ -481,7 +481,7 @@ const Reports = () => {
         };
 
         return (
-        <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
+        <div className="bg-card border border-border shadow-sm rounded-xl p-6 mb-8 animate-fade-in">
           <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
             Finansiel udvikling
@@ -651,7 +651,7 @@ const Reports = () => {
       </h2>
 
       {dbReports.length === 0 ? (
-        <div className="glass-card rounded-xl p-12 text-center">
+        <div className="bg-card border border-border shadow-sm rounded-xl p-12 text-center">
           <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter endnu</p>
           <p className="text-xs text-muted-foreground">
@@ -669,7 +669,7 @@ const Reports = () => {
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (
-              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className="glass-card rounded-xl animate-fade-in overflow-hidden transition-all duration-300">
+              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className="bg-card border border-border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300">
                 <button
                   onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                   className="w-full p-5 text-left hover:bg-secondary/30 transition-colors"
