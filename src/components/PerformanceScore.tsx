@@ -132,21 +132,21 @@ const PerformanceScore = () => {
       <div className="flex items-center gap-6 mb-5">
         <div className="relative flex-shrink-0">
           <svg width="120" height="120" viewBox="0 0 120 120" className="transform -rotate-90">
-            <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
             <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--primary))" strokeWidth="8"
               strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
               className="transition-all duration-1000 ease-out" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={`text-3xl font-display font-bold ${scoreColor}`}>{overallScore}</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">/ 100</span>
+            <span className="text-[10px] text-foreground/60 uppercase tracking-wider">/ 100</span>
           </div>
         </div>
         <div className="flex-1 space-y-1.5">
           <p className="text-xs text-muted-foreground leading-relaxed">
             Din samlede forretningssundhed baseret på vækst, marginer, resultat og likviditet.
           </p>
-          <p className="text-[10px] text-muted-foreground">Baseret på uploadede rapporter</p>
+          <p className="text-[10px] text-foreground/50">Baseret på uploadede rapporter</p>
         </div>
       </div>
 
