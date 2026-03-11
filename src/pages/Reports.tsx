@@ -481,7 +481,7 @@ const Reports = () => {
         };
 
         return (
-        <div className="glass-card rounded-xl p-6 mb-8 animate-fade-in">
+        <div className="bg-card border border-border shadow-sm rounded-xl p-6 mb-8 animate-fade-in">
           <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
             Finansiel udvikling
