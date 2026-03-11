@@ -91,9 +91,9 @@ const Auth = () => {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-              <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+              <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
             </div>
-            <h1 className="text-xl font-display font-bold text-foreground">Nulstil adgangskode</h1>
+            <h1 className="text-xl font-brand font-bold text-foreground">Nulstil adgangskode</h1>
           </div>
           <form onSubmit={handleReset} className="glass-card rounded-xl p-6 space-y-4">
             <div>
