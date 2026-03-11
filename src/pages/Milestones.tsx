@@ -3,6 +3,7 @@ import AppLayout from "@/components/AppLayout";
 import MilestonesList from "@/components/MilestonesList";
 import { Target, Plus, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
