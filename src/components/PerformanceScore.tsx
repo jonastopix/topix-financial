@@ -132,7 +132,7 @@ const PerformanceScore = () => {
       <div className="flex items-center gap-6 mb-5">
         <div className="relative flex-shrink-0">
           <svg width="120" height="120" viewBox="0 0 120 120" className="transform -rotate-90">
-            <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
             <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--primary))" strokeWidth="8"
               strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
               className="transition-all duration-1000 ease-out" />
