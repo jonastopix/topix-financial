@@ -929,7 +929,8 @@ const Chat = () => {
                   Indbakke
                 </h1>
               )}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Quick stats — hidden on mobile */}
+              <div className="hidden md:grid grid-cols-3 gap-2">
                 <div className="text-center py-2 rounded-lg bg-secondary/50">
                   <p className={`text-lg font-display font-bold ${stats.action > 0 ? "text-destructive" : "text-foreground"}`}>
                     {stats.action}
@@ -959,36 +960,116 @@ const Chat = () => {
                 />
               </div>
 
-              {/* Filter tabs */}
-              <div className="flex flex-wrap gap-1.5">
-                {ADVISOR_FILTER_CONFIG.map((f) => {
-                  const count = f.key === "action" ? stats.action
-                    : f.key === "mine" ? stats.mine
-                    : f.key === "alle" ? stats.total
-                    : f.key === "unassigned" ? stats.unassigned
-                    : stats.withReports;
-                  const isActive = activeFilter === f.key;
-                  return (
+              {/* Filter tabs — desktop: all visible, mobile: 2 primary + Drawer trigger */}
+              {isMobile ? (
+                <div className="flex gap-1.5">
+                  {/* Primary mobile filters: "Afventer dit svar" and "Mine" */}
+                  {ADVISOR_FILTER_CONFIG.filter(f => f.key === "action" || f.key === "mine").map((f) => {
+                    const count = f.key === "action" ? stats.action : stats.mine;
+                    const isActive = activeFilter === f.key;
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => setActiveFilter(f.key)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <f.icon className="h-3 w-3" />
+                        {f.label}
+                        {count > 0 && (
+                          <span className={`ml-0.5 text-[9px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {/* Drawer trigger — shows active non-primary filter label if selected */}
+                  <Drawer open={mobileFilterDrawerOpen} onOpenChange={setMobileFilterDrawerOpen}>
                     <button
-                      key={f.key}
-                      onClick={() => setActiveFilter(f.key)}
+                      onClick={() => setMobileFilterDrawerOpen(true)}
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
-                        isActive
+                        activeFilter !== "action" && activeFilter !== "mine"
                           ? "bg-primary text-primary-foreground"
                           : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
                       }`}
                     >
-                      <f.icon className="h-3 w-3" />
-                      {f.label}
-                      {count > 0 && f.key !== "alle" && (
-                        <span className={`ml-0.5 text-[9px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                          {count}
-                        </span>
-                      )}
+                      <Filter className="h-3 w-3" />
+                      {activeFilter !== "action" && activeFilter !== "mine"
+                        ? ADVISOR_FILTER_CONFIG.find(f => f.key === activeFilter)?.label || "Filtre"
+                        : "Filtre"}
                     </button>
-                  );
-                })}
-              </div>
+                    <DrawerContent>
+                      <DrawerHeader>
+                        <DrawerTitle>Filtre</DrawerTitle>
+                      </DrawerHeader>
+                      <div className="px-4 pb-6 space-y-1">
+                        {ADVISOR_FILTER_CONFIG.map((f) => {
+                          const count = f.key === "action" ? stats.action
+                            : f.key === "mine" ? stats.mine
+                            : f.key === "alle" ? stats.total
+                            : f.key === "unassigned" ? stats.unassigned
+                            : stats.withReports;
+                          const isActive = activeFilter === f.key;
+                          return (
+                            <button
+                              key={f.key}
+                              onClick={() => { setActiveFilter(f.key); setMobileFilterDrawerOpen(false); }}
+                              className={`flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
+                              }`}
+                            >
+                              <f.icon className="h-4 w-4" />
+                              <span className="flex-1 text-left">{f.label}</span>
+                              {count > 0 && (
+                                <span className={`text-xs ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                                  {count}
+                                </span>
+                              )}
+                              {isActive && <Check className="h-4 w-4 text-primary" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="safe-bottom-spacer" />
+                    </DrawerContent>
+                  </Drawer>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {ADVISOR_FILTER_CONFIG.map((f) => {
+                    const count = f.key === "action" ? stats.action
+                      : f.key === "mine" ? stats.mine
+                      : f.key === "alle" ? stats.total
+                      : f.key === "unassigned" ? stats.unassigned
+                      : stats.withReports;
+                    const isActive = activeFilter === f.key;
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => setActiveFilter(f.key)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <f.icon className="h-3 w-3" />
+                        {f.label}
+                        {count > 0 && f.key !== "alle" && (
+                          <span className={`ml-0.5 text-[9px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {activeFilter === "rapporter" && stats.withReports > 0 && (
                 <button
                   onClick={handleMarkReportsAsRead}
