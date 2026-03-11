@@ -14,8 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Space Grotesk", "system-ui", "sans-serif"],
-        body: ["Inter", "system-ui", "sans-serif"],
+        display: ["Manrope", "Space Grotesk", "system-ui", "sans-serif"],
+        body: ["Manrope", "Inter", "system-ui", "sans-serif"],
+        brand: ["Parkinsans", "Space Grotesk", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -93,8 +94,8 @@ export default {
           to: { opacity: "1", transform: "translateX(0)" },
         },
         "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 20px hsl(160 84% 39% / 0.1)" },
-          "50%": { boxShadow: "0 0 30px hsl(160 84% 39% / 0.25)" },
+          "0%, 100%": { boxShadow: "0 0 20px hsl(var(--primary) / 0.1)" },
+          "50%": { boxShadow: "0 0 30px hsl(var(--primary) / 0.25)" },
         },
       },
       animation: {
