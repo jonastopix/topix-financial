@@ -7,10 +7,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { openReportFile } from "@/lib/reportFileAccess";
+import { useQuery } from "@tanstack/react-query";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
+  UserCheck, Users as UsersIcon, ChevronDown, Check,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
@@ -56,15 +58,24 @@ interface ConversationWithProfile {
   hasRecentReport: boolean;
   recentReportName?: string;
   recentReportIds?: string[];
+  // Ops fields
+  awaiting_reply_from?: string | null;
+  assigned_advisor_id?: string | null;
+  last_member_message_at?: string | null;
+  last_advisor_reply_at?: string | null;
+  acknowledged_at?: string | null;
+  acknowledged_by_advisor_id?: string | null;
 }
 
-type InboxFilter = "alle" | "ubesvaret" | "rapporter";
+type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
 type TopicFilter = "all" | "report" | "handout" | "milestone" | "budget" | "sparring";
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
 
-const FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
+const ADVISOR_FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
+  { key: "action", label: "Kræver svar", icon: AlertCircle },
+  { key: "mine", label: "Mine", icon: UserCheck },
   { key: "alle", label: "Alle", icon: Inbox },
-  { key: "ubesvaret", label: "Ubesvaret", icon: AlertCircle },
+  { key: "unassigned", label: "Uden ejer", icon: UsersIcon },
   { key: "rapporter", label: "Ny rapport", icon: FileText },
 ];
 
@@ -107,7 +118,6 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // Default to "ubesvaret" for advisors
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
   const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
@@ -115,34 +125,50 @@ const Chat = () => {
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  // Mobile: track whether we're showing the message panel
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
+  const [showAssignmentDropdown, setShowAssignmentDropdown] = useState(false);
+
+  // Cached advisor list for assignment dropdown
+  const { data: advisorUsers } = useQuery({
+    queryKey: ["advisor-users-for-assignment"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("user_id, role, profiles!inner(user_id, full_name, avatar_url)")
+        .in("role", ["advisor", "admin"]) as any;
+      return (data || []).map((r: any) => ({
+        user_id: r.profiles.user_id as string,
+        full_name: r.profiles.full_name as string,
+        avatar_url: r.profiles.avatar_url as string | null,
+        role: r.role as string,
+      }));
+    },
+    enabled: !!isAdvisor,
+    staleTime: 5 * 60_000,
+  });
 
   // Set default filter for advisors on mount
   useEffect(() => {
     if (isAdvisor) {
-      setActiveFilter("ubesvaret");
+      setActiveFilter("action");
     }
   }, [isAdvisor]);
 
-  // Deep linking: auto-select conversation and highlight message from URL params
+  // Deep linking
   useEffect(() => {
     const convParam = searchParams.get("conversationId");
     const msgParam = searchParams.get("messageId");
     if (convParam && conversations.length > 0) {
       const conv = conversations.find(c => c.id === convParam);
       if (conv && activeConvId !== convParam) {
-        // Switch to "alle" filter so the conversation is visible
         setActiveFilter("alle");
         setActiveConvId(convParam);
         if (isMobile) setShowMessages(true);
       }
-      // Once messages are loaded, scroll to and highlight the target message
       if (msgParam && messages.length > 0 && activeConvId === convParam) {
         setTimeout(() => {
           scrollToMessage(msgParam);
-          // Clear params after navigation
           setSearchParams({}, { replace: true });
         }, 300);
       }
@@ -152,9 +178,7 @@ const Chat = () => {
   // Escape key to exit fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreen) {
-        setIsFullscreen(false);
-      }
+      if (e.key === "Escape" && isFullscreen) setIsFullscreen(false);
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
@@ -249,15 +273,12 @@ const Chat = () => {
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
 
-      // Store profiles map for sender name lookup in messages
       const pMap = new Map<string, { full_name: string; avatar_url: string | null }>();
       profiles.forEach(p => pMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url || null }));
       setProfilesMap(pMap);
 
-      // Track unreviewed report IDs for mark-as-read
       setUnreviewedReportIds(recentReports.map((r: any) => r.id));
 
-      // Build report lookup by company_id (name + IDs)
       const reportsByCompany = new Map<string, { name: string; ids: string[] }>();
       recentReports.forEach((r: any) => {
         const userConv = convs.find((c: any) => c.member_id === r.user_id);
@@ -288,14 +309,14 @@ const Chat = () => {
         ).length;
 
         const companyData = c.companies as any;
-        const companyId = c.company_id || undefined;
-        const report = companyId ? reportsByCompany.get(companyId) : undefined;
+        const cid = c.company_id || undefined;
+        const report = cid ? reportsByCompany.get(cid) : undefined;
 
         return {
           id: c.id,
           member_id: c.member_id,
           last_message_at: c.last_message_at || c.created_at,
-          company_id: companyId,
+          company_id: cid,
           companyName: companyData?.name || undefined,
           companyLogoUrl: companyData?.logo_url || undefined,
           profile: profile
@@ -309,10 +330,17 @@ const Chat = () => {
           hasRecentReport: !!report,
           recentReportName: report?.name,
           recentReportIds: report?.ids,
+          // Ops fields from DB
+          awaiting_reply_from: c.awaiting_reply_from || null,
+          assigned_advisor_id: c.assigned_advisor_id || null,
+          last_member_message_at: c.last_member_message_at || null,
+          last_advisor_reply_at: c.last_advisor_reply_at || null,
+          acknowledged_at: c.acknowledged_at || null,
+          acknowledged_by_advisor_id: c.acknowledged_by_advisor_id || null,
         };
       });
 
-      // Deduplicate by company_id: keep conversation with latest activity
+      // Deduplicate by company_id
       const deduped: ConversationWithProfile[] = [];
       const seenCompanies = new Set<string>();
       for (const conv of enriched) {
@@ -336,6 +364,38 @@ const Chat = () => {
     loadConversations();
   }, [user, isAdvisor, activeConvId, companyId, isCompanyOverride]);
 
+  // Realtime subscription on conversations for live ops state updates
+  useEffect(() => {
+    if (!user || !isAdvisor) return;
+
+    const channel = supabase
+      .channel("conv-ops-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversations" },
+        (payload) => {
+          const updated = payload.new as any;
+          setConversations(prev => prev.map(c =>
+            c.id === updated.id
+              ? {
+                  ...c,
+                  awaiting_reply_from: updated.awaiting_reply_from || null,
+                  assigned_advisor_id: updated.assigned_advisor_id || null,
+                  last_member_message_at: updated.last_member_message_at || null,
+                  last_advisor_reply_at: updated.last_advisor_reply_at || null,
+                  acknowledged_at: updated.acknowledged_at || null,
+                  acknowledged_by_advisor_id: updated.acknowledged_by_advisor_id || null,
+                  last_message_at: updated.last_message_at || c.last_message_at,
+                }
+              : c
+          ));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, isAdvisor]);
+
   // Filtered & searched conversations for advisor
   const filteredConversations = useMemo(() => {
     let result = conversations;
@@ -349,30 +409,65 @@ const Chat = () => {
       );
     }
 
-    switch (activeFilter) {
-      case "ubesvaret":
-        result = result.filter((c) => c.unreadCount > 0);
-        break;
-      case "rapporter":
-        result = result.filter((c) => c.hasRecentReport);
-        break;
-    }
-
-    // Sort alphabetically by company name for "alle" filter
-    if (activeFilter === "alle") {
-      result = [...result].sort((a, b) =>
-        (a.companyName || "").localeCompare(b.companyName || "", "da")
-      );
+    if (isAdvisor) {
+      switch (activeFilter) {
+        case "action":
+          result = result.filter((c) =>
+            c.awaiting_reply_from === "advisor" && !c.acknowledged_at
+          );
+          // FIFO by last_member_message_at (oldest first)
+          result = [...result].sort((a, b) => {
+            const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
+            const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
+            return aT - bT;
+          });
+          break;
+        case "mine":
+          result = result.filter((c) => c.assigned_advisor_id === user?.id);
+          result = [...result].sort((a, b) =>
+            new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+          );
+          break;
+        case "alle":
+          result = [...result].sort((a, b) =>
+            (a.companyName || "").localeCompare(b.companyName || "", "da")
+          );
+          break;
+        case "unassigned":
+          result = result.filter((c) => !c.assigned_advisor_id);
+          result = [...result].sort((a, b) => {
+            const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
+            const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
+            return aT - bT;
+          });
+          break;
+        case "rapporter":
+          result = result.filter((c) => c.hasRecentReport);
+          break;
+      }
+    } else {
+      // Members: no filter changes needed
     }
 
     return result;
-  }, [conversations, searchQuery, activeFilter]);
+  }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
 
-  const stats = useMemo(() => ({
-    total: conversations.length,
-    unanswered: conversations.filter((c) => c.unreadCount > 0).length,
-    withReports: conversations.filter((c) => c.hasRecentReport).length,
-  }), [conversations]);
+  const stats = useMemo(() => {
+    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged
+    const actionCount = conversations.filter((c) =>
+      c.awaiting_reply_from === "advisor" &&
+      !c.acknowledged_at &&
+      (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id)
+    ).length;
+
+    return {
+      total: conversations.length,
+      action: actionCount,
+      withReports: conversations.filter((c) => c.hasRecentReport).length,
+      mine: conversations.filter((c) => c.assigned_advisor_id === user?.id).length,
+      unassigned: conversations.filter((c) => !c.assigned_advisor_id).length,
+    };
+  }, [conversations, user?.id]);
 
   // Load messages for active conversation
   useEffect(() => {
@@ -451,9 +546,7 @@ const Chat = () => {
     const trimmed = newMessage.trim();
     if (!trimmed || !activeConvId || !user) return;
 
-    if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      return;
-    }
+    if (trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     setSending(true);
     const insertData: any = {
@@ -470,7 +563,6 @@ const Chat = () => {
 
     if (!error && data) {
       setNewMessage("");
-      // Server-side: Slack notification + advisor bell notification
       notifyChatMessage((data as any).id);
     }
     setSending(false);
@@ -529,7 +621,6 @@ const Chat = () => {
     ));
   };
 
-  // Mobile: select conversation and show message panel
   const handleSelectConversation = (convId: string) => {
     setActiveConvId(convId);
     if (isMobile) setShowMessages(true);
@@ -547,13 +638,59 @@ const Chat = () => {
       .update({ reviewed_at: now } as any)
       .in("id", unreviewedReportIds);
     setUnreviewedReportIds([]);
-    // Refresh conversations to update report badges
     setConversations(prev => prev.map(c => ({ ...c, hasRecentReport: false, recentReportName: undefined })));
+  };
+
+  // Advisor actions
+  const handleAssignAdvisor = async (advisorId: string | null) => {
+    if (!activeConvId) return;
+    await supabase
+      .from("conversations")
+      .update({ assigned_advisor_id: advisorId } as any)
+      .eq("id", activeConvId);
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, assigned_advisor_id: advisorId } : c
+    ));
+    setShowAssignmentDropdown(false);
+  };
+
+  const handleAcknowledge = async () => {
+    if (!activeConvId || !user) return;
+    const now = new Date().toISOString();
+    const conv = conversations.find(c => c.id === activeConvId);
+    const updateData: any = {
+      acknowledged_at: now,
+      acknowledged_by_advisor_id: user.id,
+      awaiting_reply_from: null,
+    };
+    // Auto-assign if unassigned
+    if (!conv?.assigned_advisor_id) {
+      updateData.assigned_advisor_id = user.id;
+    }
+    await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
   };
 
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
+
+  // Get assigned advisor name for display
+  const getAdvisorName = (advisorId: string | null | undefined) => {
+    if (!advisorId || !advisorUsers) return null;
+    const a = advisorUsers.find((u: any) => u.user_id === advisorId);
+    return a ? a.full_name : null;
+  };
+
+  const getAdvisorInitials = (advisorId: string | null | undefined) => {
+    const name = getAdvisorName(advisorId);
+    return name ? getInitialsLocal(name) : null;
+  };
 
   return (
     <AppLayout fullscreen={isFullscreen}>
@@ -572,7 +709,6 @@ const Chat = () => {
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
             {/* Quick stats */}
             <div className="px-4 pt-4 pb-3 border-b border-border space-y-3">
-              {/* Mobile header */}
               {isMobile && (
                 <h1 className="text-lg font-display font-bold text-foreground tracking-tight flex items-center gap-2">
                   <MessageCircle className="h-4.5 w-4.5 text-primary" />
@@ -581,10 +717,10 @@ const Chat = () => {
               )}
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center py-2 rounded-lg bg-secondary/50">
-                  <p className={`text-lg font-display font-bold ${stats.unanswered > 0 ? "text-destructive" : "text-foreground"}`}>
-                    {stats.unanswered}
+                  <p className={`text-lg font-display font-bold ${stats.action > 0 ? "text-destructive" : "text-foreground"}`}>
+                    {stats.action}
                   </p>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Ubesvaret</p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Kræver svar</p>
                 </div>
                 <div className="text-center py-2 rounded-lg bg-secondary/50">
                   <p className={`text-lg font-display font-bold ${stats.withReports > 0 ? "text-primary" : "text-foreground"}`}>
@@ -611,9 +747,11 @@ const Chat = () => {
 
               {/* Filter tabs */}
               <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                {FILTER_CONFIG.map((f) => {
-                  const count = f.key === "alle" ? stats.total
-                    : f.key === "ubesvaret" ? stats.unanswered
+                {ADVISOR_FILTER_CONFIG.map((f) => {
+                  const count = f.key === "action" ? stats.action
+                    : f.key === "mine" ? stats.mine
+                    : f.key === "alle" ? stats.total
+                    : f.key === "unassigned" ? stats.unassigned
                     : stats.withReports;
                   const isActive = activeFilter === f.key;
                   return (
@@ -654,9 +792,13 @@ const Chat = () => {
                 <div className="p-6 text-center">
                   <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
-                    {searchQuery ? "Ingen resultater" : activeFilter === "ubesvaret" ? "Ingen ubesvarede beskeder 🎉" : "Ingen samtaler i denne kategori"}
+                    {searchQuery ? "Ingen resultater"
+                      : activeFilter === "action" ? "Ingen samtaler kræver svar 🎉"
+                      : activeFilter === "mine" ? "Ingen samtaler tildelt dig"
+                      : activeFilter === "unassigned" ? "Alle samtaler har en ejer"
+                      : "Ingen samtaler i denne kategori"}
                   </p>
-                  {activeFilter === "ubesvaret" && !searchQuery && (
+                  {activeFilter !== "alle" && !searchQuery && (
                     <button
                       onClick={() => setActiveFilter("alle")}
                       className="text-xs text-primary hover:underline mt-2"
@@ -668,8 +810,9 @@ const Chat = () => {
               ) : (
                 filteredConversations.map((conv) => {
                   const isActive = activeConvId === conv.id;
-                  const isUnread = conv.unreadCount > 0;
-                  const lastMsgIsFromMember = conv.lastMessageSenderId && conv.lastMessageSenderId !== user?.id;
+                  const isActionable = conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
+                  const isAcknowledged = !!conv.acknowledged_at;
+                  const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
 
                   return (
                     <button
@@ -678,35 +821,33 @@ const Chat = () => {
                       className={`w-full text-left px-4 py-3.5 border-b border-border/30 transition-colors ${
                         isActive
                           ? "bg-primary/5 border-l-2 border-l-primary"
-                          : isUnread
+                          : isActionable
                           ? "bg-destructive/[0.03] hover:bg-secondary/50"
                           : "hover:bg-secondary/30"
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        {/* Avatar with status indicator */}
+                        {/* Avatar */}
                         <div className="relative flex-shrink-0">
                           <div className={`h-10 w-10 rounded-full flex items-center justify-center overflow-hidden ${
-                            isUnread ? "bg-destructive/10" : "bg-primary/10"
+                            isActionable ? "bg-destructive/10" : "bg-primary/10"
                           }`}>
                             {conv.companyLogoUrl ? (
                               <img src={conv.companyLogoUrl} alt="" className="h-10 w-10 object-cover" />
                             ) : (
-                              <span className={`text-xs font-semibold ${isUnread ? "text-destructive" : "text-primary"}`}>
+                              <span className={`text-xs font-semibold ${isActionable ? "text-destructive" : "text-primary"}`}>
                                 {getInitialsLocal(conv.companyName || conv.profile?.full_name || "??")}
                               </span>
                             )}
                           </div>
-                          {isUnread && (
-                            <div className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-destructive border-2 border-card flex items-center justify-center">
-                              <span className="text-[7px] font-bold text-destructive-foreground">{conv.unreadCount}</span>
-                            </div>
+                          {isActionable && (
+                            <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-card" />
                           )}
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <p className={`text-sm truncate ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
+                            <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
                               {conv.companyName || conv.profile?.full_name || "Ukendt"}
                             </p>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
@@ -715,19 +856,39 @@ const Chat = () => {
                           </div>
 
                           {conv.lastMessage && (
-                            <p className={`text-xs truncate ${isUnread ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>
-                              {lastMsgIsFromMember ? "" : "Du: "}
+                            <p className={`text-xs truncate ${isActionable ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>
+                              {conv.lastMessageSenderId && conv.lastMessageSenderId !== user?.id ? "" : "Du: "}
                               {conv.lastMessage}
                             </p>
                           )}
 
                           <div className="flex items-center gap-1.5 mt-1.5">
+                            {/* Actionable badge with waiting duration */}
+                            {isActionable && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                <Clock className="h-2.5 w-2.5" />
+                                Afventer svar
+                                {conv.last_member_message_at && (
+                                  <span className="text-destructive/70">
+                                    · {formatDistanceToNow(new Date(conv.last_member_message_at), { locale: da })}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                            {/* Acknowledged badge – visually distinct from a real reply */}
+                            {isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <Check className="h-2.5 w-2.5" />
+                                Kvitteret
+                              </span>
+                            )}
+                            {/* Report badge */}
                             {conv.hasRecentReport && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                                 <FileText className="h-2.5 w-2.5" />
                                 {conv.recentReportName
-                                  ? conv.recentReportName.length > 20
-                                    ? conv.recentReportName.slice(0, 20) + "…"
+                                  ? conv.recentReportName.length > 15
+                                    ? conv.recentReportName.slice(0, 15) + "…"
                                     : conv.recentReportName
                                   : "Ny rapport"}
                                 <span
@@ -739,10 +900,10 @@ const Chat = () => {
                                 </span>
                               </span>
                             )}
-                            {isUnread && lastMsgIsFromMember && (
-                              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
-                                <Clock className="h-2.5 w-2.5" />
-                                Afventer svar
+                            {/* Assigned advisor initials */}
+                            {assignedInitials && (
+                              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-[8px] font-bold text-muted-foreground ml-auto flex-shrink-0" title={getAdvisorName(conv.assigned_advisor_id) || ""}>
+                                {assignedInitials}
                               </span>
                             )}
                           </div>
@@ -764,7 +925,6 @@ const Chat = () => {
                 {/* Header */}
                 {isAdvisor ? (
                   <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
-                    {/* Mobile back button */}
                     {isMobile && (
                       <button
                         onClick={handleBackToList}
@@ -829,12 +989,78 @@ const Chat = () => {
                         </div>
                       )}
                     </div>
-                    {activeConv?.hasRecentReport && !isMobile && (
-                      <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-                        <FileText className="h-3 w-3" />
-                        Ny rapport indsendt
-                      </span>
-                    )}
+
+                    {/* Advisor action controls */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Assignment dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowAssignmentDropdown(v => !v)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors border ${
+                            activeConv?.assigned_advisor_id
+                              ? "bg-primary/10 text-primary border-primary/20"
+                              : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
+                          }`}
+                        >
+                          <UserCheck className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">
+                            {activeConv?.assigned_advisor_id
+                              ? getAdvisorName(activeConv.assigned_advisor_id) || "Tildelt"
+                              : "Tildel"}
+                          </span>
+                          <ChevronDown className={`h-3 w-3 transition-transform ${showAssignmentDropdown ? "rotate-180" : ""}`} />
+                        </button>
+                        {showAssignmentDropdown && (
+                          <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+                            {activeConv?.assigned_advisor_id && (
+                              <button
+                                onClick={() => handleAssignAdvisor(null)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
+                              >
+                                Fjern tildeling
+                              </button>
+                            )}
+                            {advisorUsers?.map((a: any) => (
+                              <button
+                                key={a.user_id}
+                                onClick={() => handleAssignAdvisor(a.user_id)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                              >
+                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                                  {a.avatar_url ? (
+                                    <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                                  ) : (
+                                    <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
+                                  )}
+                                </div>
+                                <span className="truncate">{a.full_name}</span>
+                                {activeConv?.assigned_advisor_id === a.user_id && (
+                                  <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Acknowledge button */}
+                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
+                        <button
+                          onClick={handleAcknowledge}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">Kvittér</span>
+                        </button>
+                      )}
+
+                      {activeConv?.hasRecentReport && !isMobile && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                          <FileText className="h-3 w-3" />
+                          Ny rapport
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ) : participants.filter(p => p.isAdvisor).length > 0 ? (
                   <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
@@ -917,7 +1143,7 @@ const Chat = () => {
                   )}
                 </div>
 
-                {/* Pinned messages – compact bar */}
+                {/* Pinned messages */}
                 {pinnedMessages.length > 0 && (
                   <div className="flex items-center gap-2 px-4 py-1.5 border-b border-primary/10 bg-primary/5">
                     <Pin className="h-3 w-3 text-primary flex-shrink-0" />
@@ -961,7 +1187,6 @@ const Chat = () => {
                       )}
                     </div>
                   )}
-                  {/* Compute latest read own normal message for "Læst" indicator (member-only) */}
                   {(() => {
                     let latestReadOwnMsgId: string | null = null;
                     if (!isAdvisor && user?.id) {
@@ -980,7 +1205,6 @@ const Chat = () => {
                     const contextMeta = msg.context_meta;
                     const topicInfo = contextType ? TOPIC_COLORS[contextType] : null;
 
-                    // Date separator logic
                     const msgDate = new Date(msg.created_at);
                     const prevMsg = idx > 0 ? filteredMessages[idx - 1] : null;
                     const prevDate = prevMsg ? new Date(prevMsg.created_at) : null;
@@ -996,7 +1220,6 @@ const Chat = () => {
                     ) : null;
 
                     if (isSystem) {
-                      // ── Compact Report Card ──
                       if (contextType === "report" && contextMeta) {
                         const filePath = contextMeta.file_path as string | undefined;
                         const metaReportId = (contextMeta.report_id as string | undefined) || msg.context_id;
@@ -1023,8 +1246,6 @@ const Chat = () => {
                                 >
                                   <Pin className="h-3.5 w-3.5" />
                                 </button>
-
-                                {/* Header */}
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
                                     <BarChart3 className="h-4 w-4 text-primary" />
@@ -1039,8 +1260,6 @@ const Chat = () => {
                                     </div>
                                   </div>
                                 </div>
-
-                                {/* Action buttons */}
                                 <div className="flex items-center gap-2 pt-1.5 border-t border-border/30">
                                   {filePath && (
                                     <button
@@ -1076,7 +1295,6 @@ const Chat = () => {
                         );
                       }
 
-                      // ── Generic system message ──
                       return (
                         <React.Fragment key={msg.id}>
                           {dateSep}
@@ -1138,7 +1356,6 @@ const Chat = () => {
                         ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                         className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                       >
-                        {/* Avatar for other people's messages */}
                         {!isMine && (
                           <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
                             {senderAvatar ? (
@@ -1188,7 +1405,6 @@ const Chat = () => {
                                 : "bg-secondary text-foreground rounded-bl-md"
                             } ${contextType ? "rounded-tl-md" : ""}`}
                           >
-                            {/* Sender name for non-own messages */}
                             {!isMine && (
                               <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
                                 {senderName}
@@ -1208,7 +1424,6 @@ const Chat = () => {
                             </div>
                           </div>
                         </div>
-                        {/* Avatar for own messages */}
                         {isMine && (
                           <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
                             {senderAvatar ? (
@@ -1230,7 +1445,6 @@ const Chat = () => {
 
                 {/* Input with topic selector */}
                 <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-border">
-                  {/* Topic selector row */}
                   <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
                     {MESSAGE_TOPICS.map(t => {
