@@ -145,6 +145,8 @@ const Chat = () => {
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
   const [snoozePopoverOpen, setSnoozePopoverOpen] = useState(false);
   const [snoozeShowCalendar, setSnoozeShowCalendar] = useState(false);
+  const [mobileFilterDrawerOpen, setMobileFilterDrawerOpen] = useState(false);
+  const [mobileActionsDrawerOpen, setMobileActionsDrawerOpen] = useState(false);
 
   // Internal note state
   const [noteContent, setNoteContent] = useState("");
