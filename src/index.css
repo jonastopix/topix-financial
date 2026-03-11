@@ -143,6 +143,24 @@
   }
 }
 
+@layer utilities {
+  /* dvh-based height with vh fallback (fallback first, override second) */
+  .h-screen-safe {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .min-h-screen-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Safe-area spacer — additive element placed as last child in fixed/sticky containers */
+  .safe-bottom-spacer {
+    height: env(safe-area-inset-bottom, 0px);
+    flex-shrink: 0;
+  }
+}
+
 @keyframes checkmark-pop {
   0% { transform: scale(0.3) rotate(-45deg); opacity: 0; }
   50% { transform: scale(1.25) rotate(10deg); opacity: 1; }

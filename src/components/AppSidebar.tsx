@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdvisorNotifications from "@/components/AdvisorNotifications";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
   LayoutDashboard,
   FileText,
@@ -274,49 +275,105 @@ const AppSidebar = () => {
               {/* Company picker – hidden in "view as member" mode */}
               {!viewingAsMember && (
               <div className="relative">
-                <button
-                  onClick={() => setShowCompanyPicker((v) => !v)}
-                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    isCompanyOverride
-                      ? "bg-primary/15 text-primary border border-primary/20"
-                      : "bg-secondary/50 hover:bg-secondary text-foreground"
-                  }`}
-                >
-                  <Building2 className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate flex-1 text-left">
-                    {isCompanyOverride ? companyName : "Vis som virksomhed"}
-                  </span>
-                  <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showCompanyPicker ? "rotate-180" : ""}`} />
-                </button>
-
-                {showCompanyPicker && (
-                  <div className="fixed bottom-[140px] left-4 w-[calc(var(--sidebar-width,280px)-2rem)] bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto z-[9999]">
-                    {isCompanyOverride && (
-                      <button
-                        onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
-                      >
-                        <EyeOff className="h-3.5 w-3.5" />
-                        Tilbage til {ownCompanyName || "min virksomhed"}
-                      </button>
-                    )}
-                    {allCompanies?.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          setCompanyOverride(c.id, c.name);
-                          setShowCompanyPicker(false);
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                      >
-                        <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <span className="truncate flex-1 text-left">{c.name}</span>
-                        {companyName === c.name && isCompanyOverride && (
-                          <Check className="h-3 w-3 text-primary shrink-0" />
+                {isMobile ? (
+                  /* Mobile: use Drawer instead of fragile fixed dropdown */
+                  <Drawer open={showCompanyPicker} onOpenChange={setShowCompanyPicker}>
+                    <button
+                      onClick={() => setShowCompanyPicker(true)}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                        isCompanyOverride
+                          ? "bg-primary/15 text-primary border border-primary/20"
+                          : "bg-secondary/50 hover:bg-secondary text-foreground"
+                      }`}
+                    >
+                      <Building2 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate flex-1 text-left">
+                        {isCompanyOverride ? companyName : "Vis som virksomhed"}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                    </button>
+                    <DrawerContent>
+                      <DrawerHeader>
+                        <DrawerTitle>Vælg virksomhed</DrawerTitle>
+                      </DrawerHeader>
+                      <div className="px-4 pb-4 max-h-[60vh] overflow-y-auto space-y-1">
+                        {isCompanyOverride && (
+                          <button
+                            onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
+                            className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-colors border-b border-border mb-1"
+                          >
+                            <EyeOff className="h-4 w-4" />
+                            Tilbage til {ownCompanyName || "min virksomhed"}
+                          </button>
                         )}
-                      </button>
-                    ))}
-                  </div>
+                        {allCompanies?.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setCompanyOverride(c.id, c.name);
+                              setShowCompanyPicker(false);
+                            }}
+                            className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm hover:bg-secondary/60 transition-colors text-foreground"
+                          >
+                            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1 text-left">{c.name}</span>
+                            {companyName === c.name && isCompanyOverride && (
+                              <Check className="h-4 w-4 text-primary shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="safe-bottom-spacer" />
+                    </DrawerContent>
+                  </Drawer>
+                ) : (
+                  /* Desktop: original dropdown */
+                  <>
+                    <button
+                      onClick={() => setShowCompanyPicker((v) => !v)}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                        isCompanyOverride
+                          ? "bg-primary/15 text-primary border border-primary/20"
+                          : "bg-secondary/50 hover:bg-secondary text-foreground"
+                      }`}
+                    >
+                      <Building2 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate flex-1 text-left">
+                        {isCompanyOverride ? companyName : "Vis som virksomhed"}
+                      </span>
+                      <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showCompanyPicker ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {showCompanyPicker && (
+                      <div className="absolute bottom-full left-0 mb-2 w-full bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto z-[9999]">
+                        {isCompanyOverride && (
+                          <button
+                            onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
+                          >
+                            <EyeOff className="h-3.5 w-3.5" />
+                            Tilbage til {ownCompanyName || "min virksomhed"}
+                          </button>
+                        )}
+                        {allCompanies?.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setCompanyOverride(c.id, c.name);
+                              setShowCompanyPicker(false);
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                          >
+                            <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1 text-left">{c.name}</span>
+                            {companyName === c.name && isCompanyOverride && (
+                              <Check className="h-3 w-3 text-primary shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               )}
@@ -365,6 +422,7 @@ const AppSidebar = () => {
             </button>
           </div>
         </div>
+        <div className="safe-bottom-spacer" />
       </aside>
     </>
   );
