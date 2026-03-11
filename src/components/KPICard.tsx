@@ -13,6 +13,8 @@ interface KPICardProps {
   budgetFavorable?: boolean;
   /** Sparkline data points (last 6 months). Each entry is a value. */
   sparkline?: number[];
+  /** Compact YTD secondary line, e.g. "YTD: 1.245.000 kr" */
+  ytdLine?: string;
   subtitle?: string;
   icon?: ReactNode;
   accentColor?: "emerald" | "amber" | "blue" | "rose";
@@ -53,7 +55,7 @@ const accentMap = {
   },
 };
 
-const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, sparkline, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
+const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, sparkline, ytdLine, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
   const accent = accentMap[accentColor];
 
   const ChangeBadge = ({ label, dir }: { label: string; dir: "up" | "down" | "neutral" }) => (
@@ -131,6 +133,9 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
           )}
           {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
         </div>
+        {ytdLine && (
+          <p className="text-[10px] text-muted-foreground mt-1.5 truncate">{ytdLine}</p>
+        )}
       </div>
     </div>
   );
