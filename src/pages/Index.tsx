@@ -101,7 +101,7 @@ const Dashboard = () => {
         kpiData = {
           revenue: latest.kf.omsaetning ?? null,
           revenuePrev: prev?.kf.omsaetning ?? null,
-          expenses: totalExpenses(latest.kf),
+          expenses: calcTotalExpenses(latest.kf),
           result: latest.kf.resultat_foer_skat ?? null,
           bank: bankReport?.kf.bank_balance ?? null,
           bankPeriod: bankReport?.period ?? null,
