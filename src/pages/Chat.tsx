@@ -1000,7 +1000,7 @@ const Chat = () => {
                     {/* Advisor action controls */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {/* Assignment popover */}
-                      <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen}>
+                      <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
                         <PopoverTrigger asChild>
                           <button
                             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors border ${
@@ -1018,34 +1018,42 @@ const Chat = () => {
                             <ChevronDown className={`h-3 w-3 transition-transform ${assignmentPopoverOpen ? "rotate-180" : ""}`} />
                           </button>
                         </PopoverTrigger>
-                        <PopoverContent align="end" className="w-52 p-0">
+                        <PopoverContent align="end" sideOffset={8} collisionPadding={16} className="w-52 p-0 z-[200]">
+                          <div className="px-3 py-1.5 border-b border-border">
+                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tildel rådgiver</span>
+                          </div>
+                          {advisorUsers?.map((a: any) => {
+                            const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
+                            return (
+                              <button
+                                key={a.user_id}
+                                onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
+                                className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors text-foreground ${
+                                  isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"
+                                }`}
+                              >
+                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                                  {a.avatar_url ? (
+                                    <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                                  ) : (
+                                    <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
+                                  )}
+                                </div>
+                                <span className="truncate">{a.full_name}</span>
+                                {isCurrent && (
+                                  <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
+                                )}
+                              </button>
+                            );
+                          })}
                           {activeConv?.assigned_advisor_id && (
                             <button
                               onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
+                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-t border-border"
                             >
                               Fjern tildeling
                             </button>
                           )}
-                          {advisorUsers?.map((a: any) => (
-                            <button
-                              key={a.user_id}
-                              onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                            >
-                              <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                                {a.avatar_url ? (
-                                  <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                                ) : (
-                                  <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
-                                )}
-                              </div>
-                              <span className="truncate">{a.full_name}</span>
-                              {activeConv?.assigned_advisor_id === a.user_id && (
-                                <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
-                              )}
-                            </button>
-                          ))}
                         </PopoverContent>
                       </Popover>
 
@@ -1053,10 +1061,11 @@ const Chat = () => {
                       {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
                         <button
                           onClick={handleAcknowledge}
+                          title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
                         >
                           <Check className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Kvittér</span>
+                          <span className="hidden md:inline">Kvittér modtaget</span>
                         </button>
                       )}
 
