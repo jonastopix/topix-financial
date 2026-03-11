@@ -436,7 +436,7 @@ const Reports = () => {
           Rapportering
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload dokumenter, følg udviklingen og få AI-analyse
+          Upload regnskaber og følg virksomhedens udvikling
         </p>
       </div>
 
