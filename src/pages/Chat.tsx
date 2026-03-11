@@ -714,8 +714,7 @@ const Chat = () => {
       .update(updateData)
       .eq("id", activeConvId);
     if (error) {
-      const { toast } = await import("@/hooks/use-toast");
-      toast({ title: "Kunne ikke afslutte samtalen", variant: "destructive" });
+      toast.error("Kunne ikke afslutte samtalen");
       return;
     }
     setConversations(prev => prev.map(c =>
