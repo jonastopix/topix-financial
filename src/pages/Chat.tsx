@@ -912,7 +912,7 @@ const Chat = () => {
         </div>
       )}
 
-      <div className={`glass-card overflow-hidden flex ${isFullscreen ? "h-screen" : "rounded-xl"}`} style={isFullscreen ? undefined : { height: isAdvisor ? (isMobile ? "calc(100vh - 70px)" : "calc(100vh - 120px)") : "calc(100vh - 80px)" }}>
+      <div className={`glass-card overflow-hidden flex ${isFullscreen ? "h-screen-safe" : "rounded-xl"}`} style={isFullscreen ? undefined : { height: isAdvisor ? (isMobile ? "calc(100dvh - 70px)" : "calc(100dvh - 120px)") : "calc(100dvh - 80px)" }}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {showSidebar && (
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
