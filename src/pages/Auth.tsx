@@ -6,6 +6,8 @@ import { Mail, Lock, User, LogIn, UserPlus, CheckCircle } from "lucide-react";
 import { APP_BRANDING } from "@/lib/appConfig";
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
 import { getInitials } from "@/lib/uiUtils";
+import topixIconGreen from "@/assets/topix-icon-green.png";
+import topixIconWhite from "@/assets/topix-icon-white.png";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
