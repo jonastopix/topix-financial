@@ -1748,8 +1748,9 @@ const Chat = () => {
                       );
                     }
 
-                    const senderProfile = profilesMap.get(msg.sender_id);
-                    const senderName = senderProfile?.full_name || "Medlem";
+                    const participant = participants.find(p => p.user_id === msg.sender_id);
+                    const senderProfile = participant || profilesMap.get(msg.sender_id);
+                    const senderName = senderProfile?.full_name || (participant?.isAdvisor ? "Rådgiver" : "Medlem");
                     const senderAvatar = senderProfile?.avatar_url;
 
                     return (
