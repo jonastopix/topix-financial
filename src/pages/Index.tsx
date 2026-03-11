@@ -344,6 +344,7 @@ const Dashboard = () => {
               budgetLabel={monthExpBudget?.label}
               budgetFavorable={monthExpBudget?.favorable}
               sparkline={spark.expenses.length >= 2 ? spark.expenses : undefined}
+              ytdLine={kpiData.ytdExpenses != null ? `YTD: ${formatCompact(kpiData.ytdExpenses)}${ytdExpBudget ? ` · ${ytdExpBudget.label}` : ""}` : undefined}
               subtitle="samlede driftsomk."
               icon={<Flame className="h-4 w-4" />}
               accentColor="amber"
