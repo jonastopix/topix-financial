@@ -93,7 +93,6 @@ const Auth = () => {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-              <img src={topixIconWhite} alt="Topix" className="h-7 w-7 object-contain dark:hidden" style={{ display: 'none' }} />
               <img src={topixIconWhite} alt="Topix" className="h-7 w-7 object-contain" />
             </div>
             <h1 className="text-xl font-brand font-bold text-foreground">Nulstil adgangskode</h1>
