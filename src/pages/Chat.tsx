@@ -137,6 +137,8 @@ const Chat = () => {
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
+  const [snoozePopoverOpen, setSnoozePopoverOpen] = useState(false);
+  const [snoozeShowCalendar, setSnoozeShowCalendar] = useState(false);
 
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
   const { data: advisorUsers, isError: advisorUsersError } = useQuery({
