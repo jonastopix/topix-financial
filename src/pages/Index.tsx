@@ -311,6 +311,11 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Attention needed — action-first, before KPI data */}
+      <div className="mb-6">
+        <AttentionNeeded />
+      </div>
+
       {/* KPI cards – only shown when we have processed data */}
       {kpiData.period && (
         <>
@@ -402,11 +407,6 @@ const Dashboard = () => {
         </div>
         </>
       )}
-
-      {/* Attention needed */}
-      <div className="mb-6">
-        <AttentionNeeded />
-      </div>
 
       {/* Performance + Revenue chart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">

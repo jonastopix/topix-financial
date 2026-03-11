@@ -6,8 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import FileUploadZone from "@/components/FileUploadZone";
 import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
-import FinancialOverview from "@/components/FinancialOverview";
-import PerformanceOverview from "@/components/PerformanceOverview";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
 import ReportManualOverride from "@/components/ReportManualOverride";
@@ -443,8 +441,21 @@ const Reports = () => {
       </div>
 
       {/* ── Member-Centric Delivery Overview ── */}
-      <div className="mb-8">
+      <div className="mb-6">
         <DeliveryOverview reports={dbReports} />
+      </div>
+
+      {/* Upload section — primary action after delivery status */}
+      <div className="mb-8">
+        <FileUploadZone
+          title="Upload finansiel rapport"
+          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
+          accept=".xlsx,.xls,.csv,.pdf"
+          conversationId={conversationId}
+          userId={user?.id || null}
+          companyId={companyId || null}
+          onPipelineComplete={handlePipelineComplete}
+        />
       </div>
 
       {/* ── Trend Charts ── */}
@@ -625,32 +636,9 @@ const Reports = () => {
         );
       })()}
 
-      {/* Upload section */}
-      <div className="mb-8">
-        <FileUploadZone
-          title="Upload finansiel rapport"
-          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
-          accept=".xlsx,.xls,.csv,.pdf"
-          conversationId={conversationId}
-          userId={user?.id || null}
-          companyId={companyId || null}
-          onPipelineComplete={handlePipelineComplete}
-        />
-      </div>
-
       {/* AI Financial Analysis */}
-      <div className="mb-8">
+      <div className="mb-10">
         <AIFinancialAnalysis conversationId={conversationId} companyId={companyId} userId={user?.id || null} />
-      </div>
-
-      {/* Detaljeret Finansiel Oversigt */}
-      <div className="mb-8">
-        <FinancialOverview reports={dbReports} />
-      </div>
-
-      {/* Performance Oversigt */}
-      <div className="mb-8">
-        <PerformanceOverview reports={dbReports} />
       </div>
 
       {/* Real DB Reports */}
