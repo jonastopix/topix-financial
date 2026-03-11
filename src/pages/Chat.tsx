@@ -434,7 +434,7 @@ const Chat = () => {
       switch (activeFilter) {
         case "action":
           result = result.filter((c) =>
-            c.awaiting_reply_from === "advisor" && !c.acknowledged_at
+            c.awaiting_reply_from === "advisor" && !c.acknowledged_at && c.conversation_status !== 'resolved'
           );
           // FIFO by last_member_message_at (oldest first)
           result = [...result].sort((a, b) => {
