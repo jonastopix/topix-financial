@@ -316,7 +316,7 @@ const AdvisorCompanyOverview = () => {
       {latest && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Finansielt overblik · {formatReportKey(latest.key)}
+            Seneste nøgletal · {formatReportKey(latest.key)}
           </p>
           <div className="grid grid-cols-3 gap-4">
             <div>
