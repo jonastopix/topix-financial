@@ -331,7 +331,7 @@ const AdvisorDashboard = () => {
                         {conv.assigned_advisor_id === user!.id ? (
                           <span className="text-muted-foreground">Min</span>
                         ) : conv.assigned_advisor_id === null ? (
-                          <span className="text-chart-warning">Uden ejer</span>
+                          <span className="text-chart-warning">Ikke tildelt</span>
                         ) : null}
                       </p>
                     </div>
