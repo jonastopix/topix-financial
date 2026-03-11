@@ -474,10 +474,11 @@ const Chat = () => {
   }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
 
   const stats = useMemo(() => {
-    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged
+    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged, not resolved
     const actionCount = conversations.filter((c) =>
       c.awaiting_reply_from === "advisor" &&
       !c.acknowledged_at &&
+      c.conversation_status !== 'resolved' &&
       (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id)
     ).length;
 
