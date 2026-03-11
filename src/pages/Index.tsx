@@ -237,6 +237,14 @@ const Dashboard = () => {
     );
   }
 
+  if (isAdvisor && companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyOverview />
+      </AppLayout>
+    );
+  }
+
   if (isLoading) {
     return (
       <AppLayout>
