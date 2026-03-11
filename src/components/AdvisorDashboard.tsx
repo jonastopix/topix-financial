@@ -279,7 +279,7 @@ const AdvisorDashboard = () => {
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-chart-warning" />
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Follow-up
+              Opfølgninger
             </h2>
           </div>
           <div className="space-y-1.5">
@@ -300,7 +300,7 @@ const AdvisorDashboard = () => {
                         {conv.assigned_advisor_id === user!.id ? (
                           <span className="text-muted-foreground">Min</span>
                         ) : conv.assigned_advisor_id === null ? (
-                          <span className="text-chart-warning">Uden ejer</span>
+                          <span className="text-chart-warning">Ikke tildelt</span>
                         ) : null}
                       </p>
                     </div>
