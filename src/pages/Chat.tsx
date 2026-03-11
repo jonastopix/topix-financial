@@ -142,6 +142,14 @@ const Chat = () => {
   const [snoozePopoverOpen, setSnoozePopoverOpen] = useState(false);
   const [snoozeShowCalendar, setSnoozeShowCalendar] = useState(false);
 
+  // Internal note state
+  const [noteContent, setNoteContent] = useState("");
+  const [noteDbContent, setNoteDbContent] = useState("");
+  const [noteMeta, setNoteMeta] = useState<{ updated_at: string; updated_by: string } | null>(null);
+  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const [conversationNoteIds, setConversationNoteIds] = useState<Set<string>>(new Set());
+
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
   const { data: advisorUsers, isError: advisorUsersError } = useQuery({
     queryKey: ["advisor-users-for-assignment"],
