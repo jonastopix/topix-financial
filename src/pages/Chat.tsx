@@ -625,12 +625,7 @@ const Chat = () => {
       setMessages(data || []);
 
       if (user) {
-        await supabase
-          .from("messages")
-          .update({ read_at: new Date().toISOString() })
-          .eq("conversation_id", activeConvId)
-          .neq("sender_id", user.id)
-          .is("read_at", null);
+        await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
 
