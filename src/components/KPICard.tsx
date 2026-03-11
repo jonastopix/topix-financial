@@ -79,7 +79,7 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
   const hasSparkline = sparkData && sparkData.length >= 2;
 
   return (
-    <div className={`glass-card rounded-xl p-3 sm:p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow} relative overflow-hidden`}>
+    <div className={`bg-card border border-border shadow-sm rounded-xl p-3 sm:p-5 animate-fade-in group border-l-2 ${accent.border} hover:shadow-md transition-shadow duration-200 relative overflow-hidden`}>
       {/* Sparkline background */}
       {hasSparkline && (
         <div className="absolute bottom-0 left-0 right-0 h-12 opacity-60 group-hover:opacity-80 transition-opacity pointer-events-none">

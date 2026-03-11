@@ -325,7 +325,7 @@ const Dashboard = () => {
         <>
         {/* KPI cards – Seneste måned */}
         <div className="mb-6" data-tour="kpi-cards">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Seneste måned · {kpiData.period}</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Seneste måned · {kpiData.period}</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 overflow-hidden">
             <KPICard
               title="Omsætning"
