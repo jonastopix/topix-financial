@@ -208,7 +208,7 @@ const AppSidebar = () => {
                 {branding.name}
               </h1>
               <p className="text-[11px] text-sidebar-muted">
-                {effectiveAdvisor ? "Advisor Panel" : "Founder Platform"}
+                {effectiveAdvisor ? "Advisor Panel" : "en del af Topix"}
               </p>
             </div>
           </div>
