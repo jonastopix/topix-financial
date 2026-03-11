@@ -424,6 +424,38 @@ export type Database = {
           },
         ]
       }
+      conversation_notes: {
+        Row: {
+          content: string
+          conversation_id: string
+          id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          content?: string
+          conversation_id: string
+          id?: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_notes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           acknowledged_at: string | null

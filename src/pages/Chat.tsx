@@ -14,8 +14,10 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
-  CalendarIcon,
+  CalendarIcon, StickyNote,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +141,14 @@ const Chat = () => {
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
   const [snoozePopoverOpen, setSnoozePopoverOpen] = useState(false);
   const [snoozeShowCalendar, setSnoozeShowCalendar] = useState(false);
+
+  // Internal note state
+  const [noteContent, setNoteContent] = useState("");
+  const [noteDbContent, setNoteDbContent] = useState("");
+  const [noteMeta, setNoteMeta] = useState<{ updated_at: string; updated_by: string } | null>(null);
+  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const [conversationNoteIds, setConversationNoteIds] = useState<Set<string>>(new Set());
 
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
   const { data: advisorUsers, isError: advisorUsersError } = useQuery({
@@ -424,6 +434,100 @@ const Chat = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [user, isAdvisor]);
+
+  // Fetch note existence for loaded conversations (advisor only)
+  useEffect(() => {
+    if (!isAdvisor || conversations.length === 0) return;
+    const convIds = conversations.map(c => c.id);
+    supabase
+      .from("conversation_notes" as any)
+      .select("conversation_id")
+      .in("conversation_id", convIds)
+      .then(({ data }) => {
+        if (data) {
+          setConversationNoteIds(new Set((data as any[]).map(d => d.conversation_id)));
+        }
+      });
+  }, [isAdvisor, conversations]);
+
+  // Fetch note for active conversation (advisor only)
+  useEffect(() => {
+    if (!isAdvisor || !activeConvId) {
+      setNoteContent("");
+      setNoteDbContent("");
+      setNoteMeta(null);
+      setNoteExpanded(false);
+      setNoteSaveStatus('idle');
+      return;
+    }
+    supabase
+      .from("conversation_notes" as any)
+      .select("content, updated_at, updated_by")
+      .eq("conversation_id", activeConvId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setNoteContent((data as any).content || "");
+          setNoteDbContent((data as any).content || "");
+          setNoteMeta({ updated_at: (data as any).updated_at, updated_by: (data as any).updated_by });
+          setNoteExpanded(true);
+        } else {
+          setNoteContent("");
+          setNoteDbContent("");
+          setNoteMeta(null);
+          setNoteExpanded(false);
+        }
+        setNoteSaveStatus('idle');
+      });
+  }, [isAdvisor, activeConvId]);
+
+  // Save/delete note on blur
+  const handleNoteSave = async () => {
+    if (!activeConvId || !user) return;
+    const trimmed = noteContent.trim();
+    if (trimmed === noteDbContent.trim()) return; // no change
+
+    setNoteSaveStatus('saving');
+
+    if (!trimmed) {
+      // Delete note row
+      await supabase
+        .from("conversation_notes" as any)
+        .delete()
+        .eq("conversation_id", activeConvId);
+      setNoteDbContent("");
+      setNoteContent("");
+      setNoteMeta(null);
+      setConversationNoteIds(prev => {
+        const next = new Set(prev);
+        next.delete(activeConvId);
+        return next;
+      });
+    } else {
+      // Upsert note (trigger stamps updated_at and updated_by)
+      const { data, error } = await supabase
+        .from("conversation_notes" as any)
+        .upsert({
+          conversation_id: activeConvId,
+          content: trimmed,
+          updated_by: user.id,
+        } as any, { onConflict: "conversation_id" })
+        .select("content, updated_at, updated_by")
+        .single();
+      if (!error && data) {
+        setNoteDbContent((data as any).content);
+        setNoteMeta({ updated_at: (data as any).updated_at, updated_by: (data as any).updated_by });
+        setConversationNoteIds(prev => {
+          const next = new Set(prev);
+          next.add(activeConvId);
+          return next;
+        });
+      }
+    }
+
+    setNoteSaveStatus('saved');
+    setTimeout(() => setNoteSaveStatus('idle'), 2000);
+  };
 
   // Filtered & searched conversations for advisor
   const filteredConversations = useMemo(() => {
@@ -1056,6 +1160,10 @@ const Chat = () => {
                                 </span>
                               </span>
                             )}
+                            {/* Note indicator */}
+                            {conversationNoteIds.has(conv.id) && (
+                              <span title="Har intern note"><StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" /></span>
+                            )}
                             {/* Assigned advisor initials */}
                             {assignedInitials && (
                               <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-[8px] font-bold text-muted-foreground ml-auto flex-shrink-0" title={getAdvisorName(conv.assigned_advisor_id) || ""}>
@@ -1388,6 +1496,45 @@ const Chat = () => {
                     </div>
                   </div>
                 ) : null}
+
+                {/* Internal advisor note */}
+                {isAdvisor && activeConvId && (
+                  <Collapsible open={noteExpanded} onOpenChange={setNoteExpanded}>
+                    <div className="border-b border-amber-500/20 bg-amber-500/5">
+                      <CollapsibleTrigger asChild>
+                        <button className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-amber-500/10 transition-colors">
+                          <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                          <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider">Intern note</span>
+                          {!noteExpanded && noteDbContent.trim() && (
+                            <span className="text-[11px] text-amber-600/70 dark:text-amber-400/70 truncate flex-1">{noteDbContent.trim().slice(0, 60)}{noteDbContent.trim().length > 60 ? "…" : ""}</span>
+                          )}
+                          {!noteExpanded && !noteDbContent.trim() && (
+                            <span className="text-[11px] text-muted-foreground italic">Tilføj intern note...</span>
+                          )}
+                          {noteSaveStatus === 'saving' && <span className="text-[10px] text-amber-600 dark:text-amber-400 ml-auto flex-shrink-0">Gemmer...</span>}
+                          {noteSaveStatus === 'saved' && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 ml-auto flex-shrink-0">Gemt ✓</span>}
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-4 pb-2 space-y-1">
+                          <Textarea
+                            value={noteContent}
+                            onChange={(e) => setNoteContent(e.target.value)}
+                            onBlur={handleNoteSave}
+                            placeholder="Intern note — kun synlig for rådgivere"
+                            className="min-h-[56px] max-h-[120px] text-xs bg-transparent border-amber-500/20 focus-visible:ring-amber-500/30 placeholder:text-amber-600/40 dark:placeholder:text-amber-400/40 resize-none"
+                            rows={2}
+                          />
+                          {noteMeta && (
+                            <p className="text-[10px] text-amber-600/60 dark:text-amber-400/60">
+                              Sidst opdateret af {getAdvisorName(noteMeta.updated_by) || "ukendt"} d. {format(new Date(noteMeta.updated_at), "d. MMM HH:mm", { locale: da })}
+                            </p>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                )}
 
                 {/* Topic filter chips + fullscreen toggle */}
                 <div className="px-3 md:px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
