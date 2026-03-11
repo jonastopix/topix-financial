@@ -130,20 +130,29 @@ const Chat = () => {
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
 
-  // Cached advisor list for assignment dropdown
-  const { data: advisorUsers } = useQuery({
+  // Cached advisor list for assignment dropdown (two-step: roles then profiles)
+  const { data: advisorUsers, isError: advisorUsersError } = useQuery({
     queryKey: ["advisor-users-for-assignment"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
-        .select("user_id, role, profiles!inner(user_id, full_name, avatar_url)")
-        .in("role", ["advisor", "admin"]) as any;
-      return (data || []).map((r: any) => ({
-        user_id: r.profiles.user_id as string,
-        full_name: r.profiles.full_name as string,
-        avatar_url: r.profiles.avatar_url as string | null,
-        role: r.role as string,
-      }));
+        .select("user_id, role")
+        .in("role", ["advisor", "admin"]);
+      if (rolesErr) throw rolesErr;
+      if (!roles?.length) return [];
+      const uniqueIds = [...new Set(roles.map((r) => r.user_id))];
+      const { data: profiles, error: profErr } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", uniqueIds);
+      if (profErr) throw profErr;
+      return (profiles || [])
+        .map((p) => ({
+          user_id: p.user_id,
+          full_name: p.full_name || "Unavngivet",
+          avatar_url: p.avatar_url,
+        }))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, "da"));
     },
     enabled: !!isAdvisor,
     staleTime: 5 * 60_000,
@@ -886,7 +895,7 @@ const Chat = () => {
                             {isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check className="h-2.5 w-2.5" />
-                                Kvitteret
+                                Følger op
                               </span>
                             )}
                             {/* Report badge */}
@@ -1022,37 +1031,49 @@ const Chat = () => {
                           <div className="px-3 py-1.5 border-b border-border">
                             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tildel rådgiver</span>
                           </div>
-                          {advisorUsers?.map((a: any) => {
-                            const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
-                            return (
-                              <button
-                                key={a.user_id}
-                                onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
-                                className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors text-foreground ${
-                                  isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"
-                                }`}
-                              >
-                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                                  {a.avatar_url ? (
-                                    <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                                  ) : (
-                                    <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
-                                  )}
-                                </div>
-                                <span className="truncate">{a.full_name}</span>
-                                {isCurrent && (
-                                  <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
-                                )}
-                              </button>
-                            );
-                          })}
-                          {activeConv?.assigned_advisor_id && (
-                            <button
-                              onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-t border-border"
-                            >
-                              Fjern tildeling
-                            </button>
+                          {advisorUsersError ? (
+                            <div className="px-3 py-3 text-xs text-destructive text-center">
+                              Kunne ikke hente rådgivere
+                            </div>
+                          ) : (!advisorUsers || advisorUsers.length === 0) ? (
+                            <div className="px-3 py-3 text-xs text-muted-foreground text-center">
+                              Ingen rådgivere fundet
+                            </div>
+                          ) : (
+                            <>
+                              {advisorUsers.map((a: any) => {
+                                const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
+                                return (
+                                  <button
+                                    key={a.user_id}
+                                    onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
+                                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors text-foreground ${
+                                      isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"
+                                    }`}
+                                  >
+                                    <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                                      {a.avatar_url ? (
+                                        <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                                      ) : (
+                                        <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
+                                      )}
+                                    </div>
+                                    <span className="truncate">{a.full_name}</span>
+                                    {isCurrent && (
+                                      <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                              {activeConv?.assigned_advisor_id && (
+                                <button
+                                  onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-t border-border"
+                                >
+                                  Fjern tildeling
+                                </button>
+                              )}
+                            </>
                           )}
                         </PopoverContent>
                       </Popover>
@@ -1065,7 +1086,7 @@ const Chat = () => {
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
                         >
                           <Check className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Kvittér modtaget</span>
+                          <span className="hidden md:inline">Jeg følger op</span>
                         </button>
                       )}
 
