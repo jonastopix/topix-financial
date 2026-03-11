@@ -222,46 +222,23 @@ const Chat = () => {
     setShowMessages(false);
   }, [companyId]);
 
-  // Fetch participants for active conversation
+  // Fetch participants for active conversation via security-definer RPC
+  const fetchParticipants = async (convId: string) => {
+    const { data, error } = await supabase.rpc("get_conversation_sender_profiles" as any, { _conversation_id: convId });
+    if (error) { console.error("Failed to load conversation participants:", error); return; }
+    const list = ((data as any[]) || []).map((row: any) => ({
+      user_id: row.user_id as string,
+      full_name: row.full_name as string,
+      avatar_url: row.avatar_url as string | null,
+      isAdvisor: row.is_advisor as boolean,
+    }));
+    setParticipants(list);
+  };
+
   useEffect(() => {
     if (!activeConvId) { setParticipants([]); return; }
-    const conv = conversations.find(c => c.id === activeConvId);
-    const cid = conv?.company_id;
-    if (!cid) return;
-
-    const load = async () => {
-      const [membersRes, advisorsRes] = await Promise.all([
-        supabase
-          .from("company_members")
-          .select("user_id, profiles!inner(user_id, full_name, avatar_url)")
-          .eq("company_id", cid) as any,
-        supabase
-          .from("user_roles")
-          .select("user_id, profiles!inner(user_id, full_name, avatar_url)")
-          .in("role", ["advisor", "admin"]) as any,
-      ]);
-
-      const seen = new Set<string>();
-      const list: typeof participants = [];
-
-      for (const row of membersRes.data || []) {
-        const p = row.profiles;
-        if (p && !seen.has(p.user_id)) {
-          seen.add(p.user_id);
-          list.push({ user_id: p.user_id, full_name: p.full_name, avatar_url: p.avatar_url, isAdvisor: false });
-        }
-      }
-      for (const row of advisorsRes.data || []) {
-        const p = row.profiles;
-        if (p && !seen.has(p.user_id)) {
-          seen.add(p.user_id);
-          list.push({ user_id: p.user_id, full_name: p.full_name, avatar_url: p.avatar_url, isAdvisor: true });
-        }
-      }
-      setParticipants(list);
-    };
-    load();
-  }, [activeConvId, conversations]);
+    fetchParticipants(activeConvId);
+  }, [activeConvId]);
 
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
@@ -639,6 +616,16 @@ const Chat = () => {
         async (payload) => {
           const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
+
+          // Re-fetch participants if sender is unknown
+          if (newMsg.message_type !== 'system') {
+            setParticipants((prev) => {
+              if (!prev.some(p => p.user_id === newMsg.sender_id)) {
+                fetchParticipants(activeConvId);
+              }
+              return prev;
+            });
+          }
 
           if (newMsg.sender_id !== user?.id && user) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
@@ -1771,8 +1758,9 @@ const Chat = () => {
                       );
                     }
 
-                    const senderProfile = profilesMap.get(msg.sender_id);
-                    const senderName = senderProfile?.full_name || "Medlem";
+                    const participant = participants.find(p => p.user_id === msg.sender_id);
+                    const senderProfile = participant || profilesMap.get(msg.sender_id);
+                    const senderName = senderProfile?.full_name || (participant?.isAdvisor ? "Rådgiver" : "Medlem");
                     const senderAvatar = senderProfile?.avatar_url;
 
                     return (
