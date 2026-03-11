@@ -876,6 +876,13 @@ const Chat = () => {
                                 )}
                               </span>
                             )}
+                            {/* Awaiting company reply — ball is with the company */}
+                            {!isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                <ArrowRightLeft className="h-2.5 w-2.5" />
+                                Afventer virksomhed
+                              </span>
+                            )}
                             {/* Acknowledged badge – visually distinct from a real reply */}
                             {isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
