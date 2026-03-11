@@ -298,7 +298,7 @@ const AdvisorCompanyOverview = () => {
             <Link
               to={`/chat?conversationId=${noteConvId}`}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors"
-              title="Intern note — åbn i chat"
+              title="Intern note — se i chatten"
             >
               <StickyNote className="h-3.5 w-3.5" />
               Note
