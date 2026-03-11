@@ -856,7 +856,8 @@ const Chat = () => {
               ) : (
                 filteredConversations.map((conv) => {
                   const isActive = activeConvId === conv.id;
-                  const isActionable = conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
+                  const isResolved = conv.conversation_status === 'resolved';
+                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
                   const isAcknowledged = !!conv.acknowledged_at;
                   const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
 
