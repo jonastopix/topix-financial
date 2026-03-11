@@ -652,7 +652,6 @@ const Chat = () => {
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, assigned_advisor_id: advisorId } : c
     ));
-    setShowAssignmentDropdown(false);
   };
 
   const handleAcknowledge = async () => {
