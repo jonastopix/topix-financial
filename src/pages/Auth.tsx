@@ -157,7 +157,7 @@ const Auth = () => {
             )}
           </div>
 
-          <div className="glass-card rounded-xl p-6 text-center space-y-4">
+          <div className="bg-card border border-border shadow-sm rounded-xl p-6 text-center space-y-4">
             {signupResult === "auto" ? (
               <>
                 <CheckCircle className="h-10 w-10 text-primary mx-auto" />
