@@ -700,6 +700,7 @@ const Chat = () => {
       acknowledged_at: now,
       acknowledged_by_advisor_id: user.id,
       awaiting_reply_from: null,
+      follow_up_at: null,
     };
     // Auto-assign if unassigned
     if (!conv?.assigned_advisor_id) {
