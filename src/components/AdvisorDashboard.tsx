@@ -412,7 +412,7 @@ const AdvisorDashboard = () => {
             </button>
           ))}
           {portfolio.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">Ingen virksomheder fundet.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">Ingen virksomheder i porteføljen endnu.</p>
           )}
         </div>
       </section>
