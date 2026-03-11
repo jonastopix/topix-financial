@@ -739,7 +739,7 @@ const Reports = () => {
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-4">
                     {/* Actions row */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         {report.file_path && !isLegacyPath(report.file_path) ? (
                           <button
