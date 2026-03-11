@@ -1061,10 +1061,11 @@ const Chat = () => {
                       {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
                         <button
                           onClick={handleAcknowledge}
+                          title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
                         >
                           <Check className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Kvittér</span>
+                          <span className="hidden md:inline">Kvittér modtaget</span>
                         </button>
                       )}
 
