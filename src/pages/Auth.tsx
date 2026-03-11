@@ -216,9 +216,9 @@ const Auth = () => {
           ) : (
             <>
               <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-                <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+                <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
               </div>
-              <h1 className="text-xl font-display font-bold text-foreground">
+              <h1 className="text-xl font-brand font-bold text-foreground">
                 {isLogin ? "Log ind på The Boardroom" : "Opret konto"}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
