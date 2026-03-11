@@ -15,13 +15,16 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote,
+  CalendarIcon, StickyNote, MoreHorizontal,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
+import {
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
+} from "@/components/ui/drawer";
 import { format, formatDistanceToNow, startOfDay, addDays, nextMonday, setHours, setMinutes, setSeconds } from "date-fns";
 import { da } from "date-fns/locale";
 
