@@ -403,6 +403,9 @@ const Chat = () => {
                   last_advisor_reply_at: updated.last_advisor_reply_at || null,
                   acknowledged_at: updated.acknowledged_at || null,
                   acknowledged_by_advisor_id: updated.acknowledged_by_advisor_id || null,
+                  conversation_status: updated.conversation_status || 'open',
+                  resolved_at: updated.resolved_at || null,
+                  resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
                   last_message_at: updated.last_message_at || c.last_message_at,
                 }
               : c
