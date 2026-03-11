@@ -128,7 +128,7 @@ const Chat = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
-  const [showAssignmentDropdown, setShowAssignmentDropdown] = useState(false);
+  const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
 
   // Cached advisor list for assignment dropdown
   const { data: advisorUsers } = useQuery({
