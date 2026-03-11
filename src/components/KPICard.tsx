@@ -25,7 +25,6 @@ const accentMap = {
     iconBg: "bg-primary/10",
     iconText: "text-primary",
     border: "border-l-primary",
-    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(var(--primary)/0.25)]",
     sparkStroke: "hsl(var(--primary))",
     sparkFill: "hsl(var(--primary) / 0.1)",
   },
@@ -33,7 +32,6 @@ const accentMap = {
     iconBg: "bg-chart-warning/10",
     iconText: "text-chart-warning",
     border: "border-l-chart-warning",
-    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(38,92%,50%,0.2)]",
     sparkStroke: "hsl(38, 92%, 50%)",
     sparkFill: "hsl(38, 92%, 50%, 0.1)",
   },
@@ -41,7 +39,6 @@ const accentMap = {
     iconBg: "bg-chart-info/10",
     iconText: "text-chart-info",
     border: "border-l-chart-info",
-    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(217,91%,60%,0.2)]",
     sparkStroke: "hsl(217, 91%, 60%)",
     sparkFill: "hsl(217, 91%, 60%, 0.1)",
   },
@@ -49,7 +46,6 @@ const accentMap = {
     iconBg: "bg-destructive/10",
     iconText: "text-destructive",
     border: "border-l-destructive",
-    glow: "group-hover:shadow-[0_0_24px_-6px_hsl(0,72%,51%,0.15)]",
     sparkStroke: "hsl(0, 72%, 51%)",
     sparkFill: "hsl(0, 72%, 51%, 0.1)",
   },
@@ -83,7 +79,7 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
   const hasSparkline = sparkData && sparkData.length >= 2;
 
   return (
-    <div className={`glass-card rounded-xl p-3 sm:p-5 animate-fade-in group border-l-[3px] ${accent.border} hover:border-l-4 transition-all duration-300 ${accent.glow} relative overflow-hidden`}>
+    <div className={`bg-card border border-border shadow-sm rounded-xl p-3 sm:p-5 animate-fade-in group border-l-2 ${accent.border} hover:shadow-md transition-shadow duration-200 relative overflow-hidden`}>
       {/* Sparkline background */}
       {hasSparkline && (
         <div className="absolute bottom-0 left-0 right-0 h-12 opacity-60 group-hover:opacity-80 transition-opacity pointer-events-none">
