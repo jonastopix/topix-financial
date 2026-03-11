@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -66,6 +67,10 @@ interface ConversationWithProfile {
   last_advisor_reply_at?: string | null;
   acknowledged_at?: string | null;
   acknowledged_by_advisor_id?: string | null;
+  // Resolved state
+  conversation_status?: string;
+  resolved_at?: string | null;
+  resolved_by_advisor_id?: string | null;
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
@@ -347,6 +352,10 @@ const Chat = () => {
           last_advisor_reply_at: c.last_advisor_reply_at || null,
           acknowledged_at: c.acknowledged_at || null,
           acknowledged_by_advisor_id: c.acknowledged_by_advisor_id || null,
+          // Resolved state
+          conversation_status: c.conversation_status || 'open',
+          resolved_at: c.resolved_at || null,
+          resolved_by_advisor_id: c.resolved_by_advisor_id || null,
         };
       });
 
@@ -395,6 +404,9 @@ const Chat = () => {
                   last_advisor_reply_at: updated.last_advisor_reply_at || null,
                   acknowledged_at: updated.acknowledged_at || null,
                   acknowledged_by_advisor_id: updated.acknowledged_by_advisor_id || null,
+                  conversation_status: updated.conversation_status || 'open',
+                  resolved_at: updated.resolved_at || null,
+                  resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
                   last_message_at: updated.last_message_at || c.last_message_at,
                 }
               : c
@@ -423,7 +435,7 @@ const Chat = () => {
       switch (activeFilter) {
         case "action":
           result = result.filter((c) =>
-            c.awaiting_reply_from === "advisor" && !c.acknowledged_at
+            c.awaiting_reply_from === "advisor" && !c.acknowledged_at && c.conversation_status !== 'resolved'
           );
           // FIFO by last_member_message_at (oldest first)
           result = [...result].sort((a, b) => {
@@ -463,10 +475,11 @@ const Chat = () => {
   }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
 
   const stats = useMemo(() => {
-    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged
+    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged, not resolved
     const actionCount = conversations.filter((c) =>
       c.awaiting_reply_from === "advisor" &&
       !c.acknowledged_at &&
+      c.conversation_status !== 'resolved' &&
       (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id)
     ).length;
 
@@ -685,6 +698,30 @@ const Chat = () => {
     ));
   };
 
+  const handleResolve = async () => {
+    if (!activeConvId || !user) return;
+    const now = new Date().toISOString();
+    const updateData: any = {
+      conversation_status: 'resolved',
+      resolved_at: now,
+      resolved_by_advisor_id: user.id,
+      awaiting_reply_from: null,
+      acknowledged_at: null,
+      acknowledged_by_advisor_id: null,
+    };
+    const { error } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    if (error) {
+      toast.error("Kunne ikke afslutte samtalen");
+      return;
+    }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
+  };
+
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
@@ -819,7 +856,8 @@ const Chat = () => {
               ) : (
                 filteredConversations.map((conv) => {
                   const isActive = activeConvId === conv.id;
-                  const isActionable = conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
+                  const isResolved = conv.conversation_status === 'resolved';
+                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
                   const isAcknowledged = !!conv.acknowledged_at;
                   const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
 
@@ -872,8 +910,15 @@ const Chat = () => {
                           )}
 
                           <div className="flex items-center gap-1.5 mt-1.5">
+                            {/* Resolved badge — highest priority */}
+                            {isResolved && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                <CheckCheck className="h-2.5 w-2.5" />
+                                Afsluttet
+                              </span>
+                            )}
                             {/* Actionable badge with waiting duration */}
-                            {isActionable && (
+                            {!isResolved && isActionable && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
                                 <Clock className="h-2.5 w-2.5" />
                                 Afventer svar
@@ -885,14 +930,14 @@ const Chat = () => {
                               </span>
                             )}
                             {/* Awaiting company reply — ball is with the company */}
-                            {!isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
+                            {!isResolved && !isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                                 <ArrowRightLeft className="h-2.5 w-2.5" />
                                 Afventer virksomhed
                               </span>
                             )}
                             {/* Acknowledged badge – visually distinct from a real reply */}
-                            {isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
+                            {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check className="h-2.5 w-2.5" />
                                 Følger op
@@ -1079,7 +1124,7 @@ const Chat = () => {
                       </Popover>
 
                       {/* Acknowledge button */}
-                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
+                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
                         <button
                           onClick={handleAcknowledge}
                           title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
@@ -1087,6 +1132,18 @@ const Chat = () => {
                         >
                           <Check className="h-3.5 w-3.5" />
                           <span className="hidden md:inline">Jeg følger op</span>
+                        </button>
+                      )}
+
+                      {/* Resolve button — advisor only, only when open */}
+                      {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                        <button
+                          onClick={handleResolve}
+                          title="Markerer samtalen som afsluttet. Genåbnes automatisk ved ny besked."
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
+                        >
+                          <CheckCheck className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">Afslut samtale</span>
                         </button>
                       )}
 
