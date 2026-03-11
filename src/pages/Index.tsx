@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import GuidedTour from "@/components/GuidedTour";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -23,17 +23,6 @@ function getGreeting() {
   if (h < 12) return "Godmorgen";
   if (h < 18) return "God eftermiddag";
   return "God aften";
-}
-
-/** Sum all operating expenses from key figures */
-function totalExpenses(kf: Record<string, number>): number {
-  return Math.abs(kf.loenninger ?? 0) +
-    Math.abs(kf.direkte_omkostninger ?? 0) +
-    Math.abs(kf.marketing ?? 0) +
-    Math.abs(kf.lokaler ?? 0) +
-    Math.abs(kf.admin ?? 0) +
-    Math.abs(kf.tech_software ?? 0) +
-    Math.abs(kf.afskrivninger ?? 0);
 }
 
 /** Parse budget period to "YYYY-MM" key. Handles "2026-base-3" and "April 2026" formats */
@@ -106,13 +95,13 @@ const Dashboard = () => {
         // YTD: Always sum individual month values (don't trust _aar fields from AI — they often read the wrong column)
         const currentYearReports = sorted.filter(r => r.key.startsWith(latestYear));
         const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
-        const ytdExpenses = currentYearReports.reduce((s, r) => s + totalExpenses(r.kf), 0);
+        const ytdExpenses = currentYearReports.reduce((s, r) => s + calcTotalExpenses(r.kf), 0);
         const ytdResult = currentYearReports.reduce((s, r) => s + (r.kf.resultat_foer_skat ?? 0), 0);
 
         kpiData = {
           revenue: latest.kf.omsaetning ?? null,
           revenuePrev: prev?.kf.omsaetning ?? null,
-          expenses: totalExpenses(latest.kf),
+          expenses: calcTotalExpenses(latest.kf),
           result: latest.kf.resultat_foer_skat ?? null,
           bank: bankReport?.kf.bank_balance ?? null,
           bankPeriod: bankReport?.period ?? null,
@@ -120,7 +109,7 @@ const Dashboard = () => {
           // Y/Y comparisons
           revenueYoY: pctChange(latest.kf.omsaetning, yoyReport?.kf.omsaetning),
           resultYoY: pctChange(latest.kf.resultat_foer_skat, yoyReport?.kf.resultat_foer_skat),
-          expensesYoY: pctChange(totalExpenses(latest.kf), yoyReport ? totalExpenses(yoyReport.kf) : undefined),
+          expensesYoY: pctChange(calcTotalExpenses(latest.kf), yoyReport ? calcTotalExpenses(yoyReport.kf) : undefined),
           // YTD — always summed from individual months for reliability
           ytdRevenue: currentYearReports.length > 0 ? ytdRevenue : null,
           ytdResult: currentYearReports.length > 0 ? ytdResult : null,
@@ -132,7 +121,7 @@ const Dashboard = () => {
       const last6 = sorted.slice(-6);
       const sparklines = {
         revenue: last6.map(r => r.kf.omsaetning ?? 0),
-        expenses: last6.map(r => totalExpenses(r.kf)),
+        expenses: last6.map(r => calcTotalExpenses(r.kf)),
         result: last6.map(r => r.kf.resultat_foer_skat ?? 0),
         bank: last6.filter(r => r.kf.bank_balance != null).map(r => r.kf.bank_balance),
       };

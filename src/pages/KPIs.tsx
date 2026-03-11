@@ -29,7 +29,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, formatCompact, SHORT_MONTHS } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
 import type { ReportData } from "@/lib/financialUtils";
 import { toast } from "sonner";
 import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
@@ -77,25 +77,16 @@ const KPI_DEFS = [
   { key: "loenninger", label: "Lønninger", unit: "DKK", icon: Users, description: "Månedlige lønomkostninger", lowerIsBetter: true },
   { key: "resultat", label: "Resultat", unit: "DKK", icon: Target, description: "Resultat før skat", lowerIsBetter: false },
   { key: "omkostninger", label: "Omk. total", unit: "DKK", icon: Flame, description: "Samlede omkostninger", lowerIsBetter: true },
-  { key: "ebitda_margin", label: "EBITDA Margin", unit: "%", icon: BarChart3, description: "Resultat i % af omsætning", lowerIsBetter: false },
+  { key: "ebitda_margin", label: "Resultat Margin", unit: "%", icon: BarChart3, description: "Resultat før skat i % af omsætning", lowerIsBetter: false },
 ];
 
 const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number> = {
   omsaetning: (kf) => kf.omsaetning || 0,
-  db_margin: (kf) => {
-    const rev = kf.omsaetning || 0;
-    const direct = kf.direkte_omkostninger || 0;
-    return rev > 0 ? ((rev - Math.abs(direct)) / rev) * 100 : 0;
-  },
+  db_margin: (kf) => calcDbMargin(kf) ?? 0,
   loenninger: (kf) => Math.abs(kf.loenninger || 0),
   resultat: (kf) => kf.resultat_foer_skat || 0,
-  omkostninger: (kf) =>
-    Math.abs(kf.direkte_omkostninger || 0) + Math.abs(kf.loenninger || 0) + Math.abs(kf.andre_eksterne_omkostninger || 0),
-  ebitda_margin: (kf) => {
-    const rev = kf.omsaetning || 0;
-    const result = kf.resultat_foer_skat || 0;
-    return rev > 0 ? (result / rev) * 100 : 0;
-  },
+  omkostninger: (kf) => calcTotalExpenses(kf),
+  ebitda_margin: (kf) => calcResultMargin(kf) ?? 0,
 };
 
 const tooltipStyle = {
@@ -263,7 +254,7 @@ const KPIs = () => {
       };
     });
 
-    const { error } = await supabase.from("kpi_targets").upsert(upserts, { onConflict: "user_id,kpi_key" });
+    const { error } = await supabase.from("kpi_targets").upsert(upserts, { onConflict: "company_id,kpi_key" });
 
     if (error) {
       toast.error("Kunne ikke gemme targets");
@@ -324,7 +315,7 @@ const KPIs = () => {
       };
     });
 
-    const { error } = await supabase.from("kpi_benchmarks").upsert(upserts, { onConflict: "user_id,kpi_key" });
+    const { error } = await supabase.from("kpi_benchmarks").upsert(upserts, { onConflict: "company_id,kpi_key" });
 
     if (error) {
       toast.error("Kunne ikke gemme benchmarks");

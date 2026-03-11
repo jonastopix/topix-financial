@@ -160,6 +160,36 @@ export function getEffectiveKeyFigures(report: ReportData): Record<string, numbe
 // ── Select fields for queries that need manual override data ──
 export const REPORT_OVERRIDE_SELECT = "manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source";
 
+// ── Shared metric helpers (canonical expense model) ──
+
+/** Canonical total expenses — the single shared definition across all surfaces.
+ *  Uses the 6 canonical cost buckets from normalized_data.metrics. */
+export function calcTotalExpenses(kf: Record<string, number | null>): number {
+  return Math.abs(kf.loenninger ?? 0)
+    + Math.abs(kf.direkte_omkostninger ?? 0)
+    + Math.abs(kf.salgsomkostninger ?? 0)
+    + Math.abs(kf.lokaleomkostninger ?? 0)
+    + Math.abs(kf.administrationsomkostninger ?? 0)
+    + Math.abs(kf.afskrivninger ?? 0);
+}
+
+/** DB margin (dækningsgrad) — gross profit as % of revenue */
+export function calcDbMargin(kf: Record<string, number | null>): number | null {
+  const rev = kf.omsaetning;
+  const db = kf.daekningsbidrag;
+  if (rev == null || db == null || rev === 0) return null;
+  return (db / rev) * 100;
+}
+
+/** Result margin — resultat_foer_skat as % of revenue.
+ *  NOTE: This is NOT EBITDA margin (it includes financial costs etc.). */
+export function calcResultMargin(kf: Record<string, number | null>): number | null {
+  const rev = kf.omsaetning;
+  const result = kf.resultat_foer_skat;
+  if (rev == null || result == null || rev === 0) return null;
+  return (result / rev) * 100;
+}
+
 // ── DKK formatting ──
 export const formatDKK = (n?: number | null) =>
   n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
