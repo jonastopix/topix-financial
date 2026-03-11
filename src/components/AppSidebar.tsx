@@ -10,7 +10,6 @@ import {
   TrendingUp,
   Users,
   Calculator,
-  Menu,
   X,
   MessageCircle,
   ClipboardList,
@@ -54,11 +53,15 @@ const adminNavItems = [
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
 ];
 
-const AppSidebar = () => {
+interface AppSidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const AppSidebar = ({ isOpen, onClose }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [isOpen, setIsOpen] = useState(false);
   const { user, profile, signOut, isAdvisor, isAdmin, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
@@ -103,7 +106,6 @@ const AppSidebar = () => {
     if (!user) return;
 
     if (effectiveAdvisor) {
-      // Advisor: fetch minimal conversation fields and count actionable in JS
       const { data: convs } = await supabase
         .from("conversations")
         .select("id, awaiting_reply_from, acknowledged_at, conversation_status, follow_up_at, assigned_advisor_id")
@@ -118,7 +120,6 @@ const AppSidebar = () => {
       ).length;
       setUnreadChat(count);
     } else {
-      // Member: existing read_at-based unread count
       const { data: convs } = await supabase.from("conversations").select("id");
       if (!convs || convs.length === 0) { setUnreadChat(0); return; }
       const convIds = convs.map((c) => c.id);
@@ -132,7 +133,6 @@ const AppSidebar = () => {
     }
   }, [user, effectiveAdvisor]);
 
-  // Fetch unread on mount, route change, and subscribe to realtime
   useEffect(() => {
     if (!user) return;
     fetchUnread();
@@ -150,17 +150,18 @@ const AppSidebar = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, location.pathname, fetchUnread, effectiveAdvisor]);
 
+  // Close sidebar on route change (mobile)
   useEffect(() => {
-    if (isMobile) setIsOpen(false);
+    if (isMobile) onClose();
   }, [location.pathname, isMobile]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, []);
+  }, [onClose]);
 
   useEffect(() => {
     if (isMobile && isOpen) {
@@ -175,20 +176,11 @@ const AppSidebar = () => {
 
   return (
     <>
-      {isMobile && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-card/90 backdrop-blur-sm border border-border shadow-lg text-foreground hover:bg-secondary transition-colors"
-          aria-label="Åbn menu"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-      )}
-
+      {/* Overlay/backdrop — owned by AppSidebar, controlled by isOpen prop */}
       {isMobile && isOpen && (
         <div
           className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsOpen(false)}
+          onClick={onClose}
         />
       )}
 
@@ -199,38 +191,40 @@ const AppSidebar = () => {
             : "translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-sidebar-border shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-sidebar-accent flex items-center justify-center shrink-0">
-              <img src={topixIconWhite} alt="Topix" className="h-5 w-5 object-contain" />
+        {/* Sidebar header with safe-area for standalone mode */}
+        <div className="safe-top-pad">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-sidebar-border shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-sidebar-accent flex items-center justify-center shrink-0">
+                <img src={topixIconWhite} alt="Topix" className="h-5 w-5 object-contain" />
+              </div>
+              <div>
+                <h1 className="font-brand font-bold text-sidebar-accent-foreground text-sm tracking-tight">
+                  {branding.name}
+                </h1>
+                <p className="text-[11px] text-sidebar-muted">
+                  {effectiveAdvisor ? "Advisor Panel" : "en del af Topix"}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-brand font-bold text-sidebar-accent-foreground text-sm tracking-tight">
-                {branding.name}
-              </h1>
-              <p className="text-[11px] text-sidebar-muted">
-                {effectiveAdvisor ? "Advisor Panel" : "en del af Topix"}
-              </p>
+            <div className="flex items-center gap-1">
+              {isAdvisor && <AdvisorNotifications />}
+              {isMobile && (
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-lg text-sidebar-muted hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors"
+                  aria-label="Luk menu"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
             </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {isAdvisor && <AdvisorNotifications />}
-            {isMobile && (
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-sidebar-muted hover:text-sidebar-accent-foreground hover:bg-sidebar-accent transition-colors"
-                aria-label="Luk menu"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
           </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {[
             ...baseNavItems,
-            // Settings only for non-advisors (members) and admins
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
             ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
@@ -242,7 +236,7 @@ const AppSidebar = () => {
                 data-tour={item.path === "/reports" ? "nav-reports" : item.path === "/chat" ? "nav-chat" : undefined}
                 onClick={() => {
                   navigate(item.path, { state: { resetKey: Date.now() } });
-                  if (isMobile) setIsOpen(false);
+                  if (isMobile) onClose();
                 }}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group w-full text-left ${
                   isActive
@@ -272,11 +266,9 @@ const AppSidebar = () => {
         <div className="px-4 py-3 border-t border-sidebar-border space-y-2 shrink-0">
           {isAdvisor && (
             <div className="space-y-2">
-              {/* Company picker – hidden in "view as member" mode */}
               {!viewingAsMember && (
               <div className="relative">
                 {isMobile ? (
-                  /* Mobile: use Drawer instead of fragile fixed dropdown */
                   <Drawer open={showCompanyPicker} onOpenChange={setShowCompanyPicker}>
                     <button
                       onClick={() => setShowCompanyPicker(true)}
@@ -327,7 +319,6 @@ const AppSidebar = () => {
                     </DrawerContent>
                   </Drawer>
                 ) : (
-                  /* Desktop: original dropdown */
                   <>
                     <button
                       onClick={() => setShowCompanyPicker((v) => !v)}
@@ -378,7 +369,6 @@ const AppSidebar = () => {
               </div>
               )}
 
-              {/* View as member toggle */}
               <button
                 onClick={toggleViewMode}
                 className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 bg-secondary/50 hover:bg-secondary text-foreground"

@@ -112,6 +112,10 @@
     @apply border-border;
   }
 
+  html, body {
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground font-body antialiased;
   }
@@ -119,6 +123,11 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;
   }
+}
+
+/* Top safe-area utility for standalone/PWA mode */
+.safe-top-pad {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 @layer utilities {

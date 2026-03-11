@@ -917,7 +917,7 @@ const Chat = () => {
         </div>
       )}
 
-      <div className={`glass-card overflow-hidden flex ${isFullscreen ? "h-screen-safe" : "rounded-xl"}`} style={isFullscreen ? undefined : { height: isAdvisor ? (isMobile ? "calc(100dvh - 70px)" : "calc(100dvh - 120px)") : "calc(100dvh - 80px)" }}>
+      <div className={`glass-card overflow-hidden flex flex-1 min-h-0 ${isFullscreen ? "" : "rounded-xl"}`}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {showSidebar && (
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
