@@ -101,6 +101,7 @@ function selectPrimaryConversation(conversations: ConvRow[]): ConvRow | null {
 const AdvisorCompanyOverview = () => {
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
