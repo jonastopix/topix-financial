@@ -1497,6 +1497,45 @@ const Chat = () => {
                   </div>
                 ) : null}
 
+                {/* Internal advisor note */}
+                {isAdvisor && activeConvId && (
+                  <Collapsible open={noteExpanded} onOpenChange={setNoteExpanded}>
+                    <div className="border-b border-amber-500/20 bg-amber-500/5">
+                      <CollapsibleTrigger asChild>
+                        <button className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-amber-500/10 transition-colors">
+                          <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                          <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider">Intern note</span>
+                          {!noteExpanded && noteDbContent.trim() && (
+                            <span className="text-[11px] text-amber-600/70 dark:text-amber-400/70 truncate flex-1">{noteDbContent.trim().slice(0, 60)}{noteDbContent.trim().length > 60 ? "…" : ""}</span>
+                          )}
+                          {!noteExpanded && !noteDbContent.trim() && (
+                            <span className="text-[11px] text-muted-foreground italic">Tilføj intern note...</span>
+                          )}
+                          {noteSaveStatus === 'saving' && <span className="text-[10px] text-amber-600 dark:text-amber-400 ml-auto flex-shrink-0">Gemmer...</span>}
+                          {noteSaveStatus === 'saved' && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 ml-auto flex-shrink-0">Gemt ✓</span>}
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-4 pb-2 space-y-1">
+                          <Textarea
+                            value={noteContent}
+                            onChange={(e) => setNoteContent(e.target.value)}
+                            onBlur={handleNoteSave}
+                            placeholder="Intern note — kun synlig for rådgivere"
+                            className="min-h-[56px] max-h-[120px] text-xs bg-transparent border-amber-500/20 focus-visible:ring-amber-500/30 placeholder:text-amber-600/40 dark:placeholder:text-amber-400/40 resize-none"
+                            rows={2}
+                          />
+                          {noteMeta && (
+                            <p className="text-[10px] text-amber-600/60 dark:text-amber-400/60">
+                              Sidst opdateret af {getAdvisorName(noteMeta.updated_by) || "ukendt"} d. {format(new Date(noteMeta.updated_at), "d. MMM HH:mm", { locale: da })}
+                            </p>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                )}
+
                 {/* Topic filter chips + fullscreen toggle */}
                 <div className="px-3 md:px-4 py-2 border-b border-border/50 flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                   {isFullscreen && (
