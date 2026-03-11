@@ -357,7 +357,7 @@ const AdvisorCompanyOverview = () => {
 
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
-          <p className="text-sm text-muted-foreground">Ingen behandlede rapporter endnu.</p>
+          <p className="text-sm text-muted-foreground">Ingen rapporter er behandlet endnu. Upload den første via Rapporter.</p>
         </div>
       )}
 
