@@ -435,6 +435,100 @@ const Chat = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, isAdvisor]);
 
+  // Fetch note existence for loaded conversations (advisor only)
+  useEffect(() => {
+    if (!isAdvisor || conversations.length === 0) return;
+    const convIds = conversations.map(c => c.id);
+    supabase
+      .from("conversation_notes" as any)
+      .select("conversation_id")
+      .in("conversation_id", convIds)
+      .then(({ data }) => {
+        if (data) {
+          setConversationNoteIds(new Set((data as any[]).map(d => d.conversation_id)));
+        }
+      });
+  }, [isAdvisor, conversations]);
+
+  // Fetch note for active conversation (advisor only)
+  useEffect(() => {
+    if (!isAdvisor || !activeConvId) {
+      setNoteContent("");
+      setNoteDbContent("");
+      setNoteMeta(null);
+      setNoteExpanded(false);
+      setNoteSaveStatus('idle');
+      return;
+    }
+    supabase
+      .from("conversation_notes" as any)
+      .select("content, updated_at, updated_by")
+      .eq("conversation_id", activeConvId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setNoteContent((data as any).content || "");
+          setNoteDbContent((data as any).content || "");
+          setNoteMeta({ updated_at: (data as any).updated_at, updated_by: (data as any).updated_by });
+          setNoteExpanded(true);
+        } else {
+          setNoteContent("");
+          setNoteDbContent("");
+          setNoteMeta(null);
+          setNoteExpanded(false);
+        }
+        setNoteSaveStatus('idle');
+      });
+  }, [isAdvisor, activeConvId]);
+
+  // Save/delete note on blur
+  const handleNoteSave = async () => {
+    if (!activeConvId || !user) return;
+    const trimmed = noteContent.trim();
+    if (trimmed === noteDbContent.trim()) return; // no change
+
+    setNoteSaveStatus('saving');
+
+    if (!trimmed) {
+      // Delete note row
+      await supabase
+        .from("conversation_notes" as any)
+        .delete()
+        .eq("conversation_id", activeConvId);
+      setNoteDbContent("");
+      setNoteContent("");
+      setNoteMeta(null);
+      setConversationNoteIds(prev => {
+        const next = new Set(prev);
+        next.delete(activeConvId);
+        return next;
+      });
+    } else {
+      // Upsert note (trigger stamps updated_at and updated_by)
+      const { data, error } = await supabase
+        .from("conversation_notes" as any)
+        .upsert({
+          conversation_id: activeConvId,
+          content: trimmed,
+          updated_by: user.id,
+        } as any, { onConflict: "conversation_id" })
+        .select("content, updated_at, updated_by")
+        .single();
+      if (!error && data) {
+        setNoteDbContent((data as any).content);
+        setNoteMeta({ updated_at: (data as any).updated_at, updated_by: (data as any).updated_by });
+        setConversationNoteIds(prev => {
+          const next = new Set(prev);
+          next.add(activeConvId);
+          return next;
+        });
+      }
+    }
+
+    setNoteSaveStatus('saved');
+    setTimeout(() => setNoteSaveStatus('idle'), 2000);
+  };
+
   // Filtered & searched conversations for advisor
   const filteredConversations = useMemo(() => {
     let result = conversations;
