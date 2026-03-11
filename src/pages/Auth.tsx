@@ -208,7 +208,7 @@ const Auth = () => {
                   </span>
                 </div>
               )}
-              <h1 className="text-xl font-display font-bold text-foreground">Opret konto</h1>
+              <h1 className="text-xl font-brand font-bold text-foreground">Opret konto</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Du er inviteret til {inviteCompany.name}
               </p>
