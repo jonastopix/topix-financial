@@ -259,9 +259,11 @@ const AdvisorDashboard = () => {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
-                    {conv.assigned_advisor_id === null && (
-                      <span className="ml-2 text-chart-warning">· Ingen ejer</span>
-                    )}
+                    {conv.assigned_advisor_id === user!.id ? (
+                      <span className="ml-2 text-muted-foreground">· Min</span>
+                    ) : conv.assigned_advisor_id === null ? (
+                      <span className="ml-2 text-chart-warning">· Uden ejer</span>
+                    ) : null}
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-destructive transition-colors shrink-0" />
