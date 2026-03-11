@@ -1025,10 +1025,17 @@ const Chat = () => {
                               </span>
                             )}
                             {/* Acknowledged badge – visually distinct from a real reply */}
-                            {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
+                            {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && !hasFutureSnooze && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check className="h-2.5 w-2.5" />
                                 Følger op
+                              </span>
+                            )}
+                            {/* Snoozed badge — future follow_up_at */}
+                            {!isResolved && hasFutureSnooze && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <Clock className="h-2.5 w-2.5" />
+                                Følg op {format(new Date(conv.follow_up_at!), "d. MMM", { locale: da })}
                               </span>
                             )}
                             {/* Report badge */}
