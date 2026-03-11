@@ -30,7 +30,6 @@ import {
   RotateCcw,
   CheckCircle2,
   Loader2,
-  RefreshCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -43,8 +42,6 @@ import {
   AlertDialogCancel,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -120,7 +117,7 @@ interface UnassignedUser {
 }
 
 const Members = () => {
-  const { user, isAdvisor: rawAdvisor, loading: authLoading } = useAuth();
+  const { user, isAdvisor: rawAdvisor, isAdmin, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [companies, setCompanies] = useState<CompanyData[]>([]);
@@ -148,39 +145,12 @@ const Members = () => {
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [standalonePendingInvitations, setStandalonePendingInvitations] = useState<any[]>([]);
 
-  // Bulk invite state
-  interface UninvitedCompany {
-    id: string;
-    name: string;
-    contact_person: string;
-    contact_email: string;
-  }
-  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [uninvitedCompanies, setUninvitedCompanies] = useState<UninvitedCompany[]>([]);
-  const [bulkSending, setBulkSending] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState(0);
-  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
-  const [bulkDone, setBulkDone] = useState(false);
-  const [selectedBulkIds, setSelectedBulkIds] = useState<Set<string>>(new Set());
-
   // Standalone invite (no company)
   const [standaloneInviteOpen, setStandaloneInviteOpen] = useState(false);
   const [standaloneEmail, setStandaloneEmail] = useState("");
   const [standaloneName, setStandaloneName] = useState("");
   const [standaloneSending, setStandaloneSending] = useState(false);
   const [standaloneCompanyId, setStandaloneCompanyId] = useState<string>("");
-
-  // Bulk remove all members state
-  const [bulkRemoveDialogOpen, setBulkRemoveDialogOpen] = useState(false);
-  const [bulkRemoving, setBulkRemoving] = useState(false);
-
-  // Bulk resend pending state
-  const [resendAllDialogOpen, setResendAllDialogOpen] = useState(false);
-  const [resendAllPending, setResendAllPending] = useState<{ email: string; company_name: string }[]>([]);
-  const [resendAllSending, setResendAllSending] = useState(false);
-  const [resendAllProgress, setResendAllProgress] = useState(0);
-  const [resendAllDone, setResendAllDone] = useState(false);
-  const [resendAllErrors, setResendAllErrors] = useState<string[]>([]);
 
   const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
@@ -243,9 +213,7 @@ const Members = () => {
     // Invitation info by company (most recent invitation per company)
     const pendingInvitationByCompany = new Map<string, string>();
     const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
-    // Collect all pending invitations per company for the overview
     const pendingInvsByCompany = new Map<string, any[]>();
-    // Sort so most recent comes last (overwrites)
     const sortedInvitations = [...allInvitations].sort((a: any, b: any) => 
       new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     );
@@ -282,19 +250,15 @@ const Members = () => {
 
     // Reports by company: count unique periods (not individual files)
     const reportsByCompany = new Map<string, number>();
-    const reportFilesByCompany = new Map<string, number>();
     const reportedRevenueByCompany = new Map<string, number>();
     const periodsByCompany = new Map<string, Set<string>>();
     allReports.forEach((r: any) => {
       if (r.company_id) {
-        reportFilesByCompany.set(r.company_id, (reportFilesByCompany.get(r.company_id) || 0) + 1);
-        // Track unique periods
         if (r.report_period) {
           const periods = periodsByCompany.get(r.company_id) || new Set<string>();
           periods.add(r.report_period);
           periodsByCompany.set(r.company_id, periods);
         }
-        // Try to extract revenue from extracted_data
         const data = r.extracted_data as any;
         if (data?.revenue || data?.omsætning || data?.nettoomsætning) {
           const rev = Number(data.revenue || data.omsætning || data.nettoomsætning || 0);
@@ -306,7 +270,6 @@ const Members = () => {
       }
     });
 
-    // Use unique periods as the report count
     periodsByCompany.forEach((periods, companyId) => {
       reportsByCompany.set(companyId, periods.size);
     });
@@ -333,27 +296,18 @@ const Members = () => {
       unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
     });
 
-    // Circle.so matching: match circle_members to company members via user_id or email
-    // Build a map: company_id -> CircleInfo[]
+    // Circle.so matching
     const circleByUserId = new Map<string, any>();
     allCircleMembers.forEach((cm: any) => {
       if (cm.user_id) circleByUserId.set(cm.user_id, cm);
     });
 
-    // Also match by email (profiles don't have email, but we can match circle_members.email to profiles)
-    // We'll need auth emails - but we can't access auth.users. Instead, match via circle_members.user_id link
-    // or by name similarity. The safest is user_id link on circle_members table.
-
-    // (circle_course_progress removed — API does not support fetching lesson data)
-
-    // Activity count by circle_member_id
     const activityByCircleMember = new Map<number, number>();
     allCircleActivity.forEach((a: any) => {
       activityByCircleMember.set(a.circle_member_id, (activityByCircleMember.get(a.circle_member_id) || 0) + 1);
     });
 
     const circleInfoByCompany = new Map<string, CircleInfo[]>();
-    // For each company member, check if they have a circle_member linked
     allMembers.forEach((cm: any) => {
       const circleMember = circleByUserId.get(cm.user_id);
       if (circleMember) {
@@ -400,15 +354,12 @@ const Members = () => {
           circleInfo: circleInfoByCompany.get(c.id) || [],
           logo_url: c.logo_url || null,
           pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
-          // Company status: if it has active members, it's "accepted" even if there are additional pending invitations
           invitationStatus: (() => {
             const companyMembers = membersByCompany.get(c.id) || [];
             const hasActiveMembers = companyMembers.length > 0;
             const invInfo = invitationInfoByCompany.get(c.id);
             if (!invInfo) return null;
-            // If the company has active members, it's accepted (regardless of pending team invites)
             if (hasActiveMembers) return 'accepted' as const;
-            // Otherwise use the most recent invitation status
             return invInfo.status as 'pending' | 'accepted';
           })(),
           invitationAcceptedAt: invitationInfoByCompany.get(c.id)?.accepted_at || null,
@@ -440,12 +391,10 @@ const Members = () => {
     loadCompanies();
   }, [loadCompanies, reloadTrigger]);
 
-  // Load unassigned users for merge dialog
   const handleRemoveMember = async (company: CompanyData, member: CompanyMember) => {
     if (member.role === 'owner') return;
     setRemovingMember(member.user_id);
     try {
-      // Use backend flow (same as MemberDetail) so invitation-reset happens correctly
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke('manage-advisor', {
         body: { action: 'remove-member', target_user_id: member.user_id },
@@ -468,7 +417,6 @@ const Members = () => {
     if (!company.invitationEmail) return;
     setResendingInvitation(company.id);
     try {
-      // If invitation was accepted, reset it back to pending first
       if (company.invitationStatus === 'accepted') {
         const { error: updateErr } = await supabase
           .from("company_invitations")
@@ -479,7 +427,6 @@ const Members = () => {
         if (updateErr) throw updateErr;
       }
 
-      // Fetch token for this invitation
       const { data: invData } = await supabase
         .from("company_invitations")
         .select("token")
@@ -535,8 +482,6 @@ const Members = () => {
     setMergeSearch("");
     setMergeDialogOpen(true);
 
-    // Get all users that are in auto-created "X's virksomhed" companies
-    // or all users not in this company
     const { data: allMemberships } = await supabase
       .from("company_members" as any)
       .select("user_id, company_id") as any;
@@ -567,7 +512,6 @@ const Members = () => {
     setMerging(true);
 
     try {
-      // 1. Update company_members: change user's company_id
       const { error: updateErr } = await supabase
         .from("company_members" as any)
         .update({ company_id: mergeTargetCompany.id } as any)
@@ -576,14 +520,12 @@ const Members = () => {
 
       if (updateErr) throw updateErr;
 
-      // 2. Update conversations for this user to new company
       await supabase
         .from("conversations")
         .update({ company_id: mergeTargetCompany.id })
         .eq("member_id", targetUser.user_id)
         .eq("company_id", targetUser.company_id);
 
-      // 3. Move any reports, handouts, milestones, budget_targets, kpi_targets, kpi_benchmarks
       await Promise.all([
         supabase.from("financial_reports").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("handouts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
@@ -593,14 +535,12 @@ const Members = () => {
         supabase.from("kpi_benchmarks").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
       ]);
 
-      // 4. Check if old company is now empty
       const { data: remaining } = await supabase
         .from("company_members" as any)
         .select("id")
         .eq("company_id", targetUser.company_id) as any;
 
       if (!remaining || remaining.length === 0) {
-        // Auto-delete empty company
         await supabase.from("conversations").delete().eq("company_id", targetUser.company_id);
         await supabase.from("companies" as any).delete().eq("id", targetUser.company_id) as any;
       }
@@ -620,7 +560,6 @@ const Members = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      // Delete all related data first
       await Promise.all([
         (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" } as any).eq("company_id", deleteTarget.id) as any),
         supabase.from("handouts").delete().eq("company_id", deleteTarget.id),
@@ -631,7 +570,6 @@ const Members = () => {
         supabase.from("company_invitations").delete().eq("company_id", deleteTarget.id),
       ]);
 
-      // Delete conversations and their messages
       const { data: convs } = await supabase
         .from("conversations")
         .select("id")
@@ -663,102 +601,6 @@ const Members = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "da"));
   }, [companies]);
 
-  const openBulkInviteDialog = async () => {
-    // Get all existing invitations (pending/accepted)
-    const { data: existingInvitations } = await supabase
-      .from("company_invitations" as any)
-      .select("company_id, status")
-      .in("status", ["pending", "accepted"]) as any;
-
-    const invitedCompanyIds = new Set(
-      (existingInvitations || []).map((i: any) => i.company_id)
-    );
-
-    const uninvited = companies
-      .filter((c) => !invitedCompanyIds.has(c.id))
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        contact_person: c.contact_person,
-        contact_email: c.contact_email,
-      }));
-
-    setUninvitedCompanies(uninvited);
-    setSelectedBulkIds(new Set(uninvited.filter((c) => c.contact_email.trim()).map((c) => c.id)));
-    setBulkSending(false);
-    setBulkProgress(0);
-    setBulkErrors([]);
-    setBulkDone(false);
-    setBulkDialogOpen(true);
-  };
-
-  const executeBulkInvite = async () => {
-    if (!user) return;
-    const toSend = uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id));
-    setBulkSending(true);
-    setBulkProgress(0);
-    setBulkErrors([]);
-    setBulkDone(false);
-
-    const errors: string[] = [];
-
-    for (let i = 0; i < toSend.length; i++) {
-      const c = toSend[i];
-      try {
-        const { error } = await supabase
-          .from("company_invitations" as any)
-          .insert({
-            company_id: c.id,
-            email: c.contact_email.trim().toLowerCase(),
-            invited_by: user.id,
-          } as any);
-
-        if (error) throw error;
-
-        // Fetch token and send email
-        try {
-          const { data: invData } = await supabase
-            .from("company_invitations")
-            .select("token")
-            .eq("company_id", c.id)
-            .eq("email", c.contact_email.trim().toLowerCase())
-            .eq("status", "pending")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          const tokenParam = invData?.token ? `&invite=${invData.token}` : "";
-          await supabase.functions.invoke("send-invitation-email", {
-            body: {
-              email: c.contact_email.trim().toLowerCase(),
-              company_name: c.name,
-              signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
-            },
-          });
-        } catch (emailErr) {
-          console.error("Email error for", c.contact_email, emailErr);
-        }
-      } catch (err: any) {
-        errors.push(`${c.name}: ${err.message || "Ukendt fejl"}`);
-      }
-      setBulkProgress(i + 1);
-    }
-
-    setBulkErrors(errors);
-    setBulkDone(true);
-    setBulkSending(false);
-
-    const successCount = toSend.length - errors.length;
-    if (successCount > 0) {
-      toast.success(`${successCount} invitationer sendt`);
-    }
-    if (errors.length > 0) {
-      toast.error(`${errors.length} invitationer fejlede`);
-    }
-
-    setReloadTrigger((t) => t + 1);
-  };
-
   const handleStandaloneInvite = async () => {
     if (!standaloneEmail.trim() || !user) return;
     setStandaloneSending(true);
@@ -772,7 +614,6 @@ const Members = () => {
 
       if (selectedCompany) {
         const trimmedEmail = standaloneEmail.trim().toLowerCase();
-        // Look up existing invitation for this (company, email)
         const { data: existing } = await supabase
           .from("company_invitations")
           .select("id, token, status")
@@ -784,7 +625,6 @@ const Members = () => {
 
         if (existing) {
           if (existing.status === "accepted") {
-            // Reset to pending
             const { error: upErr } = await supabase
               .from("company_invitations")
               .update({ status: "pending", accepted_at: null, accepted_by: null })
@@ -794,7 +634,6 @@ const Members = () => {
           invToken = existing.token;
           wasResent = true;
         } else {
-          // Create new invitation
           const { data: newInv, error: invErr } = await supabase
             .from("company_invitations")
             .insert({
@@ -824,7 +663,6 @@ const Members = () => {
 
         if (invToken) tokenParam = `&invite=${invToken}`;
       } else {
-        // No company selected — create a standalone invitation (no company_id)
         const trimmedEmail = standaloneEmail.trim().toLowerCase();
         const { data: existing } = await supabase
           .from("company_invitations")
@@ -877,14 +715,15 @@ const Members = () => {
       const { error } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email: standaloneEmail.trim().toLowerCase(),
-          company_name: selectedCompany?.name || "The Boardroom",
+          company_name: standaloneCompanyId ? companies.find(c => c.id === standaloneCompanyId)?.name || "The Boardroom" : "The Boardroom",
           signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
         },
       });
       if (error) throw error;
+      const selectedCompanyForToast = standaloneCompanyId ? companies.find(c => c.id === standaloneCompanyId) : null;
       toast.success(wasResent
-        ? `Invitation gensendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`
-        : `Invitation sendt til ${standaloneEmail}${selectedCompany ? ` (${selectedCompany.name})` : ""}`
+        ? `Invitation gensendt til ${standaloneEmail}${selectedCompanyForToast ? ` (${selectedCompanyForToast.name})` : ""}`
+        : `Invitation sendt til ${standaloneEmail}${selectedCompanyForToast ? ` (${selectedCompanyForToast.name})` : ""}`
       );
       setStandaloneInviteOpen(false);
       setStandaloneEmail("");
@@ -896,102 +735,6 @@ const Members = () => {
       toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));
     } finally {
       setStandaloneSending(false);
-    }
-  };
-
-  const openResendAllDialog = async () => {
-    // Fetch all pending invitations with company names
-    const { data: pendingInvitations } = await supabase
-      .from("company_invitations")
-      .select("email, company_id")
-      .eq("status", "pending");
-
-    if (!pendingInvitations || pendingInvitations.length === 0) {
-      toast.info("Ingen pending invitationer at gensende");
-      return;
-    }
-
-    // Get company names
-    const companyIds = [...new Set(pendingInvitations.map((i) => i.company_id))];
-    const { data: companiesData } = await supabase
-      .from("companies" as any)
-      .select("id, name")
-      .in("id", companyIds) as any;
-
-    const companyNameMap = new Map((companiesData || []).map((c: any) => [c.id, c.name]));
-
-    const pending = pendingInvitations.map((inv) => ({
-      email: inv.email,
-      company_name: (companyNameMap.get(inv.company_id) as string) || "Ukendt virksomhed",
-    }));
-
-    setResendAllPending(pending);
-    setResendAllSending(false);
-    setResendAllProgress(0);
-    setResendAllDone(false);
-    setResendAllErrors([]);
-    setResendAllDialogOpen(true);
-  };
-
-  const executeResendAll = async () => {
-    setResendAllSending(true);
-    setResendAllProgress(0);
-    setResendAllErrors([]);
-    setResendAllDone(false);
-    const errors: string[] = [];
-
-    for (let i = 0; i < resendAllPending.length; i++) {
-      const item = resendAllPending[i];
-      try {
-        // Fetch token for resend
-        const { data: invData } = await supabase
-          .from("company_invitations")
-          .select("token")
-          .eq("email", item.email)
-          .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const tokenParam = invData?.token ? `&invite=${invData.token}` : "";
-        const { error } = await supabase.functions.invoke("send-invitation-email", {
-          body: {
-            email: item.email,
-            company_name: item.company_name,
-            signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
-          },
-        });
-        if (error) throw error;
-      } catch (err: any) {
-        errors.push(`${item.email}: ${err.message || "Ukendt fejl"}`);
-      }
-      setResendAllProgress(i + 1);
-    }
-
-    setResendAllErrors(errors);
-    setResendAllDone(true);
-    setResendAllSending(false);
-
-    const successCount = resendAllPending.length - errors.length;
-    if (successCount > 0) toast.success(`${successCount} invitationer gensendt`);
-    if (errors.length > 0) toast.error(`${errors.length} fejlede`);
-  };
-
-  const executeBulkRemove = async () => {
-    setBulkRemoving(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("manage-advisor", {
-        body: { action: "bulk-remove-members" },
-      });
-      if (error) throw error;
-      toast.success(data?.message || "Alle medlemmer fjernet");
-      setBulkRemoveDialogOpen(false);
-      setReloadTrigger((t) => t + 1);
-    } catch (err: any) {
-      console.error("Bulk remove error:", err);
-      toast.error("Kunne ikke fjerne medlemmer: " + (err.message || "Ukendt fejl"));
-    } finally {
-      setBulkRemoving(false);
     }
   };
 
@@ -1046,7 +789,6 @@ const Members = () => {
   };
 
   const getDisplayRevenue = (c: CompanyData) => {
-    // Reported revenue from financial reports takes priority
     if (c.reported_revenue && c.reported_revenue > 0) return { value: c.reported_revenue, source: "rapport" };
     if (c.annual_revenue > 0) return { value: c.annual_revenue, source: "ansøgning" };
     return null;
@@ -1056,7 +798,6 @@ const Members = () => {
   const totalMembers = companies.reduce((sum, c) => sum + c.members.length, 0);
   const totalUnread = companies.reduce((sum, c) => sum + c.unreadCount, 0);
   const companiesWithReports = companies.filter((c) => c.reportCount > 0).length;
-  const invitedCount = companies.filter((c) => c.invitationStatus !== null).length;
   const acceptedCount = companies.filter((c) => c.invitationStatus === 'accepted').length;
   const pendingCount = companies.filter((c) => c.invitationStatus === 'pending').length;
   const notInvitedCount = companies.filter((c) => c.invitationStatus === null).length;
@@ -1114,36 +855,6 @@ const Members = () => {
             <span className="hidden sm:inline">Inviter ny bruger</span>
             <span className="sm:hidden">Inviter</span>
           </Button>
-          <Button
-            onClick={openResendAllDialog}
-            className="gap-2"
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span className="hidden sm:inline">Gensend pending</span>
-            <span className="sm:hidden">Gensend</span>
-          </Button>
-          <Button
-            onClick={() => setBulkRemoveDialogOpen(true)}
-            className="gap-2"
-            variant="destructive"
-            size="sm"
-          >
-            <Trash2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Fjern alle medlemmer</span>
-            <span className="sm:hidden">Fjern alle</span>
-          </Button>
-          <Button
-            onClick={openBulkInviteDialog}
-            className="gap-2"
-            variant="outline"
-            size="sm"
-          >
-            <Send className="h-4 w-4" />
-            <span className="hidden sm:inline">Invitér alle</span>
-            <span className="sm:hidden">Alle</span>
-          </Button>
         </div>
       </div>
 
@@ -1166,136 +877,6 @@ const Members = () => {
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Har rapporteret</p>
         </div>
       </div>
-
-      {/* Invitation stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center">
-            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-          </div>
-          <div>
-            <p className="text-lg font-display font-bold text-foreground">{acceptedCount}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accepteret</p>
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-chart-warning/15 flex items-center justify-center">
-            <Send className="h-4 w-4 text-chart-warning" />
-          </div>
-          <div>
-            <p className="text-lg font-display font-bold text-foreground">{pendingCount}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Afventer svar</p>
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-lg font-display font-bold text-foreground">{notInvitedCount}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ikke inviteret</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Pending invitations overview — always visible */}
-      {(() => {
-        // Build directly from allPendingInvitations (queried from company_invitations)
-        const companyPendingInvitations = companies
-          .flatMap(c => {
-            const companyInvs = (c as any).__pendingInvitations || [];
-            return companyInvs.map((inv: any) => ({ ...inv, companyName: c.name, companyId: c.id }));
-          });
-        // Include standalone invitations (no company)
-        const standaloneInvs = standalonePendingInvitations.map((inv: any) => ({
-          ...inv,
-          companyName: "Ingen virksomhed",
-          companyId: null,
-        }));
-        const pendingInvitations = [...companyPendingInvitations, ...standaloneInvs];
-        return (
-          <div className="mb-6 glass-card rounded-xl overflow-hidden">
-            <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
-              <Send className="h-4 w-4 text-chart-warning" />
-              <span className="text-sm font-semibold text-foreground">Afventende invitationer</span>
-              <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning/15 text-chart-warning text-xs font-bold">
-                {pendingInvitations.length}
-              </span>
-            </div>
-            {pendingInvitations.length > 0 ? (
-              <div className="divide-y divide-border">
-                {pendingInvitations.map((inv: any) => (
-                  <div key={inv.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
-                        <p className="text-xs text-muted-foreground">{inv.companyName} · Sendt {format(new Date(inv.lastSentAt || inv.created_at), "d. MMM yyyy", { locale: da })}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => {
-                          if (inv.companyId) {
-                            const company = companies.find(c => c.id === inv.companyId);
-                            if (company) handleResendInvitation(company);
-                          } else {
-                            handleResendStandaloneInvitation({ id: inv.id, email: inv.email, token: inv.token });
-                          }
-                        }}
-                        disabled={resendingInvitation === (inv.companyId || inv.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
-                      >
-                        {resendingInvitation === (inv.companyId || inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                        Gensend
-                      </button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <button className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Slet invitation?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Er du sikker på, at du vil slette invitationen til <strong>{inv.email}</strong>? Dette kan ikke fortrydes.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuller</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={async () => {
-                                const { error } = await supabase
-                                  .from("company_invitations")
-                                  .delete()
-                                  .eq("id", inv.id);
-                                if (error) {
-                                  toast.error("Kunne ikke slette invitationen: " + error.message);
-                                } else {
-                                  toast.success(`Invitation til ${inv.email} er slettet`);
-                                  loadCompanies();
-                                }
-                              }}
-                            >
-                              Slet
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="px-4 py-6 text-center">
-                <p className="text-sm text-muted-foreground">Ingen afventende invitationer</p>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Login activity stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
@@ -1378,62 +959,65 @@ const Members = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="hidden sm:grid grid-cols-12 gap-2 px-5 py-3 bg-secondary/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-          <button onClick={() => toggleSort("name")} className="col-span-3 flex items-center gap-1 hover:text-foreground transition-colors">
+      {/* Members table */}
+      <div className="glass-card rounded-xl overflow-hidden mb-6">
+        {/* Table header */}
+        <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
+          <button onClick={() => toggleSort("name")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Virksomhed <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("industry")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">
+          <button onClick={() => toggleSort("industry")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Branche <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("contact_person")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">
-            Kontaktperson <ArrowUpDown className="h-3 w-3" />
+          <button onClick={() => toggleSort("contact_person")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+            Kontakt <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("city")} className="col-span-1 flex items-center gap-1 hover:text-foreground transition-colors">
+          <button onClick={() => toggleSort("city")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             By <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("annual_revenue")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">
+          <button onClick={() => toggleSort("annual_revenue")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Omsætning <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("reportCount")} className="col-span-1 flex items-center gap-1 hover:text-foreground transition-colors">
-            Perioder <ArrowUpDown className="h-3 w-3" />
+          <button onClick={() => toggleSort("reportCount")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+            Rapporter <ArrowUpDown className="h-3 w-3" />
           </button>
-          <div className="col-span-1">Ulæste</div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            {search ? "Ingen virksomheder matcher din søgning" : "Ingen virksomheder endnu"}
+          <div className="text-center py-16">
+            <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">
+              {search ? "Ingen virksomheder matcher søgningen" : "Ingen virksomheder endnu"}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-border/50">
             {filtered.map((c) => {
               const isExpanded = expandedId === c.id;
-              const revenue = getDisplayRevenue(c);
+              const rev = getDisplayRevenue(c);
               return (
                 <div key={c.id}>
                   <button
                     onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                    className="w-full text-left px-5 py-3.5 hover:bg-secondary/30 transition-colors"
+                    className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
                   >
                     {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-3 flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-3 items-center">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                           {c.logo_url ? (
                             <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
                           ) : (
-                            <span className="text-[10px] font-semibold text-primary">{getInitials(c.name)}</span>
+                            <span className="text-xs font-semibold text-primary">{getInitials(c.name)}</span>
                           )}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-foreground truncate block">{c.name}</span>
+                            <span className="text-sm font-medium text-foreground truncate">{c.name}</span>
                             {c.invitationStatus === 'pending' && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
                                 <Send className="h-2.5 w-2.5" /> Afventer
@@ -1444,61 +1028,34 @@ const Members = () => {
                                 <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
                               </span>
                             )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {c.cvr_number && (
-                              <span className="text-[10px] text-muted-foreground">CVR: {c.cvr_number}</span>
-                            )}
-                            {c.slack_channel && (
-                              <span className="text-[10px] text-primary flex items-center gap-0.5">
-                                <Hash className="h-2.5 w-2.5" />{c.slack_channel}
+                            {c.unreadCount > 0 && (
+                              <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
+                                {c.unreadCount}
                               </span>
                             )}
                           </div>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-xs text-muted-foreground truncate block">{c.industry || "–"}</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-xs text-foreground truncate block">{c.contact_person || "–"}</span>
-                      </div>
-                      <div className="col-span-1">
-                        <span className="text-xs text-muted-foreground truncate block">{c.city || "–"}</span>
-                      </div>
-                      <div className="col-span-2">
-                        {revenue ? (
-                          <div>
-                            <span className="text-xs text-foreground font-medium">{formatDKK(revenue.value)}</span>
-                            <span className="text-[9px] text-muted-foreground ml-1">({revenue.source})</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">–</span>
-                        )}
-                      </div>
-                      <div className="col-span-1">
-                        <div className="flex items-center gap-1.5">
-                          <FileText className="h-3 w-3 text-muted-foreground" />
-                          <span className={`text-xs ${c.reportCount === 0 ? "text-muted-foreground" : "text-foreground font-medium"}`}>
-                            {c.reportCount}
+                          <span className="text-[10px] text-muted-foreground">
+                            {c.members.length} {c.members.length === 1 ? "bruger" : "brugere"}
+                            {c.slack_channel && (
+                              <span className="ml-2 text-primary"><Hash className="h-2.5 w-2.5 inline" />{c.slack_channel}</span>
+                            )}
                           </span>
                         </div>
                       </div>
-                      <div className="col-span-1 flex items-center justify-between">
-                        {c.unreadCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-chart-warning">
-                            <MessageCircle className="h-3 w-3" />
-                            {c.unreadCount}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">0</span>
-                        )}
-                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <span className="text-xs text-muted-foreground truncate">{c.industry || "–"}</span>
+                      <span className="text-xs text-muted-foreground truncate">{c.contact_person || "–"}</span>
+                      <span className="text-xs text-muted-foreground truncate">{c.city || "–"}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {rev ? formatDKK(rev.value) : "–"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{c.reportCount}</span>
+                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
 
                     {/* Mobile row */}
-                    <div className="sm:hidden flex items-center gap-3">
+                    <div className="sm:hidden flex items-center gap-3 px-5 py-3">
                       <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {c.logo_url ? (
                           <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
@@ -1571,8 +1128,8 @@ const Members = () => {
                               <Hash className="h-3 w-3" /> {c.slack_channel}
                             </p>
                           )}
-                          {/* Invitation status */}
-                          {c.invitationStatus && (
+                          {/* Invitation status — admin only */}
+                          {isAdmin && c.invitationStatus && (
                             <div className="mt-3 pt-2 border-t border-border/30">
                               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
                                 <Send className="h-3 w-3" /> Invitation
@@ -1606,7 +1163,7 @@ const Members = () => {
                           )}
                         </div>
 
-                        {/* Team members + merge button */}
+                        {/* Team members */}
                         <div className="rounded-lg bg-background/50 border border-border/50 p-3">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
@@ -1623,13 +1180,15 @@ const Members = () => {
                               >
                                 <Send className="h-3 w-3" /> Inviter
                               </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); openMergeDialog(c); }}
-                                className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                                title="Tilknyt eksisterende bruger"
-                              >
-                                <UserPlus className="h-3 w-3" /> Tilknyt
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openMergeDialog(c); }}
+                                  className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
+                                  title="Tilknyt eksisterende bruger"
+                                >
+                                  <UserPlus className="h-3 w-3" /> Tilknyt
+                                </button>
+                              )}
                             </div>
                           </div>
                           {c.members.length === 0 ? (
@@ -1662,7 +1221,7 @@ const Members = () => {
                                     </div>
                                     <span className="text-[10px] text-muted-foreground">{m.role}</span>
                                   </Link>
-                                  {m.role !== 'owner' && (
+                                  {isAdmin && m.role !== 'owner' && (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <button
@@ -1756,7 +1315,7 @@ const Members = () => {
                           )}
                         </div>
 
-                        {/* Actions + delete */}
+                        {/* Actions */}
                         <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between">
                           <div>
                             <div className="flex items-center gap-2 mb-2">
@@ -1787,7 +1346,7 @@ const Members = () => {
                                 <MessageCircle className="h-3 w-3" /> Åbn chat
                               </Link>
                             )}
-                            {c.invitationEmail && c.invitationStatus === 'pending' && (
+                            {isAdmin && c.invitationEmail && c.invitationStatus === 'pending' && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
                                 disabled={resendingInvitation === c.id}
@@ -1796,7 +1355,7 @@ const Members = () => {
                                 {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Gensend invitation
                               </button>
                             )}
-                            {c.invitationEmail && c.invitationStatus === 'accepted' && (
+                            {isAdmin && c.invitationEmail && c.invitationStatus === 'accepted' && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
                                 disabled={resendingInvitation === c.id}
@@ -1805,12 +1364,14 @@ const Members = () => {
                                 {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
                               </button>
                             )}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
-                            >
-                              <Trash2 className="h-3 w-3" /> Slet
-                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                              >
+                                <Trash2 className="h-3 w-3" /> Slet
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1827,6 +1388,139 @@ const Members = () => {
           Viser {filtered.length} af {companies.length} virksomheder
         </div>
       </div>
+
+      {/* Admin-only sections */}
+      {isAdmin && (
+        <>
+          {/* Invitation stats */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-lg font-display font-bold text-foreground">{acceptedCount}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accepteret</p>
+              </div>
+            </div>
+            <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-chart-warning/15 flex items-center justify-center">
+                <Send className="h-4 w-4 text-chart-warning" />
+              </div>
+              <div>
+                <p className="text-lg font-display font-bold text-foreground">{pendingCount}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Afventer svar</p>
+              </div>
+            </div>
+            <div className="glass-card rounded-xl p-3 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-lg font-display font-bold text-foreground">{notInvitedCount}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ikke inviteret</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Pending invitations overview */}
+          {(() => {
+            const companyPendingInvitations = companies
+              .flatMap(c => {
+                const companyInvs = (c as any).__pendingInvitations || [];
+                return companyInvs.map((inv: any) => ({ ...inv, companyName: c.name, companyId: c.id }));
+              });
+            const standaloneInvs = standalonePendingInvitations.map((inv: any) => ({
+              ...inv,
+              companyName: "Ingen virksomhed",
+              companyId: null,
+            }));
+            const pendingInvitations = [...companyPendingInvitations, ...standaloneInvs];
+            return (
+              <div className="mb-6 glass-card rounded-xl overflow-hidden">
+                <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
+                  <Send className="h-4 w-4 text-chart-warning" />
+                  <span className="text-sm font-semibold text-foreground">Afventende invitationer</span>
+                  <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning/15 text-chart-warning text-xs font-bold">
+                    {pendingInvitations.length}
+                  </span>
+                </div>
+                {pendingInvitations.length > 0 ? (
+                  <div className="divide-y divide-border">
+                    {pendingInvitations.map((inv: any) => (
+                      <div key={inv.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
+                            <p className="text-xs text-muted-foreground">{inv.companyName} · Sendt {format(new Date(inv.lastSentAt || inv.created_at), "d. MMM yyyy", { locale: da })}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => {
+                              if (inv.companyId) {
+                                const company = companies.find(c => c.id === inv.companyId);
+                                if (company) handleResendInvitation(company);
+                              } else {
+                                handleResendStandaloneInvitation({ id: inv.id, email: inv.email, token: inv.token });
+                              }
+                            }}
+                            disabled={resendingInvitation === (inv.companyId || inv.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
+                          >
+                            {resendingInvitation === (inv.companyId || inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                            Gensend
+                          </button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Slet invitation?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Er du sikker på, at du vil slette invitationen til <strong>{inv.email}</strong>? Dette kan ikke fortrydes.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annuller</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={async () => {
+                                    const { error } = await supabase
+                                      .from("company_invitations")
+                                      .delete()
+                                      .eq("id", inv.id);
+                                    if (error) {
+                                      toast.error("Kunne ikke slette invitationen: " + error.message);
+                                    } else {
+                                      toast.success(`Invitation til ${inv.email} er slettet`);
+                                      loadCompanies();
+                                    }
+                                  }}
+                                >
+                                  Slet
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-6 text-center">
+                    <p className="text-sm text-muted-foreground">Ingen afventende invitationer</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </>
+      )}
 
       {/* Merge dialog */}
       <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
@@ -1931,148 +1625,6 @@ const Members = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk invite dialog */}
-      <AlertDialog open={bulkDialogOpen} onOpenChange={(open) => { if (!bulkSending) setBulkDialogOpen(open); }}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-primary" />
-              Bulk-invitation
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 pt-2">
-                {(() => {
-                  const selectedCount = uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length;
-                  const totalWithEmail = uninvitedCompanies.filter((c) => c.contact_email.trim()).length;
-                  const missingCount = uninvitedCompanies.filter((c) => !c.contact_email.trim()).length;
-                  return (
-                    <div className="flex gap-3 flex-wrap">
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground bg-secondary px-3 py-1.5 rounded-lg">
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                        {selectedCount} af {totalWithEmail} valgt
-                      </span>
-                      {missingCount > 0 && (
-                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg">
-                          <AlertTriangle className="h-4 w-4" />
-                          {missingCount} mangler e-mail
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {bulkSending || bulkDone ? (
-                  <div className="space-y-3">
-                    <Progress value={(bulkProgress / Math.max(uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length, 1)) * 100} className="h-3" />
-                    <p className="text-sm text-muted-foreground">
-                      {bulkDone
-                        ? `Færdig — ${bulkProgress - bulkErrors.length} af ${uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length} sendt`
-                        : `Sender ${bulkProgress} af ${uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length}...`
-                      }
-                    </p>
-                    {bulkErrors.length > 0 && (
-                      <div className="bg-destructive/10 rounded-lg p-3 space-y-1">
-                        <p className="text-xs font-semibold text-destructive">{bulkErrors.length} fejlede:</p>
-                        {bulkErrors.map((e, i) => (
-                          <p key={i} className="text-xs text-destructive">{e}</p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[340px] rounded-lg border border-border">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-secondary">
-                        <tr className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                          <th className="px-3 py-2 w-8">
-                            <input
-                              type="checkbox"
-                              checked={uninvitedCompanies.filter((c) => c.contact_email.trim()).every((c) => selectedBulkIds.has(c.id))}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedBulkIds(new Set(uninvitedCompanies.filter((c) => c.contact_email.trim()).map((c) => c.id)));
-                                } else {
-                                  setSelectedBulkIds(new Set());
-                                }
-                              }}
-                              className="rounded border-border"
-                            />
-                          </th>
-                          <th className="px-3 py-2">Virksomhed</th>
-                          <th className="px-3 py-2">Kontaktperson</th>
-                          <th className="px-3 py-2">E-mail</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/50">
-                        {uninvitedCompanies.map((c) => {
-                          const hasEmail = c.contact_email.trim();
-                          return (
-                            <tr
-                              key={c.id}
-                              className={`${!hasEmail ? "opacity-50" : "cursor-pointer hover:bg-secondary/30"}`}
-                              onClick={() => {
-                                if (!hasEmail) return;
-                                setSelectedBulkIds((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(c.id)) next.delete(c.id);
-                                  else next.add(c.id);
-                                  return next;
-                                });
-                              }}
-                            >
-                              <td className="px-3 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedBulkIds.has(c.id)}
-                                  disabled={!hasEmail}
-                                  onChange={() => {}}
-                                  className="rounded border-border"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-foreground font-medium">{c.name}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{c.contact_person || "–"}</td>
-                              <td className="px-3 py-2">
-                                {hasEmail ? (
-                                  <span className="text-foreground">{c.contact_email}</span>
-                                ) : (
-                                  <span className="text-destructive text-xs flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3" /> Mangler e-mail
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </ScrollArea>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            {bulkDone ? (
-              <Button onClick={() => setBulkDialogOpen(false)}>Luk</Button>
-            ) : (
-              <>
-                <AlertDialogCancel disabled={bulkSending}>Annuller</AlertDialogCancel>
-                <Button
-                  onClick={executeBulkInvite}
-                  disabled={bulkSending || uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length === 0}
-                  className="gap-2"
-                >
-                  {bulkSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                  Send {uninvitedCompanies.filter((c) => c.contact_email.trim() && selectedBulkIds.has(c.id)).length} invitationer
-                </Button>
-              </>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       {/* Standalone invite dialog */}
       <Dialog open={standaloneInviteOpen} onOpenChange={(open) => { setStandaloneInviteOpen(open); if (!open) { setStandaloneCompanyId(""); setStandaloneEmail(""); setStandaloneName(""); } }}>
         <DialogContent>
@@ -2141,98 +1693,6 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Resend all pending dialog */}
-      <AlertDialog open={resendAllDialogOpen} onOpenChange={setResendAllDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Gensend pending invitationer</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                {!resendAllSending && !resendAllDone && (
-                  <p>
-                    Der er <strong>{resendAllPending.length}</strong> pending invitationer. Vil du gensende invitations-email til alle?
-                  </p>
-                )}
-                {resendAllSending && (
-                  <div className="space-y-3">
-                    <p>Sender {resendAllProgress}/{resendAllPending.length}...</p>
-                    <Progress value={(resendAllProgress / resendAllPending.length) * 100} className="h-2" />
-                  </div>
-                )}
-                {resendAllDone && (
-                  <div className="space-y-2">
-                    <p className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      {resendAllPending.length - resendAllErrors.length} invitationer gensendt
-                    </p>
-                    {resendAllErrors.length > 0 && (
-                      <div className="text-sm text-destructive space-y-1">
-                        <p>{resendAllErrors.length} fejlede:</p>
-                        {resendAllErrors.map((e, i) => <p key={i} className="text-xs">{e}</p>)}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            {resendAllDone ? (
-              <AlertDialogAction onClick={() => setResendAllDialogOpen(false)}>Luk</AlertDialogAction>
-            ) : (
-              <>
-                <AlertDialogCancel disabled={resendAllSending}>Annuller</AlertDialogCancel>
-                <AlertDialogAction onClick={executeResendAll} disabled={resendAllSending}>
-                  {resendAllSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Gensend alle
-                </AlertDialogAction>
-              </>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk remove all members dialog */}
-      <AlertDialog open={bulkRemoveDialogOpen} onOpenChange={setBulkRemoveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Fjern alle medlemmer
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                <p>
-                  Dette vil permanent slette <strong>{totalMembers}</strong> medlemmer og deres auth-konti, samt nulstille alle invitationer.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Advisors, admins og virksomheder bevares. Kun member-brugere fjernes.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkRemoving}>Annuller</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={executeBulkRemove}
-              disabled={bulkRemoving}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {bulkRemoving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" />
-              )}
-              Fjern alle medlemmer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppLayout>
   );
 };
