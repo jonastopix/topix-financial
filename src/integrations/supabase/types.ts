@@ -1268,6 +1268,15 @@ export type Database = {
     }
     Functions: {
       cleanup_stale_processing_reports: { Args: never; Returns: number }
+      get_conversation_sender_profiles: {
+        Args: { _conversation_id: string }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          is_advisor: boolean
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
