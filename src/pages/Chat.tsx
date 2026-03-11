@@ -73,6 +73,7 @@ interface ConversationWithProfile {
   conversation_status?: string;
   resolved_at?: string | null;
   resolved_by_advisor_id?: string | null;
+  follow_up_at?: string | null;
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
