@@ -228,7 +228,7 @@ const AdvisorDashboard = () => {
         <div className="flex items-center gap-2 mb-3">
           <MessageSquare className="h-4 w-4 text-destructive" />
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-            Kræver svar
+            Afventer dit svar
           </h2>
           {actionQueue.length > 0 && (
             <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold">
@@ -240,7 +240,7 @@ const AdvisorDashboard = () => {
         {actionQueue.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-secondary/50 border border-border">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span className="text-sm text-muted-foreground">Ingen afventer svar</span>
+            <span className="text-sm text-muted-foreground">Ingen samtaler afventer dit svar</span>
           </div>
         ) : (
           <div className="space-y-1.5">
