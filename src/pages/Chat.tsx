@@ -130,20 +130,29 @@ const Chat = () => {
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
 
-  // Cached advisor list for assignment dropdown
-  const { data: advisorUsers } = useQuery({
+  // Cached advisor list for assignment dropdown (two-step: roles then profiles)
+  const { data: advisorUsers, isError: advisorUsersError } = useQuery({
     queryKey: ["advisor-users-for-assignment"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
-        .select("user_id, role, profiles!inner(user_id, full_name, avatar_url)")
-        .in("role", ["advisor", "admin"]) as any;
-      return (data || []).map((r: any) => ({
-        user_id: r.profiles.user_id as string,
-        full_name: r.profiles.full_name as string,
-        avatar_url: r.profiles.avatar_url as string | null,
-        role: r.role as string,
-      }));
+        .select("user_id, role")
+        .in("role", ["advisor", "admin"]);
+      if (rolesErr) throw rolesErr;
+      if (!roles?.length) return [];
+      const uniqueIds = [...new Set(roles.map((r) => r.user_id))];
+      const { data: profiles, error: profErr } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", uniqueIds);
+      if (profErr) throw profErr;
+      return (profiles || [])
+        .map((p) => ({
+          user_id: p.user_id,
+          full_name: p.full_name || "Unavngivet",
+          avatar_url: p.avatar_url,
+        }))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, "da"));
     },
     enabled: !!isAdvisor,
     staleTime: 5 * 60_000,
