@@ -488,13 +488,16 @@ const Chat = () => {
   }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
 
   const stats = useMemo(() => {
-    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged, not resolved
-    const actionCount = conversations.filter((c) =>
-      c.awaiting_reply_from === "advisor" &&
-      !c.acknowledged_at &&
-      c.conversation_status !== 'resolved' &&
-      (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id)
-    ).length;
+    const now = new Date();
+    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged (or expired snooze), not resolved
+    const actionCount = conversations.filter((c) => {
+      if (c.awaiting_reply_from !== "advisor" || c.conversation_status === 'resolved') return false;
+      if (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id) {
+        if (!c.acknowledged_at) return true;
+        if (c.follow_up_at && new Date(c.follow_up_at) <= now) return true;
+      }
+      return false;
+    }).length;
 
     return {
       total: conversations.length,
