@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
   DANISH_MONTHS, REPORT_OVERRIDE_SELECT,
   getEffectiveReportPeriodKey, getEffectiveKeyFigures,
   formatDKK, type ReportData,
