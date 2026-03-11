@@ -45,7 +45,7 @@ const Onboarding = () => {
           <div className="mx-auto bg-primary/10 rounded-full p-3 w-fit">
             <Rocket className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Velkommen til The Boardroom!</CardTitle>
+          <CardTitle className="text-2xl font-brand">Velkommen til The Boardroom!</CardTitle>
           <CardDescription>
             {companyName
               ? `Du er blevet tilknyttet ${companyName}. Bekræft dine oplysninger for at komme i gang.`

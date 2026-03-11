@@ -301,7 +301,7 @@ const Dashboard = () => {
       {/* Transitional state: reports exist but no processed KPI data yet */}
       {hasReports && !kpiData.period && !isAdvisor && (
         <div className="mb-8">
-          <div className="glass-card rounded-xl p-6 text-center max-w-lg mx-auto">
+          <div className="bg-card border border-border shadow-sm rounded-xl p-6 text-center max-w-lg mx-auto">
             <div className="mx-auto w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
               <Clock className="h-5 w-5 text-muted-foreground" />
             </div>

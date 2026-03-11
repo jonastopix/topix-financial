@@ -228,7 +228,7 @@ const Auth = () => {
           )}
         </div>
 
-        <form onSubmit={isLogin ? handleLogin : handleSignup} className="glass-card rounded-xl p-6 space-y-4">
+        <form onSubmit={isLogin ? handleLogin : handleSignup} className="bg-card border border-border shadow-sm rounded-xl p-6 space-y-4">
           {!isLogin && (
             <>
               <div>
