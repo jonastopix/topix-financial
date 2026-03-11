@@ -440,10 +440,15 @@ const Chat = () => {
 
     if (isAdvisor) {
       switch (activeFilter) {
-        case "action":
-          result = result.filter((c) =>
-            c.awaiting_reply_from === "advisor" && !c.acknowledged_at && c.conversation_status !== 'resolved'
-          );
+        case "action": {
+          const now = new Date();
+          result = result.filter((c) => {
+            if (c.awaiting_reply_from !== "advisor" || c.conversation_status === 'resolved') return false;
+            if (!c.acknowledged_at) return true;
+            // Expired snooze returns to queue
+            if (c.follow_up_at && new Date(c.follow_up_at) <= now) return true;
+            return false;
+          });
           // FIFO by last_member_message_at (oldest first)
           result = [...result].sort((a, b) => {
             const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
