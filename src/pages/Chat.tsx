@@ -697,6 +697,31 @@ const Chat = () => {
     ));
   };
 
+  const handleResolve = async () => {
+    if (!activeConvId || !user) return;
+    const now = new Date().toISOString();
+    const updateData: any = {
+      conversation_status: 'resolved',
+      resolved_at: now,
+      resolved_by_advisor_id: user.id,
+      awaiting_reply_from: null,
+      acknowledged_at: null,
+      acknowledged_by_advisor_id: null,
+    };
+    const { error } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    if (error) {
+      const { toast } = await import("@/hooks/use-toast");
+      toast({ title: "Kunne ikke afslutte samtalen", variant: "destructive" });
+      return;
+    }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
+  };
+
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
