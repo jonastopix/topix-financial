@@ -656,7 +656,7 @@ const Reports = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {dbReports.map((report) => {
             const config = statusConfig[report.status] || statusConfig.processing;
             const Icon = config.icon;
