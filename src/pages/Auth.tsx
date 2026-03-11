@@ -95,7 +95,7 @@ const Auth = () => {
             </div>
             <h1 className="text-xl font-brand font-bold text-foreground">Nulstil adgangskode</h1>
           </div>
-          <form onSubmit={handleReset} className="glass-card rounded-xl p-6 space-y-4">
+          <form onSubmit={handleReset} className="bg-card border border-border shadow-sm rounded-xl p-6 space-y-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Email</label>
               <div className="relative">
