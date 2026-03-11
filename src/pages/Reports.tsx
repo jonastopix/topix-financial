@@ -866,7 +866,7 @@ const Reports = () => {
                     {!report.extracted_data && aiMsgs.length === 0 && userMsgs.length === 0 && (
                       <div className="text-center py-4">
                         <Sparkles className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Rapport behandles...</p>
+                        <p className="text-xs text-muted-foreground">Rapporten behandles — nøgletal vises når den er klar</p>
                       </div>
                     )}
                   </div>
