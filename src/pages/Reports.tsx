@@ -651,7 +651,7 @@ const Reports = () => {
       </h2>
 
       {dbReports.length === 0 ? (
-        <div className="glass-card rounded-xl p-12 text-center">
+        <div className="bg-card border border-border shadow-sm rounded-xl p-12 text-center">
           <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter endnu</p>
           <p className="text-xs text-muted-foreground">
