@@ -100,15 +100,20 @@ const AppSidebar = () => {
     if (!user) return;
 
     if (effectiveAdvisor) {
-      // Advisor: personal action count from conversations
-      const { count } = await supabase
+      // Advisor: fetch minimal conversation fields and count actionable in JS
+      const { data: convs } = await supabase
         .from("conversations")
-        .select("id", { count: "exact", head: true })
+        .select("id, awaiting_reply_from, acknowledged_at, conversation_status, follow_up_at, assigned_advisor_id")
         .eq("awaiting_reply_from", "advisor")
-        .is("acknowledged_at", null)
-        .neq("conversation_status", "resolved")
-        .or(`assigned_advisor_id.eq.${user.id},assigned_advisor_id.is.null`);
-      setUnreadChat(count || 0);
+        .neq("conversation_status", "resolved");
+
+      if (!convs) { setUnreadChat(0); return; }
+      const now = new Date();
+      const count = convs.filter(c =>
+        (!c.assigned_advisor_id || c.assigned_advisor_id === user.id) &&
+        (!c.acknowledged_at || (c.follow_up_at && new Date(c.follow_up_at) <= now))
+      ).length;
+      setUnreadChat(count);
     } else {
       // Member: existing read_at-based unread count
       const { data: convs } = await supabase.from("conversations").select("id");
