@@ -433,6 +433,7 @@ export type Database = {
           company_id: string | null
           conversation_status: string
           created_at: string
+          follow_up_at: string | null
           id: string
           last_advisor_reply_at: string | null
           last_member_message_at: string | null
@@ -449,6 +450,7 @@ export type Database = {
           company_id?: string | null
           conversation_status?: string
           created_at?: string
+          follow_up_at?: string | null
           id?: string
           last_advisor_reply_at?: string | null
           last_member_message_at?: string | null
@@ -465,6 +467,7 @@ export type Database = {
           company_id?: string | null
           conversation_status?: string
           created_at?: string
+          follow_up_at?: string | null
           id?: string
           last_advisor_reply_at?: string | null
           last_member_message_at?: string | null
