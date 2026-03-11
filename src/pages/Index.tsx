@@ -121,7 +121,7 @@ const Dashboard = () => {
       const last6 = sorted.slice(-6);
       const sparklines = {
         revenue: last6.map(r => r.kf.omsaetning ?? 0),
-        expenses: last6.map(r => totalExpenses(r.kf)),
+        expenses: last6.map(r => calcTotalExpenses(r.kf)),
         result: last6.map(r => r.kf.resultat_foer_skat ?? 0),
         bank: last6.filter(r => r.kf.bank_balance != null).map(r => r.kf.bank_balance),
       };

@@ -315,7 +315,7 @@ const KPIs = () => {
       };
     });
 
-    const { error } = await supabase.from("kpi_benchmarks").upsert(upserts, { onConflict: "user_id,kpi_key" });
+    const { error } = await supabase.from("kpi_benchmarks").upsert(upserts, { onConflict: "company_id,kpi_key" });
 
     if (error) {
       toast.error("Kunne ikke gemme benchmarks");
