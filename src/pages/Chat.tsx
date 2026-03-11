@@ -1859,7 +1859,6 @@ const Chat = () => {
 
                 {/* Input with topic selector */}
                 <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-border">
-                  <div className="safe-bottom-spacer" />
                   <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
                     {MESSAGE_TOPICS.map(t => {
