@@ -617,6 +617,16 @@ const Chat = () => {
           const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
 
+          // Re-fetch participants if sender is unknown
+          if (newMsg.message_type !== 'system') {
+            setParticipants((prev) => {
+              if (!prev.some(p => p.user_id === newMsg.sender_id)) {
+                fetchParticipants(activeConvId);
+              }
+              return prev;
+            });
+          }
+
           if (newMsg.sender_id !== user?.id && user) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
