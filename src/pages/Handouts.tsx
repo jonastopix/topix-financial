@@ -7,6 +7,7 @@ import HandoutCard from "@/components/HandoutCard";
 import HandoutDetail from "@/components/HandoutDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
