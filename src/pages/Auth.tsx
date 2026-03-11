@@ -155,7 +155,7 @@ const Auth = () => {
               </>
             ) : (
               <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-                <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
+                <img src={topixIconWhite} alt="Topix" className="h-7 w-7 object-contain" />
               </div>
             )}
           </div>
