@@ -152,7 +152,7 @@ const Auth = () => {
               </>
             ) : (
               <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-                <span className="text-primary-foreground font-display font-bold text-lg">{APP_BRANDING.shortName}</span>
+                <span className="text-primary-foreground font-brand font-bold text-lg">T</span>
               </div>
             )}
           </div>
