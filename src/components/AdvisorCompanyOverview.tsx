@@ -311,7 +311,7 @@ const AdvisorCompanyOverview = () => {
         {primaryConv?.follow_up_at && new Date(primaryConv.follow_up_at) <= new Date() && (
           <Link
             to={`/chat?conversationId=${primaryConv.id}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-destructive/20 bg-destructive/5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-destructive/20 bg-destructive/5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors max-w-full min-w-0"
           >
             <Clock className="h-3.5 w-3.5" />
             Forfalden opfølgning
