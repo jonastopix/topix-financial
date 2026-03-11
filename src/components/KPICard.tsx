@@ -13,6 +13,8 @@ interface KPICardProps {
   budgetFavorable?: boolean;
   /** Sparkline data points (last 6 months). Each entry is a value. */
   sparkline?: number[];
+  /** Compact YTD secondary line, e.g. "YTD: 1.245.000 kr" */
+  ytdLine?: string;
   subtitle?: string;
   icon?: ReactNode;
   accentColor?: "emerald" | "amber" | "blue" | "rose";
