@@ -322,7 +322,7 @@ const AdvisorCompanyOverview = () => {
         {missingReport ? (
           <Link
             to="/reports"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-chart-warning/20 bg-chart-warning/5 text-xs font-medium text-chart-warning hover:bg-chart-warning/10 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-chart-warning/20 bg-chart-warning/5 text-xs font-medium text-chart-warning hover:bg-chart-warning/10 transition-colors max-w-full min-w-0"
           >
             <FileText className="h-3.5 w-3.5" />
             Mangler {getMissingReportLabel()}
