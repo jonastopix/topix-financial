@@ -644,7 +644,7 @@ const Reports = () => {
       {/* Real DB Reports */}
       <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
         <FileText className="h-5 w-5 text-primary" />
-        Rapporter & Feedback
+        Rapporter
       </h2>
 
       {dbReports.length === 0 ? (
