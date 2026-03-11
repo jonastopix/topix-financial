@@ -849,7 +849,7 @@ const Reports = () => {
                             handleSubmitComment(report.id, report.report_period || report.file_name);
                           }
                         }}
-                        placeholder="Skriv en kommentar (sendes til chatten)..."
+                        placeholder="Skriv en kommentar — sendes i chatten"
                         maxLength={2000}
                         rows={1}
                         className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
