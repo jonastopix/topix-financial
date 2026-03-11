@@ -199,8 +199,8 @@ const AppSidebar = () => {
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-sidebar-border shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-brand font-bold text-sm">T</span>
+            <div className="h-9 w-9 rounded-lg bg-sidebar-accent flex items-center justify-center shrink-0">
+              <img src={topixIconWhite} alt="Topix" className="h-5 w-5 object-contain" />
             </div>
             <div>
               <h1 className="font-brand font-bold text-sidebar-accent-foreground text-sm tracking-tight">
