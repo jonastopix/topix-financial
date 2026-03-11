@@ -66,6 +66,10 @@ interface ConversationWithProfile {
   last_advisor_reply_at?: string | null;
   acknowledged_at?: string | null;
   acknowledged_by_advisor_id?: string | null;
+  // Resolved state
+  conversation_status?: string;
+  resolved_at?: string | null;
+  resolved_by_advisor_id?: string | null;
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
