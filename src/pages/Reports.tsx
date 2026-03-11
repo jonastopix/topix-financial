@@ -6,8 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import FileUploadZone from "@/components/FileUploadZone";
 import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
-import FinancialOverview from "@/components/FinancialOverview";
-import PerformanceOverview from "@/components/PerformanceOverview";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
 import ReportManualOverride from "@/components/ReportManualOverride";
