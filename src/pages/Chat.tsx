@@ -456,6 +456,7 @@ const Chat = () => {
             return aT - bT;
           });
           break;
+        }
         case "mine":
           result = result.filter((c) => c.assigned_advisor_id === user?.id);
           result = [...result].sort((a, b) =>
