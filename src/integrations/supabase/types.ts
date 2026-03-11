@@ -426,23 +426,41 @@ export type Database = {
       }
       conversations: {
         Row: {
+          acknowledged_at: string | null
+          acknowledged_by_advisor_id: string | null
+          assigned_advisor_id: string | null
+          awaiting_reply_from: string | null
           company_id: string | null
           created_at: string
           id: string
+          last_advisor_reply_at: string | null
+          last_member_message_at: string | null
           last_message_at: string | null
           member_id: string
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by_advisor_id?: string | null
+          assigned_advisor_id?: string | null
+          awaiting_reply_from?: string | null
           company_id?: string | null
           created_at?: string
           id?: string
+          last_advisor_reply_at?: string | null
+          last_member_message_at?: string | null
           last_message_at?: string | null
           member_id: string
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledged_by_advisor_id?: string | null
+          assigned_advisor_id?: string | null
+          awaiting_reply_from?: string | null
           company_id?: string | null
           created_at?: string
           id?: string
+          last_advisor_reply_at?: string | null
+          last_member_message_at?: string | null
           last_message_at?: string | null
           member_id?: string
         }
