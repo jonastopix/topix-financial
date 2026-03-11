@@ -19,7 +19,7 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { format, formatDistanceToNow, startOfDay } from "date-fns";
+import { format, formatDistanceToNow, startOfDay, addDays, nextMonday, setHours, setMinutes, setSeconds } from "date-fns";
 import { da } from "date-fns/locale";
 
 /** Smart date separator label: "I dag", "I går", or "9. marts 2026" */
