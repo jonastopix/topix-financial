@@ -13,7 +13,7 @@ import DashboardHandouts from "@/components/DashboardHandouts";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
+import AdvisorDashboard from "@/components/AdvisorDashboard";
 import GuidedTour from "@/components/GuidedTour";
 import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
@@ -226,7 +226,12 @@ const Dashboard = () => {
   if (isAdvisor && !companyId) {
     return (
       <AppLayout>
-        <AdvisorCompanyPrompt />
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight">
+            {getGreeting()}, {firstName}
+          </h1>
+        </div>
+        <AdvisorDashboard />
       </AppLayout>
     );
   }
