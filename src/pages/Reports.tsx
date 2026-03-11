@@ -441,8 +441,21 @@ const Reports = () => {
       </div>
 
       {/* ── Member-Centric Delivery Overview ── */}
-      <div className="mb-8">
+      <div className="mb-6">
         <DeliveryOverview reports={dbReports} />
+      </div>
+
+      {/* Upload section — primary action after delivery status */}
+      <div className="mb-8">
+        <FileUploadZone
+          title="Upload finansiel rapport"
+          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
+          accept=".xlsx,.xls,.csv,.pdf"
+          conversationId={conversationId}
+          userId={user?.id || null}
+          companyId={companyId || null}
+          onPipelineComplete={handlePipelineComplete}
+        />
       </div>
 
       {/* ── Trend Charts ── */}
