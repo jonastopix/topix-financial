@@ -1316,7 +1316,7 @@ const Chat = () => {
 
                     {/* Advisor action controls */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {/* Assignment popover */}
+                      {/* Assignment popover — always visible */}
                       <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
                         <PopoverTrigger asChild>
                           <button
@@ -1386,7 +1386,7 @@ const Chat = () => {
                         </PopoverContent>
                       </Popover>
 
-                      {/* Acknowledge button */}
+                      {/* Acknowledge button — always visible when applicable */}
                       {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
                         <button
                           onClick={handleAcknowledge}
@@ -1398,127 +1398,208 @@ const Chat = () => {
                         </button>
                       )}
 
-                      {/* Snooze / follow-up popover — only for advisor-side conversations */}
-                      {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
-                        <>
-                          {/* Active snooze indicator with cancel */}
-                          {activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              <Clock className="h-3 w-3" />
-                              Følger op d. {format(new Date(activeConv.follow_up_at), "d. MMM", { locale: da })}
-                              <button
-                                onClick={handleCancelSnooze}
-                                className="ml-0.5 hover:text-destructive transition-colors"
-                                title="Fjern opfølgning"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </span>
-                          )}
+                      {/* Active snooze indicator — always visible */}
+                      {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' &&
+                        activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && !isMobile && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <Clock className="h-3 w-3" />
+                          Følger op d. {format(new Date(activeConv.follow_up_at), "d. MMM", { locale: da })}
+                          <button
+                            onClick={handleCancelSnooze}
+                            className="ml-0.5 hover:text-destructive transition-colors"
+                            title="Fjern opfølgning"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      )}
 
-                          <Popover open={snoozePopoverOpen} onOpenChange={(open) => { setSnoozePopoverOpen(open); if (!open) setSnoozeShowCalendar(false); }}>
-                            <PopoverTrigger asChild>
-                              <button
-                                title="Sæt en opfølgningsdato — samtalen forsvinder midlertidigt fra køen"
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
-                              >
-                                <Clock className="h-3.5 w-3.5" />
-                                <span className="hidden md:inline">Følg op senere</span>
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent align="end" sideOffset={8} className="w-auto p-0 z-[200]">
-                              {!snoozeShowCalendar ? (
-                                <div className="py-1">
-                                  <div className="px-3 py-1.5 border-b border-border">
-                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Følg op</span>
-                                  </div>
-                                  <button
-                                    onClick={() => handleSnooze(getSnoozeDate('tomorrow'))}
-                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                  >
-                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                    I morgen
-                                    <span className="ml-auto text-muted-foreground text-[10px]">
-                                      {format(getSnoozeDate('tomorrow'), "EEE d. MMM", { locale: da })}
-                                    </span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleSnooze(getSnoozeDate('3days'))}
-                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                  >
-                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                    Om 3 dage
-                                    <span className="ml-auto text-muted-foreground text-[10px]">
-                                      {format(getSnoozeDate('3days'), "EEE d. MMM", { locale: da })}
-                                    </span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleSnooze(getSnoozeDate('nextweek'))}
-                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                  >
-                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                    Næste uge
-                                    <span className="ml-auto text-muted-foreground text-[10px]">
-                                      {format(getSnoozeDate('nextweek'), "EEE d. MMM", { locale: da })}
-                                    </span>
-                                  </button>
-                                  <div className="border-t border-border">
+                      {/* Desktop: inline snooze + resolve controls */}
+                      {!isMobile && (
+                        <>
+                          {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                            <Popover open={snoozePopoverOpen} onOpenChange={(open) => { setSnoozePopoverOpen(open); if (!open) setSnoozeShowCalendar(false); }}>
+                              <PopoverTrigger asChild>
+                                <button
+                                  title="Sæt en opfølgningsdato — samtalen forsvinder midlertidigt fra køen"
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+                                >
+                                  <Clock className="h-3.5 w-3.5" />
+                                  <span className="hidden md:inline">Følg op senere</span>
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" sideOffset={8} className="w-auto p-0 z-[200]">
+                                {!snoozeShowCalendar ? (
+                                  <div className="py-1">
+                                    <div className="px-3 py-1.5 border-b border-border">
+                                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Følg op</span>
+                                    </div>
                                     <button
-                                      onClick={() => setSnoozeShowCalendar(true)}
+                                      onClick={() => handleSnooze(getSnoozeDate('tomorrow'))}
                                       className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
                                     >
-                                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                                      Vælg dato
+                                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                      I morgen
+                                      <span className="ml-auto text-muted-foreground text-[10px]">
+                                        {format(getSnoozeDate('tomorrow'), "EEE d. MMM", { locale: da })}
+                                      </span>
                                     </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
-                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Vælg dato</span>
                                     <button
-                                      onClick={() => setSnoozeShowCalendar(false)}
-                                      className="text-muted-foreground hover:text-foreground transition-colors"
+                                      onClick={() => handleSnooze(getSnoozeDate('3days'))}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
                                     >
-                                      <ArrowLeft className="h-3.5 w-3.5" />
+                                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                      Om 3 dage
+                                      <span className="ml-auto text-muted-foreground text-[10px]">
+                                        {format(getSnoozeDate('3days'), "EEE d. MMM", { locale: da })}
+                                      </span>
                                     </button>
+                                    <button
+                                      onClick={() => handleSnooze(getSnoozeDate('nextweek'))}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                                    >
+                                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                      Næste uge
+                                      <span className="ml-auto text-muted-foreground text-[10px]">
+                                        {format(getSnoozeDate('nextweek'), "EEE d. MMM", { locale: da })}
+                                      </span>
+                                    </button>
+                                    <div className="border-t border-border">
+                                      <button
+                                        onClick={() => setSnoozeShowCalendar(true)}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                                      >
+                                        <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                                        Vælg dato
+                                      </button>
+                                    </div>
                                   </div>
-                                  <Calendar
-                                    mode="single"
-                                    selected={undefined}
-                                    onSelect={(date) => {
-                                      if (date) {
-                                        const snoozeDate = setSeconds(setMinutes(setHours(date, 9), 0), 0);
-                                        handleSnooze(snoozeDate);
-                                      }
-                                    }}
-                                    disabled={(date) => date < new Date()}
-                                    className="p-3 pointer-events-auto"
-                                  />
-                                </div>
-                              )}
-                            </PopoverContent>
-                          </Popover>
+                                ) : (
+                                  <div>
+                                    <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
+                                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Vælg dato</span>
+                                      <button
+                                        onClick={() => setSnoozeShowCalendar(false)}
+                                        className="text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        <ArrowLeft className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                    <Calendar
+                                      mode="single"
+                                      selected={undefined}
+                                      onSelect={(date) => {
+                                        if (date) {
+                                          const snoozeDate = setSeconds(setMinutes(setHours(date, 9), 0), 0);
+                                          handleSnooze(snoozeDate);
+                                        }
+                                      }}
+                                      disabled={(date) => date < new Date()}
+                                      className="p-3 pointer-events-auto"
+                                    />
+                                  </div>
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          )}
+
+                          {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                            <button
+                              onClick={handleResolve}
+                              title="Markerer samtalen som afsluttet. Genåbnes automatisk ved ny besked."
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
+                            >
+                              <CheckCheck className="h-3.5 w-3.5" />
+                              <span className="hidden md:inline">Afslut samtale</span>
+                            </button>
+                          )}
+
+                          {activeConv?.hasRecentReport && (
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                              <FileText className="h-3 w-3" />
+                              Ny rapport
+                            </span>
+                          )}
                         </>
                       )}
 
-                      {/* Resolve button — advisor only, only when open */}
-                      {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
-                        <button
-                          onClick={handleResolve}
-                          title="Markerer samtalen som afsluttet. Genåbnes automatisk ved ny besked."
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
-                        >
-                          <CheckCheck className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Afslut samtale</span>
-                        </button>
-                      )}
+                      {/* Mobile: overflow Drawer for snooze + resolve */}
+                      {isMobile && (
+                        <Drawer open={mobileActionsDrawerOpen} onOpenChange={setMobileActionsDrawerOpen}>
+                          <button
+                            onClick={() => setMobileActionsDrawerOpen(true)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                          <DrawerContent>
+                            <DrawerHeader>
+                              <DrawerTitle>Handlinger</DrawerTitle>
+                            </DrawerHeader>
+                            <div className="px-4 pb-6 space-y-1">
+                              {/* Snooze indicator if active */}
+                              {activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && (
+                                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-sm">
+                                  <Clock className="h-4 w-4" />
+                                  <span className="flex-1">Følger op d. {format(new Date(activeConv.follow_up_at), "d. MMM", { locale: da })}</span>
+                                  <button onClick={() => { handleCancelSnooze(); setMobileActionsDrawerOpen(false); }} className="text-xs underline">
+                                    Fjern
+                                  </button>
+                                </div>
+                              )}
 
-                      {activeConv?.hasRecentReport && !isMobile && (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-                          <FileText className="h-3 w-3" />
-                          Ny rapport
-                        </span>
+                              {/* Snooze options */}
+                              {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                                <>
+                                  <button
+                                    onClick={() => { handleSnooze(getSnoozeDate('tomorrow')); setMobileActionsDrawerOpen(false); }}
+                                    className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
+                                  >
+                                    <Clock className="h-4 w-4 text-muted-foreground" />
+                                    <span className="flex-1 text-left">Følg op i morgen</span>
+                                    <span className="text-xs text-muted-foreground">{format(getSnoozeDate('tomorrow'), "EEE d. MMM", { locale: da })}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => { handleSnooze(getSnoozeDate('3days')); setMobileActionsDrawerOpen(false); }}
+                                    className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
+                                  >
+                                    <Clock className="h-4 w-4 text-muted-foreground" />
+                                    <span className="flex-1 text-left">Følg op om 3 dage</span>
+                                    <span className="text-xs text-muted-foreground">{format(getSnoozeDate('3days'), "EEE d. MMM", { locale: da })}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => { handleSnooze(getSnoozeDate('nextweek')); setMobileActionsDrawerOpen(false); }}
+                                    className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
+                                  >
+                                    <Clock className="h-4 w-4 text-muted-foreground" />
+                                    <span className="flex-1 text-left">Følg op næste uge</span>
+                                    <span className="text-xs text-muted-foreground">{format(getSnoozeDate('nextweek'), "EEE d. MMM", { locale: da })}</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Resolve */}
+                              {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                                <button
+                                  onClick={() => { handleResolve(); setMobileActionsDrawerOpen(false); }}
+                                  className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors border-t border-border mt-2 pt-3"
+                                >
+                                  <CheckCheck className="h-4 w-4 text-muted-foreground" />
+                                  <span className="flex-1 text-left">Afslut samtale</span>
+                                </button>
+                              )}
+
+                              {/* Report indicator */}
+                              {activeConv?.hasRecentReport && (
+                                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-primary/5 text-primary text-sm">
+                                  <FileText className="h-4 w-4" />
+                                  <span>Ny rapport vedhæftet</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="safe-bottom-spacer" />
+                          </DrawerContent>
+                        </Drawer>
                       )}
                     </div>
                   </div>
