@@ -227,7 +227,7 @@ const AdvisorCompanyOverview = () => {
               {company?.name || companyName || "Virksomhed"}
             </h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pl-9">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pl-9 min-w-0">
             {company?.industry && <span>{company.industry}</span>}
             {company?.cvr_number && (
               <>
