@@ -133,6 +133,9 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
           )}
           {subtitle && <span className="text-[11px] text-muted-foreground">{subtitle}</span>}
         </div>
+        {ytdLine && (
+          <p className="text-[10px] text-muted-foreground mt-1.5 truncate">{ytdLine}</p>
+        )}
       </div>
     </div>
   );
