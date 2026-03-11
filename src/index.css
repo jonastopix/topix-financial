@@ -127,11 +127,11 @@
   }
 
   .glow-primary {
-    box-shadow: 0 0 20px hsl(160 84% 39% / 0.15), 0 0 60px hsl(160 84% 39% / 0.05);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.15), 0 0 60px hsl(var(--primary) / 0.05);
   }
 
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-400;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
   }
 
   .stat-positive {
