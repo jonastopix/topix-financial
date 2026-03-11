@@ -789,7 +789,7 @@ const Reports = () => {
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                           <Sparkles className="h-3 w-3 text-primary" />
-                          AI Analyse & Aktivitet
+                          AI-analyse
                         </h4>
                         <div className="space-y-2">
                           {aiMsgs.map((msg) => (
