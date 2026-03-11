@@ -109,7 +109,7 @@ const Dashboard = () => {
           // Y/Y comparisons
           revenueYoY: pctChange(latest.kf.omsaetning, yoyReport?.kf.omsaetning),
           resultYoY: pctChange(latest.kf.resultat_foer_skat, yoyReport?.kf.resultat_foer_skat),
-          expensesYoY: pctChange(totalExpenses(latest.kf), yoyReport ? totalExpenses(yoyReport.kf) : undefined),
+          expensesYoY: pctChange(calcTotalExpenses(latest.kf), yoyReport ? calcTotalExpenses(yoyReport.kf) : undefined),
           // YTD — always summed from individual months for reliability
           ytdRevenue: currentYearReports.length > 0 ? ytdRevenue : null,
           ytdResult: currentYearReports.length > 0 ? ytdResult : null,
