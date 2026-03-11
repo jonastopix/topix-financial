@@ -1162,7 +1162,7 @@ const Chat = () => {
                             )}
                             {/* Note indicator */}
                             {conversationNoteIds.has(conv.id) && (
-                              <StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" title="Har intern note" />
+                              <span title="Har intern note"><StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" /></span>
                             )}
                             {/* Assigned advisor initials */}
                             {assignedInitials && (
