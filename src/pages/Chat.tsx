@@ -625,12 +625,7 @@ const Chat = () => {
       setMessages(data || []);
 
       if (user) {
-        await supabase
-          .from("messages")
-          .update({ read_at: new Date().toISOString() })
-          .eq("conversation_id", activeConvId)
-          .neq("sender_id", user.id)
-          .is("read_at", null);
+        await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
 
@@ -650,11 +645,8 @@ const Chat = () => {
           const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
 
-          if (newMsg.sender_id !== user?.id) {
-            await supabase
-              .from("messages")
-              .update({ read_at: new Date().toISOString() })
-              .eq("id", newMsg.id);
+          if (newMsg.sender_id !== user?.id && user) {
+            await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
         }
       )

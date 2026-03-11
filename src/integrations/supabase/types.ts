@@ -1281,6 +1281,10 @@ export type Database = {
         Args: { invite_token: string }
         Returns: Json
       }
+      mark_messages_read: {
+        Args: { p_conversation_id: string }
+        Returns: number
+      }
       user_company_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
