@@ -331,6 +331,7 @@ const Dashboard = () => {
               budgetLabel={monthRevBudget?.label}
               budgetFavorable={monthRevBudget?.favorable}
               sparkline={spark.revenue.length >= 2 ? spark.revenue : undefined}
+              ytdLine={kpiData.ytdRevenue != null ? `YTD: ${formatCompact(kpiData.ytdRevenue)}${ytdRevBudget ? ` · ${ytdRevBudget.label}` : ""}` : undefined}
               subtitle={!revenueChange && kpiData.period ? `fra ${kpiData.period}` : undefined}
               icon={<DollarSign className="h-4 w-4" />}
               accentColor="emerald"
