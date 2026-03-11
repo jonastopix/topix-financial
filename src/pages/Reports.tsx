@@ -436,7 +436,7 @@ const Reports = () => {
           Rapportering
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload dokumenter, følg udviklingen og få AI-analyse
+          Upload regnskaber og følg virksomhedens udvikling
         </p>
       </div>
 
@@ -644,7 +644,7 @@ const Reports = () => {
       {/* Real DB Reports */}
       <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
         <FileText className="h-5 w-5 text-primary" />
-        Rapporter & Feedback
+        Rapporter
       </h2>
 
       {dbReports.length === 0 ? (
@@ -652,11 +652,11 @@ const Reports = () => {
           <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter endnu</p>
           <p className="text-xs text-muted-foreground">
-            Upload en saldobalance eller resultatopgørelse ovenfor for at komme i gang
+            Upload dit første regnskab ovenfor for at komme i gang
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {dbReports.map((report) => {
             const config = statusConfig[report.status] || statusConfig.processing;
             const Icon = config.icon;
@@ -734,7 +734,7 @@ const Reports = () => {
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-border/50 px-5 py-5 space-y-5">
+                  <div className="border-t border-border/50 px-5 py-5 space-y-4">
                     {/* Actions row */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -778,14 +778,8 @@ const Reports = () => {
                     </div>
                     {getEffectiveMetrics(report as unknown as ReportData) && (
                       <div>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                           Nøgletal
-                          {report.manual_override_status === "applied" && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary normal-case tracking-normal">
-                              <Pencil className="h-3 w-3" />
-                              Manuelt rettet
-                            </span>
-                          )}
                         </h4>
                         {renderEffectiveKeyFigures(report)}
                       </div>
@@ -795,7 +789,7 @@ const Reports = () => {
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                           <Sparkles className="h-3 w-3 text-primary" />
-                          AI Analyse & Aktivitet
+                          AI-analyse
                         </h4>
                         <div className="space-y-2">
                           {aiMsgs.map((msg) => (
@@ -855,7 +849,7 @@ const Reports = () => {
                             handleSubmitComment(report.id, report.report_period || report.file_name);
                           }
                         }}
-                        placeholder="Skriv en kommentar (sendes til chatten)..."
+                        placeholder="Skriv en kommentar — sendes i chatten"
                         maxLength={2000}
                         rows={1}
                         className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -872,7 +866,7 @@ const Reports = () => {
                     {!report.extracted_data && aiMsgs.length === 0 && userMsgs.length === 0 && (
                       <div className="text-center py-4">
                         <Sparkles className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Rapport behandles...</p>
+                        <p className="text-xs text-muted-foreground">Rapporten behandles — nøgletal vises når den er klar</p>
                       </div>
                     )}
                   </div>

@@ -44,15 +44,15 @@ interface ChatState {
 }
 
 function deriveChatState(conv: ConvRow | null): ChatState {
-  if (!conv) return { label: "Intet aktivt", color: "text-muted-foreground", icon: MessageSquare };
+  if (!conv) return { label: "Ingen aktiv samtale", color: "text-muted-foreground", icon: MessageSquare };
   if (conv.conversation_status === "resolved") return { label: "Afsluttet", color: "text-muted-foreground", icon: MessageSquare };
   if (conv.follow_up_at && new Date(conv.follow_up_at) > new Date()) {
     const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
     return { label: `Følger op ${d}`, color: "text-chart-warning", icon: Clock };
   }
-  if (conv.awaiting_reply_from === "advisor") return { label: "Afventer svar", color: "text-destructive", icon: MessageSquare };
+  if (conv.awaiting_reply_from === "advisor") return { label: "Afventer dit svar", color: "text-destructive", icon: MessageSquare };
   if (conv.awaiting_reply_from === "company") return { label: "Afventer virksomhed", color: "text-primary", icon: MessageSquare };
-  return { label: "Åben", color: "text-foreground", icon: MessageSquare };
+  return { label: "Aktiv samtale", color: "text-foreground", icon: MessageSquare };
 }
 
 interface ConvRow {
@@ -298,7 +298,7 @@ const AdvisorCompanyOverview = () => {
             <Link
               to={`/chat?conversationId=${noteConvId}`}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors"
-              title="Intern note — åbn i chat"
+              title="Intern note — se i chatten"
             >
               <StickyNote className="h-3.5 w-3.5" />
               Note
@@ -316,7 +316,7 @@ const AdvisorCompanyOverview = () => {
       {latest && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Finansielt overblik · {formatReportKey(latest.key)}
+            Seneste nøgletal · {formatReportKey(latest.key)}
           </p>
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -357,7 +357,7 @@ const AdvisorCompanyOverview = () => {
 
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
-          <p className="text-sm text-muted-foreground">Ingen behandlede rapporter endnu.</p>
+          <p className="text-sm text-muted-foreground">Ingen rapporter er behandlet endnu. Upload den første via Rapporter.</p>
         </div>
       )}
 
