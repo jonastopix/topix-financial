@@ -740,6 +740,73 @@ const Chat = () => {
     ));
   };
 
+  // Snooze / follow-up helpers
+  const getSnoozeDate = (option: 'tomorrow' | '3days' | 'nextweek'): Date => {
+    const now = new Date();
+    let d: Date;
+    switch (option) {
+      case 'tomorrow':
+        d = addDays(now, 1);
+        break;
+      case '3days':
+        d = addDays(now, 3);
+        break;
+      case 'nextweek':
+        d = nextMonday(now);
+        break;
+    }
+    return setSeconds(setMinutes(setHours(d, 9), 0), 0);
+  };
+
+  const handleSnooze = async (followUpAt: Date) => {
+    if (!activeConvId || !user) return;
+    const now = new Date().toISOString();
+    const conv = conversations.find(c => c.id === activeConvId);
+    const updateData: any = {
+      follow_up_at: followUpAt.toISOString(),
+      acknowledged_at: now,
+      acknowledged_by_advisor_id: user.id,
+    };
+    if (!conv?.assigned_advisor_id) {
+      updateData.assigned_advisor_id = user.id;
+    }
+    const { error } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    if (error) {
+      toast.error("Kunne ikke sætte opfølgning");
+      return;
+    }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
+    setSnoozePopoverOpen(false);
+    setSnoozeShowCalendar(false);
+    toast.success(`Følger op ${format(followUpAt, "d. MMM", { locale: da })}`);
+  };
+
+  const handleCancelSnooze = async () => {
+    if (!activeConvId || !user) return;
+    const updateData: any = {
+      follow_up_at: null,
+      acknowledged_at: null,
+      acknowledged_by_advisor_id: null,
+    };
+    const { error } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    if (error) {
+      toast.error("Kunne ikke fjerne opfølgning");
+      return;
+    }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
+    toast.success("Opfølgning fjernet");
+  };
+
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
