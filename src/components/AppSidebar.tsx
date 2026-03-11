@@ -98,34 +98,48 @@ const AppSidebar = () => {
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
-    const { data: convs } = await supabase.from("conversations").select("id");
-    if (!convs || convs.length === 0) { setUnreadChat(0); return; }
-    const convIds = convs.map((c) => c.id);
-    const { count } = await supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .in("conversation_id", convIds)
-      .neq("sender_id", user.id)
-      .is("read_at", null);
-    setUnreadChat(count || 0);
-  }, [user]);
+
+    if (effectiveAdvisor) {
+      // Advisor: personal action count from conversations
+      const { count } = await supabase
+        .from("conversations")
+        .select("id", { count: "exact", head: true })
+        .eq("awaiting_reply_from", "advisor")
+        .is("acknowledged_at", null)
+        .or(`assigned_advisor_id.eq.${user.id},assigned_advisor_id.is.null`);
+      setUnreadChat(count || 0);
+    } else {
+      // Member: existing read_at-based unread count
+      const { data: convs } = await supabase.from("conversations").select("id");
+      if (!convs || convs.length === 0) { setUnreadChat(0); return; }
+      const convIds = convs.map((c) => c.id);
+      const { count } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .in("conversation_id", convIds)
+        .neq("sender_id", user.id)
+        .is("read_at", null);
+      setUnreadChat(count || 0);
+    }
+  }, [user, effectiveAdvisor]);
 
   // Fetch unread on mount, route change, and subscribe to realtime
   useEffect(() => {
     if (!user) return;
     fetchUnread();
 
+    const realtimeTable = effectiveAdvisor ? "conversations" : "messages";
     const channel = supabase
       .channel("sidebar-unread")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
+        { event: "*", schema: "public", table: realtimeTable },
         () => { fetchUnread(); }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, location.pathname, fetchUnread]);
+  }, [user, location.pathname, fetchUnread, effectiveAdvisor]);
 
   useEffect(() => {
     if (isMobile) setIsOpen(false);
