@@ -1124,7 +1124,7 @@ const Chat = () => {
                       </Popover>
 
                       {/* Acknowledge button */}
-                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
+                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
                         <button
                           onClick={handleAcknowledge}
                           title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
@@ -1132,6 +1132,18 @@ const Chat = () => {
                         >
                           <Check className="h-3.5 w-3.5" />
                           <span className="hidden md:inline">Jeg følger op</span>
+                        </button>
+                      )}
+
+                      {/* Resolve button — advisor only, only when open */}
+                      {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                        <button
+                          onClick={handleResolve}
+                          title="Markerer samtalen som afsluttet. Genåbnes automatisk ved ny besked."
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
+                        >
+                          <CheckCheck className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">Afslut samtale</span>
                         </button>
                       )}
 

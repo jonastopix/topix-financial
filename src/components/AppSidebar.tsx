@@ -106,6 +106,7 @@ const AppSidebar = () => {
         .select("id", { count: "exact", head: true })
         .eq("awaiting_reply_from", "advisor")
         .is("acknowledged_at", null)
+        .neq("conversation_status", "resolved")
         .or(`assigned_advisor_id.eq.${user.id},assigned_advisor_id.is.null`);
       setUnreadChat(count || 0);
     } else {
