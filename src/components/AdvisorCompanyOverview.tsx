@@ -363,7 +363,7 @@ const AdvisorCompanyOverview = () => {
           <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
             Seneste nøgletal · {formatReportKey(latest.key)}
           </p>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <div className="flex items-center gap-1.5 mb-1">
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
