@@ -14,6 +14,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
+import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
 import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
@@ -232,6 +233,14 @@ const Dashboard = () => {
           </h1>
         </div>
         <AdvisorDashboard />
+      </AppLayout>
+    );
+  }
+
+  if (isAdvisor && companyId) {
+    return (
+      <AppLayout>
+        <AdvisorCompanyOverview />
       </AppLayout>
     );
   }
