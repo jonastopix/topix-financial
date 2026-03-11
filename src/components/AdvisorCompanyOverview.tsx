@@ -39,7 +39,7 @@ function formatReportKey(key: string): string {
 // ── Chat state label ──
 interface ChatState {
   label: string;
-  color: string; // tailwind text color token
+  color: string;
   icon: typeof MessageSquare;
 }
 
@@ -64,6 +64,39 @@ interface ConvRow {
   last_message_at: string | null;
 }
 
+/**
+ * Select the operationally most relevant conversation.
+ * Priority: awaiting advisor reply → active follow-up → latest open → latest resolved
+ */
+function selectPrimaryConversation(conversations: ConvRow[]): ConvRow | null {
+  if (conversations.length === 0) return null;
+
+  const now = new Date();
+
+  // 1. Open + awaiting advisor reply (oldest first = most urgent)
+  const awaitingAdvisor = conversations
+    .filter(c => c.conversation_status === "open" && c.awaiting_reply_from === "advisor")
+    .sort((a, b) => (a.last_message_at || "").localeCompare(b.last_message_at || ""));
+  if (awaitingAdvisor.length > 0) return awaitingAdvisor[0];
+
+  // 2. Open + active follow-up (soonest first)
+  const withFollowUp = conversations
+    .filter(c => c.conversation_status === "open" && c.follow_up_at && new Date(c.follow_up_at) > now)
+    .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
+  if (withFollowUp.length > 0) return withFollowUp[0];
+
+  // 3. Latest open conversation
+  const open = conversations
+    .filter(c => c.conversation_status === "open")
+    .sort((a, b) => (b.last_message_at || "").localeCompare(a.last_message_at || ""));
+  if (open.length > 0) return open[0];
+
+  // 4. Latest resolved conversation
+  const resolved = [...conversations]
+    .sort((a, b) => (b.last_message_at || "").localeCompare(a.last_message_at || ""));
+  return resolved[0];
+}
+
 const AdvisorCompanyOverview = () => {
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
@@ -72,9 +105,9 @@ const AdvisorCompanyOverview = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-company-overview", companyId],
     queryFn: async () => {
-      const [companyRes, convsRes, reportsRes, notesRes, advisorProfileRes] = await Promise.all([
+      // Stage 1: parallel fetch of company, conversations, reports
+      const [companyRes, convsRes, reportsRes] = await Promise.all([
         supabase.from("companies").select("id, name, industry, cvr_number, logo_url").eq("id", companyId!).single(),
-        // All open conversations for this company — pick primary one deliberately
         supabase.from("conversations")
           .select("id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_message_at")
           .eq("company_id", companyId!)
@@ -87,22 +120,41 @@ const AdvisorCompanyOverview = () => {
           .eq("status", "processed")
           .order("uploaded_at", { ascending: false })
           .limit(24),
-        // Check if any conversation for this company has notes
-        supabase.from("conversation_notes")
-          .select("conversation_id"),
-        // For assigned advisor name
-        supabase.from("profiles").select("full_name, user_id"),
       ]);
 
       const company = companyRes.data;
       const conversations = (convsRes.data || []) as ConvRow[];
 
-      // Primary conversation: first created (oldest) — deliberate choice
-      const primaryConv = conversations.length > 0 ? conversations[0] : null;
+      // Primary conversation: operational priority selection
+      const primaryConv = selectPrimaryConversation(conversations);
 
-      // Notes: check if primary conversation has a note
-      const noteConvIds = new Set((notesRes.data || []).map((n: any) => n.conversation_id));
-      const hasNote = primaryConv ? noteConvIds.has(primaryConv.id) : false;
+      // Stage 2: scoped follow-up fetches — only when relevant
+      const convIds = conversations.map(c => c.id);
+      const assignedId = primaryConv?.assigned_advisor_id ?? null;
+
+      const [notesRes, advisorProfileRes] = await Promise.all([
+        // Notes: only for this company's conversations
+        convIds.length > 0
+          ? supabase.from("conversation_notes")
+              .select("conversation_id")
+              .in("conversation_id", convIds)
+          : Promise.resolve({ data: [] as { conversation_id: string }[] }),
+        // Advisor profile: only for the assigned advisor
+        assignedId
+          ? supabase.from("profiles")
+              .select("full_name, user_id")
+              .eq("user_id", assignedId)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { full_name: string; user_id: string } | null }),
+      ]);
+
+      // Notes: check if any conversation for this company has a note
+      const noteConvIds = new Set(((notesRes as any).data || []).map((n: any) => n.conversation_id));
+      const hasNote = convIds.some(id => noteConvIds.has(id));
+      // Track which conversation has the note for deep-linking
+      const noteConvId = primaryConv && noteConvIds.has(primaryConv.id)
+        ? primaryConv.id
+        : convIds.find(id => noteConvIds.has(id)) ?? null;
 
       // Reports
       const reports = (reportsRes.data || []) as ReportData[];
@@ -112,26 +164,19 @@ const AdvisorCompanyOverview = () => {
         .sort((a, b) => a.key.localeCompare(b.key));
 
       const latest = sorted.length > 0 ? sorted[sorted.length - 1] : null;
-
-      // Bank: use latest report with bank_balance, which may differ from latest P&L
       const bankReport = [...sorted].reverse().find(r => r.kf.bank_balance != null);
 
-      // Missing report check — exact same logic as AdvisorDashboard/AttentionNeeded
       const missingKey = getMissingReportKey();
       const reportKeys = new Set(sorted.map(r => r.key));
       const missingReport = !reportKeys.has(missingKey);
 
-      // Assigned advisor name
-      const profiles = (advisorProfileRes.data || []) as { full_name: string; user_id: string }[];
-      const assignedId = primaryConv?.assigned_advisor_id;
-      const assignedName = assignedId
-        ? profiles.find(p => p.user_id === assignedId)?.full_name || null
-        : null;
+      const assignedName = (advisorProfileRes as any)?.data?.full_name ?? null;
 
       return {
         company,
         primaryConv,
         hasNote,
+        noteConvId,
         latest,
         bankReport,
         missingReport,
@@ -159,6 +204,7 @@ const AdvisorCompanyOverview = () => {
   const latest = data?.latest;
   const bankReport = data?.bankReport;
   const hasNote = data?.hasNote ?? false;
+  const noteConvId = data?.noteConvId ?? null;
   const missingReport = data?.missingReport ?? false;
 
   return (
@@ -216,7 +262,7 @@ const AdvisorCompanyOverview = () => {
           {chatState.label}
         </Link>
 
-        {/* Follow-up date (if set and not already shown in chat state) */}
+        {/* Overdue follow-up (if not already shown in chat state) */}
         {primaryConv?.follow_up_at && new Date(primaryConv.follow_up_at) <= new Date() && (
           <Link
             to={`/chat?conversationId=${primaryConv.id}`}
@@ -246,12 +292,23 @@ const AdvisorCompanyOverview = () => {
           </Link>
         ) : null}
 
-        {/* Internal note indicator */}
+        {/* Internal note indicator — links to chat if possible, otherwise non-clickable */}
         {hasNote && (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground" title="Intern note">
-            <StickyNote className="h-3.5 w-3.5" />
-            Note
-          </span>
+          noteConvId ? (
+            <Link
+              to={`/chat?conversationId=${noteConvId}`}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors"
+              title="Intern note — åbn i chat"
+            >
+              <StickyNote className="h-3.5 w-3.5" />
+              Note
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground" title="Intern note">
+              <StickyNote className="h-3.5 w-3.5" />
+              Note
+            </span>
+          )
         )}
       </div>
 

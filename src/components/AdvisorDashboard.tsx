@@ -259,9 +259,11 @@ const AdvisorDashboard = () => {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
-                    {conv.assigned_advisor_id === null && (
-                      <span className="ml-2 text-chart-warning">· Ingen ejer</span>
-                    )}
+                    {conv.assigned_advisor_id === user!.id ? (
+                      <span className="ml-2 text-muted-foreground">· Min</span>
+                    ) : conv.assigned_advisor_id === null ? (
+                      <span className="ml-2 text-chart-warning">· Uden ejer</span>
+                    ) : null}
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-destructive transition-colors shrink-0" />
@@ -294,6 +296,13 @@ const AdvisorDashboard = () => {
                       <p className="text-sm font-medium text-foreground truncate">
                         {getCompanyName(conv.company_id)}
                       </p>
+                      <p className="text-xs text-muted-foreground">
+                        {conv.assigned_advisor_id === user!.id ? (
+                          <span className="text-muted-foreground">Min</span>
+                        ) : conv.assigned_advisor_id === null ? (
+                          <span className="text-chart-warning">Uden ejer</span>
+                        ) : null}
+                      </p>
                     </div>
                     <span className="text-xs text-destructive font-medium shrink-0">
                       {conv.follow_up_at
@@ -317,6 +326,13 @@ const AdvisorDashboard = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
                         {getCompanyName(conv.company_id)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {conv.assigned_advisor_id === user!.id ? (
+                          <span className="text-muted-foreground">Min</span>
+                        ) : conv.assigned_advisor_id === null ? (
+                          <span className="text-chart-warning">Uden ejer</span>
+                        ) : null}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground font-medium shrink-0">
