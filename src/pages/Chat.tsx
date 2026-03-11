@@ -413,6 +413,7 @@ const Chat = () => {
                   conversation_status: updated.conversation_status || 'open',
                   resolved_at: updated.resolved_at || null,
                   resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
+                  follow_up_at: updated.follow_up_at || null,
                   last_message_at: updated.last_message_at || c.last_message_at,
                 }
               : c
