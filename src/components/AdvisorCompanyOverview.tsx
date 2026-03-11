@@ -340,9 +340,9 @@ const AdvisorCompanyOverview = () => {
         {/* Internal note indicator — links to chat if possible, otherwise non-clickable */}
         {hasNote && (
           noteConvId ? (
-            <Link
+             <Link
               to={`/chat?conversationId=${noteConvId}`}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
               title="Intern note — se i chatten"
             >
               <StickyNote className="h-3.5 w-3.5" />
