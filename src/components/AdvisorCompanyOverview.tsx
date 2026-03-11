@@ -297,7 +297,7 @@ const AdvisorCompanyOverview = () => {
       )}
 
       {/* ── Status Bar ── */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
         {/* Chat state */}
         <Link
           to={primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat"}
