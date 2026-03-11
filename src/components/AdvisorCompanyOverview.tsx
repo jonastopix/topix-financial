@@ -44,15 +44,15 @@ interface ChatState {
 }
 
 function deriveChatState(conv: ConvRow | null): ChatState {
-  if (!conv) return { label: "Intet aktivt", color: "text-muted-foreground", icon: MessageSquare };
+  if (!conv) return { label: "Ingen aktiv samtale", color: "text-muted-foreground", icon: MessageSquare };
   if (conv.conversation_status === "resolved") return { label: "Afsluttet", color: "text-muted-foreground", icon: MessageSquare };
   if (conv.follow_up_at && new Date(conv.follow_up_at) > new Date()) {
     const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
     return { label: `Følger op ${d}`, color: "text-chart-warning", icon: Clock };
   }
-  if (conv.awaiting_reply_from === "advisor") return { label: "Afventer svar", color: "text-destructive", icon: MessageSquare };
+  if (conv.awaiting_reply_from === "advisor") return { label: "Afventer dit svar", color: "text-destructive", icon: MessageSquare };
   if (conv.awaiting_reply_from === "company") return { label: "Afventer virksomhed", color: "text-primary", icon: MessageSquare };
-  return { label: "Åben", color: "text-foreground", icon: MessageSquare };
+  return { label: "Aktiv samtale", color: "text-foreground", icon: MessageSquare };
 }
 
 interface ConvRow {
