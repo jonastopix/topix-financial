@@ -1160,6 +1160,10 @@ const Chat = () => {
                                 </span>
                               </span>
                             )}
+                            {/* Note indicator */}
+                            {conversationNoteIds.has(conv.id) && (
+                              <StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" title="Har intern note" />
+                            )}
                             {/* Assigned advisor initials */}
                             {assignedInitials && (
                               <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-[8px] font-bold text-muted-foreground ml-auto flex-shrink-0" title={getAdvisorName(conv.assigned_advisor_id) || ""}>
