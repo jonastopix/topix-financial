@@ -747,7 +747,7 @@ const Chat = () => {
               </div>
 
               {/* Filter tabs */}
-              <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <div className="flex flex-wrap gap-1.5">
                 {ADVISOR_FILTER_CONFIG.map((f) => {
                   const count = f.key === "action" ? stats.action
                     : f.key === "mine" ? stats.mine
