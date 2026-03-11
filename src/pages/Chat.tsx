@@ -13,11 +13,13 @@ import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft,
+  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
+  CalendarIcon,
 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { format, formatDistanceToNow, startOfDay } from "date-fns";
+import { format, formatDistanceToNow, startOfDay, addDays, nextMonday, setHours, setMinutes, setSeconds } from "date-fns";
 import { da } from "date-fns/locale";
 
 /** Smart date separator label: "I dag", "I går", or "9. marts 2026" */
@@ -71,6 +73,7 @@ interface ConversationWithProfile {
   conversation_status?: string;
   resolved_at?: string | null;
   resolved_by_advisor_id?: string | null;
+  follow_up_at?: string | null;
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
@@ -134,6 +137,8 @@ const Chat = () => {
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
+  const [snoozePopoverOpen, setSnoozePopoverOpen] = useState(false);
+  const [snoozeShowCalendar, setSnoozeShowCalendar] = useState(false);
 
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
   const { data: advisorUsers, isError: advisorUsersError } = useQuery({
@@ -356,6 +361,7 @@ const Chat = () => {
           conversation_status: c.conversation_status || 'open',
           resolved_at: c.resolved_at || null,
           resolved_by_advisor_id: c.resolved_by_advisor_id || null,
+          follow_up_at: c.follow_up_at || null,
         };
       });
 
@@ -407,6 +413,7 @@ const Chat = () => {
                   conversation_status: updated.conversation_status || 'open',
                   resolved_at: updated.resolved_at || null,
                   resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
+                  follow_up_at: updated.follow_up_at || null,
                   last_message_at: updated.last_message_at || c.last_message_at,
                 }
               : c
@@ -433,10 +440,15 @@ const Chat = () => {
 
     if (isAdvisor) {
       switch (activeFilter) {
-        case "action":
-          result = result.filter((c) =>
-            c.awaiting_reply_from === "advisor" && !c.acknowledged_at && c.conversation_status !== 'resolved'
-          );
+        case "action": {
+          const now = new Date();
+          result = result.filter((c) => {
+            if (c.awaiting_reply_from !== "advisor" || c.conversation_status === 'resolved') return false;
+            if (!c.acknowledged_at) return true;
+            // Expired snooze returns to queue
+            if (c.follow_up_at && new Date(c.follow_up_at) <= now) return true;
+            return false;
+          });
           // FIFO by last_member_message_at (oldest first)
           result = [...result].sort((a, b) => {
             const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
@@ -444,6 +456,7 @@ const Chat = () => {
             return aT - bT;
           });
           break;
+        }
         case "mine":
           result = result.filter((c) => c.assigned_advisor_id === user?.id);
           result = [...result].sort((a, b) =>
@@ -475,13 +488,16 @@ const Chat = () => {
   }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
 
   const stats = useMemo(() => {
-    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged, not resolved
-    const actionCount = conversations.filter((c) =>
-      c.awaiting_reply_from === "advisor" &&
-      !c.acknowledged_at &&
-      c.conversation_status !== 'resolved' &&
-      (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id)
-    ).length;
+    const now = new Date();
+    // Personal action count: assigned to me OR unassigned, awaiting advisor reply, not acknowledged (or expired snooze), not resolved
+    const actionCount = conversations.filter((c) => {
+      if (c.awaiting_reply_from !== "advisor" || c.conversation_status === 'resolved') return false;
+      if (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id) {
+        if (!c.acknowledged_at) return true;
+        if (c.follow_up_at && new Date(c.follow_up_at) <= now) return true;
+      }
+      return false;
+    }).length;
 
     return {
       total: conversations.length,
@@ -684,6 +700,7 @@ const Chat = () => {
       acknowledged_at: now,
       acknowledged_by_advisor_id: user.id,
       awaiting_reply_from: null,
+      follow_up_at: null,
     };
     // Auto-assign if unassigned
     if (!conv?.assigned_advisor_id) {
@@ -708,6 +725,7 @@ const Chat = () => {
       awaiting_reply_from: null,
       acknowledged_at: null,
       acknowledged_by_advisor_id: null,
+      follow_up_at: null,
     };
     const { error } = await supabase
       .from("conversations")
@@ -720,6 +738,73 @@ const Chat = () => {
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, ...updateData } : c
     ));
+  };
+
+  // Snooze / follow-up helpers
+  const getSnoozeDate = (option: 'tomorrow' | '3days' | 'nextweek'): Date => {
+    const now = new Date();
+    let d: Date;
+    switch (option) {
+      case 'tomorrow':
+        d = addDays(now, 1);
+        break;
+      case '3days':
+        d = addDays(now, 3);
+        break;
+      case 'nextweek':
+        d = nextMonday(now);
+        break;
+    }
+    return setSeconds(setMinutes(setHours(d, 9), 0), 0);
+  };
+
+  const handleSnooze = async (followUpAt: Date) => {
+    if (!activeConvId || !user) return;
+    const now = new Date().toISOString();
+    const conv = conversations.find(c => c.id === activeConvId);
+    const updateData: any = {
+      follow_up_at: followUpAt.toISOString(),
+      acknowledged_at: now,
+      acknowledged_by_advisor_id: user.id,
+    };
+    if (!conv?.assigned_advisor_id) {
+      updateData.assigned_advisor_id = user.id;
+    }
+    const { error } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    if (error) {
+      toast.error("Kunne ikke sætte opfølgning");
+      return;
+    }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
+    setSnoozePopoverOpen(false);
+    setSnoozeShowCalendar(false);
+    toast.success(`Følger op ${format(followUpAt, "d. MMM", { locale: da })}`);
+  };
+
+  const handleCancelSnooze = async () => {
+    if (!activeConvId || !user) return;
+    const updateData: any = {
+      follow_up_at: null,
+      acknowledged_at: null,
+      acknowledged_by_advisor_id: null,
+    };
+    const { error } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", activeConvId);
+    if (error) {
+      toast.error("Kunne ikke fjerne opfølgning");
+      return;
+    }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, ...updateData } : c
+    ));
+    toast.success("Opfølgning fjernet");
   };
 
   // Determine what to show on mobile
@@ -857,8 +942,11 @@ const Chat = () => {
                 filteredConversations.map((conv) => {
                   const isActive = activeConvId === conv.id;
                   const isResolved = conv.conversation_status === 'resolved';
-                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
-                  const isAcknowledged = !!conv.acknowledged_at;
+                  const now = new Date();
+                  const hasExpiredSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) <= now;
+                  const hasFutureSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) > now;
+                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && (!conv.acknowledged_at || hasExpiredSnooze);
+                  const isAcknowledged = !!conv.acknowledged_at && !hasExpiredSnooze;
                   const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
 
                   return (
@@ -937,10 +1025,17 @@ const Chat = () => {
                               </span>
                             )}
                             {/* Acknowledged badge – visually distinct from a real reply */}
-                            {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
+                            {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && !hasFutureSnooze && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check className="h-2.5 w-2.5" />
                                 Følger op
+                              </span>
+                            )}
+                            {/* Snoozed badge — future follow_up_at */}
+                            {!isResolved && hasFutureSnooze && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <Clock className="h-2.5 w-2.5" />
+                                Følg op {format(new Date(conv.follow_up_at!), "d. MMM", { locale: da })}
                               </span>
                             )}
                             {/* Report badge */}
@@ -1133,6 +1228,110 @@ const Chat = () => {
                           <Check className="h-3.5 w-3.5" />
                           <span className="hidden md:inline">Jeg følger op</span>
                         </button>
+                      )}
+
+                      {/* Snooze / follow-up popover — only for advisor-side conversations */}
+                      {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                        <>
+                          {/* Active snooze indicator with cancel */}
+                          {activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <Clock className="h-3 w-3" />
+                              Følger op d. {format(new Date(activeConv.follow_up_at), "d. MMM", { locale: da })}
+                              <button
+                                onClick={handleCancelSnooze}
+                                className="ml-0.5 hover:text-destructive transition-colors"
+                                title="Fjern opfølgning"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          )}
+
+                          <Popover open={snoozePopoverOpen} onOpenChange={(open) => { setSnoozePopoverOpen(open); if (!open) setSnoozeShowCalendar(false); }}>
+                            <PopoverTrigger asChild>
+                              <button
+                                title="Sæt en opfølgningsdato — samtalen forsvinder midlertidigt fra køen"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+                              >
+                                <Clock className="h-3.5 w-3.5" />
+                                <span className="hidden md:inline">Følg op senere</span>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" sideOffset={8} className="w-auto p-0 z-[200]">
+                              {!snoozeShowCalendar ? (
+                                <div className="py-1">
+                                  <div className="px-3 py-1.5 border-b border-border">
+                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Følg op</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleSnooze(getSnoozeDate('tomorrow'))}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                                  >
+                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                    I morgen
+                                    <span className="ml-auto text-muted-foreground text-[10px]">
+                                      {format(getSnoozeDate('tomorrow'), "EEE d. MMM", { locale: da })}
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleSnooze(getSnoozeDate('3days'))}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                                  >
+                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Om 3 dage
+                                    <span className="ml-auto text-muted-foreground text-[10px]">
+                                      {format(getSnoozeDate('3days'), "EEE d. MMM", { locale: da })}
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleSnooze(getSnoozeDate('nextweek'))}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                                  >
+                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Næste uge
+                                    <span className="ml-auto text-muted-foreground text-[10px]">
+                                      {format(getSnoozeDate('nextweek'), "EEE d. MMM", { locale: da })}
+                                    </span>
+                                  </button>
+                                  <div className="border-t border-border">
+                                    <button
+                                      onClick={() => setSnoozeShowCalendar(true)}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                                    >
+                                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                                      Vælg dato
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
+                                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Vælg dato</span>
+                                    <button
+                                      onClick={() => setSnoozeShowCalendar(false)}
+                                      className="text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                      <ArrowLeft className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                  <Calendar
+                                    mode="single"
+                                    selected={undefined}
+                                    onSelect={(date) => {
+                                      if (date) {
+                                        const snoozeDate = setSeconds(setMinutes(setHours(date, 9), 0), 0);
+                                        handleSnooze(snoozeDate);
+                                      }
+                                    }}
+                                    disabled={(date) => date < new Date()}
+                                    className="p-3 pointer-events-auto"
+                                  />
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        </>
                       )}
 
                       {/* Resolve button — advisor only, only when open */}
