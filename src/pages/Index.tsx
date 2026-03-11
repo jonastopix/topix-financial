@@ -408,11 +408,6 @@ const Dashboard = () => {
         </>
       )}
 
-      {/* Attention needed */}
-      <div className="mb-6">
-        <AttentionNeeded />
-      </div>
-
       {/* Performance + Revenue chart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
         <div className="lg:col-span-4">

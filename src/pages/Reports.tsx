@@ -636,32 +636,9 @@ const Reports = () => {
         );
       })()}
 
-      {/* Upload section */}
-      <div className="mb-8">
-        <FileUploadZone
-          title="Upload finansiel rapport"
-          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
-          accept=".xlsx,.xls,.csv,.pdf"
-          conversationId={conversationId}
-          userId={user?.id || null}
-          companyId={companyId || null}
-          onPipelineComplete={handlePipelineComplete}
-        />
-      </div>
-
       {/* AI Financial Analysis */}
-      <div className="mb-8">
+      <div className="mb-10">
         <AIFinancialAnalysis conversationId={conversationId} companyId={companyId} userId={user?.id || null} />
-      </div>
-
-      {/* Detaljeret Finansiel Oversigt */}
-      <div className="mb-8">
-        <FinancialOverview reports={dbReports} />
-      </div>
-
-      {/* Performance Oversigt */}
-      <div className="mb-8">
-        <PerformanceOverview reports={dbReports} />
       </div>
 
       {/* Real DB Reports */}
