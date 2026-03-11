@@ -301,7 +301,7 @@ const AdvisorCompanyOverview = () => {
         {/* Chat state */}
         <Link
           to={primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat"}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium hover:bg-accent/50 transition-colors ${chatState.color}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium hover:bg-accent/50 transition-colors max-w-full min-w-0 ${chatState.color}`}
         >
           <ChatIcon className="h-3.5 w-3.5" />
           {chatState.label}
