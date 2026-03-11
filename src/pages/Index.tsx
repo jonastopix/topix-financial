@@ -385,16 +385,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 4-column snapshot grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+      {/* 3-column snapshot grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
         <DashboardHandouts />
         <BudgetOverview />
         <DashboardMilestones />
-        <AIProgressWidget compact />
       </div>
-
-      {/* Horizontal activity feed */}
-      <DashboardActivity />
     </AppLayout>
   );
 };
