@@ -95,7 +95,7 @@ const Dashboard = () => {
         // YTD: Always sum individual month values (don't trust _aar fields from AI — they often read the wrong column)
         const currentYearReports = sorted.filter(r => r.key.startsWith(latestYear));
         const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
-        const ytdExpenses = currentYearReports.reduce((s, r) => s + totalExpenses(r.kf), 0);
+        const ytdExpenses = currentYearReports.reduce((s, r) => s + calcTotalExpenses(r.kf), 0);
         const ytdResult = currentYearReports.reduce((s, r) => s + (r.kf.resultat_foer_skat ?? 0), 0);
 
         kpiData = {
