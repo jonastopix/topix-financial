@@ -351,6 +351,10 @@ const Chat = () => {
           last_advisor_reply_at: c.last_advisor_reply_at || null,
           acknowledged_at: c.acknowledged_at || null,
           acknowledged_by_advisor_id: c.acknowledged_by_advisor_id || null,
+          // Resolved state
+          conversation_status: c.conversation_status || 'open',
+          resolved_at: c.resolved_at || null,
+          resolved_by_advisor_id: c.resolved_by_advisor_id || null,
         };
       });
 
