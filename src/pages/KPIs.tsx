@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import {
@@ -98,7 +99,9 @@ const tooltipStyle = {
 };
 
 const KPIs = () => {
-  const { user, companyId, isAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [reports, setReports] = useState<ReportData[]>([]);
   const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
   const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});

@@ -12,6 +12,7 @@ import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
@@ -36,7 +37,9 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [showTour, setShowTour] = useState(false);
 
   // Show tour for non-advisor users who haven't completed it

@@ -7,6 +7,7 @@ import HandoutCard from "@/components/HandoutCard";
 import HandoutDetail from "@/components/HandoutDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
@@ -21,7 +22,9 @@ interface HandoutSummary {
 }
 
 const Handouts = () => {
-  const { user, companyId, isAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
     moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))

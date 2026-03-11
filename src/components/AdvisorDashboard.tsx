@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, FileText, StickyNote,
   ChevronRight, CheckCircle2, AlertTriangle, User,
@@ -116,9 +117,10 @@ const AdvisorDashboard = () => {
         c.assigned_advisor_id === user!.id || c.assigned_advisor_id === null
       );
 
-      // Action Queue: awaiting advisor reply
+      // Action Queue: uses shared actionable-now logic (excludes acknowledged/snoozed)
+      const now = new Date();
       const actionQueue = myConversations
-        .filter(c => c.awaiting_reply_from === "advisor")
+        .filter(c => isConversationActionable(c, now))
         .sort((a, b) => {
           const aTime = a.last_member_message_at || "";
           const bTime = b.last_member_message_at || "";
@@ -126,7 +128,6 @@ const AdvisorDashboard = () => {
         });
 
       // Follow-ups
-      const now = new Date();
       const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       const overdueFollowUps = myConversations

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import FileUploadZone from "@/components/FileUploadZone";
@@ -98,7 +99,9 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 };
 
 const Reports = () => {
-  const { user, companyId, isAdvisor, isAdmin } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isAdmin } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});

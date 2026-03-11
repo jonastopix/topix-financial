@@ -29,6 +29,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
+import { isConversationActionable } from "@/lib/advisorActionHelpers";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -111,7 +112,7 @@ const AppSidebar = () => {
       const now = new Date();
       const count = convs.filter(c =>
         (!c.assigned_advisor_id || c.assigned_advisor_id === user.id) &&
-        (!c.acknowledged_at || (c.follow_up_at && new Date(c.follow_up_at) <= now))
+        isConversationActionable(c, now)
       ).length;
       setUnreadChat(count);
     } else {
