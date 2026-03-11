@@ -56,9 +56,10 @@ const adminNavItems = [
 interface AppSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  isStandalone?: boolean;
 }
 
-const AppSidebar = ({ isOpen, onClose }: AppSidebarProps) => {
+const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
