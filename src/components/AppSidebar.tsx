@@ -365,6 +365,7 @@ const AppSidebar = () => {
             </button>
           </div>
         </div>
+        <div className="safe-bottom-spacer" />
       </aside>
     </>
   );
