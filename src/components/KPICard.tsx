@@ -55,7 +55,7 @@ const accentMap = {
   },
 };
 
-const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, sparkline, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
+const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, secondaryTrend = "neutral", budgetLabel, budgetFavorable, sparkline, ytdLine, subtitle, icon, accentColor = "emerald" }: KPICardProps) => {
   const accent = accentMap[accentColor];
 
   const ChangeBadge = ({ label, dir }: { label: string; dir: "up" | "down" | "neutral" }) => (
