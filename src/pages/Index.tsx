@@ -13,7 +13,7 @@ import DashboardHandouts from "@/components/DashboardHandouts";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
+import AdvisorDashboard from "@/components/AdvisorDashboard";
 import GuidedTour from "@/components/GuidedTour";
 import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
