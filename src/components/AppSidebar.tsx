@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
+import topixIconWhite from "@/assets/topix-icon-white.png";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
