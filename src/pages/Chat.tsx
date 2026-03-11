@@ -1031,37 +1031,49 @@ const Chat = () => {
                           <div className="px-3 py-1.5 border-b border-border">
                             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tildel rådgiver</span>
                           </div>
-                          {advisorUsers?.map((a: any) => {
-                            const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
-                            return (
-                              <button
-                                key={a.user_id}
-                                onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
-                                className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors text-foreground ${
-                                  isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"
-                                }`}
-                              >
-                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                                  {a.avatar_url ? (
-                                    <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                                  ) : (
-                                    <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
-                                  )}
-                                </div>
-                                <span className="truncate">{a.full_name}</span>
-                                {isCurrent && (
-                                  <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
-                                )}
-                              </button>
-                            );
-                          })}
-                          {activeConv?.assigned_advisor_id && (
-                            <button
-                              onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-t border-border"
-                            >
-                              Fjern tildeling
-                            </button>
+                          {advisorUsersError ? (
+                            <div className="px-3 py-3 text-xs text-destructive text-center">
+                              Kunne ikke hente rådgivere
+                            </div>
+                          ) : (!advisorUsers || advisorUsers.length === 0) ? (
+                            <div className="px-3 py-3 text-xs text-muted-foreground text-center">
+                              Ingen rådgivere fundet
+                            </div>
+                          ) : (
+                            <>
+                              {advisorUsers.map((a: any) => {
+                                const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
+                                return (
+                                  <button
+                                    key={a.user_id}
+                                    onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
+                                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors text-foreground ${
+                                      isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"
+                                    }`}
+                                  >
+                                    <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                                      {a.avatar_url ? (
+                                        <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                                      ) : (
+                                        <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
+                                      )}
+                                    </div>
+                                    <span className="truncate">{a.full_name}</span>
+                                    {isCurrent && (
+                                      <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                              {activeConv?.assigned_advisor_id && (
+                                <button
+                                  onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-t border-border"
+                                >
+                                  Fjern tildeling
+                                </button>
+                              )}
+                            </>
                           )}
                         </PopoverContent>
                       </Popover>
