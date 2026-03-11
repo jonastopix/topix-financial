@@ -301,7 +301,7 @@ const AdvisorCompanyOverview = () => {
         {/* Chat state */}
         <Link
           to={primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat"}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium hover:bg-accent/50 transition-colors ${chatState.color}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium hover:bg-accent/50 transition-colors max-w-full min-w-0 ${chatState.color}`}
         >
           <ChatIcon className="h-3.5 w-3.5" />
           {chatState.label}
@@ -311,7 +311,7 @@ const AdvisorCompanyOverview = () => {
         {primaryConv?.follow_up_at && new Date(primaryConv.follow_up_at) <= new Date() && (
           <Link
             to={`/chat?conversationId=${primaryConv.id}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-destructive/20 bg-destructive/5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-destructive/20 bg-destructive/5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors max-w-full min-w-0"
           >
             <Clock className="h-3.5 w-3.5" />
             Forfalden opfølgning
@@ -322,7 +322,7 @@ const AdvisorCompanyOverview = () => {
         {missingReport ? (
           <Link
             to="/reports"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-chart-warning/20 bg-chart-warning/5 text-xs font-medium text-chart-warning hover:bg-chart-warning/10 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-chart-warning/20 bg-chart-warning/5 text-xs font-medium text-chart-warning hover:bg-chart-warning/10 transition-colors max-w-full min-w-0"
           >
             <FileText className="h-3.5 w-3.5" />
             Mangler {getMissingReportLabel()}
@@ -330,7 +330,7 @@ const AdvisorCompanyOverview = () => {
         ) : latest ? (
           <Link
             to="/reports"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
           >
             <FileText className="h-3.5 w-3.5" />
             {formatReportKey(latest.key)}
@@ -340,16 +340,16 @@ const AdvisorCompanyOverview = () => {
         {/* Internal note indicator — links to chat if possible, otherwise non-clickable */}
         {hasNote && (
           noteConvId ? (
-            <Link
+             <Link
               to={`/chat?conversationId=${noteConvId}`}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
               title="Intern note — se i chatten"
             >
               <StickyNote className="h-3.5 w-3.5" />
               Note
             </Link>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground" title="Intern note">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground max-w-full min-w-0" title="Intern note">
               <StickyNote className="h-3.5 w-3.5" />
               Note
             </span>

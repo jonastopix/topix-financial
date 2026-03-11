@@ -56,9 +56,10 @@ const adminNavItems = [
 interface AppSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  isStandalone?: boolean;
 }
 
-const AppSidebar = ({ isOpen, onClose }: AppSidebarProps) => {
+const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -192,7 +193,7 @@ const AppSidebar = ({ isOpen, onClose }: AppSidebarProps) => {
         }`}
       >
         {/* Sidebar header with safe-area for standalone mode */}
-        <div className="safe-top-pad">
+        <div className={isStandalone ? "safe-top-pad" : ""}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-sidebar-border shrink-0">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-sidebar-accent flex items-center justify-center shrink-0">

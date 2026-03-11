@@ -20,7 +20,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const navigate = useNavigate();
   const { branding } = useAppConfig();
-  useStandalone(); // sets data-standalone on <html>
+  const isStandalone = useStandalone();
 
   // AppLayout owns drawer open/close state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,7 +32,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
 
   /** Sticky mobile shell: safe-area + topbar + banners as one unit */
   const mobileShell = isMobile ? (
-    <div className="sticky top-0 z-40 safe-top-pad bg-background border-b border-border">
+    <div className={`sticky top-0 z-40 bg-background border-b border-border ${isStandalone ? "safe-top-pad" : ""}`}>
       {/* Mobile topbar */}
       <div className="flex items-center gap-3 px-4 h-12">
         <button
@@ -117,7 +117,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   if (fullscreen) {
     return (
       <div className="flex flex-col h-screen-safe bg-background overflow-x-hidden">
-        <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         {mobileShell}
         {desktopBanners}
         <div className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
@@ -127,13 +127,27 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     );
   }
 
+  // Non-fullscreen: mobile needs bounded height for chat flex-chain; desktop uses min-h
+  if (isMobile) {
+    return (
+      <div className="h-screen-safe flex flex-col bg-background overflow-x-hidden">
+        <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
+        <main className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
+          {mobileShell}
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col px-4 pb-6">
+            {children}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen-safe bg-background overflow-x-hidden">
-      <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <main className={`min-h-screen-safe flex flex-col transition-all duration-300 overflow-x-hidden ${isMobile ? "ml-0" : "ml-64"}`}>
-        {mobileShell}
+      <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
+      <main className="min-h-screen-safe flex flex-col transition-all duration-300 overflow-x-hidden ml-64">
         {desktopBanners}
-        <div className={`flex-1 min-h-0 flex flex-col ${isMobile ? "px-4 pb-6" : "p-8"}`}>
+        <div className="flex-1 min-h-0 flex flex-col p-8">
           {children}
         </div>
       </main>
