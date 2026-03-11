@@ -112,7 +112,7 @@
     @apply border-border;
   }
 
-  html, body {
+  html, body, #root {
     overflow-x: hidden;
   }
 

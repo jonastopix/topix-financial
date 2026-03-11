@@ -349,7 +349,7 @@ const AdvisorCompanyOverview = () => {
               Note
             </Link>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground" title="Intern note">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground max-w-full min-w-0" title="Intern note">
               <StickyNote className="h-3.5 w-3.5" />
               Note
             </span>
