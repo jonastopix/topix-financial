@@ -778,14 +778,8 @@ const Reports = () => {
                     </div>
                     {getEffectiveMetrics(report as unknown as ReportData) && (
                       <div>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                           Nøgletal
-                          {report.manual_override_status === "applied" && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary normal-case tracking-normal">
-                              <Pencil className="h-3 w-3" />
-                              Manuelt rettet
-                            </span>
-                          )}
                         </h4>
                         {renderEffectiveKeyFigures(report)}
                       </div>
