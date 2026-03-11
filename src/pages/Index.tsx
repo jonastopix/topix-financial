@@ -358,6 +358,7 @@ const Dashboard = () => {
               budgetLabel={monthResultBudget?.label}
               budgetFavorable={monthResultBudget?.favorable}
               sparkline={spark.result.length >= 2 ? spark.result : undefined}
+              ytdLine={kpiData.ytdResult != null ? `YTD: ${formatCompact(kpiData.ytdResult)}${ytdResultBudget ? ` · ${ytdResultBudget.label}` : ""}` : undefined}
               subtitle="før skat"
               icon={<TrendingUp className="h-4 w-4" />}
               accentColor="blue"
