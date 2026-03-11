@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { openReportFile } from "@/lib/reportFileAccess";
+import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
