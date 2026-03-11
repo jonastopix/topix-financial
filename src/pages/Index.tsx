@@ -371,40 +371,6 @@ const Dashboard = () => {
               icon={<Wallet className="h-4 w-4" />}
               accentColor="blue"
             />
-          </div>
-        </div>
-
-        {/* KPI cards – År til dato */}
-        <div className="mb-6">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">År til dato (kalenderår) · {kpiData.period?.match(/\d{4}/)?.[0] ?? ""}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 overflow-hidden">
-            <KPICard
-              title="YTD Omsætning"
-              value={kpiData.ytdRevenue != null ? formatDKK(kpiData.ytdRevenue) : "—"}
-              budgetLabel={ytdRevBudget?.label}
-              budgetFavorable={ytdRevBudget?.favorable}
-              icon={<DollarSign className="h-4 w-4" />}
-              accentColor="emerald"
-            />
-            <KPICard
-              title="YTD Resultat"
-              value={kpiData.ytdResult != null ? formatDKK(kpiData.ytdResult) : "—"}
-              trend={kpiData.ytdResult != null ? (kpiData.ytdResult >= 0 ? "up" : "down") : "neutral"}
-              budgetLabel={ytdResultBudget?.label}
-              budgetFavorable={ytdResultBudget?.favorable}
-              subtitle="før skat"
-              icon={<TrendingUp className="h-4 w-4" />}
-              accentColor="blue"
-            />
-            <KPICard
-              title="YTD Udgifter"
-              value={kpiData.ytdExpenses != null ? formatDKK(kpiData.ytdExpenses) : "—"}
-              budgetLabel={ytdExpBudget?.label}
-              budgetFavorable={ytdExpBudget?.favorable}
-              icon={<Flame className="h-4 w-4" />}
-              accentColor="amber"
-            />
-          </div>
         </div>
         </>
       )}
