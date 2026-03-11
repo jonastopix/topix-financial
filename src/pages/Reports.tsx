@@ -652,7 +652,7 @@ const Reports = () => {
           <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter endnu</p>
           <p className="text-xs text-muted-foreground">
-            Upload en saldobalance eller resultatopgørelse ovenfor for at komme i gang
+            Upload dit første regnskab ovenfor for at komme i gang
           </p>
         </div>
       ) : (
