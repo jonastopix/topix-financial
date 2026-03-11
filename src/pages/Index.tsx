@@ -37,7 +37,9 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [showTour, setShowTour] = useState(false);
 
   // Show tour for non-advisor users who haven't completed it

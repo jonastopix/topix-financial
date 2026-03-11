@@ -112,7 +112,7 @@ const AppSidebar = () => {
       const now = new Date();
       const count = convs.filter(c =>
         (!c.assigned_advisor_id || c.assigned_advisor_id === user.id) &&
-        (!c.acknowledged_at || (c.follow_up_at && new Date(c.follow_up_at) <= now))
+        isConversationActionable(c, now)
       ).length;
       setUnreadChat(count);
     } else {

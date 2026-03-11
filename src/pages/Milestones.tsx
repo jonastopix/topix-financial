@@ -22,7 +22,9 @@ import { MILESTONE_SUGGESTIONS, type MilestoneSuggestion } from "@/lib/milestone
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 
 const Milestones = () => {
-  const { user, companyId, isAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [milestoneStats, setMilestoneStats] = useState({ total: 0, done: 0, pct: 0 });
   const [refreshKey, setRefreshKey] = useState(0);

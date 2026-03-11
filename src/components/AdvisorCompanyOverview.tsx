@@ -111,8 +111,8 @@ const AdvisorCompanyOverview = () => {
         supabase.from("conversations")
           .select("id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_message_at")
           .eq("company_id", companyId!)
-          .order("created_at", { ascending: true })
-          .limit(10),
+          .order("last_message_at", { ascending: false })
+          .limit(10), // Phase-1 limit — sufficient for most companies
         (supabase.from("financial_reports")
           .select(`id, report_period, extracted_data, normalized_data, status, ${REPORT_OVERRIDE_SELECT}`) as any)
           .eq("company_id", companyId!)
