@@ -226,7 +226,12 @@ const Dashboard = () => {
   if (isAdvisor && !companyId) {
     return (
       <AppLayout>
-        <AdvisorCompanyPrompt />
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight">
+            {getGreeting()}, {firstName}
+          </h1>
+        </div>
+        <AdvisorDashboard />
       </AppLayout>
     );
   }
