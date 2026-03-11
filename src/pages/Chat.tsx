@@ -12,8 +12,9 @@ import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, Check,
+  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft,
 } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
@@ -127,7 +128,7 @@ const Chat = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
-  const [showAssignmentDropdown, setShowAssignmentDropdown] = useState(false);
+  const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
 
   // Cached advisor list for assignment dropdown
   const { data: advisorUsers } = useQuery({
@@ -651,7 +652,6 @@ const Chat = () => {
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, assigned_advisor_id: advisorId } : c
     ));
-    setShowAssignmentDropdown(false);
   };
 
   const handleAcknowledge = async () => {
@@ -746,7 +746,7 @@ const Chat = () => {
               </div>
 
               {/* Filter tabs */}
-              <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <div className="flex flex-wrap gap-1.5">
                 {ADVISOR_FILTER_CONFIG.map((f) => {
                   const count = f.key === "action" ? stats.action
                     : f.key === "mine" ? stats.mine
@@ -875,6 +875,13 @@ const Chat = () => {
                                 )}
                               </span>
                             )}
+                            {/* Awaiting company reply — ball is with the company */}
+                            {!isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                <ArrowRightLeft className="h-2.5 w-2.5" />
+                                Afventer virksomhed
+                              </span>
+                            )}
                             {/* Acknowledged badge – visually distinct from a real reply */}
                             {isAcknowledged && conv.awaiting_reply_from !== "advisor" && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -992,56 +999,55 @@ const Chat = () => {
 
                     {/* Advisor action controls */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {/* Assignment dropdown */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowAssignmentDropdown(v => !v)}
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors border ${
-                            activeConv?.assigned_advisor_id
-                              ? "bg-primary/10 text-primary border-primary/20"
-                              : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
-                          }`}
-                        >
-                          <UserCheck className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">
-                            {activeConv?.assigned_advisor_id
-                              ? getAdvisorName(activeConv.assigned_advisor_id) || "Tildelt"
-                              : "Tildel"}
-                          </span>
-                          <ChevronDown className={`h-3 w-3 transition-transform ${showAssignmentDropdown ? "rotate-180" : ""}`} />
-                        </button>
-                        {showAssignmentDropdown && (
-                          <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
-                            {activeConv?.assigned_advisor_id && (
-                              <button
-                                onClick={() => handleAssignAdvisor(null)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
-                              >
-                                Fjern tildeling
-                              </button>
-                            )}
-                            {advisorUsers?.map((a: any) => (
-                              <button
-                                key={a.user_id}
-                                onClick={() => handleAssignAdvisor(a.user_id)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                              >
-                                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                                  {a.avatar_url ? (
-                                    <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                                  ) : (
-                                    <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
-                                  )}
-                                </div>
-                                <span className="truncate">{a.full_name}</span>
-                                {activeConv?.assigned_advisor_id === a.user_id && (
-                                  <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
+                      {/* Assignment popover */}
+                      <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors border ${
+                              activeConv?.assigned_advisor_id
+                                ? "bg-primary/10 text-primary border-primary/20"
+                                : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
+                            }`}
+                          >
+                            <UserCheck className="h-3.5 w-3.5" />
+                            <span className="hidden md:inline">
+                              {activeConv?.assigned_advisor_id
+                                ? getAdvisorName(activeConv.assigned_advisor_id) || "Tildelt"
+                                : "Tildel"}
+                            </span>
+                            <ChevronDown className={`h-3 w-3 transition-transform ${assignmentPopoverOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-52 p-0">
+                          {activeConv?.assigned_advisor_id && (
+                            <button
+                              onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
+                            >
+                              Fjern tildeling
+                            </button>
+                          )}
+                          {advisorUsers?.map((a: any) => (
+                            <button
+                              key={a.user_id}
+                              onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
+                            >
+                              <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                                {a.avatar_url ? (
+                                  <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                                ) : (
+                                  <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
                                 )}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                              </div>
+                              <span className="truncate">{a.full_name}</span>
+                              {activeConv?.assigned_advisor_id === a.user_id && (
+                                <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
+                              )}
+                            </button>
+                          ))}
+                        </PopoverContent>
+                      </Popover>
 
                       {/* Acknowledge button */}
                       {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
