@@ -2,22 +2,11 @@ import { useMemo } from "react";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 import {
   getEffectiveReportPeriodKey, getEffectiveMetrics, getEffectiveReportPeriod,
-  formatDKK, pctChange, type ReportData,
+  formatDKK, pctChange, calcTotalExpenses, type ReportData,
 } from "@/lib/financialUtils";
 
 interface PerformanceOverviewProps {
   reports: ReportData[];
-}
-
-/** Sum all operating expenses from key figures. Uses ?? 0 for summation (missing addend = 0). */
-function totalExpenses(kf: Record<string, number | null>): number {
-  return Math.abs(kf.loenninger ?? 0) +
-    Math.abs(kf.direkte_omkostninger ?? 0) +
-    Math.abs((kf as any).marketing ?? 0) +
-    Math.abs(kf.lokaleomkostninger ?? 0) +
-    Math.abs(kf.administrationsomkostninger ?? 0) +
-    Math.abs((kf as any).tech_software ?? 0) +
-    Math.abs(kf.afskrivninger ?? 0);
 }
 
 const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {

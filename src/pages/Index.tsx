@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import GuidedTour from "@/components/GuidedTour";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
+import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, parseReportPeriodToKey, formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, type ReportData } from "@/lib/financialUtils";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -23,17 +23,6 @@ function getGreeting() {
   if (h < 12) return "Godmorgen";
   if (h < 18) return "God eftermiddag";
   return "God aften";
-}
-
-/** Sum all operating expenses from key figures */
-function totalExpenses(kf: Record<string, number>): number {
-  return Math.abs(kf.loenninger ?? 0) +
-    Math.abs(kf.direkte_omkostninger ?? 0) +
-    Math.abs(kf.marketing ?? 0) +
-    Math.abs(kf.lokaler ?? 0) +
-    Math.abs(kf.admin ?? 0) +
-    Math.abs(kf.tech_software ?? 0) +
-    Math.abs(kf.afskrivninger ?? 0);
 }
 
 /** Parse budget period to "YYYY-MM" key. Handles "2026-base-3" and "April 2026" formats */
