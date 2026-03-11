@@ -942,8 +942,11 @@ const Chat = () => {
                 filteredConversations.map((conv) => {
                   const isActive = activeConvId === conv.id;
                   const isResolved = conv.conversation_status === 'resolved';
-                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && !conv.acknowledged_at;
-                  const isAcknowledged = !!conv.acknowledged_at;
+                  const now = new Date();
+                  const hasExpiredSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) <= now;
+                  const hasFutureSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) > now;
+                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && (!conv.acknowledged_at || hasExpiredSnooze);
+                  const isAcknowledged = !!conv.acknowledged_at && !hasExpiredSnooze;
                   const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
 
                   return (
