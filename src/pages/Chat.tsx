@@ -361,6 +361,7 @@ const Chat = () => {
           conversation_status: c.conversation_status || 'open',
           resolved_at: c.resolved_at || null,
           resolved_by_advisor_id: c.resolved_by_advisor_id || null,
+          follow_up_at: c.follow_up_at || null,
         };
       });
 
