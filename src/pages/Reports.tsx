@@ -734,7 +734,7 @@ const Reports = () => {
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-border/50 px-5 py-5 space-y-5">
+                  <div className="border-t border-border/50 px-5 py-5 space-y-4">
                     {/* Actions row */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
