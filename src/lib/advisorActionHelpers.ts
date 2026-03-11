@@ -10,10 +10,10 @@
  */
 export function isConversationActionable(
   conv: {
-    awaiting_reply_from: string | null;
+    awaiting_reply_from?: string | null;
     conversation_status?: string | null;
-    acknowledged_at: string | null;
-    follow_up_at: string | null;
+    acknowledged_at?: string | null;
+    follow_up_at?: string | null;
   },
   now: Date,
 ): boolean {
