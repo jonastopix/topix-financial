@@ -725,6 +725,7 @@ const Chat = () => {
       awaiting_reply_from: null,
       acknowledged_at: null,
       acknowledged_by_advisor_id: null,
+      follow_up_at: null,
     };
     const { error } = await supabase
       .from("conversations")
