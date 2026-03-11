@@ -13,9 +13,11 @@ import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft,
+  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
+  CalendarIcon,
 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
