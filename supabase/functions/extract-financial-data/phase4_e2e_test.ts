@@ -1871,3 +1871,241 @@ Deno.test("Saldobalance pr. date parsed correctly with 2-digit year", () => {
   assertEquals(result.metadata.report_period, "Januar 2026", "2-digit year should expand to 2026");
   console.log(`\n✅ Saldobalance pr. 2-digit year: report_period=${result.metadata.report_period}`);
 });
+
+// ═══════════════════════════════════════════════════════
+// Phase 4e: E-conomic P&L Label Variant Regression Tests
+// ═══════════════════════════════════════════════════════
+
+// ── Simulated PDF text: e-conomic P&L with "Resultat før ekstraordinære poster" + "Periodens resultat" ──
+const DOGGYBED_STYLE_PDF_TEXT = [
+  "Resultatopgørelse",
+  "",
+  "DoggyBed ApS (CVR-nr. 12345678)",
+  "",
+  "Perioden: 01/01-2026 - 31/01-2026",
+  "",
+  "secure.e-conomic.com",
+  "",
+  "1000 Varesalg -250.000,00",
+  "1995 Omsætning i alt -250.000,00",
+  "2000 Vareforbrug",
+  "2010 Varekøb 80.000,00",
+  "2990 Vareforbrug i alt 80.000,00",
+  "2995 Dækningsbidrag -170.000,00",
+  "3000 Lønninger",
+  "3100 Løn & Gage 50.000,00",
+  "3190 Lønninger i alt 50.000,00",
+  "3698 Administrationsomkostninger i alt 10.000,00",
+  "3998 Resultat før afskrivninger -110.000,00",
+  "4500 Afskrivning goodwill 5.000,00",
+  "4597 Afskrivninger i alt 5.000,00",
+  "5198 Resultat før ekstraordinære poster -105.000,00",
+  "5998 Periodens resultat -105.000,00",
+].join("\n");
+
+Deno.test("Phase4e — PDF: 'Resultat før ekstraordinære poster' variant detects and extracts correctly", () => {
+  console.log(`\n══ Phase4e PDF VARIANT TEST ══`);
+
+  const result = tryDeterministicPdfExtraction(DOGGYBED_STYLE_PDF_TEXT, "Resultat_doggybed.pdf");
+  console.log(`Result type: ${result.type}`);
+
+  assertEquals(result.type, "success", "Should match PDF P&L template");
+  if (result.type !== "success") return;
+
+  const kf = result.extractedData.key_figures;
+  console.log(`key_figures: ${JSON.stringify(kf, null, 2)}`);
+
+  // EBT should be populated via fallback chain
+  assertExists(kf.resultat_foer_skat, "EBT should be populated via 'resultat før ekstraordinære poster' fallback");
+  assertEquals(kf.resultat_foer_skat, 105000, "EBT should be 105000 (flipSign of -105000)");
+
+  // Net result should be populated via "periodens resultat" fallback
+  assertExists(kf.resultat_efter_skat, "Net result should be populated via 'periodens resultat' fallback");
+  assertEquals(kf.resultat_efter_skat, 105000, "Net result should be 105000");
+
+  // Revenue and gross profit
+  assertEquals(kf.omsaetning, 250000, "Revenue should be 250000 (abs)");
+  assertEquals(kf.daekningsbidrag, 170000, "Gross profit should be 170000 (flipSign)");
+
+  // Canonical output should validate PASS and be ai_eligible
+  const canonical = buildCanonicalOutput(
+    result.extractedData,
+    { deterministic: true, template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1" },
+    "deterministic_template"
+  );
+  console.log(`validation.status: ${canonical.validation.status}`);
+  console.log(`ai_eligible: ${canonical.ai_eligible}`);
+  assertEquals(canonical.validation.status, "PASS", "Validation should PASS with EBT populated");
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible");
+
+  console.log(`\n✅ PDF variant with 'resultat før ekstraordinære poster' validated PASS`);
+});
+
+// ── Simulated XLSX rows: e-conomic P&L with "Resultat før ekstraordinære poster" + "Periodens resultat" ──
+const DOGGYBED_STYLE_XLSX_ROWS: any[][] = [
+  ["DoggyBed ApS", null, null],
+  ["Resultatopgørelse", null, null],
+  ["CVR 12345678", null, null],
+  ["01.01.26 - 31.01.26", null, null],
+  [null, null, null],
+  ["Nummer", "Navn", "Beløb"],
+  [1000, "Varesalg", -250000],
+  [1995, "Omsætning i alt", -250000],
+  [2010, "Varekøb", 80000],
+  [2990, "Vareforbrug i alt", 80000],
+  [2995, "Dækningsbidrag", -170000],
+  [3100, "Løn & Gage", 50000],
+  [3190, "Lønninger i alt", 50000],
+  [3698, "Administrationsomkostninger i alt", 10000],
+  [3998, "Resultat før afskrivninger", -110000],
+  [4500, "Afskrivning goodwill", 5000],
+  [4597, "Afskrivninger i alt", 5000],
+  [5198, "Resultat før ekstraordinære poster", -105000],
+  [5998, "Periodens resultat", -105000],
+];
+
+Deno.test("Phase4e — XLSX: 'Resultat før ekstraordinære poster' variant detects and extracts correctly", () => {
+  console.log(`\n══ Phase4e XLSX VARIANT TEST ══`);
+
+  const ctx = {
+    fileName: "Resultat_doggybed.xlsx",
+    fileType: "xlsx" as const,
+    sheetNames: ["Sheet1"],
+    headerRows: DOGGYBED_STYLE_XLSX_ROWS.slice(0, 15),
+    rows: DOGGYBED_STYLE_XLSX_ROWS,
+  };
+
+  const match = detectTemplate(ctx);
+  assertExists(match, "Should detect XLSX P&L template");
+  console.log(`Template: ${match!.template.template_id}, Score: ${match!.score}`);
+  assertEquals(match!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1");
+
+  const result = match!.template.extract(ctx);
+  assertEquals(result.success, true, "Extraction should succeed");
+  if (!result.success) return;
+
+  const kf = result.data.key_figures;
+  console.log(`key_figures: ${JSON.stringify(kf, null, 2)}`);
+
+  // EBT should be populated via template-local fallback
+  assertExists(kf.resultat_foer_skat, "EBT (resultat_foer_skat) should be populated via fallback");
+
+  // Canonical output should validate PASS
+  const canonical = buildCanonicalOutput(
+    result.data,
+    { deterministic: true, template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1" },
+    "deterministic_template"
+  );
+  console.log(`validation.status: ${canonical.validation.status}`);
+  console.log(`ai_eligible: ${canonical.ai_eligible}`);
+  console.log(`metrics.ebt: ${canonical.metrics.ebt}`);
+  console.log(`metrics.net_result: ${canonical.metrics.net_result}`);
+
+  assertExists(canonical.metrics.ebt, "Canonical EBT should exist");
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible");
+
+  console.log(`\n✅ XLSX variant with 'resultat før ekstraordinære poster' validated PASS`);
+});
+
+Deno.test("Phase4e — XLSX: File truly missing all result labels still FAILs", () => {
+  console.log(`\n══ Phase4e XLSX MISSING RESULTS TEST ══`);
+
+  // P&L with revenue + cogs but NO result/profit subtotals at all
+  const noResultRows: any[][] = [
+    ["TestCo ApS", null, null],
+    ["Resultatopgørelse", null, null],
+    ["CVR 99999999", null, null],
+    ["01.01.26 - 31.01.26", null, null],
+    [null, null, null],
+    ["Nummer", "Navn", "Beløb"],
+    [1000, "Varesalg", -100000],
+    [1995, "Omsætning i alt", -100000],
+    [2010, "Varekøb", 30000],
+    [2990, "Vareforbrug i alt", 30000],
+    [2995, "Dækningsbidrag", -70000],
+    // No result lines at all — file is incomplete
+  ];
+
+  const ctx = {
+    fileName: "Incomplete_pnl.xlsx",
+    fileType: "xlsx" as const,
+    sheetNames: ["Sheet1"],
+    headerRows: noResultRows.slice(0, 12),
+    rows: noResultRows,
+  };
+
+  const match = detectTemplate(ctx);
+  if (!match || match.template.template_id !== "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1") {
+    console.log(`Template did not match (expected) — would fall through to AI/manual`);
+    return;
+  }
+
+  const result = match.template.extract(ctx);
+  if (!result.success) {
+    console.log(`Extraction failed (expected for incomplete file): ${result.error}`);
+    return;
+  }
+
+  // Even if extraction "succeeds", EBT should be null → validation FAIL
+  const kf = result.data.key_figures;
+  console.log(`resultat_foer_skat: ${kf.resultat_foer_skat}`);
+  assertEquals(kf.resultat_foer_skat, undefined, "EBT should be missing for incomplete file");
+
+  const canonical = buildCanonicalOutput(
+    result.data,
+    { deterministic: true, template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1" },
+    "deterministic_template"
+  );
+  console.log(`validation.status: ${canonical.validation.status}`);
+  console.log(`ai_eligible: ${canonical.ai_eligible}`);
+
+  // Should NOT be ai_eligible — missing EBT
+  assertEquals(canonical.ai_eligible, false, "Should NOT be AI eligible with missing EBT");
+
+  console.log(`\n✅ Incomplete P&L correctly fails validation — manual entry fallback appropriate`);
+});
+
+Deno.test("Phase4e — PDF: 'Periodens resultat' as sole bottom-line populates both EBT and net result", () => {
+  console.log(`\n══ Phase4e PDF SINGLE BOTTOM LINE TEST ══`);
+
+  // Simplest e-conomic variant: only "periodens resultat" as bottom line
+  const singleBottomLinePdf = [
+    "Resultatopgørelse",
+    "",
+    "SimpleCo ApS",
+    "",
+    "Perioden: 01/01-2026 - 31/01-2026",
+    "",
+    "secure.e-conomic.com",
+    "",
+    "1000 Varesalg -100.000,00",
+    "1995 Omsætning i alt -100.000,00",
+    "2010 Varekøb 20.000,00",
+    "2990 Vareforbrug i alt 20.000,00",
+    "2995 Dækningsbidrag -80.000,00",
+    "3190 Lønninger i alt 30.000,00",
+    "5998 Periodens resultat -50.000,00",
+  ].join("\n");
+
+  const result = tryDeterministicPdfExtraction(singleBottomLinePdf, "Resultat_simple.pdf");
+  assertEquals(result.type, "success");
+  if (result.type !== "success") return;
+
+  const kf = result.extractedData.key_figures;
+  // "periodens resultat" should populate EBT via fallback (it's the only bottom-line)
+  assertExists(kf.resultat_foer_skat, "EBT should be populated via periodens resultat fallback");
+  assertEquals(kf.resultat_foer_skat, 50000, "EBT = flipSign(-50000) = 50000");
+
+  // "periodens resultat" was used for EBT, so net result should NOT double-use it
+  // (the single-line reuse rule prevents it)
+  assertEquals(kf.resultat_efter_skat, null, "Net result should be null (periodens resultat consumed by EBT)");
+
+  const canonical = buildCanonicalOutput(
+    result.extractedData,
+    { deterministic: true, template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1" },
+    "deterministic_template"
+  );
+  assertEquals(canonical.ai_eligible, true, "Should be AI eligible with EBT populated");
+
+  console.log(`\n✅ Single bottom-line 'periodens resultat' correctly populates EBT only`);
+});
