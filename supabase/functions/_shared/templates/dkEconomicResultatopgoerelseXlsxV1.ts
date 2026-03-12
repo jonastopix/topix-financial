@@ -213,8 +213,12 @@ const LABEL_MATCHERS: LabelMatch[] = [
   { key: "ekstraordinaere_poster", pattern: /ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
   // EBT — profit subtotal (convention-dependent)
   { key: "resultat_foer_skat", pattern: /resultat\s*før\s*skat/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
+  // EBT fallback variant — "resultat før ekstraordinære poster" (e-conomic variant without tax line)
+  { key: "resultat_foer_ekstraordinaere", pattern: /resultat\s*før\s*ekstraordinære\s*poster/i, signRule: "flipSign", isProfitSubtotal: true, reason: "EBT variant (convention-dependent)" },
   // Net result — profit subtotal (convention-dependent)
   { key: "arets_resultat", pattern: /(årets\s*resultat|resultat\s*efter\s*skat)/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
+  // Net result fallback variant — "periodens resultat" (e-conomic variant)
+  { key: "periodens_resultat", pattern: /periodens\s*resultat/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Net result variant (convention-dependent)" },
 ];
 
 function applySignRule(value: number | null, rule: "abs" | "flipSign" | "keep"): number | null {
