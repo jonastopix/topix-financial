@@ -292,8 +292,38 @@ serve(async (req) => {
 
         case "no_match":
           routingTrace.deterministic_result = "no_match";
+          // ── KNOWN SOURCE + NO TEMPLATE = FAIL LOUD ──
+          if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+            routingTrace.branch = "known_source_unsupported_variant";
+            console.log(`[Routing] Known source ${sourceFingerprint.source_system} but no template matched → FAIL LOUD (AI forbidden)`);
+
+            if (reportId) {
+              await supabase
+                .from("financial_reports")
+                .update({
+                  status: "error",
+                  extraction_method: "known_source_unsupported_variant",
+                  validation_status: "FAIL",
+                  validation_errors: [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`],
+                  raw_extracted_data: { routing_trace: routingTrace },
+                  processed_at: new Date().toISOString(),
+                })
+                .eq("id", reportId);
+            }
+
+            return new Response(
+              JSON.stringify({
+                error: "Known source without supported template",
+                source_system: sourceFingerprint.source_system,
+                document_type: sourceFingerprint.document_type,
+                status: "error",
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
           routingTrace.branch = "ai_fallback_no_match";
-          console.log("[Routing] No template match → AI extraction");
+          console.log("[Routing] No template match → AI extraction (unknown source, AI allowed)");
           break;
       }
     } else {
@@ -304,6 +334,15 @@ serve(async (req) => {
 
     // ── LAG 1: AI EXTRACTION (if deterministic didn't succeed) ──
     if (!extractedData) {
+      // Final AI gate check
+      if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+        console.error(`[Routing] AI gate violation: source=${sourceFingerprint.source_system} should never reach AI path`);
+        return new Response(
+          JSON.stringify({ error: "Internal routing error: known source reached AI path", status: "error" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       console.log("[Routing] Using AI extraction path");
       
       // Company name instruction for AI
