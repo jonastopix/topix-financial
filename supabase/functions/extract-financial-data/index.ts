@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
 import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
+import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_shared/sourceFingerprint.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -199,7 +200,36 @@ serve(async (req) => {
       deterministic_template_id: null,
       deterministic_error: null,
       branch: null,
+      source_fingerprint: null as SourceFingerprint | null,
     };
+
+    // ── LAG -1: SOURCE FINGERPRINTING (gates AI fallback) ──
+    let sourceFingerprint: SourceFingerprint | null = null;
+    {
+      const fpFileType: "pdf" | "xlsx" | "csv" = isCsvFile ? "csv" : isPdfFile ? "pdf" : "xlsx";
+      // For XLSX: try to parse header rows for fingerprinting
+      let fpHeaderRows: any[][] | undefined;
+      if (isExcelFile && excelBase64) {
+        try {
+          const binaryString = atob(excelBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+          const XLSX_MOD = await import("npm:xlsx@0.18.5");
+          const wb = XLSX_MOD.read(bytes, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows: any[][] = XLSX_MOD.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+          fpHeaderRows = rows.slice(0, 10);
+        } catch { /* fingerprinting is best-effort */ }
+      }
+      sourceFingerprint = detectSourceSystem(
+        fileName || "unknown",
+        fpFileType,
+        fileContent || undefined,
+        fpHeaderRows
+      );
+      routingTrace.source_fingerprint = sourceFingerprint;
+      console.log(`[SourceFingerprint] system=${sourceFingerprint.source_system}, doc=${sourceFingerprint.document_type}, confidence=${sourceFingerprint.confidence}, ai_allowed=${isAiAllowed(sourceFingerprint)}`);
+    }
 
     // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
     if (isExcelFile && excelBase64) {
@@ -262,8 +292,38 @@ serve(async (req) => {
 
         case "no_match":
           routingTrace.deterministic_result = "no_match";
+          // ── KNOWN SOURCE + NO TEMPLATE = FAIL LOUD ──
+          if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+            routingTrace.branch = "known_source_unsupported_variant";
+            console.log(`[Routing] Known source ${sourceFingerprint.source_system} but no template matched → FAIL LOUD (AI forbidden)`);
+
+            if (reportId) {
+              await supabase
+                .from("financial_reports")
+                .update({
+                  status: "error",
+                  extraction_method: "known_source_unsupported_variant",
+                  validation_status: "FAIL",
+                  validation_errors: [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`],
+                  raw_extracted_data: { routing_trace: routingTrace },
+                  processed_at: new Date().toISOString(),
+                })
+                .eq("id", reportId);
+            }
+
+            return new Response(
+              JSON.stringify({
+                error: "Known source without supported template",
+                source_system: sourceFingerprint.source_system,
+                document_type: sourceFingerprint.document_type,
+                status: "error",
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
           routingTrace.branch = "ai_fallback_no_match";
-          console.log("[Routing] No template match → AI extraction");
+          console.log("[Routing] No template match → AI extraction (unknown source, AI allowed)");
           break;
       }
     } else {
@@ -274,6 +334,15 @@ serve(async (req) => {
 
     // ── LAG 1: AI EXTRACTION (if deterministic didn't succeed) ──
     if (!extractedData) {
+      // Final AI gate check
+      if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+        console.error(`[Routing] AI gate violation: source=${sourceFingerprint.source_system} should never reach AI path`);
+        return new Response(
+          JSON.stringify({ error: "Internal routing error: known source reached AI path", status: "error" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       console.log("[Routing] Using AI extraction path");
       
       // Company name instruction for AI
