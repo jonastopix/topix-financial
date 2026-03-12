@@ -200,7 +200,36 @@ serve(async (req) => {
       deterministic_template_id: null,
       deterministic_error: null,
       branch: null,
+      source_fingerprint: null as SourceFingerprint | null,
     };
+
+    // ── LAG -1: SOURCE FINGERPRINTING (gates AI fallback) ──
+    let sourceFingerprint: SourceFingerprint | null = null;
+    {
+      const fpFileType: "pdf" | "xlsx" | "csv" = isCsvFile ? "csv" : isPdfFile ? "pdf" : "xlsx";
+      // For XLSX: try to parse header rows for fingerprinting
+      let fpHeaderRows: any[][] | undefined;
+      if (isExcelFile && excelBase64) {
+        try {
+          const binaryString = atob(excelBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+          const XLSX_MOD = await import("npm:xlsx@0.18.5");
+          const wb = XLSX_MOD.read(bytes, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows: any[][] = XLSX_MOD.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+          fpHeaderRows = rows.slice(0, 10);
+        } catch { /* fingerprinting is best-effort */ }
+      }
+      sourceFingerprint = detectSourceSystem(
+        fileName || "unknown",
+        fpFileType,
+        fileContent || undefined,
+        fpHeaderRows
+      );
+      routingTrace.source_fingerprint = sourceFingerprint;
+      console.log(`[SourceFingerprint] system=${sourceFingerprint.source_system}, doc=${sourceFingerprint.document_type}, confidence=${sourceFingerprint.confidence}, ai_allowed=${isAiAllowed(sourceFingerprint)}`);
+    }
 
     // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
     if (isExcelFile && excelBase64) {
