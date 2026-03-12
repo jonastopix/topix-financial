@@ -118,8 +118,22 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry = {
     const transportLine = findByLabel(lines, /^transportomkostninger\s*(i alt|ialt)/i);
     const adminLine = findByLabel(lines, /administration\b/i);
     const afskrLine = findByLabel(lines, /afskrivninger/i);
-    const ebtLine = findByLabel(lines, /resultat før skat/i);
-    const netResultLine = findByLabel(lines, /resultat efter skat/i);
+    // ── EBT line: fallback chain (template-local, e-conomic specific) ──
+    // Priority 1: "resultat før skat" (standard e-conomic label)
+    // Priority 2: "resultat før ekstraordinære poster" (variant without tax line)
+    // Priority 3: "periodens resultat" (simplest e-conomic P&L variant)
+    const ebtLine = findByLabel(lines, /resultat før skat/i)
+      || findByLabel(lines, /resultat før ekstraordinære poster/i)
+      || findByLabel(lines, /periodens resultat/i);
+
+    // ── Net result line: fallback chain ──
+    // Priority 1: "resultat efter skat" (standard)
+    // Priority 2: "periodens resultat" — but ONLY if not already consumed as EBT above
+    const periodenLineForNet = ebtLine?.name && /periodens resultat/i.test(ebtLine.name)
+      ? null  // already used as EBT fallback, do not double-use
+      : findByLabel(lines, /periodens resultat/i);
+    const netResultLine = findByLabel(lines, /resultat efter skat/i)
+      || periodenLineForNet;
 
     // ═══════════════════════════════════════════════════════════════
     // BUILD KEY FIGURES with sign normalization

@@ -128,3 +128,41 @@ admin_costs:      90.84
 ebt:          51,719.20
 net_result:   51,719.20
 ```
+
+## Phase 4e (E-conomic P&L Label Variant Fix) — DONE
+
+### Root cause
+E-conomic P&L exports from companies without tax/extraordinary items use "Resultat før ekstraordinære poster" and/or "Periodens resultat" instead of "Resultat før skat" / "Resultat efter skat". Both templates strictly required those labels, so `ebt` stayed null → validation FAIL → manual entry fallback.
+
+### Fix: Template-local fallback chains (NOT global engine rule)
+
+#### PDF Template (`dkEconomicResultatopgoerelsePdfV1.ts`)
+- EBT fallback chain: "resultat før skat" → "resultat før ekstraordinære poster" → "periodens resultat"
+- Net result fallback: "resultat efter skat" → "periodens resultat" (only if not consumed by EBT)
+- Single-line reuse rule prevents double-counting
+
+#### XLSX Template (`dkEconomicResultatopgoerelseXlsxV1.ts`)
+- Added LABEL_MATCHERS: `resultat_foer_ekstraordinaere`, `periodens_resultat`
+- Template-local fallback: if `resultat_foer_skat` null → try `resultat_foer_ekstraordinaere` → `periodens_resultat`
+- Net result fallback: if `arets_resultat` null → try `periodens_resultat` (if not consumed by EBT)
+- Uses existing key convention (`resultat_foer_skat`, `arets_resultat`)
+
+#### Canonical Engine (`canonicalEngine.ts`)
+- Added narrow KF_TO_CANONICAL mappings only:
+  - `resultat_foer_ekstraordinaere` → `ebt`
+  - `periodens_resultat` → `net_result`
+- NO global engine-level ebt←net_result fallback
+
+### Tests added (phase4_e2e_test.ts)
+- PDF: "Resultat før ekstraordinære poster" variant → PASS + ai_eligible
+- XLSX: same variant → PASS + ai_eligible
+- XLSX: file truly missing all result labels → correctly FAILs
+- PDF: "Periodens resultat" as sole bottom-line → EBT populated, single-line reuse enforced
+
+### Files changed
+| Fil | Handling |
+|-----|----------|
+| `dkEconomicResultatopgoerelsePdfV1.ts` | EBT/net-result fallback chain |
+| `dkEconomicResultatopgoerelseXlsxV1.ts` | 2 new matchers + template-local fallback |
+| `canonicalEngine.ts` | 2 narrow KF_TO_CANONICAL entries |
+| `phase4_e2e_test.ts` | 4 new regression tests |
