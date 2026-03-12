@@ -419,6 +419,33 @@ export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
       console.log(`[DK_ECONOMIC_PNL_XLSX] Unmatched subtotals: ${unmatchedSubtotals.join(", ")}`);
     }
 
+    // ── Template-local EBT fallback (e-conomic specific) ──
+    // If "resultat_foer_skat" was not found, fall back to variant labels in order:
+    //   1. resultat_foer_ekstraordinaere ("resultat før ekstraordinære poster")
+    //   2. periodens_resultat ("periodens resultat")
+    if (keyFigures.resultat_foer_skat == null) {
+      if (keyFigures.resultat_foer_ekstraordinaere != null) {
+        keyFigures.resultat_foer_skat = keyFigures.resultat_foer_ekstraordinaere;
+        console.log(`[DK_ECONOMIC_PNL_XLSX] EBT fallback: resultat_foer_ekstraordinaere → resultat_foer_skat (${keyFigures.resultat_foer_skat})`);
+      } else if (keyFigures.periodens_resultat != null) {
+        keyFigures.resultat_foer_skat = keyFigures.periodens_resultat;
+        console.log(`[DK_ECONOMIC_PNL_XLSX] EBT fallback: periodens_resultat → resultat_foer_skat (${keyFigures.resultat_foer_skat})`);
+      }
+    }
+
+    // ── Template-local net result fallback (e-conomic specific) ──
+    // If "arets_resultat" was not found, fall back to periodens_resultat
+    // (only if periodens_resultat was not already consumed as EBT above)
+    if (keyFigures.arets_resultat == null && keyFigures.periodens_resultat != null) {
+      // Only use periodens_resultat for net result if it wasn't already used for EBT
+      const periodenUsedForEbt = keyFigures.resultat_foer_ekstraordinaere == null
+        && keyFigures.resultat_foer_skat === keyFigures.periodens_resultat;
+      if (!periodenUsedForEbt) {
+        keyFigures.arets_resultat = keyFigures.periodens_resultat;
+        console.log(`[DK_ECONOMIC_PNL_XLSX] Net result fallback: periodens_resultat → arets_resultat (${keyFigures.arets_resultat})`);
+      }
+    }
+
     // ── COGS sign reconciliation (contra-cost support) ──
     // Some business-convention exports show gross_profit > revenue because direct costs are contra-cost.
     // If cogs sign conflicts with the reported gross_profit equation, flip cogs to the mathematically consistent sign.
