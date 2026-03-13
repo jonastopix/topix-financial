@@ -268,7 +268,8 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     }
 
     // Equity in saldobalance: CREDIT convention → negative = positive equity
-    if (dkField === "egenkapital" && isSaldobalance && value < 0) {
+    // Only apply for AI-extracted data — deterministic templates handle their own sign normalization
+    if (dkField === "egenkapital" && isSaldobalance && !isDeterministic && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "saldobalance_equity_sign_inverted",
         `Saldobalance equity inverted: ${value} → ${normalized} (credit convention)`, "HIGH");
