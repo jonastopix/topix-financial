@@ -2306,7 +2306,7 @@ Deno.test("Phase6 — R2. XLSX semantic regression: real XLSX binary (Topix Dec 
   (detCtx as any).rows = xlsxResult.raw_matrix;
   const legacyMatch = detectTemplate(detCtx);
   assertExists(legacyMatch, "Legacy should detect template for real XLSX");
-  const legacyResult = legacyMatch!.template.extract(detCtx);
+  const legacyResult = legacyMatch!.template.extract(detCtx as any);
   assertEquals(legacyResult.success, true, "Legacy extraction should succeed");
   if (!legacyResult.success) return;
   const legacyCanonical = buildCanonicalOutput(legacyResult.data, {}, "deterministic_template");
