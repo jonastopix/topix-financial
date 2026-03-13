@@ -3027,7 +3027,7 @@ Deno.test("Phase8 — K5. Combined statement validation and provenance", () => {
   // Check that at least one provenance entry has normalization_profile_id
   const firstProvEntry = (canonical.provenance as any)[provenanceKeys[0]];
   if (firstProvEntry?.normalization_profile_id) {
-    assertEquals(firstProvEntry.normalization_profile_id, "kj_auto_combined_credit_v1");
+    assertEquals(firstProvEntry.normalization_profile_id, "combined_dk_credit_v1");
     console.log(`  normalization_profile_id in provenance: ${firstProvEntry.normalization_profile_id}`);
   }
 
