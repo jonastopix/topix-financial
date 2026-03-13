@@ -312,7 +312,7 @@ const Reports = () => {
     setDeleting(true);
     try {
       // Soft-delete: set deleted_at timestamp instead of removing data
-      const { error } = await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" } as any).eq("id", report.id) as any);
+      const { error } = await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
       if (error) throw error;
 
       setDbReports((prev) => prev.filter((r) => r.id !== report.id));
