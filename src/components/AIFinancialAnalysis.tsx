@@ -219,7 +219,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       const effectiveMetricsResult = getEffectiveMetrics(target as unknown as ReportData);
       const effectivePeriod = getEffectiveReportPeriod(target as unknown as ReportData);
 
-      // Fetch historical data
+      // Fetch historical data (sorted by period, not upload date)
       const { data: historicalReports } = await supabase
         .from("financial_reports")
         .select("extracted_data, normalized_data, report_period, validation_status, manual_report_period_label, manual_override_status, manual_normalized_data")
@@ -227,7 +227,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         .is("deleted_at", null)
         .eq("status", "processed")
         .neq("id", target.id)
-        .order("uploaded_at", { ascending: true })
+        .order("report_period", { ascending: true })
         .limit(12);
 
       // Build body based on canonical vs legacy path

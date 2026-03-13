@@ -115,10 +115,10 @@ async function runPostExtractionPipeline(params: {
 
   updateFile(fileId, { status: "analyzing" });
 
-  // Fetch historical reports for trend analysis
+  // Fetch historical reports for trend analysis (sorted by period, not upload date)
   const historicalQuery = companyId
-    ? (supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportId).order("uploaded_at", { ascending: true }).limit(12)
-    : supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportId).order("uploaded_at", { ascending: true }).limit(12);
+    ? (supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportId).order("report_period", { ascending: true }).limit(12)
+    : supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportId).order("report_period", { ascending: true }).limit(12);
   const { data: historicalReports } = await historicalQuery;
 
   const currentCanonical = extractedData.canonical;
