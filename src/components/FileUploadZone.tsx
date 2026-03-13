@@ -48,6 +48,19 @@ interface ExtractedData {
   };
 }
 
+/**
+ * Returns true ONLY for the e-conomic resultatopgørelse PDF family.
+ * These PDFs require a structural payload — if extraction fails, the upload must stop client-side.
+ * False for e-conomic saldobalance, Dinero, and unknown PDFs.
+ */
+function requiresStructuralPdfPayload(rawText: string): boolean {
+  if (!/secure\.e-conomic\.com/i.test(rawText)) return false;
+  if (/saldobalance/i.test(rawText)) return false;
+  if (/\bAKTIVER\b/i.test(rawText) || /\bPASSIVER\b/i.test(rawText)) return false;
+  if (/resultatopg/i.test(rawText)) return true;
+  return false;
+}
+
 interface UploadedFile {
   id: string;
   name: string;
@@ -317,8 +330,37 @@ const FileUploadZone = ({
             try {
               pdfStructural = await extractPdfStructural(file);
               console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
-            } catch (structErr) {
-              console.warn("[PdfStructural] Client-side extraction failed, continuing with text fallback:", structErr);
+            } catch (structErr: any) {
+              if (requiresStructuralPdfPayload(extracted.text)) {
+                // Structural-required family — stop pipeline, do NOT call edge function
+                const errMessage = structErr?.message || String(structErr);
+                const diagnosticMarker = errMessage.includes("worker")
+                  ? "pdfjs_worker_loading"
+                  : errMessage.includes("password")
+                  ? "pdf_password_protected"
+                  : errMessage.includes("getTextContent")
+                  ? "text_content_extraction"
+                  : "payload_construction";
+
+                console.error(`[PdfStructural] FAIL for structural-required source [${diagnosticMarker}]:`, errMessage);
+
+                toast({
+                  title: "Fejl",
+                  description: "PDF-struktur kunne ikke udtrækkes. Uploaden blev stoppet. Prøv igen eller kontakt support.",
+                  variant: "destructive",
+                });
+
+                await supabase.from("financial_reports").update({
+                  status: "error",
+                  validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
+                }).eq("id", reportRecord.id);
+
+                updateFile(fileId, { status: "error" });
+                return; // ← exits before edge function call
+              } else {
+                // Non-structural-required PDF — continue to backend
+                console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
+              }
             }
           }
 
