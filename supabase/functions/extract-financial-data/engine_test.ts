@@ -59,7 +59,7 @@ Deno.test("CASE 2: Deterministic saldobalance — pre-normalized results pass th
     key_figures: {
       omsaetning: 1000000,
       resultat_foer_skat: 200000,  // Already normalized: positive = profit
-      egenkapital: -500000,        // Raw accounting sign — canonical should flip
+      egenkapital: -500000,        // Pre-normalized by template (deterministic path handles sign)
       aktiver_i_alt: 1000000,
       passiver_i_alt: 1000000,
     },
@@ -72,16 +72,17 @@ Deno.test("CASE 2: Deterministic saldobalance — pre-normalized results pass th
   // EBT passes through unchanged (no double-flip)
   assertEquals(metrics.ebt, 200000);
 
-  // Equity is flipped from raw accounting sign
-  assertEquals(metrics.equity_total, 500000);
+  // Equity passes through unchanged — deterministic templates handle their own sign normalization
+  // Canonical engine no longer flips equity for deterministic paths (isDeterministic guard)
+  assertEquals(metrics.equity_total, -500000);
 
   // NO correction for resultat (deterministic → skip flip)
   const resultCorrection = correction_log.find(c => c.field === "resultat_foer_skat");
   assertEquals(resultCorrection, undefined, "Should NOT have resultat correction — deterministic path");
 
-  // Should have equity correction
+  // Should NOT have equity correction (deterministic templates pre-normalize)
   const equityCorrection = correction_log.find(c => c.field === "egenkapital");
-  assertExists(equityCorrection, "Should have equity correction");
+  assertEquals(equityCorrection, undefined, "Should NOT have equity correction — deterministic path");
 });
 
 // ══════════════════════════════════════════════════════════════════

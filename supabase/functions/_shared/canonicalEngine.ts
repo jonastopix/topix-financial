@@ -66,6 +66,7 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   kreditorer: "current_liabilities",
   varelager: "inventory",
   gaeld_i_alt: "debt_total",
+  hensaettelser: "provisions_total",
   tech_software: "admin_costs", // merged into admin
   finansielle_omkostninger: "financial_costs",
 };
@@ -268,7 +269,8 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     }
 
     // Equity in saldobalance: CREDIT convention → negative = positive equity
-    if (dkField === "egenkapital" && isSaldobalance && value < 0) {
+    // Only apply for AI-extracted data — deterministic templates handle their own sign normalization
+    if (dkField === "egenkapital" && isSaldobalance && !isDeterministic && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "saldobalance_equity_sign_inverted",
         `Saldobalance equity inverted: ${value} → ${normalized} (credit convention)`, "HIGH");
@@ -1166,11 +1168,14 @@ export function buildCanonicalOutput(
     extractedData, metrics, periodBasis, statementType, aiChecks
   );
 
-  // AI eligibility
-  const aiEligible = computeAiEligible(metrics, status, statementType, periodBasis);
-
   // Extract deterministic metadata if present
   const deterministicMeta = extractedData?._deterministic_meta || null;
+
+  // AI eligibility — temporarily blocked for DK_ECONOMIC_SALDOBALANCE_PDF_V1 until golden fixture passes
+  const templateId = deterministicMeta?.template_id || null;
+  const aiEligible = templateId === "DK_ECONOMIC_SALDOBALANCE_PDF_V1"
+    ? false
+    : computeAiEligible(metrics, status, statementType, periodBasis);
 
   // Build output (without payload yet)
   const output: CanonicalOutput = {

@@ -221,6 +221,7 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     const passiverLine = findBestLabel(lines, /passiver i alt/i, undefined, "PASSIVER I ALT");
     const egenkapitalLine = findBestLabel(lines, /egenkapital i alt/i, undefined, "EGENKAPITAL I ALT");
     const gaeldLine = findBestLabel(lines, /gæld i alt/i, undefined, "GÆLD I ALT");
+    const hensaettelserLine = findBestLabel(lines, /hensættelser i alt/i, undefined, "HENSÆTTELSER I ALT");
 
     // Cash: label-first, account fallback
     const cashLine =
@@ -238,6 +239,16 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
 
     // ═══════════════════════════════════════════════════════════════
     // BUILD KEY FIGURES with sign normalization
+    //
+    // Credit convention for e-conomic saldobalance:
+    //   - Revenue/profit: negative in raw → flipPnlSign to positive
+    //   - Costs: positive in raw → absVal keeps positive
+    //   - Assets: positive in raw → absVal keeps positive
+    //   - Equity: positive in raw → NEGATE (credit convention: positive = owed to owners)
+    //   - Provisions: positive in raw → NEGATE (credit convention: positive = obligation)
+    //   - Debt: negative in raw → absVal flips to positive
+    //   - Passiver: negative in raw → absVal flips to positive
+    //   - Cash: keep raw sign (overdraft possible)
     // ═══════════════════════════════════════════════════════════════
 
     const keyFigures: Record<string, number | null> = {
@@ -253,10 +264,11 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
       resultat_foer_skat: flipPnlSign(ebtLine?.period_amount ?? null),
       arets_resultat: flipPnlSign(netResultLine?.period_amount ?? null),
 
-      // Balance: from År til dato column, signs normalized
+      // Balance: from År til dato column, signs normalized per credit convention
       aktiver_i_alt: absVal(aktiverLine?.ytd_amount ?? null),
       passiver_i_alt: absVal(passiverLine?.ytd_amount ?? null),
-      egenkapital: egenkapitalLine?.ytd_amount ?? null, // Keep sign — YTD equity is already normal convention
+      egenkapital: flipPnlSign(egenkapitalLine?.ytd_amount ?? null),       // NEGATE: credit convention
+      hensaettelser: flipPnlSign(hensaettelserLine?.ytd_amount ?? null),   // NEGATE: credit convention
       likvider: cashLine?.ytd_amount ?? null, // Keep sign (overdraft possible)
       debitorer: debitorLine?.ytd_amount ?? null, // Keep sign
       varelager: inventoryLine?.ytd_amount ?? null,

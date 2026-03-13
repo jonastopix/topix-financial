@@ -230,8 +230,8 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
     }
 
     // ── Standalone total labels: "AKTIVER I ALT", "PASSIVER I ALT", etc. ──
-    if (/^#?\s*(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT)/i.test(line)) {
-      const labelMatch = line.match(/(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT)/i);
+    if (/^#?\s*(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT|HENSÆTTELSER I ALT)/i.test(line)) {
+      const labelMatch = line.match(/(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT|HENSÆTTELSER I ALT)/i);
       if (labelMatch) {
         // Check if numbers are on this line
         const nums = line.match(DK_NUM_PATTERN);
@@ -245,6 +245,10 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
             periodPrev = parseDanishNumber(nums[1]);
             ytdVal = parseDanishNumber(nums[2]);
             ytdPrev = parseDanishNumber(nums[3]);
+          } else if (nums.length === 3) {
+            periodVal = parseDanishNumber(nums[0]);
+            periodPrev = parseDanishNumber(nums[1]);
+            ytdVal = parseDanishNumber(nums[2]);
           } else if (nums.length >= 2) {
             periodVal = parseDanishNumber(nums[0]);
             ytdVal = parseDanishNumber(nums[1]);
@@ -289,6 +293,10 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
           periodPrev = parseDanishNumber(nums[1]);
           ytdVal = parseDanishNumber(nums[2]);
           ytdPrev = parseDanishNumber(nums[3]);
+        } else if (nums.length === 3) {
+          periodVal = parseDanishNumber(nums[0]);
+          periodPrev = parseDanishNumber(nums[1]);
+          ytdVal = parseDanishNumber(nums[2]);
         } else if (nums.length >= 2) {
           periodVal = parseDanishNumber(nums[0]);
           ytdVal = parseDanishNumber(nums[1]);
@@ -363,6 +371,10 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
           periodPrev = parseDanishNumber(nums[1]);
           ytdVal = parseDanishNumber(nums[2]);
           ytdPrev = parseDanishNumber(nums[3]);
+        } else if (nums.length === 3) {
+          periodVal = parseDanishNumber(nums[0]);
+          periodPrev = parseDanishNumber(nums[1]);
+          ytdVal = parseDanishNumber(nums[2]);
         } else if (nums.length >= 2) {
           periodVal = parseDanishNumber(nums[0]);
           ytdVal = parseDanishNumber(nums[1]);
