@@ -3143,7 +3143,7 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEST G1: Golden Fixture — e-conomic Saldobalance PDF sign normalization
-// Proves: 4-column parser, equity/provisions negate, debt abs, AI blocked
+// Proves: 4-column parser, equity/provisions negate, debt abs, AI enabled (golden fixture verified)
 // ══════════════════════════════════════════════════════════════════════════════
 
 Deno.test("G1: Saldobalance PDF golden fixture — all 8 metrics + AI block", async () => {
