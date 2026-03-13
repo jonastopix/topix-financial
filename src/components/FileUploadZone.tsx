@@ -48,6 +48,19 @@ interface ExtractedData {
   };
 }
 
+/**
+ * Returns true ONLY for the e-conomic resultatopgørelse PDF family.
+ * These PDFs require a structural payload — if extraction fails, the upload must stop client-side.
+ * False for e-conomic saldobalance, Dinero, and unknown PDFs.
+ */
+function requiresStructuralPdfPayload(rawText: string): boolean {
+  if (!/secure\.e-conomic\.com/i.test(rawText)) return false;
+  if (/saldobalance/i.test(rawText)) return false;
+  if (/\bAKTIVER\b/i.test(rawText) || /\bPASSIVER\b/i.test(rawText)) return false;
+  if (/resultatopg/i.test(rawText)) return true;
+  return false;
+}
+
 interface UploadedFile {
   id: string;
   name: string;
