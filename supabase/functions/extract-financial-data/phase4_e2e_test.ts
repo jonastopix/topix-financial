@@ -3045,11 +3045,11 @@ Deno.test("Phase8 — K5. Combined statement validation and provenance", () => {
   console.log(`\n✅ K5 PASSED: Combined statement validation, provenance, basis all correct`);
 });
 
-// ── Test K6: Routing hard-fail — true KJ Auto fingerprint + business convention → semantic_fail at routing level ──
-Deno.test("Phase8 — K6. Routing hard-fail for true KJ Auto source identity", () => {
-  console.log(`\n══ K6. ROUTING HARD-FAIL (TRUE KJ AUTO FINGERPRINT) ══`);
+// ── Test K6: Routing hard-fail — combined_dk fingerprint + business convention → semantic_fail at routing level ──
+Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", () => {
+  console.log(`\n══ K6. ROUTING HARD-FAIL (COMBINED_DK FINGERPRINT) ══`);
 
-  // Build a KJ Auto-fingerprinted fixture: same WARBURG structure but with KJ Auto company name
+  // Build a combined_dk-fingerprinted fixture: KJ Auto company name (still matches combined_dk structurally)
   // AND business-convention signs (revenue > 0, costs < 0)
   const kjAutoBusinessRows: any[][] = [
     ["KJ Automobiler ApS", null, null],
@@ -3081,10 +3081,10 @@ Deno.test("Phase8 — K6. Routing hard-fail for true KJ Auto source identity", (
     [8998, "Passiver ialt", 500000],
   ];
 
-  // Step 1: Verify source fingerprinting identifies this as kj_auto
+  // Step 1: Verify source fingerprinting identifies this as combined_dk
   const fp = detectSourceSystem("KJ_Auto_Jan2026.xlsx", "xlsx", undefined, kjAutoBusinessRows.slice(0, 10));
-  assertEquals(fp.source_system, "kj_auto", "Must fingerprint as kj_auto");
-  assertEquals(isAiAllowed(fp), false, "KJ Auto is known source — AI forbidden");
+  assertEquals(fp.source_system, "combined_dk", "Must fingerprint as combined_dk");
+  assertEquals(isAiAllowed(fp), false, "combined_dk is known source — AI forbidden");
   console.log(`  ✓ Source fingerprint: system=${fp.source_system}, AI forbidden`);
 
   // Step 2: Run through trySemanticExcelExtraction (the actual routing function)
@@ -3098,20 +3098,19 @@ Deno.test("Phase8 — K6. Routing hard-fail for true KJ Auto source identity", (
   })!.template as any;
 
   const semantic = template.extractSemanticFromXlsx(xlsxResult);
-  assertEquals(semantic, null, "Business convention KJ Auto must return null (adapter hard fail)");
-  console.log(`  ✓ Adapter returns null for business-convention KJ Auto`);
+  assertEquals(semantic, null, "Business convention combined_dk must return null (adapter hard fail)");
+  console.log(`  ✓ Adapter returns null for business-convention combined_dk`);
 
   // Step 3: Verify routing behavior — trySemanticExcelExtraction produces semantic_fail
   // We can't call trySemanticExcelExtraction with synthetic data (it needs base64),
   // but we verify the routing contract:
-  // - Known source (kj_auto) + semantic adapter returns null → type: "semantic_fail"
+  // - Known source (combined_dk) + semantic adapter returns null → type: "semantic_fail"
   // - index.ts hard-fails on semantic_fail for known sources (no legacy fallback)
-  // The semantic_fail is produced by trySemanticExcelExtraction when extractSemanticFromXlsx returns null
-  console.log(`  ✓ Routing contract: kj_auto (known source) + null adapter → semantic_fail → hard fail (no legacy)`);
+  console.log(`  ✓ Routing contract: combined_dk (known source) + null adapter → semantic_fail → hard fail (no legacy)`);
 
-  // Step 4: Also verify unknown convention hard-fails for true KJ Auto
-  const kjAutoAmbiguousRows: any[][] = [
-    ["KJ Automobiler ApS", null, null],
+  // Step 4: Also verify unknown convention hard-fails for combined_dk
+  const ambiguousRows: any[][] = [
+    ["Some Company ApS", null, null],
     ["Balance og resultatopgørelse", null, null],
     ["Udskrevet 01-01-2026", null, null],
     [null, null, null],
@@ -3125,24 +3124,24 @@ Deno.test("Phase8 — K6. Routing hard-fail for true KJ Auto source identity", (
     [7998, "Aktiver ialt", 0],
   ];
 
-  const fpAmb = detectSourceSystem("KJ_Auto_Ambig.xlsx", "xlsx", undefined, kjAutoAmbiguousRows.slice(0, 10));
-  assertEquals(fpAmb.source_system, "kj_auto", "Ambiguous KJ Auto must still fingerprint as kj_auto");
-  const xlsxAmb = buildSyntheticXlsxResult(kjAutoAmbiguousRows);
+  const fpAmb = detectSourceSystem("Ambig_Report.xlsx", "xlsx", undefined, ambiguousRows.slice(0, 10));
+  assertEquals(fpAmb.source_system, "combined_dk", "Ambiguous combined_dk must still fingerprint as combined_dk");
+  const xlsxAmb = buildSyntheticXlsxResult(ambiguousRows);
   const matchAmb = detectTemplate({
-    fileName: "KJ_Auto_Ambig.xlsx",
+    fileName: "Ambig_Report.xlsx",
     fileType: "xlsx",
     sheetNames: ["Sheet1"],
-    headerRows: kjAutoAmbiguousRows.slice(0, 200),
+    headerRows: ambiguousRows.slice(0, 200),
   });
   if (matchAmb) {
     const semAmb = (matchAmb.template as any).extractSemanticFromXlsx(xlsxAmb);
-    assertEquals(semAmb, null, "Unknown convention KJ Auto must return null");
-    console.log(`  ✓ Unknown convention KJ Auto also hard-fails`);
+    assertEquals(semAmb, null, "Unknown convention combined_dk must return null");
+    console.log(`  ✓ Unknown convention combined_dk also hard-fails`);
   } else {
-    console.log(`  ✓ Template not matched for ambiguous KJ Auto → implicit fail`);
+    console.log(`  ✓ Template not matched for ambiguous combined_dk → implicit fail`);
   }
 
-  console.log(`\n✅ K6 PASSED: Routing hard-fail verified for true KJ Auto source identity (business + unknown)`);
+  console.log(`\n✅ K6 PASSED: Routing hard-fail verified for combined_dk source identity (business + unknown)`);
 });
 
 // ── Helper: Build synthetic XlsxParseResult from row arrays ──
