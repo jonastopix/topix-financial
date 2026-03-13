@@ -2525,7 +2525,7 @@ Deno.test("Phase6b — R2b. Unknown XLSX sign convention → hard fail (semantic
 // TEST R2c: Known-source XLSX semantic_fail → routing hard fail (not legacy fallback)
 // ═══════════════════════════════════════════════════════
 
-Deno.test("Phase6b — R2c. XLSX semantic_fail routing: known source → hard fail via trySemanticExcelExtraction", () => {
+Deno.test("Phase6b — R2c. XLSX semantic_fail routing: known source → hard fail via trySemanticExcelExtraction", async () => {
   console.log(`\n══ R2c. ROUTING HARD FAIL FOR KNOWN SOURCE ══`);
 
   // Build an XLSX that will be detected by the template but fail semantic extraction
@@ -2549,8 +2549,7 @@ Deno.test("Phase6b — R2c. XLSX semantic_fail routing: known source → hard fa
     [5998, "Årets resultat", 0],
   ];
 
-  // Encode as base64 to go through trySemanticExcelExtraction
-  const { trySemanticExcelExtraction: trySemXlsx } = { trySemanticExcelExtraction: (await import("../_shared/templateRegistry.ts")).trySemanticExcelExtraction };
+  const { trySemanticExcelExtraction: trySemXlsx } = await import("../_shared/templateRegistry.ts");
   // Actually we need to test via the registry function. But it takes base64.
   // Instead, test at adapter + registry level:
   const xlsxResult = buildXlsxParseResultFromRows(ambiguousRows);
