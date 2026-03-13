@@ -259,13 +259,15 @@ Deno.test("Profile registry: economic_pnl has COGS field_override", () => {
   assertEquals(cogsOverride.action, "conditional");
 });
 
-Deno.test("Profile registry: kj_auto business convention", () => {
-  const profile = getNormalizationProfile("kj_auto_business_v1")!;
-  assertEquals(profile.sign_convention, "business");
-  for (const [family, rule] of Object.entries(profile.family_defaults)) {
-    if (family === "contra_or_unknown") assertEquals(rule.action, "reject");
-    else assertEquals(rule.action, "keep");
-  }
+Deno.test("Profile registry: kj_auto combined credit convention", () => {
+  const profile = getNormalizationProfile("kj_auto_combined_credit_v1")!;
+  assertExists(profile, "kj_auto_combined_credit_v1 profile must exist");
+  assertEquals(profile.sign_convention, "credit");
+  assertEquals(profile.family_defaults.revenue_like.action, "negate");
+  assertEquals(profile.family_defaults.cost_like.action, "abs");
+  assertEquals(profile.family_defaults.profit_like.action, "negate");
+  assertEquals(profile.family_defaults.asset_like.action, "keep");
+  assertEquals(profile.family_defaults.contra_or_unknown.action, "reject");
 });
 
 Deno.test("Fixture shapes: all normalization fixtures valid", () => {
