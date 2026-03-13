@@ -9,7 +9,7 @@ import type { MetricFamily } from "./normalizationProfiles.ts";
 
 // ── Source System ──
 
-export type SourceSystem = "economic" | "dinero" | "kj_auto" | "unknown";
+export type SourceSystem = "economic" | "dinero" | "combined_dk" | "unknown";
 export type DocumentType = "resultatopgoerelse" | "saldobalance" | "combined" | "unknown";
 
 // ── Semantic Metric Candidate ──

@@ -528,7 +528,7 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 
     const result: SemanticExtractionResult = {
-      source_system: "kj_auto",
+      source_system: "combined_dk",
       document_type: "combined",
       template_id: "DK_COMBINED_BALANCE_PNL_V1",
       sign_convention: signConvention,

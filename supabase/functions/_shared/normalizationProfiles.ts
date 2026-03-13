@@ -205,7 +205,7 @@ const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
   economic_pnl_credit_v1,
   economic_pnl_business_v1,
   dinero_pnl_credit_v1,
-  kj_auto_combined_credit_v1,
+  combined_dk_credit_v1,
   combined_balance_pnl_credit_v1,
 };
 

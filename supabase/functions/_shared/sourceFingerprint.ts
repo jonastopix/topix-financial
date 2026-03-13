@@ -93,32 +93,30 @@ export function detectSourceSystem(
       }
     }
 
-    // KJ Auto: Combined Balance/PnL pattern with "Nummer"/"Navn" columns
+    // Combined DK: Balance/PnL pattern with "Nummer"/"Navn" columns
+    // Structural detection — company-name-agnostic. Any file with:
+    //   Row 1: contains "balance" (case-insensitive)
+    //   Row 4: has "Nummer" + "Navn" columns
+    //   Row 4: has a third column with period info (non-empty)
+    // is treated as the combined_dk family.
     const row1 = headerRows[1]?.[0]?.toString() || "";
     if (/balance/i.test(row1)) {
       const hasNummer = row4.some?.((c: any) => /nummer/i.test(c?.toString?.() || ""));
       const hasNavn = row4.some?.((c: any) => /^navn$/i.test(c?.toString?.() || ""));
       if (hasNummer && hasNavn) {
-        // Check for KJ-specific patterns (company name, account range)
-        const companyName = headerRows[0]?.[0]?.toString() || "";
-        if (/kj\s*auto/i.test(companyName)) {
-          evidence.push("KJ Auto company name + combined Balance/PnL structure");
+        // Additional structural guard: row 4 must have a period/date column (col 2+)
+        const hasPeriodCol = row4.length >= 3 && row4[2] != null && row4[2].toString().trim() !== "";
+        if (!hasPeriodCol) {
+          evidence.push("Nummer/Navn columns found but no period column — not combined_dk");
+        } else {
+          evidence.push("Combined DK XLSX structure: Balance + Nummer/Navn + period column");
           return {
-            source_system: "kj_auto",
+            source_system: "combined_dk",
             document_type: "combined",
             confidence: "HIGH",
             evidence,
           };
         }
-
-        // Generic combined balance/PnL (same structure, different company)
-        evidence.push("Combined Balance/PnL XLSX structure (Nummer/Navn columns)");
-        return {
-          source_system: "unknown",
-          document_type: "combined",
-          confidence: "MEDIUM",
-          evidence,
-        };
       }
     }
   }
