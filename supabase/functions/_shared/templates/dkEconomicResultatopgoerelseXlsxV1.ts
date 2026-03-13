@@ -252,9 +252,33 @@ function getEffectiveSignRule(matcher: LabelMatch, convention: SignConvention): 
   return "abs";
 }
 
-// ── Template Definition ──
+// ── Semantic label → normalization family mapping ──
 
-export const dkEconomicResultatopgoerelseXlsxV1: TemplateEntry = {
+const SEMANTIC_FAMILY_MAP: Record<string, MetricFamily> = {
+  omsaetning: "revenue_like",
+  direkte_omkostninger: "cost_like",
+  daekningsbidrag: "profit_like",
+  loenninger: "cost_like",
+  pensioner_sociale: "cost_like",
+  oevrige_personale: "cost_like",
+  salgsomkostninger: "cost_like",
+  lokaleomkostninger: "cost_like",
+  transportomkostninger: "cost_like",
+  administrationsomkostninger: "cost_like",
+  resultat_foer_afskrivninger: "profit_like",
+  afskrivninger: "cost_like",
+  indtjeningsbidrag: "profit_like",
+  finansieringsudgifter: "cost_like",
+  ekstraordinaere_poster: "cost_like",
+  resultat_foer_skat: "profit_like",
+  resultat_foer_ekstraordinaere: "profit_like",
+  arets_resultat: "profit_like",
+  periodens_resultat: "profit_like",
+};
+
+// ── Template Definition (legacy) ──
+
+export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
   template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1",
   label: "e-conomic Resultatopgørelse XLSX (P&L only)",
   supported_file_types: ["xlsx", "xls"],
