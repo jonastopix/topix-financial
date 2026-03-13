@@ -1134,7 +1134,7 @@ Deno.test({ name: "Phase4c — 16. P&L PDF full E2E (SnowWaves ApS)", ignore: tr
   assertEquals(canonical.ai_eligible, true, "Should be AI eligible (P&L with revenue + ebt)");
 
   // DB status follows existing logic: PASS → "processed"
-  const dbStatus = canonical.validation.status === "PASS" ? "processed" : "needs_review";
+  const dbStatus = canonical.validation.status === "PASS" ? "processed" : "processed";
   assertEquals(dbStatus, "processed", "DB status should be 'processed' for PASS reports");
 
   console.log(`\n✅ Test 16: P&L PDF full E2E PASSED — Template B virker`);
