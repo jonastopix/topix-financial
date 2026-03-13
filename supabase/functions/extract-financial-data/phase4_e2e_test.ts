@@ -3238,7 +3238,7 @@ https://secure.e-conomic.com/reports/statements/period-total
   const equityCorrection = canonical.correction_log.find(c => c.rule === "saldobalance_equity_sign_inverted");
   assertEquals(equityCorrection, undefined, "Canonical engine should NOT re-flip equity for deterministic templates");
 
-  console.log("\n✅ G1 PASSED: Saldobalance golden fixture — all 8 metrics correct, AI blocked, no equity double-flip");
+  console.log("\n✅ G1 PASSED: Saldobalance golden fixture — all 8 metrics correct, AI enabled, no equity double-flip");
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
