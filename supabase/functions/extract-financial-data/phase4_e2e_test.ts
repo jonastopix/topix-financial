@@ -2313,10 +2313,8 @@ Deno.test("Phase6b — R2. XLSX semantic regression: business convention (Topix 
   if (!legacyResult.success) return;
   const legacyCanonical = buildCanonicalOutput(legacyResult.data, {}, "deterministic_template");
 
-  // ── Compare with EXACT sign match (not abs) ──
-  // KNOWN: Legacy reconciles COGS to negative for GP equation (legacy quirk).
-  // Semantic path keeps COGS positive (canonical: costs are positive). Both are valid
-  // representations; the semantic path is canonical-correct.
+  // ── Compare with EXACT sign match + null-drift guard ──
+  // All metrics except COGS are compared directly against legacy.
   const keysToCompare: (keyof typeof legacyCanonical.metrics)[] = [
     "revenue", "gross_profit", "ebt", "net_result",
   ];
@@ -2324,6 +2322,10 @@ Deno.test("Phase6b — R2. XLSX semantic regression: business convention (Topix 
     const legacyVal = legacyCanonical.metrics[key];
     const semanticVal = semanticCanonical.metrics[key];
     console.log(`  ${key}: legacy=${legacyVal}, semantic=${semanticVal}`);
+    // Null-drift guard: if legacy has a value but semantic is null, that is drift.
+    if (legacyVal != null && semanticVal == null) {
+      throw new Error(`${key}: legacy has value ${legacyVal} but semantic is null — drift!`);
+    }
     if (legacyVal != null && semanticVal != null) {
       assertEquals(
         Math.abs((legacyVal as number) - (semanticVal as number)) < 2,
@@ -2333,14 +2335,30 @@ Deno.test("Phase6b — R2. XLSX semantic regression: business convention (Topix 
     }
   }
 
-  // COGS: semantic=positive (canonical correct), legacy=negative (GP reconciliation quirk)
-  // Verify magnitude match only
+  // ──────────────────────────────────────────────────────────────────────
+  // COGS: LOCAL EXCEPTION — DO NOT GENERALIZE
+  //
+  // This is an explicit, test-local exception for a known legacy quirk:
+  //   Legacy path: COGS is negative (negated for GP equation reconciliation)
+  //   Semantic path: COGS is positive (canonical convention: costs are positive numbers)
+  //
+  // The semantic path is canonical-correct (matches engine_test.ts Case 8).
+  // We assert COGS against its canonical contract (positive), then verify
+  // magnitude matches legacy. This exception applies ONLY to COGS in this
+  // specific regression test and must NOT be used as a pattern for other
+  // metrics or other tests. All other metrics satisfy standard regression.
+  // ──────────────────────────────────────────────────────────────────────
   const legacyCogs = legacyCanonical.metrics.cogs;
   const semanticCogs = semanticCanonical.metrics.cogs;
-  console.log(`  cogs: legacy=${legacyCogs}, semantic=${semanticCogs} (magnitude match — legacy negates for GP equation)`);
-  if (legacyCogs != null && semanticCogs != null) {
-    assertEquals(Math.abs(Math.abs(legacyCogs) - Math.abs(semanticCogs)) < 2, true,
-      `cogs magnitude drift: legacy=${legacyCogs}, semantic=${semanticCogs}`);
+  console.log(`  cogs: legacy=${legacyCogs}, semantic=${semanticCogs} (canonical-correct positive vs legacy-negative)`);
+  assertExists(semanticCogs, "COGS should be present in semantic output");
+  assert(semanticCogs! > 0, "COGS must be positive per canonical convention (costs are positive numbers)");
+  if (legacyCogs != null) {
+    assertEquals(
+      Math.abs(Math.abs(legacyCogs) - semanticCogs!) < 2,
+      true,
+      `COGS magnitude drift: legacy=${legacyCogs}, semantic=${semanticCogs}`,
+    );
   }
 
   // ── All values should be positive (business convention) ──
@@ -2357,7 +2375,7 @@ Deno.test("Phase6b — R2. XLSX semantic regression: business convention (Topix 
     }
   }
 
-  console.log(`\n✅ R2 business-convention XLSX: exact sign match, zero drift, correct profile in provenance`);
+  console.log(`\n✅ R2 business-convention XLSX: zero drift, COGS canonical-correct, correct profile in provenance`);
 });
 
 // ═══════════════════════════════════════════════════════
