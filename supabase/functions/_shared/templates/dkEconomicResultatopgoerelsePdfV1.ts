@@ -162,15 +162,36 @@ function isEffectiveSubtotal(row: PdfStructuralRow): boolean {
 }
 
 /**
+ * Normalize PDF label text by fixing common encoding issues.
+ *
+ * PDF fonts sometimes encode ligatures (e.g. "fi", "fl") as \u0000.
+ * This helper replaces those null characters with "fi" — the most common
+ * ligature in Danish financial labels.
+ *
+ * Examples:
+ *   "\u0000nansielle"  → "finansielle"
+ *   "Pro\u0000t"       → "Profit"
+ *   "Normal text"      → "Normal text" (unchanged)
+ *   "-629.400,25"      → "-629.400,25" (unchanged — numerics unaffected)
+ *
+ * SCOPE: Label text only. Must NEVER be applied to numeric token text.
+ */
+export function normalizePdfLabelText(text: string): string {
+  return text.replace(/\u0000/g, "fi");
+}
+
+/**
  * Extract the label text from a structural row (all non-numeric tokens).
+ * Applies ligature normalization to label text only.
  */
 function getRowLabel(row: PdfStructuralRow): string {
-  return row.tokens
-    .filter(t => t.column_slot === null)
-    .map(t => t.text)
-    .join(" ")
-    .replace(/\u0000/g, "fi") // Fix common PDF ligature encoding issue
-    .trim();
+  return normalizePdfLabelText(
+    row.tokens
+      .filter(t => t.column_slot === null)
+      .map(t => t.text)
+      .join(" ")
+      .trim()
+  );
 }
 
 /**
