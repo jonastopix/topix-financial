@@ -402,11 +402,11 @@ serve(async (req) => {
             }
           } catch (hashErr) {
             console.warn("[PdfStructural] Hash verification error:", hashErr);
-            if (!isKnownSource) {
+            if (!structuralRequired) {
               validatedStructural = pdfStructural as PdfStructuralPayload;
               routingTrace.pdf_structural_hash_verified = false;
             } else {
-              hashError = `Hash verification exception for known source`;
+              hashError = `Hash verification exception for structural-required family`;
               routingTrace.pdf_structural_errors = [hashError];
             }
           }
