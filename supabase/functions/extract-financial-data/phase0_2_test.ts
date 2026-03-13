@@ -324,11 +324,41 @@ Deno.test("Fingerprint: unknown PDF allows AI", () => {
   assertEquals(isAiAllowed(result), true);
 });
 
-Deno.test("Fingerprint: KJ Auto XLSX", () => {
+Deno.test("Fingerprint: Combined DK XLSX (KJ Auto company)", () => {
   const f = fixture_kj_auto_xlsx_fingerprint;
   const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
   assertEquals(result.source_system, f.expected_source_system);
   assertEquals(isAiAllowed(result), f.expected_allows_ai);
+});
+
+Deno.test("Fingerprint: Combined DK XLSX (Warburg company)", () => {
+  const f = fixture_combined_dk_xlsx_warburg;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "combined_dk");
+  assertEquals(isAiAllowed(result), false);
+});
+
+// ── False-positive protection for combined_dk ──
+
+Deno.test("Fingerprint: e-conomic XLSX must NOT match combined_dk", () => {
+  const f = fixture_not_combined_dk_economic_xlsx;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "economic", "e-conomic XLSX must fingerprint as economic, not combined_dk");
+  assertEquals(isAiAllowed(result), false);
+});
+
+Deno.test("Fingerprint: generic XLSX without Balance row must NOT match combined_dk", () => {
+  const f = fixture_not_combined_dk_generic_xlsx;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "unknown", "Generic XLSX must not fingerprint as combined_dk");
+  assertEquals(isAiAllowed(result), true);
+});
+
+Deno.test("Fingerprint: XLSX with Nummer/Navn but no period column must NOT match combined_dk", () => {
+  const f = fixture_not_combined_dk_no_period_col;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "unknown", "Missing period column must not match combined_dk");
+  assertEquals(isAiAllowed(result), true);
 });
 
 Deno.test("Fingerprint: known source blocks AI", () => {
