@@ -3199,10 +3199,11 @@ https://secure.e-conomic.com/reports/statements/period-total
   assertEquals(parsed.metadata.cvr_number, "45281736");
 
   // Step 2: Template extraction
-  const detectScore = dkEconomicSaldobalancePdfV1.detect({ rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" });
+  const ctx = { rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" as const, sheetNames: [], headerRows: [], rows: [] };
+  const detectScore = dkEconomicSaldobalancePdfV1.detect(ctx);
   assert(detectScore >= 80, `Detection score should be ≥80, got ${detectScore}`);
 
-  const result = dkEconomicSaldobalancePdfV1.extract({ rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" });
+  const result = dkEconomicSaldobalancePdfV1.extract(ctx);
   assert(result.success, `Extraction should succeed: ${!result.success ? result.error : ''}`);
   if (!result.success) return;
 
