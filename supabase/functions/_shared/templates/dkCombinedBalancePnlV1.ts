@@ -345,17 +345,17 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
   extractSemanticFromXlsx(xlsxResult: XlsxParseResult): SemanticExtractionResult | null {
     if (xlsxResult.rows.length < 10) return null;
 
-    // ── Identify value column (column 2+ with numeric data) ──
-    const numericCols = xlsxResult.column_profile.filter(cp => cp.inferred_type === "numeric");
+    // ── Identify value column (column 2+ with numeric data, skip Nummer/Navn) ──
+    const numericCols = xlsxResult.column_profile.filter(cp => cp.col_index >= 2 && cp.inferred_type === "numeric");
     let valueColIndex: number;
 
     if (numericCols.length === 0) {
-      console.log("[DK_COMBINED_PNL_SEMANTIC] No numeric column found → reject");
+      console.log("[DK_COMBINED_PNL_SEMANTIC] No numeric column found (col 2+) → reject");
       return null;
     } else if (numericCols.length === 1) {
       valueColIndex = numericCols[0].col_index;
     } else {
-      // For combined files: first numeric column is typically the period amount
+      // For combined files: first numeric column (col 2+) is typically the period amount
       const firstNumCol = numericCols[0];
       const hasData = xlsxResult.rows.slice(5, 25).some(row => {
         const cell = row.cells.find(c => c.col_index === firstNumCol.col_index);
@@ -364,7 +364,7 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
       if (hasData) {
         valueColIndex = firstNumCol.col_index;
       } else {
-        console.log("[DK_COMBINED_PNL_SEMANTIC] No data in first numeric column → reject");
+        console.log("[DK_COMBINED_PNL_SEMANTIC] No data in first numeric column (col 2+) → reject");
         return null;
       }
     }
