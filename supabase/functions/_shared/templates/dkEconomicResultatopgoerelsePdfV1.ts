@@ -6,11 +6,12 @@
  * Extraction: Label-first, single-column numbers
  * Column basis: SINGLE — only period_amount (no År til dato split)
  *
- * PHASE 5 MIGRATION:
- * - extractSemantic() consumes PdfStructuralPayload directly
+ * PHASE 5 — STRUCTURAL-FIRST:
+ * - extractSemantic() consumes PdfStructuralPayload directly as primary source
+ * - Rows/tokens/column_slots from structural payload are the authoritative data
  * - Emits SemanticExtractionResult with raw document signs preserved
  * - No flipSign/absVal — normalization is centralized
- * - Legacy extract() preserved as migration bridge
+ * - Legacy extract() preserved as migration bridge for reports without structural payload
  *
  * AMBIGUITY: If AKTIVER/PASSIVER are present, score = 0 → Template A wins.
  * If absent, Template B scores ~80-90. Template A requires AKTIVER/PASSIVER → no overlap.
@@ -27,6 +28,7 @@ import type {
 
 import {
   parseEconomicPdfText,
+  parseDanishNumber,
   type PdfParsedLine,
 } from "../pdfTextParser.ts";
 
@@ -37,10 +39,9 @@ import type {
 } from "../semanticTypes.ts";
 
 import type { MetricFamily } from "../normalizationProfiles.ts";
-import type { PdfStructuralPayload } from "../pdfStructuralTypes.ts";
-import { parseDanishNumber } from "../pdfTextParser.ts";
+import type { PdfStructuralPayload, PdfStructuralRow } from "../pdfStructuralTypes.ts";
 
-// ── Label Lookup Helpers ──
+// ── Label Lookup Helpers (LEGACY ONLY) ──
 
 function findByLabel(
   lines: PdfParsedLine[],
@@ -85,26 +86,316 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "periodens_resultat", pattern: /periodens resultat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
 ];
 
-// ── Structural Payload → Semantic Extraction ──
+// ── Template-Level Structural Acceptance Rule ──
+
+export interface StructuralAcceptanceResult {
+  accepted: boolean;
+  reason: string;
+  slot0_row_count: number;
+}
+
+/**
+ * Validates that the structural payload is sufficient for this PDF family.
+ * This is the template-level gate — distinct from the parser-level validation.
+ *
+ * Rules for the e-conomic single-period P&L variant:
+ * 1. Must have exactly 1 column slot (single-period variant)
+ * 2. Slot 0 must exist consistently on ≥5 financial rows
+ * 3. No competing slot ambiguity (slot_count must be 1)
+ */
+export function validateStructuralAcceptance(structural: PdfStructuralPayload): StructuralAcceptanceResult {
+  // Rule 1 & 3: exactly 1 column slot for single-period variant
+  if (structural.column_profile.slot_count < 1) {
+    return { accepted: false, reason: "No numeric column slots detected", slot0_row_count: 0 };
+  }
+  if (structural.column_profile.slot_count > 1) {
+    return {
+      accepted: false,
+      reason: `Expected 1 column slot for single-period variant, got ${structural.column_profile.slot_count}`,
+      slot0_row_count: 0,
+    };
+  }
+
+  // Rule 2: slot 0 must appear on ≥5 rows
+  let slot0Count = 0;
+  for (const page of structural.pages) {
+    for (const row of page.rows) {
+      if (row.tokens.some(t => t.column_slot === 0)) {
+        slot0Count++;
+      }
+    }
+  }
+
+  if (slot0Count < 5) {
+    return {
+      accepted: false,
+      reason: `Slot 0 found on only ${slot0Count} rows (minimum 5)`,
+      slot0_row_count: slot0Count,
+    };
+  }
+
+  return {
+    accepted: true,
+    reason: "1-slot single-period variant accepted",
+    slot0_row_count: slot0Count,
+  };
+}
+
+// ── Structural Helpers ──
+
+/**
+ * Determine if a structural row is an "effective subtotal" for this PDF family.
+ * In e-conomic PDFs, subtotal lines are:
+ * - Explicitly marked via is_subtotal flag, OR
+ * - ALL-CAPS label text (e.g., "SALGSOMKOSTNINGER", "ADMINISTRATION")
+ */
+function isEffectiveSubtotal(row: PdfStructuralRow): boolean {
+  if (row.is_subtotal) return true;
+  // Check if label tokens (non-numeric) are ALL-CAPS
+  const labelTokens = row.tokens.filter(t => t.column_slot === null);
+  if (labelTokens.length === 0) return false;
+  const labelText = labelTokens.map(t => t.text).join(" ").trim();
+  // ALL-CAPS detection: at least 3 alpha chars, all uppercase
+  const alphaChars = labelText.replace(/[^a-zA-ZÆØÅæøå]/g, "");
+  if (alphaChars.length < 3) return false;
+  return alphaChars === alphaChars.toUpperCase();
+}
+
+/**
+ * Extract the label text from a structural row (all non-numeric tokens).
+ */
+function getRowLabel(row: PdfStructuralRow): string {
+  return row.tokens
+    .filter(t => t.column_slot === null)
+    .map(t => t.text)
+    .join(" ")
+    .replace(/\u0000/g, "fi") // Fix common PDF ligature encoding issue
+    .trim();
+}
+
+/**
+ * Extract the numeric value from column_slot 0 of a structural row.
+ * Returns null if no token with column_slot 0 exists.
+ */
+function getSlot0Value(row: PdfStructuralRow): number | null {
+  const numToken = row.tokens.find(t => t.column_slot === 0);
+  if (!numToken) return null;
+  return parseDanishNumber(numToken.text);
+}
+
+/**
+ * Extract metadata from structural rows (company name, CVR, period).
+ * Parses the first few rows of the first page.
+ */
+function extractStructuralMetadata(structural: PdfStructuralPayload): {
+  company_name: string | null;
+  cvr_number: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  report_period: string | null;
+} {
+  const firstPage = structural.pages[0];
+  if (!firstPage || firstPage.rows.length < 2) {
+    return { company_name: null, cvr_number: null, period_start: null, period_end: null, report_period: null };
+  }
+
+  let company_name: string | null = null;
+  let cvr_number: string | null = null;
+  let period_start: string | null = null;
+  let period_end: string | null = null;
+  let report_period: string | null = null;
+
+  // Scan first 5 rows for metadata
+  const scanRows = firstPage.rows.slice(0, 5);
+  for (const row of scanRows) {
+    const fullText = row.tokens.map(t => t.text).join(" ");
+
+    // Company name + CVR: "SnowWaves ApS (CVR-nr. 39850850)"
+    const cvrMatch = fullText.match(/(.+?)\s*\(CVR[\s\-.:nNrR]*\s*(\d{8})\)/i);
+    if (cvrMatch && !company_name) {
+      company_name = cvrMatch[1].trim();
+      cvr_number = cvrMatch[2];
+    }
+
+    // Period: "Resultatopgørelse 01/01-2026 - 31/01-2026"
+    const periodMatch = fullText.match(/(\d{2}\/\d{2}[-\s]*\d{4})\s*[-–]\s*(\d{2}\/\d{2}[-\s]*\d{4})/);
+    if (periodMatch && !period_start) {
+      period_start = periodMatch[1].replace(/\s/g, "");
+      period_end = periodMatch[2].replace(/\s/g, "");
+      report_period = `${period_start} - ${period_end}`;
+    }
+  }
+
+  return { company_name, cvr_number, period_start, period_end, report_period };
+}
+
+// ── Structural Payload → Semantic Extraction (PRIMARY PATH) ──
 
 function extractSemanticFromStructural(
-  structural: PdfStructuralPayload,
+  structural: PdfStructuralPayload | null,
   textContent: string,
 ): SemanticExtractionResult | null {
-  // Parse text to get metadata (company name, CVR, period)
+  // ── STRUCTURAL-FIRST PATH (mandatory when structural exists) ──
+  if (structural) {
+    // Template-level acceptance gate
+    const acceptance = validateStructuralAcceptance(structural);
+    if (!acceptance.accepted) {
+      console.warn(`[DK_ECONOMIC_PNL_PDF] Structural acceptance failed: ${acceptance.reason}`);
+      return null;
+    }
+
+    console.log(`[DK_ECONOMIC_PNL_PDF] Structural-first extraction: ${acceptance.slot0_row_count} rows with slot 0`);
+
+    // Extract metadata from structural tokens
+    const metadata = extractStructuralMetadata(structural);
+
+    // Flatten all rows across pages
+    const allRows: PdfStructuralRow[] = [];
+    for (const page of structural.pages) {
+      for (const row of page.rows) {
+        allRows.push(row);
+      }
+    }
+
+    // Build metric candidates from structural rows
+    const candidates: SemanticMetricCandidate[] = [];
+    const lineItems: SemanticLineItem[] = [];
+    const consumedFieldIds = new Set<string>();
+
+    // EBT fallback chain
+    const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"];
+    let ebtConsumed = false;
+
+    for (const fieldDef of SEMANTIC_FIELD_MAP) {
+      // Find matching row in structural data
+      const matchIdx = allRows.findIndex(row => {
+        const label = getRowLabel(row);
+        if (!fieldDef.pattern.test(label)) return false;
+        // Require effective subtotal (is_subtotal OR ALL-CAPS)
+        if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) return false;
+        // Must have a value in slot 0
+        if (getSlot0Value(row) === null && row.tokens.some(t => t.column_slot === 0)) return true;
+        return row.tokens.some(t => t.column_slot === 0);
+      });
+
+      if (matchIdx === -1) continue;
+      const matchRow = allRows[matchIdx];
+      const label = getRowLabel(matchRow);
+      const rawValue = getSlot0Value(matchRow);
+
+      // EBT fallback chain: only emit first match as EBT
+      if (ebtFieldIds.includes(fieldDef.source_field_id)) {
+        if (ebtConsumed && fieldDef.canonical_hint === "ebt") continue;
+        if (fieldDef.canonical_hint === "ebt") ebtConsumed = true;
+      }
+
+      // Net result: don't double-use periodens_resultat if already consumed as EBT
+      if (fieldDef.source_field_id === "periodens_resultat" && consumedFieldIds.has("periodens_resultat")) {
+        continue;
+      }
+
+      if (consumedFieldIds.has(fieldDef.source_field_id)) continue;
+      consumedFieldIds.add(fieldDef.source_field_id);
+
+      candidates.push({
+        source_field_id: fieldDef.source_field_id,
+        normalization_family: fieldDef.family,
+        raw_value: rawValue,
+        raw_sign: rawValue === null ? "zero" : rawValue < 0 ? "negative" : rawValue > 0 ? "positive" : "zero",
+        sign_convention: "credit",
+        source_label: label,
+        source_row_index: matchIdx,
+        source_column_slot: 0,
+        source_cell_address: null,
+        basis: "period",
+        confidence: "HIGH",
+        evidence: [
+          `Structural row ${matchRow.row_group_id}`,
+          `Matched label pattern: ${fieldDef.pattern.source}`,
+          `Effective subtotal: ${isEffectiveSubtotal(matchRow)}`,
+          `Column slot 0 value: ${rawValue}`,
+        ],
+        proposed_canonical_target: fieldDef.canonical_hint,
+      });
+    }
+
+    // Build line items for provenance from all rows with values
+    for (let i = 0; i < allRows.length; i++) {
+      const row = allRows[i];
+      const label = getRowLabel(row);
+      const value = getSlot0Value(row);
+      if (value !== null || isEffectiveSubtotal(row)) {
+        lineItems.push({
+          source_field_id: label.toLowerCase().replace(/\s+/g, "_").slice(0, 40),
+          source_label: label,
+          raw_value: value,
+          basis: "period",
+          account_no: null,
+          source_row_index: i,
+        });
+      }
+    }
+
+    // Parser validation
+    const checks: Array<{ name: string; result: "PASS" | "FAIL" | "SKIP"; details: string }> = [];
+    const hasRevenue = candidates.some(c => c.source_field_id === "omsaetning");
+    const hasEbt = candidates.some(c => c.proposed_canonical_target === "ebt");
+    checks.push({
+      name: "revenue_present",
+      result: hasRevenue ? "PASS" : "FAIL",
+      details: hasRevenue ? "Revenue found via structural row" : "No revenue found",
+    });
+    checks.push({
+      name: "ebt_present",
+      result: hasEbt ? "PASS" : "FAIL",
+      details: hasEbt ? "EBT found via structural row" : "No EBT found",
+    });
+    checks.push({
+      name: "structural_acceptance",
+      result: "PASS",
+      details: acceptance.reason,
+    });
+
+    return {
+      source_system: "economic",
+      document_type: "resultatopgoerelse",
+      template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+      sign_convention: "credit",
+      normalization_profile_id: "economic_pnl_credit_v1",
+      company_name: metadata.company_name,
+      cvr: metadata.cvr_number,
+      period_start: metadata.period_start,
+      period_end: metadata.period_end,
+      report_period_label: metadata.report_period,
+      metric_candidates: candidates,
+      line_items: lineItems,
+      basis_profile: { mode: "single", selected_period_basis: "period" },
+      parser_validation: {
+        parser_status: checks.some(c => c.result === "FAIL") ? "FAIL" : "PASS",
+        checks,
+      },
+      _deterministic_meta: {
+        template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+        parser_confidence: "HIGH",
+        detection_score: 0, // Set by registry
+        raw_line_count: allRows.length,
+        normalized_line_count: candidates.length,
+        column_basis_rule: "single",
+      },
+    };
+  }
+
+  // ── LEGACY FALLBACK (only when structural payload is absent) ──
+  console.log("[DK_ECONOMIC_PNL_PDF][LEGACY] No structural payload, using text-based fallback");
+
   const parsed = parseEconomicPdfText(textContent);
   const { lines, metadata } = parsed;
 
   if (lines.length < 3) return null;
 
-  // Build metric candidates from parsed lines with RAW document signs
   const candidates: SemanticMetricCandidate[] = [];
   const lineItems: SemanticLineItem[] = [];
-
-  // Track consumed source_field_ids to avoid double-emission
   const consumedFieldIds = new Set<string>();
-
-  // EBT fallback chain
   const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"];
   let ebtConsumed = false;
 
@@ -114,22 +405,16 @@ function extractSemanticFromStructural(
     );
     if (!match) continue;
 
-    // EBT fallback chain: only emit first match as EBT
     if (ebtFieldIds.includes(fieldDef.source_field_id)) {
       if (ebtConsumed && fieldDef.canonical_hint === "ebt") continue;
       if (fieldDef.canonical_hint === "ebt") ebtConsumed = true;
     }
 
-    // Net result: don't double-use periodens_resultat if already consumed as EBT
-    if (fieldDef.source_field_id === "periodens_resultat" && consumedFieldIds.has("periodens_resultat")) {
-      continue;
-    }
-
+    if (fieldDef.source_field_id === "periodens_resultat" && consumedFieldIds.has("periodens_resultat")) continue;
     if (consumedFieldIds.has(fieldDef.source_field_id)) continue;
     consumedFieldIds.add(fieldDef.source_field_id);
 
     const rawValue = match.period_amount;
-
     candidates.push({
       source_field_id: fieldDef.source_field_id,
       normalization_family: fieldDef.family,
@@ -138,16 +423,15 @@ function extractSemanticFromStructural(
       sign_convention: "credit",
       source_label: match.name,
       source_row_index: lines.indexOf(match),
-      source_column_slot: null, // text-parsed, not structural-slot-based yet
+      source_column_slot: null,
       source_cell_address: null,
       basis: "period",
       confidence: "HIGH",
-      evidence: [`Matched label pattern: ${fieldDef.pattern.source}`, `Subtotal: ${match.is_subtotal}`],
+      evidence: [`[LEGACY] Matched label pattern: ${fieldDef.pattern.source}`, `Subtotal: ${match.is_subtotal}`],
       proposed_canonical_target: fieldDef.canonical_hint,
     });
   }
 
-  // Build line items for provenance
   for (const line of lines) {
     if (line.is_subtotal || line.account_no != null) {
       lineItems.push({
@@ -161,7 +445,6 @@ function extractSemanticFromStructural(
     }
   }
 
-  // Parser validation
   const checks: Array<{ name: string; result: "PASS" | "FAIL" | "SKIP"; details: string }> = [];
   const hasRevenue = candidates.some(c => c.source_field_id === "omsaetning");
   const hasEbt = candidates.some(c => c.proposed_canonical_target === "ebt");
@@ -189,7 +472,7 @@ function extractSemanticFromStructural(
     _deterministic_meta: {
       template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
       parser_confidence: "HIGH",
-      detection_score: 0, // Set by registry
+      detection_score: 0,
       raw_line_count: lines.length,
       normalized_line_count: candidates.length,
       column_basis_rule: "single",
@@ -200,14 +483,14 @@ function extractSemanticFromStructural(
 // ── Template Definition ──
 
 export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
-  extractSemantic?: (structural: PdfStructuralPayload, textContent: string) => SemanticExtractionResult | null;
+  extractSemantic: (structural: PdfStructuralPayload | null, textContent: string) => SemanticExtractionResult | null;
 } = {
   template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
   label: "e-conomic Resultatopgørelse PDF (P&L only)",
   supported_file_types: ["pdf"],
   statement_type: "pnl",
 
-  // ── Phase 5: Semantic extraction from structural payload ──
+  // ── Phase 5: Semantic extraction from structural payload (primary) or text (legacy fallback) ──
   extractSemantic: extractSemanticFromStructural,
 
   detect(ctx: DetectionContext): number {
