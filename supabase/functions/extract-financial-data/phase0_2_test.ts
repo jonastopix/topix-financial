@@ -609,8 +609,26 @@ Deno.test("Routing: unknown source + valid + hash not verified → proceed with 
 // ══════════════════════════════════════════════════════════════
 
 import { buildCanonicalOutput, normalizeSemanticExtraction, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
-import { dkEconomicResultatopgoerelsePdfV1, validateStructuralAcceptance } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
+import { dkEconomicResultatopgoerelsePdfV1, validateStructuralAcceptance, normalizePdfLabelText } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
 import { tryDeterministicPdfStructuralExtraction } from "../_shared/templateRegistry.ts";
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 5: Label Normalization (Ligature Cleanup)
+// ══════════════════════════════════════════════════════════════
+
+Deno.test("Label normalization: PDF ligature fi replacement", () => {
+  // Common Danish financial terms with \u0000 ligature
+  assertEquals(normalizePdfLabelText("\u0000nansielle"), "finansielle");
+  assertEquals(normalizePdfLabelText("Pro\u0000t"), "Profit");
+  assertEquals(normalizePdfLabelText("\u0000nansiering"), "finansiering");
+  // Normal text unaffected
+  assertEquals(normalizePdfLabelText("Normal text"), "Normal text");
+  assertEquals(normalizePdfLabelText("Omsætning i alt"), "Omsætning i alt");
+  assertEquals(normalizePdfLabelText(""), "");
+  // Numeric strings must NOT be affected
+  assertEquals(normalizePdfLabelText("-629.400,25"), "-629.400,25");
+  assertEquals(normalizePdfLabelText("1.234,56"), "1.234,56");
+});
 
 Deno.test("Phase 5: e-conomic P&L PDF → legacy text semantic extraction emits raw document signs", () => {
   const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic(
