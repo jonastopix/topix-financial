@@ -665,6 +665,247 @@ export function computeAiEligible(
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 5: Semantic Normalization Path
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Danish source_field_id → canonical metric key mapping */
+const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
+  omsaetning: "revenue",
+  direkte_omkostninger: "cogs",
+  daekningsbidrag: "gross_profit",
+  loenninger: "payroll",
+  salgsomkostninger: "sales_costs",
+  lokaleomkostninger: "facility_costs",
+  administrationsomkostninger: "admin_costs",
+  transportomkostninger: "vehicle_costs",
+  afskrivninger: "depreciation",
+  resultat_foer_skat: "ebt",
+  resultat_foer_ekstraordinaere: "ebt",
+  resultat_efter_skat: "net_result",
+  periodens_resultat: "net_result",
+  finansielle_omkostninger: "financial_costs",
+};
+
+/**
+ * Apply a normalization rule to a raw value.
+ * This is the centralized normalization — NO sign logic in templates.
+ */
+function applyNormalizationRule(
+  rawValue: number | null,
+  rule: NormalizationRule,
+  _candidate: SemanticMetricCandidate,
+): { normalized: number | null; action_applied: string } {
+  if (rawValue == null) return { normalized: null, action_applied: "null_passthrough" };
+
+  switch (rule.action) {
+    case "abs":
+      return { normalized: Math.abs(rawValue), action_applied: "abs" };
+    case "negate":
+      return { normalized: -rawValue, action_applied: "negate" };
+    case "keep":
+      return { normalized: rawValue, action_applied: "keep" };
+    case "conditional":
+      // For conditional rules, apply fallback action
+      // (full cross-validation is done post-normalization by the canonical validation engine)
+      if (rule.condition) {
+        switch (rule.condition.fallback_action) {
+          case "abs": return { normalized: Math.abs(rawValue), action_applied: "conditional→abs" };
+          case "negate": return { normalized: -rawValue, action_applied: "conditional→negate" };
+          case "keep": return { normalized: rawValue, action_applied: "conditional→keep" };
+        }
+      }
+      return { normalized: rawValue, action_applied: "conditional→keep" };
+    case "reject":
+      return { normalized: null, action_applied: "rejected" };
+    default:
+      return { normalized: rawValue, action_applied: "unknown_keep" };
+  }
+}
+
+/**
+ * Normalize a SemanticExtractionResult into canonical metrics using centralized profiles.
+ * Returns metrics + correction_log + enriched provenance.
+ */
+export function normalizeSemanticExtraction(semantic: SemanticExtractionResult): {
+  metrics: CanonicalMetrics;
+  correction_log: CorrectionLogEntry[];
+  provenance: Record<string, EnrichedProvenanceEntry>;
+} {
+  const profile = getNormalizationProfile(semantic.normalization_profile_id);
+  if (!profile) {
+    throw new Error(`Normalization profile not found: ${semantic.normalization_profile_id}`);
+  }
+
+  const metrics: CanonicalMetrics = {
+    revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
+    payroll: null, payroll_related: null, other_staff_costs: null,
+    sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+    extraordinary_items: null, ebt: null, net_result: null,
+    assets_total: null, inventory: null, receivables_total: null,
+    trade_receivables: null, unbilled_wip: null, cash: null,
+    equity_total: null, equity_ratio_pct: null, related_party_net: null,
+    provisions_total: null, current_liabilities: null, debt_total: null,
+    vat_payable: null, liabilities_total: null,
+  };
+
+  const corrections: CorrectionLogEntry[] = [];
+  const provenance: Record<string, EnrichedProvenanceEntry> = {};
+
+  for (const candidate of semantic.metric_candidates) {
+    const canonicalKey = SEMANTIC_TO_CANONICAL[candidate.source_field_id];
+    if (!canonicalKey) continue;
+
+    // Determine normalization rule: field_override takes precedence over family_default
+    const fieldOverride = profile.field_overrides[candidate.source_field_id];
+    const familyDefault = profile.family_defaults[candidate.normalization_family];
+    const rule = fieldOverride || familyDefault;
+    const ruleType = fieldOverride ? "field_override" : "family_default";
+
+    if (!rule) continue;
+
+    const { normalized, action_applied } = applyNormalizationRule(
+      candidate.raw_value, rule, candidate
+    );
+
+    if (action_applied === "rejected") {
+      corrections.push({
+        field: candidate.source_field_id,
+        source: "semantic_candidate",
+        raw_value: candidate.raw_value,
+        normalized_value: null,
+        rule: "normalization_rejected",
+        reason: `${candidate.source_field_id} rejected by ${ruleType}: ${rule.description}`,
+        confidence: "HIGH",
+      });
+      continue;
+    }
+
+    // Log correction if value changed
+    if (normalized !== candidate.raw_value) {
+      corrections.push({
+        field: candidate.source_field_id,
+        source: "semantic_candidate",
+        raw_value: candidate.raw_value,
+        normalized_value: normalized,
+        rule: `${ruleType}_${action_applied}`,
+        reason: `${candidate.source_field_id}: ${candidate.raw_value} → ${normalized} via ${action_applied} (${rule.description})`,
+        confidence: candidate.confidence,
+      });
+    }
+
+    metrics[canonicalKey] = normalized;
+
+    // Build enriched provenance
+    provenance[canonicalKey] = {
+      source_type: "deterministic_template",
+      source_system: semantic.source_system,
+      template_id: semantic.template_id,
+      source_field_id: candidate.source_field_id,
+      source_label: candidate.source_label,
+      source_row_index: candidate.source_row_index,
+      source_column_slot: candidate.source_column_slot,
+      source_cell_address: candidate.source_cell_address,
+      basis: candidate.basis,
+      raw_value: candidate.raw_value,
+      normalized_value: normalized,
+      normalization_profile_id: semantic.normalization_profile_id,
+      normalization_family: candidate.normalization_family,
+      normalization_rule_type: ruleType as any,
+      normalization_action: action_applied,
+      canonical_metric: canonicalKey,
+      confidence: candidate.confidence,
+    };
+  }
+
+  // Derive calculated fields
+  if (metrics.revenue != null && metrics.gross_profit != null && metrics.revenue !== 0) {
+    metrics.gross_margin_pct = (metrics.gross_profit / metrics.revenue) * 100;
+  }
+  if (metrics.equity_total != null && metrics.assets_total != null && metrics.assets_total !== 0) {
+    metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
+  }
+  if (metrics.ebitda == null && metrics.gross_profit != null) {
+    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) +
+      (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
+    if (opex > 0) metrics.ebitda = metrics.gross_profit - opex;
+  }
+  if (metrics.ebit == null && metrics.ebitda != null && metrics.depreciation != null) {
+    metrics.ebit = metrics.ebitda - metrics.depreciation;
+  }
+
+  return { metrics, correction_log: corrections, provenance };
+}
+
+/**
+ * Build full CanonicalOutput from a SemanticExtractionResult.
+ * This is the Phase 5 entry point for the structural PDF path.
+ */
+export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): CanonicalOutput {
+  const { metrics, correction_log, provenance } = normalizeSemanticExtraction(semantic);
+
+  const statementType = detectStatementType({ report_type: semantic.document_type === "resultatopgoerelse" ? "resultatopgørelse" : semantic.document_type });
+  const periodBasis = semantic.basis_profile.selected_period_basis;
+
+  // Build raw_lines from semantic line_items
+  const rawLines: RawLineEntry[] = semantic.line_items.map(li => ({
+    name: li.source_label,
+    period_amount: li.raw_value,
+    ytd_amount: null,
+    raw_sign: li.raw_value != null && li.raw_value < 0 ? "MINUS" : "PLUS",
+    account_no: li.account_no,
+    class: null,
+  }));
+
+  const normalizedLines = buildNormalizedLines(rawLines);
+
+  // Parser validation checks
+  const aiChecks: ValidationCheck[] = semantic.parser_validation.checks.map(c => ({
+    name: c.name, result: c.result, details: c.details,
+  }));
+  aiChecks.unshift({
+    name: "deterministic_parser_status",
+    result: semantic.parser_validation.parser_status === "PASS" ? "PASS" : "FAIL",
+    details: `Semantic parser reported: ${semantic.parser_validation.parser_status}`,
+  });
+
+  const { status, canonical_checks, errors } = runExtendedValidation(
+    { key_figures: {}, report_type: semantic.document_type }, metrics, periodBasis, statementType, aiChecks
+  );
+
+  const aiEligible = computeAiEligible(metrics, status, statementType, periodBasis);
+
+  const output: CanonicalOutput = {
+    template_id: semantic.template_id,
+    statement_type: statementType,
+    company_name: semantic.company_name,
+    cvr: semantic.cvr,
+    period_start: semantic.period_start,
+    period_end: semantic.period_end,
+    report_period_label: semantic.report_period_label,
+    extraction_method: "deterministic_template",
+    raw_lines: rawLines,
+    normalized_lines: normalizedLines,
+    selected_period_basis: periodBasis,
+    metrics,
+    correction_log,
+    provenance: provenance as any,
+    validation: {
+      status,
+      ai_checks: aiChecks,
+      server_checks: [],
+      canonical_checks,
+    },
+    ai_eligible: aiEligible,
+    ai_eligible_payload: null,
+    deterministic_meta: semantic._deterministic_meta as any,
+  };
+
+  output.ai_eligible_payload = buildAiEligiblePayload(output);
+  return output;
+}
+
 // ── Build AI Eligible Payload (minimal, clean) ──
 export function buildAiEligiblePayload(canonical: CanonicalOutput): AiEligiblePayload | null {
   if (!canonical.ai_eligible) return null;
