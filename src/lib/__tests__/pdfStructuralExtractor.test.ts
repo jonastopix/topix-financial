@@ -242,11 +242,11 @@ describe("PDF Structural Extractor — Real Binary (Resultat_6.pdf)", () => {
     for (const page of payload.pages) {
       expect(page.page_number).toBeGreaterThanOrEqual(1);
       for (const row of page.rows) {
-        expect(row.y_position).toBeFinite();
+        expect(Number.isFinite(row.y_position)).toBe(true);
         for (const token of row.tokens) {
-          expect(token.x).toBeFinite();
-          expect(token.y).toBeFinite();
-          expect(token.width).toBeFinite();
+          expect(Number.isFinite(token.x)).toBe(true);
+          expect(Number.isFinite(token.y)).toBe(true);
+          expect(Number.isFinite(token.width)).toBe(true);
           expect(token.x).toBeGreaterThanOrEqual(0);
           expect(token.width).toBeGreaterThanOrEqual(0);
           expect(token.text.length).toBeGreaterThan(0);
