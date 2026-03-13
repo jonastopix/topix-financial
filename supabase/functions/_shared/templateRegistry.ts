@@ -1,10 +1,13 @@
 /**
- * Template Registry — Phase 4 + 4b
+ * Template Registry — Phase 4 + 4b + 5
  * Handles deterministic template detection with ambiguity rule and extraction routing.
- * Supports both Excel and PDF file types.
+ * Supports both Excel, PDF, and CSV file types.
+ * Phase 5: Structural PDF extraction routing via extractSemantic().
  */
 
 import * as XLSX from "npm:xlsx@0.18.5";
+import type { PdfStructuralPayload } from "./pdfStructuralTypes.ts";
+import type { SemanticExtractionResult } from "./semanticTypes.ts";
 
 // ── Discriminated Union for Extraction Results ──
 
@@ -88,6 +91,17 @@ export interface TemplateEntry {
   extract(ctx: ExtractionContext): { success: true; data: DeterministicExtractedData } | { success: false; error: string };
 }
 
+// ── Template with Semantic Extraction (Phase 5) ──
+
+export interface SemanticTemplateEntry extends TemplateEntry {
+  extractSemantic: (structural: PdfStructuralPayload | null, textContent: string) => SemanticExtractionResult | null;
+}
+
+/** Type guard: does this template support semantic extraction? */
+export function hasSemanticExtraction(t: TemplateEntry): t is SemanticTemplateEntry {
+  return typeof (t as any).extractSemantic === "function";
+}
+
 // ── Detection Result ──
 
 export interface DetectionResult {
@@ -145,6 +159,72 @@ export function detectTemplate(ctx: DetectionContext): DetectionResult | null {
   return { template: best.template, score: best.score };
 }
 
+// ── Structural PDF Extraction (Phase 5) ──
+
+export type StructuralExtractionResult =
+  | { type: "no_match" }
+  | { type: "no_semantic_support" }
+  | { type: "semantic_fail"; template_id: string; error: string }
+  | { type: "success"; template_id: string; score: number; semantic: SemanticExtractionResult };
+
+/**
+ * Try structural-first extraction for a PDF using the validated structural payload.
+ * This is the Phase 5 primary path for migrated PDF templates.
+ *
+ * When a validated structural payload exists AND the matched template supports
+ * extractSemantic(), this function runs the structural path as the authoritative
+ * deterministic extraction — no text fallback in the same request.
+ */
+export function tryDeterministicPdfStructuralExtraction(
+  structural: PdfStructuralPayload,
+  textContent: string,
+  fileName: string,
+): StructuralExtractionResult {
+  // Detect template using text content (detection still uses rawText for now)
+  const ctx: DetectionContext = {
+    fileName,
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: textContent,
+  };
+
+  const match = detectTemplate(ctx);
+  if (!match) {
+    console.log("[Registry] No template matched for structural extraction");
+    return { type: "no_match" };
+  }
+
+  // Check if template supports semantic extraction
+  if (!hasSemanticExtraction(match.template)) {
+    console.log(`[Registry] Template ${match.template.template_id} does not support semantic extraction`);
+    return { type: "no_semantic_support" };
+  }
+
+  const semanticTemplate = match.template as SemanticTemplateEntry;
+
+  // Run structural-first semantic extraction (structural is primary, not text)
+  const semantic = semanticTemplate.extractSemantic(structural, textContent);
+  if (!semantic) {
+    return {
+      type: "semantic_fail",
+      template_id: match.template.template_id,
+      error: "extractSemantic returned null (structural acceptance or extraction failed)",
+    };
+  }
+
+  // Set detection score in meta
+  semantic._deterministic_meta.detection_score = match.score;
+
+  console.log(`[Registry] Structural semantic extraction successful: ${match.template.template_id}`);
+  return {
+    type: "success",
+    template_id: match.template.template_id,
+    score: match.score,
+    semantic,
+  };
+}
+
 // ── Excel Extraction (Phase 4) ──
 
 export async function tryDeterministicExtraction(
@@ -183,7 +263,7 @@ export async function tryDeterministicExtraction(
   return runDetectionAndExtraction(ctx, rows);
 }
 
-// ── PDF Extraction (Phase 4b) ──
+// ── PDF Extraction (Phase 4b — legacy text path) ──
 
 export function tryDeterministicPdfExtraction(
   textContent: string,
