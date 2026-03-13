@@ -72,9 +72,9 @@ Deno.test("Comparison: multi-layer with raw structural diff", () => {
     { account_no: null, name: "Dækningsbidrag", period_amount: -900000, period_prev: null, ytd_amount: null, ytd_prev: null, is_subtotal: true, section: "PNL" },
   ];
   const newLines: PdfParsedLine[] = [
-    { account_no: "1000", name: "Omsætning", period_amount: -1500000, ytd_amount: null, is_subtotal: false, section: "PNL" },
-    { account_no: null, name: "Dækningsbidrag", period_amount: -900000, ytd_amount: null, is_subtotal: true, section: "PNL" },
-    { account_no: null, name: "Resultat før skat", period_amount: -460000, ytd_amount: null, is_subtotal: true, section: "PNL" },
+    { account_no: "1000", name: "Omsætning", period_amount: -1500000, period_prev: null, ytd_amount: null, ytd_prev: null, is_subtotal: false, section: "PNL" },
+    { account_no: null, name: "Dækningsbidrag", period_amount: -900000, period_prev: null, ytd_amount: null, ytd_prev: null, is_subtotal: true, section: "PNL" },
+    { account_no: null, name: "Resultat før skat", period_amount: -460000, period_prev: null, ytd_amount: null, ytd_prev: null, is_subtotal: true, section: "PNL" },
   ];
 
   const raw = compareRawStructural(oldLines, newLines);

@@ -1167,15 +1167,14 @@ export function buildCanonicalOutput(
     extractedData, metrics, periodBasis, statementType, aiChecks
   );
 
-  // AI eligibility
+  // Extract deterministic metadata if present
+  const deterministicMeta = extractedData?._deterministic_meta || null;
+
   // AI eligibility — temporarily blocked for DK_ECONOMIC_SALDOBALANCE_PDF_V1 until golden fixture passes
   const templateId = deterministicMeta?.template_id || null;
   const aiEligible = templateId === "DK_ECONOMIC_SALDOBALANCE_PDF_V1"
     ? false
     : computeAiEligible(metrics, status, statementType, periodBasis);
-
-  // Extract deterministic metadata if present
-  const deterministicMeta = extractedData?._deterministic_meta || null;
 
   // Build output (without payload yet)
   const output: CanonicalOutput = {
