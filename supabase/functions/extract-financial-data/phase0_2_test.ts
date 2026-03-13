@@ -375,3 +375,231 @@ Deno.test("XLSX raw parser: module exports and types", () => {
   assert(typeof parseXlsxRawFromBase64 === "function");
   assertEquals(typeof parseXlsxRawFromBase64, "function");
 });
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: PDF Structural Validator Tests
+// ══════════════════════════════════════════════════════════════
+
+import {
+  validatePdfStructuralPayload,
+  evaluateStructuralTrust,
+} from "../_shared/pdfStructuralValidator.ts";
+import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
+
+/** Helper: build a minimal valid PdfStructuralPayload */
+function buildValidPayload(): PdfStructuralPayload {
+  const tokens = [];
+  for (let i = 0; i < 6; i++) {
+    tokens.push({
+      text: i < 3 ? `Label ${i}` : `${(i * 1000).toFixed(2).replace(".", ",")}`,
+      x: i < 3 ? 50 : 300,
+      y: 700 - i * 20,
+      width: 80,
+      page: 1,
+      column_slot: i >= 3 ? 0 : null,
+      column_slot_confidence: "HIGH" as const,
+    });
+  }
+
+  const rows = [];
+  for (let i = 0; i < 6; i++) {
+    rows.push({
+      row_index: i,
+      row_group_id: `p1_r${i}`,
+      y_position: 700 - i * 20,
+      page: 1,
+      tokens: [tokens[i]],
+      is_header: i === 0,
+      is_subtotal: i === 5,
+    });
+  }
+
+  return {
+    version: "1.0",
+    pages: [{ page_number: 1, rows }],
+    column_profile: {
+      slot_count: 1,
+      slot_labels: ["Perioden"],
+      slot_x_ranges: [{ min: 280, max: 380 }],
+      detection_method: "header_anchor",
+      confidence: "HIGH",
+    },
+    metadata: {
+      page_count: 1,
+      total_token_count: 6,
+      total_row_count: 6,
+      content_hash: "a".repeat(64),
+      source_file_name: "test.pdf",
+      extraction_timestamp: new Date().toISOString(),
+    },
+  };
+}
+
+// ── Validator unit tests ──
+
+Deno.test("PdfStructural validator: valid payload passes", () => {
+  const payload = buildValidPayload();
+  const result = validatePdfStructuralPayload(payload);
+  assert(result.valid, `Expected valid, got errors: ${result.errors.join("; ")}`);
+  assertEquals(result.errors.length, 0);
+});
+
+Deno.test("PdfStructural validator: missing pages field fails", () => {
+  const payload = { version: "1.0", column_profile: {}, metadata: {} };
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("pages")));
+});
+
+Deno.test("PdfStructural validator: wrong version fails", () => {
+  const payload = buildValidPayload();
+  (payload as any).version = "2.0";
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("version")));
+});
+
+Deno.test("PdfStructural validator: empty pages fails", () => {
+  const payload = buildValidPayload();
+  payload.pages = [];
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("0 pages")));
+});
+
+Deno.test("PdfStructural validator: invalid token coordinates fails", () => {
+  const payload = buildValidPayload();
+  payload.pages[0].rows[0].tokens[0].x = NaN;
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("x invalid")));
+});
+
+Deno.test("PdfStructural validator: column profile inconsistency fails", () => {
+  const payload = buildValidPayload();
+  payload.column_profile.slot_count = 3;
+  // slot_labels has length 1, slot_count says 3 → inconsistency
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("inconsistency")));
+});
+
+Deno.test("PdfStructural validator: bad content hash fails", () => {
+  const payload = buildValidPayload();
+  payload.metadata.content_hash = "tooshort";
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("content_hash")));
+});
+
+Deno.test("PdfStructural validator: page count mismatch fails", () => {
+  const payload = buildValidPayload();
+  payload.metadata.page_count = 5; // but only 1 page in pages array
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("Page count mismatch")));
+});
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: Persistence / Replay Round-Trip Test
+// ══════════════════════════════════════════════════════════════
+
+Deno.test("PdfStructural: JSON round-trip preserves validity (replay contract)", () => {
+  const payload = buildValidPayload();
+
+  // Validate original
+  const r1 = validatePdfStructuralPayload(payload);
+  assert(r1.valid, "Original payload must be valid");
+
+  // Serialize → deserialize
+  const serialized = JSON.stringify(payload);
+  const deserialized = JSON.parse(serialized);
+
+  // Re-validate
+  const r2 = validatePdfStructuralPayload(deserialized);
+  assert(r2.valid, `Deserialized payload must be valid, errors: ${r2.errors.join("; ")}`);
+
+  // Deep equality
+  assertEquals(JSON.stringify(deserialized), serialized, "Round-trip must be byte-stable");
+});
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: Routing-Behavior Tests (Trust Model)
+// ══════════════════════════════════════════════════════════════
+
+Deno.test("Routing: known source + invalid structural → hard fail, no fallback", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known source
+    true,   // has structural payload
+    false,  // validation invalid
+    false,  // hash not verified
+    ["Missing required fields"],
+  );
+  assertFalse(decision.proceed);
+  assertFalse(decision.fallback_allowed);
+  assertEquals(decision.status, "structural_parse_fail");
+  assertExists(decision.error);
+});
+
+Deno.test("Routing: known source + hash mismatch → hard fail, no fallback", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known source
+    true,   // has structural payload
+    true,   // validation valid
+    false,  // hash NOT verified
+    [],
+  );
+  assertFalse(decision.proceed);
+  assertFalse(decision.fallback_allowed);
+  assertEquals(decision.status, "structural_parse_fail");
+});
+
+Deno.test("Routing: unknown source + invalid structural → fallback allowed", () => {
+  const decision = evaluateStructuralTrust(
+    false,  // unknown source
+    true,   // has structural payload
+    false,  // validation invalid
+    false,  // hash not verified
+    ["Some error"],
+  );
+  assertFalse(decision.proceed);
+  assert(decision.fallback_allowed);
+  assertEquals(decision.status, undefined);
+});
+
+Deno.test("Routing: no structural payload → legacy text path (fallback allowed)", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known or unknown — doesn't matter
+    false,  // NO structural payload
+    false,  // n/a
+    false,  // n/a
+    [],
+  );
+  assertFalse(decision.proceed);
+  assert(decision.fallback_allowed);
+  assertEquals(decision.status, undefined);
+});
+
+Deno.test("Routing: known source + valid + hash verified → proceed, no fallback", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known source
+    true,   // has structural payload
+    true,   // validation valid
+    true,   // hash verified
+    [],
+  );
+  assert(decision.proceed);
+  assertFalse(decision.fallback_allowed);
+});
+
+Deno.test("Routing: unknown source + valid + hash not verified → proceed with fallback", () => {
+  const decision = evaluateStructuralTrust(
+    false,  // unknown source
+    true,   // has structural payload
+    true,   // validation valid
+    false,  // hash NOT verified (race condition)
+    [],
+  );
+  assert(decision.proceed);
+  assert(decision.fallback_allowed);
+});
