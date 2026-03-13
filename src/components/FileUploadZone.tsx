@@ -450,10 +450,6 @@ const FileUploadZone = ({
       onPipelineComplete,
     });
 
-        toast({
-          title: "Rapport behandlet",
-          description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period}${analysis && !analysis.error ? " · AI-analyse gennemført" : ""}${milestonesCreated > 0 ? ` · ${milestonesCreated} milestones oprettet` : ""}`,
-        });
       } catch (err) {
         console.error("Pipeline error:", err);
         updateFile(fileId, {
