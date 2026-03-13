@@ -3244,7 +3244,7 @@ https://secure.e-conomic.com/reports/statements/period-total
 // TEST G2: 2-column PDF regression — e-conomic P&L PDF unaffected by 3-number fix
 // ══════════════════════════════════════════════════════════════════════════════
 
-Deno.test("G2: 2-column P&L PDF regression — parser still works for 2-number lines", () => {
+Deno.test("G2: 2-column P&L PDF regression — parser still works for 2-number lines", async () => {
   const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
 
   const rawPdfText = `
