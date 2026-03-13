@@ -3275,10 +3275,10 @@ RESULTAT EFTER SKAT -1.413.582,22
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TEST G3: AI block is template-specific — other templates NOT affected
+// TEST G3: AI eligibility is consistent — all valid templates get ai_eligible=true
 // ══════════════════════════════════════════════════════════════════════════════
 
-Deno.test("G3: AI block is template-specific — P&L template still gets ai_eligible=true", () => {
+Deno.test("G3: AI eligibility consistent — P&L template also gets ai_eligible=true", () => {
   const extractedData = {
     report_type: "resultatopgørelse",
     key_figures: {
@@ -3308,7 +3308,7 @@ Deno.test("G3: AI block is template-specific — P&L template still gets ai_elig
 
   const canonical = buildCanonicalOutput(extractedData, null, "deterministic_template");
   assertEquals(canonical.ai_eligible, true, "P&L template should still be ai_eligible=true");
-  console.log("\n✅ G3 PASSED: AI block is template-specific — P&L template unaffected");
+  console.log("\n✅ G3 PASSED: AI eligibility consistent — P&L template unaffected");
 });
 
 function buildSyntheticXlsxResult(rows: any[][]): import("../_shared/xlsxRawParser.ts").XlsxParseResult {
