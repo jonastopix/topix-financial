@@ -142,6 +142,28 @@ export default function ReportDebug() {
           </div>
         </div>
 
+        {/* Error report state */}
+        {isErrorReport && (
+          <div className="rounded-xl border-2 border-destructive/40 bg-destructive/10 p-5 space-y-3">
+            <div className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" />
+              <span className="font-semibold text-sm">Fejlet rapport</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Denne rapport fejlede under behandling. extraction_method: <span className="font-mono">{report.extraction_method || "—"}</span>
+            </p>
+            {report.validation_errors?.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                <p className="font-medium mb-1">Fejl:</p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {report.validation_errors.map((e: string, i: number) => <li key={i}>{e}</li>)}
+                </ul>
+              </div>
+            )}
+            <JsonBlock data={report.raw_extracted_data} label="raw_extracted_data (routing trace)" />
+          </div>
+        )}
+
         {/* Legacy warning */}
         {isLegacy && (
           <div className="rounded-xl border-2 border-yellow-500/40 bg-yellow-500/10 p-5 space-y-3">

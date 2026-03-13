@@ -89,6 +89,26 @@ function extractCvrFromText(text: string): string | null {
 // CANONICAL ACCOUNTING ENGINE: Now in _shared/canonicalEngine.ts
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Returns true only for PDF families where structural payload is architecturally required.
+ * Currently: e-conomic resultatopgørelse PDF only.
+ * Saldobalance, Dinero, and unknown PDFs are NOT structural-required.
+ * This mirrors the frontend requiresStructuralPdfPayload() in FileUploadZone.tsx.
+ */
+export function requiresStructuralPdfPayload(
+  fingerprint: SourceFingerprint | null,
+  rawText: string
+): boolean {
+  // No fingerprint or not e-conomic → not required
+  if (!fingerprint || fingerprint.source_system !== "economic") return false;
+  // Saldobalance/balance exclusion (case-insensitive)
+  if (/saldobalance/i.test(rawText)) return false;
+  if (/\baktiver\b/i.test(rawText) || /\bpassiver\b/i.test(rawText)) return false;
+  // e-conomic resultatopgørelse → required
+  if (/resultatopg/i.test(rawText)) return true;
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
