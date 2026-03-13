@@ -566,8 +566,47 @@ serve(async (req) => {
           routing_trace: routingTrace,
         };
         console.log(`[Routing] Semantic CSV success: ${semanticCsvResult.template_id}`);
+      } else if (semanticCsvResult.type === "semantic_fail") {
+        // ── Phase 6b: Migrated template semantic_fail → hard fail for known sources ──
+        if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+          routingTrace.deterministic_attempted = true;
+          routingTrace.deterministic_result = "semantic_csv_fail";
+          routingTrace.deterministic_template_id = semanticCsvResult.template_id;
+          routingTrace.branch = "semantic_csv_hard_fail";
+          routingTrace.deterministic_error = semanticCsvResult.error;
+          console.error(`[Routing] Semantic CSV HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`);
+
+          if (reportId) {
+            await supabase
+              .from("financial_reports")
+              .update({
+                status: "error",
+                extraction_method: "semantic_csv_fail",
+                validation_status: "FAIL",
+                validation_errors: [`Semantic CSV extraction failed for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`],
+                raw_extracted_data: { routing_trace: routingTrace },
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", reportId);
+          }
+
+          return new Response(
+            JSON.stringify({
+              error: "Semantic CSV extraction failed",
+              status: "semantic_csv_fail",
+              source_system: sourceFingerprint.source_system,
+              template_id: semanticCsvResult.template_id,
+              details: semanticCsvResult.error,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        // Unknown source: fall back to legacy
+        console.log(`[Routing] Semantic CSV semantic_fail for unknown source, falling back to legacy deterministic...`);
+        routingTrace.deterministic_attempted = true;
+        detResult = tryDeterministicCsvExtraction(fileContent, fileName);
       } else {
-        // Fallback to legacy deterministic extraction for non-migrated templates
+        // no_match or no_semantic_support: fall back to legacy
         console.log(`[Routing] Semantic CSV ${semanticCsvResult.type}, falling back to legacy deterministic...`);
         routingTrace.deterministic_attempted = true;
         detResult = tryDeterministicCsvExtraction(fileContent, fileName);

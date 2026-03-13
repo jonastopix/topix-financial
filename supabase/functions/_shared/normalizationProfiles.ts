@@ -177,11 +177,33 @@ const combined_balance_pnl_credit_v1: NormalizationProfile = {
   field_overrides: {},
 };
 
+// ── Profile: e-conomic Resultatopgørelse (business convention, P&L only) ──
+
+const economic_pnl_business_v1: NormalizationProfile = {
+  profile_id: "economic_pnl_business_v1",
+  description: "e-conomic Resultatopgørelse — business convention, values already positive-means-positive",
+  sign_convention: "business",
+  statement_type: "pnl",
+  family_defaults: {
+    revenue_like:            KEEP,
+    cost_like:               KEEP,
+    profit_like:             KEEP,
+    asset_like:              KEEP,
+    liability_like:          KEEP,
+    equity_like:             KEEP,
+    cash_like:               KEEP,
+    receivable_payable_like: KEEP,
+    contra_or_unknown:       REJECT,
+  },
+  field_overrides: {},
+};
+
 // ── Registry ──
 
 const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
   economic_saldobalance_credit_v1,
   economic_pnl_credit_v1,
+  economic_pnl_business_v1,
   dinero_pnl_credit_v1,
   kj_auto_business_v1,
   combined_balance_pnl_credit_v1,
