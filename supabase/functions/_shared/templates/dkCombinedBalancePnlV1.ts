@@ -428,7 +428,7 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
 
     // Only credit convention proceeds
     const signConvention: "credit" | "business" = "credit";
-    const normalizationProfileId = "kj_auto_combined_credit_v1";
+    const normalizationProfileId = "combined_dk_credit_v1";
     console.log(`[DK_COMBINED_PNL_SEMANTIC] Convention: ${signConvention}, profile: ${normalizationProfileId}`);
 
     // ── Scan all rows for metric candidates and line items ──
