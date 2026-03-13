@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
 import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_shared/sourceFingerprint.ts";
+import { validatePdfStructuralPayload, computeSha256Deno } from "../_shared/pdfStructuralValidator.ts";
+import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
