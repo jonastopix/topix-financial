@@ -2117,12 +2117,12 @@ Deno.test("Phase4e — PDF: 'Periodens resultat' as sole bottom-line populates b
 // PHASE 6+7: SEMANTIC REGRESSION TESTS
 // ═══════════════════════════════════════════════════════
 
-import { buildCanonicalFromSemantic, normalizeSemanticExtraction } from "../_shared/canonicalEngine.ts";
+import { normalizeSemanticExtraction } from "../_shared/canonicalEngine.ts";
 import { parseXlsxRaw, type XlsxParseResult, type XlsxRawRow, type XlsxRawCell, type XlsxColumnProfile } from "../_shared/xlsxRawParser.ts";
 import { parseCsvRaw, buildCsvDetectionContext } from "../_shared/csvRawParser.ts";
 import { dkEconomicResultatopgoerelseXlsxV1 } from "../_shared/templates/dkEconomicResultatopgoerelseXlsxV1.ts";
 import { dkDineroResultatopgoerelseCsvV1 } from "../_shared/templates/dkDineroResultatopgoerelseCsvV1.ts";
-import type { SemanticExtractionResult, SemanticMetricCandidate } from "../_shared/semanticTypes.ts";
+import type { SemanticMetricCandidate } from "../_shared/semanticTypes.ts";
 
 // ── Helper: build XlsxParseResult from raw row arrays ──
 
