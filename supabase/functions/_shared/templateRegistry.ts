@@ -257,12 +257,6 @@ export function trySemanticExcelExtraction(
   excelBase64: string,
   fileName: string
 ): StructuralExtractionResult {
-  const { parseXlsxRawFromBase64, buildXlsxDetectionContext } = (() => {
-    // Dynamic import workaround — these are in the same _shared folder
-    // Using static import at top would create circular dependency
-    const mod = require("./xlsxRawParser.ts");
-    return mod;
-  })();
 
   let xlsxResult: XlsxParseResult;
   try {
