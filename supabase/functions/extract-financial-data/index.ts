@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
-import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
+import { buildCanonicalOutput, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
+import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, tryDeterministicPdfStructuralExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_shared/sourceFingerprint.ts";
 import { validatePdfStructuralPayload, computeSha256Deno } from "../_shared/pdfStructuralValidator.ts";
 import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
