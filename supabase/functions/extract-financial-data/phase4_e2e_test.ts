@@ -3143,10 +3143,10 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEST G1: Golden Fixture — e-conomic Saldobalance PDF sign normalization
-// Proves: 4-column parser, equity/provisions negate, debt abs, AI blocked
+// Proves: 4-column parser, equity/provisions negate, debt abs, AI enabled (golden fixture verified)
 // ══════════════════════════════════════════════════════════════════════════════
 
-Deno.test("G1: Saldobalance PDF golden fixture — all 8 metrics + AI block", async () => {
+Deno.test("G1: Saldobalance PDF golden fixture — all 8 metrics + AI enabled", async () => {
   const { SALDOBALANCE_GOLDEN } = await import("../_test_fixtures/saldobalanceGoldenFixture.ts");
   const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
   const { dkEconomicSaldobalancePdfV1 } = await import("../_shared/templates/dkEconomicSaldobalancePdfV1.ts");
@@ -3231,14 +3231,14 @@ https://secure.e-conomic.com/reports/statements/period-total
   assertEquals(canonical.metrics.cash, SALDOBALANCE_GOLDEN.expected_metrics.cash, "canonical cash");
   assertEquals(canonical.metrics.liabilities_total, SALDOBALANCE_GOLDEN.expected_metrics.liabilities_total, "canonical liabilities_total");
 
-  // Step 5: AI blocked
-  assertEquals(canonical.ai_eligible, false, "AI should be BLOCKED for DK_ECONOMIC_SALDOBALANCE_PDF_V1");
+  // Step 5: AI enabled (golden fixture verified, gate removed)
+  assertEquals(canonical.ai_eligible, true, "AI should be ENABLED for DK_ECONOMIC_SALDOBALANCE_PDF_V1 (golden fixture verified)");
 
   // Step 6: No equity double-flip
   const equityCorrection = canonical.correction_log.find(c => c.rule === "saldobalance_equity_sign_inverted");
   assertEquals(equityCorrection, undefined, "Canonical engine should NOT re-flip equity for deterministic templates");
 
-  console.log("\n✅ G1 PASSED: Saldobalance golden fixture — all 8 metrics correct, AI blocked, no equity double-flip");
+  console.log("\n✅ G1 PASSED: Saldobalance golden fixture — all 8 metrics correct, AI enabled, no equity double-flip");
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3275,10 +3275,10 @@ RESULTAT EFTER SKAT -1.413.582,22
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TEST G3: AI block is template-specific — other templates NOT affected
+// TEST G3: AI eligibility is consistent — all valid templates get ai_eligible=true
 // ══════════════════════════════════════════════════════════════════════════════
 
-Deno.test("G3: AI block is template-specific — P&L template still gets ai_eligible=true", () => {
+Deno.test("G3: AI eligibility consistent — P&L template also gets ai_eligible=true", () => {
   const extractedData = {
     report_type: "resultatopgørelse",
     key_figures: {
@@ -3308,7 +3308,7 @@ Deno.test("G3: AI block is template-specific — P&L template still gets ai_elig
 
   const canonical = buildCanonicalOutput(extractedData, null, "deterministic_template");
   assertEquals(canonical.ai_eligible, true, "P&L template should still be ai_eligible=true");
-  console.log("\n✅ G3 PASSED: AI block is template-specific — P&L template unaffected");
+  console.log("\n✅ G3 PASSED: AI eligibility consistent — P&L template unaffected");
 });
 
 function buildSyntheticXlsxResult(rows: any[][]): import("../_shared/xlsxRawParser.ts").XlsxParseResult {
