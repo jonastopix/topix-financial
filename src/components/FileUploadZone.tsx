@@ -555,7 +555,10 @@ const FileUploadZone = ({
             });
             return;
           }
-          if (aiData?.error) throw new Error(aiData.error);
+          if (aiData?.error) {
+            const friendlyMsg = getFriendlyErrorMessage(aiData);
+            throw new Error(friendlyMsg);
+          }
 
           extractedData = aiData;
         }
