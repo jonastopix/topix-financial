@@ -950,9 +950,9 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
       metrics.facility_costs,
       metrics.admin_costs,
     ];
-    const opexSum = opexComponents.reduce((sum, v) => sum + (v || 0), 0);
+    const opexSum = opexComponents.reduce((sum: number, v) => sum + (v || 0), 0 as number);
     if (opexSum > 0) {
-      metrics.ebitda = metrics.gross_profit - opexSum;
+      metrics.ebitda = metrics.gross_profit! - opexSum;
       correction_log.push({
         field: "ebitda",
         source: "derived_metric",
