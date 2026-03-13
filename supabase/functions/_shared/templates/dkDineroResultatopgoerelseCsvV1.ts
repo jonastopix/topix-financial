@@ -72,6 +72,36 @@ const CLASS_TO_LINE_CLASS: Record<string, string> = {
   tax: "TAX",
 };
 
+// ── Class → normalization family mapping ──
+
+const CLASS_TO_FAMILY: Record<string, MetricFamily> = {
+  revenue: "revenue_like",
+  cogs: "cost_like",
+  payroll: "cost_like",
+  facility_costs: "cost_like",
+  vehicle_costs: "cost_like",
+  sales_costs: "cost_like",
+  admin_costs: "cost_like",
+  depreciation: "cost_like",
+  financial_costs: "cost_like",
+  tax: "cost_like",
+};
+
+// ── Class → semantic source_field_id mapping ──
+
+const CLASS_TO_FIELD_ID: Record<string, string> = {
+  revenue: "omsaetning",
+  cogs: "direkte_omkostninger",
+  payroll: "loenninger",
+  facility_costs: "lokaleomkostninger",
+  vehicle_costs: "transportomkostninger",
+  sales_costs: "salgsomkostninger",
+  admin_costs: "administrationsomkostninger",
+  depreciation: "afskrivninger",
+  financial_costs: "finansielle_omkostninger",
+  tax: "skat",
+};
+
 // ── Parse Danish number format ──
 
 function parseDanishAmount(s: string): number | null {
@@ -138,7 +168,7 @@ function classifyLine(kontonavn: string, kontonr: number | null): {
 
 // ── Template ──
 
-export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
+export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
   template_id: "DK_DINERO_RESULTATOPGOERELSE_V1",
   label: "Dinero Resultatopgørelse CSV",
   supported_file_types: ["csv"],
@@ -146,10 +176,50 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
 
   detect(ctx: DetectionContext): number {
     if (ctx.fileType !== "csv") return 0;
+
+    let score = 0;
+
+    // ── Structural CSV detection (preferred when csvHeaders available) ──
+    if (ctx.csvHeaders && ctx.csvHeaders.length > 0) {
+      // Hard requirement: headers must match exactly
+      const headersMatch =
+        ctx.csvHeaders.length >= 3 &&
+        ctx.csvHeaders[0]?.trim() === "Konto" &&
+        ctx.csvHeaders[1]?.trim() === "Kontonavn" &&
+        ctx.csvHeaders[2]?.trim() === "Beløb";
+      if (!headersMatch) return 0;
+      score += 40;
+
+      // Delimiter evidence
+      if (ctx.csvDelimiter === ";") score += 10;
+
+      // Filename
+      const fn = ctx.fileName.toLowerCase();
+      if (fn.includes("resultat")) score += 20;
+      if (fn.includes("balance")) return 0;
+      score += 10; // Passed anti-match
+
+      // Label recognition from structural headerRows (built from CsvParseResult rows)
+      let recognizedCount = 0;
+      for (const row of (ctx.headerRows || [])) {
+        const kontonavn = ((row[1] ?? "") as string).toLowerCase().trim();
+        if (!kontonavn) continue;
+        for (const patterns of Object.values(LABEL_CLASSES)) {
+          if (patterns.some((p) => kontonavn.includes(p))) {
+            recognizedCount++;
+            break;
+          }
+        }
+      }
+      if (recognizedCount >= 5) score += 15;
+
+      return score;
+    }
+
+    // ── Legacy raw-text detection (for non-migrated callers) ──
     const text = ctx.rawText;
     if (!text) return 0;
 
-    let score = 0;
     const lines = text.split(/\r?\n/).map((l) => l.replace(/^\uFEFF/, ""));
 
     // Hard requirement: header must match exactly
@@ -492,5 +562,163 @@ export const dkDineroResultatopgoerelseCsvV1: TemplateEntry = {
     };
 
     return { success: true, data };
+  },
+
+  // ── Phase 7: Semantic CSV Extraction (structural-first) ──
+  extractSemanticFromCsv(csvResult: CsvParseResult): SemanticExtractionResult | null {
+    // Consume CsvParseResult only — no raw csvText parsing
+    if (csvResult.total_rows < 3) return null;
+
+    // Verify expected structure: 3 columns (Konto, Kontonavn, Beløb)
+    if (csvResult.headers.length < 3) {
+      console.log("[Dinero Semantic CSV] Insufficient columns → reject");
+      return null;
+    }
+
+    // ── Parse and classify each row from structural model ──
+    const classified: ClassifiedLine[] = [];
+    let ambiguousCount = 0;
+
+    for (const row of csvResult.rows) {
+      if (row.cells.length < 3) continue;
+
+      const kontonrStr = row.cells[0].raw_value.trim();
+      const kontonavn = row.cells[1].raw_value.trim();
+      const amountStr = row.cells[2].raw_value.trim();
+
+      const kontonr = /^\d{4}$/.test(kontonrStr) ? parseInt(kontonrStr) : null;
+      const rawAmount = parseDanishAmount(amountStr);
+
+      if (kontonr == null || rawAmount == null) continue;
+
+      const classification = classifyLine(kontonavn, kontonr);
+      if (classification.ambiguous) ambiguousCount++;
+
+      classified.push({
+        kontonr,
+        kontonavn,
+        rawAmount,
+        ...classification,
+      });
+    }
+
+    console.log(`[Dinero Semantic CSV] Parsed ${classified.length} lines, ${ambiguousCount} ambiguous`);
+
+    if (classified.length < 3) {
+      console.log("[Dinero Semantic CSV] Insufficient valid lines → reject");
+      return null;
+    }
+
+    // ── Aggregate raw sums per class — preserving document signs ──
+    // No Math.abs(), no sign transformation — raw document convention
+    const sums: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+
+    for (const line of classified) {
+      if (line.cls === "unclassified") continue;
+      sums[line.cls] = (sums[line.cls] || 0) + line.rawAmount;
+      counts[line.cls] = (counts[line.cls] || 0) + 1;
+    }
+
+    // ── Sign convention evidence ──
+    const revenueLines = classified.filter((l) => l.cls === "revenue");
+    const nonZeroRevenue = revenueLines.filter((l) => l.rawAmount !== 0);
+    const hasNegativeRevenue = nonZeroRevenue.some((l) => l.rawAmount < 0);
+
+    // ── Build SemanticMetricCandidates (one per classified class) ──
+    const metricCandidates: SemanticMetricCandidate[] = [];
+
+    for (const [cls, rawSum] of Object.entries(sums)) {
+      const fieldId = CLASS_TO_FIELD_ID[cls];
+      const family = CLASS_TO_FAMILY[cls];
+      if (!fieldId || !family) continue;
+
+      // Raw value preserves document sign convention (negative revenue, positive costs)
+      metricCandidates.push({
+        source_field_id: fieldId,
+        normalization_family: family,
+        raw_value: rawSum,
+        raw_sign: rawSum < 0 ? "negative" : rawSum > 0 ? "positive" : "zero",
+        sign_convention: "credit",
+        source_label: `${cls} (aggregated ${counts[cls]} lines)`,
+        source_row_index: null,
+        source_column_slot: 2, // Beløb column
+        source_cell_address: null,
+        basis: "period",
+        confidence: ambiguousCount > 0 ? "MEDIUM" : "HIGH",
+        evidence: [`${counts[cls]} lines classified as ${cls}`],
+        proposed_canonical_target: null, // Advisory only, NOT used
+      });
+    }
+
+    // ── Build SemanticLineItems ──
+    const lineItems: SemanticLineItem[] = classified.map((line) => ({
+      source_field_id: `acct_${line.kontonr}`,
+      source_label: line.kontonavn,
+      raw_value: line.rawAmount, // Document sign preserved
+      basis: "period" as const,
+      account_no: line.kontonr?.toString() || null,
+      source_row_index: null,
+    }));
+
+    // ── Validation checks ──
+    const checks: SemanticExtractionResult["parser_validation"]["checks"] = [];
+
+    checks.push({
+      name: "revenue_present",
+      result: sums.revenue != null ? "PASS" : "FAIL",
+      details: sums.revenue != null ? `Revenue raw sum: ${sums.revenue}` : "No revenue lines",
+    });
+
+    checks.push({
+      name: "sign_convention",
+      result: hasNegativeRevenue ? "PASS" : nonZeroRevenue.length === 0 ? "SKIP" : "FAIL",
+      details: hasNegativeRevenue
+        ? "Credit convention confirmed (negative revenue)"
+        : nonZeroRevenue.length === 0
+          ? "No non-zero revenue lines"
+          : "No negative revenue found — unexpected for Dinero credit convention",
+    });
+
+    checks.push({
+      name: "minimum_classes",
+      result: Object.keys(sums).length >= 3 ? "PASS" : "FAIL",
+      details: `${Object.keys(sums).length} classes found`,
+    });
+
+    const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
+
+    return {
+      source_system: "dinero",
+      document_type: "resultatopgoerelse",
+      template_id: "DK_DINERO_RESULTATOPGOERELSE_V1",
+      sign_convention: "credit",
+      normalization_profile_id: "dinero_pnl_credit_v1",
+
+      company_name: null,
+      cvr: null,
+      period_start: null,
+      period_end: null,
+      report_period_label: null,
+
+      metric_candidates: metricCandidates,
+      line_items: lineItems,
+      basis_profile: {
+        mode: "single",
+        selected_period_basis: "period",
+      },
+      parser_validation: {
+        parser_status: parserStatus,
+        checks,
+      },
+      _deterministic_meta: {
+        template_id: "DK_DINERO_RESULTATOPGOERELSE_V1",
+        parser_confidence: parserStatus === "PASS" ? "HIGH" : "MEDIUM",
+        detection_score: 0, // Set by registry
+        raw_line_count: classified.length,
+        normalized_line_count: classified.filter(l => l.cls !== "unclassified").length,
+        column_basis_rule: "single",
+      },
+    };
   },
 };

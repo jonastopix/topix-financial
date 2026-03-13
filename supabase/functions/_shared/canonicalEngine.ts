@@ -1,6 +1,10 @@
 /**
  * Canonical Accounting Engine — Phase 3 Hardening + Phase 5 Semantic Path
  * Normalize → Validate → Provenance → Build AI Payload
+ *
+ * Phase 6+7 correction: strict separation between normalization and canonical layers.
+ * - normalizeSemanticExtraction() outputs source_field_id-keyed values (NO canonical mapping)
+ * - buildCanonicalFromSemantic() maps source_field_id → canonical key + derivations
  */
 
 import type {
@@ -228,12 +232,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     }
 
     // Resultat in saldobalance: conditional sign flip (AI safety net)
-    // Deterministic paths pre-normalize → skip
-    // AI sometimes normalizes result to business convention (positive = profit),
-    // sometimes returns raw accounting sign (negative = credit = profit).
-    // Cross-validate against computed profit direction to decide.
     if (resultatFields.includes(dkField) && isSaldobalance && !isDeterministic && value !== 0) {
-      // Compute expected result direction from available metrics
       const absGP = Math.abs(kf.daekningsbidrag || kf.daekningsbidrag_aar || 0);
       const opexTotal = Math.abs(kf.loenninger || 0) + Math.abs(kf.marketing || kf.salgsomkostninger || 0) +
         Math.abs(kf.lokaler || kf.lokaleomkostninger || 0) +
@@ -241,22 +240,16 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
         Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0);
 
       if (absGP > 0) {
-        // We can cross-validate: expectedResult positive = profit, negative = loss
         const expectedResult = absGP - opexTotal;
         const valueSignMatchesExpected = (value > 0) === (expectedResult > 0);
 
         if (valueSignMatchesExpected) {
-          // AI already normalized to business convention — keep as-is, no flip
-          // (e.g. positive value when profit expected, or negative when loss expected)
+          // AI already normalized to business convention — keep as-is
         } else {
-          // Value sign contradicts computed direction — raw accounting sign, flip it
           normalized = -value;
           correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
             `Saldobalance result inverted (cross-validated): ${value} → ${normalized}`, "HIGH");
         }
-      } else {
-        // Can't compute expected direction — trust AI normalization, don't flip
-        // (blind flip was causing false losses, safer to trust AI here)
       }
     }
 
@@ -275,7 +268,6 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     }
 
     // Equity in saldobalance: CREDIT convention → negative = positive equity
-    // egenkapital appears as negative in trial balance when it's actually a surplus
     if (dkField === "egenkapital" && isSaldobalance && value < 0) {
       normalized = Math.abs(value);
       correct(dkField, value, normalized, "saldobalance_equity_sign_inverted",
@@ -297,7 +289,6 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
           confidence: "HIGH",
         });
       } else {
-        // Will be set via admin mapping; add tech as additional
         metrics[canonicalField] = (metrics[canonicalField] || 0) + normalized;
       }
       continue;
@@ -305,13 +296,11 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
 
     // Bank/cash: keep sign (overdraft allowed)
     // Equity: keep sign (negative equity possible)
-    // These are NOT corrected
 
     metrics[canonicalField] = normalized;
   }
 
   // Prefer explicit bank/likvider line-item sign over key_figures when available
-  // (AI can hallucinate sign in key_figures on saldobalancer)
   if (!isDeterministic && cashFields.some((f) => kf[f] != null)) {
     const bankLine = lineItems.find((li: any) => {
       const label = (li?.name || "").toString().toLowerCase();
@@ -646,7 +635,6 @@ export function computeAiEligible(
       return metrics.revenue != null && metrics.ebt != null && metrics.assets_total != null;
     case "balance":
     case "trial_balance":
-      // Disabled in Phase 3
       return false;
     default:
       return false;
@@ -655,6 +643,7 @@ export function computeAiEligible(
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PHASE 5: Semantic Normalization Path
+// Phase 6+7 correction: strict layer separation
 // ══════════════════════════════════════════════════════════════════════════════
 
 /** Danish source_field_id → canonical metric key mapping */
@@ -668,6 +657,7 @@ const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   administrationsomkostninger: "admin_costs",
   transportomkostninger: "vehicle_costs",
   afskrivninger: "depreciation",
+  resultat_foer_afskrivninger: "ebitda",
   resultat_foer_skat: "ebt",
   resultat_foer_ekstraordinaere: "ebt",
   resultat_efter_skat: "net_result",
@@ -695,7 +685,6 @@ function applyNormalizationRule(
       return { normalized: rawValue, action_applied: "keep" };
     case "conditional":
       // For conditional rules, apply fallback action
-      // (full cross-validation is done post-normalization by the canonical validation engine)
       if (rule.condition) {
         switch (rule.condition.fallback_action) {
           case "abs": return { normalized: Math.abs(rawValue), action_applied: "conditional→abs" };
@@ -712,39 +701,38 @@ function applyNormalizationRule(
 }
 
 /**
- * Normalize a SemanticExtractionResult into canonical metrics using centralized profiles.
- * Returns metrics + correction_log + enriched provenance.
+ * Normalization result keyed by source_field_id (NOT canonical keys).
+ * This is the output contract of the normalization layer.
  */
-export function normalizeSemanticExtraction(semantic: SemanticExtractionResult): {
-  metrics: CanonicalMetrics;
+export interface NormalizationResult {
+  /** Normalized values keyed by source_field_id */
+  normalized_by_source: Record<string, number | null>;
+  /** Correction log entries keyed by source_field_id */
   correction_log: CorrectionLogEntry[];
-  provenance: Record<string, EnrichedProvenanceEntry>;
-} {
+  /** Enriched provenance keyed by source_field_id (preserves full source-semantic trail) */
+  provenance_by_source: Record<string, EnrichedProvenanceEntry>;
+}
+
+/**
+ * Normalize a SemanticExtractionResult using centralized profiles.
+ *
+ * LAYER CONTRACT (Phase 6+7 corrected):
+ * - Outputs values keyed by source_field_id (NOT canonical keys)
+ * - Does NOT map to canonical keys — that is buildCanonicalFromSemantic()'s job
+ * - Applies ONLY profile-driven sign normalization
+ * - No derivations, no canonical mapping
+ */
+export function normalizeSemanticExtraction(semantic: SemanticExtractionResult): NormalizationResult {
   const profile = getNormalizationProfile(semantic.normalization_profile_id);
   if (!profile) {
     throw new Error(`Normalization profile not found: ${semantic.normalization_profile_id}`);
   }
 
-  const metrics: CanonicalMetrics = {
-    revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
-    payroll: null, payroll_related: null, other_staff_costs: null,
-    sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
-    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
-    extraordinary_items: null, ebt: null, net_result: null,
-    assets_total: null, inventory: null, receivables_total: null,
-    trade_receivables: null, unbilled_wip: null, cash: null,
-    equity_total: null, equity_ratio_pct: null, related_party_net: null,
-    provisions_total: null, current_liabilities: null, debt_total: null,
-    vat_payable: null, liabilities_total: null,
-  };
-
+  const normalizedBySource: Record<string, number | null> = {};
   const corrections: CorrectionLogEntry[] = [];
-  const provenance: Record<string, EnrichedProvenanceEntry> = {};
+  const provenanceBySource: Record<string, EnrichedProvenanceEntry> = {};
 
   for (const candidate of semantic.metric_candidates) {
-    const canonicalKey = SEMANTIC_TO_CANONICAL[candidate.source_field_id];
-    if (!canonicalKey) continue;
-
     // Determine normalization rule: field_override takes precedence over family_default
     const fieldOverride = profile.field_overrides[candidate.source_field_id];
     const familyDefault = profile.family_defaults[candidate.normalization_family];
@@ -783,10 +771,12 @@ export function normalizeSemanticExtraction(semantic: SemanticExtractionResult):
       });
     }
 
-    metrics[canonicalKey] = normalized;
+    // Store by source_field_id — NOT canonical key
+    // If multiple candidates share same source_field_id, last one wins (deterministic: templates emit one per field)
+    normalizedBySource[candidate.source_field_id] = normalized;
 
-    // Build enriched provenance
-    provenance[canonicalKey] = {
+    // Build enriched provenance keyed by source_field_id
+    provenanceBySource[candidate.source_field_id] = {
       source_type: "deterministic_template",
       source_system: semantic.source_system,
       template_id: semantic.template_id,
@@ -802,41 +792,164 @@ export function normalizeSemanticExtraction(semantic: SemanticExtractionResult):
       normalization_family: candidate.normalization_family,
       normalization_rule_type: ruleType as any,
       normalization_action: action_applied,
-      canonical_metric: canonicalKey,
+      canonical_metric: null, // Set later by canonical layer
       confidence: candidate.confidence,
     };
   }
 
-  // Derive calculated fields
-  if (metrics.revenue != null && metrics.gross_profit != null && metrics.revenue !== 0) {
-    metrics.gross_margin_pct = (metrics.gross_profit / metrics.revenue) * 100;
-  }
-  if (metrics.equity_total != null && metrics.assets_total != null && metrics.assets_total !== 0) {
-    metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
-  }
-  if (metrics.ebitda == null && metrics.gross_profit != null) {
-    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) +
-      (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
-    if (opex > 0) metrics.ebitda = metrics.gross_profit - opex;
-  }
-  if (metrics.ebit == null && metrics.ebitda != null && metrics.depreciation != null) {
-    metrics.ebit = metrics.ebitda - metrics.depreciation;
-  }
-
-  return { metrics, correction_log: corrections, provenance };
+  return {
+    normalized_by_source: normalizedBySource,
+    correction_log: corrections,
+    provenance_by_source: provenanceBySource,
+  };
 }
 
 /**
  * Build full CanonicalOutput from a SemanticExtractionResult.
- * This is the Phase 5 entry point for the structural PDF path.
+ *
+ * LAYER CONTRACT (Phase 6+7 corrected):
+ * 1. Calls normalizeSemanticExtraction() → source_field_id-keyed values
+ * 2. Maps source_field_id → canonical metric key via SEMANTIC_TO_CANONICAL
+ * 3. Applies all derivations (gross_profit, ebitda, ebit, ebt, ratios)
+ * 4. Re-keys provenance from source_field_id to canonical key
+ * 5. Runs canonical validation
  */
 export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): CanonicalOutput {
-  const { metrics, correction_log, provenance } = normalizeSemanticExtraction(semantic);
+  const normResult = normalizeSemanticExtraction(semantic);
 
+  // ── Step 1: Initialize empty canonical metrics ──
+  const metrics: CanonicalMetrics = {
+    revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
+    payroll: null, payroll_related: null, other_staff_costs: null,
+    sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+    extraordinary_items: null, ebt: null, net_result: null,
+    assets_total: null, inventory: null, receivables_total: null,
+    trade_receivables: null, unbilled_wip: null, cash: null,
+    equity_total: null, equity_ratio_pct: null, related_party_net: null,
+    provisions_total: null, current_liabilities: null, debt_total: null,
+    vat_payable: null, liabilities_total: null,
+  };
+
+  // ── Step 2: Map source_field_id → canonical key ──
+  // Tracks which source_field_id mapped to which canonical key for provenance re-keying
+  const canonicalProvenance: Record<string, EnrichedProvenanceEntry> = {};
+  const correction_log = [...normResult.correction_log];
+
+  // Precedence rule for multiple source_field_id → same canonical key:
+  // Later entries in SEMANTIC_TO_CANONICAL win, but we process normalized_by_source
+  // in iteration order. If a canonical key is already set, the NEW value wins only
+  // if it has higher confidence or is non-null replacing null.
+  const canonicalSourceMap: Record<string, string> = {}; // canonical_key → winning source_field_id
+
+  for (const [sourceFieldId, normalizedValue] of Object.entries(normResult.normalized_by_source)) {
+    const canonicalKey = SEMANTIC_TO_CANONICAL[sourceFieldId];
+    if (!canonicalKey) continue;
+
+    const existingSourceId = canonicalSourceMap[canonicalKey];
+    if (existingSourceId != null && metrics[canonicalKey] != null) {
+      // Canonical key already populated — apply deterministic precedence:
+      // If current value is null but existing is not, keep existing
+      if (normalizedValue == null) continue;
+      // If both non-null, log the conflict and let the new one win (last-write-wins)
+      console.log(`[CanonicalEngine] Canonical key "${canonicalKey}" conflict: ${existingSourceId}=${metrics[canonicalKey]} vs ${sourceFieldId}=${normalizedValue} → last-write-wins`);
+    }
+
+    metrics[canonicalKey] = normalizedValue;
+    canonicalSourceMap[canonicalKey] = sourceFieldId;
+
+    // Re-key provenance: copy source provenance to canonical key, set canonical_metric
+    const sourceProv = normResult.provenance_by_source[sourceFieldId];
+    if (sourceProv) {
+      canonicalProvenance[canonicalKey] = {
+        ...sourceProv,
+        canonical_metric: canonicalKey,
+      };
+    }
+  }
+
+  // ── Step 3: Canonical derivations (explicit, transparent) ──
+
+  // gross_profit = revenue - cogs (when null but both inputs present)
+  if (metrics.gross_profit == null && metrics.revenue != null && metrics.cogs != null) {
+    metrics.gross_profit = metrics.revenue - metrics.cogs;
+    correction_log.push({
+      field: "gross_profit",
+      source: "derived_metric",
+      raw_value: null,
+      normalized_value: metrics.gross_profit,
+      rule: "canonical_derivation",
+      reason: `gross_profit derived: revenue(${metrics.revenue}) - cogs(${metrics.cogs}) = ${metrics.gross_profit}`,
+      confidence: "HIGH",
+    });
+  }
+
+  // gross_margin_pct = (gross_profit / revenue) * 100
+  if (metrics.revenue != null && metrics.gross_profit != null && metrics.revenue !== 0) {
+    metrics.gross_margin_pct = (metrics.gross_profit / metrics.revenue) * 100;
+  }
+
+  // equity_ratio_pct = (equity_total / assets_total) * 100
+  if (metrics.equity_total != null && metrics.assets_total != null && metrics.assets_total !== 0) {
+    metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
+  }
+
+  // ebitda = gross_profit - (payroll + sales_costs + facility_costs + admin_costs)
+  // Only when ebitda is null and gross_profit is present
+  if (metrics.ebitda == null && metrics.gross_profit != null) {
+    const opexComponents = [
+      metrics.payroll,
+      metrics.sales_costs,
+      metrics.facility_costs,
+      metrics.admin_costs,
+    ];
+    const opexSum = opexComponents.reduce((sum, v) => sum + (v || 0), 0);
+    if (opexSum > 0) {
+      metrics.ebitda = metrics.gross_profit - opexSum;
+      correction_log.push({
+        field: "ebitda",
+        source: "derived_metric",
+        raw_value: null,
+        normalized_value: metrics.ebitda,
+        rule: "canonical_derivation",
+        reason: `ebitda derived: gross_profit(${metrics.gross_profit}) - (payroll(${metrics.payroll || 0}) + sales(${metrics.sales_costs || 0}) + facility(${metrics.facility_costs || 0}) + admin(${metrics.admin_costs || 0})) = ${metrics.ebitda}`,
+        confidence: "HIGH",
+      });
+    }
+  }
+
+  // ebit = ebitda - depreciation
+  if (metrics.ebit == null && metrics.ebitda != null && metrics.depreciation != null) {
+    metrics.ebit = metrics.ebitda - metrics.depreciation;
+    correction_log.push({
+      field: "ebit",
+      source: "derived_metric",
+      raw_value: null,
+      normalized_value: metrics.ebit,
+      rule: "canonical_derivation",
+      reason: `ebit derived: ebitda(${metrics.ebitda}) - depreciation(${metrics.depreciation}) = ${metrics.ebit}`,
+      confidence: "HIGH",
+    });
+  }
+
+  // ebt = ebit - financial_costs (when null but both inputs present)
+  if (metrics.ebt == null && metrics.ebit != null && metrics.financial_costs != null) {
+    metrics.ebt = metrics.ebit - metrics.financial_costs;
+    correction_log.push({
+      field: "ebt",
+      source: "derived_metric",
+      raw_value: null,
+      normalized_value: metrics.ebt,
+      rule: "canonical_derivation",
+      reason: `ebt derived: ebit(${metrics.ebit}) - financial_costs(${metrics.financial_costs}) = ${metrics.ebt}`,
+      confidence: "HIGH",
+    });
+  }
+
+  // ── Step 4: Build raw/normalized lines from semantic line_items ──
   const statementType = detectStatementType({ report_type: semantic.document_type === "resultatopgoerelse" ? "resultatopgørelse" : semantic.document_type });
   const periodBasis = semantic.basis_profile.selected_period_basis;
 
-  // Build raw_lines from semantic line_items
   const rawLines: RawLineEntry[] = semantic.line_items.map(li => ({
     name: li.source_label,
     period_amount: li.raw_value,
@@ -848,7 +961,7 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
 
   const normalizedLines = buildNormalizedLines(rawLines);
 
-  // Parser validation checks
+  // ── Step 5: Validation ──
   const aiChecks: ValidationCheck[] = semantic.parser_validation.checks.map(c => ({
     name: c.name, result: c.result, details: c.details,
   }));
@@ -878,7 +991,7 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     selected_period_basis: periodBasis,
     metrics,
     correction_log,
-    provenance: provenance as any,
+    provenance: canonicalProvenance as any,
     validation: {
       status,
       ai_checks: aiChecks,
@@ -920,7 +1033,6 @@ export function buildCanonicalOutput(
   const statementType = detectStatementType(extractedData);
   const periodBasis = inferPeriodBasis(kf);
 
-  // Normalize
   // Normalize (pass extractionMethod for conditional sign handling)
   const { metrics, correction_log } = normalizeToCanonical(extractedData, extractionMethod);
 
@@ -977,11 +1089,11 @@ export function buildCanonicalOutput(
     validation: {
       status,
       ai_checks: aiChecks,
-      server_checks: [], // Legacy compat — canonical_checks replaces this
+      server_checks: [],
       canonical_checks,
     },
     ai_eligible: aiEligible,
-    ai_eligible_payload: null, // Set below
+    ai_eligible_payload: null,
     deterministic_meta: deterministicMeta,
   };
 
