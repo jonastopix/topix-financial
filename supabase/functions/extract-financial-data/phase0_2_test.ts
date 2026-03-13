@@ -264,9 +264,9 @@ Deno.test("Profile registry: economic_pnl has COGS field_override", () => {
   assertEquals(cogsOverride.action, "conditional");
 });
 
-Deno.test("Profile registry: kj_auto combined credit convention", () => {
-  const profile = getNormalizationProfile("kj_auto_combined_credit_v1")!;
-  assertExists(profile, "kj_auto_combined_credit_v1 profile must exist");
+Deno.test("Profile registry: combined_dk credit convention", () => {
+  const profile = getNormalizationProfile("combined_dk_credit_v1")!;
+  assertExists(profile, "combined_dk_credit_v1 profile must exist");
   assertEquals(profile.sign_convention, "credit");
   assertEquals(profile.family_defaults.revenue_like.action, "negate");
   assertEquals(profile.family_defaults.cost_like.action, "abs");
