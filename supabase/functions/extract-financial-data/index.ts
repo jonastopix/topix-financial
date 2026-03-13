@@ -396,8 +396,89 @@ serve(async (req) => {
         }
       }
 
-      console.log("[Routing] Attempting deterministic PDF extraction...");
-      detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+      // ── STRUCTURAL-FIRST ROUTING (Phase 5) ──
+      // When validatedStructural exists and template supports semantic extraction,
+      // the structural path is MANDATORY — no text fallback in the same request.
+      if (validatedStructural) {
+        console.log("[Routing] Attempting structural-first PDF extraction...");
+        const structResult = tryDeterministicPdfStructuralExtraction(validatedStructural, fileContent, fileName);
+        routingTrace.deterministic_attempted = true;
+
+        switch (structResult.type) {
+          case "success": {
+            routingTrace.deterministic_result = "structural_success";
+            routingTrace.deterministic_template_id = structResult.template_id;
+            routingTrace.branch = "deterministic_structural_success";
+            extractionMethod = "deterministic_structural";
+
+            // Build canonical output from semantic result
+            const canonicalFromSemantic = buildCanonicalFromSemantic(structResult.semantic);
+            extractedData = {
+              ...canonicalFromSemantic,
+              _deterministic_meta: structResult.semantic._deterministic_meta,
+            };
+            rawAiOutput = {
+              deterministic: true,
+              structural: true,
+              template_id: structResult.template_id,
+              routing_trace: routingTrace,
+            };
+
+            console.log(`[Routing] Structural-first success: ${structResult.template_id}`);
+            break;
+          }
+          case "semantic_fail": {
+            routingTrace.deterministic_result = "structural_semantic_fail";
+            routingTrace.deterministic_template_id = structResult.template_id;
+            routingTrace.deterministic_error = structResult.error;
+            routingTrace.branch = "structural_semantic_fail";
+            console.warn(`[Routing] Structural semantic extraction failed: ${structResult.error}`);
+
+            // For known sources: this is a hard fail — no text fallback
+            if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+              if (reportId) {
+                await supabase
+                  .from("financial_reports")
+                  .update({
+                    status: "error",
+                    extraction_method: "structural_semantic_fail",
+                    validation_status: "FAIL",
+                    validation_errors: [`Structural semantic extraction failed for ${structResult.template_id}: ${structResult.error}`],
+                    raw_extracted_data: { routing_trace: routingTrace },
+                    processed_at: new Date().toISOString(),
+                  })
+                  .eq("id", reportId);
+              }
+
+              return new Response(
+                JSON.stringify({
+                  error: "Structural semantic extraction failed",
+                  template_id: structResult.template_id,
+                  details: structResult.error,
+                  status: "error",
+                }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+            // Unknown source: fall through to legacy text path below
+            break;
+          }
+          case "no_semantic_support":
+            // Template matched but doesn't support structural path yet — use legacy text path
+            console.log("[Routing] Template matched but no semantic support, falling back to legacy text path");
+            detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+            break;
+          case "no_match":
+            // No template matched — fall through to legacy text path
+            console.log("[Routing] No template matched for structural extraction, trying legacy text path");
+            detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+            break;
+        }
+      } else {
+        // No structural payload — legacy text path (migration bridge for older reports)
+        console.log("[Routing] No structural payload, attempting legacy deterministic PDF extraction...");
+        detResult = tryDeterministicPdfExtraction(fileContent, fileName);
+      }
     } else if (isCsvFile && fileContent) {
       routingTrace.deterministic_attempted = true;
       console.log("[Routing] Attempting deterministic CSV extraction...");
