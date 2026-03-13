@@ -329,7 +329,9 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
           account_no: accountNo,
           name,
           period_amount: periodVal,
+          period_prev: null,
           ytd_amount: ytdVal,
+          ytd_prev: null,
           is_subtotal: !accountNo || isSubtotalName(name),
           section: currentSection,
         });
