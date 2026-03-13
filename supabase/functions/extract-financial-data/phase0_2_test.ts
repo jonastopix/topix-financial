@@ -610,7 +610,6 @@ Deno.test("Routing: unknown source + valid + hash not verified → proceed with 
 
 import { buildCanonicalOutput, normalizeSemanticExtraction, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
 import { dkEconomicResultatopgoerelsePdfV1 } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
-import { ECONOMIC_PNL_PDF_TEXT } from "../_test_fixtures/pdfParserFixtures.ts";
 
 Deno.test("Phase 5: e-conomic P&L PDF → semantic extraction emits raw document signs", () => {
   // The template's extractSemantic uses text content (structural payload not yet wired for text-parsed)

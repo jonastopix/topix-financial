@@ -843,7 +843,7 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     ytd_amount: null,
     raw_sign: li.raw_value != null && li.raw_value < 0 ? "MINUS" : "PLUS",
     account_no: li.account_no,
-    class: null,
+    class: undefined,
   }));
 
   const normalizedLines = buildNormalizedLines(rawLines);
