@@ -780,13 +780,19 @@ const FileUploadZone = ({
         }
       }
 
-      updateFile(pendingFileId, { status: "done" });
-      // Invalidate all financial data queries
-      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
-      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
-      toast({ title: "Rapport overskrevet", description: `Rapporten for ${extractedData.report_period} er blevet opdateret.` });
-      onPipelineComplete?.(reportRecord.id);
+      // === Post-extraction pipeline (AI + milestones + done) ===
+      await runPostExtractionPipeline({
+        extractedData,
+        reportId: reportRecord.id,
+        userId: userId!,
+        companyId,
+        companyName,
+        fileId: pendingFileId,
+        updateFile,
+        queryClient,
+        toastFn: toast,
+        onPipelineComplete,
+      });
     } catch (err: any) {
       console.error("Overwrite error:", err);
       updateFile(pendingFileId, { status: "error", errorMessage: err.message });
