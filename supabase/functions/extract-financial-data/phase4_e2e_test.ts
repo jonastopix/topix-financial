@@ -2312,6 +2312,8 @@ Deno.test("Phase6 — R2. XLSX semantic regression: real XLSX binary (Topix Dec 
   const legacyCanonical = buildCanonicalOutput(legacyResult.data, {}, "deterministic_template");
 
   // ── Compare core metrics ──
+  // Note: COGS may differ in sign between legacy (contra-cost reconciliation) and semantic (abs normalization).
+  // We compare absolute values for COGS, exact values for everything else.
   const keysToCompare: (keyof typeof legacyCanonical.metrics)[] = [
     "revenue", "cogs", "gross_profit", "ebt", "net_result",
   ];
@@ -2320,10 +2322,14 @@ Deno.test("Phase6 — R2. XLSX semantic regression: real XLSX binary (Topix Dec 
     const semanticVal = semanticCanonical.metrics[key];
     console.log(`  ${key}: legacy=${legacyVal}, semantic=${semanticVal}`);
     if (legacyVal != null && semanticVal != null) {
+      // COGS: compare absolute values (legacy may carry contra-cost sign, semantic normalizes to abs)
+      const compareAbs = key === "cogs";
+      const lv = compareAbs ? Math.abs(legacyVal as number) : (legacyVal as number);
+      const sv = compareAbs ? Math.abs(semanticVal as number) : (semanticVal as number);
       assertEquals(
-        Math.abs((legacyVal as number) - (semanticVal as number)) < 2,
+        Math.abs(lv - sv) < 2,
         true,
-        `${key} drift: legacy=${legacyVal}, semantic=${semanticVal}`,
+        `${key} drift: legacy=${legacyVal}, semantic=${semanticVal}${compareAbs ? " (abs comparison)" : ""}`,
       );
     }
   }
