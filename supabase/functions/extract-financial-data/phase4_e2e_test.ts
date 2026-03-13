@@ -3146,7 +3146,7 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
 // Proves: 4-column parser, equity/provisions negate, debt abs, AI blocked
 // ══════════════════════════════════════════════════════════════════════════════
 
-Deno.test("G1: Saldobalance PDF golden fixture — all 8 metrics + AI block", () => {
+Deno.test("G1: Saldobalance PDF golden fixture — all 8 metrics + AI block", async () => {
   const { SALDOBALANCE_GOLDEN } = await import("../_test_fixtures/saldobalanceGoldenFixture.ts");
   const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
   const { dkEconomicSaldobalancePdfV1 } = await import("../_shared/templates/dkEconomicSaldobalancePdfV1.ts");
