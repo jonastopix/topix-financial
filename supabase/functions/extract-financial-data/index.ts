@@ -501,8 +501,8 @@ serve(async (req) => {
             routingTrace.branch = "structural_semantic_fail";
             console.warn(`[Routing] Structural semantic extraction failed: ${structResult.error}`);
 
-            // For known sources: this is a hard fail — no text fallback
-            if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+            // For structural-required families: this is a hard fail — no text fallback
+            if (structuralRequired) {
               if (reportId) {
                 await supabase
                   .from("financial_reports")
