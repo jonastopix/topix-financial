@@ -648,22 +648,43 @@ export function computeAiEligible(
 
 /** Danish source_field_id → canonical metric key mapping */
 const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
+  // P&L fields
   omsaetning: "revenue",
   direkte_omkostninger: "cogs",
   daekningsbidrag: "gross_profit",
   loenninger: "payroll",
+  pensioner_sociale: "payroll_related",
+  oevrige_personale: "other_staff_costs",
   salgsomkostninger: "sales_costs",
   lokaleomkostninger: "facility_costs",
   administrationsomkostninger: "admin_costs",
   transportomkostninger: "vehicle_costs",
+  autodrift: "vehicle_costs",
   afskrivninger: "depreciation",
   resultat_foer_afskrivninger: "ebitda",
+  indtjeningsbidrag: "ebit",
+  finansieringsudgifter: "financial_costs",
+  finansielle_omkostninger: "financial_costs",
+  ekstraordinaere_poster: "extraordinary_items",
   resultat_foer_skat: "ebt",
   resultat_foer_ekstraordinaere: "ebt",
   arets_resultat: "net_result",
   resultat_efter_skat: "net_result",
   periodens_resultat: "net_result",
-  finansielle_omkostninger: "financial_costs",
+  // Balance-sheet fields
+  aktiver_i_alt: "assets_total",
+  varelager: "inventory",
+  tilgodehavender_i_alt: "receivables_total",
+  debitorer: "trade_receivables",
+  igangvaerende_arbejde: "unbilled_wip",
+  likvider: "cash",
+  egenkapital: "equity_total",
+  mellemregning: "related_party_net",
+  hensaettelser: "provisions_total",
+  kortfristet_gaeld: "current_liabilities",
+  gaeld_i_alt: "debt_total",
+  moms: "vat_payable",
+  passiver_i_alt: "liabilities_total",
 };
 
 /**
@@ -845,6 +866,8 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
   const CANONICAL_PRECEDENCE: Record<string, string[]> = {
     ebt: ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"],
     net_result: ["arets_resultat", "resultat_efter_skat", "periodens_resultat"],
+    vehicle_costs: ["autodrift", "transportomkostninger"],
+    financial_costs: ["finansieringsudgifter", "finansielle_omkostninger"],
   };
 
   const canonicalSourceMap: Record<string, string> = {}; // canonical_key → winning source_field_id

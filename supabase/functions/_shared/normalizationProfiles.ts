@@ -135,22 +135,22 @@ const dinero_pnl_credit_v1: NormalizationProfile = {
   },
 };
 
-// ── Profile: KJ Auto (business convention, period P&L) ──
+// ── Profile: KJ Auto Combined (credit convention, P&L + Balance) ──
 
-const kj_auto_business_v1: NormalizationProfile = {
-  profile_id: "kj_auto_business_v1",
-  description: "KJ Auto Excel — business convention, values already positive-means-positive",
-  sign_convention: "business",
-  statement_type: "pnl",
+const kj_auto_combined_credit_v1: NormalizationProfile = {
+  profile_id: "kj_auto_combined_credit_v1",
+  description: "KJ Auto Combined Balance/P&L XLSX — credit convention, revenue negative, costs positive",
+  sign_convention: "credit",
+  statement_type: "combined",
   family_defaults: {
-    revenue_like:            KEEP,
-    cost_like:               KEEP,
-    profit_like:             KEEP,
-    asset_like:              KEEP,
-    liability_like:          KEEP,
-    equity_like:             KEEP,
-    cash_like:               KEEP,
-    receivable_payable_like: KEEP,
+    revenue_like:            NEGATE,   // Credit: revenue is negative → negate to positive
+    cost_like:               ABS,      // Costs are positive in credit convention
+    profit_like:             NEGATE,   // Profit subtotals are negative when profitable
+    asset_like:              KEEP,     // Assets keep raw sign
+    liability_like:          ABS,      // Liabilities are negative in credit → abs
+    equity_like:             KEEP,     // Equity keeps sign (negative = positive equity in credit)
+    cash_like:               KEEP,     // Cash keeps sign (overdraft possible)
+    receivable_payable_like: KEEP,     // Direction matters
     contra_or_unknown:       REJECT,
   },
   field_overrides: {},
@@ -205,7 +205,7 @@ const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
   economic_pnl_credit_v1,
   economic_pnl_business_v1,
   dinero_pnl_credit_v1,
-  kj_auto_business_v1,
+  kj_auto_combined_credit_v1,
   combined_balance_pnl_credit_v1,
 };
 
