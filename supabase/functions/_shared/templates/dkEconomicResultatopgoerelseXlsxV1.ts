@@ -712,18 +712,13 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
     } else if (numericCols.length === 1) {
       valueColIndex = numericCols[0].col_index;
     } else {
-      // Disambiguate: check headers for known patterns
       const knownHeaders = /^(beløb|perioden|faktisk|\d{2}[.\/-]\d{2}[.\/-]\d{2,4})/i;
       const headerMatches = numericCols.filter(cp =>
         cp.header_value != null && knownHeaders.test(cp.header_value.trim())
       );
-      // Also check the column at index just after the label column
       if (headerMatches.length === 1) {
         valueColIndex = headerMatches[0].col_index;
       } else {
-        // For e-conomic P&L XLSX: the FIRST numeric column is the period column
-        // This is an explicit family rule: e-conomic always puts period first
-        // Accept only if the first numeric col has actual data
         const firstNumCol = numericCols[0];
         const hasData = xlsxResult.rows.slice(5, 25).some(row => {
           const cell = row.cells.find(c => c.col_index === firstNumCol.col_index);
@@ -780,13 +775,54 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
       }
     }
 
+    // ── Detect sign convention from structural rows (Phase 6b) ──
+    // Build ParsedRow[] from XlsxParseResult for detectSignConvention()
+    const structuralParsedRows: ParsedRow[] = [];
+    for (const row of xlsxResult.rows) {
+      let label = "";
+      let accountNo: string | null = null;
+      for (const cell of row.cells) {
+        if (cell.col_index === valueColIndex) continue;
+        const val = (cell.raw_value ?? "").toString().trim();
+        if (!val) continue;
+        const asNum = parseInt(val, 10);
+        if (!isNaN(asNum) && asNum > 0 && cell.col_index === 0) {
+          accountNo = val;
+        } else if (val.length > label.length) {
+          label = val;
+        }
+      }
+      label = label.toLowerCase().trim();
+      if (!label) continue;
+      const valueCell = row.cells.find(c => c.col_index === valueColIndex);
+      const rawValue = valueCell?.raw_value != null && typeof valueCell.raw_value === "number"
+        ? valueCell.raw_value : parseDanishNumber(valueCell?.raw_value);
+      const isSubtotal = /i\s*alt|dækningsbidrag|resultat/i.test(label);
+      structuralParsedRows.push({ label, value: rawValue, rowIndex: row.row_index, isSubtotal, accountNo });
+    }
+
+    const detectedConvention = detectSignConvention(structuralParsedRows);
+    console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Detected sign convention: ${detectedConvention}`);
+
+    // ── Phase 6b: Unknown convention → hard fail (no silent credit default) ──
+    if (detectedConvention === "unknown") {
+      console.error(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Sign convention UNKNOWN → reject (fail loud)`);
+      return null;
+    }
+
+    // ── Route convention to normalization profile ──
+    const signConvention: "credit" | "business" = detectedConvention;
+    const normalizationProfileId = detectedConvention === "credit"
+      ? "economic_pnl_credit_v1"
+      : "economic_pnl_business_v1";
+    console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Convention: ${signConvention}, profile: ${normalizationProfileId}`);
+
     // ── Scan structural rows for label + value ──
     const metricCandidates: SemanticMetricCandidate[] = [];
     const lineItems: SemanticLineItem[] = [];
     let matchCount = 0;
 
     for (const row of xlsxResult.rows) {
-      // Build label from non-value cells
       let label = "";
       let accountNo: string | null = null;
       for (const cell of row.cells) {
@@ -803,14 +839,12 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
       label = label.toLowerCase().trim();
       if (!label) continue;
 
-      // Get raw value from the accepted value column
       const valueCell = row.cells.find(c => c.col_index === valueColIndex);
       const rawValue = valueCell?.raw_value != null && typeof valueCell.raw_value === "number"
         ? valueCell.raw_value : parseDanishNumber(valueCell?.raw_value);
 
       const isSubtotal = /i\s*alt|dækningsbidrag|resultat/i.test(label);
 
-      // Add as line item for provenance
       lineItems.push({
         source_field_id: `row_${row.row_index}`,
         source_label: label,
@@ -820,7 +854,6 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
         source_row_index: row.row_index,
       });
 
-      // Match against label patterns for metric candidates
       if (!isSubtotal) continue;
       for (const matcher of LABEL_MATCHERS) {
         if (!matcher.pattern.test(label)) continue;
@@ -831,7 +864,7 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
           normalization_family: family,
           raw_value: rawValue,
           raw_sign: rawValue != null ? (rawValue > 0 ? "positive" : rawValue < 0 ? "negative" : "zero") : "zero",
-          sign_convention: "credit",
+          sign_convention: signConvention,
           source_label: label,
           source_row_index: row.row_index,
           source_column_slot: valueColIndex,
@@ -842,7 +875,7 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
           proposed_canonical_target: null,
         });
         matchCount++;
-        break; // First match wins
+        break;
       }
     }
 
@@ -867,14 +900,16 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
     checks.push({ name: "revenue_present", result: hasRevenue ? "PASS" as const : "FAIL" as const, details: hasRevenue ? "Revenue found" : "No revenue" });
     const hasEbtFinal = metricCandidates.some(c => c.source_field_id === "resultat_foer_skat");
     checks.push({ name: "ebt_present", result: hasEbtFinal ? "PASS" as const : "FAIL" as const, details: hasEbtFinal ? "EBT found" : "No EBT" });
+    // Phase 6b: sign convention detection validation check
+    checks.push({ name: "sign_convention_detected", result: "PASS" as const, details: `Convention: ${signConvention}` });
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 
     const result: SemanticExtractionResult = {
       source_system: "economic",
       document_type: "resultatopgoerelse",
       template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1",
-      sign_convention: "credit",
-      normalization_profile_id: "economic_pnl_credit_v1",
+      sign_convention: signConvention,
+      normalization_profile_id: normalizationProfileId,
       company_name: companyName,
       cvr: cvrNumber,
       period_start: periodStart,

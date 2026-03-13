@@ -994,6 +994,36 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     });
   }
 
+  // ── Phase 6b: Family-safe net_result = ebt derivation ──
+  // Only fires when:
+  // 1) net_result is null (no source candidate provided it)
+  // 2) ebt is present
+  // 3) normalization_profile_id is in explicit allowlist
+  // 4) no semantic candidate with source_field_id indicating tax exists
+  const NET_RESULT_FROM_EBT_PROFILES = new Set([
+    "dinero_pnl_credit_v1",
+    "economic_pnl_credit_v1",
+    "economic_pnl_business_v1",
+  ]);
+
+  if (
+    metrics.net_result == null &&
+    metrics.ebt != null &&
+    NET_RESULT_FROM_EBT_PROFILES.has(semantic.normalization_profile_id) &&
+    !semantic.metric_candidates.some(c => /skat|tax/i.test(c.source_field_id))
+  ) {
+    metrics.net_result = metrics.ebt;
+    correction_log.push({
+      field: "net_result",
+      source: "derived_metric",
+      raw_value: null,
+      normalized_value: metrics.net_result,
+      rule: "family_safe_derivation",
+      reason: `net_result derived from ebt(${metrics.ebt}) — profile ${semantic.normalization_profile_id} approved, no tax candidate present`,
+      confidence: "HIGH",
+    });
+  }
+
   // ── Step 4: Build raw/normalized lines from semantic line_items ──
   const statementType = detectStatementType({ report_type: semantic.document_type === "resultatopgoerelse" ? "resultatopgørelse" : semantic.document_type });
   const periodBasis = semantic.basis_profile.selected_period_basis;
