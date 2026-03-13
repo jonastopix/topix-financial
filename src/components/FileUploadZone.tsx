@@ -332,6 +332,41 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
   return { text: text.slice(0, 30000) };
 }
 
+/** Map backend error responses to user-friendly Danish messages */
+function getFriendlyErrorMessage(data: any): string {
+  const err = data?.error || "";
+  const source = data?.source_system || "";
+  const status = data?.status || "";
+
+  // Known source but no template
+  if (err.includes("Known source without supported template") || status === "error" && source) {
+    return `Vi kan se at filen kommer fra ${source}, men denne rapporttype understøttes ikke endnu. Prøv at eksportere en standard resultatopgørelse eller saldobalance fra ${source}.`;
+  }
+
+  // Semantic extraction failed for known source
+  if (status === "semantic_xlsx_fail" || status === "semantic_csv_fail") {
+    return `Filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Kontrollér at det er en standard resultatopgørelse eller saldobalance, og prøv igen.`;
+  }
+
+  // Structural PDF fail
+  if (err.includes("Structural semantic extraction failed")) {
+    return `PDF-filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Prøv at eksportere filen igen, eller upload en Excel-version i stedet.`;
+  }
+
+  // Sign convention unknown (XLSX)
+  if (err.includes("sign_convention") || err.includes("unknown convention")) {
+    return "Fortegnskonventionen i filen kunne ikke bestemmes. Upload venligst en standardeksport direkte fra dit regnskabsprogram.";
+  }
+
+  // Validation / missing required fields
+  if (err.includes("validation") || err.includes("missing")) {
+    return "Rapporten mangler nødvendige nøgletal (fx omsætning eller resultat). Kontrollér at filen indeholder en komplet resultatopgørelse.";
+  }
+
+  // Generic fallback — still better than raw English
+  return `Rapporten kunne ikke behandles automatisk. Kontrollér at filen er en standard eksport fra dit regnskabsprogram (e-conomic, Dinero, Billy el.lign.).`;
+}
+
 const FileUploadZone = ({
   title,
   description,
@@ -555,7 +590,10 @@ const FileUploadZone = ({
             });
             return;
           }
-          if (aiData?.error) throw new Error(aiData.error);
+          if (aiData?.error) {
+            const friendlyMsg = getFriendlyErrorMessage(aiData);
+            throw new Error(friendlyMsg);
+          }
 
           extractedData = aiData;
         }
@@ -603,13 +641,14 @@ const FileUploadZone = ({
 
       } catch (err) {
         console.error("Pipeline error:", err);
+        const userMsg = err instanceof Error ? err.message : "Kunne ikke behandle dokumentet";
         updateFile(fileId, {
           status: "error",
-          errorMessage: err instanceof Error ? err.message : "Ukendt fejl",
+          errorMessage: userMsg,
         });
         toast({
-          title: "Fejl ved behandling",
-          description: err instanceof Error ? err.message : "Kunne ikke behandle dokumentet",
+          title: "Kunne ikke behandle rapporten",
+          description: userMsg,
           variant: "destructive",
         });
       }
@@ -753,7 +792,10 @@ const FileUploadZone = ({
       );
 
       if (extractError) throw extractError;
-      if (extractedData?.error) throw new Error(extractedData.error);
+      if (extractedData?.error) {
+        const friendlyMsg = getFriendlyErrorMessage(extractedData);
+        throw new Error(friendlyMsg);
+      }
 
       updateFile(pendingFileId, { extractedData });
       onExtracted?.(extractedData);
@@ -917,7 +959,11 @@ const FileUploadZone = ({
                         ) : null}
                       </span>
                     )}
-                    {file.status === "error" && (file.errorMessage || "Fejl")}
+                    {file.status === "error" && (
+                      <span className="text-destructive leading-snug">
+                        {file.errorMessage || "Rapporten kunne ikke behandles. Prøv en anden fil."}
+                      </span>
+                    )}
                   </p>
                 </div>
                 {(file.status === "uploading" || file.status === "processing" || file.status === "analyzing") && (
