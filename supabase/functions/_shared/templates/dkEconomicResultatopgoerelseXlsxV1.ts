@@ -697,6 +697,206 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
 
     return { success: true, data: extractedData };
   },
+
+  // ── Phase 6: Semantic XLSX Extraction (structural-first) ──
+  extractSemanticFromXlsx(xlsxResult: XlsxParseResult): SemanticExtractionResult | null {
+    if (xlsxResult.rows.length < 5) return null;
+
+    // ── Value-column acceptance rule (template-level, explicit) ──
+    const numericCols = xlsxResult.column_profile.filter(cp => cp.inferred_type === "numeric");
+    let valueColIndex: number;
+
+    if (numericCols.length === 0) {
+      console.log("[DK_ECONOMIC_PNL_XLSX_SEMANTIC] No numeric column found → reject");
+      return null;
+    } else if (numericCols.length === 1) {
+      valueColIndex = numericCols[0].col_index;
+    } else {
+      // Disambiguate: check headers for known patterns
+      const knownHeaders = /^(beløb|perioden|faktisk|\d{2}[.\/-]\d{2}[.\/-]\d{2,4})/i;
+      const headerMatches = numericCols.filter(cp =>
+        cp.header_value != null && knownHeaders.test(cp.header_value.trim())
+      );
+      // Also check the column at index just after the label column
+      if (headerMatches.length === 1) {
+        valueColIndex = headerMatches[0].col_index;
+      } else {
+        // For e-conomic P&L XLSX: the FIRST numeric column is the period column
+        // This is an explicit family rule: e-conomic always puts period first
+        // Accept only if the first numeric col has actual data
+        const firstNumCol = numericCols[0];
+        const hasData = xlsxResult.rows.slice(5, 25).some(row => {
+          const cell = row.cells.find(c => c.col_index === firstNumCol.col_index);
+          return cell?.raw_value != null && typeof cell.raw_value === "number" && cell.raw_value !== 0;
+        });
+        if (hasData) {
+          valueColIndex = firstNumCol.col_index;
+          console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Multi-numeric: using first numeric col ${valueColIndex} (e-conomic family rule)`);
+        } else {
+          console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Ambiguous multi-numeric columns, no data in first → reject`);
+          return null;
+        }
+      }
+    }
+    console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Accepted value column index: ${valueColIndex}`);
+
+    // ── Extract metadata from header rows ──
+    let companyName: string | null = null;
+    let cvrNumber: string | null = null;
+    let periodStart: string | null = null;
+    let periodEnd: string | null = null;
+    let reportPeriodLabel: string | null = null;
+
+    for (let i = 0; i < Math.min(6, xlsxResult.rows.length); i++) {
+      const row = xlsxResult.rows[i];
+      const rowText = row.cells.map(c => (c.raw_value ?? "").toString()).join(" ").trim();
+      if (!rowText) continue;
+
+      if (!cvrNumber) {
+        const cvrMatch = rowText.match(/CVR[\s-]*(?:nr\.?\s*)?(\d{8})/i);
+        if (cvrMatch) { cvrNumber = cvrMatch[1]; continue; }
+      }
+      const periodMatch1 = rowText.match(/(\d{2}-\d{2}-\d{4})\s*til\s*(\d{2}-\d{2}-\d{4})/);
+      if (periodMatch1) { periodStart = periodMatch1[1]; periodEnd = periodMatch1[2]; continue; }
+      const periodMatch2 = rowText.match(/(\d{2}\.\d{2}\.\d{2,4})\s*-\s*(\d{2}\.\d{2}\.\d{2,4})/);
+      if (periodMatch2) { periodStart = normalizeDateStr(periodMatch2[1]); periodEnd = normalizeDateStr(periodMatch2[2]); continue; }
+
+      if (/^(nr\.|nummer|navn|perioden|resultatopgørelse|rapporter)/i.test(rowText)) continue;
+      if (/cvr/i.test(rowText)) continue;
+      if (rowText.length < 3) continue;
+      if (!companyName) {
+        const stripped = rowText.replace(/^\d+\s*[-–]\s*/, "").trim();
+        if (stripped.length > 2 && !/^\d+$/.test(stripped)) companyName = stripped;
+        else if (rowText.length > 2) companyName = rowText;
+      }
+    }
+
+    if (periodEnd) {
+      const match = periodEnd.match(/(\d{2})-(\d{2})-(\d{4})/);
+      if (match) {
+        const monthNames = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
+        const month = parseInt(match[2], 10);
+        if (month >= 1 && month <= 12) reportPeriodLabel = `${monthNames[month - 1]} ${match[3]}`;
+      }
+    }
+
+    // ── Scan structural rows for label + value ──
+    const metricCandidates: SemanticMetricCandidate[] = [];
+    const lineItems: SemanticLineItem[] = [];
+    let matchCount = 0;
+
+    for (const row of xlsxResult.rows) {
+      // Build label from non-value cells
+      let label = "";
+      let accountNo: string | null = null;
+      for (const cell of row.cells) {
+        if (cell.col_index === valueColIndex) continue;
+        const val = (cell.raw_value ?? "").toString().trim();
+        if (!val) continue;
+        const asNum = parseInt(val, 10);
+        if (!isNaN(asNum) && asNum > 0 && cell.col_index === 0) {
+          accountNo = val;
+        } else if (val.length > label.length) {
+          label = val;
+        }
+      }
+      label = label.toLowerCase().trim();
+      if (!label) continue;
+
+      // Get raw value from the accepted value column
+      const valueCell = row.cells.find(c => c.col_index === valueColIndex);
+      const rawValue = valueCell?.raw_value != null && typeof valueCell.raw_value === "number"
+        ? valueCell.raw_value : parseDanishNumber(valueCell?.raw_value);
+
+      const isSubtotal = /i\s*alt|dækningsbidrag|resultat/i.test(label);
+
+      // Add as line item for provenance
+      lineItems.push({
+        source_field_id: `row_${row.row_index}`,
+        source_label: label,
+        raw_value: rawValue,
+        basis: "period",
+        account_no: accountNo,
+        source_row_index: row.row_index,
+      });
+
+      // Match against label patterns for metric candidates
+      if (!isSubtotal) continue;
+      for (const matcher of LABEL_MATCHERS) {
+        if (!matcher.pattern.test(label)) continue;
+
+        const family = SEMANTIC_FAMILY_MAP[matcher.key] || "contra_or_unknown";
+        metricCandidates.push({
+          source_field_id: matcher.key,
+          normalization_family: family,
+          raw_value: rawValue,
+          raw_sign: rawValue != null ? (rawValue > 0 ? "positive" : rawValue < 0 ? "negative" : "zero") : "zero",
+          sign_convention: "credit",
+          source_label: label,
+          source_row_index: row.row_index,
+          source_column_slot: valueColIndex,
+          source_cell_address: valueCell?.cell_address ?? null,
+          basis: "period",
+          confidence: "HIGH",
+          evidence: [`label_match:${matcher.key}`, `pattern:${matcher.pattern.source}`],
+          proposed_canonical_target: null,
+        });
+        matchCount++;
+        break; // First match wins
+      }
+    }
+
+    if (matchCount < 3) {
+      console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Only ${matchCount} metrics matched → reject`);
+      return null;
+    }
+
+    // ── EBT fallback: same as legacy template ──
+    const hasEbt = metricCandidates.some(c => c.source_field_id === "resultat_foer_skat");
+    if (!hasEbt) {
+      const ebtFallback = metricCandidates.find(c => c.source_field_id === "resultat_foer_ekstraordinaere")
+        || metricCandidates.find(c => c.source_field_id === "periodens_resultat");
+      if (ebtFallback) {
+        metricCandidates.push({ ...ebtFallback, source_field_id: "resultat_foer_skat", evidence: [...ebtFallback.evidence, "ebt_fallback"] });
+      }
+    }
+
+    // ── Build validation ──
+    const checks = [];
+    const hasRevenue = metricCandidates.some(c => c.source_field_id === "omsaetning");
+    checks.push({ name: "revenue_present", result: hasRevenue ? "PASS" as const : "FAIL" as const, details: hasRevenue ? "Revenue found" : "No revenue" });
+    const hasEbtFinal = metricCandidates.some(c => c.source_field_id === "resultat_foer_skat");
+    checks.push({ name: "ebt_present", result: hasEbtFinal ? "PASS" as const : "FAIL" as const, details: hasEbtFinal ? "EBT found" : "No EBT" });
+    const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
+
+    const result: SemanticExtractionResult = {
+      source_system: "economic",
+      document_type: "resultatopgoerelse",
+      template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1",
+      sign_convention: "credit",
+      normalization_profile_id: "economic_pnl_credit_v1",
+      company_name: companyName,
+      cvr: cvrNumber,
+      period_start: periodStart,
+      period_end: periodEnd,
+      report_period_label: reportPeriodLabel,
+      metric_candidates: metricCandidates,
+      line_items: lineItems,
+      basis_profile: { mode: "single", selected_period_basis: "period" },
+      parser_validation: { parser_status: parserStatus, checks },
+      _deterministic_meta: {
+        template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1",
+        parser_confidence: parserStatus === "PASS" ? "HIGH" : "MEDIUM",
+        detection_score: 0,
+        raw_line_count: xlsxResult.rows.length,
+        normalized_line_count: metricCandidates.length,
+        column_basis_rule: "single",
+      },
+    };
+
+    console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Extracted ${metricCandidates.length} metric candidates from ${xlsxResult.rows.length} rows`);
+    return result;
+  },
 };
 
 // ── Helper: Normalize date string (2-digit year → 4-digit) ──
