@@ -1079,7 +1079,7 @@ Deno.test({ name: "Phase4c — 16. P&L PDF full E2E (SnowWaves ApS)", ignore: tr
     console.log(`  DB status: "processed"`);
   } else {
     console.log(`  AI feedback: BLOKERET`);
-    console.log(`  DB status: "${canonical.validation.status === "PASS" ? "processed" : "needs_review"}"`);
+    console.log(`  DB status: "${canonical.validation.status === "PASS" ? "processed" : "processed"}"`);
   }
 
   // ── 5. ai_eligible_payload verification ──
