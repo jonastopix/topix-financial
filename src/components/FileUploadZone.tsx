@@ -212,6 +212,7 @@ async function runPostExtractionPipeline(params: {
   });
 }
 
+interface UploadedFile {
   id: string;
   name: string;
   size: number;
