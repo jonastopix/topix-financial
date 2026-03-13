@@ -245,6 +245,10 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
             periodPrev = parseDanishNumber(nums[1]);
             ytdVal = parseDanishNumber(nums[2]);
             ytdPrev = parseDanishNumber(nums[3]);
+          } else if (nums.length === 3) {
+            periodVal = parseDanishNumber(nums[0]);
+            periodPrev = parseDanishNumber(nums[1]);
+            ytdVal = parseDanishNumber(nums[2]);
           } else if (nums.length >= 2) {
             periodVal = parseDanishNumber(nums[0]);
             ytdVal = parseDanishNumber(nums[1]);
