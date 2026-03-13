@@ -6,16 +6,26 @@
  * Extraction: Label-first, scans rows for Danish P&L subtotals
  * Sign normalization: Dynamic — infers convention from anchor lines (revenue/cost signs)
  * Column basis: SINGLE — period_amount only (no YTD split expected in standalone P&L XLSX)
+ *
+ * Phase 6: Added extractSemanticFromXlsx() — structural-first semantic path.
  */
 
 import type {
   TemplateEntry,
+  SemanticXlsxTemplateEntry,
   DetectionContext,
   ExtractionContext,
   DeterministicExtractedData,
   ParserValidation,
   DeterministicMeta,
 } from "../templateRegistry.ts";
+import type { XlsxParseResult, XlsxRawRow } from "../xlsxRawParser.ts";
+import type {
+  SemanticExtractionResult,
+  SemanticMetricCandidate,
+  SemanticLineItem,
+} from "../semanticTypes.ts";
+import type { MetricFamily } from "../normalizationProfiles.ts";
 
 // ── Sign normalization helpers ──
 
