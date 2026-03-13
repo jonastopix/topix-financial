@@ -389,8 +389,8 @@ serve(async (req) => {
                   }
                 } else {
                   console.warn(`[PdfStructural] Could not download stored file for hash verification: ${dlError?.message}`);
-                  // Race condition: file not yet propagated. Only allow for unknown sources.
-                  if (!isKnownSource) {
+                   // Race condition: file not yet propagated. Only allow for non-structural-required families.
+                  if (!structuralRequired) {
                     validatedStructural = pdfStructural as PdfStructuralPayload;
                     routingTrace.pdf_structural_hash_verified = false;
                   } else {
