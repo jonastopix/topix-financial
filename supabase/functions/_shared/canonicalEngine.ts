@@ -660,6 +660,7 @@ const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   resultat_foer_afskrivninger: "ebitda",
   resultat_foer_skat: "ebt",
   resultat_foer_ekstraordinaere: "ebt",
+  arets_resultat: "net_result",
   resultat_efter_skat: "net_result",
   periodens_resultat: "net_result",
   finansielle_omkostninger: "financial_costs",
