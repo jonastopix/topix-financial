@@ -941,13 +941,14 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
   }
 
-  // ebitda = gross_profit - (payroll + sales_costs + facility_costs + admin_costs)
+  // ebitda = gross_profit - (payroll + sales_costs + facility_costs + vehicle_costs + admin_costs)
   // Only when ebitda is null and gross_profit is present
   if (metrics.ebitda == null && metrics.gross_profit != null) {
     const opexComponents = [
       metrics.payroll,
       metrics.sales_costs,
       metrics.facility_costs,
+      metrics.vehicle_costs,
       metrics.admin_costs,
     ];
     const opexSum = opexComponents.reduce((sum: number, v) => sum + (v || 0), 0 as number);
