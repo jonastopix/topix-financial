@@ -230,8 +230,8 @@ export function parseEconomicPdfText(text: string): PdfParseResult {
     }
 
     // ── Standalone total labels: "AKTIVER I ALT", "PASSIVER I ALT", etc. ──
-    if (/^#?\s*(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT)/i.test(line)) {
-      const labelMatch = line.match(/(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT)/i);
+    if (/^#?\s*(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT|HENSÆTTELSER I ALT)/i.test(line)) {
+      const labelMatch = line.match(/(AKTIVER I ALT|PASSIVER I ALT|GÆLD I ALT|EGENKAPITAL I ALT|HENSÆTTELSER I ALT)/i);
       if (labelMatch) {
         // Check if numbers are on this line
         const nums = line.match(DK_NUM_PATTERN);
