@@ -505,9 +505,34 @@ serve(async (req) => {
         detResult = tryDeterministicPdfExtraction(fileContent, fileName);
       }
     } else if (isCsvFile && fileContent) {
-      routingTrace.deterministic_attempted = true;
-      console.log("[Routing] Attempting deterministic CSV extraction...");
-      detResult = tryDeterministicCsvExtraction(fileContent, fileName);
+      // ── SEMANTIC-FIRST CSV ROUTING (Phase 7) ──
+      console.log("[Routing] Attempting semantic-first CSV extraction...");
+      const semanticCsvResult = trySemanticCsvExtraction(fileContent, fileName);
+      if (semanticCsvResult.type === "success") {
+        routingTrace.deterministic_attempted = true;
+        routingTrace.deterministic_result = "semantic_csv_success";
+        routingTrace.deterministic_template_id = semanticCsvResult.template_id;
+        routingTrace.branch = "semantic_csv_success";
+        extractionMethod = "deterministic_template";
+
+        const canonicalFromSemantic = buildCanonicalFromSemantic(semanticCsvResult.semantic);
+        extractedData = {
+          ...canonicalFromSemantic,
+          _deterministic_meta: semanticCsvResult.semantic._deterministic_meta,
+        };
+        rawAiOutput = {
+          deterministic: true,
+          semantic: true,
+          template_id: semanticCsvResult.template_id,
+          routing_trace: routingTrace,
+        };
+        console.log(`[Routing] Semantic CSV success: ${semanticCsvResult.template_id}`);
+      } else {
+        // Fallback to legacy deterministic extraction for non-migrated templates
+        console.log(`[Routing] Semantic CSV ${semanticCsvResult.type}, falling back to legacy deterministic...`);
+        routingTrace.deterministic_attempted = true;
+        detResult = tryDeterministicCsvExtraction(fileContent, fileName);
+      }
     }
 
     if (detResult) {
