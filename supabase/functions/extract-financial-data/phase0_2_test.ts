@@ -2,7 +2,7 @@
  * Phase 0-4 Tests: Gate fixes + parser + XLSX raw + routing integration
  */
 
-import { assertEquals, assert, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert, assertExists, assertFalse } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   compareExtractions,
   formatComparisonReport,
@@ -374,4 +374,354 @@ Deno.test("XLSX raw parser: module exports and types", () => {
   // Verify the parser module exports correctly (no require() in Deno)
   assert(typeof parseXlsxRawFromBase64 === "function");
   assertEquals(typeof parseXlsxRawFromBase64, "function");
+});
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: PDF Structural Validator Tests
+// ══════════════════════════════════════════════════════════════
+
+import {
+  validatePdfStructuralPayload,
+  evaluateStructuralTrust,
+} from "../_shared/pdfStructuralValidator.ts";
+import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
+
+/** Helper: build a minimal valid PdfStructuralPayload */
+function buildValidPayload(): PdfStructuralPayload {
+  const tokens = [];
+  for (let i = 0; i < 6; i++) {
+    tokens.push({
+      text: i < 3 ? `Label ${i}` : `${(i * 1000).toFixed(2).replace(".", ",")}`,
+      x: i < 3 ? 50 : 300,
+      y: 700 - i * 20,
+      width: 80,
+      page: 1,
+      column_slot: i >= 3 ? 0 : null,
+      column_slot_confidence: "HIGH" as const,
+    });
+  }
+
+  const rows = [];
+  for (let i = 0; i < 6; i++) {
+    rows.push({
+      row_index: i,
+      row_group_id: `p1_r${i}`,
+      y_position: 700 - i * 20,
+      page: 1,
+      tokens: [tokens[i]],
+      is_header: i === 0,
+      is_subtotal: i === 5,
+    });
+  }
+
+  return {
+    version: "1.0",
+    pages: [{ page_number: 1, rows }],
+    column_profile: {
+      slot_count: 1,
+      slot_labels: ["Perioden"],
+      slot_x_ranges: [{ min: 280, max: 380 }],
+      detection_method: "header_anchor",
+      confidence: "HIGH",
+    },
+    metadata: {
+      page_count: 1,
+      total_token_count: 6,
+      total_row_count: 6,
+      content_hash: "a".repeat(64),
+      source_file_name: "test.pdf",
+      extraction_timestamp: new Date().toISOString(),
+    },
+  };
+}
+
+// ── Validator unit tests ──
+
+Deno.test("PdfStructural validator: valid payload passes", () => {
+  const payload = buildValidPayload();
+  const result = validatePdfStructuralPayload(payload);
+  assert(result.valid, `Expected valid, got errors: ${result.errors.join("; ")}`);
+  assertEquals(result.errors.length, 0);
+});
+
+Deno.test("PdfStructural validator: missing pages field fails", () => {
+  const payload = { version: "1.0", column_profile: {}, metadata: {} };
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("pages")));
+});
+
+Deno.test("PdfStructural validator: wrong version fails", () => {
+  const payload = buildValidPayload();
+  (payload as any).version = "2.0";
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("version")));
+});
+
+Deno.test("PdfStructural validator: empty pages fails", () => {
+  const payload = buildValidPayload();
+  payload.pages = [];
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("0 pages")));
+});
+
+Deno.test("PdfStructural validator: invalid token coordinates fails", () => {
+  const payload = buildValidPayload();
+  payload.pages[0].rows[0].tokens[0].x = NaN;
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("x invalid")));
+});
+
+Deno.test("PdfStructural validator: column profile inconsistency fails", () => {
+  const payload = buildValidPayload();
+  payload.column_profile.slot_count = 3;
+  // slot_labels has length 1, slot_count says 3 → inconsistency
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("inconsistency")));
+});
+
+Deno.test("PdfStructural validator: bad content hash fails", () => {
+  const payload = buildValidPayload();
+  payload.metadata.content_hash = "tooshort";
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("content_hash")));
+});
+
+Deno.test("PdfStructural validator: page count mismatch fails", () => {
+  const payload = buildValidPayload();
+  payload.metadata.page_count = 5; // but only 1 page in pages array
+  const result = validatePdfStructuralPayload(payload);
+  assertFalse(result.valid);
+  assert(result.errors.some(e => e.includes("Page count mismatch")));
+});
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: Persistence / Replay Round-Trip Test
+// ══════════════════════════════════════════════════════════════
+
+Deno.test("PdfStructural: JSON round-trip preserves validity (replay contract)", () => {
+  const payload = buildValidPayload();
+
+  // Validate original
+  const r1 = validatePdfStructuralPayload(payload);
+  assert(r1.valid, "Original payload must be valid");
+
+  // Serialize → deserialize
+  const serialized = JSON.stringify(payload);
+  const deserialized = JSON.parse(serialized);
+
+  // Re-validate
+  const r2 = validatePdfStructuralPayload(deserialized);
+  assert(r2.valid, `Deserialized payload must be valid, errors: ${r2.errors.join("; ")}`);
+
+  // Deep equality
+  assertEquals(JSON.stringify(deserialized), serialized, "Round-trip must be byte-stable");
+});
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: Routing-Behavior Tests (Trust Model)
+// ══════════════════════════════════════════════════════════════
+
+Deno.test("Routing: known source + invalid structural → hard fail, no fallback", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known source
+    true,   // has structural payload
+    false,  // validation invalid
+    false,  // hash not verified
+    ["Missing required fields"],
+  );
+  assertFalse(decision.proceed);
+  assertFalse(decision.fallback_allowed);
+  assertEquals(decision.status, "structural_parse_fail");
+  assertExists(decision.error);
+});
+
+Deno.test("Routing: known source + hash mismatch → hard fail, no fallback", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known source
+    true,   // has structural payload
+    true,   // validation valid
+    false,  // hash NOT verified
+    [],
+  );
+  assertFalse(decision.proceed);
+  assertFalse(decision.fallback_allowed);
+  assertEquals(decision.status, "structural_parse_fail");
+});
+
+Deno.test("Routing: unknown source + invalid structural → fallback allowed", () => {
+  const decision = evaluateStructuralTrust(
+    false,  // unknown source
+    true,   // has structural payload
+    false,  // validation invalid
+    false,  // hash not verified
+    ["Some error"],
+  );
+  assertFalse(decision.proceed);
+  assert(decision.fallback_allowed);
+  assertEquals(decision.status, undefined);
+});
+
+Deno.test("Routing: no structural payload → legacy text path (fallback allowed)", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known or unknown — doesn't matter
+    false,  // NO structural payload
+    false,  // n/a
+    false,  // n/a
+    [],
+  );
+  assertFalse(decision.proceed);
+  assert(decision.fallback_allowed);
+  assertEquals(decision.status, undefined);
+});
+
+Deno.test("Routing: known source + valid + hash verified → proceed, no fallback", () => {
+  const decision = evaluateStructuralTrust(
+    true,   // known source
+    true,   // has structural payload
+    true,   // validation valid
+    true,   // hash verified
+    [],
+  );
+  assert(decision.proceed);
+  assertFalse(decision.fallback_allowed);
+});
+
+Deno.test("Routing: unknown source + valid + hash not verified → proceed with fallback", () => {
+  const decision = evaluateStructuralTrust(
+    false,  // unknown source
+    true,   // has structural payload
+    true,   // validation valid
+    false,  // hash NOT verified (race condition)
+    [],
+  );
+  assert(decision.proceed);
+  assert(decision.fallback_allowed);
+});
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 5: Semantic Extraction + Normalization E2E Regression
+// ══════════════════════════════════════════════════════════════
+
+import { buildCanonicalOutput, normalizeSemanticExtraction, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
+import { dkEconomicResultatopgoerelsePdfV1 } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
+
+Deno.test("Phase 5: e-conomic P&L PDF → semantic extraction emits raw document signs", () => {
+  // The template's extractSemantic uses text content (structural payload not yet wired for text-parsed)
+  const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic!(
+    null as any, // structural payload not used for text-based extraction yet
+    ECONOMIC_PNL_PDF_TEXT,
+  );
+  assertExists(semantic);
+
+  // Source identity
+  assertEquals(semantic!.source_system, "economic");
+  assertEquals(semantic!.document_type, "resultatopgoerelse");
+  assertEquals(semantic!.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1");
+  assertEquals(semantic!.sign_convention, "credit");
+  assertEquals(semantic!.normalization_profile_id, "economic_pnl_credit_v1");
+
+  // Candidates must have RAW document signs (credit convention: revenue is negative)
+  const revenue = semantic!.metric_candidates.find(c => c.source_field_id === "omsaetning");
+  assertExists(revenue);
+  assert(revenue!.raw_value! < 0, `Revenue raw_value must be negative (credit convention), got ${revenue!.raw_value}`);
+  assertEquals(revenue!.raw_sign, "negative");
+  assertEquals(revenue!.normalization_family, "revenue_like");
+
+  const ebt = semantic!.metric_candidates.find(c => c.proposed_canonical_target === "ebt");
+  assertExists(ebt);
+  assert(ebt!.raw_value! < 0, `EBT raw_value must be negative (credit convention), got ${ebt!.raw_value}`);
+
+  const db = semantic!.metric_candidates.find(c => c.source_field_id === "daekningsbidrag");
+  assertExists(db);
+  assertEquals(db!.normalization_family, "profit_like");
+
+  // Parser validation
+  assertEquals(semantic!.parser_validation.parser_status, "PASS");
+});
+
+Deno.test("Phase 5: semantic → normalization → canonical metrics (zero regression)", () => {
+  const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic!(
+    null as any,
+    ECONOMIC_PNL_PDF_TEXT,
+  );
+  assertExists(semantic);
+
+  // Normalize via centralized profile
+  const { metrics, correction_log, provenance } = normalizeSemanticExtraction(semantic!);
+
+  // Revenue: raw=-1200000 → abs → 1200000
+  assertEquals(metrics.revenue, 1200000);
+  // COGS: null in this fixture (Vareforbrug is not a subtotal line in the test text)
+  // This matches legacy behavior — COGS only extracted from subtotal lines
+  // Gross profit: raw=-720000 → negate → 720000
+  assertEquals(metrics.gross_profit, 720000);
+  // EBT: raw=-365000 → negate → 365000
+  assertEquals(metrics.ebt, 365000);
+  // Net result: raw=-365000 → negate → 365000
+  assertEquals(metrics.net_result, 365000);
+
+  // Payroll must be positive
+  assert(metrics.payroll != null && metrics.payroll > 0);
+
+  // Correction log must show normalization actions
+  assert(correction_log.length > 0, "Expected normalization corrections");
+
+  // Provenance must be enriched
+  assertExists(provenance["revenue"]);
+  assertEquals(provenance["revenue"].source_field_id, "omsaetning");
+  assertEquals(provenance["revenue"].normalization_profile_id, "economic_pnl_credit_v1");
+  assertEquals(provenance["revenue"].raw_value, -1200000);
+  assertEquals(provenance["revenue"].normalized_value, 1200000);
+  assertEquals(provenance["revenue"].normalization_action, "abs");
+});
+
+Deno.test("Phase 5: semantic vs legacy path — zero regression comparison", () => {
+  // ── Legacy path ──
+  const legacyResult = dkEconomicResultatopgoerelsePdfV1.extract({
+    fileName: "test.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: ECONOMIC_PNL_PDF_TEXT,
+    rows: [],
+  });
+  assert(legacyResult.success === true);
+  const legacyCanonical = buildCanonicalOutput(legacyResult.data, null, "deterministic_template");
+
+  // ── Semantic path ──
+  const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic!(null as any, ECONOMIC_PNL_PDF_TEXT);
+  assertExists(semantic);
+  const semanticCanonical = buildCanonicalFromSemantic(semantic!);
+
+  // ── Compare core metrics: must match exactly ──
+  assertEquals(semanticCanonical.metrics.revenue, legacyCanonical.metrics.revenue, "Revenue mismatch");
+  assertEquals(semanticCanonical.metrics.cogs, legacyCanonical.metrics.cogs, "COGS mismatch");
+  assertEquals(semanticCanonical.metrics.gross_profit, legacyCanonical.metrics.gross_profit, "Gross profit mismatch");
+  assertEquals(semanticCanonical.metrics.payroll, legacyCanonical.metrics.payroll, "Payroll mismatch");
+  assertEquals(semanticCanonical.metrics.ebt, legacyCanonical.metrics.ebt, "EBT mismatch");
+  assertEquals(semanticCanonical.metrics.net_result, legacyCanonical.metrics.net_result, "Net result mismatch");
+  assertEquals(semanticCanonical.metrics.depreciation, legacyCanonical.metrics.depreciation, "Depreciation mismatch");
+
+  // Company identity
+  assertEquals(semanticCanonical.company_name, legacyCanonical.company_name);
+  assertEquals(semanticCanonical.cvr, legacyCanonical.cvr);
+
+  // Statement type
+  assertEquals(semanticCanonical.statement_type, legacyCanonical.statement_type);
+
+  // Template ID
+  assertEquals(semanticCanonical.template_id, legacyCanonical.template_id);
+
+  console.log("[Phase5 Regression] Legacy vs Semantic: ZERO REGRESSION");
+  console.log(`  Revenue: ${semanticCanonical.metrics.revenue}`);
+  console.log(`  COGS: ${semanticCanonical.metrics.cogs}`);
+  console.log(`  Gross Profit: ${semanticCanonical.metrics.gross_profit}`);
+  console.log(`  EBT: ${semanticCanonical.metrics.ebt}`);
+  console.log(`  Net Result: ${semanticCanonical.metrics.net_result}`);
 });

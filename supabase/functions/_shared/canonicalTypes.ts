@@ -9,7 +9,7 @@ export type PeriodBasis = "period" | "ytd" | "unknown";
 export type ValidationStatus = "PASS" | "FAIL" | "UNSURE";
 export type CheckResult = "PASS" | "FAIL" | "SKIP";
 export type Confidence = "HIGH" | "MEDIUM" | "LOW";
-export type CorrectionSource = "key_figure" | "line_item" | "derived_metric";
+export type CorrectionSource = "key_figure" | "line_item" | "derived_metric" | "semantic_candidate";
 
 // ── Deterministic Metadata (from template registry) ──
 export interface DeterministicMeta {

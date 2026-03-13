@@ -252,10 +252,46 @@ serve(async (req) => {
         routingTrace.pdf_structural_validated = validationResult.valid;
         routingTrace.pdf_structural_errors = validationResult.errors.length > 0 ? validationResult.errors : null;
 
+        const isKnownSource = sourceFingerprint != null && !isAiAllowed(sourceFingerprint);
+
         if (!validationResult.valid) {
           console.warn(`[PdfStructural] Validation failed: ${validationResult.errors.join("; ")}`);
+
+          // ── TRUST MODEL: known source + invalid structural = HARD FAIL ──
+          if (isKnownSource) {
+            routingTrace.branch = "structural_parse_fail_validation";
+            console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + invalid structural payload`);
+
+            if (reportId) {
+              await supabase
+                .from("financial_reports")
+                .update({
+                  status: "error",
+                  extraction_method: "structural_parse_fail",
+                  validation_status: "FAIL",
+                  validation_errors: [`Structural payload validation failed for known source ${sourceFingerprint!.source_system}: ${validationResult.errors.join("; ")}`],
+                  raw_extracted_data: { routing_trace: routingTrace },
+                  processed_at: new Date().toISOString(),
+                })
+                .eq("id", reportId);
+            }
+
+            return new Response(
+              JSON.stringify({
+                error: "Structural payload validation failed",
+                status: "structural_parse_fail",
+                source_system: sourceFingerprint!.source_system,
+                details: validationResult.errors,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          // Unknown source: log warning, allow text fallback below
         } else {
           // ── Content hash verification against stored binary ──
+          let hashVerified = false;
+          let hashError: string | null = null;
+
           try {
             if (reportId) {
               const { data: report } = await supabase
@@ -275,27 +311,67 @@ serve(async (req) => {
                   const payloadHash = (pdfStructural as PdfStructuralPayload).metadata.content_hash;
 
                   if (storedHash === payloadHash) {
+                    hashVerified = true;
                     routingTrace.pdf_structural_hash_verified = true;
                     validatedStructural = pdfStructural as PdfStructuralPayload;
                     console.log(`[PdfStructural] Hash verified: ${storedHash.slice(0, 12)}...`);
                   } else {
-                    console.error(`[PdfStructural] Hash mismatch: stored=${storedHash.slice(0, 12)}... payload=${payloadHash.slice(0, 12)}...`);
-                    routingTrace.pdf_structural_errors = ["Content hash mismatch between uploaded file and structural payload"];
+                    hashError = `Content hash mismatch: stored=${storedHash.slice(0, 12)}... payload=${payloadHash.slice(0, 12)}...`;
+                    console.error(`[PdfStructural] ${hashError}`);
+                    routingTrace.pdf_structural_errors = [hashError];
                   }
                 } else {
                   console.warn(`[PdfStructural] Could not download stored file for hash verification: ${dlError?.message}`);
-                  // Allow structural payload without hash verification if file not yet accessible
-                  // (race condition: file uploaded but not yet propagated)
-                  validatedStructural = pdfStructural as PdfStructuralPayload;
-                  routingTrace.pdf_structural_hash_verified = false;
+                  // Race condition: file not yet propagated. Only allow for unknown sources.
+                  if (!isKnownSource) {
+                    validatedStructural = pdfStructural as PdfStructuralPayload;
+                    routingTrace.pdf_structural_hash_verified = false;
+                  } else {
+                    hashError = `Could not verify hash for known source: ${dlError?.message}`;
+                    routingTrace.pdf_structural_errors = [hashError];
+                  }
                 }
               }
             }
           } catch (hashErr) {
             console.warn("[PdfStructural] Hash verification error:", hashErr);
-            // Continue without hash verification
-            validatedStructural = pdfStructural as PdfStructuralPayload;
-            routingTrace.pdf_structural_hash_verified = false;
+            if (!isKnownSource) {
+              validatedStructural = pdfStructural as PdfStructuralPayload;
+              routingTrace.pdf_structural_hash_verified = false;
+            } else {
+              hashError = `Hash verification exception for known source`;
+              routingTrace.pdf_structural_errors = [hashError];
+            }
+          }
+
+          // ── TRUST MODEL: known source + hash mismatch/failure = HARD FAIL ──
+          if (isKnownSource && !hashVerified) {
+            routingTrace.branch = "structural_parse_fail_hash";
+            console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + hash verification failed`);
+
+            if (reportId) {
+              await supabase
+                .from("financial_reports")
+                .update({
+                  status: "error",
+                  extraction_method: "structural_parse_fail",
+                  validation_status: "FAIL",
+                  validation_errors: [`Structural payload hash verification failed for known source ${sourceFingerprint!.source_system}: ${hashError || "unknown"}`],
+                  raw_extracted_data: { routing_trace: routingTrace },
+                  processed_at: new Date().toISOString(),
+                })
+                .eq("id", reportId);
+            }
+
+            return new Response(
+              JSON.stringify({
+                error: "Structural payload hash verification failed",
+                status: "structural_parse_fail",
+                source_system: sourceFingerprint!.source_system,
+                details: hashError,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
           }
         }
       }

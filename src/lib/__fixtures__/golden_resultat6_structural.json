@@ -1,0 +1,1546 @@
+{
+  "version": "1.0",
+  "pages": [
+    {
+      "page_number": 1,
+      "rows": [
+        {
+          "row_index": 0,
+          "row_group_id": "p1_r0",
+          "y_position": 775.3799973885002,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Hentet: 09/03-2026 Kl. 14.18",
+              "x": 72.99609672424585,
+              "y": 775.3799973885002,
+              "width": 120.36871480428661,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "SnowWaves ApS (CVR-nr. 39850850)",
+              "x": 366.503919529253,
+              "y": 775.3799973885002,
+              "width": 156.48057841979372,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 1,
+          "row_group_id": "p1_r1",
+          "y_position": 734.1299964672504,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Resultatopgørelse 01/01-2026 - 31/01-2026",
+              "x": 72.99609672424585,
+              "y": 734.1299964672504,
+              "width": 281.6153602933151,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 2,
+          "row_group_id": "p1_r2",
+          "y_position": 683.8799953450005,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Omsætning",
+              "x": 72.99609672424585,
+              "y": 683.8799953450005,
+              "width": 49.96146347530295,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 3,
+          "row_group_id": "p1_r3",
+          "y_position": 662.8799948760005,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Events",
+              "x": 72.99609672424585,
+              "y": 662.8799948760005,
+              "width": 28.409843125074797,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-36.750,00",
+              "x": 479.0039220417527,
+              "y": 662.8799948760005,
+              "width": 44.61871311253663,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 4,
+          "row_group_id": "p1_r4",
+          "y_position": 641.8799944070006,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Firmature",
+              "x": 72.99609672424585,
+              "y": 641.8799944070006,
+              "width": 40.55140955728376,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-592.650,25",
+              "x": 473.7539219245027,
+              "y": 641.8799944070006,
+              "width": 49.86871322978665,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 5,
+          "row_group_id": "p1_r5",
+          "y_position": 620.8799939380007,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "SkiCamp",
+              "x": 72.99609672424585,
+              "y": 620.8799939380007,
+              "width": 38.613831386667464,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "0,00",
+              "x": 505.2539226280026,
+              "y": 620.8799939380007,
+              "width": 18.368712526286764,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 6,
+          "row_group_id": "p1_r6",
+          "y_position": 599.8799934690007,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Forudbetaling (Firmature)",
+              "x": 72.99609672424585,
+              "y": 599.8799934690007,
+              "width": 106.9805773142936,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "0,00",
+              "x": 505.2539226280026,
+              "y": 599.8799934690007,
+              "width": 18.368712526286764,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 7,
+          "row_group_id": "p1_r7",
+          "y_position": 567.6299927487507,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "OMSÆTNING I ALT",
+              "x": 72.99609672424585,
+              "y": 567.6299927487507,
+              "width": 84.19474182411116,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-629.400,25",
+              "x": 473.7539219245027,
+              "y": 567.6299927487507,
+              "width": 49.86871322978665,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": true
+        },
+        {
+          "row_index": 8,
+          "row_group_id": "p1_r8",
+          "y_position": 534.6299920117509,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Variable omkostninger",
+              "x": 72.99609672424585,
+              "y": 534.6299920117509,
+              "width": 97.41119599570682,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 9,
+          "row_group_id": "p1_r9",
+          "y_position": 513.629991542751,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Valutakursdifferencer, import",
+              "x": 72.99609672424585,
+              "y": 513.629991542751,
+              "width": 124.02066924916478,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "174,23",
+              "x": 494.75392239350265,
+              "y": 513.629991542751,
+              "width": 28.86871276078668,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 10,
+          "row_group_id": "p1_r10",
+          "y_position": 492.629991073751,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Hotel & Liftkort, SkiCamp",
+              "x": 72.99609672424585,
+              "y": 492.629991073751,
+              "width": 106.86383291091728,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "0,00",
+              "x": 505.2539226280026,
+              "y": 492.629991073751,
+              "width": 18.368712526286764,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 11,
+          "row_group_id": "p1_r11",
+          "y_position": 471.6299906047511,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Transport, SkiCamp",
+              "x": 72.99609672424585,
+              "y": 471.6299906047511,
+              "width": 84.36383240841732,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "0,00",
+              "x": 505.2539226280026,
+              "y": 471.6299906047511,
+              "width": 18.368712526286764,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 12,
+          "row_group_id": "p1_r12",
+          "y_position": 450.6299901357511,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Team SkiCamp",
+              "x": 72.99609672424585,
+              "y": 450.6299901357511,
+              "width": 64.86383197291738,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "0,00",
+              "x": 505.2539226280026,
+              "y": 450.6299901357511,
+              "width": 18.368712526286764,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 13,
+          "row_group_id": "p1_r13",
+          "y_position": 429.62998966675116,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Omkostninger, andre ture & events (Dansk moms)",
+              "x": 72.99609672424585,
+              "y": 429.62998966675116,
+              "width": 211.23057964254332,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "0,00",
+              "x": 505.2539226280026,
+              "y": 429.62998966675116,
+              "width": 18.368712526286764,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 14,
+          "row_group_id": "p1_r14",
+          "y_position": 408.62998919775123,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Omkostninger, andre ture & events (margenmoms)",
+              "x": 72.99609672424585,
+              "y": 408.62998919775123,
+              "width": 213.48057969279327,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "141.413,36",
+              "x": 476.7539219915027,
+              "y": 408.62998919775123,
+              "width": 46.868713162786676,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 15,
+          "row_group_id": "p1_r15",
+          "y_position": 376.3799884775013,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "VAREFORBRUG",
+              "x": 72.99609672424585,
+              "y": 376.3799884775013,
+              "width": 68.31470362300931,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "141.587,59",
+              "x": 476.7539219915027,
+              "y": 376.3799884775013,
+              "width": 46.868713162786676,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 16,
+          "row_group_id": "p1_r16",
+          "y_position": 332.8799875060014,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "VAREFORBRUG OG FREMMED ARBEJDE",
+              "x": 72.99609672424585,
+              "y": 332.8799875060014,
+              "width": 173.6235975854057,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "141.587,59",
+              "x": 476.7539219915027,
+              "y": 332.8799875060014,
+              "width": 46.868713162786676,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 17,
+          "row_group_id": "p1_r17",
+          "y_position": 288.6299865177515,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "DÆKNINGSBIDRAG I ALT",
+              "x": 72.99609672424585,
+              "y": 288.6299865177515,
+              "width": 109.69474239361105,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-487.812,66",
+              "x": 473.7539219245027,
+              "y": 288.6299865177515,
+              "width": 49.86871322978665,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": true
+        },
+        {
+          "row_index": 18,
+          "row_group_id": "p1_r18",
+          "y_position": 256.3799857975016,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Personaleomkostninger",
+              "x": 72.99609672424585,
+              "y": 256.3799857975016,
+              "width": 102.66119611295676,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 19,
+          "row_group_id": "p1_r19",
+          "y_position": 235.37998532850168,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "AM-indkomst",
+              "x": 72.99609672424585,
+              "y": 235.37998532850168,
+              "width": 57.27066775841488,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "9.901,00",
+              "x": 487.25392222600266,
+              "y": 235.37998532850168,
+              "width": 36.3687129282867,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 20,
+          "row_group_id": "p1_r20",
+          "y_position": 214.37998485950175,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Arbejdsgiver ATP",
+              "x": 72.99609672424585,
+              "y": 214.37998485950175,
+              "width": 72.30701816910457,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "198,00",
+              "x": 494.75392239350265,
+              "y": 214.37998485950175,
+              "width": 28.86871276078668,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 21,
+          "row_group_id": "p1_r21",
+          "y_position": 193.37998439050182,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Medarbejder ATP",
+              "x": 72.99609672424585,
+              "y": 193.37998439050182,
+              "width": 73.05701818585457,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "99,00",
+              "x": 500.0039225107526,
+              "y": 193.37998439050182,
+              "width": 23.61871264353672,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 22,
+          "row_group_id": "p1_r22",
+          "y_position": 172.37998392150178,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Feriepenge og SH",
+              "x": 72.99609672424585,
+              "y": 172.37998392150178,
+              "width": 75.3820072452622,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-3.118,53",
+              "x": 484.2539221590027,
+              "y": 172.37998392150178,
+              "width": 39.36871299528668,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 23,
+          "row_group_id": "p1_r23",
+          "y_position": 151.37998345250185,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Kørsel i egen bil (kilometergodtgørelse)",
+              "x": 72.99609672424585,
+              "y": 151.37998345250185,
+              "width": 165.48057862079338,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "16.745,24",
+              "x": 482.0039221087527,
+              "y": 151.37998345250185,
+              "width": 41.61871304553665,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 24,
+          "row_group_id": "p1_r24",
+          "y_position": 130.37998298350192,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "AER/AES/ATP-",
+              "x": 72.99609672424585,
+              "y": 130.37998298350192,
+              "width": 62.01298232126014,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "\u0000",
+              "x": 135.24609811449568,
+              "y": 130.37998298350192,
+              "width": 5.540606771628385,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "nansieringsbidrag",
+              "x": 140.49609823174566,
+              "y": 130.37998298350192,
+              "width": 76.11383222416728,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "414,93",
+              "x": 494.75392239350265,
+              "y": 130.37998298350192,
+              "width": 28.86871276078668,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 25,
+          "row_group_id": "p1_r25",
+          "y_position": 109.37998251450199,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Diverse vedr. ansatte med moms",
+              "x": 72.99609672424585,
+              "y": 109.37998251450199,
+              "width": 138.6598455873245,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "24,88",
+              "x": 500.0039225107526,
+              "y": 109.37998251450199,
+              "width": 23.61871264353672,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 26,
+          "row_group_id": "p1_r26",
+          "y_position": 88.37998204550206,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "Frokostordning til ansatte",
+              "x": 72.99609672424585,
+              "y": 88.37998204550206,
+              "width": 108.05141106478357,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "6.237,19",
+              "x": 487.25392222600266,
+              "y": 88.37998204550206,
+              "width": 36.3687129282867,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 27,
+          "row_group_id": "p1_r27",
+          "y_position": 55.379981308502124,
+          "page": 1,
+          "tokens": [
+            {
+              "text": "LØNNINGER MV. I ALT",
+              "x": 72.99609672424585,
+              "y": 55.379981308502124,
+              "width": 97.69474212561114,
+              "page": 1,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "30.501,71",
+              "x": 482.0039221087527,
+              "y": 55.379981308502124,
+              "width": 41.61871304553665,
+              "page": 1,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": true
+        }
+      ]
+    },
+    {
+      "page_number": 2,
+      "rows": [
+        {
+          "row_index": 0,
+          "row_group_id": "p2_r0",
+          "y_position": 788.13000031325,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Salgsfremmende omkostninger",
+              "x": 72.99609672424585,
+              "y": 788.13000031325,
+              "width": 135.66119684995675,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 1,
+          "row_group_id": "p2_r1",
+          "y_position": 767.12999984425,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Repræsentation, restaurant, personale, fuldt fradrag",
+              "x": 72.99609672424585,
+              "y": 767.12999984425,
+              "width": 219.363835423417,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "157,70",
+              "x": 494.75392239350265,
+              "y": 767.12999984425,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 2,
+          "row_group_id": "p2_r2",
+          "y_position": 746.1299993752501,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Øvrige personaleomkostninger",
+              "x": 72.99609672424585,
+              "y": 746.1299993752501,
+              "width": 130.13782758802722,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "3.272,62",
+              "x": 487.25392222600266,
+              "y": 746.1299993752501,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 3,
+          "row_group_id": "p2_r3",
+          "y_position": 713.8799986550001,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "SALGSOMKOSTNINGER",
+              "x": 72.99609672424585,
+              "y": 713.8799986550001,
+              "width": 105.40465074349007,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "3.430,32",
+              "x": 487.25392222600266,
+              "y": 713.8799986550001,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 4,
+          "row_group_id": "p2_r4",
+          "y_position": 681.6299979347502,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Lokaleomkostninger",
+              "x": 72.99609672424585,
+              "y": 681.6299979347502,
+              "width": 87.6611957779569,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 5,
+          "row_group_id": "p2_r5",
+          "y_position": 660.6299974657503,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Husleje",
+              "x": 72.99609672424585,
+              "y": 660.6299974657503,
+              "width": 32.30140937303379,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "3.280,00",
+              "x": 487.25392222600266,
+              "y": 660.6299974657503,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 6,
+          "row_group_id": "p2_r6",
+          "y_position": 627.6299967287504,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "LOKALEOMKOSTNINGER",
+              "x": 72.99609672424585,
+              "y": 627.6299967287504,
+              "width": 109.90465084399001,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "3.280,00",
+              "x": 487.25392222600266,
+              "y": 627.6299967287504,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 7,
+          "row_group_id": "p2_r7",
+          "y_position": 595.3799960085005,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Transportomkostninger",
+              "x": 72.99609672424585,
+              "y": 595.3799960085005,
+              "width": 101.91119609620684,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 8,
+          "row_group_id": "p2_r8",
+          "y_position": 574.3799955395006,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Parkering uden moms",
+              "x": 72.99609672424585,
+              "y": 574.3799955395006,
+              "width": 92.90984456557464,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "174,83",
+              "x": 494.75392239350265,
+              "y": 574.3799955395006,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 9,
+          "row_group_id": "p2_r9",
+          "y_position": 553.3799950705005,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Færge",
+              "x": 72.99609672424585,
+              "y": 553.3799950705005,
+              "width": 27.051409255783796,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "584,52",
+              "x": 494.75392239350265,
+              "y": 553.3799950705005,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 10,
+          "row_group_id": "p2_r10",
+          "y_position": 532.3799946015006,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Diverse transportomkostninger uden moms",
+              "x": 72.99609672424585,
+              "y": 532.3799946015006,
+              "width": 183.65984659232439,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "790,93",
+              "x": 494.75392239350265,
+              "y": 532.3799946015006,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 11,
+          "row_group_id": "p2_r11",
+          "y_position": 500.1299938812508,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "TRANSPORTOMKOSTNINGER I ALT",
+              "x": 72.99609672424585,
+              "y": 500.1299938812508,
+              "width": 155.44474341536105,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "1.550,28",
+              "x": 487.25392222600266,
+              "y": 500.1299938812508,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": true
+        },
+        {
+          "row_index": 12,
+          "row_group_id": "p2_r12",
+          "y_position": 467.1299931442509,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Administration",
+              "x": 72.99609672424585,
+              "y": 467.1299931442509,
+              "width": 63.3540687556788,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 13,
+          "row_group_id": "p2_r13",
+          "y_position": 446.12999267525083,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Bogføringsassistance",
+              "x": 72.99609672424585,
+              "y": 446.12999267525083,
+              "width": 93.8014107465336,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "4.151,49",
+              "x": 487.25392222600266,
+              "y": 446.12999267525083,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 14,
+          "row_group_id": "p2_r14",
+          "y_position": 425.87999222300095,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Konsulentbistand",
+              "x": 72.99609672424585,
+              "y": 425.87999222300095,
+              "width": 74.63824015001377,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "7.500,00",
+              "x": 487.25392222600266,
+              "y": 425.87999222300095,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 15,
+          "row_group_id": "p2_r15",
+          "y_position": 404.8799917540009,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Porto og gebyrer",
+              "x": 72.99609672424585,
+              "y": 404.8799917540009,
+              "width": 69.38782623127746,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "150,00",
+              "x": 494.75392239350265,
+              "y": 404.8799917540009,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 16,
+          "row_group_id": "p2_r16",
+          "y_position": 383.8799912850011,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Telefoni",
+              "x": 72.99609672424585,
+              "y": 383.8799912850011,
+              "width": 34.68103347114939,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "1.514,01",
+              "x": 487.25392222600266,
+              "y": 383.8799912850011,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 17,
+          "row_group_id": "p2_r17",
+          "y_position": 362.87999081600105,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Internet og webhotel",
+              "x": 72.99609672424585,
+              "y": 362.87999081600105,
+              "width": 87.18103464364935,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "1.701,60",
+              "x": 487.25392222600266,
+              "y": 362.87999081600105,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 18,
+          "row_group_id": "p2_r18",
+          "y_position": 341.879990347001,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Køb af software",
+              "x": 72.99609672424585,
+              "y": 341.879990347001,
+              "width": 68.30141017703372,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "981,37",
+              "x": 494.75392239350265,
+              "y": 341.879990347001,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 19,
+          "row_group_id": "p2_r19",
+          "y_position": 320.8799898780012,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Køb af software (EU)",
+              "x": 72.99609672424585,
+              "y": 320.8799898780012,
+              "width": 88.23057689554369,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "1.207,04",
+              "x": 487.25392222600266,
+              "y": 320.8799898780012,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 20,
+          "row_group_id": "p2_r20",
+          "y_position": 299.87998940900115,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Køb af software (øvrig udland)",
+              "x": 72.99609672424585,
+              "y": 299.87998940900115,
+              "width": 127.98057778329361,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "1.434,60",
+              "x": 487.25392222600266,
+              "y": 299.87998940900115,
+              "width": 36.3687129282867,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 21,
+          "row_group_id": "p2_r21",
+          "y_position": 278.87998894000134,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Betalingsløsning",
+              "x": 72.99609672424585,
+              "y": 278.87998894000134,
+              "width": 70.86383210691741,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "46,46",
+              "x": 500.0039225107526,
+              "y": 278.87998894000134,
+              "width": 23.61871264353672,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 22,
+          "row_group_id": "p2_r22",
+          "y_position": 245.8799882030014,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "ADMINISTRATION",
+              "x": 72.99609672424585,
+              "y": 245.8799882030014,
+              "width": 80.55390189260376,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "18.686,57",
+              "x": 482.0039221087527,
+              "y": 245.8799882030014,
+              "width": 41.61871304553665,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 23,
+          "row_group_id": "p2_r23",
+          "y_position": 213.6299874827514,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Afskrivninger",
+              "x": 72.99609672424585,
+              "y": 213.6299874827514,
+              "width": 59.161195141456965,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 24,
+          "row_group_id": "p2_r24",
+          "y_position": 192.6299870137516,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "Småanskaffelser (straksafskrivning)",
+              "x": 72.99609672424585,
+              "y": 192.6299870137516,
+              "width": 157.2305784365434,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "270,63",
+              "x": 494.75392239350265,
+              "y": 192.6299870137516,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 25,
+          "row_group_id": "p2_r25",
+          "y_position": 160.3799862935016,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "AFSKRIVNINGER",
+              "x": 72.99609672424585,
+              "y": 160.3799862935016,
+              "width": 74.65465005674005,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "270,63",
+              "x": 494.75392239350265,
+              "y": 160.3799862935016,
+              "width": 28.86871276078668,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": false
+        },
+        {
+          "row_index": 26,
+          "row_group_id": "p2_r26",
+          "y_position": 116.1299853052517,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "RESULTAT FØR SKAT",
+              "x": 72.99609672424585,
+              "y": 116.1299853052517,
+              "width": 92.44474200836112,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-430.093,15",
+              "x": 473.7539219245027,
+              "y": 116.1299853052517,
+              "width": 49.86871322978665,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": true
+        },
+        {
+          "row_index": 27,
+          "row_group_id": "p2_r27",
+          "y_position": 72.62998433375174,
+          "page": 2,
+          "tokens": [
+            {
+              "text": "RESULTAT EFTER SKAT",
+              "x": 72.99609672424585,
+              "y": 72.62998433375174,
+              "width": 102.19474222611113,
+              "page": 2,
+              "column_slot": null,
+              "column_slot_confidence": "LOW"
+            },
+            {
+              "text": "-430.093,15",
+              "x": 473.7539219245027,
+              "y": 72.62998433375174,
+              "width": 49.86871322978665,
+              "page": 2,
+              "column_slot": 0,
+              "column_slot_confidence": "MEDIUM"
+            }
+          ],
+          "is_header": false,
+          "is_subtotal": true
+        }
+      ]
+    },
+    {
+      "page_number": 3,
+      "rows": []
+    }
+  ],
+  "column_profile": {
+    "slot_count": 1,
+    "slot_labels": [
+      "Column 0"
+    ],
+    "slot_x_ranges": [
+      {
+        "min": 463.7539219245027,
+        "max": 515.2539226280026
+      }
+    ],
+    "detection_method": "positional_cluster",
+    "confidence": "LOW"
+  },
+  "metadata": {
+    "page_count": 3,
+    "total_token_count": 105,
+    "total_row_count": 56,
+    "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_file_name": "Resultat_6.pdf",
+    "extraction_timestamp": "__STRIPPED__"
+  }
+}
