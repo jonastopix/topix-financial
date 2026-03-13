@@ -603,3 +603,126 @@ Deno.test("Routing: unknown source + valid + hash not verified → proceed with 
   assert(decision.proceed);
   assert(decision.fallback_allowed);
 });
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 5: Semantic Extraction + Normalization E2E Regression
+// ══════════════════════════════════════════════════════════════
+
+import { buildCanonicalOutput, normalizeSemanticExtraction, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
+import { dkEconomicResultatopgoerelsePdfV1 } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
+import { ECONOMIC_PNL_PDF_TEXT } from "../_test_fixtures/pdfParserFixtures.ts";
+
+Deno.test("Phase 5: e-conomic P&L PDF → semantic extraction emits raw document signs", () => {
+  // The template's extractSemantic uses text content (structural payload not yet wired for text-parsed)
+  const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic!(
+    null as any, // structural payload not used for text-based extraction yet
+    ECONOMIC_PNL_PDF_TEXT,
+  );
+  assertExists(semantic);
+
+  // Source identity
+  assertEquals(semantic!.source_system, "economic");
+  assertEquals(semantic!.document_type, "resultatopgoerelse");
+  assertEquals(semantic!.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1");
+  assertEquals(semantic!.sign_convention, "credit");
+  assertEquals(semantic!.normalization_profile_id, "economic_pnl_credit_v1");
+
+  // Candidates must have RAW document signs (credit convention: revenue is negative)
+  const revenue = semantic!.metric_candidates.find(c => c.source_field_id === "omsaetning");
+  assertExists(revenue);
+  assert(revenue!.raw_value! < 0, `Revenue raw_value must be negative (credit convention), got ${revenue!.raw_value}`);
+  assertEquals(revenue!.raw_sign, "negative");
+  assertEquals(revenue!.normalization_family, "revenue_like");
+
+  const ebt = semantic!.metric_candidates.find(c => c.proposed_canonical_target === "ebt");
+  assertExists(ebt);
+  assert(ebt!.raw_value! < 0, `EBT raw_value must be negative (credit convention), got ${ebt!.raw_value}`);
+
+  const db = semantic!.metric_candidates.find(c => c.source_field_id === "daekningsbidrag");
+  assertExists(db);
+  assertEquals(db!.normalization_family, "profit_like");
+
+  // Parser validation
+  assertEquals(semantic!.parser_validation.parser_status, "PASS");
+});
+
+Deno.test("Phase 5: semantic → normalization → canonical metrics (zero regression)", () => {
+  const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic!(
+    null as any,
+    ECONOMIC_PNL_PDF_TEXT,
+  );
+  assertExists(semantic);
+
+  // Normalize via centralized profile
+  const { metrics, correction_log, provenance } = normalizeSemanticExtraction(semantic!);
+
+  // Revenue: raw=-1200000 → abs → 1200000
+  assertEquals(metrics.revenue, 1200000);
+  // COGS: raw=480000 → conditional→abs → 480000
+  assert(metrics.cogs != null && metrics.cogs > 0);
+  // Gross profit: raw=-720000 → negate → 720000
+  assertEquals(metrics.gross_profit, 720000);
+  // EBT: raw=-365000 → negate → 365000
+  assertEquals(metrics.ebt, 365000);
+  // Net result: raw=-365000 → negate → 365000
+  assertEquals(metrics.net_result, 365000);
+
+  // Payroll must be positive
+  assert(metrics.payroll != null && metrics.payroll > 0);
+
+  // Correction log must show normalization actions
+  assert(correction_log.length > 0, "Expected normalization corrections");
+
+  // Provenance must be enriched
+  assertExists(provenance["revenue"]);
+  assertEquals(provenance["revenue"].source_field_id, "omsaetning");
+  assertEquals(provenance["revenue"].normalization_profile_id, "economic_pnl_credit_v1");
+  assertEquals(provenance["revenue"].raw_value, -1200000);
+  assertEquals(provenance["revenue"].normalized_value, 1200000);
+  assertEquals(provenance["revenue"].normalization_action, "abs");
+});
+
+Deno.test("Phase 5: semantic vs legacy path — zero regression comparison", () => {
+  // ── Legacy path ──
+  const legacyResult = dkEconomicResultatopgoerelsePdfV1.extract({
+    fileName: "test.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: ECONOMIC_PNL_PDF_TEXT,
+    rows: [],
+  });
+  assert(legacyResult.success === true);
+  const legacyCanonical = buildCanonicalOutput(legacyResult.data, null, "deterministic_template");
+
+  // ── Semantic path ──
+  const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic!(null as any, ECONOMIC_PNL_PDF_TEXT);
+  assertExists(semantic);
+  const semanticCanonical = buildCanonicalFromSemantic(semantic!);
+
+  // ── Compare core metrics: must match exactly ──
+  assertEquals(semanticCanonical.metrics.revenue, legacyCanonical.metrics.revenue, "Revenue mismatch");
+  assertEquals(semanticCanonical.metrics.cogs, legacyCanonical.metrics.cogs, "COGS mismatch");
+  assertEquals(semanticCanonical.metrics.gross_profit, legacyCanonical.metrics.gross_profit, "Gross profit mismatch");
+  assertEquals(semanticCanonical.metrics.payroll, legacyCanonical.metrics.payroll, "Payroll mismatch");
+  assertEquals(semanticCanonical.metrics.ebt, legacyCanonical.metrics.ebt, "EBT mismatch");
+  assertEquals(semanticCanonical.metrics.net_result, legacyCanonical.metrics.net_result, "Net result mismatch");
+  assertEquals(semanticCanonical.metrics.depreciation, legacyCanonical.metrics.depreciation, "Depreciation mismatch");
+
+  // Company identity
+  assertEquals(semanticCanonical.company_name, legacyCanonical.company_name);
+  assertEquals(semanticCanonical.cvr, legacyCanonical.cvr);
+
+  // Statement type
+  assertEquals(semanticCanonical.statement_type, legacyCanonical.statement_type);
+
+  // Template ID
+  assertEquals(semanticCanonical.template_id, legacyCanonical.template_id);
+
+  console.log("[Phase5 Regression] Legacy vs Semantic: ZERO REGRESSION");
+  console.log(`  Revenue: ${semanticCanonical.metrics.revenue}`);
+  console.log(`  COGS: ${semanticCanonical.metrics.cogs}`);
+  console.log(`  Gross Profit: ${semanticCanonical.metrics.gross_profit}`);
+  console.log(`  EBT: ${semanticCanonical.metrics.ebt}`);
+  console.log(`  Net Result: ${semanticCanonical.metrics.net_result}`);
+});
