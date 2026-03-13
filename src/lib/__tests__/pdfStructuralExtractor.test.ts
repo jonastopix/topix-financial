@@ -28,16 +28,13 @@ async function extractStructuralFromBuffer(buffer: ArrayBuffer, fileName: string
   // Use dynamic import for pdfjs-dist to get the legacy/node-compatible build
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-  // Disable worker for Node environment
+  // Disable worker for Node environment — must set BEFORE calling getDocument
   pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 
   const pdf = await pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
-    useWorkerFetch: false,
-    isEvalSupported: false,
-    useSystemFonts: true,
     disableFontFace: true,
-    // @ts-ignore - legacy compat
+    useSystemFonts: false,
     standardFontDataUrl: undefined,
   }).promise;
 
