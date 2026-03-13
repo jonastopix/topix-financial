@@ -2,7 +2,7 @@
  * Phase 0-4 Tests: Gate fixes + parser + XLSX raw + routing integration
  */
 
-import { assertEquals, assert, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert, assertExists, assertFalse } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   compareExtractions,
   formatComparisonReport,
