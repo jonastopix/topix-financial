@@ -815,8 +815,8 @@ Deno.test("Phase 5: structural routing via registry (end-to-end)", async () => {
   const fixtureText = await Deno.readTextFile("src/lib/__fixtures__/golden_resultat6_structural.json");
   const structural = JSON.parse(fixtureText) as PdfStructuralPayload;
 
-  // Minimal text content for detection (needs Resultatopgørelse + e-conomic signals)
-  const detectionText = "Resultatopgørelse 01/01-2026 - 31/01-2026\nsecure.e-conomic.com\nOmsætning\nDækningsbidrag\nResultat";
+  // Detection text must exceed 100 chars and contain e-conomic signals for template matching
+  const detectionText = "Hentet: 09/03-2026 Kl. 14.18\nSnowWaves ApS (CVR-nr. 39850850)\nResultatopgørelse 01/01-2026 - 31/01-2026\nsecure.e-conomic.com\nOmsætning\nDækningsbidrag\nResultat før skat\nAfskrivninger\nLokaleomkostninger\nAdministration";
 
   const result = tryDeterministicPdfStructuralExtraction(structural, detectionText, "Resultat_6.pdf");
   assertEquals(result.type, "success", `Expected success, got ${result.type}`);

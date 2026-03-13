@@ -226,24 +226,25 @@ function extractStructuralMetadata(structural: PdfStructuralPayload): {
   let period_end: string | null = null;
   let report_period: string | null = null;
 
-  // Scan first 5 rows for metadata
+  // Scan first 5 rows for metadata — scan individual tokens, not joined text,
+  // to avoid noise from other tokens on the same row (e.g. "Hentet: ..." prefix).
   const scanRows = firstPage.rows.slice(0, 5);
   for (const row of scanRows) {
-    const fullText = row.tokens.map(t => t.text).join(" ");
+    for (const token of row.tokens) {
+      // Company name + CVR: "SnowWaves ApS (CVR-nr. 39850850)"
+      const cvrMatch = token.text.match(/(.+?)\s*\(CVR[\s\-.:nNrR]*\s*(\d{8})\)/i);
+      if (cvrMatch && !company_name) {
+        company_name = cvrMatch[1].trim();
+        cvr_number = cvrMatch[2];
+      }
 
-    // Company name + CVR: "SnowWaves ApS (CVR-nr. 39850850)"
-    const cvrMatch = fullText.match(/(.+?)\s*\(CVR[\s\-.:nNrR]*\s*(\d{8})\)/i);
-    if (cvrMatch && !company_name) {
-      company_name = cvrMatch[1].trim();
-      cvr_number = cvrMatch[2];
-    }
-
-    // Period: "Resultatopgørelse 01/01-2026 - 31/01-2026"
-    const periodMatch = fullText.match(/(\d{2}\/\d{2}[-\s]*\d{4})\s*[-–]\s*(\d{2}\/\d{2}[-\s]*\d{4})/);
-    if (periodMatch && !period_start) {
-      period_start = periodMatch[1].replace(/\s/g, "");
-      period_end = periodMatch[2].replace(/\s/g, "");
-      report_period = `${period_start} - ${period_end}`;
+      // Period: "Resultatopgørelse 01/01-2026 - 31/01-2026"
+      const periodMatch = token.text.match(/(\d{2}\/\d{2}[-\s]*\d{4})\s*[-–]\s*(\d{2}\/\d{2}[-\s]*\d{4})/);
+      if (periodMatch && !period_start) {
+        period_start = periodMatch[1].replace(/\s/g, "");
+        period_end = periodMatch[2].replace(/\s/g, "");
+        report_period = `${period_start} - ${period_end}`;
+      }
     }
   }
 
