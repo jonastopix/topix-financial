@@ -11,7 +11,9 @@ import * as XLSX from "npm:xlsx@0.18.5";
 import type { PdfStructuralPayload } from "./pdfStructuralTypes.ts";
 import type { SemanticExtractionResult } from "./semanticTypes.ts";
 import type { XlsxParseResult } from "./xlsxRawParser.ts";
+import { parseXlsxRawFromBase64, buildXlsxDetectionContext } from "./xlsxRawParser.ts";
 import type { CsvParseResult, CsvColumnProfile } from "./csvRawParser.ts";
+import { parseCsvRaw, buildCsvDetectionContext } from "./csvRawParser.ts";
 
 // ── Discriminated Union for Extraction Results ──
 
