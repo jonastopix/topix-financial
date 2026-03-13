@@ -370,14 +370,8 @@ Deno.test("XLSX raw parser: parses combined fixture file", async () => {
   }
 });
 
-Deno.test("XLSX raw parser: cell address format", () => {
-  // Minimal synthetic test
-  const fakeBase64 = (() => {
-    const XLSX_MOD = (() => { try { return require("xlsx"); } catch { return null; } })();
-    // We can't easily create a workbook in test, so just verify the parser module loads
-    return null;
-  })();
-
-  // At minimum verify the module exports correctly
+Deno.test("XLSX raw parser: module exports and types", () => {
+  // Verify the parser module exports correctly (no require() in Deno)
   assert(typeof parseXlsxRawFromBase64 === "function");
+  assertEquals(typeof parseXlsxRawFromBase64, "function");
 });
