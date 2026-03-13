@@ -1,13 +1,17 @@
 /**
- * Template Registry — Phase 4 + 4b + 5
+ * Template Registry — Phase 4 + 4b + 5 + 6 + 7
  * Handles deterministic template detection with ambiguity rule and extraction routing.
- * Supports both Excel, PDF, and CSV file types.
+ * Supports Excel, PDF, and CSV file types.
  * Phase 5: Structural PDF extraction routing via extractSemantic().
+ * Phase 6: Structural XLSX extraction routing via extractSemanticFromXlsx().
+ * Phase 7: Structural CSV extraction routing via extractSemanticFromCsv().
  */
 
 import * as XLSX from "npm:xlsx@0.18.5";
 import type { PdfStructuralPayload } from "./pdfStructuralTypes.ts";
 import type { SemanticExtractionResult } from "./semanticTypes.ts";
+import type { XlsxParseResult } from "./xlsxRawParser.ts";
+import type { CsvParseResult, CsvColumnProfile } from "./csvRawParser.ts";
 
 // ── Discriminated Union for Extraction Results ──
 
@@ -23,7 +27,11 @@ export interface DetectionContext {
   fileType: "xlsx" | "xls" | "csv" | "pdf";
   sheetNames: string[];
   headerRows: any[][];
-  rawText?: string; // For PDF templates
+  rawText?: string; // For PDF templates (legacy)
+  // CSV structural fields (Phase 7 — used by buildCsvDetectionContext)
+  csvHeaders?: string[];
+  csvDelimiter?: string;
+  csvColumnProfile?: CsvColumnProfile[];
 }
 
 // ── Extraction Context ──
@@ -91,15 +99,37 @@ export interface TemplateEntry {
   extract(ctx: ExtractionContext): { success: true; data: DeterministicExtractedData } | { success: false; error: string };
 }
 
-// ── Template with Semantic Extraction (Phase 5) ──
+// ── Template with Semantic Extraction (Phase 5 — PDF) ──
 
 export interface SemanticTemplateEntry extends TemplateEntry {
   extractSemantic: (structural: PdfStructuralPayload | null, textContent: string) => SemanticExtractionResult | null;
 }
 
-/** Type guard: does this template support semantic extraction? */
+/** Type guard: does this template support PDF semantic extraction? */
 export function hasSemanticExtraction(t: TemplateEntry): t is SemanticTemplateEntry {
   return typeof (t as any).extractSemantic === "function";
+}
+
+// ── Template with Semantic XLSX Extraction (Phase 6) ──
+
+export interface SemanticXlsxTemplateEntry extends TemplateEntry {
+  extractSemanticFromXlsx: (xlsxResult: XlsxParseResult) => SemanticExtractionResult | null;
+}
+
+/** Type guard: does this template support XLSX semantic extraction? */
+export function hasSemanticXlsxExtraction(t: TemplateEntry): t is SemanticXlsxTemplateEntry {
+  return typeof (t as any).extractSemanticFromXlsx === "function";
+}
+
+// ── Template with Semantic CSV Extraction (Phase 7) ──
+
+export interface SemanticCsvTemplateEntry extends TemplateEntry {
+  extractSemanticFromCsv: (csvResult: CsvParseResult) => SemanticExtractionResult | null;
+}
+
+/** Type guard: does this template support CSV semantic extraction? */
+export function hasSemanticCsvExtraction(t: TemplateEntry): t is SemanticCsvTemplateEntry {
+  return typeof (t as any).extractSemanticFromCsv === "function";
 }
 
 // ── Detection Result ──
@@ -169,18 +199,12 @@ export type StructuralExtractionResult =
 
 /**
  * Try structural-first extraction for a PDF using the validated structural payload.
- * This is the Phase 5 primary path for migrated PDF templates.
- *
- * When a validated structural payload exists AND the matched template supports
- * extractSemantic(), this function runs the structural path as the authoritative
- * deterministic extraction — no text fallback in the same request.
  */
 export function tryDeterministicPdfStructuralExtraction(
   structural: PdfStructuralPayload,
   textContent: string,
   fileName: string,
 ): StructuralExtractionResult {
-  // Detect template using text content (detection still uses rawText for now)
   const ctx: DetectionContext = {
     fileName,
     fileType: "pdf",
@@ -195,15 +219,12 @@ export function tryDeterministicPdfStructuralExtraction(
     return { type: "no_match" };
   }
 
-  // Check if template supports semantic extraction
   if (!hasSemanticExtraction(match.template)) {
     console.log(`[Registry] Template ${match.template.template_id} does not support semantic extraction`);
     return { type: "no_semantic_support" };
   }
 
   const semanticTemplate = match.template as SemanticTemplateEntry;
-
-  // Run structural-first semantic extraction (structural is primary, not text)
   const semantic = semanticTemplate.extractSemantic(structural, textContent);
   if (!semantic) {
     return {
@@ -213,7 +234,6 @@ export function tryDeterministicPdfStructuralExtraction(
     };
   }
 
-  // Set detection score in meta
   semantic._deterministic_meta.detection_score = match.score;
 
   console.log(`[Registry] Structural semantic extraction successful: ${match.template.template_id}`);
@@ -225,7 +245,115 @@ export function tryDeterministicPdfStructuralExtraction(
   };
 }
 
-// ── Excel Extraction (Phase 4) ──
+// ── Semantic XLSX Extraction (Phase 6) ──
+
+/**
+ * Try semantic-first extraction for an XLSX file via XlsxParseResult.
+ * Returns StructuralExtractionResult for uniform routing.
+ */
+export function trySemanticExcelExtraction(
+  excelBase64: string,
+  fileName: string
+): StructuralExtractionResult {
+  const { parseXlsxRawFromBase64, buildXlsxDetectionContext } = (() => {
+    // Dynamic import workaround — these are in the same _shared folder
+    // Using static import at top would create circular dependency
+    const mod = require("./xlsxRawParser.ts");
+    return mod;
+  })();
+
+  let xlsxResult: XlsxParseResult;
+  try {
+    xlsxResult = parseXlsxRawFromBase64(excelBase64);
+  } catch (e: any) {
+    console.error("[Registry] XLSX parse error for semantic path:", e?.message);
+    return { type: "no_match" };
+  }
+
+  const ctx = buildXlsxDetectionContext(xlsxResult, fileName);
+  const match = detectTemplate(ctx);
+  if (!match) {
+    console.log("[Registry] No template matched for XLSX semantic extraction");
+    return { type: "no_match" };
+  }
+
+  if (!hasSemanticXlsxExtraction(match.template)) {
+    console.log(`[Registry] Template ${match.template.template_id} does not support XLSX semantic extraction`);
+    return { type: "no_semantic_support" };
+  }
+
+  const semanticTemplate = match.template as SemanticXlsxTemplateEntry;
+  const semantic = semanticTemplate.extractSemanticFromXlsx(xlsxResult);
+  if (!semantic) {
+    return {
+      type: "semantic_fail",
+      template_id: match.template.template_id,
+      error: "extractSemanticFromXlsx returned null",
+    };
+  }
+
+  semantic._deterministic_meta.detection_score = match.score;
+
+  console.log(`[Registry] XLSX semantic extraction successful: ${match.template.template_id}`);
+  return {
+    type: "success",
+    template_id: match.template.template_id,
+    score: match.score,
+    semantic,
+  };
+}
+
+// ── Semantic CSV Extraction (Phase 7) ──
+
+/**
+ * Try semantic-first extraction for a CSV file via CsvParseResult.
+ * Returns StructuralExtractionResult for uniform routing.
+ */
+export function trySemanticCsvExtraction(
+  csvText: string,
+  fileName: string
+): StructuralExtractionResult {
+  const { parseCsvRaw, buildCsvDetectionContext } = (() => {
+    const mod = require("./csvRawParser.ts");
+    return mod;
+  })();
+
+  const csvResult: CsvParseResult = parseCsvRaw(csvText);
+
+  const ctx = buildCsvDetectionContext(csvResult, fileName);
+  const match = detectTemplate(ctx);
+  if (!match) {
+    console.log("[Registry] No template matched for CSV semantic extraction");
+    return { type: "no_match" };
+  }
+
+  if (!hasSemanticCsvExtraction(match.template)) {
+    console.log(`[Registry] Template ${match.template.template_id} does not support CSV semantic extraction`);
+    return { type: "no_semantic_support" };
+  }
+
+  const semanticTemplate = match.template as SemanticCsvTemplateEntry;
+  const semantic = semanticTemplate.extractSemanticFromCsv(csvResult);
+  if (!semantic) {
+    return {
+      type: "semantic_fail",
+      template_id: match.template.template_id,
+      error: "extractSemanticFromCsv returned null",
+    };
+  }
+
+  semantic._deterministic_meta.detection_score = match.score;
+
+  console.log(`[Registry] CSV semantic extraction successful: ${match.template.template_id}`);
+  return {
+    type: "success",
+    template_id: match.template.template_id,
+    score: match.score,
+    semantic,
+  };
+}
+
+// ── Excel Extraction (Phase 4 — legacy) ──
 
 export async function tryDeterministicExtraction(
   excelBase64: string,
@@ -285,7 +413,7 @@ export function tryDeterministicPdfExtraction(
   return runDetectionAndExtraction(ctx, []);
 }
 
-// ── CSV Extraction (Phase 5) ──
+// ── CSV Extraction (Phase 5 — legacy) ──
 
 export function tryDeterministicCsvExtraction(
   csvText: string,
