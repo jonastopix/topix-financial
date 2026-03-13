@@ -244,6 +244,82 @@ serve(async (req) => {
       detResult = await tryDeterministicExtraction(excelBase64, fileName);
     } else if (isPdfFile && fileContent) {
       routingTrace.deterministic_attempted = true;
+
+      // ── STRUCTURAL PDF PAYLOAD VALIDATION & PERSISTENCE ──
+      let validatedStructural: PdfStructuralPayload | null = null;
+      if (pdfStructural) {
+        const validationResult = validatePdfStructuralPayload(pdfStructural);
+        routingTrace.pdf_structural_validated = validationResult.valid;
+        routingTrace.pdf_structural_errors = validationResult.errors.length > 0 ? validationResult.errors : null;
+
+        if (!validationResult.valid) {
+          console.warn(`[PdfStructural] Validation failed: ${validationResult.errors.join("; ")}`);
+        } else {
+          // ── Content hash verification against stored binary ──
+          try {
+            if (reportId) {
+              const { data: report } = await supabase
+                .from("financial_reports")
+                .select("file_path")
+                .eq("id", reportId)
+                .single();
+
+              if (report?.file_path) {
+                const { data: fileData, error: dlError } = await supabase.storage
+                  .from("financial-documents")
+                  .download(report.file_path);
+
+                if (!dlError && fileData) {
+                  const storedBytes = new Uint8Array(await fileData.arrayBuffer());
+                  const storedHash = await computeSha256Deno(storedBytes);
+                  const payloadHash = (pdfStructural as PdfStructuralPayload).metadata.content_hash;
+
+                  if (storedHash === payloadHash) {
+                    routingTrace.pdf_structural_hash_verified = true;
+                    validatedStructural = pdfStructural as PdfStructuralPayload;
+                    console.log(`[PdfStructural] Hash verified: ${storedHash.slice(0, 12)}...`);
+                  } else {
+                    console.error(`[PdfStructural] Hash mismatch: stored=${storedHash.slice(0, 12)}... payload=${payloadHash.slice(0, 12)}...`);
+                    routingTrace.pdf_structural_errors = ["Content hash mismatch between uploaded file and structural payload"];
+                  }
+                } else {
+                  console.warn(`[PdfStructural] Could not download stored file for hash verification: ${dlError?.message}`);
+                  // Allow structural payload without hash verification if file not yet accessible
+                  // (race condition: file uploaded but not yet propagated)
+                  validatedStructural = pdfStructural as PdfStructuralPayload;
+                  routingTrace.pdf_structural_hash_verified = false;
+                }
+              }
+            }
+          } catch (hashErr) {
+            console.warn("[PdfStructural] Hash verification error:", hashErr);
+            // Continue without hash verification
+            validatedStructural = pdfStructural as PdfStructuralPayload;
+            routingTrace.pdf_structural_hash_verified = false;
+          }
+        }
+      }
+
+      // Persist validated structural payload immediately if available
+      if (validatedStructural && reportId) {
+        try {
+          await supabase
+            .from("financial_reports")
+            .update({
+              raw_extracted_data: {
+                pdf_structural_payload: validatedStructural,
+                pdf_structural_validated_at: new Date().toISOString(),
+                pdf_structural_version: "1.0",
+                routing_trace: routingTrace,
+              },
+            })
+            .eq("id", reportId);
+          console.log(`[PdfStructural] Payload persisted for report ${reportId}`);
+        } catch (persistErr) {
+          console.warn("[PdfStructural] Persistence error:", persistErr);
+        }
+      }
+
       console.log("[Routing] Attempting deterministic PDF extraction...");
       detResult = tryDeterministicPdfExtraction(fileContent, fileName);
     } else if (isCsvFile && fileContent) {
