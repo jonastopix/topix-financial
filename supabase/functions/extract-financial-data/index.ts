@@ -125,7 +125,7 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
-    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64 } = body;
+    const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64, pdfStructural } = body;
 
     // ── ACCESS CHECK: verify caller can access this report ──
     const callerId = claimsData.claims.sub;
