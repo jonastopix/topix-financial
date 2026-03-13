@@ -436,151 +436,19 @@ const FileUploadZone = ({
           }
         }
 
-    // === STEP 3: AI Financial Analysis — GATE ===
-    const canonical = extractedData.canonical;
-    // If canonical exists, use ONLY canonical.validation.status
-    const validationStatus = canonical
-      ? (canonical.validation?.status ?? "FAIL")
-      : (extractedData.validation?.status ?? "FAIL");
-
-    const shouldRunAI =
-      validationStatus === "PASS" &&
-      (!canonical || (canonical.ai_eligible === true && !!canonical.ai_eligible_payload));
-
-    if (!shouldRunAI) {
-      const reason = validationStatus !== "PASS"
-        ? `validation_status=${validationStatus}`
-        : `ai_eligible=${canonical?.ai_eligible}, ai_eligible_payload=${!!canonical?.ai_eligible_payload}`;
-      console.warn(`[SAFETY] AI-analyse deaktiveret: ${reason}`);
-      
-      // Update report — no AI, no milestones
-      await supabase
-        .from("financial_reports")
-        .update({ 
-          status: validationStatus !== "PASS" ? "needs_review" : "processed",
-          ai_analysis: null 
-        } as any)
-        .eq("id", reportRecord.id);
-
-      if (validationStatus !== "PASS") {
-        toast({
-          title: "Validation fejlede",
-          description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
-          variant: "destructive",
-        });
-      }
-
-      // Skip AI analysis and milestone creation
-      updateFile(fileId, { status: "done", milestonesCreated: 0 });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
-      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
-      onPipelineComplete?.(reportRecord.id);
-      return; // STOP flowet her
-    }
-
-    updateFile(fileId, { status: "analyzing" });
-
-        // Fetch historical reports for trend analysis
-        const historicalQuery = companyId
-          ? (supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12)
-          : supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportRecord.id).order("uploaded_at", { ascending: true }).limit(12);
-        const { data: historicalReports } = await historicalQuery;
-
-        // Determine if current report uses canonical path
-        const currentCanonical = extractedData.canonical;
-        const isCanonicalReport = currentCanonical?.ai_eligible === true && currentCanonical?.ai_eligible_payload;
-
-        // Build historical data based on path
-        let historicalCanonical: any[] | undefined;
-        let historicalData: any[] | undefined;
-
-        if (isCanonicalReport) {
-          // CANONICAL PATH: only PASS + ai_eligible historical reports
-          historicalCanonical = (historicalReports || [])
-            .filter((r: any) => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
-            .map((r: any) => ({
-              period: r.report_period,
-              ...(r.normalized_data as any)?.metrics,
-              _source: "canonical",
-            }));
-        } else {
-          // LEGACY PATH: only non-canonical historical reports
-          historicalData = (historicalReports || [])
-            .filter((r: any) => r.extracted_data)
-            .map((r: any) => {
-              const ed = r.extracted_data as any;
-              return { period: r.report_period || ed?.report_period, ...ed?.key_figures };
-            });
-        }
-
-        const { data: analysis, error: aiError } = await supabase.functions.invoke(
-          "ai-financial-feedback",
-          {
-            body: {
-              canonicalPayload: isCanonicalReport ? currentCanonical.ai_eligible_payload : undefined,
-              historicalCanonical: isCanonicalReport && historicalCanonical && historicalCanonical.length > 0 ? historicalCanonical : undefined,
-              financialData: !isCanonicalReport ? extractedData.key_figures : undefined,
-              historicalData: !isCanonicalReport && historicalData && historicalData.length > 0 ? historicalData : undefined,
-              companyContext: {
-                name: companyName || extractedData.company_name,
-                cvr: extractedData.cvr_number,
-              },
-              companyId: companyId,
-            },
-          }
-        );
-
-        if (aiError) {
-          console.error("AI feedback error:", aiError);
-          // Don't fail the whole pipeline - report is saved
-        }
-
-        // === STEP 3b: Save AI analysis to DB ===
-        if (analysis && !analysis.error) {
-          await supabase
-            .from("financial_reports")
-            .update({ ai_analysis: analysis } as any)
-            .eq("id", reportRecord.id);
-        }
-
-        // === STEP 4: Create milestones from AI findings ===
-        let milestonesCreated = 0;
-        if (analysis && !analysis.error && analysis.key_findings) {
-          const milestonesToCreate = analysis.key_findings
-            .filter((f: any) => f.severity === "advarsel" || f.severity === "kritisk")
-            .slice(0, 3)
-            .map((f: any) => {
-              const ms: any = {
-                user_id: userId,
-                title: f.recommendation?.slice(0, 200) || f.title,
-                description: f.analysis,
-                source: "ai",
-                source_report: reportRecord.id,
-                status: "active",
-                progress: 0,
-              };
-              ms.company_id = companyId;
-              return ms;
-            });
-
-          if (milestonesToCreate.length > 0) {
-            const { error: msError } = await supabase
-              .from("milestones")
-              .insert(milestonesToCreate as any);
-            if (!msError) milestonesCreated = milestonesToCreate.length;
-          }
-        }
-
-        // AI analysis is saved to DB only — NOT posted to chat
-
-        // === DONE ===
-        updateFile(fileId, { status: "done", milestonesCreated });
-        // Invalidate all financial data queries so dashboard, charts, KPIs update immediately
-        queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
-        queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
-        queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
-        onPipelineComplete?.(reportRecord.id);
+    // === STEP 3: Shared post-extraction pipeline (AI + milestones + done) ===
+    await runPostExtractionPipeline({
+      extractedData,
+      reportId: reportRecord.id,
+      userId: userId!,
+      companyId,
+      companyName,
+      fileId,
+      updateFile,
+      queryClient,
+      toastFn: toast,
+      onPipelineComplete,
+    });
 
         toast({
           title: "Rapport behandlet",
