@@ -89,6 +89,26 @@ function extractCvrFromText(text: string): string | null {
 // CANONICAL ACCOUNTING ENGINE: Now in _shared/canonicalEngine.ts
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Returns true only for PDF families where structural payload is architecturally required.
+ * Currently: e-conomic resultatopgørelse PDF only.
+ * Saldobalance, Dinero, and unknown PDFs are NOT structural-required.
+ * This mirrors the frontend requiresStructuralPdfPayload() in FileUploadZone.tsx.
+ */
+export function requiresStructuralPdfPayload(
+  fingerprint: SourceFingerprint | null,
+  rawText: string
+): boolean {
+  // No fingerprint or not e-conomic → not required
+  if (!fingerprint || fingerprint.source_system !== "economic") return false;
+  // Saldobalance/balance exclusion (case-insensitive)
+  if (/saldobalance/i.test(rawText)) return false;
+  if (/\baktiver\b/i.test(rawText) || /\bpassiver\b/i.test(rawText)) return false;
+  // e-conomic resultatopgørelse → required
+  if (/resultatopg/i.test(rawText)) return true;
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -309,6 +329,11 @@ serve(async (req) => {
     } else if (isPdfFile && fileContent) {
       routingTrace.deterministic_attempted = true;
 
+      // ── Family-specific structural requirement ──
+      // Only e-conomic resultatopgørelse PDFs are structural-required.
+      // Saldobalance/balance, Dinero, unknown PDFs are NOT structural-required.
+      const structuralRequired = requiresStructuralPdfPayload(sourceFingerprint, fileContent);
+
       // ── STRUCTURAL PDF PAYLOAD VALIDATION & PERSISTENCE ──
       let validatedStructural: PdfStructuralPayload | null = null;
       if (pdfStructural) {
@@ -316,13 +341,11 @@ serve(async (req) => {
         routingTrace.pdf_structural_validated = validationResult.valid;
         routingTrace.pdf_structural_errors = validationResult.errors.length > 0 ? validationResult.errors : null;
 
-        const isKnownSource = sourceFingerprint != null && !isAiAllowed(sourceFingerprint);
-
         if (!validationResult.valid) {
           console.warn(`[PdfStructural] Validation failed: ${validationResult.errors.join("; ")}`);
 
-          // ── TRUST MODEL: known source + invalid structural = HARD FAIL ──
-          if (isKnownSource) {
+          // ── TRUST MODEL: structural-required family + invalid structural = HARD FAIL ──
+          if (structuralRequired) {
             routingTrace.branch = "structural_parse_fail_validation";
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + invalid structural payload`);
 
@@ -386,12 +409,12 @@ serve(async (req) => {
                   }
                 } else {
                   console.warn(`[PdfStructural] Could not download stored file for hash verification: ${dlError?.message}`);
-                  // Race condition: file not yet propagated. Only allow for unknown sources.
-                  if (!isKnownSource) {
+                   // Race condition: file not yet propagated. Only allow for non-structural-required families.
+                  if (!structuralRequired) {
                     validatedStructural = pdfStructural as PdfStructuralPayload;
                     routingTrace.pdf_structural_hash_verified = false;
                   } else {
-                    hashError = `Could not verify hash for known source: ${dlError?.message}`;
+                    hashError = `Could not verify hash for structural-required family: ${dlError?.message}`;
                     routingTrace.pdf_structural_errors = [hashError];
                   }
                 }
@@ -399,17 +422,17 @@ serve(async (req) => {
             }
           } catch (hashErr) {
             console.warn("[PdfStructural] Hash verification error:", hashErr);
-            if (!isKnownSource) {
+            if (!structuralRequired) {
               validatedStructural = pdfStructural as PdfStructuralPayload;
               routingTrace.pdf_structural_hash_verified = false;
             } else {
-              hashError = `Hash verification exception for known source`;
+              hashError = `Hash verification exception for structural-required family`;
               routingTrace.pdf_structural_errors = [hashError];
             }
           }
 
-          // ── TRUST MODEL: known source + hash mismatch/failure = HARD FAIL ──
-          if (isKnownSource && !hashVerified) {
+          // ── TRUST MODEL: structural-required family + hash mismatch/failure = HARD FAIL ──
+          if (structuralRequired && !hashVerified) {
             routingTrace.branch = "structural_parse_fail_hash";
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + hash verification failed`);
 
@@ -498,8 +521,8 @@ serve(async (req) => {
             routingTrace.branch = "structural_semantic_fail";
             console.warn(`[Routing] Structural semantic extraction failed: ${structResult.error}`);
 
-            // For known sources: this is a hard fail — no text fallback
-            if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+            // For structural-required families: this is a hard fail — no text fallback
+            if (structuralRequired) {
               if (reportId) {
                 await supabase
                   .from("financial_reports")
@@ -539,12 +562,11 @@ serve(async (req) => {
             break;
         }
       } else {
-        // No structural payload — check if this is a known source that REQUIRES structural
-        const isKnownPdfSource = sourceFingerprint != null && !isAiAllowed(sourceFingerprint);
-        if (isKnownPdfSource) {
-          // Known PDF source MUST have structural payload — hard fail
+        // No structural payload — check if this family REQUIRES structural
+        if (structuralRequired) {
+          // Structural-required family MUST have structural payload — hard fail
           routingTrace.branch = "structural_payload_missing";
-          console.error(`[Routing] HARD FAIL: Known PDF source ${sourceFingerprint!.source_system} requires structural payload but none was provided`);
+          console.error(`[Routing] HARD FAIL: Structural-required PDF family (${sourceFingerprint!.source_system}/${sourceFingerprint!.document_type}) requires structural payload but none was provided`);
 
           if (reportId) {
             await supabase
@@ -571,8 +593,8 @@ serve(async (req) => {
           );
         }
 
-        // Unknown source — legacy text path allowed (migration bridge)
-        console.log("[Routing] No structural payload (unknown source), attempting legacy deterministic PDF extraction...");
+        // Non-structural-required family or unknown source — legacy text path allowed
+        console.log("[Routing] No structural payload (non-structural-required family), attempting legacy deterministic PDF extraction...");
         detResult = tryDeterministicPdfExtraction(fileContent, fileName);
       }
     } else if (isCsvFile && fileContent) {
