@@ -119,7 +119,7 @@ export default function ReportReviewQueue() {
               <SelectItem value="processing">Processing</SelectItem>
               <SelectItem value="processed">Processed</SelectItem>
               <SelectItem value="error">Error</SelectItem>
-              <SelectItem value="needs_review">Needs review</SelectItem>
+              
             </SelectContent>
           </Select>
           <Select value={filterMethod} onValueChange={setFilterMethod}>
