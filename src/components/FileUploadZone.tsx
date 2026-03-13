@@ -309,11 +309,23 @@ const FileUploadZone = ({
           const extracted = await extractTextFromFile(file);
           const ext2 = file.name.toLowerCase().split(".").pop();
           const isExcel = ext2 === "xlsx" || ext2 === "xls";
+          const isPdf = ext2 === "pdf" || file.type === "application/pdf";
           const excelBase64 = isExcel ? await fileToBase64(file) : undefined;
+
+          // For PDFs: extract structural payload with true positional data
+          let pdfStructural: any = undefined;
+          if (isPdf) {
+            try {
+              pdfStructural = await extractPdfStructural(file);
+              console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
+            } catch (structErr) {
+              console.warn("[PdfStructural] Client-side extraction failed, continuing with text fallback:", structErr);
+            }
+          }
 
           const { data: aiData, error: extractError } = await supabase.functions.invoke(
             "extract-financial-data",
-            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
+            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, pdfStructural, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
           );
 
           // Handle duplicate (409)
