@@ -7,15 +7,25 @@
  * - Label-first classification with account-range fallback
  * - Ambiguity detection: lines matching 2+ classes → unclassified + logged
  * - Conservative metric derivation (no sum-all-lines shortcuts)
+ *
+ * Phase 7: Added extractSemanticFromCsv() — structural-first semantic path.
  */
 
 import type {
   TemplateEntry,
+  SemanticCsvTemplateEntry,
   DetectionContext,
   ExtractionContext,
   DeterministicExtractedData,
   ParserValidation,
 } from "../templateRegistry.ts";
+import type { CsvParseResult } from "../csvRawParser.ts";
+import type {
+  SemanticExtractionResult,
+  SemanticMetricCandidate,
+  SemanticLineItem,
+} from "../semanticTypes.ts";
+import type { MetricFamily } from "../normalizationProfiles.ts";
 
 // ── Label patterns per class (PRIMARY classification) ──
 

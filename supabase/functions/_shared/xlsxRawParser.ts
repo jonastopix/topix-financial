@@ -207,3 +207,37 @@ export function parseXlsxRawFromBase64(
   }
   return parseXlsxRaw(bytes, options);
 }
+
+// ── Build DetectionContext from XlsxParseResult (structural-only) ──
+
+import type { DetectionContext } from "./templateRegistry.ts";
+
+/**
+ * Build a DetectionContext entirely from the structural XlsxParseResult contract.
+ * Reconstructs headerRows from typed XlsxRawRow cells — does NOT use raw_matrix.
+ */
+export function buildXlsxDetectionContext(
+  xlsxResult: XlsxParseResult,
+  fileName: string
+): DetectionContext {
+  // Reconstruct headerRows from structural cell model
+  const maxHeaderRows = Math.min(xlsxResult.rows.length, 200);
+  const headerRows: any[][] = [];
+  for (let r = 0; r < maxHeaderRows; r++) {
+    const row = xlsxResult.rows[r];
+    const rowValues: any[] = [];
+    for (let c = 0; c < xlsxResult.total_cols; c++) {
+      const cell = row.cells.find(cell => cell.col_index === c);
+      rowValues.push(cell?.raw_value ?? null);
+    }
+    headerRows.push(rowValues);
+  }
+
+  return {
+    fileName,
+    fileType: fileName.toLowerCase().endsWith(".xls") && !fileName.toLowerCase().endsWith(".xlsx")
+      ? "xls" : "xlsx",
+    sheetNames: [xlsxResult.sheet_name],
+    headerRows,
+  };
+}
