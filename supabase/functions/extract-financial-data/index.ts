@@ -542,12 +542,11 @@ serve(async (req) => {
             break;
         }
       } else {
-        // No structural payload — check if this is a known source that REQUIRES structural
-        const isKnownPdfSource = sourceFingerprint != null && !isAiAllowed(sourceFingerprint);
-        if (isKnownPdfSource) {
-          // Known PDF source MUST have structural payload — hard fail
+        // No structural payload — check if this family REQUIRES structural
+        if (structuralRequired) {
+          // Structural-required family MUST have structural payload — hard fail
           routingTrace.branch = "structural_payload_missing";
-          console.error(`[Routing] HARD FAIL: Known PDF source ${sourceFingerprint!.source_system} requires structural payload but none was provided`);
+          console.error(`[Routing] HARD FAIL: Structural-required PDF family (${sourceFingerprint!.source_system}/${sourceFingerprint!.document_type}) requires structural payload but none was provided`);
 
           if (reportId) {
             await supabase
