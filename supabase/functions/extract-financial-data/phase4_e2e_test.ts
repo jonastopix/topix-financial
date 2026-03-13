@@ -6,7 +6,7 @@
  * Run: deno test --allow-env --allow-net supabase/functions/extract-financial-data/phase4_e2e_test.ts
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertExists, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { detectTemplate, tryDeterministicCsvExtraction, tryDeterministicPdfExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
 import { detectReportTemplate } from "../_shared/financialParser.ts";
 import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
