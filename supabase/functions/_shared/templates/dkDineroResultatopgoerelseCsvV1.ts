@@ -651,6 +651,41 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       });
     }
 
+    // ── Default-zero candidates for absent non-ambiguous fields ──
+    // Matches legacy behavior: if no lines classified as depreciation/financial_costs
+    // AND no ambiguity affecting those classes, emit raw_value=0 so derivations work.
+    const ambiguousClasses = new Set<string>();
+    for (const line of classified) {
+      if (line.ambiguous && line.matchedClasses) {
+        for (const c of line.matchedClasses) ambiguousClasses.add(c);
+      }
+    }
+
+    const defaultZeroClasses = ["depreciation", "financial_costs"];
+    for (const cls of defaultZeroClasses) {
+      if (counts[cls] == null && !ambiguousClasses.has(cls)) {
+        const fieldId = CLASS_TO_FIELD_ID[cls];
+        const family = CLASS_TO_FAMILY[cls];
+        if (fieldId && family) {
+          metricCandidates.push({
+            source_field_id: fieldId,
+            normalization_family: family,
+            raw_value: 0,
+            raw_sign: "zero",
+            sign_convention: "credit",
+            source_label: `${cls} (defaulted to 0 — no matching lines, no ambiguity)`,
+            source_row_index: null,
+            source_column_slot: null,
+            source_cell_address: null,
+            basis: "period",
+            confidence: "HIGH",
+            evidence: [`${cls} absent, no ambiguity → default 0`],
+            proposed_canonical_target: null,
+          });
+        }
+      }
+    }
+
     // ── Build SemanticLineItems ──
     const lineItems: SemanticLineItem[] = classified.map((line) => ({
       source_field_id: `acct_${line.kontonr}`,
