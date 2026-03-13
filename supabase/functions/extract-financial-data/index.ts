@@ -573,8 +573,8 @@ serve(async (req) => {
           );
         }
 
-        // Unknown source — legacy text path allowed (migration bridge)
-        console.log("[Routing] No structural payload (unknown source), attempting legacy deterministic PDF extraction...");
+        // Non-structural-required family or unknown source — legacy text path allowed
+        console.log("[Routing] No structural payload (non-structural-required family), attempting legacy deterministic PDF extraction...");
         detResult = tryDeterministicPdfExtraction(fileContent, fileName);
       }
     } else if (isCsvFile && fileContent) {
