@@ -239,9 +239,34 @@ serve(async (req) => {
 
     // ── LAG 0: TRY DETERMINISTIC EXTRACTION FIRST ──
     if (isExcelFile && excelBase64) {
-      routingTrace.deterministic_attempted = true;
-      console.log("[Routing] Attempting deterministic Excel extraction...");
-      detResult = await tryDeterministicExtraction(excelBase64, fileName);
+      // ── SEMANTIC-FIRST XLSX ROUTING (Phase 6) ──
+      console.log("[Routing] Attempting semantic-first Excel extraction...");
+      const semanticXlsxResult = trySemanticExcelExtraction(excelBase64, fileName);
+      if (semanticXlsxResult.type === "success") {
+        routingTrace.deterministic_attempted = true;
+        routingTrace.deterministic_result = "semantic_xlsx_success";
+        routingTrace.deterministic_template_id = semanticXlsxResult.template_id;
+        routingTrace.branch = "semantic_xlsx_success";
+        extractionMethod = "deterministic_template";
+
+        const canonicalFromSemantic = buildCanonicalFromSemantic(semanticXlsxResult.semantic);
+        extractedData = {
+          ...canonicalFromSemantic,
+          _deterministic_meta: semanticXlsxResult.semantic._deterministic_meta,
+        };
+        rawAiOutput = {
+          deterministic: true,
+          semantic: true,
+          template_id: semanticXlsxResult.template_id,
+          routing_trace: routingTrace,
+        };
+        console.log(`[Routing] Semantic XLSX success: ${semanticXlsxResult.template_id}`);
+      } else {
+        // Fallback to legacy deterministic extraction for non-migrated templates
+        console.log(`[Routing] Semantic XLSX ${semanticXlsxResult.type}, falling back to legacy deterministic...`);
+        routingTrace.deterministic_attempted = true;
+        detResult = await tryDeterministicExtraction(excelBase64, fileName);
+      }
     } else if (isPdfFile && fileContent) {
       routingTrace.deterministic_attempted = true;
 
