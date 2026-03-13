@@ -2785,8 +2785,8 @@ Deno.test("Phase6 — R5. Unexpected conflict: two sources → same canonical ke
 // ═══════════════════════════════════════════════════════
 
 // ── Test K1: Credit-convention WARBURG selects correct profile ──
-Deno.test("Phase8 — K1. KJ Auto credit convention selects kj_auto_combined_credit_v1", () => {
-  console.log(`\n══ K1. KJ AUTO CONVENTION DETECTION ══`);
+Deno.test("Phase8 — K1. Combined DK credit convention selects combined_dk_credit_v1", () => {
+  console.log(`\n══ K1. COMBINED DK CONVENTION DETECTION ══`);
 
   // Build detection context from WARBURG_ROWS
   const ctx: DetectionContext = {
@@ -2810,15 +2810,15 @@ Deno.test("Phase8 — K1. KJ Auto credit convention selects kj_auto_combined_cre
   const semantic: SemanticExtractionResult | null = template.extractSemanticFromXlsx(xlsxResult);
 
   assertExists(semantic, "Semantic extraction should succeed");
-  assertEquals(semantic!.normalization_profile_id, "kj_auto_combined_credit_v1");
+  assertEquals(semantic!.normalization_profile_id, "combined_dk_credit_v1");
   assertEquals(semantic!.sign_convention, "credit");
-  assertEquals(semantic!.source_system, "kj_auto");
+  assertEquals(semantic!.source_system, "combined_dk");
   assertEquals(semantic!.document_type, "combined");
   console.log(`  normalization_profile_id: ${semantic!.normalization_profile_id}`);
   console.log(`  sign_convention: ${semantic!.sign_convention}`);
   console.log(`  source_system: ${semantic!.source_system}`);
   console.log(`  metric_candidates: ${semantic!.metric_candidates.length}`);
-  console.log(`\n✅ K1 PASSED: Credit convention correctly detected, kj_auto_combined_credit_v1 selected`);
+  console.log(`\n✅ K1 PASSED: Credit convention correctly detected, combined_dk_credit_v1 selected`);
 });
 
 // ── Test K2: Business-convention → hard fail (unsupported) ──
