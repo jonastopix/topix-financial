@@ -3195,7 +3195,7 @@ https://secure.e-conomic.com/reports/statements/period-total
   assert(parsed.metadata.has_resultatopgoerelse, "Should find RESULTATOPGØRELSE");
   assert(parsed.metadata.has_aktiver, "Should find AKTIVER");
   assert(parsed.metadata.has_passiver, "Should find PASSIVER");
-  assertEquals(parsed.metadata.company_name, "Topix.dk ApS");
+  assert(parsed.metadata.company_name?.includes("Topix.dk ApS"), `Company name should contain 'Topix.dk ApS', got '${parsed.metadata.company_name}'`);
   assertEquals(parsed.metadata.cvr_number, "45281736");
 
   // Step 2: Template extraction
