@@ -659,16 +659,18 @@ Deno.test("Phase 5: legacy text semantic → normalization → canonical metrics
   const semantic = dkEconomicResultatopgoerelsePdfV1.extractSemantic(null, ECONOMIC_PNL_PDF_TEXT);
   assertExists(semantic);
 
-  const { metrics, correction_log, provenance } = normalizeSemanticExtraction(semantic!);
+  const normResult = normalizeSemanticExtraction(semantic!);
+  // Build canonical to verify full pipeline
+  const canonical = buildCanonicalFromSemantic(semantic!);
 
-  assertEquals(metrics.revenue, 1200000);
-  assertEquals(metrics.gross_profit, 720000);
-  assertEquals(metrics.ebt, 365000);
-  assertEquals(metrics.net_result, 365000);
-  assert(metrics.payroll != null && metrics.payroll > 0);
-  assert(correction_log.length > 0, "Expected normalization corrections");
-  assertExists(provenance["revenue"]);
-  assertEquals(provenance["revenue"].normalization_action, "abs");
+  assertEquals(canonical.metrics.revenue, 1200000);
+  assertEquals(canonical.metrics.gross_profit, 720000);
+  assertEquals(canonical.metrics.ebt, 365000);
+  assertEquals(canonical.metrics.net_result, 365000);
+  assert(canonical.metrics.payroll != null && canonical.metrics.payroll > 0);
+  assert(normResult.correction_log.length > 0, "Expected normalization corrections");
+  assertExists(normResult.provenance_by_source["omsaetning"]);
+  assertEquals(normResult.provenance_by_source["omsaetning"].normalization_action, "abs");
 });
 
 Deno.test("Phase 5: legacy semantic vs legacy extract — zero regression", () => {
