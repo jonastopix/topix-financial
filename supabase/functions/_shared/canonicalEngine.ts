@@ -1,10 +1,35 @@
 /**
- * Canonical Accounting Engine — Phase 3 Hardening
+ * Canonical Accounting Engine — Phase 3 Hardening + Phase 5 Semantic Path
  * Normalize → Validate → Provenance → Build AI Payload
  */
 
 import type {
   CanonicalOutput,
+  CanonicalMetrics,
+  CorrectionLogEntry,
+  ProvenanceEntry,
+  ValidationCheck,
+  ValidationStatus,
+  StatementType,
+  PeriodBasis,
+  RawLineEntry,
+  NormalizedLineEntry,
+  AiEligiblePayload,
+  Confidence,
+} from "./canonicalTypes.ts";
+
+import type {
+  SemanticExtractionResult,
+  SemanticMetricCandidate,
+  EnrichedProvenanceEntry,
+} from "./semanticTypes.ts";
+
+import {
+  getNormalizationProfile,
+  type NormalizationProfile,
+  type NormalizationRule,
+  type MetricFamily,
+} from "./normalizationProfiles.ts";
   CanonicalMetrics,
   CorrectionLogEntry,
   ProvenanceEntry,
