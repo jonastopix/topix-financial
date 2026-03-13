@@ -203,6 +203,10 @@ serve(async (req) => {
       deterministic_error: null,
       branch: null,
       source_fingerprint: null as SourceFingerprint | null,
+      pdf_structural_received: !!pdfStructural,
+      pdf_structural_validated: false,
+      pdf_structural_hash_verified: false,
+      pdf_structural_errors: null as string[] | null,
     };
 
     // ── LAG -1: SOURCE FINGERPRINTING (gates AI fallback) ──
