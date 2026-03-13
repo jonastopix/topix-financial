@@ -317,8 +317,37 @@ const FileUploadZone = ({
             try {
               pdfStructural = await extractPdfStructural(file);
               console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
-            } catch (structErr) {
-              console.warn("[PdfStructural] Client-side extraction failed, continuing with text fallback:", structErr);
+            } catch (structErr: any) {
+              if (requiresStructuralPdfPayload(extracted.text)) {
+                // Structural-required family — stop pipeline, do NOT call edge function
+                const errMessage = structErr?.message || String(structErr);
+                const diagnosticMarker = errMessage.includes("worker")
+                  ? "pdfjs_worker_loading"
+                  : errMessage.includes("password")
+                  ? "pdf_password_protected"
+                  : errMessage.includes("getTextContent")
+                  ? "text_content_extraction"
+                  : "payload_construction";
+
+                console.error(`[PdfStructural] FAIL for structural-required source [${diagnosticMarker}]:`, errMessage);
+
+                toast({
+                  title: "Fejl",
+                  description: "PDF-struktur kunne ikke udtrækkes. Uploaden blev stoppet. Prøv igen eller kontakt support.",
+                  variant: "destructive",
+                });
+
+                await supabase.from("financial_reports").update({
+                  status: "error",
+                  validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
+                }).eq("id", reportRecord.id);
+
+                updateFile(fileId, { status: "error" });
+                return; // ← exits before edge function call
+              } else {
+                // Non-structural-required PDF — continue to backend
+                console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
+              }
             }
           }
 
