@@ -25,18 +25,14 @@ import type { PdfStructuralPayload } from "../pdfStructuralTypes";
 
 // Helper: minimal structural extraction using pdfjs-dist legacy
 async function extractStructuralFromBuffer(buffer: ArrayBuffer, fileName: string): Promise<PdfStructuralPayload> {
-  // pdfjs-dist requires workerSrc to be set globally before getDocument
-  const pdfjsLib = await import("pdfjs-dist");
-  // @ts-ignore - set worker port to disable worker
-  pdfjsLib.GlobalWorkerOptions.workerPort = null;
-  // @ts-ignore
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.mjs",
-    import.meta.url
-  ).toString();
+  // Use legacy build that doesn't require modern worker setup
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
-  const pdf = await loadingTask.promise;
+  // Point worker to the legacy worker file on disk
+  const workerPath = path.resolve(__dirname, "../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
+
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
 
   // Compute SHA-256
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
