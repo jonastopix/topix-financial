@@ -41,7 +41,9 @@ export interface PdfParsedLine {
   account_no: string | null;
   name: string;
   period_amount: number | null;
+  period_prev: number | null;
   ytd_amount: number | null;
+  ytd_prev: number | null;
   is_subtotal: boolean;
   section: PdfSection;
 }
