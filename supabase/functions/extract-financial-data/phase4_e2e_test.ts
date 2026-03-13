@@ -3231,8 +3231,8 @@ https://secure.e-conomic.com/reports/statements/period-total
   assertEquals(canonical.metrics.cash, SALDOBALANCE_GOLDEN.expected_metrics.cash, "canonical cash");
   assertEquals(canonical.metrics.liabilities_total, SALDOBALANCE_GOLDEN.expected_metrics.liabilities_total, "canonical liabilities_total");
 
-  // Step 5: AI blocked
-  assertEquals(canonical.ai_eligible, false, "AI should be BLOCKED for DK_ECONOMIC_SALDOBALANCE_PDF_V1");
+  // Step 5: AI enabled (golden fixture verified, gate removed)
+  assertEquals(canonical.ai_eligible, true, "AI should be ENABLED for DK_ECONOMIC_SALDOBALANCE_PDF_V1 (golden fixture verified)");
 
   // Step 6: No equity double-flip
   const equityCorrection = canonical.correction_log.find(c => c.rule === "saldobalance_equity_sign_inverted");
