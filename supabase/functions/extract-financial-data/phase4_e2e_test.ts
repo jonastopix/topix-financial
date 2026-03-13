@@ -781,7 +781,7 @@ Deno.test("Phase4b — 13. Full real PDF E2E (25.04 Saldobalance)", () => {
     console.log(`  DB status: "processed"`);
   } else {
     console.log(`  AI feedback: BLOKERET`);
-    console.log(`  DB status: "${canonical.validation.status === "PASS" ? "reviewed" : "needs_review"}"`);
+    console.log(`  DB status: "${canonical.validation.status === "PASS" ? "reviewed" : "processed"}"`);
   }
 
   // ── Assertions ──
