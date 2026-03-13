@@ -309,14 +309,17 @@ serve(async (req) => {
     } else if (isPdfFile && fileContent) {
       routingTrace.deterministic_attempted = true;
 
+      // ── Family-specific structural requirement ──
+      // Only e-conomic resultatopgørelse PDFs are structural-required.
+      // Saldobalance/balance, Dinero, unknown PDFs are NOT structural-required.
+      const structuralRequired = requiresStructuralPdfPayload(sourceFingerprint, fileContent);
+
       // ── STRUCTURAL PDF PAYLOAD VALIDATION & PERSISTENCE ──
       let validatedStructural: PdfStructuralPayload | null = null;
       if (pdfStructural) {
         const validationResult = validatePdfStructuralPayload(pdfStructural);
         routingTrace.pdf_structural_validated = validationResult.valid;
         routingTrace.pdf_structural_errors = validationResult.errors.length > 0 ? validationResult.errors : null;
-
-        const isKnownSource = sourceFingerprint != null && !isAiAllowed(sourceFingerprint);
 
         if (!validationResult.valid) {
           console.warn(`[PdfStructural] Validation failed: ${validationResult.errors.join("; ")}`);
