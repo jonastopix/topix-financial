@@ -2276,13 +2276,13 @@ Deno.test("Phase6 — R1. XLSX semantic regression: DOGGYBED synthetic fixture m
 });
 
 // ═══════════════════════════════════════════════════════
-// TEST R2: e-conomic XLSX Semantic Regression (real XLSX binary)
+// TEST R2: e-conomic XLSX Semantic Regression — business convention (real binary)
+// Phase 6b: exact sign match, dynamic convention detection
 // ═══════════════════════════════════════════════════════
 
-Deno.test("Phase6 — R2. XLSX semantic regression: real XLSX binary (Topix Dec 2025)", async () => {
-  console.log(`\n══ R2. XLSX SEMANTIC REGRESSION (real binary) ══`);
+Deno.test("Phase6b — R2. XLSX semantic regression: business convention (Topix Dec 2025) — exact sign match", async () => {
+  console.log(`\n══ R2. XLSX SEMANTIC REGRESSION (business convention, exact sign) ══`);
 
-  // Read real XLSX file from repo
   let bytes: Uint8Array;
   try {
     bytes = await Deno.readFile("tmp/topix_resultatopgoerelse_dec2025.xlsx");
@@ -2291,32 +2291,29 @@ Deno.test("Phase6 — R2. XLSX semantic regression: real XLSX binary (Topix Dec 
     return;
   }
 
-  // ── Semantic path: parseXlsxRaw → extractSemanticFromXlsx → buildCanonicalFromSemantic ──
+  // ── Semantic path ──
   const xlsxResult = parseXlsxRaw(bytes);
-  console.log(`  parseXlsxRaw: ${xlsxResult.total_rows} rows, ${xlsxResult.total_cols} cols`);
-
   const semantic = dkEconomicResultatopgoerelseXlsxV1.extractSemanticFromXlsx!(xlsxResult);
-  assertExists(semantic, "Semantic extraction should not return null for real XLSX");
+  assertExists(semantic, "Semantic extraction should not return null for business-convention file");
+
+  // ── Verify convention detection ──
+  assertEquals(semantic!.sign_convention, "business", "Should detect business convention");
+  assertEquals(semantic!.normalization_profile_id, "economic_pnl_business_v1", "Should use business profile");
+
   const semanticCanonical = buildCanonicalFromSemantic(semantic!);
 
-  // ── Legacy path: same detection + extraction ──
+  // ── Legacy path ──
   const { buildXlsxDetectionContext } = await import("../_shared/xlsxRawParser.ts");
   const detCtx = buildXlsxDetectionContext(xlsxResult, "topix_resultatopgoerelse_dec2025.xlsx");
   (detCtx as any).rows = xlsxResult.raw_matrix;
   const legacyMatch = detectTemplate(detCtx);
-  assertExists(legacyMatch, "Legacy should detect template for real XLSX");
+  assertExists(legacyMatch);
   const legacyResult = legacyMatch!.template.extract(detCtx as any);
-  assertEquals(legacyResult.success, true, "Legacy extraction should succeed");
+  assertEquals(legacyResult.success, true);
   if (!legacyResult.success) return;
   const legacyCanonical = buildCanonicalOutput(legacyResult.data, {}, "deterministic_template");
 
-  // ── Compare core metrics ──
-  // KNOWN DIVERGENCE: Topix file uses business convention. The semantic adapter currently
-  // hardcodes sign_convention="credit", causing profit_like fields (gross_profit, ebitda, ebt)
-  // to get negated when they should be kept. Legacy detects business convention dynamically.
-  // For now: compare absolute values on sign-sensitive fields. Dynamic convention detection
-  // is a Phase 6b concern.
-  const signSensitiveFields = new Set(["cogs", "gross_profit", "ebitda", "ebit", "ebt", "net_result"]);
+  // ── Compare with EXACT sign match (not abs) ──
   const keysToCompare: (keyof typeof legacyCanonical.metrics)[] = [
     "revenue", "cogs", "gross_profit", "ebt", "net_result",
   ];
@@ -2325,27 +2322,29 @@ Deno.test("Phase6 — R2. XLSX semantic regression: real XLSX binary (Topix Dec 
     const semanticVal = semanticCanonical.metrics[key];
     console.log(`  ${key}: legacy=${legacyVal}, semantic=${semanticVal}`);
     if (legacyVal != null && semanticVal != null) {
-      const useAbs = signSensitiveFields.has(key);
-      const lv = useAbs ? Math.abs(legacyVal as number) : (legacyVal as number);
-      const sv = useAbs ? Math.abs(semanticVal as number) : (semanticVal as number);
       assertEquals(
-        Math.abs(lv - sv) < 2,
+        Math.abs((legacyVal as number) - (semanticVal as number)) < 2,
         true,
-        `${key} magnitude drift: legacy=${legacyVal}, semantic=${semanticVal}${useAbs ? " (abs comparison — known sign divergence for business convention)" : ""}`,
+        `${key} EXACT drift: legacy=${legacyVal}, semantic=${semanticVal}`,
       );
     }
   }
 
-  // ── Verify provenance ──
+  // ── All values should be positive (business convention) ──
+  assertEquals((semanticCanonical.metrics.revenue ?? 0) > 0, true, "Revenue should be positive");
+  assertEquals((semanticCanonical.metrics.ebt ?? 0) > 0, true, "EBT should be positive");
+
+  // ── Verify normalization_profile_id in provenance ──
   for (const key of keysToCompare) {
     if (semanticCanonical.metrics[key] != null) {
       const prov = (semanticCanonical.provenance as any)[key];
-      assertExists(prov?.source_field_id, `${key} provenance should have source_field_id`);
       assertExists(prov?.normalization_profile_id, `${key} provenance should have normalization_profile_id`);
+      assertEquals(prov.normalization_profile_id, "economic_pnl_business_v1",
+        `${key} provenance normalization_profile_id should be economic_pnl_business_v1`);
     }
   }
 
-  console.log(`\n✅ R2 real XLSX semantic regression PASS (magnitude match; sign divergence documented for business-convention files)`);
+  console.log(`\n✅ R2 business-convention XLSX: exact sign match, zero drift, correct profile in provenance`);
 });
 
 // ═══════════════════════════════════════════════════════
