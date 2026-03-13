@@ -407,9 +407,6 @@ Deno.test("Phase4 E2E — 6. Simulerede DB felter", () => {
     .map((c: any) => `${c.name}: ${c.details}`);
 
   let dbStatus = "processed";
-  if (finalStatus !== "PASS") {
-    dbStatus = "needs_review";
-  }
 
   console.log(`\n══ 6. DB FELTER (simuleret) ══`);
   console.log(`status: "${dbStatus}"`);
