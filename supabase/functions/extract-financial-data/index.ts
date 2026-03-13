@@ -411,8 +411,8 @@ serve(async (req) => {
             }
           }
 
-          // ── TRUST MODEL: known source + hash mismatch/failure = HARD FAIL ──
-          if (isKnownSource && !hashVerified) {
+          // ── TRUST MODEL: structural-required family + hash mismatch/failure = HARD FAIL ──
+          if (structuralRequired && !hashVerified) {
             routingTrace.branch = "structural_parse_fail_hash";
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + hash verification failed`);
 
