@@ -194,3 +194,64 @@ export async function computeSha256Deno(data: Uint8Array): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+// ── Trust Model Decision Function ──
+
+export interface StructuralTrustDecision {
+  proceed: boolean;
+  error?: string;
+  status?: "structural_parse_fail";
+  fallback_allowed: boolean;
+}
+
+/**
+ * Pure function: evaluates whether structural extraction should proceed, fail hard, or allow fallback.
+ * 
+ * Rules:
+ * - Known source + invalid validation → hard fail, no fallback
+ * - Known source + hash mismatch → hard fail, no fallback
+ * - Unknown source + invalid validation → fallback allowed
+ * - No structural payload → fallback allowed (legacy bridge)
+ */
+export function evaluateStructuralTrust(
+  isKnownSource: boolean,
+  hasStructuralPayload: boolean,
+  validationValid: boolean,
+  hashVerified: boolean,
+  validationErrors: string[],
+): StructuralTrustDecision {
+  // No structural payload supplied → legacy text path
+  if (!hasStructuralPayload) {
+    return { proceed: false, fallback_allowed: true };
+  }
+
+  // Validation failed
+  if (!validationValid) {
+    if (isKnownSource) {
+      return {
+        proceed: false,
+        fallback_allowed: false,
+        error: `Structural validation failed: ${validationErrors.join("; ")}`,
+        status: "structural_parse_fail",
+      };
+    }
+    return { proceed: false, fallback_allowed: true };
+  }
+
+  // Validation passed but hash not verified
+  if (!hashVerified) {
+    if (isKnownSource) {
+      return {
+        proceed: false,
+        fallback_allowed: false,
+        error: "Content hash verification failed for known source",
+        status: "structural_parse_fail",
+      };
+    }
+    // Unknown source: allow proceeding without hash (race condition tolerance)
+    return { proceed: true, fallback_allowed: true };
+  }
+
+  // All checks passed
+  return { proceed: true, fallback_allowed: false };
+}
