@@ -377,7 +377,7 @@ Deno.test("Phase4 E2E — 5. Safety Gate", () => {
   } else {
     console.log(`AI feedback: BLOKERET (validation ${canonical.validation.status})`);
     console.log(`Milestones: BLOKERET`);
-    console.log(`Endelig DB status: "needs_review"`);
+    console.log(`Endelig DB status: "processed"`);
   }
 });
 
