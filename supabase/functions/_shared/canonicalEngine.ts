@@ -30,18 +30,6 @@ import {
   type NormalizationRule,
   type MetricFamily,
 } from "./normalizationProfiles.ts";
-  CanonicalMetrics,
-  CorrectionLogEntry,
-  ProvenanceEntry,
-  ValidationCheck,
-  ValidationStatus,
-  StatementType,
-  PeriodBasis,
-  RawLineEntry,
-  NormalizedLineEntry,
-  AiEligiblePayload,
-  Confidence,
-} from "./canonicalTypes.ts";
 
 const TOLERANCE = 2;
 
