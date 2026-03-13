@@ -394,7 +394,7 @@ serve(async (req) => {
                     validatedStructural = pdfStructural as PdfStructuralPayload;
                     routingTrace.pdf_structural_hash_verified = false;
                   } else {
-                    hashError = `Could not verify hash for known source: ${dlError?.message}`;
+                    hashError = `Could not verify hash for structural-required family: ${dlError?.message}`;
                     routingTrace.pdf_structural_errors = [hashError];
                   }
                 }
