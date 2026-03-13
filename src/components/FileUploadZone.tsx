@@ -757,7 +757,10 @@ const FileUploadZone = ({
       );
 
       if (extractError) throw extractError;
-      if (extractedData?.error) throw new Error(extractedData.error);
+      if (extractedData?.error) {
+        const friendlyMsg = getFriendlyErrorMessage(extractedData);
+        throw new Error(friendlyMsg);
+      }
 
       updateFile(pendingFileId, { extractedData });
       onExtracted?.(extractedData);
