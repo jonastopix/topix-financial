@@ -836,10 +836,16 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
   const canonicalProvenance: Record<string, EnrichedProvenanceEntry> = {};
   const correction_log = [...normResult.correction_log];
 
-  // Precedence rule for multiple source_field_id → same canonical key:
-  // Later entries in SEMANTIC_TO_CANONICAL win, but we process normalized_by_source
-  // in iteration order. If a canonical key is already set, the NEW value wins only
-  // if it has higher confidence or is non-null replacing null.
+  // ── Deterministic conflict precedence ──
+  // When multiple source_field_id values map to the same canonical key,
+  // this map defines which source_field_id wins (first listed = highest priority).
+  // Expected conflicts (declared here) are resolved deterministically with traceability.
+  // Unexpected conflicts (not declared) cause a hard fail.
+  const CANONICAL_PRECEDENCE: Record<string, string[]> = {
+    ebt: ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"],
+    net_result: ["arets_resultat", "resultat_efter_skat", "periodens_resultat"],
+  };
+
   const canonicalSourceMap: Record<string, string> = {}; // canonical_key → winning source_field_id
 
   for (const [sourceFieldId, normalizedValue] of Object.entries(normResult.normalized_by_source)) {
@@ -848,11 +854,52 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
 
     const existingSourceId = canonicalSourceMap[canonicalKey];
     if (existingSourceId != null && metrics[canonicalKey] != null) {
-      // Canonical key already populated — apply deterministic precedence:
-      // If current value is null but existing is not, keep existing
-      if (normalizedValue == null) continue;
-      // If both non-null, log the conflict and let the new one win (last-write-wins)
-      console.log(`[CanonicalEngine] Canonical key "${canonicalKey}" conflict: ${existingSourceId}=${metrics[canonicalKey]} vs ${sourceFieldId}=${normalizedValue} → last-write-wins`);
+      // Conflict: two source_field_id values map to the same canonical key
+      if (normalizedValue == null) continue; // null does not overwrite non-null
+
+      const precedenceList = CANONICAL_PRECEDENCE[canonicalKey];
+      if (!precedenceList) {
+        // UNEXPECTED conflict — hard fail
+        throw new Error(
+          `[CanonicalEngine] UNEXPECTED canonical conflict on "${canonicalKey}": ` +
+          `${existingSourceId}=${metrics[canonicalKey]} vs ${sourceFieldId}=${normalizedValue}. ` +
+          `No precedence rule defined. This indicates a template or mapping bug.`
+        );
+      }
+
+      // EXPECTED conflict — resolve via precedence, take the one with lowest index
+      const existingPriority = precedenceList.indexOf(existingSourceId);
+      const newPriority = precedenceList.indexOf(sourceFieldId);
+
+      // If both are in the list, lower index wins. If one is missing from list, the listed one wins.
+      const existingRank = existingPriority >= 0 ? existingPriority : Infinity;
+      const newRank = newPriority >= 0 ? newPriority : Infinity;
+
+      const winnerIsExisting = existingRank <= newRank;
+      const winnerId = winnerIsExisting ? existingSourceId : sourceFieldId;
+      const loserId = winnerIsExisting ? sourceFieldId : existingSourceId;
+      const winnerValue = winnerIsExisting ? metrics[canonicalKey] : normalizedValue;
+      const loserValue = winnerIsExisting ? normalizedValue : metrics[canonicalKey];
+
+      // Record machine-readable traceability in correction_log
+      correction_log.push({
+        field: canonicalKey,
+        source: "semantic_candidate",
+        raw_value: loserValue,
+        normalized_value: winnerValue,
+        rule: "canonical_precedence",
+        reason: JSON.stringify({
+          canonical_metric: canonicalKey,
+          winning_source_field_id: winnerId,
+          losing_source_field_id: loserId,
+          precedence_rule: precedenceList,
+          winning_value: winnerValue,
+          losing_value: loserValue,
+        }),
+        confidence: "HIGH",
+      });
+
+      if (winnerIsExisting) continue; // Keep existing, skip new
     }
 
     metrics[canonicalKey] = normalizedValue;
