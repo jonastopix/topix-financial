@@ -561,7 +561,7 @@ const Members = () => {
     setDeleting(true);
     try {
       await Promise.all([
-        (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString(), status: "deleted" } as any).eq("company_id", deleteTarget.id) as any),
+        supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() }).eq("company_id", deleteTarget.id),
         supabase.from("handouts").delete().eq("company_id", deleteTarget.id),
         supabase.from("milestones").delete().eq("company_id", deleteTarget.id),
         supabase.from("budget_targets").delete().eq("company_id", deleteTarget.id),
