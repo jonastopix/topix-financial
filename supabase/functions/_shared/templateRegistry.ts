@@ -309,10 +309,6 @@ export function trySemanticCsvExtraction(
   csvText: string,
   fileName: string
 ): StructuralExtractionResult {
-  const { parseCsvRaw, buildCsvDetectionContext } = (() => {
-    const mod = require("./csvRawParser.ts");
-    return mod;
-  })();
 
   const csvResult: CsvParseResult = parseCsvRaw(csvText);
 
