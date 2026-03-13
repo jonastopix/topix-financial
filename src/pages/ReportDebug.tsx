@@ -94,7 +94,8 @@ export default function ReportDebug() {
   );
 
   const norm = report.normalized_data as Record<string, any> | null;
-  const isLegacy = !norm;
+  const isErrorReport = report.status === 'error' && !norm;
+  const isLegacy = !norm && !isErrorReport;
   const metrics = norm?.metrics as Record<string, number | null> | null;
   const validation = norm?.validation as Record<string, any> | null;
   const detMeta = norm?.deterministic_meta as Record<string, any> | null;
