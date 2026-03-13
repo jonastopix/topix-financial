@@ -535,7 +535,7 @@ https://secure.e-conomic.com/reports/statements/period-total
     console.log(`Error: ${result.error}`);
     assertEquals(result.template_id, "DK_ECONOMIC_SALDOBALANCE_PDF_V1");
   }
-  console.log(`✅ PDF structural failure correctly returns structural_fail → needs_review, NO AI fallback`);
+  console.log(`✅ PDF structural failure correctly returns structural_fail → processed, NO AI fallback`);
 });
 
 // ── Test 12: PDF e-conomic combined detection scores correctly ──
