@@ -866,6 +866,8 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
   const CANONICAL_PRECEDENCE: Record<string, string[]> = {
     ebt: ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"],
     net_result: ["arets_resultat", "resultat_efter_skat", "periodens_resultat"],
+    vehicle_costs: ["autodrift", "transportomkostninger"],
+    financial_costs: ["finansieringsudgifter", "finansielle_omkostninger"],
   };
 
   const canonicalSourceMap: Record<string, string> = {}; // canonical_key → winning source_field_id
