@@ -59,7 +59,7 @@ Deno.test("CASE 2: Deterministic saldobalance — pre-normalized results pass th
     key_figures: {
       omsaetning: 1000000,
       resultat_foer_skat: 200000,  // Already normalized: positive = profit
-      egenkapital: -500000,        // Raw accounting sign — canonical should flip
+      egenkapital: -500000,        // Pre-normalized by template (deterministic path handles sign)
       aktiver_i_alt: 1000000,
       passiver_i_alt: 1000000,
     },
