@@ -87,7 +87,7 @@ Deno.test("Comparison: multi-layer with raw structural diff", () => {
 
 Deno.test("Comparison: multi-layer detects lost subtotal as regression", () => {
   const oldLines: PdfParsedLine[] = [
-    { account_no: null, name: "AKTIVER I ALT", period_amount: 850000, ytd_amount: null, is_subtotal: true, section: "AKTIVER" },
+    { account_no: null, name: "AKTIVER I ALT", period_amount: 850000, period_prev: null, ytd_amount: null, ytd_prev: null, is_subtotal: true, section: "AKTIVER" },
   ];
   const newLines: PdfParsedLine[] = [];
 
