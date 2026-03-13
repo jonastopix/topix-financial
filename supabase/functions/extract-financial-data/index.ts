@@ -324,8 +324,8 @@ serve(async (req) => {
         if (!validationResult.valid) {
           console.warn(`[PdfStructural] Validation failed: ${validationResult.errors.join("; ")}`);
 
-          // ── TRUST MODEL: known source + invalid structural = HARD FAIL ──
-          if (isKnownSource) {
+          // ── TRUST MODEL: structural-required family + invalid structural = HARD FAIL ──
+          if (structuralRequired) {
             routingTrace.branch = "structural_parse_fail_validation";
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + invalid structural payload`);
 
