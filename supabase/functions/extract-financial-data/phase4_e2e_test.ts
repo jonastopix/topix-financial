@@ -7,9 +7,12 @@
  */
 
 import { assertEquals, assertExists, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { detectTemplate, tryDeterministicCsvExtraction, tryDeterministicPdfExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
+import { detectTemplate, tryDeterministicCsvExtraction, tryDeterministicPdfExtraction, trySemanticExcelExtraction, type DetectionContext } from "../_shared/templateRegistry.ts";
 import { detectReportTemplate } from "../_shared/financialParser.ts";
-import { buildCanonicalOutput } from "../_shared/canonicalEngine.ts";
+import { buildCanonicalOutput, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
+import { detectSourceSystem, isAiAllowed } from "../_shared/sourceFingerprint.ts";
+import { parseXlsxRawFromBase64 } from "../_shared/xlsxRawParser.ts";
+import type { SemanticExtractionResult } from "../_shared/semanticTypes.ts";
 
 // ── Simulated rows from "Januar_2026-3.xlsx" (Warburg VVS & Kloak ekspres ApS) ──
 const WARBURG_ROWS: any[][] = [
