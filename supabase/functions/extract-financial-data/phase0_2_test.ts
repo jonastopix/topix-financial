@@ -45,6 +45,11 @@ import {
   fixture_dinero_csv_fingerprint,
   fixture_dinero_pdf_fingerprint,
   fixture_unknown_pdf_fingerprint,
+  fixture_combined_dk_xlsx_fingerprint,
+  fixture_combined_dk_xlsx_warburg,
+  fixture_not_combined_dk_economic_xlsx,
+  fixture_not_combined_dk_generic_xlsx,
+  fixture_not_combined_dk_no_period_col,
   fixture_kj_auto_xlsx_fingerprint,
 } from "../_test_fixtures/sourceFingerprintFixtures.ts";
 import {
