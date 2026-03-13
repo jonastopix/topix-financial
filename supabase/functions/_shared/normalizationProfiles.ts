@@ -135,11 +135,11 @@ const dinero_pnl_credit_v1: NormalizationProfile = {
   },
 };
 
-// ── Profile: KJ Auto Combined (credit convention, P&L + Balance) ──
+// ── Profile: Combined DK (credit convention, P&L + Balance) ──
 
-const kj_auto_combined_credit_v1: NormalizationProfile = {
-  profile_id: "kj_auto_combined_credit_v1",
-  description: "KJ Auto Combined Balance/P&L XLSX — credit convention, revenue negative, costs positive",
+const combined_dk_credit_v1: NormalizationProfile = {
+  profile_id: "combined_dk_credit_v1",
+  description: "Combined DK Balance/P&L XLSX — credit convention, revenue negative, costs positive",
   sign_convention: "credit",
   statement_type: "combined",
   family_defaults: {
@@ -205,7 +205,7 @@ const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
   economic_pnl_credit_v1,
   economic_pnl_business_v1,
   dinero_pnl_credit_v1,
-  kj_auto_combined_credit_v1,
+  combined_dk_credit_v1,
   combined_balance_pnl_credit_v1,
 };
 

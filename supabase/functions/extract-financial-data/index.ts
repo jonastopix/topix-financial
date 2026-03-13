@@ -539,8 +539,40 @@ serve(async (req) => {
             break;
         }
       } else {
-        // No structural payload — legacy text path (migration bridge for older reports)
-        console.log("[Routing] No structural payload, attempting legacy deterministic PDF extraction...");
+        // No structural payload — check if this is a known source that REQUIRES structural
+        const isKnownPdfSource = sourceFingerprint != null && !isAiAllowed(sourceFingerprint);
+        if (isKnownPdfSource) {
+          // Known PDF source MUST have structural payload — hard fail
+          routingTrace.branch = "structural_payload_missing";
+          console.error(`[Routing] HARD FAIL: Known PDF source ${sourceFingerprint!.source_system} requires structural payload but none was provided`);
+
+          if (reportId) {
+            await supabase
+              .from("financial_reports")
+              .update({
+                status: "error",
+                extraction_method: "structural_payload_missing",
+                validation_status: "FAIL",
+                validation_errors: [`Known PDF source ${sourceFingerprint!.source_system} requires structural payload — client-side extraction failed or was not sent`],
+                raw_extracted_data: { routing_trace: routingTrace },
+                processed_at: new Date().toISOString(),
+              })
+              .eq("id", reportId);
+          }
+
+          return new Response(
+            JSON.stringify({
+              error: "Known PDF source requires structural payload",
+              status: "structural_payload_missing",
+              source_system: sourceFingerprint!.source_system,
+              details: "Client-side PDF structural extraction failed or was not included in the request",
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Unknown source — legacy text path allowed (migration bridge)
+        console.log("[Routing] No structural payload (unknown source), attempting legacy deterministic PDF extraction...");
         detResult = tryDeterministicPdfExtraction(fileContent, fileName);
       }
     } else if (isCsvFile && fileContent) {

@@ -45,6 +45,11 @@ import {
   fixture_dinero_csv_fingerprint,
   fixture_dinero_pdf_fingerprint,
   fixture_unknown_pdf_fingerprint,
+  fixture_combined_dk_xlsx_fingerprint,
+  fixture_combined_dk_xlsx_warburg,
+  fixture_not_combined_dk_economic_xlsx,
+  fixture_not_combined_dk_generic_xlsx,
+  fixture_not_combined_dk_no_period_col,
   fixture_kj_auto_xlsx_fingerprint,
 } from "../_test_fixtures/sourceFingerprintFixtures.ts";
 import {
@@ -259,9 +264,9 @@ Deno.test("Profile registry: economic_pnl has COGS field_override", () => {
   assertEquals(cogsOverride.action, "conditional");
 });
 
-Deno.test("Profile registry: kj_auto combined credit convention", () => {
-  const profile = getNormalizationProfile("kj_auto_combined_credit_v1")!;
-  assertExists(profile, "kj_auto_combined_credit_v1 profile must exist");
+Deno.test("Profile registry: combined_dk credit convention", () => {
+  const profile = getNormalizationProfile("combined_dk_credit_v1")!;
+  assertExists(profile, "combined_dk_credit_v1 profile must exist");
   assertEquals(profile.sign_convention, "credit");
   assertEquals(profile.family_defaults.revenue_like.action, "negate");
   assertEquals(profile.family_defaults.cost_like.action, "abs");
@@ -319,11 +324,41 @@ Deno.test("Fingerprint: unknown PDF allows AI", () => {
   assertEquals(isAiAllowed(result), true);
 });
 
-Deno.test("Fingerprint: KJ Auto XLSX", () => {
+Deno.test("Fingerprint: Combined DK XLSX (KJ Auto company)", () => {
   const f = fixture_kj_auto_xlsx_fingerprint;
   const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
   assertEquals(result.source_system, f.expected_source_system);
   assertEquals(isAiAllowed(result), f.expected_allows_ai);
+});
+
+Deno.test("Fingerprint: Combined DK XLSX (Warburg company)", () => {
+  const f = fixture_combined_dk_xlsx_warburg;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "combined_dk");
+  assertEquals(isAiAllowed(result), false);
+});
+
+// ── False-positive protection for combined_dk ──
+
+Deno.test("Fingerprint: e-conomic XLSX must NOT match combined_dk", () => {
+  const f = fixture_not_combined_dk_economic_xlsx;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "economic", "e-conomic XLSX must fingerprint as economic, not combined_dk");
+  assertEquals(isAiAllowed(result), false);
+});
+
+Deno.test("Fingerprint: generic XLSX without Balance row must NOT match combined_dk", () => {
+  const f = fixture_not_combined_dk_generic_xlsx;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "unknown", "Generic XLSX must not fingerprint as combined_dk");
+  assertEquals(isAiAllowed(result), true);
+});
+
+Deno.test("Fingerprint: XLSX with Nummer/Navn but no period column must NOT match combined_dk", () => {
+  const f = fixture_not_combined_dk_no_period_col;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "unknown", "Missing period column must not match combined_dk");
+  assertEquals(isAiAllowed(result), true);
 });
 
 Deno.test("Fingerprint: known source blocks AI", () => {

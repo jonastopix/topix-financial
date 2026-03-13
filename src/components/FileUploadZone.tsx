@@ -260,47 +260,46 @@ const FileUploadZone = ({
         const ext = file.name.toLowerCase().split(".").pop();
 
         // Try deterministic template extraction for Excel files
+        // Check for unsupported multi-sheet KJ Auto format (DATA + P&L Top Line sheets)
+        // This format is NOT supported on the server-side semantic architecture.
+        // Block cleanly before any processing — do NOT extract, do NOT write data.
         if (ext === "xlsx" || ext === "xls") {
           try {
             const arrayBuffer = await file.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: "array" });
-
+            
             if (detectTemplate(workbook)) {
-              console.log("🔧 Template detected: KJ_AUTO_REGNSKABSRAPPORT_V1 — using deterministic extraction");
-              const templateResult = extractKJAutoTemplate(workbook);
-              console.log("Template extraction result:", templateResult.status, templateResult.errors);
+              // Multi-sheet KJ Auto format detected — unsupported
+              console.warn("⚠️ Unsupported multi-sheet format detected (DATA + P&L Top Line). Blocking upload.");
+              
+              // Update report to error state with explicit error
+              await supabase
+                .from("financial_reports")
+                .update({
+                  status: "error",
+                  validation_status: "FAIL",
+                  validation_errors: ["Denne filtype (multi-sheet regnskabsrapport med DATA + P&L Top Line ark) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse."],
+                  processed_at: new Date().toISOString(),
+                } as any)
+                .eq("id", reportRecord.id);
 
-              if (templateResult.status === "PASS") {
-                const deterministicData = templateResultToExtractedData(templateResult);
-                if (deterministicData) {
-                  // Save extracted data directly to DB
-                  const { error: updateError } = await supabase
-                    .from("financial_reports")
-                    .update({
-                      extracted_data: deterministicData as any,
-                      report_period: deterministicData.report_period,
-                      report_type: deterministicData.report_type,
-                      company_name: deterministicData.company_name,
-                      cvr_number: deterministicData.cvr_number,
-                      status: "processed",
-                      processed_at: new Date().toISOString(),
-                    } as any)
-                    .eq("id", reportRecord.id);
+              updateFile(fileId, {
+                status: "error",
+                errorMessage: "Denne filtype (multi-sheet regnskabsrapport) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
+              });
 
-                  if (updateError) {
-                    console.error("DB update error after deterministic extraction:", updateError);
-                    throw new Error("Kunne ikke gemme deterministisk data: " + updateError.message);
-                  }
-
-                  extractedData = deterministicData;
-                  console.log("✅ Deterministic extraction successful:", deterministicData.report_period, deterministicData.company_name);
-                }
-              } else {
-                console.warn("⚠️ Template detected but extraction FAILED, falling back to AI:", templateResult.errors);
-              }
+              toast({
+                title: "Filtype ikke understøttet",
+                description: "Multi-sheet regnskabsrapporter (DATA + P&L Top Line) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
+                variant: "destructive",
+              });
+              
+              onPipelineComplete?.(reportRecord.id);
+              return; // STOP — do not process further
             }
           } catch (templateErr) {
-            console.warn("Template extraction error, falling back to AI:", templateErr);
+            // detectTemplate failed — not a multi-sheet file, continue normally
+            console.log("Multi-sheet detection check passed (not multi-sheet):", templateErr);
           }
         }
 

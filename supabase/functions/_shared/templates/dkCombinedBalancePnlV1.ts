@@ -428,7 +428,7 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
 
     // Only credit convention proceeds
     const signConvention: "credit" | "business" = "credit";
-    const normalizationProfileId = "kj_auto_combined_credit_v1";
+    const normalizationProfileId = "combined_dk_credit_v1";
     console.log(`[DK_COMBINED_PNL_SEMANTIC] Convention: ${signConvention}, profile: ${normalizationProfileId}`);
 
     // ── Scan all rows for metric candidates and line items ──
@@ -528,7 +528,7 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 
     const result: SemanticExtractionResult = {
-      source_system: "kj_auto",
+      source_system: "combined_dk",
       document_type: "combined",
       template_id: "DK_COMBINED_BALANCE_PNL_V1",
       sign_convention: signConvention,
