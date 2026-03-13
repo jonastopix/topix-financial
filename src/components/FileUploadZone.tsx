@@ -606,13 +606,14 @@ const FileUploadZone = ({
 
       } catch (err) {
         console.error("Pipeline error:", err);
+        const userMsg = err instanceof Error ? err.message : "Kunne ikke behandle dokumentet";
         updateFile(fileId, {
           status: "error",
-          errorMessage: err instanceof Error ? err.message : "Ukendt fejl",
+          errorMessage: userMsg,
         });
         toast({
-          title: "Fejl ved behandling",
-          description: err instanceof Error ? err.message : "Kunne ikke behandle dokumentet",
+          title: "Kunne ikke behandle rapporten",
+          description: userMsg,
           variant: "destructive",
         });
       }
