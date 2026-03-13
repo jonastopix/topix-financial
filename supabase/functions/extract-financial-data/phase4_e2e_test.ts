@@ -3147,9 +3147,12 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
 // ══════════════════════════════════════════════════════════════════════════════
 
 Deno.test("G1: Saldobalance PDF golden fixture — all 8 metrics + AI block", () => {
-  import("../_test_fixtures/saldobalanceGoldenFixture.ts").then(({ SALDOBALANCE_GOLDEN }) => {
-    // Simulate the raw PDF text from "Balance februar 2026.pdf"
-    const rawPdfText = `
+  const { SALDOBALANCE_GOLDEN } = await import("../_test_fixtures/saldobalanceGoldenFixture.ts");
+  const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
+  const { dkEconomicSaldobalancePdfV1 } = await import("../_shared/templates/dkEconomicSaldobalancePdfV1.ts");
+
+  // Simulate the raw PDF text from "Balance februar 2026.pdf"
+  const rawPdfText = `
 12.03.2026, 11.17 - 1796416 - Topix.dk ApS - CVR 45281736
 
 Saldobalance for perioden 01.02.26 - 28.02.26
@@ -3187,76 +3190,54 @@ PASSIVER I ALT -285.542,45 117.063,36 -859.725,36 -241.364,54
 https://secure.e-conomic.com/reports/statements/period-total
 `;
 
-    // Step 1: Parse with the generic PDF text parser
-    const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
-    const parsed = parseEconomicPdfText(rawPdfText);
+  // Step 1: Parse
+  const parsed = parseEconomicPdfText(rawPdfText);
+  assert(parsed.metadata.has_resultatopgoerelse, "Should find RESULTATOPGØRELSE");
+  assert(parsed.metadata.has_aktiver, "Should find AKTIVER");
+  assert(parsed.metadata.has_passiver, "Should find PASSIVER");
+  assertEquals(parsed.metadata.company_name, "Topix.dk ApS");
+  assertEquals(parsed.metadata.cvr_number, "45281736");
 
-    // Verify parser found all sections
-    assert(parsed.metadata.has_resultatopgoerelse, "Should find RESULTATOPGØRELSE");
-    assert(parsed.metadata.has_aktiver, "Should find AKTIVER");
-    assert(parsed.metadata.has_passiver, "Should find PASSIVER");
-    assertEquals(parsed.metadata.company_name, "Topix.dk ApS");
-    assertEquals(parsed.metadata.cvr_number, "45281736");
+  // Step 2: Template extraction
+  const detectScore = dkEconomicSaldobalancePdfV1.detect({ rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" });
+  assert(detectScore >= 80, `Detection score should be ≥80, got ${detectScore}`);
 
-    // Step 2: Run template extraction
-    const { dkEconomicSaldobalancePdfV1 } = await import("../_shared/templates/dkEconomicSaldobalancePdfV1.ts");
-    
-    const detectScore = dkEconomicSaldobalancePdfV1.detect({ rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" });
-    assert(detectScore >= 80, `Detection score should be ≥80, got ${detectScore}`);
+  const result = dkEconomicSaldobalancePdfV1.extract({ rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" });
+  assert(result.success, `Extraction should succeed: ${!result.success ? result.error : ''}`);
+  if (!result.success) return;
 
-    const result = dkEconomicSaldobalancePdfV1.extract({ rawText: rawPdfText, fileName: "Balance_februar_2026.pdf", fileType: "pdf" });
-    assert(result.success, `Extraction should succeed: ${!result.success ? result.error : ''}`);
-    if (!result.success) return;
+  const kf = result.data.key_figures;
+  console.log("[G1] Template key_figures:", JSON.stringify(kf, null, 2));
 
-    const kf = result.data.key_figures;
+  // Step 3: Verify template key figures
+  assertEquals(kf.resultat_foer_skat, 4200.24, "period_result (resultat_foer_skat)");
+  assertEquals(kf.aktiver_i_alt, 859725.36, "assets_total (aktiver_i_alt)");
+  assertEquals(kf.egenkapital, -332549.93, "equity_total (egenkapital) — NEGATED");
+  assertEquals(kf.hensaettelser, -105560.00, "provisions_total (hensaettelser) — NEGATED");
+  assertEquals(kf.gaeld_i_alt, 1297835.29, "debt_total (gaeld_i_alt)");
+  assertEquals(kf.likvider, 72357.32, "cash (likvider)");
+  assertEquals(kf.passiver_i_alt, 859725.36, "liabilities_total (passiver_i_alt)");
 
-    // Step 3: Verify key figures from template (pre-canonical)
-    console.log("[G1] Template key_figures:", JSON.stringify(kf, null, 2));
+  // Step 4: Canonical engine
+  const canonical = buildCanonicalOutput(result.data, null, "deterministic_template");
+  console.log("[G1] Canonical metrics:", JSON.stringify(canonical.metrics, null, 2));
 
-    // period_result (resultat_foer_skat): flipPnlSign(-4200.24) = +4200.24
-    assertEquals(kf.resultat_foer_skat, 4200.24, "period_result (resultat_foer_skat)");
+  assertEquals(canonical.metrics.ebt, SALDOBALANCE_GOLDEN.expected_metrics.period_result, "canonical ebt = period_result");
+  assertEquals(canonical.metrics.assets_total, SALDOBALANCE_GOLDEN.expected_metrics.assets_total, "canonical assets_total");
+  assertEquals(canonical.metrics.equity_total, SALDOBALANCE_GOLDEN.expected_metrics.equity_total, "canonical equity_total");
+  assertEquals(canonical.metrics.provisions_total, SALDOBALANCE_GOLDEN.expected_metrics.provisions_total, "canonical provisions_total");
+  assertEquals(canonical.metrics.debt_total, SALDOBALANCE_GOLDEN.expected_metrics.debt_total, "canonical debt_total");
+  assertEquals(canonical.metrics.cash, SALDOBALANCE_GOLDEN.expected_metrics.cash, "canonical cash");
+  assertEquals(canonical.metrics.liabilities_total, SALDOBALANCE_GOLDEN.expected_metrics.liabilities_total, "canonical liabilities_total");
 
-    // assets_total: absVal(859725.36) = 859725.36
-    assertEquals(kf.aktiver_i_alt, 859725.36, "assets_total (aktiver_i_alt)");
+  // Step 5: AI blocked
+  assertEquals(canonical.ai_eligible, false, "AI should be BLOCKED for DK_ECONOMIC_SALDOBALANCE_PDF_V1");
 
-    // equity_total: flipPnlSign(332549.93) = -332549.93
-    assertEquals(kf.egenkapital, -332549.93, "equity_total (egenkapital) — NEGATED");
+  // Step 6: No equity double-flip
+  const equityCorrection = canonical.correction_log.find(c => c.rule === "saldobalance_equity_sign_inverted");
+  assertEquals(equityCorrection, undefined, "Canonical engine should NOT re-flip equity for deterministic templates");
 
-    // provisions_total: flipPnlSign(105560.00) = -105560.00
-    assertEquals(kf.hensaettelser, -105560.00, "provisions_total (hensaettelser) — NEGATED");
-
-    // debt_total: absVal(-1297835.29) = 1297835.29
-    assertEquals(kf.gaeld_i_alt, 1297835.29, "debt_total (gaeld_i_alt)");
-
-    // cash: raw sign kept = 72357.32
-    assertEquals(kf.likvider, 72357.32, "cash (likvider)");
-
-    // liabilities_total: absVal(-859725.36) = 859725.36
-    assertEquals(kf.passiver_i_alt, 859725.36, "liabilities_total (passiver_i_alt)");
-
-    // Step 4: Run canonical engine
-    const canonical = buildCanonicalOutput(result.data, null, "deterministic_template");
-
-    console.log("[G1] Canonical metrics:", JSON.stringify(canonical.metrics, null, 2));
-
-    // Verify canonical metrics match golden fixture exactly
-    assertEquals(canonical.metrics.ebt, SALDOBALANCE_GOLDEN.expected_metrics.period_result, "canonical ebt = period_result");
-    assertEquals(canonical.metrics.assets_total, SALDOBALANCE_GOLDEN.expected_metrics.assets_total, "canonical assets_total");
-    assertEquals(canonical.metrics.equity_total, SALDOBALANCE_GOLDEN.expected_metrics.equity_total, "canonical equity_total");
-    assertEquals(canonical.metrics.provisions_total, SALDOBALANCE_GOLDEN.expected_metrics.provisions_total, "canonical provisions_total");
-    assertEquals(canonical.metrics.debt_total, SALDOBALANCE_GOLDEN.expected_metrics.debt_total, "canonical debt_total");
-    assertEquals(canonical.metrics.cash, SALDOBALANCE_GOLDEN.expected_metrics.cash, "canonical cash");
-    assertEquals(canonical.metrics.liabilities_total, SALDOBALANCE_GOLDEN.expected_metrics.liabilities_total, "canonical liabilities_total");
-
-    // Step 5: Verify AI is blocked for this template
-    assertEquals(canonical.ai_eligible, false, "AI should be BLOCKED for DK_ECONOMIC_SALDOBALANCE_PDF_V1");
-
-    // Step 6: Verify canonical engine did NOT re-flip equity (isDeterministic guard)
-    const equityCorrection = canonical.correction_log.find(c => c.rule === "saldobalance_equity_sign_inverted");
-    assertEquals(equityCorrection, undefined, "Canonical engine should NOT re-flip equity for deterministic templates");
-
-    console.log("\n✅ G1 PASSED: Saldobalance golden fixture — all 8 metrics correct, AI blocked, no equity double-flip");
-  });
+  console.log("\n✅ G1 PASSED: Saldobalance golden fixture — all 8 metrics correct, AI blocked, no equity double-flip");
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3264,7 +3245,8 @@ https://secure.e-conomic.com/reports/statements/period-total
 // ══════════════════════════════════════════════════════════════════════════════
 
 Deno.test("G2: 2-column P&L PDF regression — parser still works for 2-number lines", () => {
-  // Simulate a simple 2-column e-conomic P&L (period only, no YTD)
+  const { parseEconomicPdfText } = await import("../_shared/pdfTextParser.ts");
+
   const rawPdfText = `
 SnowWaves ApS (CVR-nr. 39850850)
 Resultatopgørelse 01/01-2026 - 31/12-2026
@@ -3277,22 +3259,18 @@ Resultat før skat -1.413.582,22
 RESULTAT EFTER SKAT -1.413.582,22
 `;
 
-  import("../_shared/pdfTextParser.ts").then(({ parseEconomicPdfText }) => {
-    const parsed = parseEconomicPdfText(rawPdfText);
+  const parsed = parseEconomicPdfText(rawPdfText);
 
-    // Find the "Omsætning i alt" line — should have period_amount only, no ytd
-    const omsaetning = parsed.lines.find(l => /omsætning i alt/i.test(l.name));
-    assertExists(omsaetning, "Should find Omsætning i alt");
-    assertEquals(omsaetning!.period_amount, -1813150.25, "period_amount for 1-number line");
-    assertEquals(omsaetning!.ytd_amount, null, "ytd_amount should be null for 1-number line");
+  const omsaetning = parsed.lines.find(l => /omsætning i alt/i.test(l.name));
+  assertExists(omsaetning, "Should find Omsætning i alt");
+  assertEquals(omsaetning!.period_amount, -1813150.25, "period_amount for 1-number line");
+  assertEquals(omsaetning!.ytd_amount, null, "ytd_amount should be null for 1-number line");
 
-    // Find Dækningsbidrag — also 1 number
-    const db = parsed.lines.find(l => /dækningsbidrag/i.test(l.name));
-    assertExists(db, "Should find Dækningsbidrag");
-    assertEquals(db!.period_amount, -1492710.39, "Dækningsbidrag period_amount");
+  const db = parsed.lines.find(l => /dækningsbidrag/i.test(l.name));
+  assertExists(db, "Should find Dækningsbidrag");
+  assertEquals(db!.period_amount, -1492710.39, "Dækningsbidrag period_amount");
 
-    console.log("\n✅ G2 PASSED: 2-column P&L PDF regression — parser unaffected");
-  });
+  console.log("\n✅ G2 PASSED: 2-column P&L PDF regression — parser unaffected");
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3300,7 +3278,6 @@ RESULTAT EFTER SKAT -1.413.582,22
 // ══════════════════════════════════════════════════════════════════════════════
 
 Deno.test("G3: AI block is template-specific — P&L template still gets ai_eligible=true", () => {
-  // Build a minimal P&L extractedData that would normally be ai_eligible
   const extractedData = {
     report_type: "resultatopgørelse",
     key_figures: {
