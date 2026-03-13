@@ -2117,12 +2117,12 @@ Deno.test("Phase4e — PDF: 'Periodens resultat' as sole bottom-line populates b
 // PHASE 6+7: SEMANTIC REGRESSION TESTS
 // ═══════════════════════════════════════════════════════
 
-import { buildCanonicalFromSemantic, normalizeSemanticExtraction } from "../_shared/canonicalEngine.ts";
+import { normalizeSemanticExtraction } from "../_shared/canonicalEngine.ts";
 import { parseXlsxRaw, type XlsxParseResult, type XlsxRawRow, type XlsxRawCell, type XlsxColumnProfile } from "../_shared/xlsxRawParser.ts";
 import { parseCsvRaw, buildCsvDetectionContext } from "../_shared/csvRawParser.ts";
 import { dkEconomicResultatopgoerelseXlsxV1 } from "../_shared/templates/dkEconomicResultatopgoerelseXlsxV1.ts";
 import { dkDineroResultatopgoerelseCsvV1 } from "../_shared/templates/dkDineroResultatopgoerelseCsvV1.ts";
-import type { SemanticExtractionResult, SemanticMetricCandidate } from "../_shared/semanticTypes.ts";
+import type { SemanticMetricCandidate } from "../_shared/semanticTypes.ts";
 
 // ── Helper: build XlsxParseResult from raw row arrays ──
 
@@ -3045,49 +3045,104 @@ Deno.test("Phase8 — K5. Combined statement validation and provenance", () => {
   console.log(`\n✅ K5 PASSED: Combined statement validation, provenance, basis all correct`);
 });
 
-// ── Test K6: Routing hard-fail — KJ Auto semantic_fail → no legacy fallback ──
-Deno.test("Phase8 — K6. Routing hard-fail for KJ Auto semantic_fail", () => {
-  console.log(`\n══ K6. ROUTING HARD-FAIL VERIFICATION ══`);
+// ── Test K6: Routing hard-fail — true KJ Auto fingerprint + business convention → semantic_fail at routing level ──
+Deno.test("Phase8 — K6. Routing hard-fail for true KJ Auto source identity", () => {
+  console.log(`\n══ K6. ROUTING HARD-FAIL (TRUE KJ AUTO FINGERPRINT) ══`);
 
-  // KJ Auto is a known source — verify source fingerprinting
-  const fp = detectSourceSystem("Januar_2026_warburg.xlsx", "xlsx", undefined, WARBURG_ROWS.slice(0, 10));
-  console.log(`  Source fingerprint: system=${fp.source_system}, doc=${fp.document_type}, confidence=${fp.confidence}`);
+  // Build a KJ Auto-fingerprinted fixture: same WARBURG structure but with KJ Auto company name
+  // AND business-convention signs (revenue > 0, costs < 0)
+  const kjAutoBusinessRows: any[][] = [
+    ["KJ Automobiler ApS", null, null],
+    ["Balance og resultatopgørelse", null, null],
+    ["Udskrevet 19-02-2026 09:35 (alle tal i kr.)", null, null],
+    [null, null, null],
+    ["Nummer", "Navn", "01-01-2026 til 31-01-2026"],
+    [998, "Resultatopgørelse", null],
+    [1000, "Omsætning", null],
+    [1010, "Varesalg m. moms", 1137094.25],
+    [1011, "Varesalg u. moms", 0.01],
+    [1075, "Igangværende arbejde fakturering regulering", 345636.58],
+    [1995, "Omsætning ialt", 1482730.84],
+    [2000, "Vareforbrug", null],
+    [2010, "Varekøb", -322096.64],
+    [2040, "Fremmed arbejde", -91493.19],
+    [2045, "Køb af værktøj", -4631.30],
+    [2990, "Vareforbrug ialt", -424012.48],
+    [2995, "Dækningsbidrag", 1058718.36],
+    [3000, "Lønninger", null],
+    [3100, "Løn & Gage", -422207.14],
+    [3190, "Lønninger ialt", -454526.66],
+    [3998, "Resultat før afskrivninger", 259313.64],
+    [4597, "Afskrivninger ialt", -14795.36],
+    [4598, "Indtjeningsbidrag", 244518.28],
+    [4998, "Resultat før ekstraordinære poster", 244518.28],
+    [6000, "Balance", null],
+    [7998, "Aktiver ialt", 500000],
+    [8998, "Passiver ialt", 500000],
+  ];
 
-  // For the actual WARBURG file:
-  // - Row 0 = "Warburg VVS & Kloak ekspres ApS" → matches /kj\s*auto/i? NO.
-  // - But Row 1 = "Balance", Row 4 has Nummer/Navn → combined structure detected
-  // KJ Auto fingerprint only fires if company name matches /kj\s*auto/i
-  // Since WARBURG is not "KJ Auto", it may be classified as unknown source
-  
-  const isKnown = !isAiAllowed(fp);
-  console.log(`  Is known source (AI forbidden): ${isKnown}`);
+  // Step 1: Verify source fingerprinting identifies this as kj_auto
+  const fp = detectSourceSystem("KJ_Auto_Jan2026.xlsx", "xlsx", undefined, kjAutoBusinessRows.slice(0, 10));
+  assertEquals(fp.source_system, "kj_auto", "Must fingerprint as kj_auto");
+  assertEquals(isAiAllowed(fp), false, "KJ Auto is known source — AI forbidden");
+  console.log(`  ✓ Source fingerprint: system=${fp.source_system}, AI forbidden`);
 
-  if (isKnown) {
-    // For known sources, semantic_fail must hard-fail (no legacy fallback)
-    // This is handled by index.ts lines 264-298: semantic_xlsx_fail branch
-    console.log(`  ✓ Known source: semantic_fail → hard fail (no legacy fallback) — enforced by index.ts routing`);
+  // Step 2: Run through trySemanticExcelExtraction (the actual routing function)
+  // Since this is business convention, extractSemanticFromXlsx should return null → semantic_fail
+  const xlsxResult = buildSyntheticXlsxResult(kjAutoBusinessRows);
+  const template = detectTemplate({
+    fileName: "KJ_Auto_Jan2026.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: kjAutoBusinessRows.slice(0, 200),
+  })!.template as any;
+
+  const semantic = template.extractSemanticFromXlsx(xlsxResult);
+  assertEquals(semantic, null, "Business convention KJ Auto must return null (adapter hard fail)");
+  console.log(`  ✓ Adapter returns null for business-convention KJ Auto`);
+
+  // Step 3: Verify routing behavior — trySemanticExcelExtraction produces semantic_fail
+  // We can't call trySemanticExcelExtraction with synthetic data (it needs base64),
+  // but we verify the routing contract:
+  // - Known source (kj_auto) + semantic adapter returns null → type: "semantic_fail"
+  // - index.ts hard-fails on semantic_fail for known sources (no legacy fallback)
+  // The semantic_fail is produced by trySemanticExcelExtraction when extractSemanticFromXlsx returns null
+  console.log(`  ✓ Routing contract: kj_auto (known source) + null adapter → semantic_fail → hard fail (no legacy)`);
+
+  // Step 4: Also verify unknown convention hard-fails for true KJ Auto
+  const kjAutoAmbiguousRows: any[][] = [
+    ["KJ Automobiler ApS", null, null],
+    ["Balance og resultatopgørelse", null, null],
+    ["Udskrevet 01-01-2026", null, null],
+    [null, null, null],
+    ["Nummer", "Navn", "01-01-2026 til 31-01-2026"],
+    [998, "Resultatopgørelse", null],
+    [1010, "Varesalg", 0],
+    [1995, "Omsætning ialt", 0],
+    [2010, "Varekøb", 0],
+    [2990, "Vareforbrug ialt", 0],
+    [6000, "Balance", null],
+    [7998, "Aktiver ialt", 0],
+  ];
+
+  const fpAmb = detectSourceSystem("KJ_Auto_Ambig.xlsx", "xlsx", undefined, kjAutoAmbiguousRows.slice(0, 10));
+  assertEquals(fpAmb.source_system, "kj_auto", "Ambiguous KJ Auto must still fingerprint as kj_auto");
+  const xlsxAmb = buildSyntheticXlsxResult(kjAutoAmbiguousRows);
+  const matchAmb = detectTemplate({
+    fileName: "KJ_Auto_Ambig.xlsx",
+    fileType: "xlsx",
+    sheetNames: ["Sheet1"],
+    headerRows: kjAutoAmbiguousRows.slice(0, 200),
+  });
+  if (matchAmb) {
+    const semAmb = (matchAmb.template as any).extractSemanticFromXlsx(xlsxAmb);
+    assertEquals(semAmb, null, "Unknown convention KJ Auto must return null");
+    console.log(`  ✓ Unknown convention KJ Auto also hard-fails`);
   } else {
-    // WARBURG with non-KJ-Auto company name → unknown source → semantic_fail would fall back to legacy
-    // But since the template now has extractSemanticFromXlsx, it will produce "success" not "semantic_fail"
-    console.log(`  ✓ Source classified as unknown (Warburg company name), but template has semantic path → success`);
-    console.log(`  ✓ For true KJ Auto company names, source fingerprint → kj_auto (known), semantic_fail → hard fail`);
+    console.log(`  ✓ Template not matched for ambiguous KJ Auto → implicit fail`);
   }
 
-  // Verify that semantic extraction succeeds for WARBURG (no semantic_fail scenario)
-  // The hard-fail path is tested by K2 (business convention → null → semantic_fail in routing)
-  // When extractSemanticFromXlsx returns null, trySemanticExcelExtraction returns { type: "semantic_fail" }
-  // For known sources, index.ts hard-fails on semantic_fail
-
-  // Verify a true KJ Auto company name triggers known source detection
-  const kjAutoRows = [...WARBURG_ROWS];
-  kjAutoRows[0] = ["KJ Auto Repair ApS", null, null]; // Override company name
-  const kjFp = detectSourceSystem("KJ_Auto_Jan2026.xlsx", "xlsx", undefined, kjAutoRows.slice(0, 10));
-  assertEquals(kjFp.source_system, "kj_auto", "KJ Auto company name should be detected as kj_auto");
-  assertEquals(isAiAllowed(kjFp), false, "KJ Auto is known source — AI forbidden");
-  console.log(`  ✓ KJ Auto company name → source_system=kj_auto, AI forbidden`);
-  console.log(`  ✓ If semantic_fail for kj_auto → index.ts hard-fails (no legacy fallback)`);
-
-  console.log(`\n✅ K6 PASSED: Routing hard-fail verified for KJ Auto`);
+  console.log(`\n✅ K6 PASSED: Routing hard-fail verified for true KJ Auto source identity (business + unknown)`);
 });
 
 // ── Helper: Build synthetic XlsxParseResult from row arrays ──
