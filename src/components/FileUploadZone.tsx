@@ -959,7 +959,11 @@ const FileUploadZone = ({
                         ) : null}
                       </span>
                     )}
-                    {file.status === "error" && (file.errorMessage || "Fejl")}
+                    {file.status === "error" && (
+                      <span className="text-destructive leading-snug">
+                        {file.errorMessage || "Rapporten kunne ikke behandles. Prøv en anden fil."}
+                      </span>
+                    )}
                   </p>
                 </div>
                 {(file.status === "uploading" || file.status === "processing" || file.status === "analyzing") && (
