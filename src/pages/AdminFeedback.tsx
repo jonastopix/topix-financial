@@ -66,11 +66,11 @@ const ScreenshotImage = ({ path }: { path: string }) => {
   });
   if (!url) return null;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block">
       <img
         src={url}
         alt="Feedback screenshot"
-        className="rounded-lg border border-border max-h-48 object-contain w-full bg-muted/30"
+        className="rounded-md border border-border max-h-24 max-w-[160px] object-cover bg-muted/30 hover:opacity-80 transition-opacity"
       />
     </a>
   );
@@ -463,10 +463,10 @@ const AdminFeedback = () => {
       <Dialog open={!!detailItem} onOpenChange={(open) => !open && setDetailItem(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{detailItem?.title}</DialogTitle>
+            <DialogTitle className="pr-6">{detailItem?.title}</DialogTitle>
           </DialogHeader>
           {detailItem && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {(() => {
                   const cat = categoryConfig[detailItem.category] || categoryConfig.other;
@@ -479,58 +479,66 @@ const AdminFeedback = () => {
                     </>
                   );
                 })()}
+                <span>{detailItem.profile?.full_name || "—"}</span>
+                <span>·</span>
                 <span>{detailItem.companies?.name || "—"}</span>
                 <span>·</span>
                 <span>{formatDate(detailItem.created_at)}</span>
               </div>
 
-              {detailItem.description && (
-                <p className="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3">
-                  {detailItem.description}
-                </p>
-              )}
-
-              {detailItem.screenshot_path && (
-                <ScreenshotImage path={detailItem.screenshot_path} />
-              )}
+              {/* Description + screenshot inline */}
+              <div className="flex gap-3">
+                {detailItem.description && (
+                  <p className="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-2.5 flex-1 min-w-0">
+                    {detailItem.description}
+                  </p>
+                )}
+                {detailItem.screenshot_path && (
+                  <div className="shrink-0">
+                    <ScreenshotImage path={detailItem.screenshot_path} />
+                  </div>
+                )}
+              </div>
 
               {/* Reply to user */}
               {detailItem.company_id && (
-                <div className="space-y-2 border-t border-border pt-3">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                    <Send className="h-3.5 w-3.5" />
+                <div className="space-y-1.5 border-t border-border pt-2.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 uppercase tracking-wide">
+                    <Send className="h-3 w-3" />
                     Svar til bruger
                   </label>
-                  <Textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Skriv et svar der sendes i brugerens samtale…"
-                    rows={2}
-                  />
-                  <div className="flex justify-end">
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Skriv et svar der sendes i brugerens samtale…"
+                      rows={1}
+                      className="min-h-[36px] text-sm resize-none"
+                    />
                     <Button
                       size="sm"
+                      className="shrink-0 self-end"
                       onClick={handleSendReply}
                       disabled={!replyText.trim() || replySending}
                     >
-                      {replySending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-                      Send svar
+                      {replySending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                     </Button>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Intern note</label>
+              <div className="space-y-1.5 border-t border-border pt-2.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Intern note</label>
                 <Textarea
                   value={adminNote}
                   onChange={(e) => setAdminNote(e.target.value)}
                   placeholder="Tilføj en intern note…"
-                  rows={3}
+                  rows={2}
+                  className="min-h-[36px] text-sm resize-y"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-1">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -541,10 +549,10 @@ const AdminFeedback = () => {
                   Slet
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => setDetailItem(null)}>
+                  <Button variant="ghost" size="sm" onClick={() => setDetailItem(null)}>
                     Luk
                   </Button>
-                  <Button onClick={handleSaveNote}>Gem note</Button>
+                  <Button size="sm" onClick={handleSaveNote}>Gem note</Button>
                 </div>
               </div>
             </div>
