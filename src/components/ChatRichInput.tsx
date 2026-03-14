@@ -112,6 +112,9 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   placeholder = "Skriv en besked...",
   maxLength = 5000,
 }) => {
+  const editorRef = useRef<Editor | null>(null);
+  const submitRef = useRef<() => void>(() => {});
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -141,10 +144,8 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       },
       handleKeyDown: (_view, event) => {
         if (event.key === "Enter" && !event.shiftKey) {
-          // Allow Enter inside lists to create new items
           const ed = editorRef.current;
           if (ed && (ed.isActive("bulletList") || ed.isActive("orderedList"))) {
-            // If the current list item is empty, let Tiptap handle it (exits list)
             return false;
           }
           event.preventDefault();
@@ -158,7 +159,11 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     editable: !disabled,
   });
 
-  // Keep editable in sync with disabled prop
+  // Keep refs in sync
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+
   useEffect(() => {
     if (editor) editor.setEditable(!disabled);
   }, [disabled, editor]);
@@ -168,11 +173,15 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     const text = editor.getText().trim();
     if (!text) return;
     const html = editor.getHTML();
-    // Check if content is just plain text (single paragraph with no marks)
     const isPlain = html === `<p>${text}</p>`;
     onSubmit(isPlain ? text : html);
     editor.commands.clearContent(true);
   }, [editor, onSubmit]);
+
+  // Keep submitRef in sync
+  useEffect(() => {
+    submitRef.current = submitFromEditor;
+  }, [submitFromEditor]);
 
   const charCount = editor?.storage.characterCount?.characters?.() ?? editor?.getText().length ?? 0;
 
