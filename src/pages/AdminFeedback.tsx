@@ -78,11 +78,13 @@ const FeedbackTable = ({
   items,
   onOpenDetail,
   onStatusChange,
+  highlightId,
   compact = false,
 }: {
   items: any[];
   onOpenDetail: (item: any) => void;
   onStatusChange: (item: any, status: string) => void;
+  highlightId?: string | null;
   compact?: boolean;
 }) => {
   const formatDate = (d: string) =>
