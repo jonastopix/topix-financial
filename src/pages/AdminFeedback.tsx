@@ -40,6 +40,27 @@ const statusConfig: Record<string, { label: string; icon: typeof Clock; variant:
   acknowledged: { label: "Set", icon: Clock, variant: "secondary" },
   resolved: { label: "Løst", icon: CheckCircle2, variant: "outline" },
 };
+const ScreenshotImage = ({ path }: { path: string }) => {
+  const { data: url } = useQuery({
+    queryKey: ["feedback-screenshot", path],
+    queryFn: async () => {
+      const { data } = await supabase.storage
+        .from("feedback-screenshots")
+        .createSignedUrl(path, 3600);
+      return data?.signedUrl || null;
+    },
+  });
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+      <img
+        src={url}
+        alt="Feedback screenshot"
+        className="rounded-lg border border-border max-h-48 object-contain w-full bg-muted/30"
+      />
+    </a>
+  );
+};
 
 const AdminFeedback = () => {
   const queryClient = useQueryClient();
