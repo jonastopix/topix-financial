@@ -89,6 +89,20 @@ const Auth = () => {
     setLoading(false);
   };
 
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    const redirectUri = inviteToken
+      ? `${window.location.origin}/auth?invite=${inviteToken}`
+      : window.location.origin;
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: redirectUri,
+    });
+    if (result?.error) {
+      toast.error("Google login fejlede: " + (result.error as Error).message);
+      setGoogleLoading(false);
+    }
+  };
+
   if (showReset) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
