@@ -1478,6 +1478,10 @@ export type Database = {
         Returns: boolean
       }
       cleanup_stale_processing_reports: { Args: never; Returns: number }
+      create_group: {
+        Args: { _caller_id: string; _companies: Json; _group_name: string }
+        Returns: Json
+      }
       get_all_advisor_profiles: {
         Args: never
         Returns: {
