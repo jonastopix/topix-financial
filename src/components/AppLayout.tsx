@@ -8,6 +8,7 @@ import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Eye, Building2, Menu } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
+import FeedbackButton from "@/components/FeedbackButton";
 
 interface AppLayoutProps {
   children: ReactNode;

@@ -96,6 +96,7 @@ const App = () => (
               <Route path="/admin/import" element={<AdminRoute><BulkImport /></AdminRoute>} />
               <Route path="/admin/review-queue" element={<AdminRoute><ReportReviewQueue /></AdminRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
+              <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </ViewModeProvider>
