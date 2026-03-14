@@ -23,6 +23,7 @@ const Auth = () => {
   const [signupResult, setSignupResult] = useState<"auto" | "confirm" | null>(null);
   const [signupEmail, setSignupEmail] = useState("");
   const [inviteCompany, setInviteCompany] = useState<{ name: string; logo_url: string | null } | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Look up company info from invite token
   useEffect(() => {
