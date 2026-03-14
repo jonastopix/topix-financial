@@ -38,7 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2 } from "lucide-react";
+import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2, Reply } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
