@@ -54,7 +54,7 @@ const AdminFeedback = () => {
     queryFn: async () => {
       let query = supabase
         .from("feedback")
-        .select("*")
+        .select("*, companies(name)")
         .order("created_at", { ascending: false });
 
       if (filterCategory !== "all") query = query.eq("category", filterCategory);
@@ -62,7 +62,24 @@ const AdminFeedback = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+
+      // Fetch profile names for user_ids
+      const userIds = [...new Set((data || []).map((d: any) => d.user_id))];
+      let profileMap: Record<string, { full_name: string; email: string | null }> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds);
+        for (const p of profiles || []) {
+          profileMap[p.user_id] = { full_name: p.full_name, email: p.email };
+        }
+      }
+
+      return (data || []).map((item: any) => ({
+        ...item,
+        profile: profileMap[item.user_id] || null,
+      }));
     },
   });
 
