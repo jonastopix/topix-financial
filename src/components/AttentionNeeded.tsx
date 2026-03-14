@@ -96,11 +96,15 @@ const AttentionNeeded = () => {
         }
       });
 
-      const { data: conv } = await supabase
+      let convQuery = supabase
         .from("conversations")
-        .select("id")
-        .eq("member_id", user!.id)
-        .maybeSingle();
+        .select("id");
+      if (companyId) {
+        convQuery = convQuery.eq("company_id", companyId);
+      } else {
+        convQuery = convQuery.eq("member_id", user!.id);
+      }
+      const { data: conv } = await convQuery.maybeSingle();
 
       if (conv?.id) {
         const { count } = await supabase
@@ -108,7 +112,8 @@ const AttentionNeeded = () => {
           .select("*", { count: "exact", head: true })
           .eq("conversation_id", conv.id)
           .neq("sender_id", user!.id)
-          .is("read_at", null);
+          .is("read_at", null)
+          .eq("message_type", "user");
 
         if (count && count > 0) {
           attentionItems.push({

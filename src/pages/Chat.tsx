@@ -320,7 +320,7 @@ const Chat = () => {
         const convMsgs = msgsByConv.get(c.id) || [];
         const lastMsg = convMsgs[0];
         const unreadCount = convMsgs.filter(
-          (m) => m.sender_id !== user.id && !m.read_at
+          (m) => m.sender_id !== user.id && !m.read_at && m.message_type === "user"
         ).length;
 
         const companyData = c.companies as any;
