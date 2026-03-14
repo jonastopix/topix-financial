@@ -123,6 +123,9 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
           target: "_blank",
         },
       }),
+      Placeholder.configure({
+        placeholder,
+      }),
     ],
     editorProps: {
       attributes: {
