@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bell, FileText, ClipboardList, MessageCircle, ExternalLink } from "lucide-react";
+import { Bell, FileText, ClipboardList, MessageCircle, ExternalLink, MessageSquareDashed } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
