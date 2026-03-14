@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,22 @@ interface NewCompany {
 }
 
 export default function GroupOnboarding() {
-  const { companyName, companyId } = useAuth();
+  const { companyName, companyId, isGroupFeatureEnabled, isGroupUser, loading } = useAuth();
   const navigate = useNavigate();
   const [groupName, setGroupName] = useState("");
   const [newCompanies, setNewCompanies] = useState<NewCompany[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Page-level guards — no navigate() during render
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+  if (!isGroupFeatureEnabled) return <Navigate to="/" replace />;
+  if (isGroupUser) return <Navigate to="/" replace />;
 
   const addCompany = () => {
     setNewCompanies((prev) => [...prev, { name: "", cvr: "" }]);
@@ -42,17 +53,14 @@ export default function GroupOnboarding() {
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
-      // Build companies array
       const companies: any[] = [];
 
-      // Attach existing company if user has one
       if (companyId) {
         companies.push({ mode: "attach", company_id: companyId });
       }
 
-      // Add new companies
       for (const nc of newCompanies) {
         if (nc.name.trim()) {
           companies.push({ mode: "create", name: nc.name.trim(), cvr: nc.cvr.trim() || null });
@@ -76,7 +84,7 @@ export default function GroupOnboarding() {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -157,8 +165,8 @@ export default function GroupOnboarding() {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Opretter koncern..." : "Opret koncern"}
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Opretter koncern..." : "Opret koncern"}
             </Button>
           </form>
         </CardContent>
