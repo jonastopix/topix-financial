@@ -48,14 +48,21 @@ const AuthContext = createContext<AuthContext>({
 
 export const useAuth = () => useContext(AuthContext);
 
-/** Reads session_timeout_minutes from app_config when user is logged in */
-function useSessionTimeout(enabled: boolean) {
-  const config = enabled ? useAppConfig() : null;
-  const raw = config?.branding as any;
-  // session_timeout_minutes lives under a dedicated app_config key, but we
-  // read it via the generic dbMap. Fall back to checking a top-level key.
-  const sessionTimeoutMinutes: number | undefined = raw?.session_timeout_minutes ?? undefined;
-  return { sessionTimeoutMinutes };
+/** Reads session_timeout_minutes from app_config */
+function useSessionTimeout() {
+  const { data } = useQuery({
+    queryKey: ["app-config-session-timeout"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_config")
+        .select("config_value")
+        .eq("config_key", "session_timeout_minutes")
+        .maybeSingle();
+      return (data?.config_value as number) ?? undefined;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  return data;
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
