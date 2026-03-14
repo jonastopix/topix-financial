@@ -44,24 +44,41 @@ function ToolbarBtn({
   );
 }
 
+const normalizeLinkUrl = (rawUrl: string): string => {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
+  // Block unsupported/custom schemes (e.g. javascript:)
+  if (/^[a-z]+:/i.test(trimmed)) return "";
+  return `https://${trimmed.replace(/^\/+/, "")}`;
+};
+
 function Toolbar({ editor }: { editor: Editor }) {
   const setLink = useCallback(() => {
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;
     const existingHref = editor.getAttributes("link").href;
-    const url = window.prompt("Link URL", existingHref || "https://");
-    if (url === null) return;
-    if (url === "") {
+    const inputUrl = window.prompt("Link URL", existingHref || "https://");
+    if (inputUrl === null) return;
+    if (inputUrl.trim() === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
+
+    const href = normalizeLinkUrl(inputUrl);
+    if (!href) return;
+
     if (hasSelection) {
-      editor.chain().focus().setLink({ href: url }).run();
+      editor.chain().focus().setLink({ href }).run();
     } else if (existingHref) {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+      editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     } else {
-      // No selection, no existing link — insert URL as linked text
-      editor.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run();
+      const displayText = inputUrl.trim();
+      editor.chain().focus().insertContent({
+        type: "text",
+        text: displayText,
+        marks: [{ type: "link", attrs: { href } }],
+      }).run();
     }
   }, [editor]);
 
