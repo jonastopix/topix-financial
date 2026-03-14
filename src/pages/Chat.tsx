@@ -1621,7 +1621,7 @@ const Chat = () => {
                       )}
                     </div>
                   </div>
-                ) : participants.filter(p => p.isAdvisor).length > 0 ? (
+                ) : (allAdvisors && allAdvisors.length > 0) ? (
                   <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
                     {isMobile && (
                       <button
@@ -1633,7 +1633,7 @@ const Chat = () => {
                     )}
                     <div className="flex items-center gap-1.5">
                       <div className="flex -space-x-1.5">
-                        {participants.filter(p => p.isAdvisor).slice(0, 3).map((p) => (
+                        {allAdvisors.slice(0, 3).map((p) => (
                           <div
                             key={p.user_id}
                             className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center overflow-hidden"
@@ -1650,7 +1650,7 @@ const Chat = () => {
                         ))}
                       </div>
                       <span className="text-[11px] text-muted-foreground">
-                        Dine rådgivere: {participants.filter(p => p.isAdvisor).map(p => p.full_name.split(" ")[0]).join(", ")}
+                        Dine rådgivere: {allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")}
                       </span>
                     </div>
                   </div>
