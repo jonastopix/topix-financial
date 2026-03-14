@@ -20,13 +20,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon } from "lucide-react";
+import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
@@ -40,6 +50,7 @@ const statusConfig: Record<string, { label: string; icon: typeof Clock; variant:
   acknowledged: { label: "Set", icon: Clock, variant: "secondary" },
   resolved: { label: "Løst", icon: CheckCircle2, variant: "outline" },
 };
+
 const ScreenshotImage = ({ path }: { path: string }) => {
   const { data: url } = useQuery({
     queryKey: ["feedback-screenshot", path],
@@ -62,16 +73,105 @@ const ScreenshotImage = ({ path }: { path: string }) => {
   );
 };
 
+const FeedbackTable = ({
+  items,
+  onOpenDetail,
+  onStatusChange,
+  compact = false,
+}: {
+  items: any[];
+  onOpenDetail: (item: any) => void;
+  onStatusChange: (item: any, status: string) => void;
+  compact?: boolean;
+}) => {
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" });
+
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[100px]">Kategori</TableHead>
+            <TableHead>Titel</TableHead>
+            <TableHead>Virksomhed</TableHead>
+            <TableHead>Bruger</TableHead>
+            <TableHead className="w-[100px]">Dato</TableHead>
+            <TableHead className="w-[100px]">Status</TableHead>
+            <TableHead className="w-[80px]" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((item: any) => {
+            const cat = categoryConfig[item.category] || categoryConfig.other;
+            const st = statusConfig[item.status] || statusConfig.new;
+            const CatIcon = cat.icon;
+            return (
+              <TableRow key={item.id} className="cursor-pointer" onClick={() => onOpenDetail(item)}>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    <CatIcon className={`h-4 w-4 ${cat.color}`} />
+                    <span className="text-xs">{cat.label}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="font-medium max-w-[250px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate">{item.title}</span>
+                    {item.screenshot_path && (
+                      <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {item.companies?.name || "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {item.profile?.full_name || item.profile?.email || "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {formatDate(item.created_at)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={st.variant}>{st.label}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={item.status}
+                    onValueChange={(v) => onStatusChange(item, v)}
+                  >
+                    <SelectTrigger
+                      className="h-7 text-xs w-[80px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">Ny</SelectItem>
+                      <SelectItem value="acknowledged">Set</SelectItem>
+                      <SelectItem value="resolved">Løst</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
 const AdminFeedback = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [detailItem, setDetailItem] = useState<any>(null);
   const [adminNote, setAdminNote] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [resolvedExpanded, setResolvedExpanded] = useState(false);
 
   const { data: feedbackItems = [], isLoading } = useQuery({
-    queryKey: ["admin-feedback", filterCategory, filterStatus],
+    queryKey: ["admin-feedback", filterCategory],
     queryFn: async () => {
       let query = supabase
         .from("feedback")
@@ -79,12 +179,10 @@ const AdminFeedback = () => {
         .order("created_at", { ascending: false });
 
       if (filterCategory !== "all") query = query.eq("category", filterCategory);
-      if (filterStatus !== "all") query = query.eq("status", filterStatus);
 
       const { data, error } = await query;
       if (error) throw error;
 
-      // Fetch profile names for user_ids
       const userIds = [...new Set((data || []).map((d: any) => d.user_id))];
       let profileMap: Record<string, { full_name: string; email: string | null }> = {};
       if (userIds.length > 0) {
@@ -104,6 +202,9 @@ const AdminFeedback = () => {
     },
   });
 
+  const activeItems = useMemo(() => feedbackItems.filter((i: any) => i.status !== "resolved"), [feedbackItems]);
+  const resolvedItems = useMemo(() => feedbackItems.filter((i: any) => i.status === "resolved"), [feedbackItems]);
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, status, admin_note, resolved_at }: { id: string; status: string; admin_note?: string; resolved_at?: string | null }) => {
       const updates: any = { status };
@@ -116,6 +217,20 @@ const AdminFeedback = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-feedback"] });
       queryClient.invalidateQueries({ queryKey: ["feedback-count"] });
       toast({ title: "Feedback opdateret" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("feedback").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-feedback"] });
+      queryClient.invalidateQueries({ queryKey: ["feedback-count"] });
+      toast({ title: "Feedback slettet" });
+      setDetailItem(null);
+      setDeleteTarget(null);
     },
   });
 
@@ -168,21 +283,9 @@ const AdminFeedback = () => {
               <SelectItem value="other">Andet</SelectItem>
             </SelectContent>
           </Select>
-
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle status</SelectItem>
-              <SelectItem value="new">Ny</SelectItem>
-              <SelectItem value="acknowledged">Set</SelectItem>
-              <SelectItem value="resolved">Løst</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
-        {/* Table */}
+        {/* Loading */}
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -192,79 +295,46 @@ const AdminFeedback = () => {
             Ingen feedback fundet
           </div>
         ) : (
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Kategori</TableHead>
-                  <TableHead>Titel</TableHead>
-                  <TableHead>Virksomhed</TableHead>
-                  <TableHead>Bruger</TableHead>
-                  <TableHead className="w-[100px]">Dato</TableHead>
-                  <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead className="w-[80px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {feedbackItems.map((item: any) => {
-                  const cat = categoryConfig[item.category] || categoryConfig.other;
-                  const st = statusConfig[item.status] || statusConfig.new;
-                  const CatIcon = cat.icon;
-                  return (
-                    <TableRow key={item.id} className="cursor-pointer" onClick={() => openDetail(item)}>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <CatIcon className={`h-4 w-4 ${cat.color}`} />
-                          <span className="text-xs">{cat.label}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium max-w-[250px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate">{item.title}</span>
-                          {item.screenshot_path && (
-                            <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {item.companies?.name || "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {item.profile?.full_name || item.profile?.email || "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {formatDate(item.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={st.variant}>{st.label}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={item.status}
-                          onValueChange={(v) => {
-                            // Prevent row click
-                            handleStatusChange(item, v);
-                          }}
-                        >
-                          <SelectTrigger
-                            className="h-7 text-xs w-[80px]"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="new">Ny</SelectItem>
-                            <SelectItem value="acknowledged">Set</SelectItem>
-                            <SelectItem value="resolved">Løst</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <>
+            {/* Active section */}
+            {activeItems.length > 0 ? (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                  Aktiv ({activeItems.length})
+                </h2>
+                <FeedbackTable
+                  items={activeItems}
+                  onOpenDetail={openDetail}
+                  onStatusChange={handleStatusChange}
+                />
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                Ingen aktiv feedback
+              </div>
+            )}
+
+            {/* Resolved section */}
+            {resolvedItems.length > 0 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setResolvedExpanded(!resolvedExpanded)}
+                  className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+                >
+                  {resolvedExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  Løst ({resolvedItems.length})
+                </button>
+                {resolvedExpanded && (
+                  <FeedbackTable
+                    items={resolvedItems}
+                    onOpenDetail={openDetail}
+                    onStatusChange={handleStatusChange}
+                    compact
+                  />
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -288,7 +358,7 @@ const AdminFeedback = () => {
                     </>
                   );
                 })()}
-                <span>{detailItem.companies?.name}</span>
+                <span>{detailItem.companies?.name || "—"}</span>
                 <span>·</span>
                 <span>{formatDate(detailItem.created_at)}</span>
               </div>
@@ -313,16 +383,48 @@ const AdminFeedback = () => {
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setDetailItem(null)}>
-                  Luk
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setDeleteTarget(detailItem)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Slet
                 </Button>
-                <Button onClick={handleSaveNote}>Gem note</Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => setDetailItem(null)}>
+                    Luk
+                  </Button>
+                  <Button onClick={handleSaveNote}>Gem note</Button>
+                </div>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Slet feedback?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Er du sikker på at du vil slette "{deleteTarget?.title}"? Handlingen kan ikke fortrydes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annullér</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              Slet
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
