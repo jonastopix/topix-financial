@@ -424,6 +424,7 @@ const AdminFeedback = () => {
                   onOpenDetail={openDetail}
                   onStatusChange={handleStatusChange}
                   highlightId={highlightId}
+                  repliedIds={repliedSet}
                 />
               </div>
             ) : (
