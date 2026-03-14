@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const STORAGE_KEY = "lastActivityAt";
-const THROTTLE_MS = 30_000; // update localStorage at most every 30s
-const CHECK_INTERVAL_MS = 60_000; // check every 60s
-const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const THROTTLE_MS = 30_000;
+const CHECK_INTERVAL_MS = 10_000; // check every 10s for smoother warning
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+const WARNING_BEFORE_MS = 2 * 60 * 1000; // show warning 2 min before logout
 
 function getTimeoutMs(configMinutes?: number): number {
   if (configMinutes && configMinutes > 0) return configMinutes * 60 * 1000;
@@ -22,25 +23,32 @@ function getLastActivity(): number {
 
 /**
  * Tracks user activity and signs out after a configurable period of inactivity.
- * @param enabled - only run when a user is authenticated
- * @param timeoutMinutes - override from app_config (optional)
+ * Returns warning state so a dialog can be shown before logout.
  */
 export function useInactivityLogout(enabled: boolean, timeoutMinutes?: number) {
   const lastStampRef = useRef(0);
+  const [showWarning, setShowWarning] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  const extendSession = useCallback(() => {
+    stampActivity();
+    setShowWarning(false);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
 
-    // Stamp on mount so fresh login gets full window
     stampActivity();
-
     const timeoutMs = getTimeoutMs(timeoutMinutes);
+    const warningAtMs = timeoutMs - WARNING_BEFORE_MS;
 
     const throttledStamp = () => {
       const now = Date.now();
       if (now - lastStampRef.current > THROTTLE_MS) {
         lastStampRef.current = now;
         stampActivity();
+        // If user interacts, dismiss warning
+        setShowWarning(false);
       }
     };
 
@@ -49,9 +57,17 @@ export function useInactivityLogout(enabled: boolean, timeoutMinutes?: number) {
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - getLastActivity();
+
       if (elapsed > timeoutMs) {
-        console.info("[inactivity] Session timed out after", Math.round(elapsed / 60000), "min — signing out");
+        console.info("[inactivity] Session timed out — signing out");
+        setShowWarning(false);
         supabase.auth.signOut();
+      } else if (elapsed > warningAtMs) {
+        const remaining = Math.max(0, Math.ceil((timeoutMs - elapsed) / 1000));
+        setSecondsLeft(remaining);
+        setShowWarning(true);
+      } else {
+        setShowWarning(false);
       }
     }, CHECK_INTERVAL_MS);
 
@@ -60,4 +76,6 @@ export function useInactivityLogout(enabled: boolean, timeoutMinutes?: number) {
       clearInterval(interval);
     };
   }, [enabled, timeoutMinutes]);
+
+  return { showWarning, secondsLeft, extendSession };
 }
