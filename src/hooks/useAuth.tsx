@@ -207,7 +207,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Inactivity auto-logout (reads session_timeout_minutes from app_config)
-  const { sessionTimeoutMinutes } = useSessionTimeout(!!user);
+  const sessionTimeoutMinutes = useSessionTimeout();
   useInactivityLogout(!!user, sessionTimeoutMinutes);
 
   return (
