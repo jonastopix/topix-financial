@@ -141,8 +141,14 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       },
       handleKeyDown: (_view, event) => {
         if (event.key === "Enter" && !event.shiftKey) {
+          // Allow Enter inside lists to create new items
+          const ed = editorRef.current;
+          if (ed && (ed.isActive("bulletList") || ed.isActive("orderedList"))) {
+            // If the current list item is empty, let Tiptap handle it (exits list)
+            return false;
+          }
           event.preventDefault();
-          submitFromEditor();
+          submitRef.current();
           return true;
         }
         return false;
