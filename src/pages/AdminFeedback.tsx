@@ -227,6 +227,20 @@ const AdminFeedback = () => {
     },
   });
 
+  // Fetch feedback IDs that have been replied to via chat
+  const { data: repliedIds } = useQuery({
+    queryKey: ["feedback-replied-ids"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("context_id")
+        .eq("context_type", "feedback")
+        .not("context_id", "is", null);
+      return new Set((data || []).map((m: any) => m.context_id));
+    },
+  });
+  const repliedSet = repliedIds || new Set<string>();
+
   // Deep-link: auto-open feedback item from URL param
   useEffect(() => {
     if (!highlightId || feedbackItems.length === 0) return;
