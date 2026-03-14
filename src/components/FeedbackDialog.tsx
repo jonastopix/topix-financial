@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { notifyFeedbackSubmitted } from "@/lib/feedbackNotify";
 
 const categories = [
   { key: "bug", label: "Bug", icon: Bug, color: "text-destructive" },
