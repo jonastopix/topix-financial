@@ -116,7 +116,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
 
   if (fullscreen) {
     return (
-      <div className="flex flex-col h-screen-safe bg-background overflow-x-hidden">
+      <div className={`flex flex-col h-screen-safe bg-background overflow-x-hidden ${!isMobile ? "ml-64" : ""}`}>
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         {mobileShell}
         {desktopBanners}
