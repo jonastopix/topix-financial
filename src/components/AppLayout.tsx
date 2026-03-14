@@ -124,6 +124,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <div className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
           {children}
         </div>
+        <FeedbackButton />
       </div>
     );
   }
