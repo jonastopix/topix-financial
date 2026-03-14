@@ -3,8 +3,7 @@ import { Navigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, Unlink } from "lucide-react";
-import { lovable } from "@/integrations/lovable";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2 } from "lucide-react";
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -592,43 +591,13 @@ const Settings = () => {
   );
 };
 
-// Linked login methods section
+// Linked login methods section (info only — manual linking not available)
 const LinkedLoginMethods = () => {
   const { user } = useAuth();
-  const [linking, setLinking] = useState(false);
-  const [unlinking, setUnlinking] = useState(false);
 
   const identities = user?.identities || [];
   const googleIdentity = identities.find((i) => i.provider === "google");
   const hasPassword = identities.some((i) => i.provider === "email");
-
-  const handleLinkGoogle = async () => {
-    setLinking(true);
-    const { error } = await supabase.auth.linkIdentity({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + "/settings" },
-    });
-    if (error) {
-      toast.error("Kunne ikke tilknytte Google: " + error.message);
-      setLinking(false);
-    }
-  };
-
-  const handleUnlinkGoogle = async () => {
-    if (!googleIdentity) return;
-    if (!hasPassword) {
-      toast.error("Du skal have en adgangskode sat, før du kan fjerne Google login");
-      return;
-    }
-    setUnlinking(true);
-    const { error } = await supabase.auth.unlinkIdentity(googleIdentity as any);
-    if (error) {
-      toast.error("Kunne ikke fjerne Google: " + error.message);
-    } else {
-      toast.success("Google login fjernet");
-    }
-    setUnlinking(false);
-  };
 
   return (
     <div className="glass-card rounded-xl p-6 animate-fade-in">
@@ -639,19 +608,21 @@ const LinkedLoginMethods = () => {
 
       <div className="space-y-3">
         {/* Email/password */}
-        <div className="flex items-center justify-between py-2">
-          <div className="flex items-center gap-3">
-            <Mail className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium text-foreground">E-mail & adgangskode</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+        {hasPassword && (
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-3">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">E-mail & adgangskode</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
             </div>
+            <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">Aktiv</span>
           </div>
-          <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">Aktiv</span>
-        </div>
+        )}
 
         {/* Google */}
-        <div className="flex items-center justify-between py-2 border-t border-border pt-3">
+        <div className={`flex items-center justify-between py-2 ${hasPassword ? "border-t border-border pt-3" : ""}`}>
           <div className="flex items-center gap-3">
             <svg className="h-4 w-4" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -669,30 +640,16 @@ const LinkedLoginMethods = () => {
             </div>
           </div>
           {googleIdentity ? (
-            <button
-              onClick={handleUnlinkGoogle}
-              disabled={unlinking || !hasPassword}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 border border-destructive/20 text-xs font-medium text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
-            >
-              {unlinking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlink className="h-3 w-3" />}
-              Fjern
-            </button>
+            <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">Aktiv</span>
           ) : (
-            <button
-              onClick={handleLinkGoogle}
-              disabled={linking}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {linking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
-              Tilknyt
-            </button>
+            <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">Inaktiv</span>
           )}
         </div>
       </div>
 
-      {googleIdentity && !hasPassword && (
-        <p className="text-xs text-chart-warning mt-3">
-          Sæt en adgangskode ovenfor, før du fjerner Google login.
+      {!googleIdentity && (
+        <p className="text-xs text-muted-foreground mt-3">
+          Log ind med Google på login-siden for at tilknytte din Google-konto.
         </p>
       )}
     </div>
