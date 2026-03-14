@@ -184,6 +184,12 @@
 .tiptap li {
   margin: 0;
 }
+.tiptap a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 
 /* Tiptap placeholder */
 .tiptap .is-empty::before {

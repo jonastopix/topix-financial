@@ -56,10 +56,12 @@ function Toolbar({ editor }: { editor: Editor }) {
       return;
     }
     if (hasSelection) {
-      // Wrap selected text with link
       editor.chain().focus().setLink({ href: url }).run();
-    } else {
+    } else if (existingHref) {
       editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    } else {
+      // No selection, no existing link — insert URL as linked text
+      editor.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run();
     }
   }, [editor]);
 
