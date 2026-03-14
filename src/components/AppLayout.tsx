@@ -8,6 +8,7 @@ import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Eye, Building2, Menu } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
+import FeedbackButton from "@/components/FeedbackButton";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -123,6 +124,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <div className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
           {children}
         </div>
+        <FeedbackButton />
       </div>
     );
   }
@@ -138,6 +140,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
             {children}
           </div>
         </main>
+        <FeedbackButton />
       </div>
     );
   }
@@ -151,6 +154,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
           {children}
         </div>
       </main>
+      <FeedbackButton />
     </div>
   );
 };

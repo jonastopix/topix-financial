@@ -51,6 +51,7 @@ const adminNavItems = [
   { icon: ClipboardList, label: "Review Queue", path: "/admin/review-queue" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
+  { icon: MessageCircle, label: "Feedback", path: "/admin/feedback" },
 ];
 
 interface AppSidebarProps {

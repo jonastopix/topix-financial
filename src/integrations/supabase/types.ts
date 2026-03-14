@@ -607,6 +607,53 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback: {
+        Row: {
+          admin_note: string | null
+          category: string
+          company_id: string
+          created_at: string
+          description: string
+          id: string
+          resolved_at: string | null
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          category?: string
+          company_id: string
+          created_at?: string
+          description?: string
+          id?: string
+          resolved_at?: string | null
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          category?: string
+          company_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          resolved_at?: string | null
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_reports: {
         Row: {
           ai_analysis: Json | null
