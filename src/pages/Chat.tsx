@@ -2051,13 +2051,28 @@ const Chat = () => {
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1 relative">
-                      <input
+                      <textarea
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
                         maxLength={MAX_MESSAGE_LENGTH}
+                        rows={1}
                         placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
-                        className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none overflow-hidden"
                         disabled={sending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            if (newMessage.trim() && !sending) {
+                              const form = e.currentTarget.closest("form");
+                              if (form) form.requestSubmit();
+                            }
+                          }
+                        }}
+                        onInput={(e) => {
+                          const target = e.currentTarget;
+                          target.style.height = "auto";
+                          target.style.height = Math.min(target.scrollHeight, 120) + "px";
+                        }}
                       />
                       {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
                         <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] ${newMessage.length >= MAX_MESSAGE_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
