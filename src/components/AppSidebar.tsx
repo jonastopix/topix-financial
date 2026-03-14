@@ -68,6 +68,18 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
+  const { data: newFeedbackCount = 0 } = useQuery({
+    queryKey: ["feedback-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "new");
+      return count || 0;
+    },
+    enabled: !!user && isAdmin,
+    refetchInterval: 60000,
+  });
   const { branding } = useAppConfig();
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
@@ -255,6 +267,11 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                 {item.path === "/chat" && unreadChat > 0 && !isActive && (
                   <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                     {unreadChat > 99 ? "99+" : unreadChat}
+                  </span>
+                )}
+                {item.path === "/admin/feedback" && newFeedbackCount > 0 && !isActive && (
+                  <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {newFeedbackCount > 99 ? "99+" : newFeedbackCount}
                   </span>
                 )}
                 {isActive && (
