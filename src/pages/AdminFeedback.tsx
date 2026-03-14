@@ -197,8 +197,13 @@ const AdminFeedback = () => {
                           <span className="text-xs">{cat.label}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium max-w-[250px] truncate">
-                        {item.title}
+                      <TableCell className="font-medium max-w-[250px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate">{item.title}</span>
+                          {item.screenshot_path && (
+                            <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {item.companies?.name || "—"}
