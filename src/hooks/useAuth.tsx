@@ -20,6 +20,11 @@ interface AuthContext {
   /** True when viewing a different company than the advisor's own */
   isCompanyOverride: boolean;
   needsOnboarding: boolean;
+  /** Group fields (additive — Koncern v1) */
+  groupId: string | null;
+  groupName: string | null;
+  isGroupUser: boolean;
+  isGroupFeatureEnabled: boolean;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   setOnboardingComplete: () => void;
