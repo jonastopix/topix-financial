@@ -334,6 +334,7 @@ const AdminFeedback = () => {
                   items={activeItems}
                   onOpenDetail={openDetail}
                   onStatusChange={handleStatusChange}
+                  highlightId={highlightId}
                 />
               </div>
             ) : (
