@@ -467,6 +467,32 @@ const AdminFeedback = () => {
                 <ScreenshotImage path={detailItem.screenshot_path} />
               )}
 
+              {/* Reply to user */}
+              {detailItem.company_id && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Send className="h-3.5 w-3.5" />
+                    Svar til bruger
+                  </label>
+                  <Textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Skriv et svar der sendes i brugerens samtale…"
+                    rows={2}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handleSendReply}
+                      disabled={!replyText.trim() || replySending}
+                    >
+                      {replySending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                      Send svar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Intern note</label>
                 <Textarea
