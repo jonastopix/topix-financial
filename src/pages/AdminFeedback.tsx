@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
