@@ -189,6 +189,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await supabase.auth.signOut();
   };
 
+  // Inactivity auto-logout (reads session_timeout_minutes from app_config)
+  const { sessionTimeoutMinutes } = useSessionTimeout(!!user);
+  useInactivityLogout(!!user, sessionTimeoutMinutes);
+
   return (
     <AuthContext.Provider value={{
       user, session, loading, isAdvisor, isAdmin, profile,
