@@ -287,6 +287,66 @@ const AdminFeedback = () => {
   const openDetail = (item: any) => {
     setDetailItem(item);
     setAdminNote(item.admin_note || "");
+    setReplyText("");
+  };
+
+  const handleSendReply = async () => {
+    if (!detailItem || !replyText.trim() || !user) return;
+    setReplySending(true);
+    try {
+      // Find the user's conversation
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("member_id", detailItem.user_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!conv) {
+        // Try via company_id
+        const { data: companyConv } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("company_id", detailItem.company_id)
+          .limit(1)
+          .maybeSingle();
+        if (!companyConv) {
+          toast({ title: "Ingen samtale fundet", description: "Brugeren har ikke en aktiv samtale.", variant: "destructive" });
+          setReplySending(false);
+          return;
+        }
+        var conversationId = companyConv.id;
+      } else {
+        var conversationId = conv.id;
+      }
+
+      const categoryLabel = categoryConfig[detailItem.category]?.label || "Feedback";
+      const contextMessage = `💬 **Svar på ${categoryLabel.toLowerCase()}: "${detailItem.title}"**\n\n${replyText.trim()}`;
+
+      const { error } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content: contextMessage,
+        message_type: "user",
+        context_type: "feedback",
+        context_id: detailItem.id,
+      });
+
+      if (error) throw error;
+
+      // Auto-acknowledge if still "new"
+      if (detailItem.status === "new") {
+        updateMutation.mutate({ id: detailItem.id, status: "acknowledged" });
+      }
+
+      toast({ title: "Svar sendt", description: "Beskeden er sendt i brugerens samtale." });
+      setReplyText("");
+    } catch (err) {
+      console.error("Reply error:", err);
+      toast({ title: "Fejl", description: "Kunne ikke sende svaret. Prøv igen.", variant: "destructive" });
+    } finally {
+      setReplySending(false);
+    }
   };
 
   const formatDate = (d: string) =>
