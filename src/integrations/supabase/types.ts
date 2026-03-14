@@ -1473,6 +1473,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advisor_has_group_access: {
+        Args: { _advisor_id: string; _group_id: string }
+        Returns: boolean
+      }
       cleanup_stale_processing_reports: { Args: never; Returns: number }
       get_all_advisor_profiles: {
         Args: never
@@ -1509,6 +1513,8 @@ export type Database = {
         Returns: number
       }
       user_company_id: { Args: { _user_id: string }; Returns: string }
+      user_group_id: { Args: { _user_id: string }; Returns: string }
+      user_has_group_feature: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "member" | "advisor" | "admin"
