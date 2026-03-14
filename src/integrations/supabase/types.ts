@@ -1318,6 +1318,14 @@ export type Database = {
     }
     Functions: {
       cleanup_stale_processing_reports: { Args: never; Returns: number }
+      get_all_advisor_profiles: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          full_name: string
+          user_id: string
+        }[]
+      }
       get_conversation_sender_profiles: {
         Args: { _conversation_id: string }
         Returns: {
