@@ -142,6 +142,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const profileData = profileRes.data as any;
     setNeedsOnboarding(!isAdv && profileData && !profileData.onboarded_at);
 
+    // Fetch group data (additive — Koncern v1)
+    const [groupMembershipRes, groupFeatureFlagRes] = await Promise.all([
+      supabase
+        .from("group_memberships" as any)
+        .select("group_id, groups:group_id(id, name)" as any)
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("group_feature_flags" as any)
+        .select("enabled" as any)
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ]);
+
+    const gm = groupMembershipRes.data as any;
+    if (gm?.group_id) {
+      setGroupId(gm.group_id);
+      setGroupName(gm.groups?.name || null);
+    } else {
+      setGroupId(null);
+      setGroupName(null);
+    }
+    setIsGroupFeatureEnabled(!!(groupFeatureFlagRes.data as any)?.enabled);
+
     const cm = companyRes.data as any;
     if (cm?.company_id) {
       setOwnCompanyId(cm.company_id);
