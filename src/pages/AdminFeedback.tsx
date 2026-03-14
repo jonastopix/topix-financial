@@ -172,11 +172,13 @@ const FeedbackTable = ({
 const AdminFeedback = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [detailItem, setDetailItem] = useState<any>(null);
   const [adminNote, setAdminNote] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [resolvedExpanded, setResolvedExpanded] = useState(false);
+  const highlightId = searchParams.get("feedbackId");
 
   const { data: feedbackItems = [], isLoading } = useQuery({
     queryKey: ["admin-feedback", filterCategory],
