@@ -19,6 +19,7 @@ import {
   CalendarIcon, StickyNote, MoreHorizontal,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
+import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
