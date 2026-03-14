@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { notifyChatMessage } from "@/lib/chatNotify";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
@@ -17,7 +18,7 @@ import {
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
   CalendarIcon, StickyNote, MoreHorizontal,
 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import ChatRichInput from "@/components/ChatRichInput";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
