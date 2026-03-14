@@ -665,9 +665,8 @@ const Chat = () => {
 
   const MAX_MESSAGE_LENGTH = 5000;
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newMessage.trim();
+  const handleSend = useCallback(async (content: string) => {
+    const trimmed = content.trim();
     if (!trimmed || !activeConvId || !user) return;
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
@@ -690,7 +689,7 @@ const Chat = () => {
       notifyChatMessage((data as any).id);
     }
     setSending(false);
-  };
+  }, [activeConvId, user, selectedTopic]);
 
   const filteredMessages = useMemo(() => {
     if (topicFilter === "all") return messages;
