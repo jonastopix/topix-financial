@@ -66,11 +66,11 @@ const ScreenshotImage = ({ path }: { path: string }) => {
   });
   if (!url) return null;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block">
       <img
         src={url}
         alt="Feedback screenshot"
-        className="rounded-lg border border-border max-h-48 object-contain w-full bg-muted/30"
+        className="rounded-md border border-border max-h-24 max-w-[160px] object-cover bg-muted/30 hover:opacity-80 transition-opacity"
       />
     </a>
   );
