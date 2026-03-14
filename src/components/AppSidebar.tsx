@@ -269,6 +269,11 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                     {unreadChat > 99 ? "99+" : unreadChat}
                   </span>
                 )}
+                {item.path === "/admin/feedback" && newFeedbackCount > 0 && !isActive && (
+                  <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {newFeedbackCount > 99 ? "99+" : newFeedbackCount}
+                  </span>
+                )}
                 {isActive && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />
                 )}
