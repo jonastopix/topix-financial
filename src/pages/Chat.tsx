@@ -1992,7 +1992,7 @@ const Chat = () => {
                                 {senderName}
                               </p>
                             )}
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                             <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                               <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                 {format(new Date(msg.created_at), "HH:mm", { locale: da })}
