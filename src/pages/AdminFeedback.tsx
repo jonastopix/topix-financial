@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
@@ -77,11 +78,13 @@ const FeedbackTable = ({
   items,
   onOpenDetail,
   onStatusChange,
+  highlightId,
   compact = false,
 }: {
   items: any[];
   onOpenDetail: (item: any) => void;
   onStatusChange: (item: any, status: string) => void;
+  highlightId?: string | null;
   compact?: boolean;
 }) => {
   const formatDate = (d: string) =>
@@ -107,7 +110,12 @@ const FeedbackTable = ({
             const st = statusConfig[item.status] || statusConfig.new;
             const CatIcon = cat.icon;
             return (
-              <TableRow key={item.id} className="cursor-pointer" onClick={() => onOpenDetail(item)}>
+              <TableRow
+                key={item.id}
+                id={`feedback-${item.id}`}
+                className={`cursor-pointer transition-colors ${highlightId === item.id ? "bg-primary/10 ring-1 ring-primary/30" : ""}`}
+                onClick={() => onOpenDetail(item)}
+              >
                 <TableCell>
                   <div className="flex items-center gap-1.5">
                     <CatIcon className={`h-4 w-4 ${cat.color}`} />
@@ -164,11 +172,13 @@ const FeedbackTable = ({
 const AdminFeedback = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [detailItem, setDetailItem] = useState<any>(null);
   const [adminNote, setAdminNote] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [resolvedExpanded, setResolvedExpanded] = useState(false);
+  const highlightId = searchParams.get("feedbackId");
 
   const { data: feedbackItems = [], isLoading } = useQuery({
     queryKey: ["admin-feedback", filterCategory],
@@ -201,6 +211,24 @@ const AdminFeedback = () => {
       }));
     },
   });
+
+  // Deep-link: auto-open feedback item from URL param
+  useEffect(() => {
+    if (!highlightId || feedbackItems.length === 0) return;
+    const target = feedbackItems.find((i: any) => i.id === highlightId);
+    if (target) {
+      // If it's resolved, expand the resolved section
+      if (target.status === "resolved") setResolvedExpanded(true);
+      // Open detail dialog
+      openDetail(target);
+      // Scroll to row
+      setTimeout(() => {
+        document.getElementById(`feedback-${highlightId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      // Clear param so it doesn't re-trigger
+      setSearchParams({}, { replace: true });
+    }
+  }, [highlightId, feedbackItems]);
 
   const activeItems = useMemo(() => feedbackItems.filter((i: any) => i.status !== "resolved"), [feedbackItems]);
   const resolvedItems = useMemo(() => feedbackItems.filter((i: any) => i.status === "resolved"), [feedbackItems]);
@@ -306,6 +334,7 @@ const AdminFeedback = () => {
                   items={activeItems}
                   onOpenDetail={openDetail}
                   onStatusChange={handleStatusChange}
+                  highlightId={highlightId}
                 />
               </div>
             ) : (
@@ -329,6 +358,7 @@ const AdminFeedback = () => {
                     items={resolvedItems}
                     onOpenDetail={openDetail}
                     onStatusChange={handleStatusChange}
+                    highlightId={highlightId}
                     compact
                   />
                 )}
