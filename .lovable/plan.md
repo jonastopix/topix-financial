@@ -166,3 +166,79 @@ E-conomic P&L exports from companies without tax/extraordinary items use "Result
 | `dkEconomicResultatopgoerelseXlsxV1.ts` | 2 new matchers + template-local fallback |
 | `canonicalEngine.ts` | 2 narrow KF_TO_CANONICAL entries |
 | `phase4_e2e_test.ts` | 4 new regression tests |
+
+---
+
+# Koncern v1 — Phase A + B
+
+## Status: ✅ IMPLEMENTERET
+
+## Phase A — Database foundation (DONE)
+
+### Migration 1: Core tables
+- `groups` (id, name, owner_user_id, anchor_company_id, timestamps)
+- `group_memberships` (UNIQUE user_id — one group per user)
+- `group_companies` (UNIQUE company_id — one group per company)
+- `group_advisor_access` (UNIQUE group_id + advisor_user_id)
+- `group_feature_flags` (UNIQUE user_id)
+- RLS enabled on all tables
+
+### Migration 2: Immutability trigger
+- `protect_group_anchor_company()` — prevents UPDATE of anchor_company_id
+
+### Migration 3: Helper functions
+- `user_group_id(_user_id)` — returns group_id or NULL
+- `user_has_group_feature(_user_id)` — checks feature flag
+- `advisor_has_group_access(_advisor_id, _group_id)` — checks advisor access
+- All SECURITY DEFINER with search_path
+
+### Migration 4: RLS policies
+- Members: SELECT own group/membership/companies
+- Advisors: SELECT via `advisor_has_group_access()`
+- Feature flags: advisors can manage, users can read own
+- No client INSERT/UPDATE/DELETE on group tables
+
+### Migration 5: `create_group` RPC
+- SECURITY DEFINER, service-role-only (REVOKE from PUBLIC, anon, authenticated)
+- Feature flag check → no existing group check → resolve/create anchor
+- Pre-validate anchor not already grouped
+- Validate all attach companies (membership + not grouped)
+- Create group → membership → anchor in group_companies (hard insert)
+- Process remaining companies with anchor dedup (skip if matches anchor)
+- Seed advisor access (v1: all advisors/admins)
+
+## Phase B — Onboarding (DONE)
+
+### Edge function: `create-group/index.ts`
+- Bucket A auth via `authenticateUser()`
+- Input validation (group_name, companies array, mode validation)
+- Service-role client calls `rpc('create_group')`
+- Error mapping (403 for feature flag, 409 for conflicts, 400 for validation)
+
+### useAuth additions (additive only)
+- `groupId: string | null`
+- `groupName: string | null`
+- `isGroupUser: boolean` (derived from groupId)
+- `isGroupFeatureEnabled: boolean`
+- Fetched in `fetchUserData()` alongside existing queries
+- Reset on sign-out
+
+### New pages
+- `/group/onboarding` → `GroupOnboarding.tsx` (behind ProtectedRoute)
+- `/group/setup-complete` → `GroupSetupComplete.tsx` (behind ProtectedRoute)
+
+### Files changed
+| File | Change |
+|------|--------|
+| `supabase/migrations/` | 5 new migrations |
+| `supabase/functions/create-group/index.ts` | New edge function |
+| `supabase/config.toml` | Added create-group entry |
+| `src/hooks/useAuth.tsx` | Additive: groupId, groupName, isGroupUser, isGroupFeatureEnabled |
+| `src/pages/GroupOnboarding.tsx` | New page |
+| `src/pages/GroupSetupComplete.tsx` | New page |
+| `src/App.tsx` | 2 new routes |
+
+## NOT YET APPROVED
+- Phase C: read-only group shell
+- Phase D: group chat
+- Phase E: group budget
