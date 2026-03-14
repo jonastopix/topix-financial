@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { toast } from "sonner";
 import { Mail, Lock, User, LogIn, UserPlus, CheckCircle } from "lucide-react";
 import { APP_BRANDING } from "@/lib/appConfig";
