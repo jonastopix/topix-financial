@@ -46,14 +46,21 @@ function ToolbarBtn({
 
 function Toolbar({ editor }: { editor: Editor }) {
   const setLink = useCallback(() => {
-    const prev = editor.getAttributes("link").href;
-    const url = window.prompt("Link URL", prev || "https://");
+    const { from, to } = editor.state.selection;
+    const hasSelection = from !== to;
+    const existingHref = editor.getAttributes("link").href;
+    const url = window.prompt("Link URL", existingHref || "https://");
     if (url === null) return;
     if (url === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    if (hasSelection) {
+      // Wrap selected text with link
+      editor.chain().focus().setLink({ href: url }).run();
+    } else {
+      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    }
   }, [editor]);
 
   return (
