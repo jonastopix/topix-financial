@@ -158,6 +158,23 @@ const Chat = () => {
   const [noteExpanded, setNoteExpanded] = useState(false);
   const [conversationNoteIds, setConversationNoteIds] = useState<Set<string>>(new Set());
 
+  // Fetch all advisors for member header (independent of conversation participation)
+  const { data: allAdvisors } = useQuery({
+    queryKey: ["all-advisor-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
+      if (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
+      return (data as any[] || []).map((r: any) => ({
+        user_id: r.user_id as string,
+        full_name: r.full_name as string,
+        avatar_url: r.avatar_url as string | null,
+      }));
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: !isAdvisor, // only needed for member view
+  });
+
+
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
   const { data: advisorUsers, isError: advisorUsersError } = useQuery({
     queryKey: ["advisor-users-for-assignment"],
