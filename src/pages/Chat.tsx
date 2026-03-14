@@ -2026,7 +2026,7 @@ const Chat = () => {
                 </div>
 
                 {/* Input with topic selector */}
-                <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-border">
+                <div className="p-3 md:p-4 border-t border-border">
                   <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
                     {MESSAGE_TOPICS.map(t => {
@@ -2050,47 +2050,24 @@ const Chat = () => {
                       );
                     })}
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <textarea
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
-                        maxLength={MAX_MESSAGE_LENGTH}
-                        rows={1}
-                        placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
-                        className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none overflow-hidden"
-                        disabled={sending}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            if (newMessage.trim() && !sending) {
-                              const form = e.currentTarget.closest("form");
-                              if (form) form.requestSubmit();
-                            }
-                          }
-                        }}
-                        onInput={(e) => {
-                          const target = e.currentTarget;
-                          target.style.height = "auto";
-                          target.style.height = Math.min(target.scrollHeight, 120) + "px";
-                        }}
-                      />
-                      {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
-                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] ${newMessage.length >= MAX_MESSAGE_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
-                          {newMessage.length}/{MAX_MESSAGE_LENGTH}
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex gap-2 items-end">
+                    <ChatRichInput
+                      onSubmit={handleSend}
+                      disabled={sending}
+                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      maxLength={MAX_MESSAGE_LENGTH}
+                    />
                     <button
-                      type="submit"
-                      disabled={sending || !newMessage.trim()}
-                      className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      type="button"
+                      onClick={() => handleSend(newMessage)}
+                      disabled={sending}
+                      className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex-shrink-0"
                     >
                       <Send className="h-4 w-4" />
                     </button>
                   </div>
                   <div className="safe-bottom-spacer" />
-                </form>
+                </div>
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-center">
