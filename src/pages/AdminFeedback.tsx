@@ -38,7 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2 } from "lucide-react";
+import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2, Reply } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
@@ -80,12 +81,14 @@ const FeedbackTable = ({
   onOpenDetail,
   onStatusChange,
   highlightId,
+  repliedIds,
   compact = false,
 }: {
   items: any[];
   onOpenDetail: (item: any) => void;
   onStatusChange: (item: any, status: string) => void;
   highlightId?: string | null;
+  repliedIds: Set<string>;
   compact?: boolean;
 }) => {
   const formatDate = (d: string) =>
@@ -126,6 +129,14 @@ const FeedbackTable = ({
                 <TableCell className="font-medium max-w-[250px]">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate">{item.title}</span>
+                    {repliedIds.has(item.id) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Reply className="h-3.5 w-3.5 text-primary shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>Besvaret via chat</TooltipContent>
+                      </Tooltip>
+                    )}
                     {item.screenshot_path && (
                       <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}
@@ -215,6 +226,20 @@ const AdminFeedback = () => {
       }));
     },
   });
+
+  // Fetch feedback IDs that have been replied to via chat
+  const { data: repliedIds } = useQuery({
+    queryKey: ["feedback-replied-ids"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("context_id")
+        .eq("context_type", "feedback")
+        .not("context_id", "is", null);
+      return new Set((data || []).map((m: any) => m.context_id));
+    },
+  });
+  const repliedSet = repliedIds || new Set<string>();
 
   // Deep-link: auto-open feedback item from URL param
   useEffect(() => {
@@ -399,6 +424,7 @@ const AdminFeedback = () => {
                   onOpenDetail={openDetail}
                   onStatusChange={handleStatusChange}
                   highlightId={highlightId}
+                  repliedIds={repliedSet}
                 />
               </div>
             ) : (
@@ -423,6 +449,7 @@ const AdminFeedback = () => {
                     onOpenDetail={openDetail}
                     onStatusChange={handleStatusChange}
                     highlightId={highlightId}
+                    repliedIds={repliedSet}
                     compact
                   />
                 )}
