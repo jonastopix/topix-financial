@@ -145,15 +145,32 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
           "px-3 py-2 text-sm text-foreground focus:outline-none min-h-[38px] max-h-[120px] overflow-y-auto",
       },
       handleKeyDown: (_view, event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          const ed = editorRef.current;
-          if (ed && (ed.isActive("bulletList") || ed.isActive("orderedList"))) {
-            return false;
+        const ed = editorRef.current;
+        if (!ed) return false;
+
+        if (event.key === "Backspace" && (ed.isActive("bulletList") || ed.isActive("orderedList"))) {
+          const currentText = ed.state.selection.$from.parent.textContent.trim();
+          if (!currentText) {
+            event.preventDefault();
+            ed.chain().focus().liftListItem("listItem").run();
+            return true;
           }
-          event.preventDefault();
-          submitRef.current();
-          return true;
         }
+
+        if (event.key === "Enter") {
+          if (event.shiftKey && (ed.isActive("bulletList") || ed.isActive("orderedList"))) {
+            event.preventDefault();
+            ed.chain().focus().splitListItem("listItem").run();
+            return true;
+          }
+
+          if (!event.shiftKey) {
+            event.preventDefault();
+            submitRef.current();
+            return true;
+          }
+        }
+
         return false;
       },
     },
