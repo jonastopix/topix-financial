@@ -2057,14 +2057,6 @@ const Chat = () => {
                       placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
-                    <button
-                      type="button"
-                      onClick={() => handleSend(newMessage)}
-                      disabled={sending}
-                      className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex-shrink-0"
-                    >
-                      <Send className="h-4 w-4" />
-                    </button>
                   </div>
                   <div className="safe-bottom-spacer" />
                 </div>

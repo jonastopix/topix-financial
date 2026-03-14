@@ -152,6 +152,35 @@
   }
 }
 
+/* Chat rich-text content inside message bubbles */
+.chat-html-content p {
+  margin: 0;
+}
+.chat-html-content p + p {
+  margin-top: 0.25rem;
+}
+.chat-html-content ul,
+.chat-html-content ol {
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+.chat-html-content li {
+  margin: 0;
+}
+.chat-html-content a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Tiptap placeholder */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+
 @layer utilities {
   /* dvh-based height with vh fallback (fallback first, override second) */
   .h-screen-safe {
