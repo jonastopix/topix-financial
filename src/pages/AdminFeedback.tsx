@@ -212,6 +212,24 @@ const AdminFeedback = () => {
     },
   });
 
+  // Deep-link: auto-open feedback item from URL param
+  useEffect(() => {
+    if (!highlightId || feedbackItems.length === 0) return;
+    const target = feedbackItems.find((i: any) => i.id === highlightId);
+    if (target) {
+      // If it's resolved, expand the resolved section
+      if (target.status === "resolved") setResolvedExpanded(true);
+      // Open detail dialog
+      openDetail(target);
+      // Scroll to row
+      setTimeout(() => {
+        document.getElementById(`feedback-${highlightId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      // Clear param so it doesn't re-trigger
+      setSearchParams({}, { replace: true });
+    }
+  }, [highlightId, feedbackItems]);
+
   const activeItems = useMemo(() => feedbackItems.filter((i: any) => i.status !== "resolved"), [feedbackItems]);
   const resolvedItems = useMemo(() => feedbackItems.filter((i: any) => i.status === "resolved"), [feedbackItems]);
 
