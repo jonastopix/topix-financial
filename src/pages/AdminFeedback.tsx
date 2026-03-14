@@ -180,6 +180,8 @@ const AdminFeedback = () => {
   const [adminNote, setAdminNote] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [resolvedExpanded, setResolvedExpanded] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
   const highlightId = searchParams.get("feedbackId");
 
   const { data: feedbackItems = [], isLoading } = useQuery({
