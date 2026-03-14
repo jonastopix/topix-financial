@@ -150,6 +150,7 @@ const AdvisorNotifications = () => {
       case "report_uploaded": return { Icon: FileText, bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400" };
       case "new_message": return { Icon: MessageCircle, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
       case "handout_completed": return { Icon: ClipboardList, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
+      case "feedback_submitted": return { Icon: MessageSquareDashed, bg: "bg-violet-500/10", text: "text-violet-600 dark:text-violet-400" };
       default: return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
     }
   };
