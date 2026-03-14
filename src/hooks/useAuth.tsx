@@ -1,6 +1,8 @@
 import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { useInactivityLogout } from "./useInactivityLogout";
+import { useQuery } from "@tanstack/react-query";
 
 interface AuthContext {
   user: User | null;
@@ -45,6 +47,23 @@ const AuthContext = createContext<AuthContext>({
 });
 
 export const useAuth = () => useContext(AuthContext);
+
+/** Reads session_timeout_minutes from app_config */
+function useSessionTimeout() {
+  const { data } = useQuery({
+    queryKey: ["app-config-session-timeout"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_config")
+        .select("config_value")
+        .eq("config_key", "session_timeout_minutes")
+        .maybeSingle();
+      return (data?.config_value as number) ?? undefined;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  return data;
+}
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -186,6 +205,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
   };
+
+  // Inactivity auto-logout (reads session_timeout_minutes from app_config)
+  const sessionTimeoutMinutes = useSessionTimeout();
+  useInactivityLogout(!!user, sessionTimeoutMinutes);
 
   return (
     <AuthContext.Provider value={{
