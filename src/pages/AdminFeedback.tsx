@@ -278,6 +278,10 @@ const AdminFeedback = () => {
                 </p>
               )}
 
+              {detailItem.screenshot_path && (
+                <ScreenshotImage path={detailItem.screenshot_path} />
+              )}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Intern note</label>
                 <Textarea
