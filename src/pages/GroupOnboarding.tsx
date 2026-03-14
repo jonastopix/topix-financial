@@ -75,7 +75,7 @@ export default function GroupOnboarding() {
       if (data?.error) throw new Error(data.error);
 
       toast({ title: "Koncern oprettet", description: `${groupName} er nu oprettet` });
-      navigate("/group/setup-complete");
+      navigate("/group/setup-complete", { state: { groupCreated: true } });
     } catch (err: any) {
       console.error("Group creation failed:", err);
       toast({

@@ -1,4 +1,4 @@
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { CheckCircle2 } from "lucide-react";
 export default function GroupSetupComplete() {
   const { isGroupUser, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const groupCreated = (location.state as any)?.groupCreated === true;
 
   if (loading) {
     return (
@@ -15,7 +17,8 @@ export default function GroupSetupComplete() {
       </div>
     );
   }
-  if (!isGroupUser) return <Navigate to="/" replace />;
+  // Allow access if user just created a group (nav state) OR is already a group user
+  if (!isGroupUser && !groupCreated) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
