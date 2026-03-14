@@ -131,7 +131,6 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       attributes: {
         class:
           "px-3 py-2 text-sm text-foreground focus:outline-none min-h-[38px] max-h-[120px] overflow-y-auto",
-        "data-placeholder": placeholder,
       },
       handleKeyDown: (_view, event) => {
         if (event.key === "Enter" && !event.shiftKey) {
