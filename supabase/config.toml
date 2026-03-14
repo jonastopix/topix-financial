@@ -35,3 +35,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.send-slack-handout-notification]
     verify_jwt = false
+  [functions.send-slack-feedback-notification]
+    verify_jwt = false

@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { notifyFeedbackSubmitted } from "@/lib/feedbackNotify";
 
 const categories = [
   { key: "bug", label: "Bug", icon: Bug, color: "text-destructive" },
@@ -94,21 +95,24 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     const { data: companyData } = await supabase
       .rpc("user_company_id", { _user_id: user.id });
 
-    const { error } = await supabase.from("feedback").insert({
+    const { data: insertedFeedback, error } = await supabase.from("feedback").insert({
       user_id: user.id,
       company_id: companyData || null,
       category,
       title: title.trim(),
       description: description.trim(),
       screenshot_path: screenshotPath,
-    });
+    }).select("id").single();
 
     setSubmitting(false);
 
-    if (error) {
+    if (error || !insertedFeedback) {
       toast({ title: "Fejl", description: "Kunne ikke sende feedback. Prøv igen.", variant: "destructive" });
       return;
     }
+
+    // Fire-and-forget Slack + advisor notification
+    notifyFeedbackSubmitted(insertedFeedback.id);
 
     toast({ title: "Tak for din feedback!", description: "Vi har modtaget din besked og vender tilbage." });
     reset();
