@@ -262,7 +262,7 @@ const AdminFeedback = () => {
                     </>
                   );
                 })()}
-                <span>{(detailItem as any).companies?.name}</span>
+                <span>{detailItem.companies?.name}</span>
                 <span>·</span>
                 <span>{formatDate(detailItem.created_at)}</span>
               </div>
