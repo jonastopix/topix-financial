@@ -764,6 +764,162 @@ export type Database = {
           },
         ]
       }
+      group_advisor_access: {
+        Row: {
+          advisor_user_id: string
+          created_at: string
+          group_id: string
+          id: string
+        }
+        Insert: {
+          advisor_user_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+        }
+        Update: {
+          advisor_user_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_advisor_access_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_companies: {
+        Row: {
+          company_id: string
+          created_at: string
+          group_id: string
+          id: string
+          sort_order: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+          sort_order?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_companies_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_feature_flags: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      group_memberships: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_memberships_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          anchor_company_id: string
+          created_at: string
+          id: string
+          name: string
+          owner_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          anchor_company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          anchor_company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "groups_anchor_company_id_fkey"
+            columns: ["anchor_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       handout_lever_milestones: {
         Row: {
           created_at: string
