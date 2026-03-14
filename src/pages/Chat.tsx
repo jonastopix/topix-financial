@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { notifyChatMessage } from "@/lib/chatNotify";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
@@ -17,6 +18,7 @@ import {
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
   CalendarIcon, StickyNote, MoreHorizontal,
 } from "lucide-react";
+import ChatRichInput from "@/components/ChatRichInput";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -663,9 +665,8 @@ const Chat = () => {
 
   const MAX_MESSAGE_LENGTH = 5000;
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newMessage.trim();
+  const handleSend = useCallback(async (content: string) => {
+    const trimmed = content.trim();
     if (!trimmed || !activeConvId || !user) return;
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
@@ -688,7 +689,7 @@ const Chat = () => {
       notifyChatMessage((data as any).id);
     }
     setSending(false);
-  };
+  }, [activeConvId, user, selectedTopic]);
 
   const filteredMessages = useMemo(() => {
     if (topicFilter === "all") return messages;
@@ -1911,7 +1912,7 @@ const Chat = () => {
                                   {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                 </span>
                               </div>
-                              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                              <div className="text-sm text-foreground leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                               {contextType && contextMeta?.title && (
                                 <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
                                   {contextType === "report" && <FileText className="h-3 w-3" />}
@@ -1991,7 +1992,7 @@ const Chat = () => {
                                 {senderName}
                               </p>
                             )}
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                             <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                               <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                 {format(new Date(msg.created_at), "HH:mm", { locale: da })}
@@ -2025,7 +2026,7 @@ const Chat = () => {
                 </div>
 
                 {/* Input with topic selector */}
-                <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-border">
+                <div className="p-3 md:p-4 border-t border-border">
                   <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
                     {MESSAGE_TOPICS.map(t => {
@@ -2049,47 +2050,16 @@ const Chat = () => {
                       );
                     })}
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <textarea
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
-                        maxLength={MAX_MESSAGE_LENGTH}
-                        rows={1}
-                        placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
-                        className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none overflow-hidden"
-                        disabled={sending}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            if (newMessage.trim() && !sending) {
-                              const form = e.currentTarget.closest("form");
-                              if (form) form.requestSubmit();
-                            }
-                          }
-                        }}
-                        onInput={(e) => {
-                          const target = e.currentTarget;
-                          target.style.height = "auto";
-                          target.style.height = Math.min(target.scrollHeight, 120) + "px";
-                        }}
-                      />
-                      {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
-                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] ${newMessage.length >= MAX_MESSAGE_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
-                          {newMessage.length}/{MAX_MESSAGE_LENGTH}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={sending || !newMessage.trim()}
-                      className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                    >
-                      <Send className="h-4 w-4" />
-                    </button>
+                  <div className="flex gap-2 items-end">
+                    <ChatRichInput
+                      onSubmit={handleSend}
+                      disabled={sending}
+                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      maxLength={MAX_MESSAGE_LENGTH}
+                    />
                   </div>
                   <div className="safe-bottom-spacer" />
-                </form>
+                </div>
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-center">
