@@ -604,11 +604,12 @@ const LinkedLoginMethods = () => {
 
   const handleLinkGoogle = async () => {
     setLinking(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/settings",
+    const { error } = await supabase.auth.linkIdentity({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + "/settings" },
     });
-    if (result?.error) {
-      toast.error("Kunne ikke tilknytte Google: " + (result.error as Error).message);
+    if (error) {
+      toast.error("Kunne ikke tilknytte Google: " + error.message);
       setLinking(false);
     }
   };
