@@ -171,6 +171,7 @@ const FeedbackTable = ({
 };
 
 const AdminFeedback = () => {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
