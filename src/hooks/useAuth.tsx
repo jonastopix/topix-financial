@@ -227,6 +227,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setOwnCompanyName(null);
           setOverrideCompanyId(null);
           setOverrideCompanyName(null);
+          setGroupId(null);
+          setGroupName(null);
+          setIsGroupFeatureEnabled(false);
           setLoading(false);
         }
       }
