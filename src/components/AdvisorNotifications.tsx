@@ -124,6 +124,8 @@ const AdvisorNotifications = () => {
       } else {
         navigate("/chat");
       }
+    } else if (n.reference_type === "feedback") {
+      navigate(`/admin/feedback?feedbackId=${n.reference_id || ""}`);
     }
   };
 
