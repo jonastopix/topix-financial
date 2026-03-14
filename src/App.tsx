@@ -25,6 +25,7 @@ import ReportDebug from "./pages/ReportDebug";
 import EmailTemplates from "./pages/EmailTemplates";
 import BulkImport from "./pages/BulkImport";
 import ReportReviewQueue from "./pages/ReportReviewQueue";
+import AdminFeedback from "./pages/AdminFeedback";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
