@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Inactivity auto-logout (reads session_timeout_minutes from app_config)
   const sessionTimeoutMinutes = useSessionTimeout();
-  useInactivityLogout(!!user, sessionTimeoutMinutes);
+  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(!!user, sessionTimeoutMinutes);
 
   return (
     <AuthContext.Provider value={{
@@ -221,6 +221,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       refreshProfile, signOut,
     }}>
       {children}
+      <InactivityWarningDialog
+        open={showWarning}
+        secondsLeft={secondsLeft}
+        onExtend={extendSession}
+      />
     </AuthContext.Provider>
   );
 };
