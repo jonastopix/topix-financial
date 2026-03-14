@@ -110,7 +110,12 @@ const FeedbackTable = ({
             const st = statusConfig[item.status] || statusConfig.new;
             const CatIcon = cat.icon;
             return (
-              <TableRow key={item.id} className="cursor-pointer" onClick={() => onOpenDetail(item)}>
+              <TableRow
+                key={item.id}
+                id={`feedback-${item.id}`}
+                className={`cursor-pointer transition-colors ${highlightId === item.id ? "bg-primary/10 ring-1 ring-primary/30" : ""}`}
+                onClick={() => onOpenDetail(item)}
+              >
                 <TableCell>
                   <div className="flex items-center gap-1.5">
                     <CatIcon className={`h-4 w-4 ${cat.color}`} />
