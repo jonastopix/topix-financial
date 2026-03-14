@@ -201,10 +201,10 @@ const AdminFeedback = () => {
                         {item.title}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {(item as any).companies?.name || "—"}
+                        {item.companies?.name || "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {(item as any).profiles?.full_name || (item as any).profiles?.email || "—"}
+                        {item.profile?.full_name || item.profile?.email || "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {formatDate(item.created_at)}
