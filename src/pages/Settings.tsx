@@ -641,7 +641,7 @@ const LinkedLoginMethods = () => {
             </div>
           </div>
           {googleIdentity ? (
-            <span className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">Aktiv</span>
+            <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">Aktiv</span>
           ) : (
             <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">Inaktiv</span>
           )}
