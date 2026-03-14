@@ -54,7 +54,7 @@ const AdminFeedback = () => {
     queryFn: async () => {
       let query = supabase
         .from("feedback")
-        .select("*, companies(name), profiles!feedback_user_id_fkey(full_name, email)")
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (filterCategory !== "all") query = query.eq("category", filterCategory);
