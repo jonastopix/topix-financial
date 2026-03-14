@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from "rea
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
+import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
 
 interface AuthContext {
@@ -208,7 +209,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Inactivity auto-logout (reads session_timeout_minutes from app_config)
   const sessionTimeoutMinutes = useSessionTimeout();
-  useInactivityLogout(!!user, sessionTimeoutMinutes);
+  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(!!user, sessionTimeoutMinutes);
 
   return (
     <AuthContext.Provider value={{
@@ -220,6 +221,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       refreshProfile, signOut,
     }}>
       {children}
+      <InactivityWarningDialog
+        open={showWarning}
+        secondsLeft={secondsLeft}
+        onExtend={extendSession}
+      />
     </AuthContext.Provider>
   );
 };
