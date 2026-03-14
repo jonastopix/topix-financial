@@ -258,6 +258,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,
+      groupId, groupName,
+      isGroupUser: groupId != null,
+      isGroupFeatureEnabled,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       refreshProfile, signOut,
     }}>
