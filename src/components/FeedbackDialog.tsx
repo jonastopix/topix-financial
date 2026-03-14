@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Bug, Lightbulb, MessageSquare, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { Bug, Lightbulb, MessageSquare, Loader2, ImagePlus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +32,10 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
   const [category, setCategory] = useState<Category>("suggestion");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -40,11 +43,52 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     setCategory("suggestion");
     setTitle("");
     setDescription("");
+    setScreenshot(null);
+    setScreenshotPreview(null);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Kun billeder", description: "Upload venligst et billede (PNG, JPG, etc.).", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "For stort", description: "Billedet må max fylde 5 MB.", variant: "destructive" });
+      return;
+    }
+    setScreenshot(file);
+    setScreenshotPreview(URL.createObjectURL(file));
+  };
+
+  const removeScreenshot = () => {
+    setScreenshot(null);
+    if (screenshotPreview) URL.revokeObjectURL(screenshotPreview);
+    setScreenshotPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = async () => {
     if (!title.trim() || !user) return;
     setSubmitting(true);
+
+    let screenshotPath: string | null = null;
+
+    // Upload screenshot if present
+    if (screenshot) {
+      const ext = screenshot.name.split(".").pop() || "png";
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("feedback-screenshots")
+        .upload(path, screenshot, { contentType: screenshot.type });
+      if (uploadError) {
+        toast({ title: "Upload fejlede", description: "Kunne ikke uploade billedet. Prøv igen.", variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+      screenshotPath = path;
+    }
 
     // Get company_id (may be null for advisors)
     const { data: companyData } = await supabase
@@ -56,6 +100,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
       category,
       title: title.trim(),
       description: description.trim(),
+      screenshot_path: screenshotPath,
     });
 
     setSubmitting(false);
@@ -114,9 +159,44 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
             placeholder="Beskriv hvad du oplevede eller ønsker (valgfrit)…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            rows={4}
+            rows={3}
             maxLength={2000}
           />
+
+          {/* Screenshot upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
+          {screenshotPreview ? (
+            <div className="relative rounded-lg border border-border overflow-hidden">
+              <img
+                src={screenshotPreview}
+                alt="Screenshot preview"
+                className="w-full max-h-36 object-cover"
+              />
+              <button
+                onClick={removeScreenshot}
+                className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center hover:bg-background transition-colors"
+                aria-label="Fjern screenshot"
+              >
+                <X className="h-3.5 w-3.5 text-foreground" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground transition-colors"
+            >
+              <ImagePlus className="h-4 w-4" />
+              Vedhæft screenshot (valgfrit)
+            </button>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>

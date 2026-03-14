@@ -616,6 +616,7 @@ export type Database = {
           description: string
           id: string
           resolved_at: string | null
+          screenshot_path: string | null
           status: string
           title: string
           user_id: string
@@ -628,6 +629,7 @@ export type Database = {
           description?: string
           id?: string
           resolved_at?: string | null
+          screenshot_path?: string | null
           status?: string
           title: string
           user_id: string
@@ -640,6 +642,7 @@ export type Database = {
           description?: string
           id?: string
           resolved_at?: string | null
+          screenshot_path?: string | null
           status?: string
           title?: string
           user_id?: string

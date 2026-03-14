@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
@@ -39,6 +39,27 @@ const statusConfig: Record<string, { label: string; icon: typeof Clock; variant:
   new: { label: "Ny", icon: AlertCircle, variant: "default" },
   acknowledged: { label: "Set", icon: Clock, variant: "secondary" },
   resolved: { label: "Løst", icon: CheckCircle2, variant: "outline" },
+};
+const ScreenshotImage = ({ path }: { path: string }) => {
+  const { data: url } = useQuery({
+    queryKey: ["feedback-screenshot", path],
+    queryFn: async () => {
+      const { data } = await supabase.storage
+        .from("feedback-screenshots")
+        .createSignedUrl(path, 3600);
+      return data?.signedUrl || null;
+    },
+  });
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+      <img
+        src={url}
+        alt="Feedback screenshot"
+        className="rounded-lg border border-border max-h-48 object-contain w-full bg-muted/30"
+      />
+    </a>
+  );
 };
 
 const AdminFeedback = () => {
@@ -197,8 +218,13 @@ const AdminFeedback = () => {
                           <span className="text-xs">{cat.label}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium max-w-[250px] truncate">
-                        {item.title}
+                      <TableCell className="font-medium max-w-[250px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate">{item.title}</span>
+                          {item.screenshot_path && (
+                            <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {item.companies?.name || "—"}
@@ -271,6 +297,10 @@ const AdminFeedback = () => {
                 <p className="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3">
                   {detailItem.description}
                 </p>
+              )}
+
+              {detailItem.screenshot_path && (
+                <ScreenshotImage path={detailItem.screenshot_path} />
               )}
 
               <div className="space-y-2">
