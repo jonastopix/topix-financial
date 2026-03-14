@@ -576,6 +576,9 @@ const Settings = () => {
           </button>
         </div>
 
+        {/* Linked login methods */}
+        <LinkedLoginMethods />
+
         {/* Account info */}
         <div className="glass-card rounded-xl p-6 animate-fade-in">
           <h2 className="font-display font-semibold text-foreground mb-3">Konto</h2>
