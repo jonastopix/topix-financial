@@ -68,6 +68,18 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
+  const { data: newFeedbackCount = 0 } = useQuery({
+    queryKey: ["feedback-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "new");
+      return count || 0;
+    },
+    enabled: !!user && isAdmin,
+    refetchInterval: 60000,
+  });
   const { branding } = useAppConfig();
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
