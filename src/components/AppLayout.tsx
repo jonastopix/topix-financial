@@ -140,6 +140,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
             {children}
           </div>
         </main>
+        <FeedbackButton />
       </div>
     );
   }
