@@ -46,19 +46,13 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     if (!title.trim() || !user) return;
     setSubmitting(true);
 
-    // Get company_id
+    // Get company_id (may be null for advisors)
     const { data: companyData } = await supabase
       .rpc("user_company_id", { _user_id: user.id });
 
-    if (!companyData) {
-      toast({ title: "Fejl", description: "Kunne ikke finde din virksomhed.", variant: "destructive" });
-      setSubmitting(false);
-      return;
-    }
-
     const { error } = await supabase.from("feedback").insert({
       user_id: user.id,
-      company_id: companyData,
+      company_id: companyData || null,
       category,
       title: title.trim(),
       description: description.trim(),

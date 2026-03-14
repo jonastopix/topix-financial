@@ -611,7 +611,7 @@ export type Database = {
         Row: {
           admin_note: string | null
           category: string
-          company_id: string
+          company_id: string | null
           created_at: string
           description: string
           id: string
@@ -623,7 +623,7 @@ export type Database = {
         Insert: {
           admin_note?: string | null
           category?: string
-          company_id: string
+          company_id?: string | null
           created_at?: string
           description?: string
           id?: string
@@ -635,7 +635,7 @@ export type Database = {
         Update: {
           admin_note?: string | null
           category?: string
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           description?: string
           id?: string
