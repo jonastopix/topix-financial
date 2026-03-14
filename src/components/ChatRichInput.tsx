@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -46,14 +46,21 @@ function ToolbarBtn({
 
 function Toolbar({ editor }: { editor: Editor }) {
   const setLink = useCallback(() => {
-    const prev = editor.getAttributes("link").href;
-    const url = window.prompt("Link URL", prev || "https://");
+    const { from, to } = editor.state.selection;
+    const hasSelection = from !== to;
+    const existingHref = editor.getAttributes("link").href;
+    const url = window.prompt("Link URL", existingHref || "https://");
     if (url === null) return;
     if (url === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    if (hasSelection) {
+      // Wrap selected text with link
+      editor.chain().focus().setLink({ href: url }).run();
+    } else {
+      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    }
   }, [editor]);
 
   return (
@@ -105,6 +112,9 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   placeholder = "Skriv en besked...",
   maxLength = 5000,
 }) => {
+  const editorRef = useRef<Editor | null>(null);
+  const submitRef = useRef<() => void>(() => {});
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -134,8 +144,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       },
       handleKeyDown: (_view, event) => {
         if (event.key === "Enter" && !event.shiftKey) {
+          const ed = editorRef.current;
+          if (ed && (ed.isActive("bulletList") || ed.isActive("orderedList"))) {
+            return false;
+          }
           event.preventDefault();
-          submitFromEditor();
+          submitRef.current();
           return true;
         }
         return false;
@@ -145,7 +159,11 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     editable: !disabled,
   });
 
-  // Keep editable in sync with disabled prop
+  // Keep refs in sync
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+
   useEffect(() => {
     if (editor) editor.setEditable(!disabled);
   }, [disabled, editor]);
@@ -155,11 +173,15 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     const text = editor.getText().trim();
     if (!text) return;
     const html = editor.getHTML();
-    // Check if content is just plain text (single paragraph with no marks)
     const isPlain = html === `<p>${text}</p>`;
     onSubmit(isPlain ? text : html);
     editor.commands.clearContent(true);
   }, [editor, onSubmit]);
+
+  // Keep submitRef in sync
+  useEffect(() => {
+    submitRef.current = submitFromEditor;
+  }, [submitFromEditor]);
 
   const charCount = editor?.storage.characterCount?.characters?.() ?? editor?.getText().length ?? 0;
 
