@@ -358,6 +358,7 @@ const AdminFeedback = () => {
                     items={resolvedItems}
                     onOpenDetail={openDetail}
                     onStatusChange={handleStatusChange}
+                    highlightId={highlightId}
                     compact
                   />
                 )}
