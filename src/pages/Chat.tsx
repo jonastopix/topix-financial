@@ -908,7 +908,7 @@ const Chat = () => {
   };
 
   return (
-    <AppLayout fullscreen={isFullscreen}>
+    <AppLayout fullscreen>
       {isAdvisor && !isFullscreen && !isMobile && (
         <div className="mb-2">
           <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
