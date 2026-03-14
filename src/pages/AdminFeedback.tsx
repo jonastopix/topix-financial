@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
@@ -170,6 +171,7 @@ const FeedbackTable = ({
 };
 
 const AdminFeedback = () => {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -178,6 +180,8 @@ const AdminFeedback = () => {
   const [adminNote, setAdminNote] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [resolvedExpanded, setResolvedExpanded] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
   const highlightId = searchParams.get("feedbackId");
 
   const { data: feedbackItems = [], isLoading } = useQuery({
@@ -283,6 +287,66 @@ const AdminFeedback = () => {
   const openDetail = (item: any) => {
     setDetailItem(item);
     setAdminNote(item.admin_note || "");
+    setReplyText("");
+  };
+
+  const handleSendReply = async () => {
+    if (!detailItem || !replyText.trim() || !user) return;
+    setReplySending(true);
+    try {
+      // Find the user's conversation
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("member_id", detailItem.user_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!conv) {
+        // Try via company_id
+        const { data: companyConv } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("company_id", detailItem.company_id)
+          .limit(1)
+          .maybeSingle();
+        if (!companyConv) {
+          toast({ title: "Ingen samtale fundet", description: "Brugeren har ikke en aktiv samtale.", variant: "destructive" });
+          setReplySending(false);
+          return;
+        }
+        var conversationId = companyConv.id;
+      } else {
+        var conversationId = conv.id;
+      }
+
+      const categoryLabel = categoryConfig[detailItem.category]?.label || "Feedback";
+      const contextMessage = `💬 **Svar på ${categoryLabel.toLowerCase()}: "${detailItem.title}"**\n\n${replyText.trim()}`;
+
+      const { error } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content: contextMessage,
+        message_type: "user",
+        context_type: "feedback",
+        context_id: detailItem.id,
+      });
+
+      if (error) throw error;
+
+      // Auto-acknowledge if still "new"
+      if (detailItem.status === "new") {
+        updateMutation.mutate({ id: detailItem.id, status: "acknowledged" });
+      }
+
+      toast({ title: "Svar sendt", description: "Beskeden er sendt i brugerens samtale." });
+      setReplyText("");
+    } catch (err) {
+      console.error("Reply error:", err);
+      toast({ title: "Fejl", description: "Kunne ikke sende svaret. Prøv igen.", variant: "destructive" });
+    } finally {
+      setReplySending(false);
+    }
   };
 
   const formatDate = (d: string) =>
@@ -401,6 +465,32 @@ const AdminFeedback = () => {
 
               {detailItem.screenshot_path && (
                 <ScreenshotImage path={detailItem.screenshot_path} />
+              )}
+
+              {/* Reply to user */}
+              {detailItem.company_id && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Send className="h-3.5 w-3.5" />
+                    Svar til bruger
+                  </label>
+                  <Textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Skriv et svar der sendes i brugerens samtale…"
+                    rows={2}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handleSendReply}
+                      disabled={!replyText.trim() || replySending}
+                    >
+                      {replySending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                      Send svar
+                    </Button>
+                  </div>
+                </div>
               )}
 
               <div className="space-y-2">
