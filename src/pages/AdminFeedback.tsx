@@ -129,6 +129,14 @@ const FeedbackTable = ({
                 <TableCell className="font-medium max-w-[250px]">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate">{item.title}</span>
+                    {repliedIds.has(item.id) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Reply className="h-3.5 w-3.5 text-primary shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>Besvaret via chat</TooltipContent>
+                      </Tooltip>
+                    )}
                     {item.screenshot_path && (
                       <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}
