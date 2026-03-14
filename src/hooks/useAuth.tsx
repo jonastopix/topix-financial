@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from "rea
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
+import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
 
 interface AuthContext {
