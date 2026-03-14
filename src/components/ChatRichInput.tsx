@@ -2,6 +2,7 @@ import React, { useCallback, useEffect } from "react";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import {
   Bold, Italic, List, ListOrdered, Link as LinkIcon,
 } from "lucide-react";
