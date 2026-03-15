@@ -15,7 +15,7 @@ import Budget from "./pages/Budget";
 import Handouts from "./pages/Handouts";
 
 import Settings from "./pages/Settings";
-import Chat from "./pages/Chat";
+import ChatShell from "./pages/ChatShell";
 import Members from "./pages/Members";
 import MemberDetail from "./pages/MemberDetail";
 import Auth from "./pages/Auth";
@@ -30,9 +30,6 @@ import Onboarding from "./pages/Onboarding";
 import GroupOnboarding from "./pages/GroupOnboarding";
 import GroupSetupComplete from "./pages/GroupSetupComplete";
 import GroupDashboard from "./pages/GroupDashboard";
-import GroupChat from "./pages/GroupChat";
-import GroupChatList from "./pages/GroupChatList";
-import GroupChatRoom from "./pages/GroupChatRoom";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -92,7 +89,7 @@ const App = () => (
               <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
               <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
               <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
-              <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+              <Route path="/chat" element={<ProtectedRoute><ChatShell /></ProtectedRoute>} />
               
               <Route path="/members" element={<AdvisorRoute><Members /></AdvisorRoute>} />
               <Route path="/members/:userId" element={<AdvisorRoute><MemberDetail /></AdvisorRoute>} />
@@ -106,9 +103,10 @@ const App = () => (
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
               <Route path="/group/onboarding" element={<ProtectedRoute><GroupOnboarding /></ProtectedRoute>} />
               <Route path="/group/setup-complete" element={<ProtectedRoute><GroupSetupComplete /></ProtectedRoute>} />
-              <Route path="/group/chat" element={<ProtectedRoute><GroupChat /></ProtectedRoute>} />
-              <Route path="/group-chats" element={<AdvisorRoute><GroupChatList /></AdvisorRoute>} />
-              <Route path="/group-chats/:groupId/chat" element={<AdvisorRoute><GroupChatRoom /></AdvisorRoute>} />
+              {/* Old group chat routes — redirect to unified /chat */}
+              <Route path="/group/chat" element={<Navigate to="/chat" replace />} />
+              <Route path="/group-chats" element={<Navigate to="/chat" replace />} />
+              <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </ViewModeProvider>

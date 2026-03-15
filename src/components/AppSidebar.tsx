@@ -258,7 +258,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
             ...(isGroupUser ? [{ icon: Layers, label: "Koncern", path: "/group" }] : []),
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
-            ...(effectiveAdvisor && hasGroupAccess ? [{ icon: MessageCircle, label: "Koncern-chat", path: "/group-chats" }] : []),
+            
             ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
           ].map((item) => {
             const isActive = location.pathname === item.path;
