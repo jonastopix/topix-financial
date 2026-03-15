@@ -1,4 +1,4 @@
-import { Navigate, useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useGroupChat } from "@/hooks/useGroupChat";
@@ -15,11 +15,6 @@ const GroupChatRoom = () => {
   const navigate = useNavigate();
   const { user, isAdvisor, loading: authLoading } = useAuth();
   const hasShownToast = useRef(false);
-
-  // Guard: advisor-only route
-  if (!authLoading && (!user || !isAdvisor)) {
-    return <Navigate to="/" replace />;
-  }
 
   const { messages, profiles, loading, accessDenied, sending, sendMessage } = useGroupChat({
     groupId: groupId || null,
@@ -49,8 +44,25 @@ const GroupChatRoom = () => {
     }
   }, [loading, accessDenied, navigate]);
 
+  // Guard: advisor-only route (after all hooks)
+  if (!authLoading && (!user || !isAdvisor)) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+          Ingen adgang.
+        </div>
+      </AppLayout>
+    );
+  }
+
   if (!groupId) {
-    return <Navigate to="/group-chats" replace />;
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+          Ingen koncern valgt.
+        </div>
+      </AppLayout>
+    );
   }
 
   return (

@@ -1,4 +1,4 @@
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -10,15 +10,9 @@ const GroupChatList = () => {
   const { user, isAdvisor, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Guard: advisor-only
-  if (!authLoading && (!user || !isAdvisor)) {
-    return <Navigate to="/" replace />;
-  }
-
   const { data: groups, isLoading } = useQuery({
     queryKey: ["advisor-group-chat-list"],
     queryFn: async () => {
-      // Fetch groups advisor has access to via group_advisor_access → groups
       const { data: accessRows, error: accessErr } = await supabase
         .from("group_advisor_access" as any)
         .select("group_id")
@@ -40,6 +34,17 @@ const GroupChatList = () => {
     enabled: !!user && isAdvisor,
     staleTime: 60_000,
   });
+
+  // Guard after all hooks
+  if (!authLoading && (!user || !isAdvisor)) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+          Ingen adgang.
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
