@@ -17,6 +17,7 @@ function formatDKK(value: number): string {
 const GroupDashboard = () => {
   const { isGroupUser, loading } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
+  const navigate = useNavigate();
 
   // Page-level guard: member-only, group-only
   if (!loading && !isGroupUser) {
