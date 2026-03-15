@@ -29,12 +29,23 @@ const GroupDashboard = () => {
       <div className="space-y-6">
         {/* Page header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {groupName ?? "Koncernoverblik"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Samlet overblik over alle virksomheder i koncernen
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
+                {groupName ?? "Koncernoverblik"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Samlet overblik over alle virksomheder i koncernen
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/group/chat")}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Chat
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
