@@ -29,6 +29,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
+import { Layers } from "lucide-react";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import topixIconWhite from "@/assets/topix-icon-white.png";
 
