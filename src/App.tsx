@@ -30,6 +30,9 @@ import Onboarding from "./pages/Onboarding";
 import GroupOnboarding from "./pages/GroupOnboarding";
 import GroupSetupComplete from "./pages/GroupSetupComplete";
 import GroupDashboard from "./pages/GroupDashboard";
+import GroupChat from "./pages/GroupChat";
+import GroupChatList from "./pages/GroupChatList";
+import GroupChatRoom from "./pages/GroupChatRoom";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
