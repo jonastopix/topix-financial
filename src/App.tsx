@@ -30,6 +30,9 @@ import Onboarding from "./pages/Onboarding";
 import GroupOnboarding from "./pages/GroupOnboarding";
 import GroupSetupComplete from "./pages/GroupSetupComplete";
 import GroupDashboard from "./pages/GroupDashboard";
+import GroupChat from "./pages/GroupChat";
+import GroupChatList from "./pages/GroupChatList";
+import GroupChatRoom from "./pages/GroupChatRoom";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -103,6 +106,9 @@ const App = () => (
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
               <Route path="/group/onboarding" element={<ProtectedRoute><GroupOnboarding /></ProtectedRoute>} />
               <Route path="/group/setup-complete" element={<ProtectedRoute><GroupSetupComplete /></ProtectedRoute>} />
+              <Route path="/group/chat" element={<ProtectedRoute><GroupChat /></ProtectedRoute>} />
+              <Route path="/group-chats" element={<AdvisorRoute><GroupChatList /></AdvisorRoute>} />
+              <Route path="/group-chats/:groupId/chat" element={<AdvisorRoute><GroupChatRoom /></AdvisorRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </ViewModeProvider>

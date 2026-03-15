@@ -69,6 +69,20 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
+
+  // Lightweight query: does advisor have any group access?
+  const { data: hasGroupAccess } = useQuery({
+    queryKey: ["advisor-has-group-access"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("group_advisor_access" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("advisor_user_id", user!.id);
+      return (count ?? 0) > 0;
+    },
+    enabled: !!user && isAdvisor,
+    staleTime: 5 * 60_000,
+  });
   const { data: newFeedbackCount = 0 } = useQuery({
     queryKey: ["feedback-count"],
     queryFn: async () => {
@@ -244,6 +258,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
             ...(isGroupUser ? [{ icon: Layers, label: "Koncern", path: "/group" }] : []),
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
+            ...(effectiveAdvisor && hasGroupAccess ? [{ icon: MessageCircle, label: "Koncern-chat", path: "/group-chats" }] : []),
             ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
           ].map((item) => {
             const isActive = location.pathname === item.path;

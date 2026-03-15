@@ -1,10 +1,10 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useGroupDashboard } from "@/hooks/useGroupDashboard";
 import GroupCompanyCard from "@/components/GroupCompanyCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
+import { Building2, TrendingUp, AlertTriangle, Loader2, MessageCircle } from "lucide-react";
 
 function formatDKK(value: number): string {
   return new Intl.NumberFormat("da-DK", {
@@ -17,6 +17,7 @@ function formatDKK(value: number): string {
 const GroupDashboard = () => {
   const { isGroupUser, loading } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
+  const navigate = useNavigate();
 
   // Page-level guard: member-only, group-only
   if (!loading && !isGroupUser) {
@@ -28,12 +29,23 @@ const GroupDashboard = () => {
       <div className="space-y-6">
         {/* Page header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {groupName ?? "Koncernoverblik"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Samlet overblik over alle virksomheder i koncernen
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
+                {groupName ?? "Koncernoverblik"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Samlet overblik over alle virksomheder i koncernen
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/group/chat")}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Chat
+            </button>
+          </div>
         </div>
 
         {isLoading ? (

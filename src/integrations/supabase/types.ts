@@ -832,6 +832,32 @@ export type Database = {
           },
         ]
       }
+      group_conversations: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_conversations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_feature_flags: {
         Row: {
           created_at: string
@@ -881,6 +907,41 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          message_type: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message_type?: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message_type?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "group_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -1535,6 +1596,10 @@ export type Database = {
         Returns: number
       }
       parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
+      user_can_access_group_conversation: {
+        Args: { _conv_id: string }
+        Returns: boolean
+      }
       user_company_id: { Args: { _user_id: string }; Returns: string }
       user_group_id: { Args: { _user_id: string }; Returns: string }
       user_has_group_feature: { Args: { _user_id: string }; Returns: boolean }
