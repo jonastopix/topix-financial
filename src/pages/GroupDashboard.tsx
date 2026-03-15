@@ -1,10 +1,10 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useGroupDashboard } from "@/hooks/useGroupDashboard";
 import GroupCompanyCard from "@/components/GroupCompanyCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
+import { Building2, TrendingUp, AlertTriangle, Loader2, MessageCircle } from "lucide-react";
 
 function formatDKK(value: number): string {
   return new Intl.NumberFormat("da-DK", {
