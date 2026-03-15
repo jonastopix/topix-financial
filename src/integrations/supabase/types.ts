@@ -1499,6 +1499,24 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_my_group_financial_summary: {
+        Args: never
+        Returns: {
+          cash: number
+          company_id: string
+          company_name: string
+          ebt: number
+          effective_period_key: string
+          effective_period_label: string
+          gross_profit: number
+          has_report: boolean
+          has_verified_metrics: boolean
+          latest_report_id: string
+          logo_url: string
+          missing_current_period: boolean
+          revenue: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1516,6 +1534,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: number
       }
+      parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
       user_company_id: { Args: { _user_id: string }; Returns: string }
       user_group_id: { Args: { _user_id: string }; Returns: string }
       user_has_group_feature: { Args: { _user_id: string }; Returns: boolean }
