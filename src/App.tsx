@@ -29,6 +29,7 @@ import AdminFeedback from "./pages/AdminFeedback";
 import Onboarding from "./pages/Onboarding";
 import GroupOnboarding from "./pages/GroupOnboarding";
 import GroupSetupComplete from "./pages/GroupSetupComplete";
+import GroupDashboard from "./pages/GroupDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/admin/review-queue" element={<AdminRoute><ReportReviewQueue /></AdminRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
+              <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
               <Route path="/group/onboarding" element={<ProtectedRoute><GroupOnboarding /></ProtectedRoute>} />
               <Route path="/group/setup-complete" element={<ProtectedRoute><GroupSetupComplete /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

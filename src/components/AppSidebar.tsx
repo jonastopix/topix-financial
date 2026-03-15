@@ -29,6 +29,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
+import { Layers } from "lucide-react";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import topixIconWhite from "@/assets/topix-icon-white.png";
 
@@ -64,7 +65,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user, profile, signOut, isAdvisor, isAdmin, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
+  const { user, profile, signOut, isAdvisor, isAdmin, isGroupUser, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
@@ -240,6 +241,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {[
             ...baseNavItems,
+            ...(isGroupUser && !effectiveAdvisor ? [{ icon: Layers, label: "Koncern", path: "/group" }] : []),
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
             ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
