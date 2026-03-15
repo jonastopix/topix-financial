@@ -29,6 +29,7 @@ import AdminFeedback from "./pages/AdminFeedback";
 import Onboarding from "./pages/Onboarding";
 import GroupOnboarding from "./pages/GroupOnboarding";
 import GroupSetupComplete from "./pages/GroupSetupComplete";
+import GroupDashboard from "./pages/GroupDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
