@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      _facts_backfill_log: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          detail: string | null
+          id: string
+          period_key: string | null
+          report_id: string
+          result: string
+          run_at: string
+          source_type: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          period_key?: string | null
+          report_id: string
+          result: string
+          run_at?: string
+          source_type?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          period_key?: string | null
+          report_id?: string
+          result?: string
+          run_at?: string
+          source_type?: string | null
+        }
+        Relationships: []
+      }
       advisor_invitations: {
         Row: {
           accepted_at: string | null
@@ -671,6 +707,60 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_report_facts: {
+        Row: {
+          committed_at: string
+          committed_by: string | null
+          company_id: string
+          created_at: string
+          id: string
+          metrics: Json
+          period_key: string
+          period_label: string
+          source_report_id: string
+          source_type: string
+        }
+        Insert: {
+          committed_at?: string
+          committed_by?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          metrics: Json
+          period_key: string
+          period_label: string
+          source_report_id: string
+          source_type: string
+        }
+        Update: {
+          committed_at?: string
+          committed_by?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          metrics?: Json
+          period_key?: string
+          period_label?: string
+          source_report_id?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_report_facts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_report_facts_source_report_id_fkey"
+            columns: ["source_report_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reports"
             referencedColumns: ["id"]
           },
         ]
@@ -1590,6 +1680,27 @@ export type Database = {
         Returns: boolean
       }
       cleanup_stale_processing_reports: { Args: never; Returns: number }
+      commit_report_facts: {
+        Args: { p_report_id: string }
+        Returns: {
+          committed_at: string
+          committed_by: string | null
+          company_id: string
+          created_at: string
+          id: string
+          metrics: Json
+          period_key: string
+          period_label: string
+          source_report_id: string
+          source_type: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_report_facts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_group: {
         Args: { _caller_id: string; _companies: Json; _group_name: string }
         Returns: Json
