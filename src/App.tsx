@@ -102,6 +102,7 @@ const App = () => (
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
+              <Route path="/group/budget" element={<ProtectedRoute><GroupBudget /></ProtectedRoute>} />
               <Route path="/group/onboarding" element={<ProtectedRoute><GroupOnboarding /></ProtectedRoute>} />
               <Route path="/group/setup-complete" element={<ProtectedRoute><GroupSetupComplete /></ProtectedRoute>} />
               {/* Old group chat routes — redirect to unified /chat */}

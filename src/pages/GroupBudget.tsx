@@ -121,7 +121,7 @@ const GroupBudget = () => {
                         const ReasonIcon = REASON_ICONS[c.reason ?? ""] ?? XCircle;
                         return (
                           <div key={c.company_id} className="flex items-start gap-2 text-sm">
-                            <ReasonIcon className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                            <ReasonIcon className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                             <div>
                               <span className="font-medium text-foreground">{c.name}</span>
                               <span className="text-muted-foreground"> — {REASON_LABELS[c.reason ?? ""] ?? c.reason}</span>
