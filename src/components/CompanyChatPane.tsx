@@ -411,10 +411,96 @@ const CompanyChatPane = () => {
           if (seenCompanies.has(conv.company_id)) continue;
           seenCompanies.add(conv.company_id);
         }
-        deduped.push(conv);
+        deduped.push({ ...conv, threadType: "company" });
       }
 
-      setConversations(deduped);
+      // For advisors: fetch group threads and merge into flat inbox
+      let merged = deduped;
+      if (isAdvisor) {
+        try {
+          const { data: accessRows } = await supabase
+            .from("group_advisor_access")
+            .select("group_id")
+            .eq("advisor_user_id", user.id);
+
+          if (accessRows && accessRows.length > 0) {
+            const groupIds = accessRows.map(r => r.group_id);
+            const [groupConvsRes, groupsRes] = await Promise.all([
+              supabase
+                .from("group_conversations" as any)
+                .select("*")
+                .in("group_id", groupIds)
+                .order("last_message_at", { ascending: false }),
+              supabase
+                .from("groups" as any)
+                .select("id, name")
+                .in("id", groupIds),
+            ]);
+
+            const groupConvs = (groupConvsRes.data as any[]) || [];
+            const groupsData = (groupsRes.data as any[]) || [];
+            const groupNameMap = new Map(groupsData.map((g: any) => [g.id, g.name]));
+
+            // Fetch latest message per group conversation for preview
+            const gcIds = groupConvs.map((gc: any) => gc.id);
+            let latestGroupMsgs: any[] = [];
+            if (gcIds.length > 0) {
+              const { data: gMsgs } = await supabase
+                .from("group_messages" as any)
+                .select("conversation_id, sender_id, content, created_at")
+                .in("conversation_id", gcIds)
+                .order("created_at", { ascending: false })
+                .limit(gcIds.length * 2);
+              latestGroupMsgs = (gMsgs as any[]) || [];
+            }
+
+            const latestMsgByConv = new Map<string, any>();
+            for (const m of latestGroupMsgs) {
+              if (!latestMsgByConv.has(m.conversation_id)) {
+                latestMsgByConv.set(m.conversation_id, m);
+              }
+            }
+
+            const groupThreads: ConversationWithProfile[] = groupConvs.map((gc: any) => {
+              const gName = groupNameMap.get(gc.group_id) || "Koncern";
+              const lastMsg = latestMsgByConv.get(gc.id);
+              return {
+                id: `group_${gc.id}`,
+                member_id: "",
+                last_message_at: gc.last_message_at || gc.created_at,
+                companyName: gName,
+                profile: null,
+                unreadCount: 0,
+                lastMessage: lastMsg?.content,
+                lastMessageSenderId: lastMsg?.sender_id,
+                hasRecentReport: false,
+                awaiting_reply_from: gc.awaiting_reply_from || null,
+                assigned_advisor_id: gc.assigned_advisor_id || null,
+                last_member_message_at: gc.last_member_message_at || null,
+                last_advisor_reply_at: gc.last_advisor_reply_at || null,
+                acknowledged_at: gc.acknowledged_at || null,
+                acknowledged_by_advisor_id: gc.acknowledged_by_advisor_id || null,
+                conversation_status: gc.conversation_status || 'open',
+                resolved_at: gc.resolved_at || null,
+                resolved_by_advisor_id: gc.resolved_by_advisor_id || null,
+                follow_up_at: gc.follow_up_at || null,
+                threadType: "group",
+                groupConversationId: gc.id,
+                groupId: gc.group_id,
+                groupName: gName,
+              };
+            });
+
+            merged = [...deduped, ...groupThreads].sort((a, b) =>
+              new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+            );
+          }
+        } catch (err) {
+          console.error("Failed to fetch group threads:", err);
+        }
+      }
+
+      setConversations(merged);
 
       // Auto-select for members
       if (!isAdvisor && enriched.length > 0 && !activeConvId) {
