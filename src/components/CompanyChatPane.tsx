@@ -993,13 +993,22 @@ const CompanyChatPane = () => {
     setConversations(prev => prev.map(c => ({ ...c, hasRecentReport: false, recentReportName: undefined })));
   };
 
+  // Helper: target the correct table for ops updates
+  const getOpsTarget = useCallback((): { table: string; id: string } => {
+    if (activeConvId?.startsWith("group_")) {
+      return { table: "group_conversations", id: activeConvId.replace("group_", "") };
+    }
+    return { table: "conversations", id: activeConvId! };
+  }, [activeConvId]);
+
   // Advisor actions
   const handleAssignAdvisor = async (advisorId: string | null) => {
     if (!activeConvId) return;
+    const { table, id } = getOpsTarget();
     await supabase
-      .from("conversations")
+      .from(table as any)
       .update({ assigned_advisor_id: advisorId } as any)
-      .eq("id", activeConvId);
+      .eq("id", id);
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, assigned_advisor_id: advisorId } : c
     ));
@@ -1007,6 +1016,7 @@ const CompanyChatPane = () => {
 
   const handleAcknowledge = async () => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const now = new Date().toISOString();
     const conv = conversations.find(c => c.id === activeConvId);
     const updateData: any = {
@@ -1019,9 +1029,9 @@ const CompanyChatPane = () => {
       updateData.assigned_advisor_id = user.id;
     }
     await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, ...updateData } : c
     ));
@@ -1029,6 +1039,7 @@ const CompanyChatPane = () => {
 
   const handleResolve = async () => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const now = new Date().toISOString();
     const updateData: any = {
       conversation_status: 'resolved',
@@ -1040,9 +1051,9 @@ const CompanyChatPane = () => {
       follow_up_at: null,
     };
     const { error } = await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     if (error) {
       toast.error("Kunne ikke afslutte samtalen");
       return;
@@ -1072,6 +1083,7 @@ const CompanyChatPane = () => {
 
   const handleSnooze = async (followUpAt: Date) => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const now = new Date().toISOString();
     const conv = conversations.find(c => c.id === activeConvId);
     const updateData: any = {
@@ -1083,9 +1095,9 @@ const CompanyChatPane = () => {
       updateData.assigned_advisor_id = user.id;
     }
     const { error } = await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     if (error) {
       toast.error("Kunne ikke sætte opfølgning");
       return;
@@ -1100,15 +1112,16 @@ const CompanyChatPane = () => {
 
   const handleCancelSnooze = async () => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const updateData: any = {
       follow_up_at: null,
       acknowledged_at: null,
       acknowledged_by_advisor_id: null,
     };
     const { error } = await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     if (error) {
       toast.error("Kunne ikke fjerne opfølgning");
       return;
