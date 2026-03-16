@@ -5,11 +5,12 @@ import FeedbackDialog from "./FeedbackDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const FeedbackButton = () => {
-  const location = useLocation();
-  const isChatRoute = location.pathname.startsWith("/chat") || location.pathname.startsWith("/group-chat");
-  if (isChatRoute) return null;
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
+  const location = useLocation();
+
+  const isChatRoute = location.pathname.startsWith("/chat") || location.pathname.startsWith("/group-chat");
+  if (isChatRoute) return null;
 
   return (
     <>
