@@ -1437,7 +1437,7 @@ const CompanyChatPane = () => {
                             {!isResolved && !isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                                 <ArrowRightLeft className="h-2.5 w-2.5" />
-                                Afventer virksomhed
+                                {conv.threadType === "group" ? "Afventer koncern" : "Afventer virksomhed"}
                               </span>
                             )}
                             {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && !hasFutureSnooze && (
