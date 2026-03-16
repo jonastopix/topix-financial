@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGroupDashboard } from "@/hooks/useGroupDashboard";
 import GroupCompanyCard from "@/components/GroupCompanyCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, TrendingUp, AlertTriangle, Loader2, MessageCircle } from "lucide-react";
+import { Building2, TrendingUp, AlertTriangle, Loader2, MessageCircle, Calculator } from "lucide-react";
 
 function formatDKK(value: number): string {
   return new Intl.NumberFormat("da-DK", {
@@ -15,7 +15,7 @@ function formatDKK(value: number): string {
 }
 
 const GroupDashboard = () => {
-  const { isGroupUser, loading } = useAuth();
+  const { isGroupUser, isAdvisor, loading } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
   const navigate = useNavigate();
 
@@ -38,13 +38,24 @@ const GroupDashboard = () => {
                 Samlet overblik over alle virksomheder i koncernen
               </p>
             </div>
-            <button
-              onClick={() => navigate("/group/chat")}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Chat
-            </button>
+            <div className="flex items-center gap-2">
+              {!isAdvisor && (
+                <button
+                  onClick={() => navigate("/group/budget")}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                >
+                  <Calculator className="h-4 w-4" />
+                  Budget
+                </button>
+              )}
+              <button
+                onClick={() => navigate("/group/chat")}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Chat
+              </button>
+            </div>
           </div>
         </div>
 
