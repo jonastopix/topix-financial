@@ -38,13 +38,24 @@ const GroupDashboard = () => {
                 Samlet overblik over alle virksomheder i koncernen
               </p>
             </div>
-            <button
-              onClick={() => navigate("/group/chat")}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Chat
-            </button>
+            <div className="flex items-center gap-2">
+              {!isAdvisor && (
+                <button
+                  onClick={() => navigate("/group/budget")}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                >
+                  <Calculator className="h-4 w-4" />
+                  Budget
+                </button>
+              )}
+              <button
+                onClick={() => navigate("/group/chat")}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Chat
+              </button>
+            </div>
           </div>
         </div>
 
