@@ -43,7 +43,7 @@ const Dashboard = () => {
   const [showTour, setShowTour] = useState(false);
 
   // Show tour for non-advisor users who haven't completed it
-  const shouldShowTour = !isAdvisor && profile && !profile.tour_completed_at;
+  const shouldShowTour = !rawAdvisor && profile && !profile.tour_completed_at;
 
   // Trigger tour after dashboard data loads
   const [tourTriggered, setTourTriggered] = useState(false);
