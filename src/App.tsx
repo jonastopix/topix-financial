@@ -103,6 +103,8 @@ const App = () => (
               <Route path="/admin/review-queue" element={<AdminRoute><ReportReviewQueue /></AdminRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
+              <Route path="/groups" element={<AdvisorRoute><AdvisorGroupList /></AdvisorRoute>} />
+              <Route path="/groups/:groupId" element={<AdvisorRoute><AdvisorGroupDashboard /></AdvisorRoute>} />
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
               <Route path="/group/budget" element={<ProtectedRoute><GroupBudget /></ProtectedRoute>} />
               <Route path="/group/onboarding" element={<ProtectedRoute><GroupOnboarding /></ProtectedRoute>} />
