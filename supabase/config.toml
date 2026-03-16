@@ -39,3 +39,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.create-group]
     verify_jwt = false
+  [functions.qa-temp-session]
+    verify_jwt = false
