@@ -265,7 +265,7 @@ const Dashboard = () => {
   return (
     <AppLayout>
       {showTour && (
-        <GuidedTour onComplete={() => setShowTour(false)} />
+        <GuidedTour onComplete={() => { setShowTour(false); refreshProfile(); }} />
       )}
       {/* Greeting */}
       <div className="mb-6 md:mb-8">
