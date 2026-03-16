@@ -263,7 +263,33 @@ const CompanyChatPane = () => {
 
   useEffect(() => {
     if (!activeConvId) { setParticipants([]); return; }
-    fetchParticipants(activeConvId);
+    if (activeConvId.startsWith("group_")) {
+      const gcId = activeConvId.replace("group_", "");
+      const fetchGroupParticipants = async () => {
+        const { data: msgs } = await supabase
+          .from("group_messages" as any)
+          .select("sender_id")
+          .eq("conversation_id", gcId)
+          .limit(200);
+        if (!msgs) { setParticipants([]); return; }
+        const senderIds = [...new Set((msgs as any[]).map((m: any) => m.sender_id))];
+        if (senderIds.length === 0) { setParticipants([]); return; }
+        const [profilesRes, rolesRes] = await Promise.all([
+          supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", senderIds),
+          supabase.from("user_roles").select("user_id, role").in("user_id", senderIds),
+        ]);
+        const roleSet = new Set((rolesRes.data || []).filter(r => ['advisor','admin'].includes(r.role)).map(r => r.user_id));
+        setParticipants((profilesRes.data || []).map(p => ({
+          user_id: p.user_id,
+          full_name: p.full_name || "Ukendt",
+          avatar_url: p.avatar_url,
+          isAdvisor: roleSet.has(p.user_id),
+        })));
+      };
+      fetchGroupParticipants();
+    } else {
+      fetchParticipants(activeConvId);
+    }
   }, [activeConvId]);
 
   // Load conversations — batch fetch, no N+1
