@@ -1,0 +1,1 @@
+DELETE FROM group_advisor_access WHERE id = '6593e14d-3225-4341-92c5-6c3790bc1281';
