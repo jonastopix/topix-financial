@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGroupDashboard } from "@/hooks/useGroupDashboard";
 import GroupCompanyCard from "@/components/GroupCompanyCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, TrendingUp, AlertTriangle, Loader2, MessageCircle } from "lucide-react";
+import { Building2, TrendingUp, AlertTriangle, Loader2, MessageCircle, Calculator } from "lucide-react";
 
 function formatDKK(value: number): string {
   return new Intl.NumberFormat("da-DK", {
