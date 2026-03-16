@@ -115,6 +115,24 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_category_group_map: {
+        Row: {
+          category_key: string
+          group_key: string
+          template_key: string
+        }
+        Insert: {
+          category_key: string
+          group_key: string
+          template_key: string
+        }
+        Update: {
+          category_key?: string
+          group_key?: string
+          template_key?: string
+        }
+        Relationships: []
+      }
       budget_targets: {
         Row: {
           budget_amount: number
@@ -1593,6 +1611,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_my_group_budget_summary: { Args: { p_year: string }; Returns: Json }
       get_my_group_financial_summary: {
         Args: never
         Returns: {
