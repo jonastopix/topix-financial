@@ -1924,7 +1924,7 @@ const CompanyChatPane = () => {
                 )}
 
                 {/* Pinned messages section */}
-                {pinnedMessages.length > 0 && (
+                {pinnedMessages.length > 0 && !isGroupThread && (
                   <Collapsible>
                     <div className="border-b border-border bg-primary/[0.02]">
                       <CollapsibleTrigger asChild>
