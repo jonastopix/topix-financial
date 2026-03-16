@@ -2,50 +2,26 @@ import { useMemo, useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { getEffectiveReportPeriodKey, getEffectiveKeyFigures, calcTotalExpenses, SHORT_MONTHS, type ReportData } from "@/lib/financialUtils";
-import { type PeriodMode } from "@/components/PeriodSelector";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { calcTotalExpenses, SHORT_MONTHS } from "@/lib/financialUtils";
 
 const RevenueChart = () => {
-  const { user, companyId } = useAuth();
   const [mode, setMode] = useState<"last12" | "ytd">("last12");
-
-  const { data: reports = [] } = useQuery({
-    queryKey: ["financial-reports-chart", companyId],
-    queryFn: async () => {
-      const { data, error } = await (supabase
-        .from("financial_reports")
-        .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .eq("status", "processed")
-      .order("uploaded_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as ReportData[];
-    },
-    enabled: !!user && !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: facts = [] } = useCompanyFacts();
 
   const chartData = useMemo(() => {
-    const byKey = new Map<string, { key: string; revenue: number; expenses: number }>();
-
-    for (const r of reports) {
-      const key = getEffectiveReportPeriodKey(r);
-      const kf = getEffectiveKeyFigures(r);
-      if (!key || !kf) continue;
-      if (byKey.has(key)) continue;
-
-      byKey.set(key, {
-        key,
+    let sorted = facts.map((f) => {
+      const kf = factsToDanishMetrics(f.metrics);
+      const [year, monthStr] = f.period_key.split("-");
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      return {
+        key: f.period_key,
         revenue: kf.omsaetning || 0,
         expenses: calcTotalExpenses(kf),
-      });
-    }
-
-    let sorted = Array.from(byKey.values()).sort((a, b) => a.key.localeCompare(b.key));
+        month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}`,
+      };
+    });
 
     if (mode === "ytd") {
       const yearPrefix = `${new Date().getFullYear()}-`;
@@ -54,12 +30,8 @@ const RevenueChart = () => {
       sorted = sorted.slice(-12);
     }
 
-    return sorted.map(d => {
-      const [year, monthStr] = d.key.split("-");
-      const monthIdx = parseInt(monthStr, 10) - 1;
-      return { ...d, month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}` };
-    });
-  }, [reports, mode]);
+    return sorted;
+  }, [facts, mode]);
 
   const hasData = chartData.length > 0;
 

@@ -30,8 +30,9 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
-import type { ReportData } from "@/lib/financialUtils";
+import { formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
 import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
 import type { BenchmarkTemplate } from "@/lib/appConfig";
@@ -102,7 +103,7 @@ const KPIs = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
-  const [reports, setReports] = useState<ReportData[]>([]);
+  const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
   const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
   const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});
   const [loading, setLoading] = useState(true);
@@ -116,14 +117,7 @@ const KPIs = () => {
   useEffect(() => {
     if (!user || !companyId) return;
     const load = async () => {
-      const [reportsRes, targetsRes, benchmarksRes] = await Promise.all([
-        supabase
-          .from("financial_reports")
-          .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status")
-          .eq("company_id", companyId)
-          .is("deleted_at", null)
-          .eq("status", "processed")
-          .order("uploaded_at", { ascending: true }),
+      const [targetsRes, benchmarksRes] = await Promise.all([
         supabase
           .from("kpi_targets")
           .select("kpi_key, target_value, target_label, lower_is_better")
@@ -133,8 +127,6 @@ const KPIs = () => {
           .select("kpi_key, benchmark_value, benchmark_label, source_label")
           .eq("company_id", companyId),
       ]);
-
-      setReports(reportsRes.data || []);
 
       const tMap: Record<string, KPITargetRow> = {};
       (targetsRes.data || []).forEach((t: any) => {
@@ -159,21 +151,17 @@ const KPIs = () => {
     return FALLBACK_TARGETS[key] || { value: 0, label: "—" };
   };
 
-  // Build sorted monthly data points
+  // Build sorted monthly data points from facts
   const monthlyData = useMemo(() => {
-    const byKey = new Map<string, { sortKey: string; month: string; kf: Record<string, number> }>();
-    reports.forEach((r) => {
-      const kf = getEffectiveKeyFigures(r);
-      if (!kf) return;
-      const key = getEffectiveReportPeriodKey(r);
-      if (!key) return;
-      const [, monthStr] = key.split("-");
+    return facts.map((f) => {
+      const kf = factsToDanishMetrics(f.metrics);
+      const [, monthStr] = f.period_key.split("-");
       const monthIdx = parseInt(monthStr, 10) - 1;
       const monthLabel = SHORT_MONTHS[monthIdx] || monthStr;
-      byKey.set(key, { sortKey: key, month: monthLabel, kf });
+      return { sortKey: f.period_key, month: monthLabel, kf };
     });
-    return Array.from(byKey.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [reports]);
+    // Already sorted by period_key from useCompanyFacts
+  }, [facts]);
 
   // Derive KPI metrics
   const kpiMetrics: KPIMetric[] = useMemo(() => {
@@ -345,7 +333,7 @@ const KPIs = () => {
     );
   }
 
-  if (loading) {
+  if (loading || factsLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">

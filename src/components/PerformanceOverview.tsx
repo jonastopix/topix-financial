@@ -1,28 +1,19 @@
 import { useMemo } from "react";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
-import {
-  getEffectiveReportPeriodKey, getEffectiveMetrics, getEffectiveReportPeriod,
-  formatDKK, pctChange, calcTotalExpenses, type ReportData,
-} from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetricsNullable } from "@/lib/factsAdapter";
+import { formatDKK, pctChange } from "@/lib/financialUtils";
 
-interface PerformanceOverviewProps {
-  reports: ReportData[];
-}
+const PerformanceOverview = () => {
+  const { data: facts = [] } = useCompanyFacts();
 
-const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const data = useMemo(() => {
-    return reports
-      .filter(r => r.status === "processed")
-      .map(r => {
-        const result = getEffectiveMetrics(r);
-        if (!result) return null;
-        const key = getEffectiveReportPeriodKey(r);
-        if (!key) return null;
-        return { key, kf: result.metrics, period: getEffectiveReportPeriod(r)! };
-      })
-      .filter(Boolean as any as (v: any) => v is { key: string; kf: Record<string, number | null>; period: string })
-      .sort((a, b) => a.key.localeCompare(b.key));
-  }, [reports]);
+    return facts.map((f) => ({
+      key: f.period_key,
+      kf: factsToDanishMetricsNullable(f.metrics),
+      period: f.period_label,
+    }));
+  }, [facts]);
 
   if (data.length < 1) return null;
 
@@ -30,7 +21,6 @@ const PerformanceOverview = ({ reports }: PerformanceOverviewProps) => {
   const prev = data.length >= 2 ? data[data.length - 2] : null;
   const kf = latest.kf;
 
-  // YTD: Sum individual months for the current year (missing addend = 0)
   const [latestYear] = latest.key.split("-");
   const currentYearReports = data.filter(r => r.key.startsWith(latestYear));
   const ytdRevenue = currentYearReports.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
