@@ -15,7 +15,7 @@ function formatDKK(value: number): string {
 }
 
 const GroupDashboard = () => {
-  const { isGroupUser, loading } = useAuth();
+  const { isGroupUser, isAdvisor, loading } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
   const navigate = useNavigate();
 
