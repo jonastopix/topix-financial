@@ -333,7 +333,7 @@ const KPIs = () => {
     );
   }
 
-  if (loading) {
+  if (loading || factsLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
