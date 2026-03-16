@@ -1,0 +1,2 @@
+INSERT INTO group_advisor_access (id, group_id, advisor_user_id, created_at)
+VALUES ('6593e14d-3225-4341-92c5-6c3790bc1281', 'eeeee001-0000-0000-0000-000000000001', '23e81de4-db14-40b6-92ed-0d84ed3c71f1', '2026-03-16 11:55:35.455046+00');
