@@ -23,6 +23,7 @@ import {
   Check,
   Upload,
 } from "lucide-react";
+import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
