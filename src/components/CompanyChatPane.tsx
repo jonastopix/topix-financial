@@ -513,7 +513,7 @@ const CompanyChatPane = () => {
     loadConversations();
   }, [user, isAdvisor, activeConvId, companyId, isCompanyOverride]);
 
-  // Realtime subscription on conversations for live ops state updates
+  // Realtime subscription on conversations + group_conversations for live ops state updates
   useEffect(() => {
     if (!user || !isAdvisor) return;
 
@@ -526,6 +526,32 @@ const CompanyChatPane = () => {
           const updated = payload.new as any;
           setConversations(prev => prev.map(c =>
             c.id === updated.id
+              ? {
+                  ...c,
+                  awaiting_reply_from: updated.awaiting_reply_from || null,
+                  assigned_advisor_id: updated.assigned_advisor_id || null,
+                  last_member_message_at: updated.last_member_message_at || null,
+                  last_advisor_reply_at: updated.last_advisor_reply_at || null,
+                  acknowledged_at: updated.acknowledged_at || null,
+                  acknowledged_by_advisor_id: updated.acknowledged_by_advisor_id || null,
+                  conversation_status: updated.conversation_status || 'open',
+                  resolved_at: updated.resolved_at || null,
+                  resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
+                  follow_up_at: updated.follow_up_at || null,
+                  last_message_at: updated.last_message_at || c.last_message_at,
+                }
+              : c
+          ));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "group_conversations" },
+        (payload) => {
+          const updated = payload.new as any;
+          const virtualId = `group_${updated.id}`;
+          setConversations(prev => prev.map(c =>
+            c.id === virtualId
               ? {
                   ...c,
                   awaiting_reply_from: updated.awaiting_reply_from || null,
