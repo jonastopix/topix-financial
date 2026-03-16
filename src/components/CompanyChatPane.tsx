@@ -15,7 +15,7 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote, MoreHorizontal,
+  CalendarIcon, StickyNote, MoreHorizontal, Layers,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,6 +79,11 @@ interface ConversationWithProfile {
   resolved_at?: string | null;
   resolved_by_advisor_id?: string | null;
   follow_up_at?: string | null;
+  // Group thread discriminator
+  threadType?: "company" | "group";
+  groupConversationId?: string;
+  groupId?: string;
+  groupName?: string;
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
@@ -258,7 +263,33 @@ const CompanyChatPane = () => {
 
   useEffect(() => {
     if (!activeConvId) { setParticipants([]); return; }
-    fetchParticipants(activeConvId);
+    if (activeConvId.startsWith("group_")) {
+      const gcId = activeConvId.replace("group_", "");
+      const fetchGroupParticipants = async () => {
+        const { data: msgs } = await supabase
+          .from("group_messages" as any)
+          .select("sender_id")
+          .eq("conversation_id", gcId)
+          .limit(200);
+        if (!msgs) { setParticipants([]); return; }
+        const senderIds = [...new Set((msgs as any[]).map((m: any) => m.sender_id))];
+        if (senderIds.length === 0) { setParticipants([]); return; }
+        const [profilesRes, rolesRes] = await Promise.all([
+          supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", senderIds),
+          supabase.from("user_roles").select("user_id, role").in("user_id", senderIds),
+        ]);
+        const roleSet = new Set((rolesRes.data || []).filter(r => ['advisor','admin'].includes(r.role)).map(r => r.user_id));
+        setParticipants((profilesRes.data || []).map(p => ({
+          user_id: p.user_id,
+          full_name: p.full_name || "Ukendt",
+          avatar_url: p.avatar_url,
+          isAdvisor: roleSet.has(p.user_id),
+        })));
+      };
+      fetchGroupParticipants();
+    } else {
+      fetchParticipants(activeConvId);
+    }
   }, [activeConvId]);
 
   // Load conversations — batch fetch, no N+1
@@ -380,10 +411,96 @@ const CompanyChatPane = () => {
           if (seenCompanies.has(conv.company_id)) continue;
           seenCompanies.add(conv.company_id);
         }
-        deduped.push(conv);
+        deduped.push({ ...conv, threadType: "company" });
       }
 
-      setConversations(deduped);
+      // For advisors: fetch group threads and merge into flat inbox
+      let merged = deduped;
+      if (isAdvisor) {
+        try {
+          const { data: accessRows } = await supabase
+            .from("group_advisor_access")
+            .select("group_id")
+            .eq("advisor_user_id", user.id);
+
+          if (accessRows && accessRows.length > 0) {
+            const groupIds = accessRows.map(r => r.group_id);
+            const [groupConvsRes, groupsRes] = await Promise.all([
+              supabase
+                .from("group_conversations" as any)
+                .select("*")
+                .in("group_id", groupIds)
+                .order("last_message_at", { ascending: false }),
+              supabase
+                .from("groups" as any)
+                .select("id, name")
+                .in("id", groupIds),
+            ]);
+
+            const groupConvs = (groupConvsRes.data as any[]) || [];
+            const groupsData = (groupsRes.data as any[]) || [];
+            const groupNameMap = new Map(groupsData.map((g: any) => [g.id, g.name]));
+
+            // Fetch latest message per group conversation for preview
+            const gcIds = groupConvs.map((gc: any) => gc.id);
+            let latestGroupMsgs: any[] = [];
+            if (gcIds.length > 0) {
+              const { data: gMsgs } = await supabase
+                .from("group_messages" as any)
+                .select("conversation_id, sender_id, content, created_at")
+                .in("conversation_id", gcIds)
+                .order("created_at", { ascending: false })
+                .limit(gcIds.length * 2);
+              latestGroupMsgs = (gMsgs as any[]) || [];
+            }
+
+            const latestMsgByConv = new Map<string, any>();
+            for (const m of latestGroupMsgs) {
+              if (!latestMsgByConv.has(m.conversation_id)) {
+                latestMsgByConv.set(m.conversation_id, m);
+              }
+            }
+
+            const groupThreads: ConversationWithProfile[] = groupConvs.map((gc: any) => {
+              const gName = groupNameMap.get(gc.group_id) || "Koncern";
+              const lastMsg = latestMsgByConv.get(gc.id);
+              return {
+                id: `group_${gc.id}`,
+                member_id: "",
+                last_message_at: gc.last_message_at || gc.created_at,
+                companyName: gName,
+                profile: null,
+                unreadCount: 0,
+                lastMessage: lastMsg?.content,
+                lastMessageSenderId: lastMsg?.sender_id,
+                hasRecentReport: false,
+                awaiting_reply_from: gc.awaiting_reply_from || null,
+                assigned_advisor_id: gc.assigned_advisor_id || null,
+                last_member_message_at: gc.last_member_message_at || null,
+                last_advisor_reply_at: gc.last_advisor_reply_at || null,
+                acknowledged_at: gc.acknowledged_at || null,
+                acknowledged_by_advisor_id: gc.acknowledged_by_advisor_id || null,
+                conversation_status: gc.conversation_status || 'open',
+                resolved_at: gc.resolved_at || null,
+                resolved_by_advisor_id: gc.resolved_by_advisor_id || null,
+                follow_up_at: gc.follow_up_at || null,
+                threadType: "group",
+                groupConversationId: gc.id,
+                groupId: gc.group_id,
+                groupName: gName,
+              };
+            });
+
+            merged = [...deduped, ...groupThreads].sort((a, b) =>
+              new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+            );
+          }
+        } catch (err) {
+          console.error("Failed to fetch group threads:", err);
+        }
+      }
+
+      setConversations(merged);
 
       // Auto-select for members
       if (!isAdvisor && enriched.length > 0 && !activeConvId) {
@@ -396,7 +513,7 @@ const CompanyChatPane = () => {
     loadConversations();
   }, [user, isAdvisor, activeConvId, companyId, isCompanyOverride]);
 
-  // Realtime subscription on conversations for live ops state updates
+  // Realtime subscription on conversations + group_conversations for live ops state updates
   useEffect(() => {
     if (!user || !isAdvisor) return;
 
@@ -427,19 +544,46 @@ const CompanyChatPane = () => {
           ));
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "group_conversations" },
+        (payload) => {
+          const updated = payload.new as any;
+          const virtualId = `group_${updated.id}`;
+          setConversations(prev => prev.map(c =>
+            c.id === virtualId
+              ? {
+                  ...c,
+                  awaiting_reply_from: updated.awaiting_reply_from || null,
+                  assigned_advisor_id: updated.assigned_advisor_id || null,
+                  last_member_message_at: updated.last_member_message_at || null,
+                  last_advisor_reply_at: updated.last_advisor_reply_at || null,
+                  acknowledged_at: updated.acknowledged_at || null,
+                  acknowledged_by_advisor_id: updated.acknowledged_by_advisor_id || null,
+                  conversation_status: updated.conversation_status || 'open',
+                  resolved_at: updated.resolved_at || null,
+                  resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
+                  follow_up_at: updated.follow_up_at || null,
+                  last_message_at: updated.last_message_at || c.last_message_at,
+                }
+              : c
+          ));
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [user, isAdvisor]);
 
-  // Fetch note existence for loaded conversations (advisor only)
+  // Fetch note existence for loaded conversations (advisor only, company threads only)
   useEffect(() => {
     if (!isAdvisor || conversations.length === 0) return;
-    const convIds = conversations.map(c => c.id);
+    const companyConvIds = conversations.filter(c => c.threadType !== "group").map(c => c.id);
+    if (companyConvIds.length === 0) { setConversationNoteIds(new Set()); return; }
     supabase
       .from("conversation_notes" as any)
       .select("conversation_id")
-      .in("conversation_id", convIds)
+      .in("conversation_id", companyConvIds)
       .then(({ data }) => {
         if (data) {
           setConversationNoteIds(new Set((data as any[]).map(d => d.conversation_id)));
@@ -447,9 +591,10 @@ const CompanyChatPane = () => {
       });
   }, [isAdvisor, conversations]);
 
-  // Fetch note for active conversation (advisor only)
+  // Fetch note for active conversation (advisor only, company threads only)
   useEffect(() => {
-    if (!isAdvisor || !activeConvId) {
+    const isGroup = activeConvId?.startsWith("group_");
+    if (!isAdvisor || !activeConvId || isGroup) {
       setNoteContent("");
       setNoteDbContent("");
       setNoteMeta(null);
@@ -601,6 +746,70 @@ const CompanyChatPane = () => {
   useEffect(() => {
     if (!activeConvId) return;
 
+    // Group thread: load from group_messages
+    if (activeConvId.startsWith("group_")) {
+      const gcId = activeConvId.replace("group_", "");
+      const loadGroupMessages = async () => {
+        const { data } = await supabase
+          .from("group_messages" as any)
+          .select("*")
+          .eq("conversation_id", gcId)
+          .order("created_at", { ascending: true })
+          .limit(500);
+        const msgs: Message[] = ((data as any[]) || []).map((m: any) => ({
+          id: m.id,
+          conversation_id: m.conversation_id,
+          sender_id: m.sender_id,
+          content: m.content,
+          read_at: null,
+          created_at: m.created_at,
+          message_type: m.message_type || 'user',
+          context_type: null,
+          context_id: null,
+          context_meta: null,
+          pinned_at: null,
+        }));
+        setMessages(msgs);
+      };
+      loadGroupMessages();
+
+      const channel = supabase
+        .channel(`group-msgs-${gcId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "group_messages",
+            filter: `conversation_id=eq.${gcId}`,
+          },
+          (payload) => {
+            const m = payload.new as any;
+            const newMsg: Message = {
+              id: m.id,
+              conversation_id: m.conversation_id,
+              sender_id: m.sender_id,
+              content: m.content,
+              read_at: null,
+              created_at: m.created_at,
+              message_type: m.message_type || 'user',
+              context_type: null,
+              context_id: null,
+              context_meta: null,
+              pinned_at: null,
+            };
+            setMessages(prev => {
+              if (prev.some(p => p.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    }
+
+    // Company thread: existing logic
     const loadMessages = async () => {
       const { data } = await supabase
         .from("messages")
@@ -677,22 +886,36 @@ const CompanyChatPane = () => {
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     setSending(true);
-    const insertData: any = {
-      conversation_id: activeConvId,
-      sender_id: user.id,
-      content: trimmed,
-    };
 
-    if (selectedTopic) {
-      insertData.context_type = selectedTopic;
+    if (activeConvId.startsWith("group_")) {
+      const gcId = activeConvId.replace("group_", "");
+      const { error } = await supabase
+        .from("group_messages" as any)
+        .insert({
+          conversation_id: gcId,
+          sender_id: user.id,
+          content: trimmed,
+        } as any);
+      if (error) console.error("Failed to send group message:", error);
+    } else {
+      const insertData: any = {
+        conversation_id: activeConvId,
+        sender_id: user.id,
+        content: trimmed,
+      };
+
+      if (selectedTopic) {
+        insertData.context_type = selectedTopic;
+      }
+
+      const { data, error } = await supabase.from("messages").insert(insertData).select().single();
+
+      if (!error && data) {
+        setNewMessage("");
+        notifyChatMessage((data as any).id);
+      }
     }
 
-    const { data, error } = await supabase.from("messages").insert(insertData).select().single();
-
-    if (!error && data) {
-      setNewMessage("");
-      notifyChatMessage((data as any).id);
-    }
     setSending(false);
   }, [activeConvId, user, selectedTopic]);
 
@@ -703,6 +926,7 @@ const CompanyChatPane = () => {
   }, [messages, topicFilter]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
+  const isGroupThread = activeConv?.threadType === "group";
 
   const pinnedMessages = useMemo(() => 
     messages.filter(m => m.pinned_at).sort((a, b) => 
@@ -769,13 +993,22 @@ const CompanyChatPane = () => {
     setConversations(prev => prev.map(c => ({ ...c, hasRecentReport: false, recentReportName: undefined })));
   };
 
+  // Helper: target the correct table for ops updates
+  const getOpsTarget = useCallback((): { table: string; id: string } => {
+    if (activeConvId?.startsWith("group_")) {
+      return { table: "group_conversations", id: activeConvId.replace("group_", "") };
+    }
+    return { table: "conversations", id: activeConvId! };
+  }, [activeConvId]);
+
   // Advisor actions
   const handleAssignAdvisor = async (advisorId: string | null) => {
     if (!activeConvId) return;
+    const { table, id } = getOpsTarget();
     await supabase
-      .from("conversations")
+      .from(table as any)
       .update({ assigned_advisor_id: advisorId } as any)
-      .eq("id", activeConvId);
+      .eq("id", id);
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, assigned_advisor_id: advisorId } : c
     ));
@@ -783,6 +1016,7 @@ const CompanyChatPane = () => {
 
   const handleAcknowledge = async () => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const now = new Date().toISOString();
     const conv = conversations.find(c => c.id === activeConvId);
     const updateData: any = {
@@ -795,9 +1029,9 @@ const CompanyChatPane = () => {
       updateData.assigned_advisor_id = user.id;
     }
     await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, ...updateData } : c
     ));
@@ -805,6 +1039,7 @@ const CompanyChatPane = () => {
 
   const handleResolve = async () => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const now = new Date().toISOString();
     const updateData: any = {
       conversation_status: 'resolved',
@@ -816,9 +1051,9 @@ const CompanyChatPane = () => {
       follow_up_at: null,
     };
     const { error } = await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     if (error) {
       toast.error("Kunne ikke afslutte samtalen");
       return;
@@ -848,6 +1083,7 @@ const CompanyChatPane = () => {
 
   const handleSnooze = async (followUpAt: Date) => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const now = new Date().toISOString();
     const conv = conversations.find(c => c.id === activeConvId);
     const updateData: any = {
@@ -859,9 +1095,9 @@ const CompanyChatPane = () => {
       updateData.assigned_advisor_id = user.id;
     }
     const { error } = await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     if (error) {
       toast.error("Kunne ikke sætte opfølgning");
       return;
@@ -876,15 +1112,16 @@ const CompanyChatPane = () => {
 
   const handleCancelSnooze = async () => {
     if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
     const updateData: any = {
       follow_up_at: null,
       acknowledged_at: null,
       acknowledged_by_advisor_id: null,
     };
     const { error } = await supabase
-      .from("conversations")
+      .from(table as any)
       .update(updateData)
-      .eq("id", activeConvId);
+      .eq("id", id);
     if (error) {
       toast.error("Kunne ikke fjerne opfølgning");
       return;
@@ -967,7 +1204,7 @@ const CompanyChatPane = () => {
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Søg medlem eller virksomhed..."
+                  placeholder="Søg virksomhed eller koncern..."
                   className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               </div>
@@ -1140,7 +1377,9 @@ const CompanyChatPane = () => {
                           <div className={`h-10 w-10 rounded-full flex items-center justify-center overflow-hidden ${
                             isActionable ? "bg-destructive/10" : "bg-primary/10"
                           }`}>
-                            {conv.companyLogoUrl ? (
+                            {conv.threadType === "group" ? (
+                              <Layers className={`h-4.5 w-4.5 ${isActionable ? "text-destructive" : "text-primary"}`} />
+                            ) : conv.companyLogoUrl ? (
                               <img src={conv.companyLogoUrl} alt="" className="h-10 w-10 object-cover" />
                             ) : (
                               <span className={`text-xs font-semibold ${isActionable ? "text-destructive" : "text-primary"}`}>
@@ -1155,9 +1394,16 @@ const CompanyChatPane = () => {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
-                              {conv.companyName || conv.profile?.full_name || "Ukendt"}
-                            </p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
+                                {conv.companyName || conv.profile?.full_name || "Ukendt"}
+                              </p>
+                              {conv.threadType === "group" && (
+                                <span className="inline-flex items-center text-[8px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">
+                                  Koncern
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
@@ -1191,7 +1437,7 @@ const CompanyChatPane = () => {
                             {!isResolved && !isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                                 <ArrowRightLeft className="h-2.5 w-2.5" />
-                                Afventer virksomhed
+                                {conv.threadType === "group" ? "Afventer koncern" : "Afventer virksomhed"}
                               </span>
                             )}
                             {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && !hasFutureSnooze && (
@@ -1223,7 +1469,7 @@ const CompanyChatPane = () => {
                                 </span>
                               </span>
                             )}
-                            {conversationNoteIds.has(conv.id) && (
+                            {conv.threadType !== "group" && conversationNoteIds.has(conv.id) && (
                               <span title="Har intern note"><StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" /></span>
                             )}
                             {assignedInitials && (
@@ -1259,7 +1505,9 @@ const CompanyChatPane = () => {
                       </button>
                     )}
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                      {activeConv?.companyLogoUrl ? (
+                      {isGroupThread ? (
+                        <Layers className="h-4 w-4 text-primary" />
+                      ) : activeConv?.companyLogoUrl ? (
                         <img src={activeConv.companyLogoUrl} alt="" className="h-8 w-8 object-cover" />
                       ) : (
                         <span className="text-xs font-semibold text-primary">
@@ -1269,7 +1517,7 @@ const CompanyChatPane = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">
-                        {activeConv?.companyName || "Ukendt"}
+                        {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
                       {participants.length > 0 && (
                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -1636,7 +1884,7 @@ const CompanyChatPane = () => {
                 ) : null}
 
                 {/* Internal advisor note */}
-                {isAdvisor && activeConvId && (
+                {isAdvisor && activeConvId && !isGroupThread && (
                   <Collapsible open={noteExpanded} onOpenChange={setNoteExpanded}>
                     <div className="border-b border-amber-500/20 bg-amber-500/5">
                       <CollapsibleTrigger asChild>
@@ -1676,7 +1924,7 @@ const CompanyChatPane = () => {
                 )}
 
                 {/* Pinned messages section */}
-                {pinnedMessages.length > 0 && (
+                {pinnedMessages.length > 0 && !isGroupThread && (
                   <Collapsible>
                     <div className="border-b border-border bg-primary/[0.02]">
                       <CollapsibleTrigger asChild>
@@ -1711,7 +1959,7 @@ const CompanyChatPane = () => {
                 )}
 
                 {/* Topic filter row */}
-                {isAdvisor && (
+                {isAdvisor && !isGroupThread && (
                   <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     {TOPIC_CONFIG.map(t => {
                       const isActive = topicFilter === t.key;
@@ -1909,34 +2157,36 @@ const CompanyChatPane = () => {
 
                 {/* Input with topic selector */}
                 <div className="p-3 md:p-4 border-t border-border">
-                  <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                    <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
-                    {MESSAGE_TOPICS.map(t => {
-                      const isActive = selectedTopic === t.key;
-                      const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
-                      return (
-                        <button
-                          key={t.key ?? "general"}
-                          type="button"
-                          onClick={() => setSelectedTopic(t.key)}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
-                            isActive
-                              ? topicInfo
-                                ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
-                                : "bg-muted text-foreground ring-1 ring-border"
-                              : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {!isGroupThread && (
+                    <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                      <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
+                      {MESSAGE_TOPICS.map(t => {
+                        const isActive = selectedTopic === t.key;
+                        const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
+                        return (
+                          <button
+                            key={t.key ?? "general"}
+                            type="button"
+                            onClick={() => setSelectedTopic(t.key)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
+                              isActive
+                                ? topicInfo
+                                  ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
+                                  : "bg-muted text-foreground ring-1 ring-border"
+                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="flex gap-2 items-end">
                     <ChatRichInput
                       onSubmit={handleSend}
                       disabled={sending}
-                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
                   </div>
