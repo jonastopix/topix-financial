@@ -1377,7 +1377,9 @@ const CompanyChatPane = () => {
                           <div className={`h-10 w-10 rounded-full flex items-center justify-center overflow-hidden ${
                             isActionable ? "bg-destructive/10" : "bg-primary/10"
                           }`}>
-                            {conv.companyLogoUrl ? (
+                            {conv.threadType === "group" ? (
+                              <Layers className={`h-4.5 w-4.5 ${isActionable ? "text-destructive" : "text-primary"}`} />
+                            ) : conv.companyLogoUrl ? (
                               <img src={conv.companyLogoUrl} alt="" className="h-10 w-10 object-cover" />
                             ) : (
                               <span className={`text-xs font-semibold ${isActionable ? "text-destructive" : "text-primary"}`}>
@@ -1392,9 +1394,16 @@ const CompanyChatPane = () => {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
-                              {conv.companyName || conv.profile?.full_name || "Ukendt"}
-                            </p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
+                                {conv.companyName || conv.profile?.full_name || "Ukendt"}
+                              </p>
+                              {conv.threadType === "group" && (
+                                <span className="inline-flex items-center text-[8px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">
+                                  Koncern
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
