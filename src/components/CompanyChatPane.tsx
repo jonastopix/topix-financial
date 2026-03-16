@@ -926,6 +926,7 @@ const CompanyChatPane = () => {
   }, [messages, topicFilter]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
+  const isGroupThread = activeConv?.threadType === "group";
 
   const pinnedMessages = useMemo(() => 
     messages.filter(m => m.pinned_at).sort((a, b) => 
