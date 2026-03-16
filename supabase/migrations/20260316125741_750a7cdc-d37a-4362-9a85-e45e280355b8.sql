@@ -1,0 +1,1 @@
+DELETE FROM group_memberships WHERE group_id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' AND user_id = '23e81de4-db14-40b6-92ed-0d84ed3c71f1';
