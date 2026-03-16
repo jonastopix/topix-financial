@@ -746,6 +746,70 @@ const CompanyChatPane = () => {
   useEffect(() => {
     if (!activeConvId) return;
 
+    // Group thread: load from group_messages
+    if (activeConvId.startsWith("group_")) {
+      const gcId = activeConvId.replace("group_", "");
+      const loadGroupMessages = async () => {
+        const { data } = await supabase
+          .from("group_messages" as any)
+          .select("*")
+          .eq("conversation_id", gcId)
+          .order("created_at", { ascending: true })
+          .limit(500);
+        const msgs: Message[] = ((data as any[]) || []).map((m: any) => ({
+          id: m.id,
+          conversation_id: m.conversation_id,
+          sender_id: m.sender_id,
+          content: m.content,
+          read_at: null,
+          created_at: m.created_at,
+          message_type: m.message_type || 'user',
+          context_type: null,
+          context_id: null,
+          context_meta: null,
+          pinned_at: null,
+        }));
+        setMessages(msgs);
+      };
+      loadGroupMessages();
+
+      const channel = supabase
+        .channel(`group-msgs-${gcId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "group_messages",
+            filter: `conversation_id=eq.${gcId}`,
+          },
+          (payload) => {
+            const m = payload.new as any;
+            const newMsg: Message = {
+              id: m.id,
+              conversation_id: m.conversation_id,
+              sender_id: m.sender_id,
+              content: m.content,
+              read_at: null,
+              created_at: m.created_at,
+              message_type: m.message_type || 'user',
+              context_type: null,
+              context_id: null,
+              context_meta: null,
+              pinned_at: null,
+            };
+            setMessages(prev => {
+              if (prev.some(p => p.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    }
+
+    // Company thread: existing logic
     const loadMessages = async () => {
       const { data } = await supabase
         .from("messages")
