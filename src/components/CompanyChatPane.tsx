@@ -1204,7 +1204,7 @@ const CompanyChatPane = () => {
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Søg medlem eller virksomhed..."
+                  placeholder="Søg virksomhed eller koncern..."
                   className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               </div>
