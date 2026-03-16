@@ -1884,7 +1884,7 @@ const CompanyChatPane = () => {
                 ) : null}
 
                 {/* Internal advisor note */}
-                {isAdvisor && activeConvId && (
+                {isAdvisor && activeConvId && !isGroupThread && (
                   <Collapsible open={noteExpanded} onOpenChange={setNoteExpanded}>
                     <div className="border-b border-amber-500/20 bg-amber-500/5">
                       <CollapsibleTrigger asChild>
