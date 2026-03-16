@@ -37,13 +37,13 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [showTour, setShowTour] = useState(false);
 
   // Show tour for non-advisor users who haven't completed it
-  const shouldShowTour = !isAdvisor && profile && !profile.tour_completed_at;
+  const shouldShowTour = !rawAdvisor && profile && !profile.tour_completed_at;
 
   // Trigger tour after dashboard data loads
   const [tourTriggered, setTourTriggered] = useState(false);
@@ -265,7 +265,7 @@ const Dashboard = () => {
   return (
     <AppLayout>
       {showTour && (
-        <GuidedTour onComplete={() => setShowTour(false)} />
+        <GuidedTour onComplete={() => { setShowTour(false); refreshProfile(); }} />
       )}
       {/* Greeting */}
       <div className="mb-6 md:mb-8">
