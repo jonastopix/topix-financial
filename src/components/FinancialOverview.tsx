@@ -4,15 +4,10 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend,
 } from "recharts";
-import {
-  getEffectiveReportPeriodKey, getEffectiveMetrics, formatDKK, formatCompact, pctChange,
-  SHORT_MONTHS, type ReportData,
-} from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetricsNullable } from "@/lib/factsAdapter";
+import { formatDKK, formatCompact, pctChange, SHORT_MONTHS } from "@/lib/financialUtils";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
-
-interface FinancialOverviewProps {
-  reports: ReportData[];
-}
 
 type TabKey = "marginer" | "omkostninger" | "resultat" | "balance";
 
@@ -23,25 +18,22 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "balance", label: "Balance" },
 ];
 
-const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
+const FinancialOverview = () => {
   const [activeTab, setActiveTab] = useState<TabKey>("marginer");
   const period = usePeriodFilter();
+  const { data: facts = [] } = useCompanyFacts();
 
   const allChartData = useMemo(() => {
-    const processed = reports
-      .filter(r => r.status === "processed")
-      .map(r => {
-        const key = getEffectiveReportPeriodKey(r);
-        const result = getEffectiveMetrics(r);
-        if (!key || !result) return null;
-        const [year, monthStr] = key.split("-");
-        const monthIdx = parseInt(monthStr, 10) - 1;
-        return { key, label: `${SHORT_MONTHS[monthIdx]} ${year}`, kf: result.metrics };
-      })
-      .filter(Boolean) as { key: string; label: string; kf: Record<string, number | null> }[];
-
-    return processed.sort((a, b) => a.key.localeCompare(b.key));
-  }, [reports]);
+    return facts.map((f) => {
+      const [year, monthStr] = f.period_key.split("-");
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      return {
+        key: f.period_key,
+        label: `${SHORT_MONTHS[monthIdx]} ${year}`,
+        kf: factsToDanishMetricsNullable(f.metrics),
+      };
+    });
+  }, [facts]);
 
   const chartData = useMemo(() => {
     const allKeys = allChartData.map(d => d.key);
@@ -59,7 +51,6 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
   const prev = chartData.length >= 2 ? chartData[chartData.length - 2] : null;
   const kf = latest.kf;
 
-  // Strict null-checks: only compute margin if both values are non-null and denominator != 0
   const dbMargin = kf.omsaetning != null && kf.daekningsbidrag != null && kf.omsaetning !== 0
     ? ((kf.daekningsbidrag / kf.omsaetning) * 100) : null;
   const dbMarginPrev = prev?.kf.omsaetning != null && prev?.kf.daekningsbidrag != null && prev.kf.omsaetning !== 0
@@ -96,17 +87,15 @@ const FinancialOverview = ({ reports }: FinancialOverviewProps) => {
     const k = d.kf;
     return {
       label: d.label,
-      // AreaChart: use null for gaps (no false dips)
       omsaetning: k.omsaetning ?? null,
       daekningsbidrag: k.daekningsbidrag ?? null,
       resultat_foer_skat: k.resultat_foer_skat ?? null,
-      // BarChart: use ?? 0 because bars can't render null height
       loenninger: k.loenninger ?? 0,
       direkte_omkostninger: k.direkte_omkostninger ?? 0,
       aktiver_i_alt: k.aktiver_i_alt ?? 0,
-      passiver_i_alt: (k as any).passiver_i_alt ?? 0,
+      passiver_i_alt: 0, // Not in facts layer — future addition
       egenkapital: k.egenkapital ?? 0,
-      bank_balance: k.bank_balance ?? 0, // sign preserved
+      bank_balance: k.bank_balance ?? 0,
     };
   });
 
