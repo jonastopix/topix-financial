@@ -2,12 +2,11 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import CompanyChatPane from "@/components/CompanyChatPane";
 import GroupChatInline from "@/components/GroupChatInline";
-import AdvisorChatShell from "@/components/AdvisorChatShell";
 
 /**
  * Unified /chat route orchestrator.
  * Renders the correct chat experience based on user type:
- * - Advisor → tabbed shell (Virksomheder / Koncerner)
+ * - Advisor → flat inbox (company + group threads in one list)
  * - Group member → group chat inline
  * - Single-company member → company chat
  */
@@ -24,11 +23,11 @@ const ChatShell = () => {
     );
   }
 
-  // Advisor: tabbed shell with company + group chat
+  // Advisor: flat inbox with both company + group threads
   if (isAdvisor) {
     return (
       <AppLayout fullscreen>
-        <AdvisorChatShell />
+        <CompanyChatPane />
       </AppLayout>
     );
   }

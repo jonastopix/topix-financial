@@ -2157,34 +2157,36 @@ const CompanyChatPane = () => {
 
                 {/* Input with topic selector */}
                 <div className="p-3 md:p-4 border-t border-border">
-                  <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                    <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
-                    {MESSAGE_TOPICS.map(t => {
-                      const isActive = selectedTopic === t.key;
-                      const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
-                      return (
-                        <button
-                          key={t.key ?? "general"}
-                          type="button"
-                          onClick={() => setSelectedTopic(t.key)}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
-                            isActive
-                              ? topicInfo
-                                ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
-                                : "bg-muted text-foreground ring-1 ring-border"
-                              : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {!isGroupThread && (
+                    <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                      <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
+                      {MESSAGE_TOPICS.map(t => {
+                        const isActive = selectedTopic === t.key;
+                        const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
+                        return (
+                          <button
+                            key={t.key ?? "general"}
+                            type="button"
+                            onClick={() => setSelectedTopic(t.key)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
+                              isActive
+                                ? topicInfo
+                                  ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
+                                  : "bg-muted text-foreground ring-1 ring-border"
+                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="flex gap-2 items-end">
                     <ChatRichInput
                       onSubmit={handleSend}
                       disabled={sending}
-                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
                   </div>
