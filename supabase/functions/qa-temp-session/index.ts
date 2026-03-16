@@ -10,10 +10,30 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Service-role only
-  const authHeader = req.headers.get("Authorization");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
+  
+  // Accept either service-role key OR verify caller is advisor
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace("Bearer ", "");
+  
+  let authorized = false;
+  if (token === serviceRoleKey) {
+    authorized = true;
+  } else {
+    // Check if caller is advisor
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const authClient = createClient(supabaseUrl, anonKey);
+    const { data: claimsData } = await authClient.auth.getClaims(token);
+    const callerId = claimsData?.claims?.sub as string | undefined;
+    if (callerId) {
+      const adminClient = createClient(supabaseUrl, serviceRoleKey);
+      const { data } = await adminClient.from("user_roles").select("role").eq("user_id", callerId).eq("role", "advisor").maybeSingle();
+      if (data) authorized = true;
+    }
+  }
+  
+  if (!authorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -28,27 +48,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  // Find user by email
-  const { data: users, error: listErr } = await admin.auth.admin.listUsers();
-  if (listErr) {
-    return new Response(JSON.stringify({ error: listErr.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const user = users.users.find((u: any) => u.email === email);
-  if (!user) {
-    return new Response(JSON.stringify({ error: "User not found" }), {
-      status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  // Generate a magic link (OTP)
   const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email: email,
@@ -65,7 +66,6 @@ Deno.serve(async (req) => {
     JSON.stringify({
       action_link: data.properties?.action_link,
       hashed_token: data.properties?.hashed_token,
-      user_id: user.id,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
