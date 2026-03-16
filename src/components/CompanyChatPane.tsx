@@ -575,14 +575,15 @@ const CompanyChatPane = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, isAdvisor]);
 
-  // Fetch note existence for loaded conversations (advisor only)
+  // Fetch note existence for loaded conversations (advisor only, company threads only)
   useEffect(() => {
     if (!isAdvisor || conversations.length === 0) return;
-    const convIds = conversations.map(c => c.id);
+    const companyConvIds = conversations.filter(c => c.threadType !== "group").map(c => c.id);
+    if (companyConvIds.length === 0) { setConversationNoteIds(new Set()); return; }
     supabase
       .from("conversation_notes" as any)
       .select("conversation_id")
-      .in("conversation_id", convIds)
+      .in("conversation_id", companyConvIds)
       .then(({ data }) => {
         if (data) {
           setConversationNoteIds(new Set((data as any[]).map(d => d.conversation_id)));
@@ -590,9 +591,10 @@ const CompanyChatPane = () => {
       });
   }, [isAdvisor, conversations]);
 
-  // Fetch note for active conversation (advisor only)
+  // Fetch note for active conversation (advisor only, company threads only)
   useEffect(() => {
-    if (!isAdvisor || !activeConvId) {
+    const isGroup = activeConvId?.startsWith("group_");
+    if (!isAdvisor || !activeConvId || isGroup) {
       setNoteContent("");
       setNoteDbContent("");
       setNoteMeta(null);
