@@ -1,0 +1,109 @@
+-- Phase 1B: Rewrite group financial summary RPCs to read from financial_report_facts
+-- instead of resolving metrics inline from financial_reports.
+-- Output contract (column names and types) is identical — no client changes needed.
+
+-- 1) Member RPC: get_my_group_financial_summary
+CREATE OR REPLACE FUNCTION public.get_my_group_financial_summary()
+RETURNS TABLE(
+  company_id uuid, company_name text, logo_url text,
+  has_report boolean, has_verified_metrics boolean,
+  latest_report_id uuid, effective_period_label text, effective_period_key text,
+  revenue numeric, gross_profit numeric, ebt numeric, cash numeric,
+  missing_current_period boolean
+)
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  WITH group_cos AS (
+    SELECT gc.company_id
+    FROM group_companies gc
+    WHERE gc.group_id = user_group_id(auth.uid())
+  )
+  SELECT
+    c.id AS company_id,
+    c.name AS company_name,
+    c.logo_url,
+    (f.id IS NOT NULL) AS has_report,
+    (f.id IS NOT NULL) AS has_verified_metrics,
+    f.source_report_id AS latest_report_id,
+    f.period_label AS effective_period_label,
+    f.period_key AS effective_period_key,
+    (f.metrics->>'revenue')::numeric AS revenue,
+    (f.metrics->>'gross_profit')::numeric AS gross_profit,
+    (f.metrics->>'ebt')::numeric AS ebt,
+    (f.metrics->>'cash')::numeric AS cash,
+    CASE
+      WHEN f.id IS NULL THEN true
+      WHEN f.period_key IS NULL THEN true
+      WHEN f.period_key < to_char(now() - interval '1 month', 'YYYY-MM') THEN true
+      ELSE false
+    END AS missing_current_period
+  FROM group_cos gc
+  INNER JOIN companies c ON c.id = gc.company_id
+  LEFT JOIN LATERAL (
+    SELECT frf.id, frf.source_report_id, frf.period_label, frf.period_key, frf.metrics
+    FROM financial_report_facts frf
+    WHERE frf.company_id = gc.company_id
+    ORDER BY frf.period_key DESC
+    LIMIT 1
+  ) f ON true;
+$$;
+
+-- 2) Advisor RPC: get_group_financial_summary_for_advisor
+CREATE OR REPLACE FUNCTION public.get_group_financial_summary_for_advisor(p_group_id uuid)
+RETURNS TABLE(
+  company_id uuid, company_name text, logo_url text,
+  has_report boolean, has_verified_metrics boolean,
+  latest_report_id uuid, effective_period_label text, effective_period_key text,
+  revenue numeric, gross_profit numeric, ebt numeric, cash numeric,
+  missing_current_period boolean
+)
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  IF NOT has_role(auth.uid(), 'advisor') THEN
+    RAISE EXCEPTION 'Access denied: not an advisor';
+  END IF;
+  IF NOT advisor_has_group_access(auth.uid(), p_group_id) THEN
+    RAISE EXCEPTION 'Access denied: no access to this group';
+  END IF;
+
+  RETURN QUERY
+  WITH group_cos AS (
+    SELECT gc.company_id
+    FROM group_companies gc
+    WHERE gc.group_id = p_group_id
+  )
+  SELECT
+    c.id AS company_id,
+    c.name AS company_name,
+    c.logo_url,
+    (f.id IS NOT NULL) AS has_report,
+    (f.id IS NOT NULL) AS has_verified_metrics,
+    f.source_report_id AS latest_report_id,
+    f.period_label AS effective_period_label,
+    f.period_key AS effective_period_key,
+    (f.metrics->>'revenue')::numeric AS revenue,
+    (f.metrics->>'gross_profit')::numeric AS gross_profit,
+    (f.metrics->>'ebt')::numeric AS ebt,
+    (f.metrics->>'cash')::numeric AS cash,
+    CASE
+      WHEN f.id IS NULL THEN true
+      WHEN f.period_key IS NULL THEN true
+      WHEN f.period_key < to_char(now() - interval '1 month', 'YYYY-MM') THEN true
+      ELSE false
+    END AS missing_current_period
+  FROM group_cos gc
+  INNER JOIN companies c ON c.id = gc.company_id
+  LEFT JOIN LATERAL (
+    SELECT frf.id, frf.source_report_id, frf.period_label, frf.period_key, frf.metrics
+    FROM financial_report_facts frf
+    WHERE frf.company_id = gc.company_id
+    ORDER BY frf.period_key DESC
+    LIMIT 1
+  ) f ON true;
+END;
+$$;
