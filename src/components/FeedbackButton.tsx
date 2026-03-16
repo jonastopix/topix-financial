@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { MessageSquarePlus } from "lucide-react";
 import FeedbackDialog from "./FeedbackDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const FeedbackButton = () => {
+  const location = useLocation();
+  const isChatRoute = location.pathname.startsWith("/chat") || location.pathname.startsWith("/group-chat");
+  if (isChatRoute) return null;
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
