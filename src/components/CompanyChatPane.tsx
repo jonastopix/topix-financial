@@ -1469,7 +1469,7 @@ const CompanyChatPane = () => {
                                 </span>
                               </span>
                             )}
-                            {conversationNoteIds.has(conv.id) && (
+                            {conv.threadType !== "group" && conversationNoteIds.has(conv.id) && (
                               <span title="Har intern note"><StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" /></span>
                             )}
                             {assignedInitials && (
