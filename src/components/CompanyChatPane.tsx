@@ -1505,7 +1505,9 @@ const CompanyChatPane = () => {
                       </button>
                     )}
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                      {activeConv?.companyLogoUrl ? (
+                      {isGroupThread ? (
+                        <Layers className="h-4 w-4 text-primary" />
+                      ) : activeConv?.companyLogoUrl ? (
                         <img src={activeConv.companyLogoUrl} alt="" className="h-8 w-8 object-cover" />
                       ) : (
                         <span className="text-xs font-semibold text-primary">
@@ -1515,7 +1517,7 @@ const CompanyChatPane = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">
-                        {activeConv?.companyName || "Ukendt"}
+                        {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
                       {participants.length > 0 && (
                         <div className="flex items-center gap-1.5 mt-0.5">
