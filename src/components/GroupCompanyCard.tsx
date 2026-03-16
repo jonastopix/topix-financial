@@ -1,6 +1,6 @@
 import { Building2, CheckCircle2, AlertTriangle, FileQuestion } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { GroupCompanySummary } from "@/hooks/useGroupDashboard";
+import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 
 interface GroupCompanyCardProps {
   company: GroupCompanySummary;

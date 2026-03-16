@@ -256,9 +256,12 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {[
             ...baseNavItems,
-            ...(isGroupUser ? [
+            ...(isGroupUser && !effectiveAdvisor ? [
               { icon: Layers, label: "Koncern", path: "/group" },
-              ...(!effectiveAdvisor ? [{ icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" }] : []),
+              { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
+            ] : []),
+            ...(effectiveAdvisor && hasGroupAccess ? [
+              { icon: Layers, label: "Koncernoverblik", path: "/groups" },
             ] : []),
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),

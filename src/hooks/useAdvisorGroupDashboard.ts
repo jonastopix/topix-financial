@@ -4,22 +4,36 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMemo } from "react";
 import { buildGroupAggregates, type GroupCompanySummary, type GroupAggregates } from "@/lib/groupDashboardUtils";
 
-// Re-export types for backward compatibility
-export type { GroupCompanySummary, GroupAggregates };
-
-export function useGroupDashboard() {
-  const { user, isGroupUser, groupName } = useAuth();
+export function useAdvisorGroupDashboard(groupId: string | undefined) {
+  const { user, isAdvisor } = useAuth();
 
   const { data: companies, isLoading, error } = useQuery({
-    queryKey: ["group-financial-summary"],
+    queryKey: ["advisor-group-financial-summary", groupId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc(
-        "get_my_group_financial_summary" as any
+        "get_group_financial_summary_for_advisor" as any,
+        { p_group_id: groupId }
       );
       if (error) throw error;
       return (data as unknown as GroupCompanySummary[]) || [];
     },
-    enabled: !!user && isGroupUser,
+    enabled: !!user && isAdvisor && !!groupId,
+    staleTime: 60_000,
+  });
+
+  // Fetch group name
+  const { data: groupData } = useQuery({
+    queryKey: ["advisor-group-name", groupId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("groups")
+        .select("name")
+        .eq("id", groupId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && isAdvisor && !!groupId,
     staleTime: 60_000,
   });
 
@@ -33,7 +47,6 @@ export function useGroupDashboard() {
     aggregates,
     isLoading,
     error,
-    groupName,
-    isGroupUser,
+    groupName: groupData?.name ?? null,
   };
 }

@@ -1611,6 +1611,24 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_group_financial_summary_for_advisor: {
+        Args: { p_group_id: string }
+        Returns: {
+          cash: number
+          company_id: string
+          company_name: string
+          ebt: number
+          effective_period_key: string
+          effective_period_label: string
+          gross_profit: number
+          has_report: boolean
+          has_verified_metrics: boolean
+          latest_report_id: string
+          logo_url: string
+          missing_current_period: boolean
+          revenue: number
+        }[]
+      }
       get_my_group_budget_summary: { Args: { p_year: string }; Returns: Json }
       get_my_group_financial_summary: {
         Args: never
