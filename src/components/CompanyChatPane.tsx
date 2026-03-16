@@ -79,6 +79,11 @@ interface ConversationWithProfile {
   resolved_at?: string | null;
   resolved_by_advisor_id?: string | null;
   follow_up_at?: string | null;
+  // Group thread discriminator
+  threadType?: "company" | "group";
+  groupConversationId?: string;
+  groupId?: string;
+  groupName?: string;
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
