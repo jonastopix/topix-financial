@@ -30,8 +30,9 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
-import type { ReportData } from "@/lib/financialUtils";
+import { formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
 import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
 import type { BenchmarkTemplate } from "@/lib/appConfig";
