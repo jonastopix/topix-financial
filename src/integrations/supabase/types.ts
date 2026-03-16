@@ -834,19 +834,52 @@ export type Database = {
       }
       group_conversations: {
         Row: {
+          acknowledged_at: string | null
+          acknowledged_by_advisor_id: string | null
+          assigned_advisor_id: string | null
+          awaiting_reply_from: string | null
+          conversation_status: string
           created_at: string
+          follow_up_at: string | null
           group_id: string
           id: string
+          last_advisor_reply_at: string | null
+          last_member_message_at: string | null
+          last_message_at: string | null
+          resolved_at: string | null
+          resolved_by_advisor_id: string | null
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by_advisor_id?: string | null
+          assigned_advisor_id?: string | null
+          awaiting_reply_from?: string | null
+          conversation_status?: string
           created_at?: string
+          follow_up_at?: string | null
           group_id: string
           id?: string
+          last_advisor_reply_at?: string | null
+          last_member_message_at?: string | null
+          last_message_at?: string | null
+          resolved_at?: string | null
+          resolved_by_advisor_id?: string | null
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledged_by_advisor_id?: string | null
+          assigned_advisor_id?: string | null
+          awaiting_reply_from?: string | null
+          conversation_status?: string
           created_at?: string
+          follow_up_at?: string | null
           group_id?: string
           id?: string
+          last_advisor_reply_at?: string | null
+          last_member_message_at?: string | null
+          last_message_at?: string | null
+          resolved_at?: string | null
+          resolved_by_advisor_id?: string | null
         }
         Relationships: [
           {
