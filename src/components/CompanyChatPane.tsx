@@ -886,22 +886,36 @@ const CompanyChatPane = () => {
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     setSending(true);
-    const insertData: any = {
-      conversation_id: activeConvId,
-      sender_id: user.id,
-      content: trimmed,
-    };
 
-    if (selectedTopic) {
-      insertData.context_type = selectedTopic;
+    if (activeConvId.startsWith("group_")) {
+      const gcId = activeConvId.replace("group_", "");
+      const { error } = await supabase
+        .from("group_messages" as any)
+        .insert({
+          conversation_id: gcId,
+          sender_id: user.id,
+          content: trimmed,
+        } as any);
+      if (error) console.error("Failed to send group message:", error);
+    } else {
+      const insertData: any = {
+        conversation_id: activeConvId,
+        sender_id: user.id,
+        content: trimmed,
+      };
+
+      if (selectedTopic) {
+        insertData.context_type = selectedTopic;
+      }
+
+      const { data, error } = await supabase.from("messages").insert(insertData).select().single();
+
+      if (!error && data) {
+        setNewMessage("");
+        notifyChatMessage((data as any).id);
+      }
     }
 
-    const { data, error } = await supabase.from("messages").insert(insertData).select().single();
-
-    if (!error && data) {
-      setNewMessage("");
-      notifyChatMessage((data as any).id);
-    }
     setSending(false);
   }, [activeConvId, user, selectedTopic]);
 
