@@ -3,6 +3,7 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useGroupDashboard } from "@/hooks/useGroupDashboard";
 import GroupDashboardContent from "@/components/GroupDashboardContent";
+import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { MessageCircle, Calculator } from "lucide-react";
 
 const GroupDashboard = () => {
@@ -38,6 +39,7 @@ const GroupDashboard = () => {
 
   return (
     <AppLayout>
+      <GroupWelcomeBanner variant="full" />
       <GroupDashboardContent
         companies={companies}
         aggregates={aggregates}
