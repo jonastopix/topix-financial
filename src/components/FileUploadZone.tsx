@@ -61,7 +61,7 @@ function requiresStructuralPdfPayload(rawText: string): boolean {
   return false;
 }
 
-// ── Shared post-extraction pipeline (AI gate + milestones + done) ──
+// ── Shared post-extraction pipeline (RP-2: no auto-AI, commentary is now explicit post-commit) ──
 // Used by BOTH main upload and overwrite flows to avoid divergence.
 async function runPostExtractionPipeline(params: {
   extractedData: any;
@@ -77,130 +77,14 @@ async function runPostExtractionPipeline(params: {
 }) {
   const { extractedData, reportId, userId, companyId, companyName, fileId, updateFile, queryClient, toastFn, onPipelineComplete } = params;
 
-  const canonical = extractedData.canonical;
-  const validationStatus = canonical
-    ? (canonical.validation?.status ?? "FAIL")
-    : (extractedData.validation?.status ?? "FAIL");
+  // RP-2: No auto-AI generation on upload. Commentary is now a separate explicit action
+  // after facts are committed. Just mark the report as processed.
+  await supabase
+    .from("financial_reports")
+    .update({ status: "processed" } as any)
+    .eq("id", reportId);
 
-  const shouldRunAI =
-    validationStatus === "PASS" &&
-    (!canonical || (canonical.ai_eligible === true && !!canonical.ai_eligible_payload));
-
-  if (!shouldRunAI) {
-    const reason = validationStatus !== "PASS"
-      ? `validation_status=${validationStatus}`
-      : `ai_eligible=${canonical?.ai_eligible}, ai_eligible_payload=${!!canonical?.ai_eligible_payload}`;
-    console.warn(`[SAFETY] AI-analyse deaktiveret: ${reason}`);
-
-    await supabase
-      .from("financial_reports")
-      .update({ status: "processed", ai_analysis: null } as any)
-      .eq("id", reportId);
-
-    if (validationStatus !== "PASS") {
-      toastFn({
-        title: "Validation fejlede",
-        description: `Rapporten er gemt, men AI-analyse er deaktiveret da valideringen returnerede ${validationStatus}. Gennemgå data manuelt.`,
-        variant: "destructive",
-      });
-    }
-
-    updateFile(fileId, { status: "done", milestonesCreated: 0 });
-    queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
-    queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
-    queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
-    onPipelineComplete?.(reportId);
-    return;
-  }
-
-  updateFile(fileId, { status: "analyzing" });
-
-  // Fetch historical reports for trend analysis (sorted by period, not upload date)
-  const historicalQuery = companyId
-    ? (supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status") as any).eq("company_id", companyId).eq("status", "processed").is("deleted_at", null).neq("id", reportId).order("report_period", { ascending: true }).limit(12)
-    : supabase.from("financial_reports").select("extracted_data, normalized_data, report_period, validation_status").eq("user_id", userId).eq("status", "processed").is("deleted_at", null).neq("id", reportId).order("report_period", { ascending: true }).limit(12);
-  const { data: historicalReports } = await historicalQuery;
-
-  const currentCanonical = extractedData.canonical;
-  const isCanonicalReport = currentCanonical?.ai_eligible === true && currentCanonical?.ai_eligible_payload;
-
-  let historicalCanonical: any[] | undefined;
-  let historicalData: any[] | undefined;
-
-  if (isCanonicalReport) {
-    historicalCanonical = (historicalReports || [])
-      .filter((r: any) => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
-      .map((r: any) => ({
-        period: r.report_period,
-        ...(r.normalized_data as any)?.metrics,
-        _source: "canonical",
-      }));
-  } else {
-    historicalData = (historicalReports || [])
-      .filter((r: any) => r.extracted_data)
-      .map((r: any) => {
-        const ed = r.extracted_data as any;
-        return { period: r.report_period || ed?.report_period, ...ed?.key_figures };
-      });
-  }
-
-  const { data: analysis, error: aiError } = await supabase.functions.invoke(
-    "ai-financial-feedback",
-    {
-      body: {
-        canonicalPayload: isCanonicalReport ? currentCanonical.ai_eligible_payload : undefined,
-        historicalCanonical: isCanonicalReport && historicalCanonical && historicalCanonical.length > 0 ? historicalCanonical : undefined,
-        financialData: !isCanonicalReport ? extractedData.key_figures : undefined,
-        historicalData: !isCanonicalReport && historicalData && historicalData.length > 0 ? historicalData : undefined,
-        companyContext: {
-          name: companyName || extractedData.company_name,
-          cvr: extractedData.cvr_number,
-        },
-        companyId: companyId,
-      },
-    }
-  );
-
-  if (aiError) {
-    console.error("AI feedback error:", aiError);
-  }
-
-  if (analysis && !analysis.error) {
-    await supabase
-      .from("financial_reports")
-      .update({ ai_analysis: analysis } as any)
-      .eq("id", reportId);
-  }
-
-  // Create milestones from AI findings
-  let milestonesCreated = 0;
-  if (analysis && !analysis.error && analysis.key_findings) {
-    const milestonesToCreate = analysis.key_findings
-      .filter((f: any) => f.severity === "advarsel" || f.severity === "kritisk")
-      .slice(0, 3)
-      .map((f: any) => {
-        const ms: any = {
-          user_id: userId,
-          title: f.recommendation?.slice(0, 200) || f.title,
-          description: f.analysis,
-          source: "ai",
-          source_report: reportId,
-          status: "active",
-          progress: 0,
-        };
-        ms.company_id = companyId;
-        return ms;
-      });
-
-    if (milestonesToCreate.length > 0) {
-      const { error: msError } = await supabase
-        .from("milestones")
-        .insert(milestonesToCreate as any);
-      if (!msError) milestonesCreated = milestonesToCreate.length;
-    }
-  }
-
-  updateFile(fileId, { status: "done", milestonesCreated });
+  updateFile(fileId, { status: "done", milestonesCreated: 0 });
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
@@ -208,7 +92,7 @@ async function runPostExtractionPipeline(params: {
 
   toastFn({
     title: "Rapport behandlet",
-    description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period}${analysis && !analysis.error ? " · AI-analyse gennemført" : ""}${milestonesCreated > 0 ? ` · ${milestonesCreated} milestones oprettet` : ""}`,
+    description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} · Klar til gennemgang`,
   });
 }
 
@@ -254,29 +138,24 @@ async function extractPdfPageImages(file: File): Promise<string[]> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const images: string[] = [];
-  
   for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2.0 }); // High res for readability
+    const viewport = page.getViewport({ scale: 2.0 });
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext("2d")!;
     await page.render({ canvasContext: ctx, viewport }).promise;
-    // Convert to JPEG for smaller payload
     const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
     const base64 = dataUrl.split(",")[1];
     images.push(base64);
   }
-  
   console.log(`PDF rendered ${images.length} page images`);
   return images;
 }
 
 async function extractTextFromFile(file: File): Promise<{ text: string; pageImages?: string[] }> {
   const ext = file.name.toLowerCase().split(".").pop();
-
-  // ── PDF: vision-based extraction ──
   if (file.type === "application/pdf" || ext === "pdf") {
     try {
       const pageImages = await extractPdfPageImages(file);
@@ -307,8 +186,6 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
       return { text: readable.slice(0, 15000) };
     }
   }
-
-  // ── Excel (.xlsx / .xls): parse with SheetJS to readable CSV ──
   if (ext === "xlsx" || ext === "xls") {
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -320,50 +197,34 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
         csvParts.push(`=== Sheet: ${sheetName} ===\n${csv}`);
       }
       const fullText = csvParts.join("\n\n");
-      console.log(`Excel parsed via SheetJS: ${fullText.length} chars, first 200: ${fullText.slice(0, 200)}`);
       return { text: fullText.slice(0, 30000) };
     } catch (err) {
       console.error("SheetJS parse failed, falling back to raw text:", err);
     }
   }
-
-  // ── CSV / other text files ──
   const text = await file.text();
   return { text: text.slice(0, 30000) };
 }
 
-/** Map backend error responses to user-friendly Danish messages */
 function getFriendlyErrorMessage(data: any): string {
   const err = data?.error || "";
   const source = data?.source_system || "";
   const status = data?.status || "";
-
-  // Known source but no template
   if (err.includes("Known source without supported template") || status === "error" && source) {
     return `Vi kan se at filen kommer fra ${source}, men denne rapporttype understøttes ikke endnu. Prøv at eksportere en standard resultatopgørelse eller saldobalance fra ${source}.`;
   }
-
-  // Semantic extraction failed for known source
   if (status === "semantic_xlsx_fail" || status === "semantic_csv_fail") {
     return `Filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Kontrollér at det er en standard resultatopgørelse eller saldobalance, og prøv igen.`;
   }
-
-  // Structural PDF fail
   if (err.includes("Structural semantic extraction failed")) {
     return `PDF-filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Prøv at eksportere filen igen, eller upload en Excel-version i stedet.`;
   }
-
-  // Sign convention unknown (XLSX)
   if (err.includes("sign_convention") || err.includes("unknown convention")) {
     return "Fortegnskonventionen i filen kunne ikke bestemmes. Upload venligst en standardeksport direkte fra dit regnskabsprogram.";
   }
-
-  // Validation / missing required fields
   if (err.includes("validation") || err.includes("missing")) {
     return "Rapporten mangler nødvendige nøgletal (fx omsætning eller resultat). Kontrollér at filen indeholder en komplet resultatopgørelse.";
   }
-
-  // Generic fallback — still better than raw English
   return `Rapporten kunne ikke behandles automatisk. Kontrollér at filen er en standard eksport fra dit regnskabsprogram (e-conomic, Dinero, Billy el.lign.).`;
 }
 
@@ -403,7 +264,6 @@ const FileUploadZone = ({
   const processFile = useCallback(
     async (file: File) => {
       const fileId = crypto.randomUUID();
-      // Use "andet" as placeholder — AI determines the real type from content and updates DB
       const reportType = "andet";
 
       setUploadedFiles((prev) => [
@@ -440,13 +300,11 @@ const FileUploadZone = ({
           .upload(storagePath, file, { upsert: true });
         
         if (storageError) {
-          // Storage upload failed — abort pipeline, clean up DB record
           console.error("Storage upload failed:", storageError.message);
           await supabase.from("financial_reports").delete().eq("id", reportRecord.id);
           throw new Error("Kunne ikke uploade filen til lageret. Prøv igen.");
         }
 
-        // Update file_path in DB to the actual storage path
         await supabase
           .from("financial_reports")
           .update({ file_path: storagePath } as any)
@@ -458,20 +316,14 @@ const FileUploadZone = ({
         let extractedData: any;
         const ext = file.name.toLowerCase().split(".").pop();
 
-        // Try deterministic template extraction for Excel files
-        // Check for unsupported multi-sheet KJ Auto format (DATA + P&L Top Line sheets)
-        // This format is NOT supported on the server-side semantic architecture.
-        // Block cleanly before any processing — do NOT extract, do NOT write data.
         if (ext === "xlsx" || ext === "xls") {
           try {
             const arrayBuffer = await file.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: "array" });
             
             if (detectTemplate(workbook)) {
-              // Multi-sheet KJ Auto format detected — unsupported
               console.warn("⚠️ Unsupported multi-sheet format detected (DATA + P&L Top Line). Blocking upload.");
               
-              // Update report to error state with explicit error
               await supabase
                 .from("financial_reports")
                 .update({
@@ -494,15 +346,13 @@ const FileUploadZone = ({
               });
               
               onPipelineComplete?.(reportRecord.id);
-              return; // STOP — do not process further
+              return;
             }
           } catch (templateErr) {
-            // detectTemplate failed — not a multi-sheet file, continue normally
             console.log("Multi-sheet detection check passed (not multi-sheet):", templateErr);
           }
         }
 
-        // Fallback: AI-based extraction (also sends excelBase64 for server-side deterministic)
         if (!extractedData) {
           const extracted = await extractTextFromFile(file);
           const ext2 = file.name.toLowerCase().split(".").pop();
@@ -510,7 +360,6 @@ const FileUploadZone = ({
           const isPdf = ext2 === "pdf" || file.type === "application/pdf";
           const excelBase64 = isExcel ? await fileToBase64(file) : undefined;
 
-          // For PDFs: extract structural payload with true positional data
           let pdfStructural: any = undefined;
           if (isPdf) {
             try {
@@ -518,7 +367,6 @@ const FileUploadZone = ({
               console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
             } catch (structErr: any) {
               if (requiresStructuralPdfPayload(extracted.text)) {
-                // Structural-required family — stop pipeline, do NOT call edge function
                 const errMessage = structErr?.message || String(structErr);
                 const diagnosticMarker = errMessage.includes("worker")
                   ? "pdfjs_worker_loading"
@@ -542,9 +390,8 @@ const FileUploadZone = ({
                 }).eq("id", reportRecord.id);
 
                 updateFile(fileId, { status: "error" });
-                return; // ← exits before edge function call
+                return;
               } else {
-                // Non-structural-required PDF — continue to backend
                 console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
               }
             }
@@ -555,7 +402,6 @@ const FileUploadZone = ({
             { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, pdfStructural, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
           );
 
-          // Handle duplicate (409)
           if (extractError) {
             const errMsg = typeof extractError === "object" && "context" in (extractError as any)
               ? (extractError as any).context
@@ -619,25 +465,24 @@ const FileUploadZone = ({
               file_name: file.name,
             },
           });
-          // Fire-and-forget: Slack + advisor notification (server-side)
           if (messageId) {
             notifyReportUpload(reportRecord.id, messageId);
           }
         }
 
-    // === STEP 3: Shared post-extraction pipeline (AI + milestones + done) ===
-    await runPostExtractionPipeline({
-      extractedData,
-      reportId: reportRecord.id,
-      userId: userId!,
-      companyId,
-      companyName,
-      fileId,
-      updateFile,
-      queryClient,
-      toastFn: toast,
-      onPipelineComplete,
-    });
+        // === STEP 3: Post-extraction pipeline (RP-2: no auto-AI) ===
+        await runPostExtractionPipeline({
+          extractedData,
+          reportId: reportRecord.id,
+          userId: userId!,
+          companyId,
+          companyName,
+          fileId,
+          updateFile,
+          queryClient,
+          toastFn: toast,
+          onPipelineComplete,
+        });
 
       } catch (err) {
         console.error("Pipeline error:", err);

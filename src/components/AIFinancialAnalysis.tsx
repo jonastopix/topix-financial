@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Sparkles,
   TrendingUp,
@@ -13,15 +13,12 @@ import {
   Loader2,
   RefreshCw,
   Calendar,
-  BarChart3,
-  ShieldAlert,
-  Pencil,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { useCompanyCommentary, generateCommentary, type Commentary } from "@/hooks/useCompanyCommentary";
 import { postActivityMessage } from "@/lib/chatActivity";
-import type { Json } from "@/integrations/supabase/types";
-import { hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 interface KeyFinding {
   title: string;
@@ -44,27 +41,6 @@ interface AnalysisData {
   challenges: TrendItem[];
   strategic_questions: string[];
   next_steps: string[];
-}
-
-interface ReportWithAnalysis {
-  id: string;
-  report_period: string | null;
-  company_name: string | null;
-  cvr_number: string | null;
-  extracted_data: Json | null;
-  normalized_data: Json | null;
-  ai_analysis: Json | null;
-  uploaded_at: string;
-  status: string;
-  validation_status?: string | null;
-  extraction_method?: string | null;
-  report_type?: string;
-  // Manual override fields
-  manual_report_period_label?: string | null;
-  manual_report_period_key?: string | null;
-  manual_normalized_data?: Json | null;
-  manual_override_status?: string | null;
-  manual_report_type?: string | null;
 }
 
 const severityConfig = {
@@ -91,11 +67,6 @@ const severityConfig = {
   },
 };
 
-const DANISH_MONTHS = [
-  "Januar", "Februar", "Marts", "April", "Maj", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "December",
-];
-
 interface AIFinancialAnalysisProps {
   conversationId?: string | null;
   companyId?: string | null;
@@ -103,244 +74,94 @@ interface AIFinancialAnalysisProps {
 }
 
 const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialAnalysisProps) => {
-  const [allReports, setAllReports] = useState<ReportWithAnalysis[]>([]);
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: facts = [] } = useCompanyFacts(companyId ?? undefined);
+  const { data: commentaries = [], isLoading: commentariesLoading } = useCompanyCommentary(companyId ?? undefined);
+
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
-  const [expandedYear, setExpandedYear] = useState<string | null>(null);
+  const [expandedYear, setExpandedYear] = useState<string | null>(() => String(new Date().getFullYear()));
 
-  // Fetch all processed reports
-  useEffect(() => {
-    if (!companyId) return;
-    const fetch = async () => {
-      const { data } = await supabase
-        .from("financial_reports")
-        .select("id, report_period, company_name, cvr_number, extracted_data, normalized_data, ai_analysis, uploaded_at, status, validation_status, extraction_method, report_type, manual_report_period_label, manual_report_period_key, manual_normalized_data, manual_override_status, manual_report_type")
-        .eq("company_id", companyId)
-        .is("deleted_at", null)
-        .in("status", ["processed"])
-        .order("uploaded_at", { ascending: false });
+  // Available periods from committed facts (sorted descending)
+  const availablePeriods = useMemo(() => {
+    return [...facts]
+      .sort((a, b) => b.period_key.localeCompare(a.period_key))
+      .map(f => ({
+        period_key: f.period_key,
+        period_label: f.period_label,
+      }));
+  }, [facts]);
 
-      const reports = (data || []) as ReportWithAnalysis[];
-      setAllReports(reports);
+  // Auto-select: first period with commentary, or first available period
+  const effectivePeriodKey = useMemo(() => {
+    if (selectedPeriodKey) return selectedPeriodKey;
+    const withCommentary = availablePeriods.find(p =>
+      commentaries.some(c => c.period_key === p.period_key)
+    );
+    return withCommentary?.period_key || availablePeriods[0]?.period_key || null;
+  }, [selectedPeriodKey, availablePeriods, commentaries]);
 
-      // Auto-select latest with analysis, or just latest
-      const withAnalysis = reports.find(r => r.ai_analysis);
-      setSelectedReportId(withAnalysis?.id || reports[0]?.id || null);
-
-      // Auto-expand current year
-      const currentYear = String(new Date().getFullYear());
-      setExpandedYear(currentYear);
-    };
-    fetch();
-  }, [companyId]);
-
-  const selectedReport = useMemo(
-    () => allReports.find(r => r.id === selectedReportId) || null,
-    [allReports, selectedReportId]
-  );
+  // Get commentary for selected period
+  const currentCommentary = useMemo(() => {
+    if (!effectivePeriodKey) return null;
+    return commentaries.find(c => c.period_key === effectivePeriodKey) || null;
+  }, [commentaries, effectivePeriodKey]);
 
   const analysis = useMemo(() => {
-    if (!selectedReport?.ai_analysis) return null;
-    return selectedReport.ai_analysis as unknown as AnalysisData;
-  }, [selectedReport]);
+    if (!currentCommentary?.analysis) return null;
+    return currentCommentary.analysis as unknown as AnalysisData;
+  }, [currentCommentary]);
 
-  const validationStatus = useMemo(() => {
-    if (!selectedReport) return "FAIL";
-    return selectedReport.validation_status || 
-           (selectedReport.extracted_data as any)?.validation?.status || 
-           "FAIL";
-  }, [selectedReport]);
+  const isStale = currentCommentary?.is_stale ?? false;
 
-  // Canonical gating: block AI if normalized_data.metrics exists but ai_eligible_payload is missing
-  // Manual override bypasses this block since it provides its own corrected data
-  const canonicalBlocked = useMemo(() => {
-    if (!selectedReport) return false;
-    if (hasManualOverride(selectedReport as unknown as ReportData)) return false;
-    const nd = selectedReport.normalized_data as any;
-    return !!nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload);
-  }, [selectedReport]);
+  const currentPeriodLabel = useMemo(() => {
+    const p = availablePeriods.find(p => p.period_key === effectivePeriodKey);
+    return p?.period_label || effectivePeriodKey || "";
+  }, [availablePeriods, effectivePeriodKey]);
 
-  // Manual override stale-data detection
-  const isManuallyOverridden = useMemo(() => {
-    if (!selectedReport) return false;
-    return hasManualOverride(selectedReport as unknown as ReportData);
-  }, [selectedReport]);
-
-  const isAnalysisStale = isManuallyOverridden && !!analysis;
-
-  // Group reports by year for history
-  const reportsByYear = useMemo(() => {
-    const groups: Record<string, ReportWithAnalysis[]> = {};
-    allReports.forEach(r => {
-      const yearMatch = r.report_period?.match(/\d{4}/);
-      const year = yearMatch?.[0] || "Ukendt";
+  // Group periods by year
+  const periodsByYear = useMemo(() => {
+    const groups: Record<string, typeof availablePeriods> = {};
+    availablePeriods.forEach(p => {
+      const year = p.period_key.slice(0, 4);
       if (!groups[year]) groups[year] = [];
-      groups[year].push(r);
+      groups[year].push(p);
     });
     return groups;
-  }, [allReports]);
+  }, [availablePeriods]);
 
-  const generateAnalysis = async (report?: ReportWithAnalysis) => {
-    const target = report || selectedReport;
-    if (!target?.extracted_data) {
-      toast.error("Ingen data at analysere.");
-      return;
-    }
-
-    const targetIsOverridden = hasManualOverride(target as unknown as ReportData);
-
-    // CANONICAL GATING: block if metrics exist but payload missing (skip if manual override provides data)
-    const nd = target.normalized_data as any;
-    if (!targetIsOverridden && nd?.metrics && !(nd?.ai_eligible === true && nd?.ai_eligible_payload)) {
-      toast.error("AI-analyse blokeret: canonical metrics findes, men ai_eligible_payload mangler.");
-      return;
-    }
-
-    // SAFETY: Bloker hvis validation !== PASS (skip if manual override provides corrected data)
-    const vStatus = target.validation_status || 
-                    (target.extracted_data as any)?.validation?.status || 
-                    "FAIL";
-    if (!targetIsOverridden && vStatus !== "PASS") {
-      toast.error(`AI-analyse er deaktiveret: validation returnerede ${vStatus}. Gennemgå data manuelt.`);
+  const handleGenerate = async (periodKey?: string) => {
+    const targetPeriod = periodKey || effectivePeriodKey;
+    if (!targetPeriod || !companyId) {
+      toast.error("Ingen periode valgt.");
       return;
     }
 
     setLoading(true);
-    if (report) setSelectedReportId(report.id);
+    if (periodKey) setSelectedPeriodKey(periodKey);
 
     try {
-      const ed = target.extracted_data as any;
-      const nd = target.normalized_data as any;
-      const isCanonicalPath = nd?.ai_eligible === true && nd?.ai_eligible_payload;
+      const result = await generateCommentary(companyId, targetPeriod);
 
-      // Get effective values for this report
-      const effectiveMetricsResult = getEffectiveMetrics(target as unknown as ReportData);
-      const effectivePeriod = getEffectiveReportPeriod(target as unknown as ReportData);
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
 
-      // Fetch historical data (sorted by period, not upload date)
-      const { data: historicalReports } = await supabase
-        .from("financial_reports")
-        .select("extracted_data, normalized_data, report_period, validation_status, manual_report_period_label, manual_override_status, manual_normalized_data")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .eq("status", "processed")
-        .neq("id", target.id)
-        .order("report_period", { ascending: true })
-        .limit(12);
-
-      // Build body based on canonical vs legacy path
-      let body: any;
-
-      if (targetIsOverridden && effectiveMetricsResult) {
-        // MANUAL OVERRIDE PATH: build a compatible canonical-like payload from effective metrics
-        const effectiveReportType = target.manual_report_type || target.report_type || "unknown";
-        const syntheticPayload = {
-          input_type: "canonical" as const,
-          company_name: target.company_name || ed?.company_name,
-          period_start: null,
-          period_end: null,
-          report_period_label: effectivePeriod,
-          statement_type: effectiveReportType === "resultatopgørelse" ? "pnl" : effectiveReportType === "saldobalance" ? "balance" : "combined",
-          selected_period_basis: "period" as const,
-          validation_status: "PASS" as const,
-          metrics: effectiveMetricsResult.metrics,
-        };
-
-        const historicalCanonical = (historicalReports || [])
-          .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
-          .map(r => {
-            const hrEffectivePeriod = getEffectiveReportPeriod(r as unknown as ReportData);
-            return {
-              period: hrEffectivePeriod || r.report_period,
-              ...(r.normalized_data as any)?.metrics,
-              _source: "canonical",
-            };
-          });
-
-        body = {
-          canonicalPayload: syntheticPayload,
-          historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
-          companyContext: {
-            name: target.company_name || ed?.company_name,
-            cvr: target.cvr_number || ed?.cvr_number,
-          },
-          companyId,
-        };
-      } else if (isCanonicalPath) {
-        // CANONICAL PATH: only PASS + ai_eligible historical
-        const historicalCanonical = (historicalReports || [])
-          .filter(r => r.validation_status === "PASS" && (r.normalized_data as any)?.ai_eligible === true)
-          .map(r => ({
-            period: r.report_period,
-            ...(r.normalized_data as any)?.metrics,
-            _source: "canonical",
-          }));
-
-        body = {
-          canonicalPayload: nd.ai_eligible_payload,
-          historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
-          companyContext: {
-            name: target.company_name || ed?.company_name,
-            cvr: target.cvr_number || ed?.cvr_number,
-          },
-          companyId,
-        };
-      } else {
-        // LEGACY PATH: only non-canonical historical
-        const legacyHistorical = (historicalReports || [])
-          .filter(r => r.extracted_data)
-          .map(r => {
-            const d = r.extracted_data as any;
-            return { period: r.report_period || d?.report_period, ...d?.key_figures };
-          });
-
-        body = {
-          financialData: ed?.key_figures || ed,
-          historicalData: legacyHistorical.length > 0 ? legacyHistorical : undefined,
-          companyContext: {
-            name: target.company_name || ed?.company_name,
-            cvr: target.cvr_number || ed?.cvr_number,
-          },
-          companyId,
-        };
-      }
-
-      const { data, error } = await supabase.functions.invoke("ai-financial-feedback", { body });
-
-      if (error) throw error;
-
-      // Persist analysis to DB
-      if (data && !data.error) {
-        await supabase
-          .from("financial_reports")
-          .update({ ai_analysis: data } as any)
-          .eq("id", target.id);
-
-        // Update local state
-        setAllReports(prev =>
-          prev.map(r => r.id === target.id ? { ...r, ai_analysis: data as Json } : r)
-        );
-      }
       setExpandedFinding(0);
 
       // Post to chat
-      if (conversationId && userId && data && !data.error) {
+      if (conversationId && userId && result.analysis) {
+        const analysisData = result.analysis as unknown as AnalysisData;
         const summaryParts: string[] = [];
-        summaryParts.push(`📊 **AI Finansiel Analyse · ${effectivePeriod || target.report_period}**\n`);
-        summaryParts.push(data.overview);
-        if (data.key_findings?.length > 0) {
+        const label = availablePeriods.find(p => p.period_key === targetPeriod)?.period_label || targetPeriod;
+        summaryParts.push(`📊 **AI Finansiel Analyse · ${label}**\n`);
+        summaryParts.push(analysisData.overview || "");
+        if (analysisData.key_findings?.length > 0) {
           summaryParts.push(`\n\n**Nøglefund:**`);
-          data.key_findings.forEach((f: any, i: number) => {
+          analysisData.key_findings.forEach((f, i) => {
             const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
             summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
-          });
-        }
-        if (data.next_steps?.length > 0) {
-          summaryParts.push(`\n\n**Næste skridt:**`);
-          data.next_steps.forEach((s: string, i: number) => {
-            summaryParts.push(`${i + 1}. ${s}`);
           });
         }
         await postActivityMessage({
@@ -348,14 +169,14 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
           senderId: userId,
           content: summaryParts.join("\n"),
           contextType: "report",
-          contextId: target.id,
-          contextMeta: { title: `AI Analyse · ${target.report_period}` },
+          contextId: result.id,
+          contextMeta: { title: `AI Analyse · ${label}` },
         });
       }
 
       toast.success("Analyse genereret");
     } catch (e: any) {
-      console.error("AI analysis error:", e);
+      console.error("Commentary generation error:", e);
       toast.error(e.message || "Kunne ikke generere analyse");
     } finally {
       setLoading(false);
@@ -375,50 +196,26 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
               AI Finansiel Analyse
             </h2>
             <p className="text-xs text-muted-foreground">
-              {selectedReport
-                ? `${getEffectiveReportPeriod(selectedReport as unknown as ReportData) || selectedReport.report_period || ""} · ${selectedReport.company_name || ""}`
-                : "Upload en rapport for at aktivere AI-analyse"}
+              {effectivePeriodKey
+                ? `${currentPeriodLabel}`
+                : "Ingen committed facts tilgængelige"}
             </p>
           </div>
         </div>
-        {selectedReport && (
-          <>
-            {canonicalBlocked ? (
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-muted text-muted-foreground cursor-not-allowed" title="Canonical data ufuldstændig — ai_eligible_payload mangler">
-                <ShieldAlert className="h-3.5 w-3.5" />
-                AI blokeret
-              </div>
-            ) : validationStatus !== "PASS" ? (
-              <div className="glass-card rounded-xl p-6 border-l-4 border-l-chart-warning">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1">
-                      AI-analyse ikke tilgængelig
-                    </h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Validation returnerede <strong>{validationStatus}</strong>. 
-                      AI-analyse er deaktiveret indtil data er valideret som PASS.
-                    </p>
-                  </div>
-                </div>
-              </div>
+        {effectivePeriodKey && (
+          <button
+            onClick={() => handleGenerate()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {loading ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyserer...</>
+            ) : analysis ? (
+              <><RefreshCw className="h-3.5 w-3.5" /> Generer ny</>
             ) : (
-              <button
-                onClick={() => generateAnalysis()}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {loading ? (
-                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyserer...</>
-                ) : analysis ? (
-                  <><RefreshCw className="h-3.5 w-3.5" /> Generer ny</>
-                ) : (
-                  <><Sparkles className="h-3.5 w-3.5" /> Generer analyse</>
-                )}
-              </button>
+              <><Sparkles className="h-3.5 w-3.5" /> Generer analyse</>
             )}
-          </>
+          </button>
         )}
       </div>
 
@@ -428,78 +225,41 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
           <p className="text-sm text-foreground font-medium">Analyserer dine finansielle data...</p>
           <p className="text-xs text-muted-foreground mt-1">
-            AI gennemgår rapporter og identificerer mønstre og trends
+            AI gennemgår committed facts og identificerer mønstre
           </p>
         </div>
       )}
 
-      {/* Canonical blocked banner */}
-      {canonicalBlocked && (
-        <div className="glass-card rounded-xl p-6 border-l-4 border-l-chart-warning">
+      {/* Stale banner */}
+      {isStale && !loading && (
+        <div className="glass-card rounded-xl p-5 border-l-4 border-l-chart-warning">
           <div className="flex items-start gap-3">
-            <ShieldAlert className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-1">
-                AI-analyse utilgængelig
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Canonical metrics er tilgængelige, men <strong>ai_eligible_payload</strong> mangler. 
-                Ny AI-kørsel er blokeret indtil data er komplet.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stale/cached analysis when canonical blocked */}
-      {canonicalBlocked && analysis && !loading && (
-        <div className="opacity-60 border-2 border-chart-warning/30 rounded-xl p-1">
-          <div className="flex items-center gap-2 px-5 pt-4 pb-2">
-            <ShieldAlert className="h-4 w-4 text-chart-warning" />
-            <span className="text-xs font-semibold text-chart-warning uppercase tracking-wider">
-              Historisk analyse — ny kørsel blokeret
-            </span>
-          </div>
-          {/* Overview (read-only) */}
-          <div className="mx-4 mb-4 rounded-xl bg-secondary/30 p-5 border-l-4 border-l-muted">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Overblik (cached)
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">{analysis.overview}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Manual override stale-data banner */}
-      {isAnalysisStale && !loading && (
-        <div className="glass-card rounded-xl p-5 border-l-4 border-l-accent">
-          <div className="flex items-start gap-3">
-            <Pencil className="h-5 w-5 text-accent-foreground shrink-0 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-chart-warning shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-foreground mb-1">
-                Data er manuelt korrigeret
+                Analysen er forældet
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Denne rapport har en manuel korrektion. Kør AI-analyse igen for opdaterede resultater baseret på de korrigerede data.
+                Facts for denne periode er blevet opdateret efter analysen blev genereret. Kør analysen igen for at få opdaterede resultater.
               </p>
             </div>
             <button
-              onClick={() => generateAnalysis()}
+              onClick={() => handleGenerate()}
               disabled={loading}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Kør igen
+              Generer igen
             </button>
           </div>
         </div>
       )}
 
-      {/* Analysis content — only when NOT canonical blocked */}
-      {!canonicalBlocked && (validationStatus === "PASS" || isManuallyOverridden) && analysis && !loading && (
+      {/* Analysis content */}
+      {analysis && !loading && (
         <>
           {/* Overview */}
-          <div className="glass-card rounded-xl p-6 border-l-4 border-l-primary">
+          <div className={`glass-card rounded-xl p-6 border-l-4 ${isStale ? "border-l-chart-warning opacity-70" : "border-l-primary"}`}>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Overblik
             </h3>
@@ -562,13 +322,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
               Trend-Analyse
             </h3>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-4">
-              Erkendelser, fokusområder og udfordringer over tid
+              Erkendelser, fokusområder og udfordringer
             </p>
 
             <div className="mb-5">
               <h4 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3" />
-                Tilgrundlæggende fokusområder
+                Fokusområder
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(showAllTrends ? analysis.positive_trends : analysis.positive_trends.slice(0, 3)).map(
@@ -580,7 +340,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
             <div>
               <h4 className="text-xs font-semibold text-chart-warning uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <TrendingDown className="h-3 w-3" />
-                Tilgrundlæggende udfordringer
+                Udfordringer
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(showAllTrends ? analysis.challenges : analysis.challenges.slice(0, 3)).map(
@@ -634,18 +394,18 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         </>
       )}
 
-      {/* Analysis History */}
-      {Object.keys(reportsByYear).length > 0 && (
+      {/* Period History */}
+      {Object.keys(periodsByYear).length > 0 && (
         <div className="glass-card rounded-xl p-6">
           <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
-            Analysehistorik
+            Perioder med committed facts
           </h3>
 
           <div className="space-y-2">
-            {Object.entries(reportsByYear)
+            {Object.entries(periodsByYear)
               .sort(([a], [b]) => b.localeCompare(a))
-              .map(([year, reports]) => (
+              .map(([year, periods]) => (
                 <div key={year}>
                   <button
                     onClick={() => setExpandedYear(expandedYear === year ? null : year)}
@@ -661,19 +421,18 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
 
                   {expandedYear === year && (
                     <div className="space-y-1 ml-2 mb-3">
-                      {reports.map(r => {
-                        const hasAnalysis = !!r.ai_analysis;
-                        const isSelected = r.id === selectedReportId;
+                      {periods.map(p => {
+                        const commentary = commentaries.find(c => c.period_key === p.period_key);
+                        const hasAnalysis = !!commentary;
+                        const isSelected = p.period_key === effectivePeriodKey;
+                        const periodIsStale = commentary?.is_stale ?? false;
+
                         return (
                           <button
-                            key={r.id}
+                            key={p.period_key}
                             onClick={() => {
-                              setSelectedReportId(r.id);
+                              setSelectedPeriodKey(p.period_key);
                               setExpandedFinding(0);
-                              // Don't auto-generate if canonical blocked
-                              const rnd = r.normalized_data as any;
-                              const rBlocked = !!rnd?.metrics && !(rnd?.ai_eligible === true && rnd?.ai_eligible_payload);
-                              if (!hasAnalysis && !rBlocked) generateAnalysis(r);
                             }}
                             className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg text-left transition-all ${
                               isSelected
@@ -683,21 +442,16 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
                           >
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-sm text-foreground">{getEffectiveReportPeriod(r as unknown as ReportData) || r.uploaded_at.slice(0, 10)}</span>
-                              {/* Deterministic extraction badge */}
-                              {r.extraction_method === "deterministic_template" && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-accent text-accent-foreground">
-                                  DET
-                                </span>
-                              )}
-                              {hasManualOverride(r as unknown as ReportData) && (
-                                <Pencil className="h-3 w-3 text-muted-foreground" />
-                              )}
+                              <span className="text-sm text-foreground">{p.period_label || p.period_key}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               {hasAnalysis ? (
-                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                                  Analyse klar
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                  periodIsStale
+                                    ? "bg-chart-warning/10 text-chart-warning"
+                                    : "bg-primary/10 text-primary"
+                                }`}>
+                                  {periodIsStale ? "Forældet" : "Analyse klar"}
                                 </span>
                               ) : (
                                 <span className="text-[10px] text-muted-foreground">
@@ -718,12 +472,12 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
       )}
 
       {/* Empty state */}
-      {!analysis && !loading && allReports.length === 0 && (
+      {!analysis && !loading && availablePeriods.length === 0 && (
         <div className="glass-card rounded-xl p-12 text-center">
           <Sparkles className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter fundet</p>
+          <p className="text-sm text-foreground font-medium mb-1">Ingen committed facts fundet</p>
           <p className="text-xs text-muted-foreground">
-            Upload en saldobalance eller resultatopgørelse for at komme i gang
+            Upload og godkend en rapport for at aktivere AI-analyse
           </p>
         </div>
       )}
