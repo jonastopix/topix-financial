@@ -96,20 +96,6 @@ async function runPostExtractionPipeline(params: {
   });
 }
 
-    // === STEP 3: Shared post-extraction pipeline (RP-2: no auto-AI) ===
-    await runPostExtractionPipeline({
-      extractedData,
-      reportId: reportRecord.id,
-      userId: userId!,
-      companyId,
-      companyName,
-      fileId,
-      updateFile,
-      queryClient,
-      toastFn: toast,
-      onPipelineComplete,
-    });
-
   const processFile = useCallback(
     async (file: File) => {
       const fileId = crypto.randomUUID();
