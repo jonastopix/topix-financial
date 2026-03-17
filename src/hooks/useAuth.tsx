@@ -150,7 +150,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [groupMembershipRes, groupFeatureFlagRes] = await Promise.all([
       supabase
         .from("group_memberships" as any)
-        .select("group_id, groups:group_id(id, name)" as any)
+        .select("group_id, welcome_dismissed_at, groups:group_id(id, name)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle(),
