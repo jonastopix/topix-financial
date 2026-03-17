@@ -27,8 +27,6 @@ import BulkImport from "./pages/BulkImport";
 import ReportReviewQueue from "./pages/ReportReviewQueue";
 import AdminFeedback from "./pages/AdminFeedback";
 import Onboarding from "./pages/Onboarding";
-import GroupOnboarding from "./pages/GroupOnboarding";
-import GroupSetupComplete from "./pages/GroupSetupComplete";
 import GroupDashboard from "./pages/GroupDashboard";
 import GroupBudget from "./pages/GroupBudget";
 import AdvisorGroupList from "./pages/AdvisorGroupList";
@@ -107,8 +105,8 @@ const App = () => (
               <Route path="/groups/:groupId" element={<AdvisorRoute><AdvisorGroupDashboard /></AdvisorRoute>} />
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
               <Route path="/group/budget" element={<ProtectedRoute><GroupBudget /></ProtectedRoute>} />
-              <Route path="/group/onboarding" element={<ProtectedRoute><GroupOnboarding /></ProtectedRoute>} />
-              <Route path="/group/setup-complete" element={<ProtectedRoute><GroupSetupComplete /></ProtectedRoute>} />
+              <Route path="/group/onboarding" element={<Navigate to="/" replace />} />
+              <Route path="/group/setup-complete" element={<Navigate to="/" replace />} />
               {/* Old group chat routes — redirect to unified /chat */}
               <Route path="/group/chat" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats" element={<Navigate to="/chat" replace />} />
