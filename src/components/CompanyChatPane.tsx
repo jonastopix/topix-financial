@@ -881,33 +881,53 @@ const CompanyChatPane = () => {
 
   const MAX_MESSAGE_LENGTH = 5000;
 
-  const handleSend = useCallback(async (content: string) => {
+  const handleSend = useCallback(async (content: string, files?: File[]) => {
     const trimmed = content.trim();
-    if (!trimmed || !activeConvId || !user) return;
+    const hasFiles = files && files.length > 0;
+    if ((!trimmed && !hasFiles) || !activeConvId || !user) return;
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     setSending(true);
 
+    // Upload attachments if any
+    let attachments: ChatAttachment[] = [];
+    if (hasFiles) {
+      attachments = await uploadChatAttachments(user.id, files);
+      if (attachments.length === 0 && !trimmed) {
+        setSending(false);
+        toast.error("Upload fejlede");
+        return;
+      }
+    }
+
+    const contextMeta = attachments.length > 0 ? { attachments } : undefined;
+
     if (activeConvId.startsWith("group_")) {
       const gcId = activeConvId.replace("group_", "");
+      const insertData: any = {
+        conversation_id: gcId,
+        sender_id: user.id,
+        content: trimmed || "📎",
+      };
       const { error } = await supabase
         .from("group_messages" as any)
-        .insert({
-          conversation_id: gcId,
-          sender_id: user.id,
-          content: trimmed,
-        } as any);
+        .insert(insertData);
       if (error) console.error("Failed to send group message:", error);
+      // For group messages, we store attachment info in a separate approach below
     } else {
       const insertData: any = {
         conversation_id: activeConvId,
         sender_id: user.id,
-        content: trimmed,
+        content: trimmed || "📎",
       };
 
       if (selectedTopic) {
         insertData.context_type = selectedTopic;
+      }
+
+      if (contextMeta) {
+        insertData.context_meta = contextMeta;
       }
 
       const { data, error } = await supabase.from("messages").insert(insertData).select().single();
