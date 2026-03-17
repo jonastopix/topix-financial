@@ -478,6 +478,33 @@ export type Database = {
           },
         ]
       }
+      conversation_last_seen: {
+        Row: {
+          conversation_id: string
+          conversation_type: string
+          id: string
+          last_seen_at: string
+          last_seen_message_id: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          conversation_type?: string
+          id?: string
+          last_seen_at?: string
+          last_seen_message_id?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          conversation_type?: string
+          id?: string
+          last_seen_at?: string
+          last_seen_message_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversation_notes: {
         Row: {
           content: string
@@ -1061,6 +1088,7 @@ export type Database = {
           context_meta: Json | null
           conversation_id: string
           created_at: string
+          edited_at: string | null
           id: string
           message_type: string
           sender_id: string
@@ -1070,6 +1098,7 @@ export type Database = {
           context_meta?: Json | null
           conversation_id: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           message_type?: string
           sender_id: string
@@ -1079,6 +1108,7 @@ export type Database = {
           context_meta?: Json | null
           conversation_id?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           message_type?: string
           sender_id?: string
@@ -1346,6 +1376,7 @@ export type Database = {
           context_type: string | null
           conversation_id: string
           created_at: string
+          edited_at: string | null
           id: string
           message_type: string
           pinned_at: string | null
@@ -1359,6 +1390,7 @@ export type Database = {
           context_type?: string | null
           conversation_id: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           message_type?: string
           pinned_at?: string | null
@@ -1372,6 +1404,7 @@ export type Database = {
           context_type?: string | null
           conversation_id?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           message_type?: string
           pinned_at?: string | null
