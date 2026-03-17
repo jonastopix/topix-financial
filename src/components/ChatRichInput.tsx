@@ -160,6 +160,9 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     setPendingFiles(prev => [...prev, ...valid].slice(0, MAX_FILES));
   }, []);
 
+  // Flag to prevent double-add from Tiptap handleDrop + wrapper onDrop
+  const dropHandledRef = useRef(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -210,6 +213,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
         const files = event.dataTransfer?.files;
         if (files && files.length > 0) {
           event.preventDefault();
+          dropHandledRef.current = true;
           addFiles(Array.from(files));
           setDragOver(false);
           return true;
@@ -275,6 +279,11 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
+    // Skip if Tiptap's handleDrop already processed this
+    if (dropHandledRef.current) {
+      dropHandledRef.current = false;
+      return;
+    }
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       addFiles(Array.from(files));
