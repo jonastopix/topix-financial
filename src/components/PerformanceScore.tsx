@@ -32,32 +32,17 @@ function getScoreLabel(score: number, labels: readonly { min: number; label: str
 }
 
 const PerformanceScore = () => {
-  const { user, companyId } = useAuth();
   const { performanceScore: PERF } = useAppConfig();
-
-  const { data: reports = [] } = useQuery({
-    queryKey: ["financial-reports-perf", companyId],
-    queryFn: async () => {
-      const { data, error } = await (supabase
-        .from("financial_reports")
-        .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
-        .eq("company_id", companyId!)
-        .eq("status", "processed")
-        .order("uploaded_at", { ascending: false })
-        .limit(6);
-      if (error) throw error;
-      return (data || []) as ReportData[];
-    },
-    enabled: !!user && !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: facts = [] } = useCompanyFacts();
 
   const metrics = useMemo((): MetricScore[] => {
-    if (reports.length === 0) return [];
+    if (facts.length === 0) return [];
 
-    const sorted = [...reports]
-      .map(r => ({ key: getEffectiveReportPeriodKey(r), kf: getEffectiveKeyFigures(r) }))
-      .filter((d): d is { key: string; kf: Record<string, number> } => !!d.key && !!d.kf)
+    const sorted = facts
+      .map(f => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics) }))
+      .filter((d): d is { key: string; kf: Record<string, number> } =>
+        !!d.key && Object.keys(d.kf).length > 0
+      )
       .sort((a, b) => a.key.localeCompare(b.key));
 
     if (sorted.length === 0) return [];
