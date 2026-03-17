@@ -1762,6 +1762,23 @@ const Members = () => {
           onCreated={() => setReloadTrigger((t) => t + 1)}
         />
       )}
+
+      {/* Add company to existing group dialog */}
+      {addToGroupTarget && (
+        <AddCompanyToGroupDialog
+          open={!!addToGroupTarget}
+          onOpenChange={(val) => { if (!val) setAddToGroupTarget(null); }}
+          groupId={addToGroupTarget.groupId}
+          groupName={addToGroupTarget.groupName}
+          allCompanies={companies.map((c) => ({
+            id: c.id,
+            name: c.name,
+            members: c.members.map((m) => ({ user_id: m.user_id, full_name: m.full_name, role: m.role })),
+          }))}
+          groupedCompanyIds={groupedCompanyIds}
+          onSuccess={() => setReloadTrigger((t) => t + 1)}
+        />
+      )}
     </AppLayout>
   );
 };
