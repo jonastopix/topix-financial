@@ -15,6 +15,7 @@ import { useMessageActions } from "@/hooks/useMessageActions";
 import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
 import MessageActionMenu from "@/components/MessageActionMenu";
 import InlineEditInput from "@/components/InlineEditInput";
+import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
@@ -2247,6 +2248,63 @@ const CompanyChatPane = () => {
                                 onSave={() => handleEditSave(msg.id)}
                                 onCancel={cancelEdit}
                               />
+                            ) : isMobile ? (
+                              <MobileMessageActionDrawer
+                                canEdit={canEditCheck(msg.sender_id, msg.created_at)}
+                                canDelete={canDeleteCheck(msg.sender_id)}
+                                onEdit={() => startEdit(msg.id, msg.content)}
+                                onDelete={() => handleDeleteMsg(msg.id)}
+                                onReaction={(emoji) => toggleReaction(msg.id, emoji)}
+                              >
+                                {topicInfo && (
+                                  <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                                    <topicInfo.icon className="h-2.5 w-2.5" />
+                                    {topicInfo.label}
+                                  </div>
+                                )}
+                                {contextType && contextMeta?.title && (
+                                  <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
+                                    isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                                  }`}>
+                                    {contextType === "report" && <FileText className="h-3 w-3" />}
+                                    {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                    Re: {String(contextMeta.title)}
+                                  </div>
+                                )}
+                                <div
+                                  className={`rounded-2xl px-4 py-2.5 ${
+                                    isMine
+                                      ? "bg-primary text-primary-foreground rounded-br-md"
+                                      : "bg-secondary text-foreground rounded-bl-md"
+                                  } ${contextType ? "rounded-tl-md" : ""}`}
+                                >
+                                  {!isMine && (
+                                    <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
+                                      {senderName}
+                                    </p>
+                                  )}
+                                  {msg.content !== "📎" && (
+                                    <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
+                                  )}
+                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} />
+                                  <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
+                                    {(msg as any).edited_at && (
+                                      <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                                        (redigeret)
+                                      </span>
+                                    )}
+                                    <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                                      {format(new Date(msg.created_at), "HH:mm", { locale: da })}
+                                    </span>
+                                    {!isAdvisor && isMine && msg.id === latestReadOwnMsgId && (
+                                      <>
+                                        <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
+                                        <span className="text-[10px] text-primary-foreground/60">Læst</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </MobileMessageActionDrawer>
                             ) : (
                               <>
                                 {topicInfo && (
