@@ -9,7 +9,21 @@ Deno.serve(async (req) => {
   // Bucket A: authenticate the caller
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
-  const { callerId } = auth;
+  const { callerId, callerClient } = auth;
+
+  // Gate: only advisors/admins may create groups
+  const { data: roleRows } = await callerClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", callerId)
+    .in("role", ["advisor", "admin"]);
+
+  if (!roleRows || roleRows.length === 0) {
+    return new Response(
+      JSON.stringify({ error: "Only advisors or admins can create groups" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
   try {
     const { group_name, companies } = await req.json();
