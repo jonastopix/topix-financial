@@ -738,6 +738,66 @@ export type Database = {
           },
         ]
       }
+      financial_commentaries: {
+        Row: {
+          analysis: Json
+          basis_committed_at: string
+          basis_metrics_hash: string
+          basis_source_type: string
+          company_id: string
+          created_at: string
+          facts_id: string
+          generated_at: string
+          generated_by: string
+          id: string
+          is_stale: boolean
+          period_key: string
+        }
+        Insert: {
+          analysis: Json
+          basis_committed_at: string
+          basis_metrics_hash: string
+          basis_source_type: string
+          company_id: string
+          created_at?: string
+          facts_id: string
+          generated_at?: string
+          generated_by: string
+          id?: string
+          is_stale?: boolean
+          period_key: string
+        }
+        Update: {
+          analysis?: Json
+          basis_committed_at?: string
+          basis_metrics_hash?: string
+          basis_source_type?: string
+          company_id?: string
+          created_at?: string
+          facts_id?: string
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          is_stale?: boolean
+          period_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_commentaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_commentaries_facts_id_fkey"
+            columns: ["facts_id"]
+            isOneToOne: false
+            referencedRelation: "financial_report_facts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_report_facts: {
         Row: {
           committed_at: string
@@ -1787,6 +1847,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
       create_group: {
         Args: { _caller_id: string; _companies: Json; _group_name: string }
         Returns: Json
