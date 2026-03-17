@@ -16,7 +16,7 @@ const GroupChatRoom = () => {
   const { user, isAdvisor, loading: authLoading } = useAuth();
   const hasShownToast = useRef(false);
 
-  const { messages, profiles, loading, accessDenied, sending, sendMessage } = useGroupChat({
+  const { messages, profiles, loading, accessDenied, sending, sendMessage, conversationId } = useGroupChat({
     groupId: groupId || null,
   });
 
@@ -107,6 +107,14 @@ const GroupChatRoom = () => {
                 messages={messages}
                 profiles={profiles}
                 currentUserId={user?.id || ""}
+                conversationId={conversationId || undefined}
+                isAdvisor={isAdvisor}
+                onMessageDeleted={(id) => {
+                  // Remove from local state; realtime will also handle
+                }}
+                onMessageEdited={(id, content, editedAt) => {
+                  // Local update; realtime will also handle
+                }}
               />
             )}
 

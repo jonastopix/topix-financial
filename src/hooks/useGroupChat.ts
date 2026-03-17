@@ -146,6 +146,32 @@ export function useGroupChat({ groupId }: UseGroupChatOptions = {}) {
           await fetchProfiles([newMsg.sender_id]);
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "group_messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as unknown as GroupMessage;
+          setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "group_messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const old = payload.old as any;
+          if (old?.id) setMessages(prev => prev.filter(m => m.id !== old.id));
+        }
+      )
       .subscribe();
 
     return () => {
