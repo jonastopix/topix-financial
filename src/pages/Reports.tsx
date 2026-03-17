@@ -289,12 +289,16 @@ const Reports = () => {
 
   const pendingScrollRef = useRef<string | null>(null);
 
-  const handlePipelineComplete = (reportId?: string) => {
+  const handlePipelineComplete = async (reportId?: string) => {
     if (reportId) {
       pendingScrollRef.current = reportId;
       setExpandedReport(reportId);
     }
     setRefreshKey((k) => k + 1);
+    if (reportId) {
+      await commitStatesQuery.refetch();
+      setPendingReviewReportId(reportId);
+    }
   };
 
   // Post-upload: scroll to newly created report after data reloads
