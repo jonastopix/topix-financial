@@ -6,6 +6,10 @@ import type { GroupMessage, SenderProfile } from "@/hooks/useGroupChat";
 import { MessageAttachments } from "@/components/ChatAttachments";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
 import { ReactionBar, ReactionPicker } from "@/components/MessageReactions";
+import { useMessageActions } from "@/hooks/useMessageActions";
+import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
+import MessageActionMenu from "@/components/MessageActionMenu";
+import InlineEditInput from "@/components/InlineEditInput";
 
 function dateSeparatorLabel(date: Date): string {
   const today = startOfDay(new Date());
@@ -20,9 +24,21 @@ interface Props {
   messages: GroupMessage[];
   profiles: Map<string, SenderProfile>;
   currentUserId: string;
+  conversationId?: string;
+  isAdvisor?: boolean;
+  onMessageDeleted?: (messageId: string) => void;
+  onMessageEdited?: (messageId: string, newContent: string, editedAt: string) => void;
 }
 
-const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUserId }) => {
+const GroupChatMessageList: React.FC<Props> = ({
+  messages,
+  profiles,
+  currentUserId,
+  conversationId,
+  isAdvisor = false,
+  onMessageDeleted,
+  onMessageEdited,
+}) => {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
@@ -34,6 +50,20 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
     currentUserId
   );
 
+  const {
+    editingId, editContent, setEditContent,
+    startEdit, cancelEdit, saveEdit,
+    deleteMessage, canEdit, canDelete,
+  } = useMessageActions("group_messages", currentUserId, isAdvisor);
+
+  const latestMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
+  const { lastSeenMessageId } = useConversationLastSeen(
+    conversationId || null,
+    "group",
+    currentUserId,
+    latestMessageId
+  );
+
   useEffect(() => {
     if (messages.length > prevCountRef.current) {
       endRef.current?.scrollIntoView({ behavior: messages.length - prevCountRef.current === 1 ? "smooth" : "auto" });
@@ -41,7 +71,19 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
     prevCountRef.current = messages.length;
   }, [messages.length]);
 
+  const handleDelete = async (messageId: string) => {
+    const ok = await deleteMessage(messageId);
+    if (ok) onMessageDeleted?.(messageId);
+  };
+
+  const handleSaveEdit = async (messageId: string) => {
+    const trimmed = editContent.trim();
+    const ok = await saveEdit(messageId);
+    if (ok) onMessageEdited?.(messageId, trimmed, new Date().toISOString());
+  };
+
   let lastDateKey = "";
+  let unreadDividerShown = false;
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
@@ -59,6 +101,27 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
 
         const attachments = msg.context_meta?.attachments;
         const aggregated = getAggregated(msg.id);
+        const isEditing = editingId === msg.id;
+
+        // Unread divider: show AFTER last-seen message
+        let showUnreadDivider = false;
+        if (
+          !unreadDividerShown &&
+          lastSeenMessageId &&
+          lastSeenMessageId !== latestMessageId &&
+          msg.id !== lastSeenMessageId
+        ) {
+          // We haven't passed it yet, keep looking
+        }
+        // After passing lastSeenMessageId, show divider on next message that isn't ours
+        if (!unreadDividerShown && lastSeenMessageId) {
+          // Check if previous message was the lastSeen
+          const idx = messages.indexOf(msg);
+          if (idx > 0 && messages[idx - 1].id === lastSeenMessageId && !isMine) {
+            showUnreadDivider = true;
+            unreadDividerShown = true;
+          }
+        }
 
         return (
           <React.Fragment key={msg.id}>
@@ -69,6 +132,15 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
                   {dateSeparatorLabel(msgDate)}
                 </span>
                 <div className="flex-1 border-t border-border" />
+              </div>
+            )}
+            {showUnreadDivider && (
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex-1 border-t border-primary/50" />
+                <span className="text-[11px] text-primary font-semibold px-2">
+                  Nye beskeder
+                </span>
+                <div className="flex-1 border-t border-primary/50" />
               </div>
             )}
             <div className={`flex gap-2.5 group/msg ${isMine ? "flex-row-reverse" : ""}`}>
@@ -86,32 +158,55 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
                   </p>
                 )}
                 <div className="relative">
-                  <div
-                    className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-                      isMine
-                        ? "bg-primary text-primary-foreground rounded-tr-md"
-                        : "bg-secondary text-foreground rounded-tl-md"
-                    }`}
-                  >
-                    {msg.content !== "📎" && (
-                      msg.content.startsWith("<") ? (
-                        <div
-                          className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
-                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
-                        />
-                      ) : (
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                      )
-                    )}
-                    <MessageAttachments attachments={attachments} isMine={isMine} />
-                  </div>
-                  {/* Reaction picker trigger */}
-                  <div className={`absolute ${isMine ? "-left-7" : "-right-7"} top-1/2 -translate-y-1/2 z-10`}>
-                    <ReactionPicker
-                      onSelect={(emoji) => toggleReaction(msg.id, emoji)}
-                      isMine={isMine}
+                  {isEditing ? (
+                    <InlineEditInput
+                      value={editContent}
+                      onChange={setEditContent}
+                      onSave={() => handleSaveEdit(msg.id)}
+                      onCancel={cancelEdit}
                     />
-                  </div>
+                  ) : (
+                    <>
+                      <div
+                        className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                          isMine
+                            ? "bg-primary text-primary-foreground rounded-tr-md"
+                            : "bg-secondary text-foreground rounded-tl-md"
+                        }`}
+                      >
+                        {msg.content !== "📎" && (
+                          msg.content.startsWith("<") ? (
+                            <div
+                              className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
+                              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
+                            />
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                          )
+                        )}
+                        <MessageAttachments attachments={attachments} isMine={isMine} />
+                        {(msg as any).edited_at && (
+                          <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                            (redigeret)
+                          </span>
+                        )}
+                      </div>
+                      {/* Action buttons */}
+                      <div className={`absolute ${isMine ? "-left-14" : "-right-14"} top-1/2 -translate-y-1/2 z-10 flex gap-0.5`}>
+                        <ReactionPicker
+                          onSelect={(emoji) => toggleReaction(msg.id, emoji)}
+                          isMine={isMine}
+                        />
+                        <MessageActionMenu
+                          canEdit={canEdit(msg.sender_id, msg.created_at)}
+                          canDelete={canDelete(msg.sender_id)}
+                          onEdit={() => startEdit(msg.id, msg.content)}
+                          onDelete={() => handleDelete(msg.id)}
+                          isMine={isMine}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
                 <ReactionBar
                   reactions={aggregated}
