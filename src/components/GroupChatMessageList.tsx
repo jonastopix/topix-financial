@@ -168,6 +168,39 @@ const GroupChatMessageList: React.FC<Props> = ({
                       onSave={() => handleSaveEdit(msg.id)}
                       onCancel={cancelEdit}
                     />
+                  ) : isMobile ? (
+                    <MobileMessageActionDrawer
+                      canEdit={canEdit(msg.sender_id, msg.created_at)}
+                      canDelete={canDelete(msg.sender_id)}
+                      onEdit={() => startEdit(msg.id, msg.content)}
+                      onDelete={() => handleDelete(msg.id)}
+                      onReaction={(emoji) => toggleReaction(msg.id, emoji)}
+                    >
+                      <div
+                        className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                          isMine
+                            ? "bg-primary text-primary-foreground rounded-tr-md"
+                            : "bg-secondary text-foreground rounded-tl-md"
+                        }`}
+                      >
+                        {msg.content !== "📎" && (
+                          msg.content.startsWith("<") ? (
+                            <div
+                              className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
+                              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
+                            />
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                          )
+                        )}
+                        <MessageAttachments attachments={attachments} isMine={isMine} />
+                        {(msg as any).edited_at && (
+                          <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                            (redigeret)
+                          </span>
+                        )}
+                      </div>
+                    </MobileMessageActionDrawer>
                   ) : (
                     <>
                       <div
@@ -194,7 +227,7 @@ const GroupChatMessageList: React.FC<Props> = ({
                           </span>
                         )}
                       </div>
-                      {/* Action buttons */}
+                      {/* Action buttons - desktop only */}
                       <div className={`absolute ${isMine ? "-left-14" : "-right-14"} top-1/2 -translate-y-1/2 z-10 flex gap-0.5`}>
                         <ReactionPicker
                           onSelect={(emoji) => toggleReaction(msg.id, emoji)}
