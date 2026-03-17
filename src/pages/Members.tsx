@@ -154,6 +154,9 @@ const Members = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardAnchor, setWizardAnchor] = useState<{ id: string; name: string } | null>(null);
 
+  // Add company to existing group (admin-only)
+  const [addToGroupTarget, setAddToGroupTarget] = useState<{ groupId: string; groupName: string } | null>(null);
+
   // Standalone invite (no company)
   const [standaloneInviteOpen, setStandaloneInviteOpen] = useState(false);
   const [standaloneEmail, setStandaloneEmail] = useState("");
