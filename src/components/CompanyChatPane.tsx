@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
+import { useMessageReactions } from "@/hooks/useMessageReactions";
+import { ReactionBar, ReactionPicker } from "@/components/MessageReactions";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
