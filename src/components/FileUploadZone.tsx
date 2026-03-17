@@ -95,6 +95,21 @@ async function runPostExtractionPipeline(params: {
     description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} · Klar til gennemgang`,
   });
 }
+
+    // === STEP 3: Shared post-extraction pipeline (RP-2: no auto-AI) ===
+    await runPostExtractionPipeline({
+      extractedData,
+      reportId: reportRecord.id,
+      userId: userId!,
+      companyId,
+      companyName,
+      fileId,
+      updateFile,
+      queryClient,
+      toastFn: toast,
+      onPipelineComplete,
+    });
+
       } catch (err) {
         console.error("Pipeline error:", err);
         const userMsg = err instanceof Error ? err.message : "Kunne ikke behandle dokumentet";
