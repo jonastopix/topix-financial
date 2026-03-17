@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -76,7 +76,7 @@ export default function ReportReviewDialog({
   const [committing, setCommitting] = useState(false);
   const queryClient = useQueryClient();
 
-  const loadPreview = async () => {
+  const loadPreview = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -90,7 +90,18 @@ export default function ReportReviewDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportId]);
+
+  // Load preview reactively when dialog opens
+  useEffect(() => {
+    if (open && reportId) {
+      loadPreview();
+    }
+    if (!open) {
+      setPreview(null);
+      setError(null);
+    }
+  }, [open, reportId, loadPreview]);
 
   const handleCommit = async () => {
     setCommitting(true);
@@ -111,20 +122,8 @@ export default function ReportReviewDialog({
     }
   };
 
-  // Load preview when dialog opens
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen && !preview && !loading) {
-      loadPreview();
-    }
-    if (!nextOpen) {
-      setPreview(null);
-      setError(null);
-    }
-    onOpenChange(nextOpen);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
