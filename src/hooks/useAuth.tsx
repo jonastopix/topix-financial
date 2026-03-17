@@ -25,6 +25,8 @@ interface AuthContext {
   groupName: string | null;
   isGroupUser: boolean;
   isGroupFeatureEnabled: boolean;
+  /** Welcome banner dismissal timestamp from group_memberships */
+  welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   setOnboardingComplete: () => void;

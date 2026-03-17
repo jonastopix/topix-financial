@@ -71,7 +71,7 @@ export default function CreateGroupWizard({ open, onOpenChange, anchorCompany, a
       .select("user_id, company_id, role")
       .in("company_id", allGroupCompanyIds) as any;
 
-    const userIds = [...new Set((memberships || []).map((m: any) => m.user_id))];
+    const userIds = [...new Set((memberships || []).map((m: any) => m.user_id))] as string[];
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name")

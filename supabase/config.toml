@@ -41,3 +41,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.validate-facts-parity]
     verify_jwt = false
+  [functions.admin-create-group]
+    verify_jwt = false
