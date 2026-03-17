@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface MetricScore {
