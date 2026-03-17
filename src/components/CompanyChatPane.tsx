@@ -15,6 +15,7 @@ import { useMessageActions } from "@/hooks/useMessageActions";
 import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
 import MessageActionMenu from "@/components/MessageActionMenu";
 import InlineEditInput from "@/components/InlineEditInput";
+import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
