@@ -2121,17 +2121,23 @@ const CompanyChatPane = () => {
                             className={`${isMobile ? "max-w-[85%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
                           >
                             {!isMobile && (
-                              <button
-                                onClick={() => togglePin(msg)}
-                                className={`absolute ${isMine ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1 rounded-md transition-all z-10 ${
-                                  msg.pinned_at
-                                    ? "text-primary opacity-100 hover:text-destructive"
-                                    : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                                }`}
-                                title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
-                              >
-                                <Pin className="h-3.5 w-3.5" />
-                              </button>
+                              <div className={`absolute ${isMine ? "-left-14" : "-right-14"} top-1/2 -translate-y-1/2 flex gap-0.5 z-10`}>
+                                <button
+                                  onClick={() => togglePin(msg)}
+                                  className={`p-1 rounded-md transition-all ${
+                                    msg.pinned_at
+                                      ? "text-primary opacity-100 hover:text-destructive"
+                                      : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                  }`}
+                                  title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                                >
+                                  <Pin className="h-3.5 w-3.5" />
+                                </button>
+                                <ReactionPicker
+                                  onSelect={(emoji) => toggleReaction(msg.id, emoji)}
+                                  isMine={isMine}
+                                />
+                              </div>
                             )}
                             {topicInfo && (
                               <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
