@@ -1016,6 +1016,21 @@ const Reports = () => {
           onSaved={() => setRefreshKey(k => k + 1)}
         />
       )}
+      {/* RP-1: Review Dialog */}
+      <ReportReviewDialog
+        reportId={reviewDialogState.reportId}
+        reportLabel={reviewDialogState.reportLabel}
+        cardState={reviewDialogState.cardState}
+        open={reviewDialogState.open}
+        onOpenChange={(open) => {
+          setReviewDialogState(prev => ({ ...prev, open }));
+          if (!open) {
+            // Refresh commit states + report list after closing
+            commitStatesQuery.refetch();
+            setRefreshKey(k => k + 1);
+          }
+        }}
+      />
     </AppLayout>
   );
 };
