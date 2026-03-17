@@ -3,6 +3,7 @@ import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 import DOMPurify from "dompurify";
 import type { GroupMessage, SenderProfile } from "@/hooks/useGroupChat";
+import { MessageAttachments } from "@/components/ChatAttachments";
 
 function dateSeparatorLabel(date: Date): string {
   const today = startOfDay(new Date());
@@ -47,6 +48,8 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
           ? sender.full_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
           : "??";
 
+        const attachments = msg.context_meta?.attachments;
+
         return (
           <React.Fragment key={msg.id}>
             {showDateSep && (
@@ -79,14 +82,17 @@ const GroupChatMessageList: React.FC<Props> = ({ messages, profiles, currentUser
                       : "bg-secondary text-foreground rounded-tl-md"
                   }`}
                 >
-                  {msg.content.startsWith("<") ? (
-                    <div
-                      className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
-                    />
-                  ) : (
-                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  {msg.content !== "📎" && (
+                    msg.content.startsWith("<") ? (
+                      <div
+                        className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                    )
                   )}
+                  <MessageAttachments attachments={attachments} isMine={isMine} />
                 </div>
                 <p className={`text-[10px] text-muted-foreground mt-0.5 px-1 ${isMine ? "text-right" : ""}`}>
                   {format(msgDate, "HH:mm")}

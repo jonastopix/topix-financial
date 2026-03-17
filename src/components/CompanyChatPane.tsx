@@ -6,6 +6,8 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
+import { uploadChatAttachments } from "@/lib/chatAttachments";
+import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
@@ -879,33 +881,55 @@ const CompanyChatPane = () => {
 
   const MAX_MESSAGE_LENGTH = 5000;
 
-  const handleSend = useCallback(async (content: string) => {
+  const handleSend = useCallback(async (content: string, files?: File[]) => {
     const trimmed = content.trim();
-    if (!trimmed || !activeConvId || !user) return;
+    const hasFiles = files && files.length > 0;
+    if ((!trimmed && !hasFiles) || !activeConvId || !user) return;
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     setSending(true);
 
+    // Upload attachments if any
+    let attachments: ChatAttachment[] = [];
+    if (hasFiles) {
+      attachments = await uploadChatAttachments(user.id, files);
+      if (attachments.length === 0 && !trimmed) {
+        setSending(false);
+        toast.error("Upload fejlede");
+        return;
+      }
+    }
+
+    const contextMeta = attachments.length > 0 ? { attachments } : undefined;
+
     if (activeConvId.startsWith("group_")) {
       const gcId = activeConvId.replace("group_", "");
+      const insertData: any = {
+        conversation_id: gcId,
+        sender_id: user.id,
+        content: trimmed || "📎",
+      };
+      if (contextMeta) {
+        insertData.context_meta = contextMeta;
+      }
       const { error } = await supabase
         .from("group_messages" as any)
-        .insert({
-          conversation_id: gcId,
-          sender_id: user.id,
-          content: trimmed,
-        } as any);
+        .insert(insertData);
       if (error) console.error("Failed to send group message:", error);
     } else {
       const insertData: any = {
         conversation_id: activeConvId,
         sender_id: user.id,
-        content: trimmed,
+        content: trimmed || "📎",
       };
 
       if (selectedTopic) {
         insertData.context_type = selectedTopic;
+      }
+
+      if (contextMeta) {
+        insertData.context_meta = contextMeta;
       }
 
       const { data, error } = await supabase.from("messages").insert(insertData).select().single();
@@ -2122,7 +2146,10 @@ const CompanyChatPane = () => {
                                   {senderName}
                                 </p>
                               )}
-                              <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
+                              {msg.content !== "📎" && (
+                                <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
+                              )}
+                              <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} />
                               <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                 <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                   {format(new Date(msg.created_at), "HH:mm", { locale: da })}
