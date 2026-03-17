@@ -96,6 +96,171 @@ async function runPostExtractionPipeline(params: {
   });
 }
 
+interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  status: "uploading" | "processing" | "analyzing" | "done" | "error";
+  extractedData?: ExtractedData;
+  errorMessage?: string;
+  reportId?: string;
+  milestonesCreated?: number;
+}
+
+interface FileUploadZoneProps {
+  title: string;
+  description: string;
+  accept?: string;
+  conversationId?: string | null;
+  userId?: string | null;
+  companyId?: string | null;
+  companyName?: string | null;
+  adminMode?: boolean;
+  onExtracted?: (data: ExtractedData) => void;
+  onPipelineComplete?: (reportId?: string) => void;
+}
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+async function extractPdfPageImages(file: File): Promise<string[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const images: string[] = [];
+  for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2.0 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d")!;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    const base64 = dataUrl.split(",")[1];
+    images.push(base64);
+  }
+  console.log(`PDF rendered ${images.length} page images`);
+  return images;
+}
+
+async function extractTextFromFile(file: File): Promise<{ text: string; pageImages?: string[] }> {
+  const ext = file.name.toLowerCase().split(".").pop();
+  if (file.type === "application/pdf" || ext === "pdf") {
+    try {
+      const pageImages = await extractPdfPageImages(file);
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const textParts: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map((item: any) => {
+            const str = item.str || "";
+            if (item.hasEOL) return str + "\n";
+            return str + " ";
+          })
+          .join("");
+        textParts.push(`--- Side ${i} ---\n${pageText}`);
+      }
+      const fullText = textParts.join("\n\n").slice(0, 15000);
+      return { text: fullText, pageImages };
+    } catch (err) {
+      console.error("PDF image extraction failed, falling back to text:", err);
+      const text = await file.text();
+      const readable = text
+        .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
+        .replace(/\s{3,}/g, "\n")
+        .trim();
+      return { text: readable.slice(0, 15000) };
+    }
+  }
+  if (ext === "xlsx" || ext === "xls") {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const csvParts: string[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { FS: "\t", RS: "\n" });
+        csvParts.push(`=== Sheet: ${sheetName} ===\n${csv}`);
+      }
+      const fullText = csvParts.join("\n\n");
+      return { text: fullText.slice(0, 30000) };
+    } catch (err) {
+      console.error("SheetJS parse failed, falling back to raw text:", err);
+    }
+  }
+  const text = await file.text();
+  return { text: text.slice(0, 30000) };
+}
+
+function getFriendlyErrorMessage(data: any): string {
+  const err = data?.error || "";
+  const source = data?.source_system || "";
+  const status = data?.status || "";
+  if (err.includes("Known source without supported template") || status === "error" && source) {
+    return `Vi kan se at filen kommer fra ${source}, men denne rapporttype understøttes ikke endnu. Prøv at eksportere en standard resultatopgørelse eller saldobalance fra ${source}.`;
+  }
+  if (status === "semantic_xlsx_fail" || status === "semantic_csv_fail") {
+    return `Filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Kontrollér at det er en standard resultatopgørelse eller saldobalance, og prøv igen.`;
+  }
+  if (err.includes("Structural semantic extraction failed")) {
+    return `PDF-filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Prøv at eksportere filen igen, eller upload en Excel-version i stedet.`;
+  }
+  if (err.includes("sign_convention") || err.includes("unknown convention")) {
+    return "Fortegnskonventionen i filen kunne ikke bestemmes. Upload venligst en standardeksport direkte fra dit regnskabsprogram.";
+  }
+  if (err.includes("validation") || err.includes("missing")) {
+    return "Rapporten mangler nødvendige nøgletal (fx omsætning eller resultat). Kontrollér at filen indeholder en komplet resultatopgørelse.";
+  }
+  return `Rapporten kunne ikke behandles automatisk. Kontrollér at filen er en standard eksport fra dit regnskabsprogram (e-conomic, Dinero, Billy el.lign.).`;
+}
+
+const FileUploadZone = ({
+  title,
+  description,
+  accept = ".xlsx,.xls,.csv,.pdf",
+  conversationId,
+  userId,
+  companyId,
+  companyName,
+  adminMode = false,
+  onExtracted,
+  onPipelineComplete,
+}: FileUploadZoneProps) => {
+  const queryClient = useQueryClient();
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [overwriteDialog, setOverwriteDialog] = useState<{
+    open: boolean;
+    period: string;
+    pendingFile: File | null;
+    pendingFileContent: string;
+    pendingPageImages?: string[];
+    pendingExcelBase64?: string;
+    pendingReportId: string;
+    pendingFileId: string;
+  }>({ open: false, period: "", pendingFile: null, pendingFileContent: "", pendingReportId: "", pendingFileId: "" });
+
+  const updateFile = (fileId: string, updates: Partial<UploadedFile>) => {
+    setUploadedFiles((prev) =>
+      prev.map((f) => (f.id === fileId ? { ...f, ...updates } : f))
+    );
+  };
+
   const processFile = useCallback(
     async (file: File) => {
       const fileId = crypto.randomUUID();
