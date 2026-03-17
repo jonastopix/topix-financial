@@ -1197,6 +1197,38 @@ const CompanyChatPane = () => {
     user?.id
   );
 
+  // Edit/delete hook
+  const {
+    editingId, editContent, setEditContent,
+    startEdit, cancelEdit, saveEdit: saveEditAction,
+    deleteMessage: deleteMessageAction, canEdit: canEditCheck, canDelete: canDeleteCheck,
+  } = useMessageActions(reactionMessageTable, user?.id, !!isAdvisor);
+
+  // Last-seen / unread marker hook
+  const lastSeenConvType = reactionsIsGroup ? "group" as const : "company" as const;
+  const latestMsgId = messages.length > 0 ? messages[messages.length - 1].id : null;
+  const { lastSeenMessageId: companyLastSeenId } = useConversationLastSeen(
+    activeConvId?.startsWith("group_") ? activeConvId.replace("group_", "") : activeConvId,
+    lastSeenConvType,
+    user?.id,
+    latestMsgId
+  );
+
+  const handleEditSave = async (messageId: string) => {
+    const trimmed = editContent.trim();
+    const ok = await saveEditAction(messageId);
+    if (ok) {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: trimmed, edited_at: new Date().toISOString() } as any : m));
+    }
+  };
+
+  const handleDeleteMsg = async (messageId: string) => {
+    const ok = await deleteMessageAction(messageId);
+    if (ok) {
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    }
+  };
+
   return (
     <>
       {isAdvisor && !isFullscreen && !isMobile && (
