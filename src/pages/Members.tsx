@@ -147,6 +147,12 @@ const Members = () => {
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [standalonePendingInvitations, setStandalonePendingInvitations] = useState<any[]>([]);
 
+  // Group/Koncern state (admin-only)
+  const [groupInfoMap, setGroupInfoMap] = useState<Map<string, { groupName: string; groupId: string; isAnchor: boolean }>>(new Map());
+  const [groupedCompanyIds, setGroupedCompanyIds] = useState<Set<string>>(new Set());
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardAnchor, setWizardAnchor] = useState<{ id: string; name: string } | null>(null);
+
   // Standalone invite (no company)
   const [standaloneInviteOpen, setStandaloneInviteOpen] = useState(false);
   const [standaloneEmail, setStandaloneEmail] = useState("");
