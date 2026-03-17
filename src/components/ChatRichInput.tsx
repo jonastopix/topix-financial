@@ -147,6 +147,18 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   const submitRef = useRef<() => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+
+  const addFiles = useCallback((incoming: File[]) => {
+    const valid = incoming.filter(f => {
+      if (f.size > MAX_FILE_SIZE) {
+        console.warn(`File ${f.name} exceeds max size`);
+        return false;
+      }
+      return true;
+    });
+    setPendingFiles(prev => [...prev, ...valid].slice(0, MAX_FILES));
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -194,6 +206,25 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
         }
         return false;
       },
+      handleDrop: (_view, event) => {
+        const files = event.dataTransfer?.files;
+        if (files && files.length > 0) {
+          event.preventDefault();
+          addFiles(Array.from(files));
+          setDragOver(false);
+          return true;
+        }
+        return false;
+      },
+      handlePaste: (_view, event) => {
+        const files = event.clipboardData?.files;
+        if (files && files.length > 0) {
+          event.preventDefault();
+          addFiles(Array.from(files));
+          return true;
+        }
+        return false;
+      },
     },
     content: "",
     editable: !disabled,
@@ -219,26 +250,51 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList) return;
-    const newFiles = Array.from(fileList).filter(f => {
-      if (f.size > MAX_FILE_SIZE) {
-        console.warn(`File ${f.name} exceeds max size`);
-        return false;
-      }
-      return true;
-    });
-    setPendingFiles(prev => [...prev, ...newFiles].slice(0, MAX_FILES));
-    // Reset input so same file can be re-selected
+    addFiles(Array.from(fileList));
     e.target.value = "";
-  }, []);
+  }, [addFiles]);
 
   const removePendingFile = useCallback((index: number) => {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Drag-over / drag-leave on the wrapper
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      addFiles(Array.from(files));
+    }
+  }, [addFiles]);
+
   const charCount = editor?.storage.characterCount?.characters?.() ?? editor?.getText().length ?? 0;
 
   return (
-    <div className="flex-1 rounded-xl bg-secondary border border-border overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-shadow">
+    <div
+      className={cn(
+        "flex-1 rounded-xl bg-secondary border overflow-hidden transition-shadow",
+        dragOver
+          ? "border-primary ring-2 ring-primary/50"
+          : "border-border focus-within:ring-2 focus-within:ring-primary/50"
+      )}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {editor && <Toolbar editor={editor} onAttach={() => fileInputRef.current?.click()} />}
       <EditorContent editor={editor} />
       <AttachmentPreviewStrip files={pendingFiles} onRemove={removePendingFile} />
