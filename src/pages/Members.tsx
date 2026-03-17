@@ -1055,6 +1055,12 @@ const Members = () => {
                                 <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
                               </span>
                             )}
+                            {isAdmin && groupInfoMap.has(c.id) && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold whitespace-nowrap">
+                                <Layers className="h-2.5 w-2.5" /> {groupInfoMap.get(c.id)!.groupName}
+                                {groupInfoMap.get(c.id)!.isAnchor && <span className="text-[8px] opacity-70">(Anchor)</span>}
+                              </span>
+                            )}
                             {c.unreadCount > 0 && (
                               <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
                                 {c.unreadCount}
