@@ -1734,6 +1734,18 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Group creation wizard */}
+      {wizardAnchor && (
+        <CreateGroupWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          anchorCompany={wizardAnchor}
+          allCompanies={companies.map((c) => ({ id: c.id, name: c.name }))}
+          groupedCompanyIds={groupedCompanyIds}
+          onCreated={() => setReloadTrigger((t) => t + 1)}
+        />
+      )}
     </AppLayout>
   );
 };
