@@ -391,9 +391,28 @@ const Members = () => {
       .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
     setStandalonePendingInvitations(standalonePending);
 
+    // Fetch group data (admin-only)
+    if (isAdmin) {
+      const { data: gcData } = await supabase
+        .from("group_companies" as any)
+        .select("company_id, group_id, groups:group_id(id, name, anchor_company_id)" as any);
+      const gMap = new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
+      const gSet = new Set<string>();
+      (gcData || []).forEach((gc: any) => {
+        gSet.add(gc.company_id);
+        gMap.set(gc.company_id, {
+          groupName: gc.groups?.name || "Koncern",
+          groupId: gc.group_id,
+          isAnchor: gc.groups?.anchor_company_id === gc.company_id,
+        });
+      });
+      setGroupInfoMap(gMap);
+      setGroupedCompanyIds(gSet);
+    }
+
     setCompanies(enriched);
     setLoading(false);
-  }, [user, isAdvisor]);
+  }, [user, isAdvisor, isAdmin]);
 
   useEffect(() => {
     loadCompanies();
