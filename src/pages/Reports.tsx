@@ -731,29 +731,18 @@ const Reports = () => {
                         const cs = commitStatesQuery.data?.get(report.id);
                         if (cs?.state === "ready") {
                           return (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Godkend data
-                            </button>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Klar til godkendelse
+                            </span>
                           );
                         }
                         if (cs?.state === "update_available") {
                           return (
-                            <>
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                                <CheckCircle2 className="h-2.5 w-2.5" />
-                                Committed ✓
-                              </span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "update_available" }); }}
-                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full bg-secondary text-foreground/70 hover:bg-secondary/80 transition-colors"
-                              >
-                                Opdater
-                              </button>
-                            </>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Committed ✓
+                            </span>
                           );
                         }
                         if (cs?.state === "blocked") {
