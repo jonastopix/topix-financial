@@ -671,7 +671,7 @@ const Reports = () => {
             const Icon = config.icon;
             const isExpanded = expandedReport === report.id;
             const msgs = chatMessages[report.id] || [];
-            const aiMsgs = msgs.filter((m) => m.message_type === "ai" || m.message_type === "system");
+            const aiMsgs = msgs.filter((m) => m.message_type === "ai");
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (

@@ -88,6 +88,7 @@ async function runPostExtractionPipeline(params: {
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
+  queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
   onPipelineComplete?.(reportId);
 
   toastFn({
