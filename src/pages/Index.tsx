@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
