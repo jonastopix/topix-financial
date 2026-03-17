@@ -26,6 +26,8 @@ import EmailTemplates from "./pages/EmailTemplates";
 import BulkImport from "./pages/BulkImport";
 import ReportReviewQueue from "./pages/ReportReviewQueue";
 import AdminFeedback from "./pages/AdminFeedback";
+import AdminGroups from "./pages/AdminGroups";
+import AdminGroupDetail from "./pages/AdminGroupDetail";
 import Onboarding from "./pages/Onboarding";
 import GroupDashboard from "./pages/GroupDashboard";
 import GroupBudget from "./pages/GroupBudget";
