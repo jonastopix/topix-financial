@@ -810,12 +810,45 @@ const Reports = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
+                        {(() => {
+                          const cs = commitStatesQuery.data?.get(report.id);
+                          if (cs?.state === "ready") {
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Godkend data
+                              </button>
+                            );
+                          }
+                          if (cs?.state === "update_available") {
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "update_available" }); }}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Opdater committed data
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setOverrideReport(report);
                           }}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors"
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                            (() => {
+                              const cs = commitStatesQuery.data?.get(report.id);
+                              return cs?.state === "ready" || cs?.state === "update_available";
+                            })()
+                              ? "text-foreground/70 hover:text-foreground"
+                              : "px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                          }`}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                           Ret data manuelt

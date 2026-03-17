@@ -114,6 +114,9 @@ export default function ReportReviewDialog({
       toast({ title: "Data godkendt", description: `Periode ${preview?.period_label || ""} er nu committed.` });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Fejl ved commit", description: err.message || "Ukendt fejl", variant: "destructive" });
