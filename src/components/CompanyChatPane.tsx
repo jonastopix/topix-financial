@@ -2057,7 +2057,8 @@ const CompanyChatPane = () => {
                 <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 md:px-5 py-4 space-y-4">
                   {(() => {
                     let lastDateKey = "";
-                    return filteredMessages.map((msg) => {
+                    let unreadDividerShown = false;
+                    return filteredMessages.map((msg, msgIdx) => {
                       const isMine = msg.sender_id === user?.id;
                       const contextType = msg.context_type || null;
                       const contextMeta = msg.context_meta || null;
