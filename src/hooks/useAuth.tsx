@@ -165,9 +165,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (gm?.group_id) {
       setGroupId(gm.group_id);
       setGroupName(gm.groups?.name || null);
+      setWelcomeDismissedAt(gm.welcome_dismissed_at || null);
     } else {
       setGroupId(null);
       setGroupName(null);
+      setWelcomeDismissedAt(null);
     }
     setIsGroupFeatureEnabled(!!(groupFeatureFlagRes.data as any)?.enabled);
 
