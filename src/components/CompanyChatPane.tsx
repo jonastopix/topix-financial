@@ -813,6 +813,32 @@ const CompanyChatPane = () => {
             });
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "group_messages",
+            filter: `conversation_id=eq.${gcId}`,
+          },
+          (payload) => {
+            const m = payload.new as any;
+            setMessages(prev => prev.map(p => p.id === m.id ? { ...p, content: m.content, edited_at: m.edited_at } as any : p));
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "group_messages",
+            filter: `conversation_id=eq.${gcId}`,
+          },
+          (payload) => {
+            const old = payload.old as any;
+            if (old?.id) setMessages(prev => prev.filter(p => p.id !== old.id));
+          }
+        )
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
