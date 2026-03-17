@@ -46,8 +46,9 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
   const handleTouchStart = useCallback(() => {
     if (!hasActions) return;
     moved.current = false;
+    setPressing(true);
     timerRef.current = setTimeout(() => {
-      // Haptic feedback if available
+      setPressing(false);
       if (navigator.vibrate) navigator.vibrate(20);
       setOpen(true);
     }, LONG_PRESS_MS);
@@ -55,10 +56,12 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
 
   const handleTouchMove = useCallback(() => {
     moved.current = true;
+    setPressing(false);
     clearTimer();
   }, [clearTimer]);
 
   const handleTouchEnd = useCallback(() => {
+    setPressing(false);
     clearTimer();
   }, [clearTimer]);
 
