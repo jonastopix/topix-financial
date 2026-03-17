@@ -2104,7 +2104,7 @@ const CompanyChatPane = () => {
                           {dateSep}
                         <div
                           ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                          className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
+                          className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                         >
                           {!isMine && (
                             <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
