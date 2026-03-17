@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
-import { Pencil, Trash2, Smile } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
-  Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -23,13 +23,14 @@ interface Props {
 
 /**
  * Wraps a message bubble on mobile. Long-press opens a bottom-sheet
- * with edit/delete/reaction actions.
+ * with edit/delete/reaction actions. Shows a visual scale pulse on hold.
  */
 const MobileMessageActionDrawer: React.FC<Props> = ({
   canEdit, canDelete, onEdit, onDelete, onReaction, children,
 }) => {
   const [open, setOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pressing, setPressing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const moved = useRef(false);
 
@@ -45,8 +46,9 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
   const handleTouchStart = useCallback(() => {
     if (!hasActions) return;
     moved.current = false;
+    setPressing(true);
     timerRef.current = setTimeout(() => {
-      // Haptic feedback if available
+      setPressing(false);
       if (navigator.vibrate) navigator.vibrate(20);
       setOpen(true);
     }, LONG_PRESS_MS);
@@ -54,10 +56,12 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
 
   const handleTouchMove = useCallback(() => {
     moved.current = true;
+    setPressing(false);
     clearTimer();
   }, [clearTimer]);
 
   const handleTouchEnd = useCallback(() => {
+    setPressing(false);
     clearTimer();
   }, [clearTimer]);
 
@@ -84,6 +88,8 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onContextMenu={(e) => { if (hasActions) e.preventDefault(); }}
+        className={`transition-transform duration-200 ${pressing ? "scale-[0.97] opacity-80" : ""}`}
+        style={{ WebkitUserSelect: "none", userSelect: "none" }}
       >
         {children}
       </div>
