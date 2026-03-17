@@ -2182,6 +2182,11 @@ const CompanyChatPane = () => {
                                 )}
                               </div>
                             </div>
+                            <ReactionBar
+                              reactions={getReactions(msg.id)}
+                              onToggle={(emoji) => toggleReaction(msg.id, emoji)}
+                              isMine={isMine}
+                            />
                           </div>
                           {isMine && (
                             <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
