@@ -1875,6 +1875,22 @@ export type Database = {
           revenue: number
         }[]
       }
+      get_report_commit_preview: {
+        Args: { p_report_id: string }
+        Returns: Json
+      }
+      get_report_commit_states: {
+        Args: { p_company_id: string }
+        Returns: {
+          can_commit: boolean
+          eligible: boolean
+          ownership_state: string
+          period_key: string
+          report_id: string
+          state: string
+          state_reason: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1893,6 +1909,16 @@ export type Database = {
         Returns: number
       }
       parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
+      resolve_report_commit_candidate: {
+        Args: { p_report_id: string }
+        Returns: Database["public"]["CompositeTypes"]["report_commit_candidate"]
+        SetofOptions: {
+          from: "*"
+          to: "report_commit_candidate"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       user_can_access_group_conversation: {
         Args: { _conv_id: string }
         Returns: boolean
@@ -1905,7 +1931,23 @@ export type Database = {
       app_role: "member" | "advisor" | "admin"
     }
     CompositeTypes: {
-      [_ in never]: never
+      report_commit_candidate: {
+        report_id: string | null
+        company_id: string | null
+        eligible: boolean | null
+        eligibility_reason: string | null
+        source_type: string | null
+        period_key: string | null
+        period_label: string | null
+        report_type: string | null
+        validation_status: string | null
+        metrics_preview: Json | null
+        ownership_state: string | null
+        existing_owner_id: string | null
+        can_commit: boolean | null
+        state: string | null
+        state_reason: string | null
+      }
     }
   }
 }
