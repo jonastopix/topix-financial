@@ -1678,6 +1678,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_add_company_to_group: {
+        Args: {
+          _caller_id: string
+          _company_id: string
+          _group_id: string
+          _member_entries?: Json
+        }
+        Returns: Json
+      }
       admin_create_group: {
         Args: {
           _advisor_ids: string[]
