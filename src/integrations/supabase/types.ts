@@ -1728,6 +1728,18 @@ export type Database = {
         Args: { _caller_id: string; _companies: Json; _group_name: string }
         Returns: Json
       }
+      get_admin_group_list: {
+        Args: never
+        Returns: {
+          anchor_company_id: string
+          anchor_company_name: string
+          company_count: number
+          created_at: string
+          group_id: string
+          group_name: string
+          member_count: number
+        }[]
+      }
       get_all_advisor_profiles: {
         Args: never
         Returns: {
@@ -1743,6 +1755,24 @@ export type Database = {
           full_name: string
           is_advisor: boolean
           user_id: string
+        }[]
+      }
+      get_group_financial_summary_for_admin: {
+        Args: { p_group_id: string }
+        Returns: {
+          cash: number
+          company_id: string
+          company_name: string
+          ebt: number
+          effective_period_key: string
+          effective_period_label: string
+          gross_profit: number
+          has_report: boolean
+          has_verified_metrics: boolean
+          latest_report_id: string
+          logo_url: string
+          missing_current_period: boolean
+          revenue: number
         }[]
       }
       get_group_financial_summary_for_advisor: {
