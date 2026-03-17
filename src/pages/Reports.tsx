@@ -124,6 +124,10 @@ const Reports = () => {
   const [restoring, setRestoring] = useState<string | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
 
+  // RP-1: Review dialog + server-driven card states
+  const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
+  const commitStatesQuery = useReportCommitStates(companyId || undefined);
+
   const loadData = useCallback(async () => {
     if (!user) return;
 
