@@ -41,6 +41,7 @@ const GroupChatMessageList: React.FC<Props> = ({
   onMessageDeleted,
   onMessageEdited,
 }) => {
+  const isMobile = useIsMobile();
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
