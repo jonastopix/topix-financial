@@ -63,8 +63,10 @@ export function useMessageActions(
   }, [messageTable]);
 
   const canEdit = useCallback((senderId: string, createdAt: string) => {
-    return senderId === currentUserId && canEditMessage(createdAt);
-  }, [currentUserId]);
+    if (senderId !== currentUserId) return false;
+    // Advisors can edit own messages without time limit; members have 15-min window
+    return isAdvisor || canEditMessage(createdAt);
+  }, [currentUserId, isAdvisor]);
 
   const canDelete = useCallback((senderId: string) => {
     return senderId === currentUserId;
