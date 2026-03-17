@@ -910,11 +910,13 @@ const CompanyChatPane = () => {
         sender_id: user.id,
         content: trimmed || "📎",
       };
+      if (contextMeta) {
+        insertData.context_meta = contextMeta;
+      }
       const { error } = await supabase
         .from("group_messages" as any)
         .insert(insertData);
       if (error) console.error("Failed to send group message:", error);
-      // For group messages, we store attachment info in a separate approach below
     } else {
       const insertData: any = {
         conversation_id: activeConvId,
