@@ -213,6 +213,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
         const files = event.dataTransfer?.files;
         if (files && files.length > 0) {
           event.preventDefault();
+          dropHandledRef.current = true;
           addFiles(Array.from(files));
           setDragOver(false);
           return true;
