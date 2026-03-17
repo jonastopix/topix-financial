@@ -67,8 +67,8 @@ export function useMessageActions(
   }, [currentUserId]);
 
   const canDelete = useCallback((senderId: string) => {
-    return senderId === currentUserId || isAdvisor;
-  }, [currentUserId, isAdvisor]);
+    return senderId === currentUserId;
+  }, [currentUserId]);
 
   return {
     editingId,
