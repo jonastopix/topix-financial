@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
+import { useMessageReactions } from "@/hooks/useMessageReactions";
+import { ReactionBar, ReactionPicker } from "@/components/MessageReactions";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { useQuery } from "@tanstack/react-query";
@@ -1179,6 +1182,17 @@ const CompanyChatPane = () => {
     return ownMsgs.length > 0 ? ownMsgs[ownMsgs.length - 1].id : null;
   }, [messages, user, isAdvisor]);
 
+  // Reactions hook
+  const reactionsActiveConv = conversations.find(c => c.id === activeConvId);
+  const reactionsIsGroup = reactionsActiveConv?.threadType === "group";
+  const reactionMessageTable = reactionsIsGroup ? "group_messages" as const : "messages" as const;
+  const reactionMessageIds = useMemo(() => messages.map(m => m.id), [messages]);
+  const { getAggregated: getReactions, toggleReaction } = useMessageReactions(
+    reactionMessageIds,
+    reactionMessageTable,
+    user?.id
+  );
+
   return (
     <>
       {isAdvisor && !isFullscreen && !isMobile && (
@@ -2090,7 +2104,7 @@ const CompanyChatPane = () => {
                           {dateSep}
                         <div
                           ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                          className={`flex group-msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
+                          className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                         >
                           {!isMine && (
                             <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
@@ -2107,17 +2121,23 @@ const CompanyChatPane = () => {
                             className={`${isMobile ? "max-w-[85%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
                           >
                             {!isMobile && (
-                              <button
-                                onClick={() => togglePin(msg)}
-                                className={`absolute ${isMine ? "-left-8" : "-right-8"} top-1/2 -translate-y-1/2 p-1 rounded-md transition-all z-10 ${
-                                  msg.pinned_at
-                                    ? "text-primary opacity-100 hover:text-destructive"
-                                    : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                                }`}
-                                title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
-                              >
-                                <Pin className="h-3.5 w-3.5" />
-                              </button>
+                              <div className={`absolute ${isMine ? "-left-14" : "-right-14"} top-1/2 -translate-y-1/2 flex gap-0.5 z-10`}>
+                                <button
+                                  onClick={() => togglePin(msg)}
+                                  className={`p-1 rounded-md transition-all ${
+                                    msg.pinned_at
+                                      ? "text-primary opacity-100 hover:text-destructive"
+                                      : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                  }`}
+                                  title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                                >
+                                  <Pin className="h-3.5 w-3.5" />
+                                </button>
+                                <ReactionPicker
+                                  onSelect={(emoji) => toggleReaction(msg.id, emoji)}
+                                  isMine={isMine}
+                                />
+                              </div>
                             )}
                             {topicInfo && (
                               <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
@@ -2162,6 +2182,11 @@ const CompanyChatPane = () => {
                                 )}
                               </div>
                             </div>
+                            <ReactionBar
+                              reactions={getReactions(msg.id)}
+                              onToggle={(emoji) => toggleReaction(msg.id, emoji)}
+                              isMine={isMine}
+                            />
                           </div>
                           {isMine && (
                             <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
