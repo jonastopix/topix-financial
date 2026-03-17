@@ -38,9 +38,19 @@ export function useInactivityLogout(enabled: boolean, timeoutMinutes?: number) {
   useEffect(() => {
     if (!enabled) return;
 
-    stampActivity();
     const timeoutMs = getTimeoutMs(timeoutMinutes);
     const warningAtMs = timeoutMs - WARNING_BEFORE_MS;
+
+    // Check-before-stamp: if session already expired on page load, sign out immediately
+    const existing = getLastActivity();
+    const elapsed = Date.now() - existing;
+    if (elapsed > timeoutMs) {
+      console.info("[inactivity] Session already expired on load — signing out");
+      supabase.auth.signOut();
+      return;
+    }
+    // Session still valid — stamp and start timer
+    stampActivity();
 
     const throttledStamp = () => {
       const now = Date.now();
