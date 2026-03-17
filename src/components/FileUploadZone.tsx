@@ -110,6 +110,229 @@ async function runPostExtractionPipeline(params: {
       onPipelineComplete,
     });
 
+  const processFile = useCallback(
+    async (file: File) => {
+      const fileId = crypto.randomUUID();
+      const reportType = "andet";
+
+      setUploadedFiles((prev) => [
+        ...prev,
+        { id: fileId, name: file.name, size: file.size, status: "uploading" },
+      ]);
+
+      try {
+        // === STEP 1: Create report record in DB ===
+        if (!userId) throw new Error("Du skal være logget ind for at uploade");
+
+        const insertData: any = {
+            user_id: userId,
+            file_name: file.name,
+            file_path: `uploads/${userId}/${fileId}/${file.name}`,
+            report_type: reportType,
+            status: "processing",
+          };
+        insertData.company_id = companyId;
+
+        const { data: reportRecord, error: insertError } = await supabase
+          .from("financial_reports")
+          .insert(insertData)
+          .select()
+          .single();
+
+        if (insertError || !reportRecord) throw new Error(insertError?.message || "Kunne ikke oprette rapport");
+        updateFile(fileId, { reportId: reportRecord.id });
+
+        // === STEP 1b: Upload original file to Storage (MANDATORY) ===
+        const storagePath = buildStoragePath(companyId || "unknown", reportRecord.id, file.name);
+        const { error: storageError } = await supabase.storage
+          .from("financial-documents")
+          .upload(storagePath, file, { upsert: true });
+        
+        if (storageError) {
+          console.error("Storage upload failed:", storageError.message);
+          await supabase.from("financial_reports").delete().eq("id", reportRecord.id);
+          throw new Error("Kunne ikke uploade filen til lageret. Prøv igen.");
+        }
+
+        await supabase
+          .from("financial_reports")
+          .update({ file_path: storagePath } as any)
+          .eq("id", reportRecord.id);
+
+        // === STEP 2: Extract data (deterministic template or AI) ===
+        updateFile(fileId, { status: "processing" });
+
+        let extractedData: any;
+        const ext = file.name.toLowerCase().split(".").pop();
+
+        if (ext === "xlsx" || ext === "xls") {
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: "array" });
+            
+            if (detectTemplate(workbook)) {
+              console.warn("⚠️ Unsupported multi-sheet format detected (DATA + P&L Top Line). Blocking upload.");
+              
+              await supabase
+                .from("financial_reports")
+                .update({
+                  status: "error",
+                  validation_status: "FAIL",
+                  validation_errors: ["Denne filtype (multi-sheet regnskabsrapport med DATA + P&L Top Line ark) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse."],
+                  processed_at: new Date().toISOString(),
+                } as any)
+                .eq("id", reportRecord.id);
+
+              updateFile(fileId, {
+                status: "error",
+                errorMessage: "Denne filtype (multi-sheet regnskabsrapport) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
+              });
+
+              toast({
+                title: "Filtype ikke understøttet",
+                description: "Multi-sheet regnskabsrapporter (DATA + P&L Top Line) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
+                variant: "destructive",
+              });
+              
+              onPipelineComplete?.(reportRecord.id);
+              return;
+            }
+          } catch (templateErr) {
+            console.log("Multi-sheet detection check passed (not multi-sheet):", templateErr);
+          }
+        }
+
+        if (!extractedData) {
+          const extracted = await extractTextFromFile(file);
+          const ext2 = file.name.toLowerCase().split(".").pop();
+          const isExcel = ext2 === "xlsx" || ext2 === "xls";
+          const isPdf = ext2 === "pdf" || file.type === "application/pdf";
+          const excelBase64 = isExcel ? await fileToBase64(file) : undefined;
+
+          let pdfStructural: any = undefined;
+          if (isPdf) {
+            try {
+              pdfStructural = await extractPdfStructural(file);
+              console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
+            } catch (structErr: any) {
+              if (requiresStructuralPdfPayload(extracted.text)) {
+                const errMessage = structErr?.message || String(structErr);
+                const diagnosticMarker = errMessage.includes("worker")
+                  ? "pdfjs_worker_loading"
+                  : errMessage.includes("password")
+                  ? "pdf_password_protected"
+                  : errMessage.includes("getTextContent")
+                  ? "text_content_extraction"
+                  : "payload_construction";
+
+                console.error(`[PdfStructural] FAIL for structural-required source [${diagnosticMarker}]:`, errMessage);
+
+                toast({
+                  title: "Fejl",
+                  description: "PDF-struktur kunne ikke udtrækkes. Uploaden blev stoppet. Prøv igen eller kontakt support.",
+                  variant: "destructive",
+                });
+
+                await supabase.from("financial_reports").update({
+                  status: "error",
+                  validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
+                }).eq("id", reportRecord.id);
+
+                updateFile(fileId, { status: "error" });
+                return;
+              } else {
+                console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
+              }
+            }
+          }
+
+          const { data: aiData, error: extractError } = await supabase.functions.invoke(
+            "extract-financial-data",
+            { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, pdfStructural, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } }
+          );
+
+          if (extractError) {
+            const errMsg = typeof extractError === "object" && "context" in (extractError as any)
+              ? (extractError as any).context
+              : extractError;
+            const dupData = aiData ?? (typeof errMsg === "object" ? errMsg : null);
+            
+            if (dupData?.duplicate) {
+              setOverwriteDialog({
+                open: true,
+                period: dupData.existing_period,
+                pendingFile: file,
+                pendingFileContent: extracted.text,
+                pendingPageImages: extracted.pageImages,
+                pendingExcelBase64: excelBase64,
+                pendingReportId: "",
+                pendingFileId: fileId,
+              });
+              return;
+            }
+            throw extractError;
+          }
+          if (aiData?.duplicate) {
+            setOverwriteDialog({
+              open: true,
+              period: aiData.existing_period,
+              pendingFile: file,
+              pendingFileContent: extracted.text,
+              pendingPageImages: extracted.pageImages,
+              pendingExcelBase64: excelBase64,
+              pendingReportId: "",
+              pendingFileId: fileId,
+            });
+            return;
+          }
+          if (aiData?.error) {
+            const friendlyMsg = getFriendlyErrorMessage(aiData);
+            throw new Error(friendlyMsg);
+          }
+
+          extractedData = aiData;
+        }
+
+        updateFile(fileId, { extractedData });
+        onExtracted?.(extractedData);
+
+        // Post compact activity: report uploaded (skip in admin mode)
+        if (!adminMode && conversationId && userId) {
+          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
+          const period = extractedData.report_period || "ukendt periode";
+          const messageId = await postActivityMessage({
+            conversationId,
+            senderId: userId,
+            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${period}`,
+            contextType: "report",
+            contextId: reportRecord.id,
+            contextMeta: {
+              title: `${reportLabel} · ${period}`,
+              report_id: reportRecord.id,
+              report_period: period,
+              file_path: storagePath,
+              file_name: file.name,
+            },
+          });
+          if (messageId) {
+            notifyReportUpload(reportRecord.id, messageId);
+          }
+        }
+
+        // === STEP 3: Post-extraction pipeline (RP-2: no auto-AI) ===
+        await runPostExtractionPipeline({
+          extractedData,
+          reportId: reportRecord.id,
+          userId: userId!,
+          companyId,
+          companyName,
+          fileId,
+          updateFile,
+          queryClient,
+          toastFn: toast,
+          onPipelineComplete,
+        });
+
       } catch (err) {
         console.error("Pipeline error:", err);
         const userMsg = err instanceof Error ? err.message : "Kunne ikke behandle dokumentet";
