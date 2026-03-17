@@ -16,7 +16,7 @@ const GroupChatRoom = () => {
   const { user, isAdvisor, loading: authLoading } = useAuth();
   const hasShownToast = useRef(false);
 
-  const { messages, profiles, loading, accessDenied, sending, sendMessage } = useGroupChat({
+  const { messages, profiles, loading, accessDenied, sending, sendMessage, conversationId } = useGroupChat({
     groupId: groupId || null,
   });
 
