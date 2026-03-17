@@ -88,6 +88,8 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onContextMenu={(e) => { if (hasActions) e.preventDefault(); }}
+        className={`transition-transform duration-200 ${pressing ? "scale-[0.97] opacity-80" : ""}`}
+        style={{ WebkitUserSelect: "none", userSelect: "none" }}
       >
         {children}
       </div>
