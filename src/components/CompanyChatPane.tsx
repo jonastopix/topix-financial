@@ -875,6 +875,19 @@ const CompanyChatPane = () => {
           setMessages((prev) => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${activeConvId}`,
+        },
+        (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) setMessages((prev) => prev.filter(m => m.id !== deleted.id));
+        }
+      )
       .subscribe();
 
     return () => {
