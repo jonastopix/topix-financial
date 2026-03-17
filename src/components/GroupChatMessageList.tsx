@@ -10,6 +10,8 @@ import { useMessageActions } from "@/hooks/useMessageActions";
 import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
 import MessageActionMenu from "@/components/MessageActionMenu";
 import InlineEditInput from "@/components/InlineEditInput";
+import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function dateSeparatorLabel(date: Date): string {
   const today = startOfDay(new Date());
