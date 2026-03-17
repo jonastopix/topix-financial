@@ -279,6 +279,11 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
+    // Skip if Tiptap's handleDrop already processed this
+    if (dropHandledRef.current) {
+      dropHandledRef.current = false;
+      return;
+    }
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       addFiles(Array.from(files));
