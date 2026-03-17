@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { uploadChatAttachments } from "@/lib/chatAttachments";
+import type { ChatAttachment } from "@/components/ChatAttachments";
 
 export interface GroupMessage {
   id: string;
@@ -9,6 +11,7 @@ export interface GroupMessage {
   content: string;
   message_type: string;
   created_at: string;
+  context_meta?: { attachments?: ChatAttachment[] } | null;
 }
 
 export interface SenderProfile {
@@ -140,7 +143,6 @@ export function useGroupChat({ groupId }: UseGroupChatOptions = {}) {
             if (prev.some(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
-          // Fetch profile for new sender if needed
           await fetchProfiles([newMsg.sender_id]);
         }
       )
@@ -152,19 +154,32 @@ export function useGroupChat({ groupId }: UseGroupChatOptions = {}) {
   }, [conversationId, fetchProfiles]);
 
   // Send message
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, files?: File[]) => {
     if (!conversationId || !user || sending) return;
     const trimmed = content.trim();
-    if (!trimmed || trimmed.length > 5000) return;
+    const hasFiles = files && files.length > 0;
+    if ((!trimmed && !hasFiles) || (trimmed.length > 5000)) return;
 
     setSending(true);
+
+    let attachments: ChatAttachment[] = [];
+    if (hasFiles) {
+      attachments = await uploadChatAttachments(user.id, files);
+    }
+
+    const insertData: any = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: trimmed || "📎",
+    };
+
+    if (attachments.length > 0) {
+      insertData.context_meta = { attachments };
+    }
+
     const { error } = await supabase
       .from("group_messages" as any)
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: trimmed,
-      } as any);
+      .insert(insertData);
 
     if (error) {
       console.error("Failed to send group message:", error);
