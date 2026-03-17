@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
-import { Pencil, Trash2, Smile } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
-  Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -23,13 +23,14 @@ interface Props {
 
 /**
  * Wraps a message bubble on mobile. Long-press opens a bottom-sheet
- * with edit/delete/reaction actions.
+ * with edit/delete/reaction actions. Shows a visual scale pulse on hold.
  */
 const MobileMessageActionDrawer: React.FC<Props> = ({
   canEdit, canDelete, onEdit, onDelete, onReaction, children,
 }) => {
   const [open, setOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pressing, setPressing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const moved = useRef(false);
 
