@@ -1,15 +1,20 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
-  Bold, Italic, List, ListOrdered, Link as LinkIcon,
+  Bold, Italic, List, ListOrdered, Link as LinkIcon, Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AttachmentPreviewStrip } from "@/components/ChatAttachments";
+
+const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,.pdf,.xlsx,.xls,.csv,.doc,.docx";
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILES = 5;
 
 interface ChatRichInputProps {
-  onSubmit: (html: string) => void;
+  onSubmit: (html: string, files?: File[]) => void;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
@@ -48,12 +53,11 @@ const normalizeLinkUrl = (rawUrl: string): string => {
   const trimmed = rawUrl.trim();
   if (!trimmed) return "";
   if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
-  // Block unsupported/custom schemes (e.g. javascript:)
   if (/^[a-z]+:/i.test(trimmed)) return "";
   return `https://${trimmed.replace(/^\/+/, "")}`;
 };
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onAttach }: { editor: Editor; onAttach: () => void }) {
   const setLink = useCallback(() => {
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;
@@ -121,6 +125,14 @@ function Toolbar({ editor }: { editor: Editor }) {
       >
         <LinkIcon className="h-3.5 w-3.5" />
       </ToolbarBtn>
+      <div className="w-px h-4 bg-border mx-0.5" />
+      <ToolbarBtn
+        active={false}
+        onClick={onAttach}
+        title="Vedhæft fil"
+      >
+        <Paperclip className="h-3.5 w-3.5" />
+      </ToolbarBtn>
     </div>
   );
 }
@@ -133,6 +145,8 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
 }) => {
   const editorRef = useRef<Editor | null>(null);
   const submitRef = useRef<() => void>(() => {});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const editor = useEditor({
     extensions: [
@@ -141,25 +155,17 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
         codeBlock: false,
         blockquote: false,
         horizontalRule: false,
-        hardBreak: {
-          keepMarks: true,
-        },
+        hardBreak: { keepMarks: true },
       }),
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          rel: "noopener noreferrer",
-          target: "_blank",
-        },
+        HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
       }),
-      Placeholder.configure({
-        placeholder,
-      }),
+      Placeholder.configure({ placeholder }),
     ],
     editorProps: {
       attributes: {
-        class:
-          "px-3 py-2 text-sm text-foreground focus:outline-none min-h-[38px] max-h-[120px] overflow-y-auto",
+        class: "px-3 py-2 text-sm text-foreground focus:outline-none min-h-[38px] max-h-[120px] overflow-y-auto",
       },
       handleKeyDown: (_view, event) => {
         const ed = editorRef.current;
@@ -180,14 +186,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
             ed.chain().focus().splitListItem("listItem").run();
             return true;
           }
-
           if (!event.shiftKey) {
             event.preventDefault();
             submitRef.current();
             return true;
           }
         }
-
         return false;
       },
     },
@@ -195,49 +199,64 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     editable: !disabled,
   });
 
-  // Keep refs in sync
-  useEffect(() => {
-    editorRef.current = editor;
-  }, [editor]);
-
-  useEffect(() => {
-    if (editor) editor.setEditable(!disabled);
-  }, [disabled, editor]);
+  useEffect(() => { editorRef.current = editor; }, [editor]);
+  useEffect(() => { if (editor) editor.setEditable(!disabled); }, [disabled, editor]);
 
   const submitFromEditor = useCallback(() => {
     if (!editor) return;
     const text = editor.getText().trim();
-    if (!text) return;
+    const hasFiles = pendingFiles.length > 0;
+    if (!text && !hasFiles) return;
     const html = editor.getHTML();
     const isPlain = html === `<p>${text}</p>`;
-    onSubmit(isPlain ? text : html);
+    onSubmit(isPlain ? text : html, hasFiles ? pendingFiles : undefined);
     editor.commands.clearContent(true);
-  }, [editor, onSubmit]);
+    setPendingFiles([]);
+  }, [editor, onSubmit, pendingFiles]);
 
-  // Keep submitRef in sync
-  useEffect(() => {
-    submitRef.current = submitFromEditor;
-  }, [submitFromEditor]);
+  useEffect(() => { submitRef.current = submitFromEditor; }, [submitFromEditor]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList) return;
+    const newFiles = Array.from(fileList).filter(f => {
+      if (f.size > MAX_FILE_SIZE) {
+        console.warn(`File ${f.name} exceeds max size`);
+        return false;
+      }
+      return true;
+    });
+    setPendingFiles(prev => [...prev, ...newFiles].slice(0, MAX_FILES));
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  }, []);
+
+  const removePendingFile = useCallback((index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   const charCount = editor?.storage.characterCount?.characters?.() ?? editor?.getText().length ?? 0;
 
   return (
     <div className="flex-1 rounded-xl bg-secondary border border-border overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-shadow">
-      {editor && <Toolbar editor={editor} />}
+      {editor && <Toolbar editor={editor} onAttach={() => fileInputRef.current?.click()} />}
       <EditorContent editor={editor} />
+      <AttachmentPreviewStrip files={pendingFiles} onRemove={removePendingFile} />
       {charCount > maxLength * 0.9 && (
         <div className="px-3 pb-1 text-right">
-          <span
-            className={`text-[10px] ${
-              charCount >= maxLength
-                ? "text-destructive"
-                : "text-muted-foreground"
-            }`}
-          >
+          <span className={`text-[10px] ${charCount >= maxLength ? "text-destructive" : "text-muted-foreground"}`}>
             {charCount}/{maxLength}
           </span>
         </div>
       )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept={ACCEPTED_TYPES}
+        onChange={handleFileSelect}
+        className="hidden"
+      />
     </div>
   );
 };
