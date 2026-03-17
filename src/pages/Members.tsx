@@ -1397,6 +1397,14 @@ const Members = () => {
                                 {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
                               </button>
                             )}
+                            {isAdmin && !groupedCompanyIds.has(c.id) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setWizardAnchor({ id: c.id, name: c.name }); setWizardOpen(true); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors border border-primary/30"
+                              >
+                                <Layers className="h-3 w-3" /> Gør til koncern
+                              </button>
+                            )}
                             {isAdmin && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
