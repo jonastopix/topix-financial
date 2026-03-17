@@ -706,7 +706,44 @@ const Reports = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                      {(() => {
+                        const cs = commitStatesQuery.data?.get(report.id);
+                        if (cs?.state === "ready") {
+                          return (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Godkend data
+                            </button>
+                          );
+                        }
+                        if (cs?.state === "update_available") {
+                          return (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                                Committed ✓
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "update_available" }); }}
+                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full bg-secondary text-foreground/70 hover:bg-secondary/80 transition-colors"
+                              >
+                                Opdater
+                              </button>
+                            </>
+                          );
+                        }
+                        if (cs?.state === "blocked") {
+                          return (
+                            <span className="text-[10px] text-muted-foreground italic">
+                              Periode ejet af anden rapport
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       {aiMsgs.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full bg-primary/10 text-primary">
                           <Sparkles className="h-3 w-3" />
