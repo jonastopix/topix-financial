@@ -127,6 +127,7 @@ const Reports = () => {
   // RP-1: Review dialog + server-driven card states
   const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
   const commitStatesQuery = useReportCommitStates(companyId || undefined);
+  const [pendingReviewReportId, setPendingReviewReportId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -288,13 +289,32 @@ const Reports = () => {
 
   const pendingScrollRef = useRef<string | null>(null);
 
-  const handlePipelineComplete = (reportId?: string) => {
+  const handlePipelineComplete = async (reportId?: string) => {
     if (reportId) {
       pendingScrollRef.current = reportId;
       setExpandedReport(reportId);
     }
     setRefreshKey((k) => k + 1);
+    if (reportId) {
+      await commitStatesQuery.refetch();
+      setPendingReviewReportId(reportId);
+    }
   };
+
+  // RP-1: Reactive auto-open review dialog for pending report
+  useEffect(() => {
+    if (!pendingReviewReportId) return;
+    const entry = commitStatesQuery.data?.get(pendingReviewReportId);
+    if (!entry) return; // not in map yet, wait for next data update
+    if (entry.state === "ready" || entry.state === "update_available") {
+      const report = dbReports.find(r => r.id === pendingReviewReportId);
+      const label = report ? (getEffectiveReportPeriod(report) || report.file_name) : "";
+      setReviewDialogState({ open: true, reportId: pendingReviewReportId, reportLabel: label, cardState: entry.state });
+      setPendingReviewReportId(null);
+    } else if (entry.state === "blocked" || entry.state === "not_ready") {
+      setPendingReviewReportId(null);
+    }
+  }, [pendingReviewReportId, commitStatesQuery.data, dbReports]);
 
   // Post-upload: scroll to newly created report after data reloads
   useEffect(() => {
@@ -711,29 +731,18 @@ const Reports = () => {
                         const cs = commitStatesQuery.data?.get(report.id);
                         if (cs?.state === "ready") {
                           return (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Godkend data
-                            </button>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Klar til godkendelse
+                            </span>
                           );
                         }
                         if (cs?.state === "update_available") {
                           return (
-                            <>
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                                <CheckCircle2 className="h-2.5 w-2.5" />
-                                Committed ✓
-                              </span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "update_available" }); }}
-                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full bg-secondary text-foreground/70 hover:bg-secondary/80 transition-colors"
-                              >
-                                Opdater
-                              </button>
-                            </>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Committed ✓
+                            </span>
                           );
                         }
                         if (cs?.state === "blocked") {
@@ -801,12 +810,45 @@ const Reports = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
+                        {(() => {
+                          const cs = commitStatesQuery.data?.get(report.id);
+                          if (cs?.state === "ready") {
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Godkend data
+                              </button>
+                            );
+                          }
+                          if (cs?.state === "update_available") {
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "update_available" }); }}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Opdater committed data
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setOverrideReport(report);
                           }}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors"
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                            (() => {
+                              const cs = commitStatesQuery.data?.get(report.id);
+                              return cs?.state === "ready" || cs?.state === "update_available";
+                            })()
+                              ? "text-foreground/70 hover:text-foreground"
+                              : "px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                          }`}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                           Ret data manuelt
