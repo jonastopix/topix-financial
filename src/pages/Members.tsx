@@ -1054,11 +1054,6 @@ const Members = () => {
                                 <Send className="h-2.5 w-2.5" /> Afventer
                               </span>
                             )}
-                            {c.invitationStatus === 'accepted' && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 dark:text-green-400 text-[10px] font-semibold whitespace-nowrap">
-                                <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
-                              </span>
-                            )}
                             {isAdmin && groupInfoMap.has(c.id) && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold whitespace-nowrap">
                                 <Layers className="h-2.5 w-2.5" /> {groupInfoMap.get(c.id)!.groupName}
