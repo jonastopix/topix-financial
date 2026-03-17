@@ -1058,6 +1058,7 @@ export type Database = {
       group_messages: {
         Row: {
           content: string
+          context_meta: Json | null
           conversation_id: string
           created_at: string
           id: string
@@ -1066,6 +1067,7 @@ export type Database = {
         }
         Insert: {
           content: string
+          context_meta?: Json | null
           conversation_id: string
           created_at?: string
           id?: string
@@ -1074,6 +1076,7 @@ export type Database = {
         }
         Update: {
           content?: string
+          context_meta?: Json | null
           conversation_id?: string
           created_at?: string
           id?: string
