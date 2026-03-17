@@ -1182,10 +1182,10 @@ const CompanyChatPane = () => {
     return ownMsgs.length > 0 ? ownMsgs[ownMsgs.length - 1].id : null;
   }, [messages, user, isAdvisor]);
 
-  // Determine message table for reactions based on active thread type
-  const activeConv = conversations.find(c => c.id === activeConvId);
-  const isGroupThread = activeConv?.threadType === "group";
-  const reactionMessageTable = isGroupThread ? "group_messages" as const : "messages" as const;
+  // Reactions hook
+  const reactionsActiveConv = conversations.find(c => c.id === activeConvId);
+  const reactionsIsGroup = reactionsActiveConv?.threadType === "group";
+  const reactionMessageTable = reactionsIsGroup ? "group_messages" as const : "messages" as const;
   const reactionMessageIds = useMemo(() => messages.map(m => m.id), [messages]);
   const { getAggregated: getReactions, toggleReaction } = useMessageReactions(
     reactionMessageIds,
