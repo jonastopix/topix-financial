@@ -2,10 +2,10 @@ import { useState } from "react";
 import { CheckCircle2, Clock, TrendingDown, TrendingUp, Sparkles, Loader2, Activity, ArrowRight, Target } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { toast } from "sonner";
 
 interface ProgressItem {
@@ -30,66 +30,36 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
   const [dialogTab, setDialogTab] = useState<"pending" | "improved" | "regressed">("pending");
   const [creatingMilestone, setCreatingMilestone] = useState<string | null>(null);
 
-  const { data: items = [], isLoading: loading } = useQuery({
-    queryKey: ["ai-progress", companyId],
-    queryFn: async () => {
-      const [{ data: reports }, { data: milestones }] = await Promise.all([
-        (supabase
-          .from("financial_reports")
-          .select("id, report_period, ai_analysis") as any)
-          .eq("company_id", companyId!)
-          .is("deleted_at", null)
-          .not("ai_analysis", "is", null)
-          .order("uploaded_at", { ascending: false })
-          .limit(3),
-        (supabase
-          .from("milestones")
-          .select("title, progress, status, source_report") as any)
-          .eq("company_id", companyId!),
-      ]);
+  // RP-2: Read from financial_commentaries instead of financial_reports.ai_analysis
+  const { data: commentaries = [], isLoading: loading } = useCompanyCommentary(companyId ?? undefined);
 
-      const result: ProgressItem[] = [];
-      (reports || []).forEach((report) => {
-        const analysis = report.ai_analysis as any;
-        if (!analysis?.key_findings) return;
-        const label = report.report_period || "Ukendt";
+  // Build progress items from commentaries
+  const items: ProgressItem[] = [];
+  commentaries.forEach((commentary) => {
+    const analysis = commentary.analysis as any;
+    if (!analysis?.key_findings) return;
+    const label = commentary.period_key;
 
-        analysis.key_findings.forEach((finding: any, idx: number) => {
-          const matched = (milestones || []).find(
-            (m) =>
-              m.source_report === report.id &&
-              (m.title === finding.recommendation?.slice(0, 200) || m.title === finding.title)
-          );
+    analysis.key_findings.forEach((finding: any, idx: number) => {
+      let status: ProgressItem["status"] = "pending";
+      if (finding.severity === "positiv") {
+        status = "improved";
+      }
 
-          let status: ProgressItem["status"] = "pending";
-          if (matched) {
-            if (matched.progress >= 100 || matched.status === "completed") status = "actioned";
-            else if (matched.progress > 0) status = "improved";
-          } else if (finding.severity === "positiv") {
-            status = "improved";
-          }
-
-          result.push({
-            id: `${report.id}-${idx}`,
-            recommendation: finding.recommendation || finding.title,
-            fromReport: label,
-            severity: finding.severity || "advarsel",
-            status,
-            aiComment: finding.analysis || "",
-          });
-        });
+      items.push({
+        id: `${commentary.id}-${idx}`,
+        recommendation: finding.recommendation || finding.title,
+        fromReport: label,
+        severity: finding.severity || "advarsel",
+        status,
+        aiComment: finding.analysis || "",
       });
-
-      return result;
-    },
-    enabled: !!user && !!companyId,
-    staleTime: 5 * 60 * 1000,
+    });
   });
 
   const createMilestoneFromItem = async (item: ProgressItem) => {
     if (!user || !companyId) return;
     setCreatingMilestone(item.id);
-    const reportId = item.id.split("-").slice(0, -1).join("-");
     const fullDescription = [item.recommendation, item.aiComment].filter(Boolean).join("\n\n");
     const { error } = await supabase.from("milestones").insert({
       title: item.recommendation.slice(0, 200),
@@ -98,7 +68,6 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
       company_id: companyId,
       user_id: user.id,
       source: "ai",
-      source_report: reportId || null,
       progress: 0,
       status: "active",
     });
@@ -157,6 +126,72 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
     );
   }
 
+  // Shared dialog content
+  const renderDialog = () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className={compact
+          ? "flex items-center justify-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors pt-3 mt-auto w-full"
+          : "w-full text-xs font-medium text-primary hover:text-primary/80 transition-colors py-1.5"
+        }>
+          {compact ? <>Se detaljer <ArrowRight className="h-3 w-3" /></> : `Se alle ${items.length} anbefalinger →`}
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Handlingsplan — alle anbefalinger
+          </DialogTitle>
+        </DialogHeader>
+        <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="pending">Afventer ({pendingCount})</TabsTrigger>
+            <TabsTrigger value="improved">Forbedret ({actionedCount})</TabsTrigger>
+            <TabsTrigger value="regressed">Forværret ({regressedCount})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="space-y-3 mt-4">
+          {dialogItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Ingen anbefalinger i denne kategori.</p>
+          ) : (
+            dialogItems.map((item) => {
+              const cfg = statusConfig[item.status];
+              const Icon = cfg.icon;
+              return (
+                <div key={item.id} className="p-3 rounded-lg border border-border/50 bg-card">
+                  <div className="flex items-start gap-2.5">
+                    <div className={`p-1.5 rounded-lg ${cfg.bg} flex-shrink-0 mt-0.5`}>
+                      <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-snug">{item.recommendation}</p>
+                      <span className="text-[10px] text-muted-foreground">{item.fromReport}</span>
+                      {item.aiComment && (
+                        <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
+                      )}
+                    </div>
+                    {(item.status === "pending" || item.status === "regressed") && (
+                      <button
+                        onClick={() => createMilestoneFromItem(item)}
+                        disabled={creatingMilestone === item.id}
+                        className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                        title="Opret som milestone"
+                      >
+                        <Target className="h-3 w-3" />
+                        {creatingMilestone === item.id ? "..." : "Milestone"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   // Compact layout for dashboard snapshot
   if (compact) {
     return (
@@ -165,7 +200,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
         </div>
-        <p className="text-[10px] text-muted-foreground -mt-3 mb-1">Baseret på seneste 3 rapporter</p>
+        <p className="text-[10px] text-muted-foreground -mt-3 mb-1">Baseret på seneste analyser</p>
 
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
           <div className="relative">
@@ -201,65 +236,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
           </div>
         </div>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <button className="flex items-center justify-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors pt-3 mt-auto w-full">
-              Se detaljer <ArrowRight className="h-3 w-3" />
-            </button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-primary" />
-                Handlingsplan — alle anbefalinger
-              </DialogTitle>
-            </DialogHeader>
-            <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
-              <TabsList className="w-full grid grid-cols-3">
-                <TabsTrigger value="pending">Afventer ({pendingCount})</TabsTrigger>
-                <TabsTrigger value="improved">Forbedret ({actionedCount})</TabsTrigger>
-                <TabsTrigger value="regressed">Forværret ({regressedCount})</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="space-y-3 mt-4">
-              {dialogItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">Ingen anbefalinger i denne kategori.</p>
-              ) : (
-                dialogItems.map((item) => {
-                  const cfg = statusConfig[item.status];
-                  const Icon = cfg.icon;
-                  return (
-                    <div key={item.id} className="p-3 rounded-lg border border-border/50 bg-card">
-                      <div className="flex items-start gap-2.5">
-                        <div className={`p-1.5 rounded-lg ${cfg.bg} flex-shrink-0 mt-0.5`}>
-                          <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground leading-snug">{item.recommendation}</p>
-                          <span className="text-[10px] text-muted-foreground">{item.fromReport}</span>
-                          {item.aiComment && (
-                            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
-                          )}
-                        </div>
-                        {(item.status === "pending" || item.status === "regressed") && (
-                          <button
-                            onClick={() => createMilestoneFromItem(item)}
-                            disabled={creatingMilestone === item.id}
-                            className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-                            title="Opret som milestone"
-                          >
-                            <Target className="h-3 w-3" />
-                            {creatingMilestone === item.id ? "..." : "Milestone"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        {renderDialog()}
       </div>
     );
   }
@@ -271,7 +248,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
         <Activity className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold text-foreground">Handlingsplan</h3>
       </div>
-      <p className="text-[10px] text-muted-foreground -mt-3 mb-3">Baseret på seneste 3 rapporter</p>
+      <p className="text-[10px] text-muted-foreground -mt-3 mb-3">Baseret på seneste analyser</p>
 
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-shrink-0">
@@ -324,65 +301,7 @@ const AIProgressWidget = ({ compact = false }: { compact?: boolean }) => {
         </div>
       )}
 
-      <Dialog>
-        <DialogTrigger asChild>
-          <button className="w-full text-xs font-medium text-primary hover:text-primary/80 transition-colors py-1.5">
-            Se alle {items.length} anbefalinger →
-          </button>
-        </DialogTrigger>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Handlingsplan — alle anbefalinger
-            </DialogTitle>
-          </DialogHeader>
-          <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as any)} className="mt-2">
-            <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="pending">Afventer ({pendingCount})</TabsTrigger>
-              <TabsTrigger value="improved">Forbedret ({actionedCount})</TabsTrigger>
-              <TabsTrigger value="regressed">Forværret ({regressedCount})</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="space-y-3 mt-4">
-            {dialogItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Ingen anbefalinger i denne kategori.</p>
-            ) : (
-              dialogItems.map((item) => {
-                const cfg = statusConfig[item.status];
-                const Icon = cfg.icon;
-                return (
-                  <div key={item.id} className="p-3 rounded-lg border border-border/50 bg-card">
-                    <div className="flex items-start gap-2.5">
-                      <div className={`p-1.5 rounded-lg ${cfg.bg} flex-shrink-0 mt-0.5`}>
-                        <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground leading-snug">{item.recommendation}</p>
-                        <span className="text-[10px] text-muted-foreground">{item.fromReport}</span>
-                        {item.aiComment && (
-                          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.aiComment}</p>
-                        )}
-                      </div>
-                      {(item.status === "pending" || item.status === "regressed") && (
-                        <button
-                          onClick={() => createMilestoneFromItem(item)}
-                          disabled={creatingMilestone === item.id}
-                          className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-                          title="Opret som milestone"
-                        >
-                          <Target className="h-3 w-3" />
-                          {creatingMilestone === item.id ? "..." : "Milestone"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {renderDialog()}
     </div>
   );
 };

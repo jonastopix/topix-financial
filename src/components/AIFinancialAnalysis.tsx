@@ -168,7 +168,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
           conversationId,
           senderId: userId,
           content: summaryParts.join("\n"),
-          contextType: "commentary",
+          contextType: "report",
           contextId: result.id,
           contextMeta: { title: `AI Analyse · ${label}` },
         });
