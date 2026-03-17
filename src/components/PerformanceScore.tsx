@@ -71,7 +71,7 @@ const PerformanceScore = () => {
       { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
       { label: "Likviditet", value: latest.bank_balance ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
     ];
-  }, [reports, PERF]);
+  }, [facts, PERF]);
 
   const overallScore = useMemo(() => {
     if (metrics.length === 0) return 0;
