@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { getEffectiveKeyFigures, getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface MetricScore {
@@ -34,32 +32,17 @@ function getScoreLabel(score: number, labels: readonly { min: number; label: str
 }
 
 const PerformanceScore = () => {
-  const { user, companyId } = useAuth();
   const { performanceScore: PERF } = useAppConfig();
-
-  const { data: reports = [] } = useQuery({
-    queryKey: ["financial-reports-perf", companyId],
-    queryFn: async () => {
-      const { data, error } = await (supabase
-        .from("financial_reports")
-        .select("id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status") as any)
-        .eq("company_id", companyId!)
-        .eq("status", "processed")
-        .order("uploaded_at", { ascending: false })
-        .limit(6);
-      if (error) throw error;
-      return (data || []) as ReportData[];
-    },
-    enabled: !!user && !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: facts = [] } = useCompanyFacts();
 
   const metrics = useMemo((): MetricScore[] => {
-    if (reports.length === 0) return [];
+    if (facts.length === 0) return [];
 
-    const sorted = [...reports]
-      .map(r => ({ key: getEffectiveReportPeriodKey(r), kf: getEffectiveKeyFigures(r) }))
-      .filter((d): d is { key: string; kf: Record<string, number> } => !!d.key && !!d.kf)
+    const sorted = facts
+      .map(f => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics) }))
+      .filter((d): d is { key: string; kf: Record<string, number> } =>
+        !!d.key && Object.keys(d.kf).length > 0
+      )
       .sort((a, b) => a.key.localeCompare(b.key));
 
     if (sorted.length === 0) return [];
@@ -88,7 +71,7 @@ const PerformanceScore = () => {
       { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
       { label: "Likviditet", value: latest.bank_balance ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
     ];
-  }, [reports, PERF]);
+  }, [facts, PERF]);
 
   const overallScore = useMemo(() => {
     if (metrics.length === 0) return 0;
