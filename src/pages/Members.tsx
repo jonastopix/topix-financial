@@ -1115,11 +1115,6 @@ const Members = () => {
                               <Send className="h-2.5 w-2.5" /> Afventer
                             </span>
                           )}
-                          {c.invitationStatus === 'accepted' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 dark:text-green-400 text-[10px] font-semibold whitespace-nowrap">
-                              <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
-                            </span>
-                          )}
                           {c.unreadCount > 0 && (
                             <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
                               {c.unreadCount}
