@@ -41,15 +41,20 @@ export function useInactivityLogout(enabled: boolean, timeoutMinutes?: number) {
     const timeoutMs = getTimeoutMs(timeoutMinutes);
     const warningAtMs = timeoutMs - WARNING_BEFORE_MS;
 
-    // Check-before-stamp: if session already expired on page load, sign out immediately
-    const existing = getLastActivity();
-    const elapsed = Date.now() - existing;
-    if (elapsed > timeoutMs) {
-      console.info("[inactivity] Session already expired on load — signing out");
-      supabase.auth.signOut();
-      return;
+    // Always stamp on enable (fresh login = fresh timer).
+    // Only enforce stale-session logout if there WAS a prior stamp.
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const elapsed = Date.now() - parseInt(raw, 10);
+      if (elapsed > timeoutMs) {
+        console.info("[inactivity] Session already expired on load — signing out");
+        // Stamp first so a rapid re-login won't loop
+        stampActivity();
+        supabase.auth.signOut();
+        return;
+      }
     }
-    // Session still valid — stamp and start timer
+    // Session still valid (or first-ever login) — stamp and start timer
     stampActivity();
 
     const throttledStamp = () => {
