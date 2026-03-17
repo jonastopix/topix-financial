@@ -25,6 +25,8 @@ interface AuthContext {
   groupName: string | null;
   isGroupUser: boolean;
   isGroupFeatureEnabled: boolean;
+  /** Welcome banner dismissal timestamp from group_memberships */
+  welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   setOnboardingComplete: () => void;
@@ -49,6 +51,7 @@ const AuthContext = createContext<AuthContext>({
   groupName: null,
   isGroupUser: false,
   isGroupFeatureEnabled: false,
+  welcomeDismissedAt: null,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
   setOnboardingComplete: () => {},
@@ -87,6 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [isGroupFeatureEnabled, setIsGroupFeatureEnabled] = useState(false);
+  const [welcomeDismissedAt, setWelcomeDismissedAt] = useState<string | null>(null);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
 
@@ -146,7 +150,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [groupMembershipRes, groupFeatureFlagRes] = await Promise.all([
       supabase
         .from("group_memberships" as any)
-        .select("group_id, groups:group_id(id, name)" as any)
+        .select("group_id, welcome_dismissed_at, groups:group_id(id, name)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle(),
@@ -161,9 +165,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (gm?.group_id) {
       setGroupId(gm.group_id);
       setGroupName(gm.groups?.name || null);
+      setWelcomeDismissedAt(gm.welcome_dismissed_at || null);
     } else {
       setGroupId(null);
       setGroupName(null);
+      setWelcomeDismissedAt(null);
     }
     setIsGroupFeatureEnabled(!!(groupFeatureFlagRes.data as any)?.enabled);
 
@@ -230,6 +236,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setGroupId(null);
           setGroupName(null);
           setIsGroupFeatureEnabled(false);
+          setWelcomeDismissedAt(null);
           setLoading(false);
         }
       }
@@ -261,6 +268,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       groupId, groupName,
       isGroupUser: groupId != null,
       isGroupFeatureEnabled,
+      welcomeDismissedAt,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       refreshProfile, signOut,
     }}>

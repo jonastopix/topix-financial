@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -252,6 +253,8 @@ const Dashboard = () => {
       {showTour && (
         <GuidedTour onComplete={() => { setShowTour(false); refreshProfile(); }} />
       )}
+      {/* Group welcome (compact) — shown only for non-advisor group members */}
+      <GroupWelcomeBanner variant="compact" />
       {/* Greeting */}
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight">

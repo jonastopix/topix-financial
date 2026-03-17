@@ -4,6 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import CreateGroupWizard from "@/components/CreateGroupWizard";
 import {
   Building2,
   Search,
@@ -30,6 +31,7 @@ import {
   RotateCcw,
   CheckCircle2,
   Loader2,
+  Layers,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -144,6 +146,12 @@ const Members = () => {
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [standalonePendingInvitations, setStandalonePendingInvitations] = useState<any[]>([]);
+
+  // Group/Koncern state (admin-only)
+  const [groupInfoMap, setGroupInfoMap] = useState<Map<string, { groupName: string; groupId: string; isAnchor: boolean }>>(new Map());
+  const [groupedCompanyIds, setGroupedCompanyIds] = useState<Set<string>>(new Set());
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardAnchor, setWizardAnchor] = useState<{ id: string; name: string } | null>(null);
 
   // Standalone invite (no company)
   const [standaloneInviteOpen, setStandaloneInviteOpen] = useState(false);
@@ -383,9 +391,28 @@ const Members = () => {
       .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
     setStandalonePendingInvitations(standalonePending);
 
+    // Fetch group data (admin-only)
+    if (isAdmin) {
+      const { data: gcData } = await supabase
+        .from("group_companies" as any)
+        .select("company_id, group_id, groups:group_id(id, name, anchor_company_id)" as any);
+      const gMap = new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
+      const gSet = new Set<string>();
+      (gcData || []).forEach((gc: any) => {
+        gSet.add(gc.company_id);
+        gMap.set(gc.company_id, {
+          groupName: gc.groups?.name || "Koncern",
+          groupId: gc.group_id,
+          isAnchor: gc.groups?.anchor_company_id === gc.company_id,
+        });
+      });
+      setGroupInfoMap(gMap);
+      setGroupedCompanyIds(gSet);
+    }
+
     setCompanies(enriched);
     setLoading(false);
-  }, [user, isAdvisor]);
+  }, [user, isAdvisor, isAdmin]);
 
   useEffect(() => {
     loadCompanies();
@@ -1028,6 +1055,12 @@ const Members = () => {
                                 <CheckCircle2 className="h-2.5 w-2.5" /> Accepteret
                               </span>
                             )}
+                            {isAdmin && groupInfoMap.has(c.id) && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold whitespace-nowrap">
+                                <Layers className="h-2.5 w-2.5" /> {groupInfoMap.get(c.id)!.groupName}
+                                {groupInfoMap.get(c.id)!.isAnchor && <span className="text-[8px] opacity-70">(Anchor)</span>}
+                              </span>
+                            )}
                             {c.unreadCount > 0 && (
                               <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
                                 {c.unreadCount}
@@ -1364,6 +1397,14 @@ const Members = () => {
                                 {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
                               </button>
                             )}
+                            {isAdmin && !groupedCompanyIds.has(c.id) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setWizardAnchor({ id: c.id, name: c.name }); setWizardOpen(true); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors border border-primary/30"
+                              >
+                                <Layers className="h-3 w-3" /> Gør til koncern
+                              </button>
+                            )}
                             {isAdmin && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
@@ -1693,6 +1734,18 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Group creation wizard */}
+      {wizardAnchor && (
+        <CreateGroupWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          anchorCompany={wizardAnchor}
+          allCompanies={companies.map((c) => ({ id: c.id, name: c.name }))}
+          groupedCompanyIds={groupedCompanyIds}
+          onCreated={() => setReloadTrigger((t) => t + 1)}
+        />
+      )}
     </AppLayout>
   );
 };

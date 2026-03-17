@@ -1027,6 +1027,7 @@ export type Database = {
           id: string
           role: string
           user_id: string
+          welcome_dismissed_at: string | null
         }
         Insert: {
           created_at?: string
@@ -1034,6 +1035,7 @@ export type Database = {
           id?: string
           role?: string
           user_id: string
+          welcome_dismissed_at?: string | null
         }
         Update: {
           created_at?: string
@@ -1041,6 +1043,7 @@ export type Database = {
           id?: string
           role?: string
           user_id?: string
+          welcome_dismissed_at?: string | null
         }
         Relationships: [
           {
@@ -1675,6 +1678,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_group: {
+        Args: {
+          _advisor_ids: string[]
+          _anchor_company_id: string
+          _caller_id: string
+          _company_ids: string[]
+          _group_name: string
+          _member_entries: Json
+        }
+        Returns: Json
+      }
       advisor_has_group_access: {
         Args: { _advisor_id: string; _group_id: string }
         Returns: boolean
