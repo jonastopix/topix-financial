@@ -27,8 +27,6 @@ import BulkImport from "./pages/BulkImport";
 import ReportReviewQueue from "./pages/ReportReviewQueue";
 import AdminFeedback from "./pages/AdminFeedback";
 import Onboarding from "./pages/Onboarding";
-import GroupOnboarding from "./pages/GroupOnboarding";
-import GroupSetupComplete from "./pages/GroupSetupComplete";
 import GroupDashboard from "./pages/GroupDashboard";
 import GroupBudget from "./pages/GroupBudget";
 import AdvisorGroupList from "./pages/AdvisorGroupList";
