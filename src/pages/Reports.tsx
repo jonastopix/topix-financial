@@ -706,6 +706,7 @@ const Reports = () => {
                         </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                       {(() => {
                         const cs = commitStatesQuery.data?.get(report.id);
                         if (cs?.state === "ready") {
