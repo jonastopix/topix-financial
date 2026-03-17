@@ -26,6 +26,8 @@ import EmailTemplates from "./pages/EmailTemplates";
 import BulkImport from "./pages/BulkImport";
 import ReportReviewQueue from "./pages/ReportReviewQueue";
 import AdminFeedback from "./pages/AdminFeedback";
+import AdminGroups from "./pages/AdminGroups";
+import AdminGroupDetail from "./pages/AdminGroupDetail";
 import Onboarding from "./pages/Onboarding";
 import GroupDashboard from "./pages/GroupDashboard";
 import GroupBudget from "./pages/GroupBudget";
@@ -101,6 +103,8 @@ const App = () => (
               <Route path="/admin/review-queue" element={<AdminRoute><ReportReviewQueue /></AdminRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
+              <Route path="/admin/groups" element={<AdminRoute><AdminGroups /></AdminRoute>} />
+              <Route path="/admin/groups/:groupId" element={<AdminRoute><AdminGroupDetail /></AdminRoute>} />
               <Route path="/groups" element={<AdvisorRoute><AdvisorGroupList /></AdvisorRoute>} />
               <Route path="/groups/:groupId" element={<AdvisorRoute><AdvisorGroupDashboard /></AdvisorRoute>} />
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />

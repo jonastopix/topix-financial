@@ -49,6 +49,7 @@ const advisorNavItems = [
 ];
 
 const adminNavItems = [
+  { icon: Layers, label: "Koncerner", path: "/admin/groups" },
   { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: ClipboardList, label: "Review Queue", path: "/admin/review-queue" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
