@@ -4,8 +4,35 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import CreateGroupWizard from "@/components/CreateGroupWizard";
 import {
   Building2,
+  Search,
+  MessageCircle,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
+  Users,
+  Globe,
+  MapPin,
+  User,
+  Mail,
+  Phone,
+  Wallet,
+  ExternalLink,
+  Hash,
+  Trash2,
+  UserPlus,
+  X,
+  Activity,
+  Send,
+  AlertTriangle,
+  RotateCcw,
+  CheckCircle2,
+  Loader2,
+  Layers,
+} from "lucide-react";
   Search,
   MessageCircle,
   FileText,
