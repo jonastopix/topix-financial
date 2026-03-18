@@ -73,7 +73,7 @@ const SEMANTIC_FIELD_MAP: Array<{
   require_subtotal: boolean;
 }> = [
   { source_field_id: "omsaetning", pattern: /omsætning\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "revenue", require_subtotal: true },
-  { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: true },
+  { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: false },
   // NOTE: daekningsbidrag intentionally omitted — gross_profit derived as revenue - cogs in canonical engine
   { source_field_id: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll", require_subtotal: true },
   { source_field_id: "salgsomkostninger", pattern: /salgsomkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },
