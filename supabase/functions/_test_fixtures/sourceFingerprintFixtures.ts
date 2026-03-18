@@ -160,6 +160,7 @@ export const fixture_unbranded_economic_style_pdf_fingerprint: SourceFingerprint
 01.02.2026 - 28.02.2026
 
 1010 Varesalg m. moms -254.419,83
+Omsætning i alt -254.419,83
 1300 Vareforbrug 198.855,32
 DIREKTE OMKOSTNINGER I ALT 198.855,32
 DÆKNINGSBIDRAG -55.564,51
