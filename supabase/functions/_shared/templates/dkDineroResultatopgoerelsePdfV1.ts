@@ -329,14 +329,11 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
     if (fn.includes("dinero")) score += 10;
 
     // ── Anti-match: e-conomic-style account ranges ──
-    // If account numbers follow e-conomic convention (payroll in 2200-range,
-    // opex in 3000-range), this is NOT a Dinero export. Dinero uses:
-    //   2000-2999 = COGS, 3000-3999 = payroll, 4000-4999 = sales
-    // e-conomic uses:
-    //   2200-2999 = payroll, 3000-3999 = opex (vehicles, facility, admin, sales)
-    // This prevents Dinero from winning detection on e-conomic-style PDFs.
-    if (_hasEconomicStyleAccountRanges(text)) {
+    // Uses shared detector with parsed-line + raw-text fallback.
+    const rangeResult = detectEconomicAccountRanges(text);
+    if (rangeResult.detected) {
       score -= 30;
+      console.log(`[DineroPDF] Economic range anti-match: -30 (${rangeResult.method}, ${rangeResult.evidence.join("; ")})`);
     }
 
     return score;
