@@ -198,6 +198,27 @@ const economic_pnl_business_v1: NormalizationProfile = {
   field_overrides: {},
 };
 
+// ── Profile: Combined DK (business convention, P&L + Balance) ──
+
+const combined_dk_business_v1: NormalizationProfile = {
+  profile_id: "combined_dk_business_v1",
+  description: "Combined DK Balance/P&L XLSX — business convention, revenue positive, costs negative",
+  sign_convention: "business",
+  statement_type: "combined",
+  family_defaults: {
+    revenue_like:            KEEP,     // Business: revenue already positive → keep
+    cost_like:               NEGATE,   // Business: costs are negative → negate to positive bucket
+    profit_like:             KEEP,     // Business: positive = profit, negative = loss → keep
+    asset_like:              KEEP,     // Assets keep raw sign
+    liability_like:          NEGATE,   // Business: liabilities are negative → negate to positive
+    equity_like:             KEEP,     // Equity keeps sign
+    cash_like:               KEEP,     // Cash keeps sign (overdraft possible)
+    receivable_payable_like: KEEP,     // Direction matters
+    contra_or_unknown:       REJECT,
+  },
+  field_overrides: {},
+};
+
 // ── Registry ──
 
 const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
@@ -207,6 +228,7 @@ const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
   dinero_pnl_credit_v1,
   combined_dk_credit_v1,
   combined_balance_pnl_credit_v1,
+  combined_dk_business_v1,
 };
 
 export function getNormalizationProfile(profileId: string): NormalizationProfile | null {
