@@ -921,18 +921,20 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            {data.report_type}
+            {data.report_type ?? "Rapport"}
           </p>
           <p className="text-sm font-display font-semibold text-foreground">
-            {data.company_name}{" "}
-            <span className="text-muted-foreground font-normal">
-              · CVR {data.cvr_number}
-            </span>
+            {data.company_name ?? "Ukendt virksomhed"}{" "}
+            {data.cvr_number && (
+              <span className="text-muted-foreground font-normal">
+                · CVR {data.cvr_number}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-            {data.report_period}
+            {data.report_period ?? data.report_period_label ?? "—"}
           </span>
           {data.extraction_method === "deterministic" && (
             <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
