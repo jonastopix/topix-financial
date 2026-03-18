@@ -717,7 +717,7 @@ Deno.test("Routing: unknown source + valid + hash not verified → proceed with 
 
 import { buildCanonicalOutput, normalizeSemanticExtraction, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
 import { dkEconomicResultatopgoerelsePdfV1, validateStructuralAcceptance, normalizePdfLabelText } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
-import { tryDeterministicPdfStructuralExtraction } from "../_shared/templateRegistry.ts";
+import { tryDeterministicPdfStructuralExtraction, detectTemplate, type DetectionContext } from "../_shared/templateRegistry.ts";
 
 // ══════════════════════════════════════════════════════════════
 // PHASE 5: Label Normalization (Ligature Cleanup)
