@@ -51,6 +51,8 @@ import {
   fixture_not_combined_dk_generic_xlsx,
   fixture_not_combined_dk_no_period_col,
   fixture_kj_auto_xlsx_fingerprint,
+  fixture_unbranded_economic_style_pdf_fingerprint,
+  fixture_dinero_pdf_not_economic_style,
 } from "../_test_fixtures/sourceFingerprintFixtures.ts";
 import {
   ECONOMIC_SALDOBALANCE_PDF_TEXT,
