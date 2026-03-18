@@ -282,7 +282,7 @@ Deno.test("Fixture shapes: all normalization fixtures valid", () => {
     fixture_economic_saldobalance_equity, fixture_economic_saldobalance_cash,
     fixture_economic_saldobalance_revenue, fixture_economic_saldobalance_liability,
     fixture_economic_pnl_cogs_contra, fixture_reject_unclassified,
-    fixture_kj_auto_passthrough, fixture_same_raw_different_profiles,
+    fixture_combined_dk_business_passthrough, fixture_same_raw_different_profiles,
   ];
   for (const f of fixtures) assertNormalizationFixtureShape(f);
 });
