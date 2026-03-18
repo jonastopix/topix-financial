@@ -2455,7 +2455,7 @@ Deno.test("Phase6b — R3b. Guard: net_result derivation skipped for non-approve
     document_type: "resultatopgoerelse",
     template_id: "TEST_GUARD",
     sign_convention: "business",
-    normalization_profile_id: "kj_auto_business_v1",
+    normalization_profile_id: "combined_dk_business_v1",
     company_name: "Guard Test",
     cvr: null,
     period_start: null,
