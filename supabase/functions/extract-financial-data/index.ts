@@ -1233,7 +1233,11 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     }
 
     // Return extractedData + canonical for client-side use
-    extractedData.canonical = canonical;
+    // Guard: only attach as sub-property when canonical is a separate object (legacy path)
+    // When isSemanticCanonical, canonical === extractedData, so attaching would create a circular reference
+    if (canonical !== extractedData) {
+      extractedData.canonical = canonical;
+    }
 
     return new Response(JSON.stringify(extractedData), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
