@@ -28,12 +28,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 interface ExtractedData {
-  report_type: string;
-  report_period: string;
-  company_name: string;
-  cvr_number: string;
-  key_figures: Record<string, number>;
-  line_items: Array<{ name: string; period_amount: number; ytd_amount: number }>;
+  report_type?: string;
+  report_period?: string;
+  company_name?: string;
+  cvr_number?: string;
+  key_figures?: Record<string, number>;
+  line_items?: Array<{ name: string; period_amount: number; ytd_amount: number }>;
   validation?: {
     status?: string;
   };
@@ -46,6 +46,24 @@ interface ExtractedData {
     inventory?: number;
     revenue?: number;
   };
+  // Canonical/structural fields
+  metrics?: {
+    revenue?: number | null;
+    gross_profit?: number | null;
+    cogs?: number | null;
+    payroll?: number | null;
+    ebt?: number | null;
+    net_result?: number | null;
+    cash?: number | null;
+    assets_total?: number | null;
+    equity_total?: number | null;
+    equity_ratio_pct?: number | null;
+    trade_receivables?: number | null;
+    inventory?: number | null;
+    current_liabilities?: number | null;
+    [key: string]: number | null | undefined;
+  };
+  report_period_label?: string;
 }
 
 /**
@@ -857,12 +875,37 @@ const FileUploadZone = ({
 };
 
 function ExtractedDataPreview({ data }: { data: ExtractedData }) {
-  const kf = data.key_figures;
+  // Compatibility adapter: legacy key_figures → canonical metrics → empty
+  const kf: Record<string, number | undefined> = (() => {
+    if (data.key_figures && Object.keys(data.key_figures).length > 0) {
+      return data.key_figures;
+    }
+    if (data.metrics) {
+      const m = data.metrics;
+      return {
+        omsaetning: m.revenue ?? undefined,
+        daekningsbidrag: m.gross_profit ?? undefined,
+        resultat_foer_skat: m.ebt ?? undefined,
+        aktiver_i_alt: m.assets_total ?? undefined,
+        bank_balance: m.cash ?? undefined,
+        kreditorer: m.current_liabilities ?? undefined,
+      };
+    }
+    return {};
+  })();
+
   const formatDKK = (n?: number) =>
     n != null ? `${n.toLocaleString("da-DK")} DKK` : "—";
 
   // Calculate financial indicators from normalized metrics (if available)
-  const normalized = data.normalized_metrics;
+  const normalized = data.normalized_metrics ?? (data.metrics ? {
+    cash: data.metrics.cash ?? undefined,
+    equity_total: data.metrics.equity_total ?? undefined,
+    equity_ratio_pct: data.metrics.equity_ratio_pct ?? undefined,
+    trade_receivables: data.metrics.trade_receivables ?? undefined,
+    inventory: data.metrics.inventory ?? undefined,
+    revenue: data.metrics.revenue ?? undefined,
+  } : undefined);
   const hasNegativeCash = normalized?.cash !== undefined && normalized.cash < 0;
   const hasPositiveEquity = normalized?.equity_total !== undefined && normalized.equity_total > 0;
   
@@ -878,18 +921,20 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            {data.report_type}
+            {data.report_type ?? "Rapport"}
           </p>
           <p className="text-sm font-display font-semibold text-foreground">
-            {data.company_name}{" "}
-            <span className="text-muted-foreground font-normal">
-              · CVR {data.cvr_number}
-            </span>
+            {data.company_name ?? "Ukendt virksomhed"}{" "}
+            {data.cvr_number && (
+              <span className="text-muted-foreground font-normal">
+                · CVR {data.cvr_number}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-            {data.report_period}
+            {data.report_period ?? data.report_period_label ?? "—"}
           </span>
           {data.extraction_method === "deterministic" && (
             <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -947,12 +992,12 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
             })()}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <MiniStat label="Omsætning" value={formatDKK(kf.omsaetning)} sub={`Å.t.d: ${formatDKK(kf.omsaetning_aar)}`} />
-        <MiniStat label="Dækningsbidrag" value={formatDKK(kf.daekningsbidrag)} sub={`Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}`} />
-        <MiniStat label="Resultat f. skat" value={formatDKK(kf.resultat_foer_skat)} sub={`Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}`} />
-        {kf.aktiver_i_alt != null && <MiniStat label="Aktiver" value={formatDKK(kf.aktiver_i_alt)} />}
-        {kf.bank_balance != null && <MiniStat label="Bank" value={formatDKK(kf.bank_balance)} />}
-        {kf.kreditorer != null && <MiniStat label="Kreditorer" value={formatDKK(kf.kreditorer)} />}
+        <MiniStat label="Omsætning" value={formatDKK(kf?.omsaetning)} sub={kf?.omsaetning_aar != null ? `Å.t.d: ${formatDKK(kf.omsaetning_aar)}` : undefined} />
+        <MiniStat label="Dækningsbidrag" value={formatDKK(kf?.daekningsbidrag)} sub={kf?.daekningsbidrag_aar != null ? `Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}` : undefined} />
+        <MiniStat label="Resultat f. skat" value={formatDKK(kf?.resultat_foer_skat)} sub={kf?.resultat_foer_skat_aar != null ? `Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}` : undefined} />
+        {kf?.aktiver_i_alt != null && <MiniStat label="Aktiver" value={formatDKK(kf.aktiver_i_alt)} />}
+        {kf?.bank_balance != null && <MiniStat label="Bank" value={formatDKK(kf.bank_balance)} />}
+        {kf?.kreditorer != null && <MiniStat label="Kreditorer" value={formatDKK(kf.kreditorer)} />}
       </div>
     </div>
   );
