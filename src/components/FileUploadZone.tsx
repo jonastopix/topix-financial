@@ -28,12 +28,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 interface ExtractedData {
-  report_type: string;
-  report_period: string;
-  company_name: string;
-  cvr_number: string;
-  key_figures: Record<string, number>;
-  line_items: Array<{ name: string; period_amount: number; ytd_amount: number }>;
+  report_type?: string;
+  report_period?: string;
+  company_name?: string;
+  cvr_number?: string;
+  key_figures?: Record<string, number>;
+  line_items?: Array<{ name: string; period_amount: number; ytd_amount: number }>;
   validation?: {
     status?: string;
   };
@@ -46,6 +46,24 @@ interface ExtractedData {
     inventory?: number;
     revenue?: number;
   };
+  // Canonical/structural fields
+  metrics?: {
+    revenue?: number | null;
+    gross_profit?: number | null;
+    cogs?: number | null;
+    payroll?: number | null;
+    ebt?: number | null;
+    net_result?: number | null;
+    cash?: number | null;
+    assets_total?: number | null;
+    equity_total?: number | null;
+    equity_ratio_pct?: number | null;
+    trade_receivables?: number | null;
+    inventory?: number | null;
+    current_liabilities?: number | null;
+    [key: string]: number | null | undefined;
+  };
+  report_period_label?: string;
 }
 
 /**
