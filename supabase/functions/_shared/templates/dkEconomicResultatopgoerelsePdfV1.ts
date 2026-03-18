@@ -80,7 +80,7 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "lokaleomkostninger", pattern: /lokaleomkostninger/i, family: "cost_like", canonical_hint: "facility_costs", require_subtotal: true },
   { source_field_id: "transportomkostninger", pattern: /^transportomkostninger\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "vehicle_costs", require_subtotal: true },
   { source_field_id: "administrationsomkostninger", pattern: /administration\b/i, family: "cost_like", canonical_hint: "admin_costs", require_subtotal: true },
-  { source_field_id: "afskrivninger", pattern: /afskrivninger/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
+  { source_field_id: "afskrivninger", pattern: /afskrivninger/i, anti_pattern: /resultat\s+før/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
   { source_field_id: "resultat_foer_skat", pattern: /resultat før skat/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_ekstraordinaere", pattern: /resultat før ekstraordinære poster/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
