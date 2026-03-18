@@ -1205,9 +1205,38 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           : "andet")
         : extractedData.report_type;
 
-      const dbReportPeriod = isSemanticCanonical
-        ? canonical.report_period_label
-        : extractedData.report_period;
+      // FIX C: Convert semantic period metadata to Danish month label for DB/commit compatibility
+      const dbReportPeriod = (() => {
+        if (!isSemanticCanonical) return extractedData.report_period;
+
+        const rawLabel = canonical.report_period_label;
+        // Check if already a Danish month label (e.g., "Februar 2026")
+        if (rawLabel && /^(Januar|Februar|Marts|April|Maj|Juni|Juli|August|September|Oktober|November|December)\s+\d{4}$/i.test(rawLabel)) {
+          return rawLabel;
+        }
+
+        // Convert date range "DD/MM-YYYY - DD/MM-YYYY" or period_end "DD/MM-YYYY" to Danish month label
+        const DK_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
+        const tryConvert = (s: string | null): string | null => {
+          if (!s) return null;
+          const m = s.match(/(\d{2})\/(\d{2})[-\s]*(\d{4})\s*$/);
+          if (!m) return null;
+          const mo = parseInt(m[2], 10);
+          if (mo < 1 || mo > 12) return null;
+          return `${DK_MONTHS[mo - 1]} ${m[3]}`;
+        };
+
+        // Priority 1: parse from report_period_label (end date of range)
+        const fromLabel = tryConvert(rawLabel);
+        if (fromLabel) return fromLabel;
+
+        // Priority 2: parse from period_end
+        const fromEnd = tryConvert(canonical.period_end);
+        if (fromEnd) return fromEnd;
+
+        // Fallback: raw label as-is
+        return rawLabel || null;
+      })();
 
       const dbCompanyName = isSemanticCanonical
         ? canonical.company_name

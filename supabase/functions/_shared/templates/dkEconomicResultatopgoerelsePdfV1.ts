@@ -292,7 +292,7 @@ function extractSemanticFromStructural(
     const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "resultat_foer_renter", "periodens_resultat"];
     let ebtConsumed = false;
 
-    // Narrow allowlist for label-text numeric fallback (Bug B fix)
+    // Narrow allowlist for label-text numeric fallback
     // Only these result-line fields may use label-text extraction when slot 0 is missing
     const LABEL_FALLBACK_ALLOWLIST = new Set([
       "resultat_foer_skat",
@@ -302,17 +302,42 @@ function extractSemanticFromStructural(
       "resultat_efter_skat",
     ]);
 
-    for (const fieldDef of SEMANTIC_FIELD_MAP) {
-      // Find matching row in structural data — no longer requires slot 0 presence
-      const matchIdx = allRows.findIndex(row => {
-        const label = getRowLabel(row);
-        if (!fieldDef.pattern.test(label)) return false;
-        if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) return false;
-        return true;
-      });
+    // FIX B: Detect sign convention from revenue value.
+    // Credit convention: revenue negative. Business/algebraic: revenue positive.
+    // We need this to know whether profit_like values need sign alignment.
+    let detectedConvention: "credit" | "business" = "credit"; // safe default
 
-      if (matchIdx === -1) continue;
-      const matchRow = allRows[matchIdx];
+    // Pre-scan: find revenue to detect convention before main loop
+    for (const row of allRows) {
+      const rl = getRowLabel(row);
+      if (/omsætning\s*(i alt|ialt)/i.test(rl) && isEffectiveSubtotal(row)) {
+        const revVal = getSlot0Value(row);
+        if (revVal !== null) {
+          detectedConvention = revVal >= 0 ? "business" : "credit";
+          console.log(`[DK_ECONOMIC_PNL_PDF] Detected sign convention: ${detectedConvention} (revenue raw = ${revVal})`);
+          break;
+        }
+      }
+    }
+
+    for (const fieldDef of SEMANTIC_FIELD_MAP) {
+      // FIX A: Find ALL matching rows, then prefer first with usable slot0 value
+      const matchingRows: Array<{idx: number, row: PdfStructuralRow}> = [];
+      for (let ri = 0; ri < allRows.length; ri++) {
+        const row = allRows[ri];
+        const rl = getRowLabel(row);
+        if (!fieldDef.pattern.test(rl)) continue;
+        if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) continue;
+        matchingRows.push({ idx: ri, row });
+      }
+
+      if (matchingRows.length === 0) continue;
+
+      // Prefer first match that has a usable slot0 value over first regex-only match
+      const withSlot0 = matchingRows.find(m => getSlot0Value(m.row) !== null);
+      const best = withSlot0 || matchingRows[0];
+      const matchIdx = best.idx;
+      const matchRow = best.row;
       const label = getRowLabel(matchRow);
 
       // Try slot 0 first (always wins)
@@ -324,15 +349,7 @@ function extractSemanticFromStructural(
         const fullRowText = matchRow.tokens.map(t => t.text).join(" ");
         const danishNumMatch = fullRowText.match(/-?\d{1,3}(?:\.\d{3})*,\d{2}/);
         if (danishNumMatch) {
-          let parsedValue = parseDanishNumber(danishNumMatch[0]);
-          // Label-text values are in business convention (negative = loss).
-          // The template uses credit convention normalization (profit_like: NEGATE).
-          // For profit_like fields, flip sign so NEGATE restores the correct business sign.
-          if (fieldDef.family === "profit_like" && parsedValue !== null) {
-            console.log(`[DK_ECONOMIC_PNL_PDF] Label-text fallback sign flip for profit_like field ${fieldDef.source_field_id}: ${parsedValue} → ${-parsedValue}`);
-            parsedValue = -parsedValue;
-          }
-          rawValue = parsedValue;
+          rawValue = parseDanishNumber(danishNumMatch[0]);
           extractionMethod = "label_text_fallback";
           console.log(`[DK_ECONOMIC_PNL_PDF] Label-text fallback for ${fieldDef.source_field_id}: "${danishNumMatch[0]}" → ${rawValue}`);
         }
@@ -340,6 +357,14 @@ function extractSemanticFromStructural(
 
       // Skip if still no value
       if (rawValue === null) continue;
+
+      // FIX B: For profit_like fields in business convention, negate raw value
+      // so the credit-convention normalizer (NEGATE) restores the correct business sign.
+      // In credit convention, profit_like values are already in credit sign → no flip needed.
+      if (fieldDef.family === "profit_like" && rawValue !== null && detectedConvention === "business") {
+        console.log(`[DK_ECONOMIC_PNL_PDF] Business-convention sign flip for profit_like field ${fieldDef.source_field_id}: ${rawValue} → ${-rawValue}`);
+        rawValue = -rawValue;
+      }
 
       // EBT fallback chain: only emit first match as EBT
       if (ebtFieldIds.includes(fieldDef.source_field_id)) {
