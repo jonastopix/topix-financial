@@ -2819,8 +2819,8 @@ Deno.test("Phase8 — K1. Combined DK credit convention selects combined_dk_cred
 });
 
 // ── Test K2: Business-convention → hard fail (unsupported) ──
-Deno.test("Phase8 — K2. KJ Auto business convention → hard fail (no fixture)", () => {
-  console.log(`\n══ K2. BUSINESS CONVENTION HARD FAIL ══`);
+Deno.test("Phase8 — K2. KJ Auto business convention → succeeds with business profile", () => {
+  console.log(`\n══ K2. BUSINESS CONVENTION SUCCESS ══`);
 
   // Create synthetic business-convention rows (revenue positive, costs negative)
   const businessRows: any[][] = [
@@ -2849,9 +2849,11 @@ Deno.test("Phase8 — K2. KJ Auto business convention → hard fail (no fixture)
   })!.template as any);
 
   const semantic = template.extractSemanticFromXlsx(xlsxResult);
-  assertEquals(semantic, null, "Business convention should return null (hard fail)");
-  console.log(`  Result: null (hard fail as expected)`);
-  console.log(`\n✅ K2 PASSED: Business convention correctly hard-fails`);
+  assertExists(semantic, "Business convention should now succeed (not null)");
+  assertEquals(semantic.sign_convention, "business", "Sign convention should be business");
+  assertEquals(semantic.normalization_profile_id, "combined_dk_business_v1", "Should use business profile");
+  console.log(`  Result: success with profile ${semantic.normalization_profile_id}`);
+  console.log(`\n✅ K2 PASSED: Business convention correctly extracts with business profile`);
 });
 
 // ── Test K3: Unknown convention → hard fail ──
