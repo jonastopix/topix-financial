@@ -29,6 +29,8 @@ import type {
   ParserValidation,
 } from "../templateRegistry.ts";
 
+import { detectEconomicAccountRanges } from "../economicRangeDetector.ts";
+
 // Generic low-level PDF line parser.
 // NOTE: Despite its historical name "parseEconomicPdfText", this is a generic
 // Danish PDF accounting line parser. It parses Danish numbers, extracts account
