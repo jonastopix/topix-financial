@@ -74,7 +74,7 @@ const SEMANTIC_FIELD_MAP: Array<{
 }> = [
   { source_field_id: "omsaetning", pattern: /omsætning\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "revenue", require_subtotal: true },
   { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: true },
-  { source_field_id: "daekningsbidrag", pattern: /dækningsbidrag/i, family: "profit_like", canonical_hint: "gross_profit", require_subtotal: true },
+  // NOTE: daekningsbidrag intentionally omitted — gross_profit derived as revenue - cogs in canonical engine
   { source_field_id: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll", require_subtotal: true },
   { source_field_id: "salgsomkostninger", pattern: /salgsomkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },
   { source_field_id: "lokaleomkostninger", pattern: /lokaleomkostninger/i, family: "cost_like", canonical_hint: "facility_costs", require_subtotal: true },
@@ -83,6 +83,7 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "afskrivninger", pattern: /afskrivninger/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
   { source_field_id: "resultat_foer_skat", pattern: /resultat før skat/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_ekstraordinaere", pattern: /resultat før ekstraordinære poster/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
+  { source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_efter_skat", pattern: /resultat efter skat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
   { source_field_id: "periodens_resultat", pattern: /periodens resultat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
 ];
