@@ -273,7 +273,7 @@ Deno.test("Profile registry: combined_dk credit convention", () => {
   assertEquals(profile.family_defaults.revenue_like.action, "negate");
   assertEquals(profile.family_defaults.cost_like.action, "abs");
   assertEquals(profile.family_defaults.profit_like.action, "negate");
-  assertEquals(profile.family_defaults.asset_like.action, "negate");
+  assertEquals(profile.family_defaults.asset_like.action, "abs");
   assertEquals(profile.family_defaults.contra_or_unknown.action, "reject");
 });
 
