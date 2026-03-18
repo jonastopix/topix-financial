@@ -2455,7 +2455,7 @@ Deno.test("Phase6b — R3b. Guard: net_result derivation skipped for non-approve
     document_type: "resultatopgoerelse",
     template_id: "TEST_GUARD",
     sign_convention: "business",
-    normalization_profile_id: "kj_auto_business_v1",
+    normalization_profile_id: "combined_dk_business_v1",
     company_name: "Guard Test",
     cvr: null,
     period_start: null,
@@ -2819,8 +2819,8 @@ Deno.test("Phase8 — K1. Combined DK credit convention selects combined_dk_cred
 });
 
 // ── Test K2: Business-convention → hard fail (unsupported) ──
-Deno.test("Phase8 — K2. KJ Auto business convention → hard fail (no fixture)", () => {
-  console.log(`\n══ K2. BUSINESS CONVENTION HARD FAIL ══`);
+Deno.test("Phase8 — K2. KJ Auto business convention → succeeds with business profile", () => {
+  console.log(`\n══ K2. BUSINESS CONVENTION SUCCESS ══`);
 
   // Create synthetic business-convention rows (revenue positive, costs negative)
   const businessRows: any[][] = [
@@ -2849,9 +2849,11 @@ Deno.test("Phase8 — K2. KJ Auto business convention → hard fail (no fixture)
   })!.template as any);
 
   const semantic = template.extractSemanticFromXlsx(xlsxResult);
-  assertEquals(semantic, null, "Business convention should return null (hard fail)");
-  console.log(`  Result: null (hard fail as expected)`);
-  console.log(`\n✅ K2 PASSED: Business convention correctly hard-fails`);
+  assertExists(semantic, "Business convention should now succeed (not null)");
+  assertEquals(semantic.sign_convention, "business", "Sign convention should be business");
+  assertEquals(semantic.normalization_profile_id, "combined_dk_business_v1", "Should use business profile");
+  console.log(`  Result: success with profile ${semantic.normalization_profile_id}`);
+  console.log(`\n✅ K2 PASSED: Business convention correctly extracts with business profile`);
 });
 
 // ── Test K3: Unknown convention → hard fail ──
@@ -3043,11 +3045,10 @@ Deno.test("Phase8 — K5. Combined statement validation and provenance", () => {
 });
 
 // ── Test K6: Routing hard-fail — combined_dk fingerprint + business convention → semantic_fail at routing level ──
-Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", () => {
-  console.log(`\n══ K6. ROUTING HARD-FAIL (COMBINED_DK FINGERPRINT) ══`);
+Deno.test("Phase8 — K6. Routing for combined_dk source identity (business + unknown)", () => {
+  console.log(`\n══ K6. ROUTING FOR COMBINED_DK (BUSINESS + UNKNOWN) ══`);
 
-  // Build a combined_dk-fingerprinted fixture: KJ Auto company name (still matches combined_dk structurally)
-  // AND business-convention signs (revenue > 0, costs < 0)
+  // Build a combined_dk-fingerprinted fixture with business-convention signs
   const kjAutoBusinessRows: any[][] = [
     ["KJ Automobiler ApS", null, null],
     ["Balance og resultatopgørelse", null, null],
@@ -3084,8 +3085,7 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
   assertEquals(isAiAllowed(fp), false, "combined_dk is known source — AI forbidden");
   console.log(`  ✓ Source fingerprint: system=${fp.source_system}, AI forbidden`);
 
-  // Step 2: Run through trySemanticExcelExtraction (the actual routing function)
-  // Since this is business convention, extractSemanticFromXlsx should return null → semantic_fail
+  // Step 2: Business convention should now succeed with business profile
   const xlsxResult = buildSyntheticXlsxResult(kjAutoBusinessRows);
   const template = detectTemplate({
     fileName: "KJ_Auto_Jan2026.xlsx",
@@ -3095,17 +3095,12 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
   })!.template as any;
 
   const semantic = template.extractSemanticFromXlsx(xlsxResult);
-  assertEquals(semantic, null, "Business convention combined_dk must return null (adapter hard fail)");
-  console.log(`  ✓ Adapter returns null for business-convention combined_dk`);
+  assertExists(semantic, "Business convention combined_dk should now succeed");
+  assertEquals(semantic.sign_convention, "business", "Sign convention should be business");
+  assertEquals(semantic.normalization_profile_id, "combined_dk_business_v1", "Should use business profile");
+  console.log(`  ✓ Adapter succeeds for business-convention combined_dk with profile ${semantic.normalization_profile_id}`);
 
-  // Step 3: Verify routing behavior — trySemanticExcelExtraction produces semantic_fail
-  // We can't call trySemanticExcelExtraction with synthetic data (it needs base64),
-  // but we verify the routing contract:
-  // - Known source (combined_dk) + semantic adapter returns null → type: "semantic_fail"
-  // - index.ts hard-fails on semantic_fail for known sources (no legacy fallback)
-  console.log(`  ✓ Routing contract: combined_dk (known source) + null adapter → semantic_fail → hard fail (no legacy)`);
-
-  // Step 4: Also verify unknown convention hard-fails for combined_dk
+  // Step 3: Unknown convention should still hard-fail
   const ambiguousRows: any[][] = [
     ["Some Company ApS", null, null],
     ["Balance og resultatopgørelse", null, null],
@@ -3133,12 +3128,12 @@ Deno.test("Phase8 — K6. Routing hard-fail for combined_dk source identity", ()
   if (matchAmb) {
     const semAmb = (matchAmb.template as any).extractSemanticFromXlsx(xlsxAmb);
     assertEquals(semAmb, null, "Unknown convention combined_dk must return null");
-    console.log(`  ✓ Unknown convention combined_dk also hard-fails`);
+    console.log(`  ✓ Unknown convention combined_dk still hard-fails`);
   } else {
     console.log(`  ✓ Template not matched for ambiguous combined_dk → implicit fail`);
   }
 
-  console.log(`\n✅ K6 PASSED: Routing hard-fail verified for combined_dk source identity (business + unknown)`);
+  console.log(`\n✅ K6 PASSED: Business convention succeeds, unknown convention still hard-fails`);
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

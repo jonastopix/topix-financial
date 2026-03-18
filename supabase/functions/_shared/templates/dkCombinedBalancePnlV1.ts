@@ -421,14 +421,11 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
       return null;
     }
 
-    if (detectedConvention === "business") {
-      console.error("[DK_COMBINED_PNL_SEMANTIC] Business convention detected but NOT YET SUPPORTED — no verified fixture. Hard fail.");
-      return null;
-    }
-
-    // Only credit convention proceeds
-    const signConvention: "credit" | "business" = "credit";
-    const normalizationProfileId = "combined_dk_credit_v1";
+    // Route to correct normalization profile based on detected convention
+    const signConvention: "credit" | "business" = detectedConvention as "credit" | "business";
+    const normalizationProfileId = detectedConvention === "business"
+      ? "combined_dk_business_v1"
+      : "combined_dk_credit_v1";
     console.log(`[DK_COMBINED_PNL_SEMANTIC] Convention: ${signConvention}, profile: ${normalizationProfileId}`);
 
     // ── Scan all rows for metric candidates and line items ──
