@@ -875,12 +875,37 @@ const FileUploadZone = ({
 };
 
 function ExtractedDataPreview({ data }: { data: ExtractedData }) {
-  const kf = data.key_figures;
+  // Compatibility adapter: legacy key_figures → canonical metrics → empty
+  const kf: Record<string, number | undefined> = (() => {
+    if (data.key_figures && Object.keys(data.key_figures).length > 0) {
+      return data.key_figures;
+    }
+    if (data.metrics) {
+      const m = data.metrics;
+      return {
+        omsaetning: m.revenue ?? undefined,
+        daekningsbidrag: m.gross_profit ?? undefined,
+        resultat_foer_skat: m.ebt ?? undefined,
+        aktiver_i_alt: m.assets_total ?? undefined,
+        bank_balance: m.cash ?? undefined,
+        kreditorer: m.current_liabilities ?? undefined,
+      };
+    }
+    return {};
+  })();
+
   const formatDKK = (n?: number) =>
     n != null ? `${n.toLocaleString("da-DK")} DKK` : "—";
 
   // Calculate financial indicators from normalized metrics (if available)
-  const normalized = data.normalized_metrics;
+  const normalized = data.normalized_metrics ?? (data.metrics ? {
+    cash: data.metrics.cash ?? undefined,
+    equity_total: data.metrics.equity_total ?? undefined,
+    equity_ratio_pct: data.metrics.equity_ratio_pct ?? undefined,
+    trade_receivables: data.metrics.trade_receivables ?? undefined,
+    inventory: data.metrics.inventory ?? undefined,
+    revenue: data.metrics.revenue ?? undefined,
+  } : undefined);
   const hasNegativeCash = normalized?.cash !== undefined && normalized.cash < 0;
   const hasPositiveEquity = normalized?.equity_total !== undefined && normalized.equity_total > 0;
   
