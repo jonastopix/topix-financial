@@ -40,6 +40,7 @@ import type {
 
 import type { MetricFamily } from "../normalizationProfiles.ts";
 import type { PdfStructuralPayload, PdfStructuralRow } from "../pdfStructuralTypes.ts";
+import { detectEconomicAccountRanges } from "../economicRangeDetector.ts";
 
 // ── Label Lookup Helpers (LEGACY ONLY) ──
 
