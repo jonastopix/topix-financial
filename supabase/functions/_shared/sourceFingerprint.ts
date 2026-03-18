@@ -7,6 +7,7 @@
  */
 
 import type { SourceSystem, DocumentType } from "./semanticTypes.ts";
+import { detectEconomicAccountRanges } from "./economicRangeDetector.ts";
 
 export interface SourceFingerprint {
   source_system: SourceSystem;
@@ -61,10 +62,10 @@ export function detectSourceSystem(
     // No footer, no brand — but account structure matches e-conomic convention.
     // Detected at MEDIUM confidence (no brand confirmation).
     if (/resultatopgørelse/i.test(rawText) && !/saldobalance/i.test(rawText)) {
-      const payrollIn2200 = /^\s*2[2-9]\d{2}\s+\S.*(?:løn|gage|personal|ferie)/im.test(rawText);
-      const opexIn3000 = /^\s*3\d{3}\s+\S.*(?:bil|transport|lokale|husleje|kontor|forsikring|salg|reklame|admin|vedlige)/im.test(rawText);
-      if (payrollIn2200 && opexIn3000) {
-        evidence.push("Unbranded P&L with e-conomic-style account ranges (payroll 2200+, opex 3000+)");
+      const rangeResult = detectEconomicAccountRanges(rawText);
+      if (rangeResult.detected) {
+        evidence.push(`Unbranded P&L with e-conomic-style account ranges (${rangeResult.method})`);
+        evidence.push(...rangeResult.evidence);
         return {
           source_system: "economic",
           document_type: "resultatopgoerelse",
