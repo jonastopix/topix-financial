@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -12,8 +13,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X } from "lucide-react";
 import { formatDKK } from "@/lib/financialUtils";
+import OverrideFormFields from "@/components/OverrideFormFields";
+import {
+  ALL_FIELDS,
+  canonicalPreviewToDanishInputs,
+  parseMonth,
+  validateForApply,
+  getOverrideSource,
+  saveManualOverride,
+} from "@/lib/reportOverrideHelpers";
 
 interface ReportReviewDialogProps {
   reportId: string;
@@ -39,7 +49,7 @@ interface PreviewData {
   state_reason: string | null;
 }
 
-// Canonical EN → Danish display labels
+// Canonical EN → Danish display labels (for read-only preview)
 const METRIC_LABELS: Record<string, string> = {
   revenue: "Omsætning",
   gross_profit: "Dækningsbidrag",
@@ -70,11 +80,21 @@ export default function ReportReviewDialog({
   open,
   onOpenChange,
 }: ReportReviewDialogProps) {
+  const { user, isAdvisor, isAdmin } = useAuth();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
   const queryClient = useQueryClient();
+
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [metricInputs, setMetricInputs] = useState<Record<string, string>>({});
+  const [editMonth, setEditMonth] = useState(1);
+  const [editYear, setEditYear] = useState(2026);
+  const [editReportType, setEditReportType] = useState("andet");
+  const [editNote, setEditNote] = useState("");
 
   const loadPreview = useCallback(async () => {
     setLoading(true);
@@ -96,12 +116,101 @@ export default function ReportReviewDialog({
   useEffect(() => {
     if (open && reportId) {
       loadPreview();
+      setEditing(false);
     }
     if (!open) {
       setPreview(null);
       setError(null);
+      setEditing(false);
     }
   }, [open, reportId, loadPreview]);
+
+  // Initialize edit form from preview data
+  function enterEditMode() {
+    if (!preview) return;
+    const inputs = canonicalPreviewToDanishInputs(preview.metrics_preview);
+    setMetricInputs(inputs);
+    const pm = parseMonth(preview.period_key);
+    setEditMonth(pm.month);
+    setEditYear(pm.year);
+    setEditReportType(preview.report_type || "andet");
+    setEditNote("");
+    setEditing(true);
+  }
+
+  function cancelEditMode() {
+    setEditing(false);
+  }
+
+  // Save edits as manual override, then refresh preview
+  async function handleSaveEdits() {
+    if (!user || !preview) return;
+
+    // We need a minimal ReportData for validation
+    // For inline edit in review dialog, we construct a pseudo-report from preview
+    const pseudoReport = {
+      id: reportId,
+      report_period: preview.period_label,
+      extracted_data: null,
+      status: "processed",
+      report_type: preview.report_type || "andet",
+      // No existing manual override when editing from preview for the first time
+      manual_override_status: null,
+      manual_normalized_data: null,
+      manual_report_period_key: null,
+    } as any;
+
+    // Skip the "no changes" validation for review-dialog inline edits
+    // because the user explicitly chose to edit — just validate numeric inputs
+    for (const f of ALL_FIELDS) {
+      const trimmed = (metricInputs[f] ?? "").trim();
+      if (trimmed === "") continue;
+      const cleaned = trimmed.replace(/\./g, "").replace(",", ".");
+      if (isNaN(Number(cleaned))) {
+        toast({ title: "Validering", description: `Ugyldigt tal i feltet`, variant: "destructive" });
+        return;
+      }
+    }
+
+    if (editMonth < 1 || editMonth > 12) {
+      toast({ title: "Validering", description: "Ugyldig måned", variant: "destructive" });
+      return;
+    }
+    if (editYear < 2000 || editYear > 2100) {
+      toast({ title: "Validering", description: "Ugyldigt årstal", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await saveManualOverride({
+        reportId,
+        userId: user.id,
+        metricInputs,
+        month: editMonth,
+        year: editYear,
+        reportType: editReportType,
+        note: editNote,
+        overrideSource: getOverrideSource(isAdmin, isAdvisor),
+        status: "applied",
+      });
+
+      toast({ title: "Rettelser gemt", description: "Data opdateret — preview genindlæses." });
+
+      // Refresh preview to reflect the manual override
+      await loadPreview();
+      setEditing(false);
+
+      // Invalidate report queries so cards update
+      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
+    } catch (err: any) {
+      console.error("Inline override save error:", err);
+      toast({ title: "Fejl", description: "Kunne ikke gemme rettelser.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const handleCommit = async () => {
     setCommitting(true);
@@ -125,17 +234,25 @@ export default function ReportReviewDialog({
     }
   };
 
+  const isBlocked = preview && !preview.can_commit && preview.ownership_state === "other_report";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {cardState === "update_available" ? (
+            {editing ? (
+              <Pencil className="h-5 w-5 text-primary" />
+            ) : cardState === "update_available" ? (
               <RefreshCw className="h-5 w-5 text-primary" />
             ) : (
               <CheckCircle2 className="h-5 w-5 text-primary" />
             )}
-            {cardState === "update_available" ? "Opdater committed data" : "Godkend data"}
+            {editing
+              ? "Ret data"
+              : cardState === "update_available"
+                ? "Opdater committed data"
+                : "Godkend data"}
           </DialogTitle>
           <DialogDescription>{reportLabel}</DialogDescription>
         </DialogHeader>
@@ -156,7 +273,7 @@ export default function ReportReviewDialog({
           </div>
         )}
 
-        {preview && !loading && (
+        {preview && !loading && !editing && (
           <div className="space-y-4">
             {/* Status badges */}
             <div className="flex flex-wrap gap-2">
@@ -223,9 +340,17 @@ export default function ReportReviewDialog({
             {/* Metrics preview */}
             {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                  Metrics preview
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Metrics preview
+                  </h4>
+                  {preview.eligible && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={enterEditMode}>
+                      <Pencil className="h-3 w-3" />
+                      Ret data
+                    </Button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(preview.metrics_preview).map(([key, value]) => (
                     <div key={key} className="rounded-lg border border-border/50 bg-background/50 p-2.5">
@@ -240,18 +365,79 @@ export default function ReportReviewDialog({
                 </div>
               </div>
             )}
+
+            {/* "Ret data" button for blocked reports or when no metrics yet */}
+            {preview.eligible && (!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
+              <Button variant="outline" size="sm" className="gap-1" onClick={enterEditMode}>
+                <Pencil className="h-3 w-3" />
+                Ret data
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Edit mode: render shared OverrideFormFields */}
+        {preview && !loading && editing && (
+          <div className="space-y-4">
+            {/* Blocked warning in edit mode */}
+            {isBlocked && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
+                <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Periode ejet af anden rapport</p>
+                  {preview.state_reason && (
+                    <p className="text-xs text-destructive/80 mt-0.5">{preview.state_reason}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Du kan rette data — men commit er først mulig når blokering er løst (fx ved periodeændring).
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <OverrideFormFields
+              reportType={editReportType}
+              onReportTypeChange={setEditReportType}
+              month={editMonth}
+              onMonthChange={setEditMonth}
+              year={editYear}
+              onYearChange={setEditYear}
+              metricInputs={metricInputs}
+              onMetricChange={(field, value) => setMetricInputs(prev => ({ ...prev, [field]: value }))}
+              note={editNote}
+              onNoteChange={setEditNote}
+            />
           </div>
         )}
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing}>
-            Annuller
-          </Button>
-          {preview?.can_commit && (
-            <Button onClick={handleCommit} disabled={committing}>
-              {committing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {preview.ownership_state === "same_report" ? "Opdater committed data" : "Godkend data"}
-            </Button>
+          {/* Non-edit mode footer */}
+          {!editing && (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing}>
+                Annuller
+              </Button>
+              {preview?.can_commit && (
+                <Button onClick={handleCommit} disabled={committing}>
+                  {committing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {preview.ownership_state === "same_report" ? "Opdater committed data" : "Godkend data"}
+                </Button>
+              )}
+            </>
+          )}
+
+          {/* Edit mode footer: commit is HIDDEN */}
+          {editing && (
+            <>
+              <Button variant="outline" onClick={cancelEditMode} disabled={saving}>
+                <X className="mr-1 h-3.5 w-3.5" />
+                Annuller redigering
+              </Button>
+              <Button onClick={handleSaveEdits} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Gem rettelser
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>
