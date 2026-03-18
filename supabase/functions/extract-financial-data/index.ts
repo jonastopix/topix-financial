@@ -747,7 +747,8 @@ serve(async (req) => {
           console.log("[Routing] No template match → AI extraction (unknown source, AI allowed)");
           break;
       }
-    } else {
+    } else if (!routingTrace.branch) {
+      // Only set fallback branch if no semantic/structural path already succeeded
       routingTrace.branch = "ai_fallback_not_attempted";
     }
 
