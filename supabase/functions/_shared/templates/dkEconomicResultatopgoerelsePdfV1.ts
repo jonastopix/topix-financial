@@ -566,12 +566,11 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     if (/resultat/i.test(text)) score += 5;
 
     // e-conomic-style account-range structure signal:
-    // Payroll accounts in 2200-range AND opex in 3000-range → e-conomic convention.
-    // This differentiates from Dinero (payroll in 3000, sales in 4000).
-    // NOT customer-specific — this is a general structural signal for the
-    // e-conomic account numbering convention used across all e-conomic exports.
-    if (hasEconomicStyleAccountRanges(text)) {
+    // Uses shared detector with parsed-line + raw-text fallback.
+    const rangeResult = detectEconomicAccountRanges(text);
+    if (rangeResult.detected) {
       score += 20;
+      console.log(`[DK_ECONOMIC_PNL_PDF] Economic range signal: +20 (${rangeResult.method}, ${rangeResult.evidence.join("; ")})`);
     }
 
     return score;
