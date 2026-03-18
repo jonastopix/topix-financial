@@ -324,7 +324,15 @@ function extractSemanticFromStructural(
         const fullRowText = matchRow.tokens.map(t => t.text).join(" ");
         const danishNumMatch = fullRowText.match(/-?\d{1,3}(?:\.\d{3})*,\d{2}/);
         if (danishNumMatch) {
-          rawValue = parseDanishNumber(danishNumMatch[0]);
+          let parsedValue = parseDanishNumber(danishNumMatch[0]);
+          // Label-text values are in business convention (negative = loss).
+          // The template uses credit convention normalization (profit_like: NEGATE).
+          // For profit_like fields, flip sign so NEGATE restores the correct business sign.
+          if (fieldDef.family === "profit_like" && parsedValue !== null) {
+            console.log(`[DK_ECONOMIC_PNL_PDF] Label-text fallback sign flip for profit_like field ${fieldDef.source_field_id}: ${parsedValue} → ${-parsedValue}`);
+            parsedValue = -parsedValue;
+          }
+          rawValue = parsedValue;
           extractionMethod = "label_text_fallback";
           console.log(`[DK_ECONOMIC_PNL_PDF] Label-text fallback for ${fieldDef.source_field_id}: "${danishNumMatch[0]}" → ${rawValue}`);
         }
