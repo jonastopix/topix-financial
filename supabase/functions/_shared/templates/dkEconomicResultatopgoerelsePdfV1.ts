@@ -98,22 +98,19 @@ export interface StructuralAcceptanceResult {
  * Validates that the structural payload is sufficient for this PDF family.
  * This is the template-level gate — distinct from the parser-level validation.
  *
- * Rules for the e-conomic single-period P&L variant:
- * 1. Must have exactly 1 column slot (single-period variant)
+ * Rules for e-conomic-style P&L PDFs:
+ * 1. Must have at least 1 column slot
  * 2. Slot 0 must exist consistently on ≥5 financial rows
- * 3. No competing slot ambiguity (slot_count must be 1)
+ * 3. Multi-column PDFs are accepted — extraction always uses slot 0 (period column)
+ *
+ * Slot 0 = leftmost numeric column = current period ("Faktisk" / "Perioden").
+ * This is correct for both single-column and multi-column Danish P&L PDFs because
+ * the current period is always the first numeric column in this format class.
  */
 export function validateStructuralAcceptance(structural: PdfStructuralPayload): StructuralAcceptanceResult {
-  // Rule 1 & 3: exactly 1 column slot for single-period variant
+  // Rule 1: at least 1 column slot
   if (structural.column_profile.slot_count < 1) {
     return { accepted: false, reason: "No numeric column slots detected", slot0_row_count: 0 };
-  }
-  if (structural.column_profile.slot_count > 1) {
-    return {
-      accepted: false,
-      reason: `Expected 1 column slot for single-period variant, got ${structural.column_profile.slot_count}`,
-      slot0_row_count: 0,
-    };
   }
 
   // Rule 2: slot 0 must appear on ≥5 rows
@@ -134,9 +131,14 @@ export function validateStructuralAcceptance(structural: PdfStructuralPayload): 
     };
   }
 
+  const slotCount = structural.column_profile.slot_count;
+  const multiNote = slotCount > 1
+    ? ` (multi-column: ${slotCount} slots, extracting slot 0 = period column only)`
+    : "";
+
   return {
     accepted: true,
-    reason: "1-slot single-period variant accepted",
+    reason: `Period column (slot 0) accepted${multiNote}`,
     slot0_row_count: slot0Count,
   };
 }
@@ -502,6 +504,33 @@ function extractSemanticFromStructural(
   };
 }
 
+// ── Account-Range Structure Detection (global, not customer-specific) ──
+
+/**
+ * Detects e-conomic-style account numbering convention in PDF text.
+ *
+ * e-conomic convention:
+ * - 1000-1999: Revenue
+ * - 1300/2000-range: COGS / vareforbrug
+ * - 2200-2999: Payroll (løn, gage, personal)
+ * - 3000-3999: Opex (biler, lokale, salg, admin, forsikring)
+ * - 4300-4400: Financial costs (rente, finans)
+ *
+ * Dinero convention (different):
+ * - 2000-2999: COGS
+ * - 3000-3999: Payroll
+ * - 4000-4999: Sales costs
+ *
+ * Key differentiator: payroll in 2200-range (e-conomic) vs 3000-range (Dinero).
+ */
+export function hasEconomicStyleAccountRanges(text: string): boolean {
+  // Payroll-like labels in 2200-2999 account range
+  const payrollIn2200 = /^\s*2[2-9]\d{2}\s+\S.*(?:løn|gage|personal|ferie)/im.test(text);
+  // Opex-like labels in 3000-3999 account range (non-payroll)
+  const opexIn3000 = /^\s*3\d{3}\s+\S.*(?:bil|transport|lokale|husleje|kontor|forsikring|salg|reklame|admin|vedlige)/im.test(text);
+  return payrollIn2200 && opexIn3000;
+}
+
 // ── Template Definition ──
 
 export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
@@ -537,7 +566,15 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     if (/dækningsbidrag/i.test(text)) score += 5;
     if (/resultat/i.test(text)) score += 5;
 
-    // Max score: ~80
+    // e-conomic-style account-range structure signal:
+    // Payroll accounts in 2200-range AND opex in 3000-range → e-conomic convention.
+    // This differentiates from Dinero (payroll in 3000, sales in 4000).
+    // NOT customer-specific — this is a general structural signal for the
+    // e-conomic account numbering convention used across all e-conomic exports.
+    if (hasEconomicStyleAccountRanges(text)) {
+      score += 20;
+    }
+
     return score;
   },
 

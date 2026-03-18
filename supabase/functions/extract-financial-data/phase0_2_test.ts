@@ -51,6 +51,8 @@ import {
   fixture_not_combined_dk_generic_xlsx,
   fixture_not_combined_dk_no_period_col,
   fixture_kj_auto_xlsx_fingerprint,
+  fixture_unbranded_economic_style_pdf_fingerprint,
+  fixture_dinero_pdf_not_economic_style,
 } from "../_test_fixtures/sourceFingerprintFixtures.ts";
 import {
   ECONOMIC_SALDOBALANCE_PDF_TEXT,
@@ -368,6 +370,74 @@ Deno.test("Fingerprint: known source blocks AI", () => {
   assertEquals(isAiAllowed(unknown), true);
 });
 
+// ── Unbranded e-conomic-style P&L PDF fingerprint ──
+
+Deno.test("Fingerprint: unbranded e-conomic-style PDF (account-range detection)", () => {
+  const f = fixture_unbranded_economic_style_pdf_fingerprint;
+  const result = detectSourceSystem(f.file_name, f.file_type, f.raw_text);
+  assertEquals(result.source_system, "economic", "Unbranded e-conomic-style PDF must fingerprint as economic");
+  assertEquals(result.confidence, "MEDIUM", "No brand footer → MEDIUM confidence");
+  assertEquals(isAiAllowed(result), false, "Known source must block AI fallback");
+});
+
+Deno.test("Fingerprint: Dinero PDF must NOT trigger e-conomic account-range fingerprint", () => {
+  const f = fixture_dinero_pdf_not_economic_style;
+  const result = detectSourceSystem(f.file_name, f.file_type, f.raw_text);
+  assertEquals(result.source_system, "dinero", "Dinero PDF with Dinero account ranges must stay as dinero");
+  assertEquals(isAiAllowed(result), false);
+});
+
+// ── Template detection regression: account-range signal scoring ──
+
+Deno.test("Detection: unbranded e-conomic-style PDF wins over Dinero", () => {
+  // Simulates a generic P&L PDF with e-conomic account structure, no branding
+  const text = fixture_unbranded_economic_style_pdf_fingerprint.raw_text!;
+  const ctx: DetectionContext = {
+    fileName: "resultatopgoerelse_februar.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: text,
+  };
+  const result = detectTemplate(ctx);
+  assertExists(result, "Must detect a template for unbranded e-conomic-style PDF");
+  assertEquals(result!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+    "e-conomic template must win detection over Dinero for e-conomic-style account ranges");
+  assert(result!.score >= 80, `Score must meet threshold (got ${result!.score})`);
+});
+
+Deno.test("Detection: Dinero PDF with branding still wins detection", () => {
+  // Simulates a real Dinero PDF with Dinero branding — must NOT be affected by anti-match
+  const text = DINERO_PNL_PDF_TEXT;
+  const ctx: DetectionContext = {
+    fileName: "resultat_dinero.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: text,
+  };
+  const result = detectTemplate(ctx);
+  assertExists(result, "Dinero PDF must still match a template");
+  assertEquals(result!.template.template_id, "DK_DINERO_RESULTATOPGOERELSE_PDF_V1",
+    "Dinero template must still win for PDFs with Dinero branding");
+});
+
+Deno.test("Detection: e-conomic PDF with footer still wins detection", () => {
+  // Simulates a real e-conomic PDF with footer — regression check
+  const text = ECONOMIC_PNL_PDF_TEXT;
+  const ctx: DetectionContext = {
+    fileName: "resultat_economic.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: text,
+  };
+  const result = detectTemplate(ctx);
+  assertExists(result, "e-conomic PDF with footer must still match");
+  assertEquals(result!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+    "e-conomic template must still win for PDFs with e-conomic footer");
+});
+
 // ══════════════════════════════════════════════════════════════
 // PHASE 4: XLSX Raw Parser
 // ══════════════════════════════════════════════════════════════
@@ -647,7 +717,7 @@ Deno.test("Routing: unknown source + valid + hash not verified → proceed with 
 
 import { buildCanonicalOutput, normalizeSemanticExtraction, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
 import { dkEconomicResultatopgoerelsePdfV1, validateStructuralAcceptance, normalizePdfLabelText } from "../_shared/templates/dkEconomicResultatopgoerelsePdfV1.ts";
-import { tryDeterministicPdfStructuralExtraction } from "../_shared/templateRegistry.ts";
+import { tryDeterministicPdfStructuralExtraction, detectTemplate, type DetectionContext } from "../_shared/templateRegistry.ts";
 
 // ══════════════════════════════════════════════════════════════
 // PHASE 5: Label Normalization (Ligature Cleanup)
@@ -772,7 +842,7 @@ Deno.test("Phase 5: template-level structural acceptance for 1-slot variant", as
 
   const acceptance = validateStructuralAcceptance(structural);
   assert(acceptance.accepted, `Structural acceptance must pass, got: ${acceptance.reason}`);
-  assertEquals(acceptance.reason, "1-slot single-period variant accepted");
+  assert(acceptance.reason.includes("Period column (slot 0) accepted"), `Unexpected reason: ${acceptance.reason}`);
   assert(acceptance.slot0_row_count >= 5, `Expected ≥5 rows with slot 0, got ${acceptance.slot0_row_count}`);
 
   // Column profile assertions
@@ -781,6 +851,55 @@ Deno.test("Phase 5: template-level structural acceptance for 1-slot variant", as
   assertEquals(structural.column_profile.confidence, "LOW");
 
   console.log(`[Acceptance] 1-slot variant accepted: ${acceptance.slot0_row_count} rows with slot 0`);
+});
+
+Deno.test("Phase 5: structural acceptance for multi-column P&L (slot_count > 1)", () => {
+  // Simulates a 6-column PDF like the generic e-conomic-style P&L class
+  // (Faktisk, Året før, Difference × Period + YTD = 6 slots)
+  const multiColStructural: PdfStructuralPayload = {
+    version: "1.0",
+    pages: [{
+      page_number: 1,
+      rows: Array.from({ length: 20 }, (_, i) => ({
+        row_index: i,
+        row_group_id: `p1_r${i}`,
+        y_position: 700 - i * 15,
+        page: 1,
+        tokens: [
+          { text: `Label ${i}`, x: 50, y: 700 - i * 15, width: 100, page: 1, column_slot: null, column_slot_confidence: "HIGH" as const },
+          { text: `${(i + 1) * 1000}`, x: 300, y: 700 - i * 15, width: 50, page: 1, column_slot: 0, column_slot_confidence: "HIGH" as const },
+          { text: `${(i + 1) * 900}`, x: 400, y: 700 - i * 15, width: 50, page: 1, column_slot: 1, column_slot_confidence: "HIGH" as const },
+          { text: `${(i + 1) * 100}`, x: 500, y: 700 - i * 15, width: 50, page: 1, column_slot: 2, column_slot_confidence: "HIGH" as const },
+        ],
+        is_header: false,
+        is_subtotal: false,
+      })),
+    }],
+    column_profile: {
+      slot_count: 3,
+      slot_labels: ["Faktisk", "Året før", "Difference"],
+      slot_x_ranges: [{ min: 280, max: 350 }, { min: 380, max: 450 }, { min: 480, max: 550 }],
+      detection_method: "header_anchor",
+      confidence: "HIGH",
+    },
+    metadata: {
+      page_count: 1,
+      total_token_count: 80,
+      total_row_count: 20,
+      content_hash: "test",
+      source_file_name: "test_multicolumn.pdf",
+      extraction_timestamp: new Date().toISOString(),
+    },
+  };
+
+  const acceptance = validateStructuralAcceptance(multiColStructural);
+  assert(acceptance.accepted, `Multi-column structural must be accepted, got: ${acceptance.reason}`);
+  assert(acceptance.reason.includes("multi-column"), `Reason must mention multi-column: ${acceptance.reason}`);
+  assert(acceptance.reason.includes("3 slots"), `Reason must mention slot count: ${acceptance.reason}`);
+  assert(acceptance.reason.includes("slot 0"), `Reason must mention slot 0 extraction: ${acceptance.reason}`);
+  assertEquals(acceptance.slot0_row_count, 20);
+
+  console.log(`[Acceptance] Multi-column accepted: ${acceptance.reason}`);
 });
 
 Deno.test("Phase 5: structural-first extraction from Resultat_6 golden fixture", async () => {

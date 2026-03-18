@@ -266,6 +266,15 @@ function detectSignConvention(classified: ClassifiedLine[]): SignConvention {
   return "UNKNOWN";
 }
 
+// ── Account-Range Anti-Match Helper ──
+// Duplicated from e-conomic template for template isolation.
+
+function _hasEconomicStyleAccountRanges(text: string): boolean {
+  const payrollIn2200 = /^\s*2[2-9]\d{2}\s+\S.*(?:løn|gage|personal|ferie)/im.test(text);
+  const opexIn3000 = /^\s*3\d{3}\s+\S.*(?:bil|transport|lokale|husleje|kontor|forsikring|salg|reklame|admin|vedlige)/im.test(text);
+  return payrollIn2200 && opexIn3000;
+}
+
 // ── Template ──
 
 export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
@@ -322,6 +331,17 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
     const fn = ctx.fileName.toLowerCase();
     if (fn.includes("resultat")) score += 10;
     if (fn.includes("dinero")) score += 10;
+
+    // ── Anti-match: e-conomic-style account ranges ──
+    // If account numbers follow e-conomic convention (payroll in 2200-range,
+    // opex in 3000-range), this is NOT a Dinero export. Dinero uses:
+    //   2000-2999 = COGS, 3000-3999 = payroll, 4000-4999 = sales
+    // e-conomic uses:
+    //   2200-2999 = payroll, 3000-3999 = opex (vehicles, facility, admin, sales)
+    // This prevents Dinero from winning detection on e-conomic-style PDFs.
+    if (_hasEconomicStyleAccountRanges(text)) {
+      score -= 30;
+    }
 
     return score;
   },
