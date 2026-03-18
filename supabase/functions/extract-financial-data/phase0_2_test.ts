@@ -951,7 +951,8 @@ Deno.test("Phase 5: structural-first → normalization → canonical (same-sourc
   // Same-source regression against golden canonical expectations
   assertEquals(canonical.metrics.revenue, RESULTAT6_EXPECTED_CANONICAL.revenue, "Revenue mismatch");
   assertEquals(canonical.metrics.cogs, RESULTAT6_EXPECTED_CANONICAL.cogs, "COGS mismatch");
-  assertEquals(canonical.metrics.gross_profit, RESULTAT6_EXPECTED_CANONICAL.gross_profit, "Gross profit mismatch");
+  // gross_profit is now derived (revenue - cogs) so use approximate comparison for floating point
+  assert(Math.abs(canonical.metrics.gross_profit! - RESULTAT6_EXPECTED_CANONICAL.gross_profit) <= 0.01, `Gross profit mismatch: ${canonical.metrics.gross_profit} vs ${RESULTAT6_EXPECTED_CANONICAL.gross_profit}`);
   assertEquals(canonical.metrics.payroll, RESULTAT6_EXPECTED_CANONICAL.payroll, "Payroll mismatch");
   assertEquals(canonical.metrics.sales_costs, RESULTAT6_EXPECTED_CANONICAL.sales_costs, "Sales costs mismatch");
   assertEquals(canonical.metrics.facility_costs, RESULTAT6_EXPECTED_CANONICAL.facility_costs, "Facility costs mismatch");
