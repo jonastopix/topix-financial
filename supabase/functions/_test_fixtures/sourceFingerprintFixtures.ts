@@ -149,5 +149,56 @@ export const fixture_not_combined_dk_no_period_col: SourceFingerprintFixture = {
   expected_allows_ai: true,
 };
 
+// ── Unbranded e-conomic-style P&L PDF (no footer, no branding, e-conomic account ranges) ──
+
+export const fixture_unbranded_economic_style_pdf_fingerprint: SourceFingerprintFixture = {
+  fixture_id: "fp_unbranded_economic_style_pdf",
+  description: "Generic P&L PDF with e-conomic-style account ranges (payroll 2200, opex 3000) but no footer/branding — detected as economic MEDIUM",
+  file_name: "resultatopgoerelse_februar.pdf",
+  file_type: "pdf",
+  raw_text: `Resultatopgørelse
+01.02.2026 - 28.02.2026
+
+1010 Varesalg m. moms -254.419,83
+1300 Vareforbrug 198.855,32
+DIREKTE OMKOSTNINGER I ALT 198.855,32
+DÆKNINGSBIDRAG -55.564,51
+2200 Løn & Gage 50.000,00
+2210 Feriepenge 5.000,00
+2290 Lønninger i alt 74.050,49
+3100 Biler & transport 2.500,00
+3400 Lokaleomkostninger 3.000,00
+3600 Administrationsomkostninger 5.000,00
+RESULTAT FØR AFSKRIVNINGER -65.810,23
+4300 Renteudgifter 678,93
+PERIODENS RESULTAT -66.489,16`,
+  expected_source_system: "economic",
+  expected_allows_ai: false,
+};
+
+// ── False positive: Dinero PDF must NOT trigger e-conomic account-range fingerprint ──
+
+export const fixture_dinero_pdf_not_economic_style: SourceFingerprintFixture = {
+  fixture_id: "fp_dinero_pdf_not_economic_style",
+  description: "Dinero PDF with Dinero account ranges (payroll 3000, NOT 2200) must NOT trigger e-conomic fingerprint",
+  file_name: "resultat_dinero.pdf",
+  file_type: "pdf",
+  raw_text: `SnowWaves ApS (CVR-nr. 39850850)
+Resultatopgørelse
+01.01.2026 - 31.01.2026
+Hentet: 09/03-2026 Kl. 14.18
+
+1506 Events -36.750,00
+3010 Løn 25.000,00
+3020 Feriepenge 3.000,00
+4010 Reklame 1.500,00
+OMSÆTNING I ALT -180.000,00
+DÆKNINGSBIDRAG I ALT -135.000,00
+RESULTAT FØR SKAT -75.000,00
+Dinero`,
+  expected_source_system: "dinero",
+  expected_allows_ai: false,
+};
+
 // Legacy alias for backward compat in existing test imports
 export const fixture_kj_auto_xlsx_fingerprint = fixture_combined_dk_xlsx_fingerprint;
