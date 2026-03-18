@@ -1209,32 +1209,84 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       const dbReportPeriod = (() => {
         if (!isSemanticCanonical) return extractedData.report_period;
 
+        const DK_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
         const rawLabel = canonical.report_period_label;
+
         // Check if already a Danish month label (e.g., "Februar 2026")
         if (rawLabel && /^(Januar|Februar|Marts|April|Maj|Juni|Juli|August|September|Oktober|November|December)\s+\d{4}$/i.test(rawLabel)) {
+          console.log(`[PeriodResolve] Already Danish label: "${rawLabel}"`);
           return rawLabel;
         }
 
-        // Convert date range "DD/MM-YYYY - DD/MM-YYYY" or period_end "DD/MM-YYYY" to Danish month label
-        const DK_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
-        const tryConvert = (s: string | null): string | null => {
+        // Generic date-to-Danish-month converter supporting multiple formats
+        const tryConvertDate = (s: string | null): string | null => {
           if (!s) return null;
-          const m = s.match(/(\d{2})\/(\d{2})[-\s]*(\d{4})\s*$/);
-          if (!m) return null;
-          const mo = parseInt(m[2], 10);
-          if (mo < 1 || mo > 12) return null;
-          return `${DK_MONTHS[mo - 1]} ${m[3]}`;
+
+          // Format: DD/MM-YYYY or DD/MM YYYY (slash separator)
+          const slashMatch = s.match(/(\d{2})\/(\d{2})[-\s]*(\d{4})\s*$/);
+          if (slashMatch) {
+            const mo = parseInt(slashMatch[2], 10);
+            if (mo >= 1 && mo <= 12) return `${DK_MONTHS[mo - 1]} ${slashMatch[3]}`;
+          }
+
+          // Format: DD.MM.YY or DD.MM.YYYY (dot separator, common in e-conomic)
+          const dotMatch = s.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s*$/);
+          if (dotMatch) {
+            const mo = parseInt(dotMatch[2], 10);
+            let yr = dotMatch[3];
+            if (yr.length === 2) yr = (parseInt(yr) >= 50 ? "19" : "20") + yr;
+            if (mo >= 1 && mo <= 12) return `${DK_MONTHS[mo - 1]} ${yr}`;
+          }
+
+          // Format: DD-MM-YYYY (dash separator)
+          const dashMatch = s.match(/(\d{2})-(\d{2})-(\d{4})\s*$/);
+          if (dashMatch) {
+            const mo = parseInt(dashMatch[2], 10);
+            if (mo >= 1 && mo <= 12) return `${DK_MONTHS[mo - 1]} ${dashMatch[3]}`;
+          }
+
+          // Format: YYYY-MM-DD (ISO)
+          const isoMatch = s.match(/(\d{4})-(\d{2})-(\d{2})$/);
+          if (isoMatch) {
+            const mo = parseInt(isoMatch[2], 10);
+            if (mo >= 1 && mo <= 12) return `${DK_MONTHS[mo - 1]} ${isoMatch[1]}`;
+          }
+
+          return null;
         };
 
         // Priority 1: parse from report_period_label (end date of range)
-        const fromLabel = tryConvert(rawLabel);
-        if (fromLabel) return fromLabel;
+        const fromLabel = tryConvertDate(rawLabel);
+        if (fromLabel) {
+          console.log(`[PeriodResolve] From report_period_label "${rawLabel}" → "${fromLabel}"`);
+          return fromLabel;
+        }
 
         // Priority 2: parse from period_end
-        const fromEnd = tryConvert(canonical.period_end);
-        if (fromEnd) return fromEnd;
+        const fromEnd = tryConvertDate(canonical.period_end);
+        if (fromEnd) {
+          console.log(`[PeriodResolve] From period_end "${canonical.period_end}" → "${fromEnd}"`);
+          return fromEnd;
+        }
 
-        // Fallback: raw label as-is
+        // Priority 3: parse from period_start (last resort for metadata)
+        const fromStart = tryConvertDate(canonical.period_start);
+        if (fromStart) {
+          console.log(`[PeriodResolve] From period_start "${canonical.period_start}" → "${fromStart}"`);
+          return fromStart;
+        }
+
+        // Priority 4: server-side text parse fallback
+        if (fileContent) {
+          const textPeriod = extractPeriodFromText(fileContent);
+          if (textPeriod) {
+            console.log(`[PeriodResolve] From text fallback → "${textPeriod}"`);
+            return textPeriod;
+          }
+        }
+
+        // All resolution attempts failed — log explicitly
+        console.error(`[PeriodResolve] FAILED: Could not resolve period. report_period_label="${rawLabel}", period_end="${canonical.period_end}", period_start="${canonical.period_start}", fileContent available=${!!fileContent}`);
         return rawLabel || null;
       })();
 
