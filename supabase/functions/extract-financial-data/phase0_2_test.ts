@@ -36,7 +36,7 @@ import {
   fixture_economic_saldobalance_liability,
   fixture_economic_pnl_cogs_contra,
   fixture_reject_unclassified,
-  fixture_kj_auto_passthrough,
+  fixture_combined_dk_business_passthrough,
   fixture_same_raw_different_profiles,
 } from "../_test_fixtures/normalizationProfileFixtures.ts";
 import {
