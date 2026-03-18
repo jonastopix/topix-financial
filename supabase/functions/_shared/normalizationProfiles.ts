@@ -146,7 +146,7 @@ const combined_dk_credit_v1: NormalizationProfile = {
     revenue_like:            NEGATE,   // Credit: revenue is negative → negate to positive
     cost_like:               ABS,      // Costs are positive in credit convention
     profit_like:             NEGATE,   // Profit subtotals are negative when profitable
-    asset_like:              KEEP,     // Assets keep raw sign
+    asset_like:              NEGATE,   // Credit: assets are negative → negate to positive
     liability_like:          ABS,      // Liabilities are negative in credit → abs
     equity_like:             KEEP,     // Equity keeps sign (negative = positive equity in credit)
     cash_like:               KEEP,     // Cash keeps sign (overdraft possible)
