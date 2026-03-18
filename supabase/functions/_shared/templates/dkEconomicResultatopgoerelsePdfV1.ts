@@ -46,10 +46,11 @@ import { detectEconomicAccountRanges } from "../economicRangeDetector.ts";
 
 function findByLabel(
   lines: PdfParsedLine[],
-  pattern: RegExp
+  pattern: RegExp,
+  antiPattern?: RegExp
 ): PdfParsedLine | null {
   return lines.find(
-    (l) => pattern.test(l.name) && l.is_subtotal
+    (l) => pattern.test(l.name) && l.is_subtotal && (!antiPattern || !antiPattern.test(l.name))
   ) || null;
 }
 
@@ -68,6 +69,7 @@ function absVal(val: number | null): number | null {
 const SEMANTIC_FIELD_MAP: Array<{
   source_field_id: string;
   pattern: RegExp;
+  anti_pattern?: RegExp;
   family: MetricFamily;
   canonical_hint: string;
   require_subtotal: boolean;
@@ -80,7 +82,7 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "lokaleomkostninger", pattern: /lokaleomkostninger/i, family: "cost_like", canonical_hint: "facility_costs", require_subtotal: true },
   { source_field_id: "transportomkostninger", pattern: /^transportomkostninger\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "vehicle_costs", require_subtotal: true },
   { source_field_id: "administrationsomkostninger", pattern: /administration\b/i, family: "cost_like", canonical_hint: "admin_costs", require_subtotal: true },
-  { source_field_id: "afskrivninger", pattern: /afskrivninger/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
+  { source_field_id: "afskrivninger", pattern: /afskrivninger/i, anti_pattern: /resultat\s+før/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
   { source_field_id: "resultat_foer_skat", pattern: /resultat før skat/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_ekstraordinaere", pattern: /resultat før ekstraordinære poster/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
@@ -327,6 +329,7 @@ function extractSemanticFromStructural(
         const row = allRows[ri];
         const rl = getRowLabel(row);
         if (!fieldDef.pattern.test(rl)) continue;
+        if (fieldDef.anti_pattern && fieldDef.anti_pattern.test(rl)) continue;
         if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) continue;
         matchingRows.push({ idx: ri, row });
       }
@@ -667,7 +670,7 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     const lokaleLine = findByLabel(lines, /lokaleomkostninger/i);
     const transportLine = findByLabel(lines, /^transportomkostninger\s*(i alt|ialt)/i);
     const adminLine = findByLabel(lines, /administration\b/i);
-    const afskrLine = findByLabel(lines, /afskrivninger/i);
+    const afskrLine = findByLabel(lines, /afskrivninger/i, /resultat\s+før/i);
     const ebtLine = findByLabel(lines, /resultat før skat/i)
       || findByLabel(lines, /resultat før ekstraordinære poster/i)
       || findByLabel(lines, /periodens resultat/i);
