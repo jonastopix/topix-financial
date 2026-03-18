@@ -842,7 +842,7 @@ Deno.test("Phase 5: template-level structural acceptance for 1-slot variant", as
 
   const acceptance = validateStructuralAcceptance(structural);
   assert(acceptance.accepted, `Structural acceptance must pass, got: ${acceptance.reason}`);
-  assertEquals(acceptance.reason, "1-slot single-period variant accepted");
+  assert(acceptance.reason.includes("Period column (slot 0) accepted"), `Unexpected reason: ${acceptance.reason}`);
   assert(acceptance.slot0_row_count >= 5, `Expected ≥5 rows with slot 0, got ${acceptance.slot0_row_count}`);
 
   // Column profile assertions
@@ -851,6 +851,55 @@ Deno.test("Phase 5: template-level structural acceptance for 1-slot variant", as
   assertEquals(structural.column_profile.confidence, "LOW");
 
   console.log(`[Acceptance] 1-slot variant accepted: ${acceptance.slot0_row_count} rows with slot 0`);
+});
+
+Deno.test("Phase 5: structural acceptance for multi-column P&L (slot_count > 1)", () => {
+  // Simulates a 6-column PDF like the generic e-conomic-style P&L class
+  // (Faktisk, Året før, Difference × Period + YTD = 6 slots)
+  const multiColStructural: PdfStructuralPayload = {
+    version: "1.0",
+    pages: [{
+      page_number: 1,
+      rows: Array.from({ length: 20 }, (_, i) => ({
+        row_index: i,
+        row_group_id: `p1_r${i}`,
+        y_position: 700 - i * 15,
+        page: 1,
+        tokens: [
+          { text: `Label ${i}`, x: 50, y: 700 - i * 15, width: 100, page: 1, column_slot: null, column_slot_confidence: "HIGH" as const },
+          { text: `${(i + 1) * 1000}`, x: 300, y: 700 - i * 15, width: 50, page: 1, column_slot: 0, column_slot_confidence: "HIGH" as const },
+          { text: `${(i + 1) * 900}`, x: 400, y: 700 - i * 15, width: 50, page: 1, column_slot: 1, column_slot_confidence: "HIGH" as const },
+          { text: `${(i + 1) * 100}`, x: 500, y: 700 - i * 15, width: 50, page: 1, column_slot: 2, column_slot_confidence: "HIGH" as const },
+        ],
+        is_header: false,
+        is_subtotal: false,
+      })),
+    }],
+    column_profile: {
+      slot_count: 3,
+      slot_labels: ["Faktisk", "Året før", "Difference"],
+      slot_x_ranges: [{ min: 280, max: 350 }, { min: 380, max: 450 }, { min: 480, max: 550 }],
+      detection_method: "header_anchor",
+      confidence: "HIGH",
+    },
+    metadata: {
+      page_count: 1,
+      total_token_count: 80,
+      total_row_count: 20,
+      content_hash: "test",
+      source_file_name: "test_multicolumn.pdf",
+      extraction_timestamp: new Date().toISOString(),
+    },
+  };
+
+  const acceptance = validateStructuralAcceptance(multiColStructural);
+  assert(acceptance.accepted, `Multi-column structural must be accepted, got: ${acceptance.reason}`);
+  assert(acceptance.reason.includes("multi-column"), `Reason must mention multi-column: ${acceptance.reason}`);
+  assert(acceptance.reason.includes("3 slots"), `Reason must mention slot count: ${acceptance.reason}`);
+  assert(acceptance.reason.includes("slot 0"), `Reason must mention slot 0 extraction: ${acceptance.reason}`);
+  assertEquals(acceptance.slot0_row_count, 20);
+
+  console.log(`[Acceptance] Multi-column accepted: ${acceptance.reason}`);
 });
 
 Deno.test("Phase 5: structural-first extraction from Resultat_6 golden fixture", async () => {
