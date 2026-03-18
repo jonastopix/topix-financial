@@ -992,12 +992,12 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
             })()}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <MiniStat label="Omsætning" value={formatDKK(kf.omsaetning)} sub={`Å.t.d: ${formatDKK(kf.omsaetning_aar)}`} />
-        <MiniStat label="Dækningsbidrag" value={formatDKK(kf.daekningsbidrag)} sub={`Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}`} />
-        <MiniStat label="Resultat f. skat" value={formatDKK(kf.resultat_foer_skat)} sub={`Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}`} />
-        {kf.aktiver_i_alt != null && <MiniStat label="Aktiver" value={formatDKK(kf.aktiver_i_alt)} />}
-        {kf.bank_balance != null && <MiniStat label="Bank" value={formatDKK(kf.bank_balance)} />}
-        {kf.kreditorer != null && <MiniStat label="Kreditorer" value={formatDKK(kf.kreditorer)} />}
+        <MiniStat label="Omsætning" value={formatDKK(kf?.omsaetning)} sub={kf?.omsaetning_aar != null ? `Å.t.d: ${formatDKK(kf.omsaetning_aar)}` : undefined} />
+        <MiniStat label="Dækningsbidrag" value={formatDKK(kf?.daekningsbidrag)} sub={kf?.daekningsbidrag_aar != null ? `Å.t.d: ${formatDKK(kf.daekningsbidrag_aar)}` : undefined} />
+        <MiniStat label="Resultat f. skat" value={formatDKK(kf?.resultat_foer_skat)} sub={kf?.resultat_foer_skat_aar != null ? `Å.t.d: ${formatDKK(kf.resultat_foer_skat_aar)}` : undefined} />
+        {kf?.aktiver_i_alt != null && <MiniStat label="Aktiver" value={formatDKK(kf.aktiver_i_alt)} />}
+        {kf?.bank_balance != null && <MiniStat label="Bank" value={formatDKK(kf.bank_balance)} />}
+        {kf?.kreditorer != null && <MiniStat label="Kreditorer" value={formatDKK(kf.kreditorer)} />}
       </div>
     </div>
   );
