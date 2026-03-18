@@ -148,7 +148,7 @@ const combined_dk_credit_v1: NormalizationProfile = {
     profit_like:             NEGATE,   // Profit subtotals are negative when profitable
     asset_like:              NEGATE,   // Credit: assets are negative → negate to positive
     liability_like:          ABS,      // Liabilities are negative in credit → abs
-    equity_like:             KEEP,     // Equity keeps sign (negative = positive equity in credit)
+    equity_like:             NEGATE,   // Credit: positive equity is negative → negate to positive canonical
     cash_like:               KEEP,     // Cash keeps sign (overdraft possible)
     receivable_payable_like: KEEP,     // Direction matters
     contra_or_unknown:       REJECT,
@@ -169,7 +169,7 @@ const combined_balance_pnl_credit_v1: NormalizationProfile = {
     profit_like:             NEGATE,
     asset_like:              NEGATE,   // Credit: assets are negative → negate to positive
     liability_like:          ABS,
-    equity_like:             KEEP,     // Negative equity = negative equity
+    equity_like:             NEGATE,   // Credit: positive equity is negative → negate to positive canonical
     cash_like:               KEEP,
     receivable_payable_like: KEEP,
     contra_or_unknown:       REJECT,
