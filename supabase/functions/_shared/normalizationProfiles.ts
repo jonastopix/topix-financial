@@ -169,7 +169,7 @@ const combined_balance_pnl_credit_v1: NormalizationProfile = {
     profit_like:             NEGATE,
     asset_like:              NEGATE,   // Credit: assets are negative → negate to positive
     liability_like:          ABS,
-    equity_like:             KEEP,     // Negative equity = negative equity
+    equity_like:             NEGATE,   // Credit: positive equity is negative → negate to positive canonical
     cash_like:               KEEP,
     receivable_payable_like: KEEP,
     contra_or_unknown:       REJECT,
