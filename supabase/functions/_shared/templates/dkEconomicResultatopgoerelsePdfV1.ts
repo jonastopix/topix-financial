@@ -68,6 +68,7 @@ function absVal(val: number | null): number | null {
 const SEMANTIC_FIELD_MAP: Array<{
   source_field_id: string;
   pattern: RegExp;
+  anti_pattern?: RegExp;
   family: MetricFamily;
   canonical_hint: string;
   require_subtotal: boolean;
