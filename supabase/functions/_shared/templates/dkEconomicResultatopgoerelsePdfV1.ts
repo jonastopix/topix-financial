@@ -539,7 +539,15 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     if (/dækningsbidrag/i.test(text)) score += 5;
     if (/resultat/i.test(text)) score += 5;
 
-    // Max score: ~80
+    // e-conomic-style account-range structure signal:
+    // Payroll accounts in 2200-range AND opex in 3000-range → e-conomic convention.
+    // This differentiates from Dinero (payroll in 3000, sales in 4000).
+    // NOT customer-specific — this is a general structural signal for the
+    // e-conomic account numbering convention used across all e-conomic exports.
+    if (hasEconomicStyleAccountRanges(text)) {
+      score += 20;
+    }
+
     return score;
   },
 
