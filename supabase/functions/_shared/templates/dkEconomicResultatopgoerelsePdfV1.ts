@@ -329,6 +329,7 @@ function extractSemanticFromStructural(
         const row = allRows[ri];
         const rl = getRowLabel(row);
         if (!fieldDef.pattern.test(rl)) continue;
+        if (fieldDef.anti_pattern && fieldDef.anti_pattern.test(rl)) continue;
         if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) continue;
         matchingRows.push({ idx: ri, row });
       }
