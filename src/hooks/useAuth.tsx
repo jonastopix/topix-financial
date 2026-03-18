@@ -210,6 +210,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        // Stamp activity immediately on sign-in to prevent inactivity hook
+        // from seeing a stale timestamp after OAuth redirects (Google etc.)
+        if (_event === "SIGNED_IN") {
+          localStorage.setItem("lastActivityAt", Date.now().toString());
+        }
         setSession(session);
         setUser(session?.user ?? null);
 
