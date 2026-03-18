@@ -54,6 +54,7 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   resultat_foer_afskrivninger: "ebitda",
   resultat_foer_skat: "ebt",
   resultat_foer_ekstraordinaere: "ebt",
+  resultat_foer_renter: "ebt",
   resultat_efter_skat: "net_result",
   arets_resultat: "net_result",
   periodens_resultat: "net_result",
