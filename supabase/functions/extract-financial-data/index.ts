@@ -1085,40 +1085,62 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     }  // End AI extraction block
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // CANONICAL ENGINE — ONE CALL FOR BOTH PATHS
+    // CANONICAL ENGINE — SEMANTIC PATHS ALREADY HAVE CANONICAL; LEGACY NEEDS IT
     // ═══════════════════════════════════════════════════════════════════════════
-    const canonical = buildCanonicalOutput(extractedData, rawAiOutput, extractionMethod);
-    const finalStatus = canonical.validation.status;
-    const allErrors = canonical.validation.canonical_checks
-      .filter(c => c.result === "FAIL")
-      .map(c => `${c.name}: ${c.details}`);
+    const SEMANTIC_SUCCESS_BRANCHES = [
+      "deterministic_structural_success",
+      "semantic_xlsx_success",
+      "semantic_csv_success",
+    ] as const;
 
-    // Apply canonical validation back to extractedData for backward compat
-    extractedData.validation = {
-      status: finalStatus,
-      server_checks: canonical.validation.canonical_checks,
-      ai_checks: canonical.validation.ai_checks,
-      corrections: canonical.correction_log,
-      errors: allErrors,
-    };
+    const isSemanticCanonical =
+      extractionMethod === "deterministic_structural" ||
+      SEMANTIC_SUCCESS_BRANCHES.includes(routingTrace.branch as any);
 
-    // Apply normalized metrics back to key_figures for backward compat
-    if (extractedData.key_figures && canonical.metrics) {
-      // Keep original Danish key_figures but update values from canonical normalization
-      const kfMap: Record<string, string> = {
-        revenue: "omsaetning", cogs: "direkte_omkostninger", gross_profit: "daekningsbidrag",
-        payroll: "loenninger", sales_costs: "marketing", facility_costs: "lokaler",
-        admin_costs: "admin", depreciation: "afskrivninger", ebt: "resultat_foer_skat",
-        net_result: "resultat_efter_skat", assets_total: "aktiver_i_alt",
-        liabilities_total: "passiver_i_alt", equity_total: "egenkapital",
-        cash: "bank_balance", trade_receivables: "debitorer", current_liabilities: "kreditorer",
-        inventory: "varelager",
+    let canonical: any;
+
+    if (isSemanticCanonical) {
+      // Semantic/structural path already produced canonical via buildCanonicalFromSemantic().
+      // extractedData IS the canonical output — do NOT overwrite with legacy engine.
+      canonical = extractedData;
+      console.log("[Canonical] Using pre-built semantic canonical (skipping legacy buildCanonicalOutput)");
+    } else {
+      // Legacy AI or legacy deterministic path — run the old canonical engine
+      canonical = buildCanonicalOutput(extractedData, rawAiOutput, extractionMethod);
+
+      // Apply canonical validation back to extractedData for backward compat
+      extractedData.validation = {
+        status: canonical.validation.status,
+        server_checks: canonical.validation.canonical_checks,
+        ai_checks: canonical.validation.ai_checks,
+        corrections: canonical.correction_log,
+        errors: canonical.validation.canonical_checks
+          .filter((c: any) => c.result === "FAIL")
+          .map((c: any) => `${c.name}: ${c.details}`),
       };
-      for (const [eng, dk] of Object.entries(kfMap)) {
-        const val = (canonical.metrics as any)[eng];
-        if (val != null) extractedData.key_figures[dk] = val;
+
+      // Apply normalized metrics back to key_figures for backward compat
+      if (extractedData.key_figures && canonical.metrics) {
+        const kfMap: Record<string, string> = {
+          revenue: "omsaetning", cogs: "direkte_omkostninger", gross_profit: "daekningsbidrag",
+          payroll: "loenninger", sales_costs: "marketing", facility_costs: "lokaler",
+          admin_costs: "admin", depreciation: "afskrivninger", ebt: "resultat_foer_skat",
+          net_result: "resultat_efter_skat", assets_total: "aktiver_i_alt",
+          liabilities_total: "passiver_i_alt", equity_total: "egenkapital",
+          cash: "bank_balance", trade_receivables: "debitorer", current_liabilities: "kreditorer",
+          inventory: "varelager",
+        };
+        for (const [eng, dk] of Object.entries(kfMap)) {
+          const val = (canonical.metrics as any)[eng];
+          if (val != null) extractedData.key_figures[dk] = val;
+        }
       }
     }
+
+    const finalStatus = canonical.validation?.status ?? "FAIL";
+    const allErrors = (canonical.validation?.canonical_checks ?? [])
+      .filter((c: any) => c.result === "FAIL")
+      .map((c: any) => `${c.name}: ${c.details}`);
 
     // Log canonical summary
     console.log(`[Canonical] Period: ${extractedData.report_period} | Type: ${canonical.statement_type} | Basis: ${canonical.selected_period_basis}`);
