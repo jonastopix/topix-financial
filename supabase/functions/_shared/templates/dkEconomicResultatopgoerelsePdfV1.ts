@@ -667,7 +667,7 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     const lokaleLine = findByLabel(lines, /lokaleomkostninger/i);
     const transportLine = findByLabel(lines, /^transportomkostninger\s*(i alt|ialt)/i);
     const adminLine = findByLabel(lines, /administration\b/i);
-    const afskrLine = findByLabel(lines, /afskrivninger/i);
+    const afskrLine = findByLabel(lines, /afskrivninger/i, /resultat\s+før/i);
     const ebtLine = findByLabel(lines, /resultat før skat/i)
       || findByLabel(lines, /resultat før ekstraordinære poster/i)
       || findByLabel(lines, /periodens resultat/i);
