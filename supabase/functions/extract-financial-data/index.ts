@@ -1197,12 +1197,31 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // - FAIL/UNSURE -> error
       const dbStatus = finalStatus === "PASS" ? "processed" : "error";
 
-      // Prepare DB update
+      // Prepare DB update — map canonical field names to DB columns for semantic path
+      const dbReportType = isSemanticCanonical
+        ? (canonical.statement_type === "pnl" ? "resultatopgørelse"
+          : canonical.statement_type === "trial_balance" ? "saldobalance"
+          : canonical.statement_type === "balance" ? "balance"
+          : "andet")
+        : extractedData.report_type;
+
+      const dbReportPeriod = isSemanticCanonical
+        ? canonical.report_period_label
+        : extractedData.report_period;
+
+      const dbCompanyName = isSemanticCanonical
+        ? canonical.company_name
+        : extractedData.company_name;
+
+      const dbCvrNumber = isSemanticCanonical
+        ? canonical.cvr
+        : extractedData.cvr_number;
+
       const updatePayload: any = {
-        report_type: extractedData.report_type,
-        report_period: extractedData.report_period,
-        company_name: extractedData.company_name,
-        cvr_number: extractedData.cvr_number,
+        report_type: dbReportType,
+        report_period: dbReportPeriod,
+        company_name: dbCompanyName,
+        cvr_number: dbCvrNumber,
         extracted_data: extractedData,
         processed_at: new Date().toISOString(),
         status: dbStatus,
