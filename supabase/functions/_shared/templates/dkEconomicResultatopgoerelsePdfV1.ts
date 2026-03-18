@@ -447,7 +447,7 @@ function extractSemanticFromStructural(
   const candidates: SemanticMetricCandidate[] = [];
   const lineItems: SemanticLineItem[] = [];
   const consumedFieldIds = new Set<string>();
-  const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"];
+  const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "resultat_foer_renter", "periodens_resultat"];
   let ebtConsumed = false;
 
   for (const fieldDef of SEMANTIC_FIELD_MAP) {
