@@ -504,6 +504,33 @@ function extractSemanticFromStructural(
   };
 }
 
+// ── Account-Range Structure Detection (global, not customer-specific) ──
+
+/**
+ * Detects e-conomic-style account numbering convention in PDF text.
+ *
+ * e-conomic convention:
+ * - 1000-1999: Revenue
+ * - 1300/2000-range: COGS / vareforbrug
+ * - 2200-2999: Payroll (løn, gage, personal)
+ * - 3000-3999: Opex (biler, lokale, salg, admin, forsikring)
+ * - 4300-4400: Financial costs (rente, finans)
+ *
+ * Dinero convention (different):
+ * - 2000-2999: COGS
+ * - 3000-3999: Payroll
+ * - 4000-4999: Sales costs
+ *
+ * Key differentiator: payroll in 2200-range (e-conomic) vs 3000-range (Dinero).
+ */
+export function hasEconomicStyleAccountRanges(text: string): boolean {
+  // Payroll-like labels in 2200-2999 account range
+  const payrollIn2200 = /^\s*2[2-9]\d{2}\s+\S.*(?:løn|gage|personal|ferie)/im.test(text);
+  // Opex-like labels in 3000-3999 account range (non-payroll)
+  const opexIn3000 = /^\s*3\d{3}\s+\S.*(?:bil|transport|lokale|husleje|kontor|forsikring|salg|reklame|admin|vedlige)/im.test(text);
+  return payrollIn2200 && opexIn3000;
+}
+
 // ── Template Definition ──
 
 export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
