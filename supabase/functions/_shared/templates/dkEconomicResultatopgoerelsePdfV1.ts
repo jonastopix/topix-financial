@@ -73,8 +73,8 @@ const SEMANTIC_FIELD_MAP: Array<{
   require_subtotal: boolean;
 }> = [
   { source_field_id: "omsaetning", pattern: /omsætning\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "revenue", require_subtotal: true },
-  { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: true },
-  { source_field_id: "daekningsbidrag", pattern: /dækningsbidrag/i, family: "profit_like", canonical_hint: "gross_profit", require_subtotal: true },
+  { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: false },
+  // NOTE: daekningsbidrag intentionally omitted — gross_profit derived as revenue - cogs in canonical engine
   { source_field_id: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll", require_subtotal: true },
   { source_field_id: "salgsomkostninger", pattern: /salgsomkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },
   { source_field_id: "lokaleomkostninger", pattern: /lokaleomkostninger/i, family: "cost_like", canonical_hint: "facility_costs", require_subtotal: true },
@@ -83,6 +83,7 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "afskrivninger", pattern: /afskrivninger/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
   { source_field_id: "resultat_foer_skat", pattern: /resultat før skat/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_ekstraordinaere", pattern: /resultat før ekstraordinære poster/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
+  { source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_efter_skat", pattern: /resultat efter skat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
   { source_field_id: "periodens_resultat", pattern: /periodens resultat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
 ];
@@ -288,25 +289,49 @@ function extractSemanticFromStructural(
     const consumedFieldIds = new Set<string>();
 
     // EBT fallback chain
-    const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"];
+    const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "resultat_foer_renter", "periodens_resultat"];
     let ebtConsumed = false;
 
+    // Narrow allowlist for label-text numeric fallback (Bug B fix)
+    // Only these result-line fields may use label-text extraction when slot 0 is missing
+    const LABEL_FALLBACK_ALLOWLIST = new Set([
+      "resultat_foer_skat",
+      "resultat_foer_ekstraordinaere",
+      "resultat_foer_renter",
+      "periodens_resultat",
+      "resultat_efter_skat",
+    ]);
+
     for (const fieldDef of SEMANTIC_FIELD_MAP) {
-      // Find matching row in structural data
+      // Find matching row in structural data — no longer requires slot 0 presence
       const matchIdx = allRows.findIndex(row => {
         const label = getRowLabel(row);
         if (!fieldDef.pattern.test(label)) return false;
-        // Require effective subtotal (is_subtotal OR ALL-CAPS)
         if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) return false;
-        // Must have a value in slot 0
-        if (getSlot0Value(row) === null && row.tokens.some(t => t.column_slot === 0)) return true;
-        return row.tokens.some(t => t.column_slot === 0);
+        return true;
       });
 
       if (matchIdx === -1) continue;
       const matchRow = allRows[matchIdx];
       const label = getRowLabel(matchRow);
-      const rawValue = getSlot0Value(matchRow);
+
+      // Try slot 0 first (always wins)
+      let rawValue = getSlot0Value(matchRow);
+      let extractionMethod = "slot0";
+
+      // Narrow label-text fallback: only for allowlisted result fields, only when slot 0 is null
+      if (rawValue === null && LABEL_FALLBACK_ALLOWLIST.has(fieldDef.source_field_id)) {
+        const fullRowText = matchRow.tokens.map(t => t.text).join(" ");
+        const danishNumMatch = fullRowText.match(/-?\d{1,3}(?:\.\d{3})*,\d{2}/);
+        if (danishNumMatch) {
+          rawValue = parseDanishNumber(danishNumMatch[0]);
+          extractionMethod = "label_text_fallback";
+          console.log(`[DK_ECONOMIC_PNL_PDF] Label-text fallback for ${fieldDef.source_field_id}: "${danishNumMatch[0]}" → ${rawValue}`);
+        }
+      }
+
+      // Skip if still no value
+      if (rawValue === null) continue;
 
       // EBT fallback chain: only emit first match as EBT
       if (ebtFieldIds.includes(fieldDef.source_field_id)) {
@@ -330,15 +355,16 @@ function extractSemanticFromStructural(
         sign_convention: "credit",
         source_label: label,
         source_row_index: matchIdx,
-        source_column_slot: 0,
+        source_column_slot: extractionMethod === "slot0" ? 0 : null,
         source_cell_address: null,
         basis: "period",
-        confidence: "HIGH",
+        confidence: extractionMethod === "slot0" ? "HIGH" : "MEDIUM",
         evidence: [
           `Structural row ${matchRow.row_group_id}`,
           `Matched label pattern: ${fieldDef.pattern.source}`,
           `Effective subtotal: ${isEffectiveSubtotal(matchRow)}`,
-          `Column slot 0 value: ${rawValue}`,
+          `Extraction method: ${extractionMethod}`,
+          `Value: ${rawValue}`,
         ],
         proposed_canonical_target: fieldDef.canonical_hint,
       });
@@ -421,7 +447,7 @@ function extractSemanticFromStructural(
   const candidates: SemanticMetricCandidate[] = [];
   const lineItems: SemanticLineItem[] = [];
   const consumedFieldIds = new Set<string>();
-  const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"];
+  const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "resultat_foer_renter", "periodens_resultat"];
   let ebtConsumed = false;
 
   for (const fieldDef of SEMANTIC_FIELD_MAP) {
