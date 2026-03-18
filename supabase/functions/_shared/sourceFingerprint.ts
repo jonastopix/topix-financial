@@ -7,6 +7,7 @@
  */
 
 import type { SourceSystem, DocumentType } from "./semanticTypes.ts";
+import { detectEconomicAccountRanges } from "./economicRangeDetector.ts";
 
 export interface SourceFingerprint {
   source_system: SourceSystem;
