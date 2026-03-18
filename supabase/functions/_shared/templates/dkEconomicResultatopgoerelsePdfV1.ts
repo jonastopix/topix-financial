@@ -523,13 +523,11 @@ function extractSemanticFromStructural(
  * - 4000-4999: Sales costs
  *
  * Key differentiator: payroll in 2200-range (e-conomic) vs 3000-range (Dinero).
+ *
+ * @deprecated Use detectEconomicAccountRanges from economicRangeDetector.ts
  */
 export function hasEconomicStyleAccountRanges(text: string): boolean {
-  // Payroll-like labels in 2200-2999 account range
-  const payrollIn2200 = /^\s*2[2-9]\d{2}\s+\S.*(?:løn|gage|personal|ferie)/im.test(text);
-  // Opex-like labels in 3000-3999 account range (non-payroll)
-  const opexIn3000 = /^\s*3\d{3}\s+\S.*(?:bil|transport|lokale|husleje|kontor|forsikring|salg|reklame|admin|vedlige)/im.test(text);
-  return payrollIn2200 && opexIn3000;
+  return detectEconomicAccountRanges(text).detected;
 }
 
 // ── Template Definition ──
