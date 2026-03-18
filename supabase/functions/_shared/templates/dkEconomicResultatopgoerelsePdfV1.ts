@@ -46,10 +46,11 @@ import { detectEconomicAccountRanges } from "../economicRangeDetector.ts";
 
 function findByLabel(
   lines: PdfParsedLine[],
-  pattern: RegExp
+  pattern: RegExp,
+  antiPattern?: RegExp
 ): PdfParsedLine | null {
   return lines.find(
-    (l) => pattern.test(l.name) && l.is_subtotal
+    (l) => pattern.test(l.name) && l.is_subtotal && (!antiPattern || !antiPattern.test(l.name))
   ) || null;
 }
 
