@@ -747,7 +747,8 @@ serve(async (req) => {
           console.log("[Routing] No template match → AI extraction (unknown source, AI allowed)");
           break;
       }
-    } else {
+    } else if (!routingTrace.branch) {
+      // Only set fallback branch if no semantic/structural path already succeeded
       routingTrace.branch = "ai_fallback_not_attempted";
     }
 
@@ -1095,7 +1096,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
 
     const isSemanticCanonical =
       extractionMethod === "deterministic_structural" ||
-      SEMANTIC_SUCCESS_BRANCHES.includes(routingTrace.branch as any);
+      SEMANTIC_SUCCESS_BRANCHES.includes(routingTrace.branch as any) ||
+      (rawAiOutput?.semantic === true && extractedData != null);
 
     let canonical: any;
 
