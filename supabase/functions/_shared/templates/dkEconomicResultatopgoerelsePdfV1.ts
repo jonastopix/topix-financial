@@ -303,21 +303,36 @@ function extractSemanticFromStructural(
     ]);
 
     for (const fieldDef of SEMANTIC_FIELD_MAP) {
-      // Find matching row in structural data — no longer requires slot 0 presence
-      const matchIdx = allRows.findIndex(row => {
-        const label = getRowLabel(row);
-        if (!fieldDef.pattern.test(label)) return false;
-        if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) return false;
-        return true;
-      });
+      // FIX A: Find ALL matching rows, then prefer first with usable slot0 value
+      const matchingRows: Array<{idx: number, row: PdfStructuralRow}> = [];
+      for (let ri = 0; ri < allRows.length; ri++) {
+        const row = allRows[ri];
+        const rl = getRowLabel(row);
+        if (!fieldDef.pattern.test(rl)) continue;
+        if (fieldDef.require_subtotal && !isEffectiveSubtotal(row)) continue;
+        matchingRows.push({ idx: ri, row });
+      }
 
-      if (matchIdx === -1) continue;
-      const matchRow = allRows[matchIdx];
+      if (matchingRows.length === 0) continue;
+
+      // Prefer first match that has a usable slot0 value over first regex-only match
+      const withSlot0 = matchingRows.find(m => getSlot0Value(m.row) !== null);
+      const best = withSlot0 || matchingRows[0];
+      const matchIdx = best.idx;
+      const matchRow = best.row;
       const label = getRowLabel(matchRow);
 
       // Try slot 0 first (always wins)
       let rawValue = getSlot0Value(matchRow);
       let extractionMethod = "slot0";
+
+      // FIX B: For profit_like fields via slot0, PDF displays in business convention
+      // (negative = loss) but normalizer expects credit convention (negative = profit).
+      // Negate to align so NEGATE rule restores correct business sign.
+      if (extractionMethod === "slot0" && fieldDef.family === "profit_like" && rawValue !== null) {
+        console.log(`[DK_ECONOMIC_PNL_PDF] Slot0 sign flip for profit_like field ${fieldDef.source_field_id}: ${rawValue} → ${-rawValue}`);
+        rawValue = -rawValue;
+      }
 
       // Narrow label-text fallback: only for allowlisted result fields, only when slot 0 is null
       if (rawValue === null && LABEL_FALLBACK_ALLOWLIST.has(fieldDef.source_field_id)) {
@@ -326,7 +341,6 @@ function extractSemanticFromStructural(
         if (danishNumMatch) {
           let parsedValue = parseDanishNumber(danishNumMatch[0]);
           // Label-text values are in business convention (negative = loss).
-          // The template uses credit convention normalization (profit_like: NEGATE).
           // For profit_like fields, flip sign so NEGATE restores the correct business sign.
           if (fieldDef.family === "profit_like" && parsedValue !== null) {
             console.log(`[DK_ECONOMIC_PNL_PDF] Label-text fallback sign flip for profit_like field ${fieldDef.source_field_id}: ${parsedValue} → ${-parsedValue}`);
