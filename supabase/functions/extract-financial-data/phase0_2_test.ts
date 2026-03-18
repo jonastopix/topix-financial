@@ -370,6 +370,74 @@ Deno.test("Fingerprint: known source blocks AI", () => {
   assertEquals(isAiAllowed(unknown), true);
 });
 
+// ── Unbranded e-conomic-style P&L PDF fingerprint ──
+
+Deno.test("Fingerprint: unbranded e-conomic-style PDF (account-range detection)", () => {
+  const f = fixture_unbranded_economic_style_pdf_fingerprint;
+  const result = detectSourceSystem(f.file_name, f.file_type, f.raw_text);
+  assertEquals(result.source_system, "economic", "Unbranded e-conomic-style PDF must fingerprint as economic");
+  assertEquals(result.confidence, "MEDIUM", "No brand footer → MEDIUM confidence");
+  assertEquals(isAiAllowed(result), false, "Known source must block AI fallback");
+});
+
+Deno.test("Fingerprint: Dinero PDF must NOT trigger e-conomic account-range fingerprint", () => {
+  const f = fixture_dinero_pdf_not_economic_style;
+  const result = detectSourceSystem(f.file_name, f.file_type, f.raw_text);
+  assertEquals(result.source_system, "dinero", "Dinero PDF with Dinero account ranges must stay as dinero");
+  assertEquals(isAiAllowed(result), false);
+});
+
+// ── Template detection regression: account-range signal scoring ──
+
+Deno.test("Detection: unbranded e-conomic-style PDF wins over Dinero", () => {
+  // Simulates a generic P&L PDF with e-conomic account structure, no branding
+  const text = fixture_unbranded_economic_style_pdf_fingerprint.raw_text!;
+  const ctx: DetectionContext = {
+    fileName: "resultatopgoerelse_februar.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: text,
+  };
+  const result = detectTemplate(ctx);
+  assertExists(result, "Must detect a template for unbranded e-conomic-style PDF");
+  assertEquals(result!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+    "e-conomic template must win detection over Dinero for e-conomic-style account ranges");
+  assert(result!.score >= 80, `Score must meet threshold (got ${result!.score})`);
+});
+
+Deno.test("Detection: Dinero PDF with branding still wins detection", () => {
+  // Simulates a real Dinero PDF with Dinero branding — must NOT be affected by anti-match
+  const text = DINERO_PNL_PDF_TEXT;
+  const ctx: DetectionContext = {
+    fileName: "resultat_dinero.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: text,
+  };
+  const result = detectTemplate(ctx);
+  assertExists(result, "Dinero PDF must still match a template");
+  assertEquals(result!.template.template_id, "DK_DINERO_RESULTATOPGOERELSE_PDF_V1",
+    "Dinero template must still win for PDFs with Dinero branding");
+});
+
+Deno.test("Detection: e-conomic PDF with footer still wins detection", () => {
+  // Simulates a real e-conomic PDF with footer — regression check
+  const text = ECONOMIC_PNL_PDF_TEXT;
+  const ctx: DetectionContext = {
+    fileName: "resultat_economic.pdf",
+    fileType: "pdf",
+    sheetNames: [],
+    headerRows: [],
+    rawText: text,
+  };
+  const result = detectTemplate(ctx);
+  assertExists(result, "e-conomic PDF with footer must still match");
+  assertEquals(result!.template.template_id, "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1",
+    "e-conomic template must still win for PDFs with e-conomic footer");
+});
+
 // ══════════════════════════════════════════════════════════════
 // PHASE 4: XLSX Raw Parser
 // ══════════════════════════════════════════════════════════════
