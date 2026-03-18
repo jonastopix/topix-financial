@@ -151,19 +151,27 @@ export const fixture_reject_unclassified: NormalizationProfileFixture = {
   ],
 };
 
-// ── KJ Auto business convention ──
+// ── combined_dk business convention ──
 
-export const fixture_kj_auto_passthrough: NormalizationProfileFixture = {
-  fixture_id: "norm_kj_auto_passthrough",
-  description: "Business convention — all values keep sign",
-  profile_id: "kj_auto_business_v1",
+export const fixture_combined_dk_business_passthrough: NormalizationProfileFixture = {
+  fixture_id: "norm_combined_dk_business_passthrough",
+  description: "Business convention combined_dk — revenue keeps, costs negate to positive buckets",
+  profile_id: "combined_dk_business_v1",
   candidates: [
     {
       source_field_id: "omsaetning",
       normalization_family: "revenue_like",
       raw_value: 2000000,
-      expected_normalized_value: 2000000,
+      expected_normalized_value: 2000000, // business: revenue already positive → keep
       expected_action: "keep",
+      expected_rule_type: "family_default",
+    },
+    {
+      source_field_id: "vareforbrug_ialt",
+      normalization_family: "cost_like",
+      raw_value: -500000,
+      expected_normalized_value: 500000, // business: costs negative → negate to positive bucket
+      expected_action: "negate",
       expected_rule_type: "family_default",
     },
     {
