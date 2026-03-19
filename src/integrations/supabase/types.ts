@@ -939,6 +939,7 @@ export type Database = {
           cvr_number: string | null
           deleted_at: string | null
           extracted_data: Json | null
+          extraction_contract_version: string
           extraction_method: string | null
           file_name: string
           file_path: string
@@ -954,6 +955,7 @@ export type Database = {
           manual_report_type: string | null
           normalized_data: Json | null
           processed_at: string | null
+          quality_signals: Json | null
           raw_extracted_data: Json | null
           report_period: string | null
           report_type: string
@@ -971,6 +973,7 @@ export type Database = {
           cvr_number?: string | null
           deleted_at?: string | null
           extracted_data?: Json | null
+          extraction_contract_version?: string
           extraction_method?: string | null
           file_name: string
           file_path: string
@@ -986,6 +989,7 @@ export type Database = {
           manual_report_type?: string | null
           normalized_data?: Json | null
           processed_at?: string | null
+          quality_signals?: Json | null
           raw_extracted_data?: Json | null
           report_period?: string | null
           report_type: string
@@ -1003,6 +1007,7 @@ export type Database = {
           cvr_number?: string | null
           deleted_at?: string | null
           extracted_data?: Json | null
+          extraction_contract_version?: string
           extraction_method?: string | null
           file_name?: string
           file_path?: string
@@ -1018,6 +1023,7 @@ export type Database = {
           manual_report_type?: string | null
           normalized_data?: Json | null
           processed_at?: string | null
+          quality_signals?: Json | null
           raw_extracted_data?: Json | null
           report_period?: string | null
           report_type?: string
