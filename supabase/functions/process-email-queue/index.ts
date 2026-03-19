@@ -256,46 +256,21 @@ Deno.serve(async (req) => {
           message_id: payload.message_id,
         }
 
-        // Transactional queue messages do not have a Lovable run_id.
-        // Send these directly via Resend; auth queue still uses sendLovableEmail.
-        if (queue === 'transactional_emails' && !payload.run_id) {
-          const resendApiKey = Deno.env.get('RESEND_API_KEY')
-          if (!resendApiKey) {
-            throw new Error('Missing RESEND_API_KEY for transactional email delivery')
-          }
+        // All emails go through Lovable Email API.
+        // Auth emails have a native run_id from the webhook; transactional
+        // emails get a generated run_id so the API accepts them.
+        const runId = payload.run_id || crypto.randomUUID()
 
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: payload.from,
-              to: payload.to,
-              subject: payload.subject,
-              html: payload.html,
-              text: payload.text,
-              ...(payload.reply_to ? { reply_to: payload.reply_to } : {}),
-            }),
-          })
-
-          if (!resendResponse.ok) {
-            const resendError = await resendResponse.text()
-            throw new Error(`Resend API error: ${resendResponse.status} ${resendError}`)
-          }
-        } else {
-          await sendLovableEmail(
-            {
-              ...emailPayload,
-              ...(payload.run_id ? { run_id: payload.run_id } : {}),
-            },
-            // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
-            // falls back to the default Lovable API endpoint (https://api.lovable.dev).
-            // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
-            { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
-          )
-        }
+        await sendLovableEmail(
+          {
+            ...emailPayload,
+            run_id: runId,
+          },
+          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
+          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
+          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
+          { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+        )
 
         // Log success
         await supabase.from('email_send_log').insert({
