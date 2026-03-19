@@ -170,9 +170,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setGroupId(gm.group_id);
       setGroupName(gm.groups?.name || null);
       setWelcomeDismissedAt(gm.welcome_dismissed_at || null);
+
+      // Check if user is group owner (groups.owner_user_id)
+      const { data: groupRow } = await supabase
+        .from("groups")
+        .select("owner_user_id")
+        .eq("id", gm.group_id)
+        .maybeSingle();
+      setIsGroupOwner(groupRow?.owner_user_id === userId);
     } else {
       setGroupId(null);
       setGroupName(null);
+      setIsGroupOwner(false);
       setWelcomeDismissedAt(null);
     }
     setIsGroupFeatureEnabled(!!(groupFeatureFlagRes.data as any)?.enabled);
