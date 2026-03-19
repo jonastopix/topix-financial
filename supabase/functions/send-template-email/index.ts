@@ -1,10 +1,11 @@
-import { Resend } from 'npm:resend@4.0.0'
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
+
+const SENDER = 'The Boardroom <noreply@boardroom.topix.dk>';
+const SENDER_DOMAIN = 'boardroom.topix.dk';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -103,34 +104,49 @@ Deno.serve(async (req) => {
       })
     }
 
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendApiKey) throw new Error('RESEND_API_KEY not configured')
-    const resend = new Resend(resendApiKey)
-
     const finalSubject = `[TEST] ${subject}`
-    const { error: sendErr } = await resend.emails.send({
-      from: `${template.sender_name} <${template.sender_email}>`,
-      to: [test_email],
-      subject: finalSubject,
-      html: bodyHtml,
-    })
+    const senderFrom = `${template.sender_name} <${template.sender_email}>`;
 
-    if (sendErr) {
-      // Log failure
+    // Enqueue email via Lovable Email queue
+    const messageId = crypto.randomUUID();
+
+    // Log pending
+    await adminSupabase.from('email_send_log').insert({
+      message_id: messageId,
+      template_name: template.name || 'template-test',
+      recipient_email: test_email,
+      status: 'pending',
+    });
+
+    const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
+      queue_name: 'transactional_emails',
+      payload: {
+        message_id: messageId,
+        to: test_email,
+        from: senderFrom,
+        sender_domain: SENDER_DOMAIN,
+        subject: finalSubject,
+        html: bodyHtml,
+        text: finalSubject,
+        purpose: 'transactional',
+        label: 'template-test',
+        queued_at: new Date().toISOString(),
+      },
+    });
+
+    if (enqueueError) {
+      console.error('[send-template-email] Enqueue failed:', enqueueError);
       await adminSupabase.from('email_send_log').insert({
-        template_id, recipient_email: test_email, subject: finalSubject,
-        status: 'failed', error_message: JSON.stringify(sendErr), is_test: true,
-      })
-      throw new Error(`Send failed: ${JSON.stringify(sendErr)}`)
+        message_id: messageId,
+        template_name: template.name || 'template-test',
+        recipient_email: test_email,
+        status: 'failed',
+        error_message: 'Failed to enqueue email',
+      });
+      throw new Error(`Failed to enqueue: ${JSON.stringify(enqueueError)}`);
     }
 
-    // Log success
-    await adminSupabase.from('email_send_log').insert({
-      template_id, recipient_email: test_email, subject: finalSubject,
-      status: 'sent', is_test: true,
-    })
-
-    console.log(`[send-template-email] Test sent to ${test_email} (template: ${template.name})`)
+    console.log(`[send-template-email] Test enqueued to ${test_email} (template: ${template.name})`)
 
     return new Response(
       JSON.stringify({ success: true, sent_to: test_email, template: template.name }),
