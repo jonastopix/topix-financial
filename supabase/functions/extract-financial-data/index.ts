@@ -1467,6 +1467,18 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         raw_extracted_data: rawAiOutput,
         // Phase 4: Full canonical output in normalized_data
         normalized_data: canonical,
+        // Phase A1: V2 persisted marker + quality signals
+        extraction_contract_version: isV2Cohort ? "v2" : "v1",
+        quality_signals: isV2Cohort ? {
+          validation_status: finalStatus,
+          validation_errors: allErrors.length > 0 ? allErrors : null,
+          canonical_checks: canonical.validation?.canonical_checks ?? [],
+          ai_eligible: canonical.ai_eligible ?? false,
+          has_metrics: !!(canonical.metrics && Object.keys(canonical.metrics).length > 0),
+          has_period: !!(dbReportPeriod && dbReportPeriod.length > 0),
+          extraction_method: extractionMethod,
+          routing_branch: routingTrace.branch,
+        } : null,
       };
 
       // Add deterministic metadata if present
