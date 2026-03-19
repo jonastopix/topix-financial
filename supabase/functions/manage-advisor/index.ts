@@ -35,8 +35,8 @@ async function sendAdvisorInvitationEmail(normalizedEmail: string, adminSupabase
     payload: {
       message_id: messageId,
       to: normalizedEmail,
-      from: 'The Boardroom <noreply@boardroom.topix.dk>',
-      sender_domain: 'boardroom.topix.dk',
+      from: 'The Boardroom <noreply@mail.topix.dk>',
+      sender_domain: 'mail.topix.dk',
       subject,
       html,
       text: subject,
