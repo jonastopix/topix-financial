@@ -4,8 +4,8 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const SENDER = 'The Boardroom <noreply@boardroom.topix.dk>';
-const SENDER_DOMAIN = 'boardroom.topix.dk';
+const SENDER = 'The Boardroom <noreply@topix.dk>';
+const SENDER_DOMAIN = 'topix.dk';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
