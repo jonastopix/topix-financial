@@ -17,12 +17,12 @@ const corsHeaders = {
 }
 
 const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirm your email',
-  invite: "You've been invited",
-  magiclink: 'Your login link',
-  recovery: 'Reset your password',
-  email_change: 'Confirm your new email',
-  reauthentication: 'Your verification code',
+  signup: 'Bekræft din email',
+  invite: 'Du er blevet inviteret',
+  magiclink: 'Dit login-link',
+  recovery: 'Nulstil din adgangskode',
+  email_change: 'Bekræft din nye email',
+  reauthentication: 'Din bekræftelseskode',
 }
 
 // Template mapping
@@ -36,7 +36,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "topix"
+const SITE_NAME = "The Boardroom"
 const SENDER_DOMAIN = "boardroom.topix.dk"
 const ROOT_DOMAIN = "topix.dk"
 const FROM_DOMAIN = "boardroom.topix.dk" // Domain shown in From address (may be root or sender subdomain)
