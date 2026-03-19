@@ -242,26 +242,65 @@ Deno.serve(async (req) => {
       }
 
       try {
-        await sendLovableEmail(
-          {
-            run_id: payload.run_id,
-            to: payload.to,
+        // Route based on whether this is an auth email (has run_id from webhook)
+        // or a transactional email (no run_id — sent via Resend).
+        if (payload.run_id) {
+          // Auth emails: use Lovable Email API (requires valid webhook run_id)
+          await sendLovableEmail(
+            {
+              run_id: payload.run_id,
+              to: payload.to,
+              from: payload.from,
+              sender_domain: payload.sender_domain,
+              subject: payload.subject,
+              html: payload.html,
+              text: payload.text,
+              purpose: payload.purpose,
+              label: payload.label,
+              idempotency_key: payload.idempotency_key,
+              unsubscribe_token: payload.unsubscribe_token,
+              message_id: payload.message_id,
+            },
+            { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+          )
+        } else {
+          // Transactional emails: send via Resend API
+          const resendApiKey = Deno.env.get('RESEND_API_KEY')
+          if (!resendApiKey) {
+            throw new Error('RESEND_API_KEY not configured — required for transactional emails')
+          }
+
+          const resendPayload: Record<string, unknown> = {
             from: payload.from,
-            sender_domain: payload.sender_domain,
+            to: payload.to,
             subject: payload.subject,
             html: payload.html,
-            text: payload.text,
-            purpose: payload.purpose,
-            label: payload.label,
-            idempotency_key: payload.idempotency_key,
-            unsubscribe_token: payload.unsubscribe_token,
-            message_id: payload.message_id,
-          },
-          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
-          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
-          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
-          { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
-        )
+          }
+          if (payload.text) resendPayload.text = payload.text
+          if (payload.reply_to) resendPayload.reply_to = payload.reply_to
+
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(resendPayload),
+          })
+
+          if (!resendResponse.ok) {
+            const errBody = await resendResponse.text()
+            // Map Resend 429 to our rate-limit handling
+            if (resendResponse.status === 429) {
+              const err = new Error(`Resend rate limited: ${errBody}`)
+              ;(err as any).status = 429
+              throw err
+            }
+            throw new Error(`Resend API error: ${resendResponse.status} ${errBody}`)
+          } else {
+            await resendResponse.text() // consume body
+          }
+        }
 
         // Log success
         await supabase.from('email_send_log').insert({
