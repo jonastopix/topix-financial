@@ -2070,6 +2070,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_group_owner: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       log_user_login: { Args: never; Returns: undefined }
       lookup_invite_company: { Args: { invite_token: string }; Returns: string }
       lookup_invite_company_info: {
@@ -2088,6 +2092,10 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      owner_add_company_to_group: {
+        Args: { _company_name: string; _cvr_number?: string; _group_id: string }
+        Returns: Json
       }
       parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
       read_email_batch: {
