@@ -1,5 +1,3 @@
-import { Resend } from 'npm:resend@4.0.0'
-
 const DANISH_MONTHS = [
   "Januar", "Februar", "Marts", "April", "Maj", "Juni",
   "Juli", "August", "September", "Oktober", "November", "December",
@@ -11,10 +9,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const SENDER = 'The Boardroom <noreply@boardroom.topix.dk>';
+const SENDER_DOMAIN = 'boardroom.topix.dk';
+
 // Hardcoded fallback if no template exists in DB
 const FALLBACK_SUBJECT = 'Påmindelse: Rapport for {{period}} mangler';
 const FALLBACK_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Rapport mangler for {{period}}</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Hej! Vi mangler stadig den månedlige rapport for <strong>{{period}}</strong> fra <strong>{{company_name}}</strong>.</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Upload venligst jeres rapport, så vi kan følge med i virksomhedens udvikling.</p><div style="text-align:center;margin:32px 0"><a href="{{report_url}}" target="_blank" style="background-color:#6366f1;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Upload rapport</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne påmindelse er sendt fra The Boardroom. Hvis rapporten allerede er uploadet, kan du ignorere denne besked.</p></div></body></html>`;
-const FALLBACK_SENDER = 'The Boardroom <noreply@boardroom.topix.dk>';
 
 function replaceVars(text: string, vars: Record<string, string>): string {
   let result = text;
@@ -63,8 +63,7 @@ Deno.serve(async (req) => {
     // --- Fetch template from DB (by name), fallback to hardcoded ---
     let subjectTpl = FALLBACK_SUBJECT;
     let bodyTpl = FALLBACK_HTML;
-    let senderFrom = FALLBACK_SENDER;
-    let templateId: string | null = null;
+    let senderFrom = SENDER;
 
     const { data: tpl } = await supabase
       .from('email_templates')
@@ -73,19 +72,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (tpl && tpl.enabled) {
-      templateId = tpl.id;
       subjectTpl = tpl.subject;
       bodyTpl = tpl.body_html;
       senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
       console.log('[send-report-reminder] Using DB template');
     } else {
-      if (tpl) templateId = tpl.id;
       console.log('[send-report-reminder] Using fallback template');
     }
 
     // Ensure we have a templateId for logging
-    if (!templateId) {
-      const { data: newTpl } = await supabase
+    if (!tpl) {
+      await supabase
         .from('email_templates')
         .insert({
           name: 'Rapport-påmindelse',
@@ -98,7 +95,6 @@ Deno.serve(async (req) => {
         })
         .select('id')
         .single();
-      if (newTpl) templateId = newTpl.id;
     }
 
     const reportUrl = "https://topix.lovable.app/reports";
@@ -115,28 +111,52 @@ Deno.serve(async (req) => {
       return { subject, html };
     }
 
-    // --- Test mode ---
-    if (testEmail) {
-      const resendApiKey = Deno.env.get("RESEND_API_KEY");
-      if (!resendApiKey) throw new Error("RESEND_API_KEY is not configured");
-      const resend = new Resend(resendApiKey);
+    // Helper to enqueue a reminder email
+    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean) {
+      const { subject, html } = buildEmail(companyName, period, isTest);
+      const messageId = crypto.randomUUID();
 
-      const { subject, html } = buildEmail("Test Virksomhed", expectedPeriod, true);
-      const { error: sendErr } = await resend.emails.send({
-        from: senderFrom, to: [testEmail], subject, html,
+      await supabase.from('email_send_log').insert({
+        message_id: messageId,
+        template_name: 'report-reminder',
+        recipient_email: recipientEmail,
+        status: 'pending',
       });
 
-      if (templateId) {
-        await supabase.from('email_send_log').insert({
-          template_id: templateId, recipient_email: testEmail, subject,
-          status: sendErr ? 'failed' : 'sent',
-          error_message: sendErr ? JSON.stringify(sendErr) : null,
-          is_test: true,
-        });
-      }
-      if (sendErr) throw new Error(`Send failed: ${JSON.stringify(sendErr)}`);
+      const { error: enqueueError } = await supabase.rpc('enqueue_email', {
+        queue_name: 'transactional_emails',
+        payload: {
+          message_id: messageId,
+          to: recipientEmail,
+          from: senderFrom,
+          sender_domain: SENDER_DOMAIN,
+          subject,
+          html,
+          text: subject,
+          purpose: 'transactional',
+          label: 'report-reminder',
+          queued_at: new Date().toISOString(),
+        },
+      });
 
-      console.log(`[TEST] Reminder sent to: ${testEmail}`);
+      if (enqueueError) {
+        await supabase.from('email_send_log').insert({
+          message_id: messageId,
+          template_name: 'report-reminder',
+          recipient_email: recipientEmail,
+          status: 'failed',
+          error_message: 'Failed to enqueue email',
+        });
+        throw new Error(`Failed to enqueue: ${JSON.stringify(enqueueError)}`);
+      }
+
+      return messageId;
+    }
+
+    // --- Test mode ---
+    if (testEmail) {
+      await enqueueReminder(testEmail, "Test Virksomhed", expectedPeriod, true);
+      console.log(`[TEST] Reminder enqueued for: ${testEmail}`);
       return new Response(JSON.stringify({ test: true, sent_to: testEmail, period: expectedPeriod }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -166,14 +186,12 @@ Deno.serve(async (req) => {
     const reportedIds = new Set<string>();
     for (const r of existingReports || []) {
       if (r.manual_override_status === 'applied') {
-        // Override applied: only manual period counts, raw period ignored
         if (r.manual_report_period_key) {
           if (r.manual_report_period_key === expectedPeriodKey) reportedIds.add(r.company_id);
         } else if (r.manual_report_period_label === expectedPeriod) {
           reportedIds.add(r.company_id);
         }
       } else {
-        // No applied override: raw report_period only
         if (r.report_period === expectedPeriod) reportedIds.add(r.company_id);
       }
     }
@@ -191,12 +209,6 @@ Deno.serve(async (req) => {
     }
 
     const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    let resend: InstanceType<typeof Resend> | null = null;
-    if (emailEnabled) {
-      if (!resendApiKey) throw new Error("RESEND_API_KEY is not configured");
-      resend = new Resend(resendApiKey);
-    }
 
     let sent = 0, skipped = 0;
 
@@ -217,20 +229,8 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const { subject, html } = buildEmail(company.name, expectedPeriod, false);
-          const { error: sendErr } = await resend!.emails.send({
-            from: senderFrom, to: [email], subject, html,
-          });
-          if (templateId) {
-            await supabase.from('email_send_log').insert({
-              template_id: templateId, recipient_email: email, subject,
-              status: sendErr ? 'failed' : 'sent',
-              error_message: sendErr ? JSON.stringify(sendErr) : null,
-              is_test: false,
-            });
-          }
-          if (sendErr) { console.error(`Failed ${email}:`, sendErr); continue; }
-          console.log(`[LIVE] Sent to: ${email} (${company.name})`);
+          await enqueueReminder(email, company.name, expectedPeriod, false);
+          console.log(`[LIVE] Enqueued for: ${email} (${company.name})`);
           sent++;
         } catch (e) {
           console.error(`Error ${email}:`, e);
