@@ -330,72 +330,28 @@ export default function EmailTemplates() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
-            {templates.map((t) => {
-              const trigger = TRIGGER_LABELS[t.trigger_type] || TRIGGER_LABELS.manual;
-              const TriggerIcon = trigger.icon;
-              return (
-                <Card key={t.id} className="group">
-                  <CardContent className="flex items-center gap-4 py-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-medium text-foreground truncate">{t.name}</h3>
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          <TriggerIcon className="h-3 w-3 mr-1" />
-                          {trigger.label}
-                        </Badge>
-                        {t.trigger_type === "cron" && (
-                          <span className="text-xs text-muted-foreground hidden sm:inline">
-                            {cronToDescription(t.trigger_config)}
-                          </span>
-                        )}
-                        {!t.enabled && (
-                          <Badge variant="secondary" className="text-xs">Inaktiv</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate mt-0.5">{t.subject}</p>
-                    </div>
-                    <Switch checked={t.enabled} onCheckedChange={(v) => toggleEnabled(t.id, v)} />
-                    <Button variant="ghost" size="icon" onClick={() => setEditing(t)} title="Rediger">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        const dup = {
-                          ...newTemplate(),
-                          name: `${t.name} (kopi)`,
-                          subject: t.subject,
-                          body_html: t.body_html,
-                          sender_name: t.sender_name,
-                          sender_email: t.sender_email,
-                          trigger_type: t.trigger_type,
-                          trigger_config: { ...t.trigger_config },
-                          variables: [...t.variables],
-                        };
-                        setEditing(dup);
-                      }}
-                      title="Duplikér"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => {
-                        if (confirm("Slet denne skabelon?")) deleteMutation.mutate(t.id);
-                      }}
-                      title="Slet"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <TemplateList
+            templates={templates}
+            onEdit={setEditing}
+            onDuplicate={(t) => {
+              const dup = {
+                ...newTemplate(),
+                name: `${t.name} (kopi)`,
+                subject: t.subject,
+                body_html: t.body_html,
+                sender_name: t.sender_name,
+                sender_email: t.sender_email,
+                trigger_type: t.trigger_type,
+                trigger_config: { ...t.trigger_config },
+                variables: [...t.variables],
+              };
+              setEditing(dup);
+            }}
+            onDelete={(id) => {
+              if (confirm("Slet denne skabelon?")) deleteMutation.mutate(id);
+            }}
+            onToggle={toggleEnabled}
+          />
         )}
 
         {/* Send log */}
