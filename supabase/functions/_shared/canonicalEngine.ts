@@ -1137,7 +1137,17 @@ export function buildCanonicalOutput(
 ): CanonicalOutput {
   const kf = extractedData?.key_figures || {};
   const statementType = detectStatementType(extractedData);
-  const periodBasis = inferPeriodBasis(kf);
+  let periodBasis = inferPeriodBasis(kf);
+
+  // Override: for trial_balance with a resolved report_period,
+  // treat unknown basis as "period" — multi-period column detection already picked the correct month.
+  if (
+    periodBasis === "unknown" &&
+    extractedData?.report_period &&
+    statementType === "trial_balance"
+  ) {
+    periodBasis = "period";
+  }
 
   // Normalize (pass extractionMethod for conditional sign handling)
   const { metrics, correction_log } = normalizeToCanonical(extractedData, extractionMethod);
