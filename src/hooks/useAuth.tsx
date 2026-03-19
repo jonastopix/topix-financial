@@ -53,6 +53,7 @@ const AuthContext = createContext<AuthContext>({
   groupName: null,
   isGroupUser: false,
   isGroupFeatureEnabled: false,
+  isGroupOwner: false,
   welcomeDismissedAt: null,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
