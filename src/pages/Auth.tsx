@@ -13,7 +13,10 @@ import topixIconWhite from "@/assets/topix-icon-white.png";
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get("invite") || "";
-  const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
+  const modeParam = searchParams.get("mode");
+  // Signup is only allowed with an invite token OR explicit mode=signup (advisor invitations)
+  const hasInvitation = !!inviteToken || modeParam === "signup";
+  const [isLogin, setIsLogin] = useState(!hasInvitation);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
