@@ -280,6 +280,71 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE A1: V2 SCOPED ROLLOUT RESOLUTION
+    // ═══════════════════════════════════════════════════════════════════════════
+    let isV2Cohort = false;
+    let v2ReportCompanyId: string | null = null;
+    {
+      let rolloutConfig: any = null;
+      try {
+        const { data: configRow } = await supabase
+          .from("app_config")
+          .select("config_value")
+          .eq("config_key", "extraction_v2_rollout")
+          .maybeSingle();
+        rolloutConfig = configRow?.config_value;
+      } catch (e) {
+        console.warn("[V2Rollout] Failed to read config, defaulting to V1:", e);
+      }
+
+      if (rolloutConfig?.enabled && reportId) {
+        const { data: reportRow } = await supabase
+          .from("financial_reports")
+          .select("company_id")
+          .eq("id", reportId)
+          .single();
+
+        v2ReportCompanyId = reportRow?.company_id ?? null;
+
+        if (v2ReportCompanyId) {
+          const scope = rolloutConfig.scope || {};
+          const companyIds: string[] = scope.company_ids || [];
+          const groupIds: string[] = scope.group_ids || [];
+          const allCompanies: boolean = scope.all_companies || false;
+          const reviewPathDeployed: boolean = rolloutConfig.review_path_deployed || false;
+
+          // company_ids always works (for internal testing pre-A2)
+          if (companyIds.includes(v2ReportCompanyId)) {
+            isV2Cohort = true;
+            console.log(`[V2Rollout] Company ${v2ReportCompanyId} in explicit company_ids → V2`);
+          }
+          // group_ids and all_companies only active when review_path_deployed = true
+          else if (reviewPathDeployed) {
+            if (allCompanies) {
+              isV2Cohort = true;
+              console.log(`[V2Rollout] all_companies=true + review_path_deployed → V2`);
+            } else if (groupIds.length > 0) {
+              const { data: groupMatch } = await supabase
+                .from("group_companies")
+                .select("group_id")
+                .eq("company_id", v2ReportCompanyId)
+                .in("group_id", groupIds)
+                .limit(1);
+              if (groupMatch && groupMatch.length > 0) {
+                isV2Cohort = true;
+                console.log(`[V2Rollout] Company ${v2ReportCompanyId} in group ${groupMatch[0].group_id} → V2`);
+              }
+            }
+          }
+        }
+      }
+
+      if (!isV2Cohort) {
+        console.log(`[V2Rollout] Company ${v2ReportCompanyId || 'unknown'} → V1 (default)`);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // PHASE 4: DETERMINISTIC FIRST ROUTING
     // ═══════════════════════════════════════════════════════════════════════════
     
