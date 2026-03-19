@@ -22,21 +22,21 @@ export const MagicLinkEmail = ({
   siteName,
   confirmationUrl,
 }: MagicLinkEmailProps) => (
-  <Html lang="da" dir="ltr">
+  <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Dit login-link til The Boardroom</Preview>
+    <Preview>Your login link for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <div style={logoBadge}>BR</div>
-        <Heading style={h1}>Dit login-link</Heading>
+        <Heading style={h1}>Your login link</Heading>
         <Text style={text}>
-          Klik på knappen herunder for at logge ind på The Boardroom. Linket udløber om kort tid.
+          Click the button below to log in to {siteName}. This link will expire
+          shortly.
         </Text>
         <Button style={button} href={confirmationUrl}>
-          Log ind
+          Log In
         </Button>
         <Text style={footer}>
-          Hvis du ikke har anmodet om dette link, kan du ignorere denne email.
+          If you didn't request this link, you can safely ignore this email.
         </Text>
       </Container>
     </Body>
@@ -45,41 +45,26 @@ export const MagicLinkEmail = ({
 
 export default MagicLinkEmail
 
-const main = { backgroundColor: '#ffffff', fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif" }
-const container = { padding: '40px 25px', maxWidth: '480px', margin: '0 auto' }
-const logoBadge: React.CSSProperties = {
-  width: '48px',
-  height: '48px',
-  borderRadius: '12px',
-  backgroundColor: '#0fa968',
-  color: '#ffffff',
-  fontSize: '18px',
-  fontWeight: 700,
-  fontFamily: "'Space Grotesk', Arial, sans-serif",
-  lineHeight: '48px',
-  textAlign: 'center',
-  marginBottom: '24px',
-}
+const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
+const container = { padding: '20px 25px' }
 const h1 = {
   fontSize: '22px',
   fontWeight: 'bold' as const,
-  color: '#141a21',
+  color: '#000000',
   margin: '0 0 20px',
-  fontFamily: "'Space Grotesk', Arial, sans-serif",
 }
 const text = {
   fontSize: '14px',
-  color: '#656d78',
-  lineHeight: '1.6',
-  margin: '0 0 20px',
+  color: '#55575d',
+  lineHeight: '1.5',
+  margin: '0 0 25px',
 }
 const button = {
-  backgroundColor: '#0fa968',
+  backgroundColor: '#000000',
   color: '#ffffff',
   fontSize: '14px',
-  fontWeight: 600 as const,
-  borderRadius: '12px',
-  padding: '12px 24px',
+  borderRadius: '8px',
+  padding: '12px 20px',
   textDecoration: 'none',
 }
 const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
