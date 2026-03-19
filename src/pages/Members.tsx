@@ -197,7 +197,7 @@ const Members = () => {
     const lastSentMap = new Map<string, string>();
     if (pendingEmails.length > 0) {
       const { data: sendLogs } = await supabase
-        .from("email_send_log")
+        .from("email_send_log" as any)
         .select("recipient_email, sent_at")
         .in("recipient_email", pendingEmails)
         .order("sent_at", { ascending: false });

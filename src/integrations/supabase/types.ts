@@ -599,7 +599,7 @@ export type Database = {
           },
         ]
       }
-      email_send_log: {
+      email_send_log_legacy: {
         Row: {
           error_message: string | null
           id: string
@@ -630,15 +630,7 @@ export type Database = {
           subject?: string
           template_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "email_send_log_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "email_templates"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       email_templates: {
         Row: {

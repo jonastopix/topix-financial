@@ -29,17 +29,16 @@ export const SignupEmail = ({
 }: SignupEmailProps) => (
   <Html lang="da" dir="ltr">
     <Head />
-    <Preview>Bekræft din email til The Boardroom</Preview>
+    <Preview>Bekræft din email for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <div style={logoBadge}>BR</div>
         <Heading style={h1}>Bekræft din email</Heading>
         <Text style={text}>
-          Tak fordi du har oprettet en konto på{' '}
+          Tak fordi du har oprettet dig på{' '}
           <Link href={siteUrl} style={link}>
-            <strong>The Boardroom</strong>
+            <strong>{siteName}</strong>
           </Link>
-          .
+          !
         </Text>
         <Text style={text}>
           Bekræft venligst din email (
@@ -52,7 +51,7 @@ export const SignupEmail = ({
           Bekræft email
         </Button>
         <Text style={footer}>
-          Hvis du ikke har oprettet en konto, kan du ignorere denne email.
+          Hvis du ikke har oprettet en konto, kan du blot ignorere denne email.
         </Text>
       </Container>
     </Body>
@@ -61,42 +60,27 @@ export const SignupEmail = ({
 
 export default SignupEmail
 
-const main = { backgroundColor: '#ffffff', fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif" }
-const container = { padding: '40px 25px', maxWidth: '480px', margin: '0 auto' }
-const logoBadge: React.CSSProperties = {
-  width: '48px',
-  height: '48px',
-  borderRadius: '12px',
-  backgroundColor: '#0fa968',
-  color: '#ffffff',
-  fontSize: '18px',
-  fontWeight: 700,
-  fontFamily: "'Space Grotesk', Arial, sans-serif",
-  lineHeight: '48px',
-  textAlign: 'center',
-  marginBottom: '24px',
-}
+const main = { backgroundColor: '#ffffff', fontFamily: "'Manrope', Arial, sans-serif" }
+const container = { padding: '20px 25px' }
 const h1 = {
   fontSize: '22px',
   fontWeight: 'bold' as const,
-  color: '#141a21',
+  color: 'hsl(170, 46%, 14%)',
   margin: '0 0 20px',
-  fontFamily: "'Space Grotesk', Arial, sans-serif",
 }
 const text = {
   fontSize: '14px',
-  color: '#656d78',
-  lineHeight: '1.6',
-  margin: '0 0 20px',
+  color: 'hsl(170, 15%, 40%)',
+  lineHeight: '1.5',
+  margin: '0 0 25px',
 }
-const link = { color: '#0fa968', textDecoration: 'underline' }
+const link = { color: 'inherit', textDecoration: 'underline' }
 const button = {
-  backgroundColor: '#0fa968',
+  backgroundColor: 'hsl(170, 46%, 14%)',
   color: '#ffffff',
   fontSize: '14px',
-  fontWeight: 600 as const,
-  borderRadius: '12px',
-  padding: '12px 24px',
+  borderRadius: '10px',
+  padding: '12px 20px',
   textDecoration: 'none',
 }
 const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }

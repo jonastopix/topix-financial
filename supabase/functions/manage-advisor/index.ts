@@ -1,5 +1,3 @@
-import { Resend } from 'npm:resend@4.0.0'
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -18,45 +16,48 @@ function getSignupUrl() {
 }
 
 async function sendAdvisorInvitationEmail(normalizedEmail: string, adminSupabase: any) {
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  if (!resendApiKey) {
-    throw new Error("Email er ikke konfigureret (mangler RESEND_API_KEY)");
-  }
-
-  const resend = new Resend(resendApiKey);
   const signupUrl = getSignupUrl();
   const subject = 'Du er inviteret som rådgiver på The Boardroom';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Velkommen til The Boardroom</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Du er blevet inviteret som <strong>rådgiver</strong> på The Boardroom — en platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Som rådgiver får du adgang til alle virksomheders data, rapporter og chat.</p><div style="text-align:center;margin:32px 0"><a href="${signupUrl}" target="_blank" style="background-color:#6366f1;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Opret din konto</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne invitation er sendt fra The Boardroom. Opret dig med denne e-mailadresse for at aktivere din rådgiverrolle.</p></div></body></html>`;
 
-  const { data, error } = await resend.emails.send({
-    from: 'The Boardroom <noreply@boardroom.topix.dk>',
-    to: [normalizedEmail],
-    subject,
-    html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Velkommen til The Boardroom</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Du er blevet inviteret som <strong>rådgiver</strong> på The Boardroom — en platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Som rådgiver får du adgang til alle virksomheders data, rapporter og chat.</p><div style="text-align:center;margin:32px 0"><a href="${signupUrl}" target="_blank" style="background-color:#6366f1;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Opret din konto</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne invitation er sendt fra The Boardroom. Opret dig med denne e-mailadresse for at aktivere din rådgiverrolle.</p></div></body></html>`,
+  // Enqueue email via Lovable Email queue
+  const messageId = crypto.randomUUID();
+
+  await adminSupabase.from('email_send_log').insert({
+    message_id: messageId,
+    template_name: 'advisor-invitation',
+    recipient_email: normalizedEmail,
+    status: 'pending',
   });
 
-  // Log to email_send_log
-  const { data: tpl } = await adminSupabase
-    .from('email_templates')
-    .select('id')
-    .eq('name', 'Advisor invitation')
-    .maybeSingle();
-
-  if (tpl) {
-    await adminSupabase.from('email_send_log').insert({
-      template_id: tpl.id,
-      recipient_email: normalizedEmail,
+  const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
+    queue_name: 'transactional_emails',
+    payload: {
+      message_id: messageId,
+      to: normalizedEmail,
+      from: 'The Boardroom <noreply@boardroom.topix.dk>',
+      sender_domain: 'boardroom.topix.dk',
       subject,
-      status: error ? 'failed' : 'sent',
-      error_message: error ? JSON.stringify(error) : null,
-      is_test: false,
+      html,
+      text: subject,
+      purpose: 'transactional',
+      label: 'advisor-invitation',
+      queued_at: new Date().toISOString(),
+    },
+  });
+
+  if (enqueueError) {
+    await adminSupabase.from('email_send_log').insert({
+      message_id: messageId,
+      template_name: 'advisor-invitation',
+      recipient_email: normalizedEmail,
+      status: 'failed',
+      error_message: 'Failed to enqueue email',
     });
+    throw new Error(`Kunne ikke sende invitation: ${JSON.stringify(enqueueError)}`);
   }
 
-  if (error) {
-    throw new Error(`Kunne ikke sende invitation: ${JSON.stringify(error)}`);
-  }
-
-  console.log(`[manage-advisor] Invitation email sent to: ${normalizedEmail} (id: ${data?.id || 'unknown'})`);
+  console.log(`[manage-advisor] Invitation email enqueued for: ${normalizedEmail}`);
 }
 
 Deno.serve(async (req) => {
