@@ -242,29 +242,20 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const emailPayload = {
-          to: payload.to,
-          from: payload.from,
-          sender_domain: payload.sender_domain,
-          subject: payload.subject,
-          html: payload.html,
-          text: payload.text,
-          purpose: payload.purpose,
-          label: payload.label,
-          idempotency_key: payload.idempotency_key,
-          unsubscribe_token: payload.unsubscribe_token,
-          message_id: payload.message_id,
-        }
-
-        // All emails go through Lovable Email API.
-        // Auth emails have a native run_id from the webhook; transactional
-        // emails get a generated run_id so the API accepts them.
-        const runId = payload.run_id || crypto.randomUUID()
-
         await sendLovableEmail(
           {
-            ...emailPayload,
-            run_id: runId,
+            run_id: payload.run_id,
+            to: payload.to,
+            from: payload.from,
+            sender_domain: payload.sender_domain,
+            subject: payload.subject,
+            html: payload.html,
+            text: payload.text,
+            purpose: payload.purpose,
+            label: payload.label,
+            idempotency_key: payload.idempotency_key,
+            unsubscribe_token: payload.unsubscribe_token,
+            message_id: payload.message_id,
           },
           // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
           // falls back to the default Lovable API endpoint (https://api.lovable.dev).
