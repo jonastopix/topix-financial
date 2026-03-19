@@ -9,8 +9,28 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SENDER = 'The Boardroom <noreply@mail.topix.dk>';
 const SENDER_DOMAIN = 'mail.topix.dk';
+const VERIFIED_FROM_EMAIL = 'noreply@mail.topix.dk';
+const SENDER = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
+
+function resolveSenderFromTemplate(
+  senderName: string | null | undefined,
+  senderEmail: string | null | undefined
+): string {
+  const safeName = (senderName ?? 'The Boardroom').trim() || 'The Boardroom';
+  const normalizedEmail = (senderEmail ?? VERIFIED_FROM_EMAIL).trim().toLowerCase();
+  const emailDomain = normalizedEmail.split('@')[1] ?? '';
+
+  if (emailDomain !== SENDER_DOMAIN) {
+    console.warn('[send-report-reminder] Overriding sender_email to verified domain', {
+      configured_sender_email: senderEmail,
+      enforced_domain: SENDER_DOMAIN,
+    });
+    return `${safeName} <${VERIFIED_FROM_EMAIL}>`;
+  }
+
+  return `${safeName} <${normalizedEmail}>`;
+}
 
 // Hardcoded fallback if no template exists in DB
 const FALLBACK_SUBJECT = 'Påmindelse: Rapport for {{period}} mangler';
@@ -74,7 +94,7 @@ Deno.serve(async (req) => {
     if (tpl && tpl.enabled) {
       subjectTpl = tpl.subject;
       bodyTpl = tpl.body_html;
-      senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
+      senderFrom = resolveSenderFromTemplate(tpl.sender_name, tpl.sender_email);
       console.log('[send-report-reminder] Using DB template');
     } else {
       console.log('[send-report-reminder] Using fallback template');
@@ -89,7 +109,7 @@ Deno.serve(async (req) => {
           subject: FALLBACK_SUBJECT,
           body_html: FALLBACK_HTML,
           sender_name: 'The Boardroom',
-          sender_email: 'noreply@boardroom.topix.dk',
+          sender_email: VERIFIED_FROM_EMAIL,
           trigger_type: 'cron',
           enabled: false,
         })
