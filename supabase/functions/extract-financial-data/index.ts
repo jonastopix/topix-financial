@@ -373,6 +373,7 @@ serve(async (req) => {
       pdf_structural_validated: false,
       pdf_structural_hash_verified: false,
       pdf_structural_errors: null as string[] | null,
+      v2_cohort: isV2Cohort,
     };
 
     // ── LAG -1: SOURCE FINGERPRINTING (gates AI fallback) ──
