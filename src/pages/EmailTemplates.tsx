@@ -401,7 +401,7 @@ export default function EmailTemplates() {
     subject: "",
     body_html: "",
     sender_name: "The Boardroom",
-    sender_email: "noreply@boardroom.topix.dk",
+    sender_email: "noreply@mail.topix.dk",
     trigger_type: "manual",
     trigger_config: {},
     enabled: true,
