@@ -53,6 +53,12 @@ function extractPeriodFromText(text: string): string | null {
     if (monthName) return `${monthName} ${endYear}`;
   }
 
+  // Pattern 1.5: Multi-period column headers (e.g. "| Januar | Februar | År til dato |")
+  // Detects Danish month names as column headers, excludes "År til dato",
+  // and resolves the latest actual month column using nearby date rows.
+  const multiPeriodResult = extractMultiPeriodColumn(cleanedText);
+  if (multiPeriodResult) return multiPeriodResult;
+
   // Pattern 2: "Oktober 2025", "Okt 2025"
   const namedMonth = cleanedText.match(/\b(januar|februar|marts|april|maj|juni|juli|august|september|oktober|november|december|jan|feb|mar|apr|jun|jul|aug|sep|okt|nov|dec)\s+(\d{4})\b/i);
   if (namedMonth) {
@@ -63,11 +69,86 @@ function extractPeriodFromText(text: string): string | null {
     }
   }
 
-  // Pattern 3: "10/2025" or "10-2025"
-  const shortDate = cleanedText.match(/\b(\d{2})[\/\-](\d{4})\b/);
+  // Pattern 3: "10/2025" or "10-2025" — with negative lookbehind to skip DD-MM-YYYY dates
+  const shortDate = cleanedText.match(/(?<!\d[.\/-])(\d{2})[\/\-](\d{4})\b/);
   if (shortDate) {
     const monthName = DANISH_MONTHS[shortDate[1]];
     if (monthName) return `${monthName} ${shortDate[2]}`;
+  }
+
+  return null;
+}
+
+/**
+ * Detect multi-period saldobalance column headers like:
+ *   | Januar | Februar | År til dato |
+ *   | 01-01-2026 | 01-02-2026 | 01-01-2026 |
+ *   | 31-01-2026 | 28-02-2026 | 28-02-2026 |
+ *
+ * Returns the latest actual month (excluding "År til dato") as "Month YYYY".
+ */
+function extractMultiPeriodColumn(text: string): string | null {
+  const monthNames = [
+    "januar", "februar", "marts", "april", "maj", "juni",
+    "juli", "august", "september", "oktober", "november", "december",
+  ];
+
+  const lines = text.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase();
+
+    // Look for a line containing at least one Danish month name AND "år til dato"
+    if (!/år\s+til\s+dato/i.test(lines[i])) continue;
+
+    // Extract month names from this line (excluding "år til dato")
+    const foundMonths: string[] = [];
+    for (const m of monthNames) {
+      // Use word boundary to match month names in column headers
+      if (new RegExp(`\\b${m}\\b`, "i").test(line)) {
+        foundMonths.push(m);
+      }
+    }
+
+    if (foundMonths.length === 0) continue;
+
+    // The latest month in the header is the rightmost actual month column
+    // Sort by month index to find the latest
+    const latestMonth = foundMonths.reduce((a, b) => {
+      return monthNames.indexOf(a) > monthNames.indexOf(b) ? a : b;
+    });
+
+    const latestMonthIdx = monthNames.indexOf(latestMonth);
+
+    // Now find the year from nearby date rows (next 1-3 lines)
+    // Look for DD-MM-YYYY patterns and find one matching the latest month
+    let year: string | null = null;
+    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+      const dateMatches = lines[j].match(/(\d{2})-(\d{2})-(\d{4})/g);
+      if (!dateMatches) continue;
+
+      for (const dm of dateMatches) {
+        const parts = dm.match(/(\d{2})-(\d{2})-(\d{4})/);
+        if (parts) {
+          const monthNum = parseInt(parts[2], 10);
+          // Match end-of-month date row for the latest month column
+          if (monthNum === latestMonthIdx + 1) {
+            year = parts[3];
+            break;
+          }
+        }
+      }
+      if (year) break;
+    }
+
+    if (year) {
+      const monthKey = String(latestMonthIdx + 1).padStart(2, "0");
+      const monthLabel = DANISH_MONTHS[monthKey];
+      if (monthLabel) {
+        console.log(`[extractPeriodFromText] Multi-period columns detected: ${foundMonths.join(", ")} + År til dato → selected "${monthLabel} ${year}"`);
+        return `${monthLabel} ${year}`;
+      }
+    }
   }
 
   return null;
