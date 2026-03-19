@@ -45,3 +45,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.generate-financial-commentary]
     verify_jwt = false
+  [functions.process-email-queue]
+    verify_jwt = true
