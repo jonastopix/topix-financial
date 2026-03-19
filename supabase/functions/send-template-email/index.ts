@@ -4,8 +4,28 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const SENDER = 'The Boardroom <noreply@mail.topix.dk>';
-const SENDER_DOMAIN = 'mail.topix.dk';
+const SENDER_DOMAIN = 'mail.topix.dk'
+const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`
+const SENDER = `The Boardroom <${VERIFIED_FROM_EMAIL}>`
+
+function resolveSenderFromTemplate(
+  senderName: string | null | undefined,
+  senderEmail: string | null | undefined
+): string {
+  const safeName = (senderName ?? 'The Boardroom').trim() || 'The Boardroom'
+  const normalizedEmail = (senderEmail ?? VERIFIED_FROM_EMAIL).trim().toLowerCase()
+  const emailDomain = normalizedEmail.split('@')[1] ?? ''
+
+  if (emailDomain !== SENDER_DOMAIN) {
+    console.warn('[send-template-email] Overriding sender_email to verified domain', {
+      configured_sender_email: senderEmail,
+      enforced_domain: SENDER_DOMAIN,
+    })
+    return `${safeName} <${VERIFIED_FROM_EMAIL}>`
+  }
+
+  return `${safeName} <${normalizedEmail}>`
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -105,10 +125,10 @@ Deno.serve(async (req) => {
     }
 
     const finalSubject = `[TEST] ${subject}`
-    const senderFrom = `${template.sender_name} <${template.sender_email}>`;
+    const senderFrom = resolveSenderFromTemplate(template.sender_name, template.sender_email)
 
     // Enqueue email via Lovable Email queue
-    const messageId = crypto.randomUUID();
+    const messageId = crypto.randomUUID()
 
     // Log pending
     await adminSupabase.from('email_send_log').insert({
@@ -116,7 +136,7 @@ Deno.serve(async (req) => {
       template_name: template.name || 'template-test',
       recipient_email: test_email,
       status: 'pending',
-    });
+    })
 
     const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
       queue_name: 'transactional_emails',
@@ -132,18 +152,18 @@ Deno.serve(async (req) => {
         label: 'template-test',
         queued_at: new Date().toISOString(),
       },
-    });
+    })
 
     if (enqueueError) {
-      console.error('[send-template-email] Enqueue failed:', enqueueError);
+      console.error('[send-template-email] Enqueue failed:', enqueueError)
       await adminSupabase.from('email_send_log').insert({
         message_id: messageId,
         template_name: template.name || 'template-test',
         recipient_email: test_email,
         status: 'failed',
         error_message: 'Failed to enqueue email',
-      });
-      throw new Error(`Failed to enqueue: ${JSON.stringify(enqueueError)}`);
+      })
+      throw new Error(`Failed to enqueue: ${JSON.stringify(enqueueError)}`)
     }
 
     console.log(`[send-template-email] Test enqueued to ${test_email} (template: ${template.name})`)

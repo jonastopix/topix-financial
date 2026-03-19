@@ -6,6 +6,7 @@ const corsHeaders = {
 
 const SENDER = 'The Boardroom <noreply@mail.topix.dk>';
 const SENDER_DOMAIN = 'mail.topix.dk';
+const VERIFIED_FROM_EMAIL = 'noreply@mail.topix.dk';
 
 // Hardcoded fallback if no template exists in DB
 const FALLBACK_SUBJECT = 'Du er inviteret til {{company_name}} på The Boardroom';
@@ -20,6 +21,25 @@ function replaceVars(text: string, vars: Record<string, string>): string {
     }
   }
   return result;
+}
+
+function resolveSenderFromTemplate(
+  senderName: string | null | undefined,
+  senderEmail: string | null | undefined
+): string {
+  const safeName = (senderName ?? 'The Boardroom').trim() || 'The Boardroom';
+  const normalizedEmail = (senderEmail ?? VERIFIED_FROM_EMAIL).trim().toLowerCase();
+  const emailDomain = normalizedEmail.split('@')[1] ?? '';
+
+  if (emailDomain !== SENDER_DOMAIN) {
+    console.warn('[send-invitation-email] Overriding sender_email to verified domain', {
+      configured_sender_email: senderEmail,
+      enforced_domain: SENDER_DOMAIN,
+    });
+    return `${safeName} <${VERIFIED_FROM_EMAIL}>`;
+  }
+
+  return `${safeName} <${normalizedEmail}>`;
 }
 
 Deno.serve(async (req) => {
@@ -84,7 +104,7 @@ Deno.serve(async (req) => {
     if (tpl && tpl.enabled) {
       subjectTpl = tpl.subject;
       bodyTpl = tpl.body_html;
-      senderFrom = `${tpl.sender_name} <${tpl.sender_email}>`;
+      senderFrom = resolveSenderFromTemplate(tpl.sender_name, tpl.sender_email);
       console.log('[send-invitation-email] Using DB template');
     } else {
       console.log('[send-invitation-email] Using fallback template');
