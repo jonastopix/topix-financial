@@ -242,9 +242,13 @@ Deno.serve(async (req) => {
       }
 
       try {
+        // Auth emails carry a run_id from the webhook; transactional emails don't.
+        // Generate one when missing so the Email API accepts the request.
+        const runId = payload.run_id || crypto.randomUUID()
+
         await sendLovableEmail(
           {
-            run_id: payload.run_id,
+            run_id: runId,
             to: payload.to,
             from: payload.from,
             sender_domain: payload.sender_domain,
