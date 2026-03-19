@@ -13,7 +13,10 @@ import topixIconWhite from "@/assets/topix-icon-white.png";
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get("invite") || "";
-  const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
+  const modeParam = searchParams.get("mode");
+  // Signup is only allowed with an invite token OR explicit mode=signup (advisor invitations)
+  const hasInvitation = !!inviteToken || modeParam === "signup";
+  const [isLogin, setIsLogin] = useState(!hasInvitation);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -348,13 +351,19 @@ const Auth = () => {
           </button>
 
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setSignupResult(null); }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {isLogin ? "Har du ikke en konto? Opret" : "Har du allerede en konto? Log ind"}
-            </button>
+            {hasInvitation ? (
+              <button
+                type="button"
+                onClick={() => { setIsLogin(!isLogin); setSignupResult(null); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isLogin ? "Har du ikke en konto? Opret" : "Har du allerede en konto? Log ind"}
+              </button>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Kun adgang via invitation
+              </span>
+            )}
 
             {isLogin && (
               <button
