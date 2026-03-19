@@ -1341,9 +1341,16 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       }
 
       // Determine final DB status based on validation
-      // - PASS -> processed
-      // - FAIL/UNSURE -> error
-      const dbStatus = finalStatus === "PASS" ? "processed" : "error";
+      // V1: PASS -> processed, FAIL/UNSURE -> error
+      // V2 cohort: readable financial docs always 'processed', validation is advisory only
+      let dbStatus: string;
+      if (isV2Cohort) {
+        // V2 cohort: readable financial docs get 'processed' regardless of validation
+        dbStatus = "processed";
+        console.log(`[V2Rollout] V2 cohort → status=processed (validation=${finalStatus} is advisory)`);
+      } else {
+        dbStatus = finalStatus === "PASS" ? "processed" : "error";
+      }
 
       // Prepare DB update — map canonical field names to DB columns for semantic path
       const dbReportType = isSemanticCanonical
