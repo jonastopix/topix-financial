@@ -201,6 +201,122 @@ function extractBodyContent(fullHtml: string): string {
   return inner;
 }
 
+// ---------- Template list with inline preview ----------
+
+function TemplateList({
+  templates,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onToggle,
+}: {
+  templates: EmailTemplate[];
+  onEdit: (t: EmailTemplate) => void;
+  onDuplicate: (t: EmailTemplate) => void;
+  onDelete: (id: string) => void;
+  onToggle: (id: string, enabled: boolean) => void;
+}) {
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-3">
+      {templates.map((t) => {
+        const trigger = TRIGGER_LABELS[t.trigger_type] || TRIGGER_LABELS.manual;
+        const TriggerIcon = trigger.icon;
+        const isOpen = previewId === t.id;
+        const previewHtml = replaceVariables(
+          t.body_html || wrapInEmailShell("<p style='color:#999;text-align:center'>Ingen indhold i skabelonen</p>"),
+          t.variables,
+        );
+
+        return (
+          <Card key={t.id} className="group">
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-medium text-foreground truncate">{t.name}</h3>
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    <TriggerIcon className="h-3 w-3 mr-1" />
+                    {trigger.label}
+                  </Badge>
+                  {t.trigger_type === "cron" && (
+                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                      {cronToDescription(t.trigger_config)}
+                    </span>
+                  )}
+                  {!t.enabled && (
+                    <Badge variant="secondary" className="text-xs">Inaktiv</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground truncate mt-0.5">{t.subject}</p>
+              </div>
+              <Button
+                variant={isOpen ? "default" : "ghost"}
+                size="icon"
+                onClick={() => setPreviewId(isOpen ? null : t.id)}
+                title="Preview"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Switch checked={t.enabled} onCheckedChange={(v) => onToggle(t.id, v)} />
+              <Button variant="ghost" size="icon" onClick={() => onEdit(t)} title="Rediger">
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => onDuplicate(t)} title="Duplikér">
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => onDelete(t.id)}
+                title="Slet"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </CardContent>
+            {isOpen && (
+              <div className="border-t bg-muted/30 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email preview</span>
+                  <span className="text-xs text-muted-foreground ml-auto">Variable erstattet med eksempelværdier</span>
+                </div>
+                <div className="bg-background rounded-lg border shadow-sm overflow-hidden">
+                  <div className="border-b px-4 py-2.5 flex items-center gap-3 bg-muted/50">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {replaceVariables(t.subject, t.variables)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Fra: {t.sender_name} &lt;{t.sender_email}&gt;
+                      </p>
+                    </div>
+                  </div>
+                  <iframe
+                    srcDoc={previewHtml}
+                    className="w-full border-0"
+                    style={{ minHeight: 320 }}
+                    title={`Preview: ${t.name}`}
+                    sandbox=""
+                    onLoad={(e) => {
+                      const frame = e.target as HTMLIFrameElement;
+                      if (frame.contentDocument?.body) {
+                        frame.style.height = `${Math.min(frame.contentDocument.body.scrollHeight + 32, 600)}px`;
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EmailTemplates() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
