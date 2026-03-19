@@ -25,6 +25,8 @@ interface AuthContext {
   groupName: string | null;
   isGroupUser: boolean;
   isGroupFeatureEnabled: boolean;
+  /** True when user is the owner of their group (groups.owner_user_id) */
+  isGroupOwner: boolean;
   /** Welcome banner dismissal timestamp from group_memberships */
   welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
@@ -51,6 +53,7 @@ const AuthContext = createContext<AuthContext>({
   groupName: null,
   isGroupUser: false,
   isGroupFeatureEnabled: false,
+  isGroupOwner: false,
   welcomeDismissedAt: null,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
@@ -90,6 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [isGroupFeatureEnabled, setIsGroupFeatureEnabled] = useState(false);
+  const [isGroupOwner, setIsGroupOwner] = useState(false);
   const [welcomeDismissedAt, setWelcomeDismissedAt] = useState<string | null>(null);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
@@ -166,9 +170,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setGroupId(gm.group_id);
       setGroupName(gm.groups?.name || null);
       setWelcomeDismissedAt(gm.welcome_dismissed_at || null);
+
+      // Check if user is group owner (groups.owner_user_id)
+      const { data: groupRow } = await supabase
+        .from("groups")
+        .select("owner_user_id")
+        .eq("id", gm.group_id)
+        .maybeSingle();
+      setIsGroupOwner(groupRow?.owner_user_id === userId);
     } else {
       setGroupId(null);
       setGroupName(null);
+      setIsGroupOwner(false);
       setWelcomeDismissedAt(null);
     }
     setIsGroupFeatureEnabled(!!(groupFeatureFlagRes.data as any)?.enabled);
@@ -241,6 +254,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setGroupId(null);
           setGroupName(null);
           setIsGroupFeatureEnabled(false);
+          setIsGroupOwner(false);
           setWelcomeDismissedAt(null);
           setLoading(false);
         }
@@ -273,6 +287,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       groupId, groupName,
       isGroupUser: groupId != null,
       isGroupFeatureEnabled,
+      isGroupOwner,
       welcomeDismissedAt,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       refreshProfile, signOut,
