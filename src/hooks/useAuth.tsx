@@ -25,6 +25,8 @@ interface AuthContext {
   groupName: string | null;
   isGroupUser: boolean;
   isGroupFeatureEnabled: boolean;
+  /** True when user is the owner of their group (groups.owner_user_id) */
+  isGroupOwner: boolean;
   /** Welcome banner dismissal timestamp from group_memberships */
   welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
