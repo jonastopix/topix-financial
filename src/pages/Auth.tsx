@@ -351,13 +351,19 @@ const Auth = () => {
           </button>
 
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setSignupResult(null); }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {isLogin ? "Har du ikke en konto? Opret" : "Har du allerede en konto? Log ind"}
-            </button>
+            {hasInvitation ? (
+              <button
+                type="button"
+                onClick={() => { setIsLogin(!isLogin); setSignupResult(null); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isLogin ? "Har du ikke en konto? Opret" : "Har du allerede en konto? Log ind"}
+              </button>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Kun adgang via invitation
+              </span>
+            )}
 
             {isLogin && (
               <button
