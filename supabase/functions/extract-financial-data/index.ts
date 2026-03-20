@@ -190,6 +190,75 @@ export function requiresStructuralPdfPayload(
   return false;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE A1: V2 PERSIST HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build the DB update payload for early-exit paths (known-source failures).
+ * V2 cohort: readable financial doc → processed/v2/quality_signals.
+ * V1: existing error behavior.
+ */
+function getEarlyExitPersistPayload(
+  isV2Cohort: boolean,
+  extractionMethod: string,
+  routingBranch: string,
+  errors: string[],
+  routingTrace: Record<string, any>,
+): Record<string, any> {
+  const base = {
+    extraction_method: extractionMethod,
+    raw_extracted_data: { routing_trace: routingTrace },
+    processed_at: new Date().toISOString(),
+  };
+
+  if (isV2Cohort) {
+    return {
+      ...base,
+      status: "processed",
+      extraction_contract_version: "v2",
+      validation_status: "FAIL",
+      validation_errors: errors,
+      quality_signals: {
+        validation_status: "FAIL",
+        validation_errors: errors,
+        canonical_checks: [],
+        ai_eligible: false,
+        has_metrics: false,
+        has_period: false,
+        extraction_method: extractionMethod,
+        routing_branch: routingBranch,
+      },
+    };
+  } else {
+    return {
+      ...base,
+      status: "error",
+      validation_status: "FAIL",
+      validation_errors: errors,
+    };
+  }
+}
+
+/**
+ * Determine if a document is a readable financial document.
+ * Known sources are always financial. Unknown sources are financial only
+ * if extraction produced meaningful key_figures (at least 2 non-zero metrics).
+ */
+function isReadableFinancialDoc(
+  sourceFingerprint: SourceFingerprint | null,
+  extractedData: any,
+): boolean {
+  if (sourceFingerprint && sourceFingerprint.source_system !== "unknown") {
+    return true;
+  }
+  if (!extractedData) return false;
+  const kf = extractedData.key_figures || extractedData.metrics;
+  if (!kf || typeof kf !== "object") return false;
+  const numericValues = Object.values(kf).filter((v) => typeof v === "number" && v !== 0);
+  return numericValues.length >= 2;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
