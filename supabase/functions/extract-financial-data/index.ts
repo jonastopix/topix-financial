@@ -243,12 +243,18 @@ function getEarlyExitPersistPayload(
 /**
  * Determine if a document is a readable financial document.
  * Known sources are always financial. Unknown sources are financial only
- * if extraction produced meaningful key_figures (at least 2 non-zero metrics).
+ * if extraction produced meaningful key_figures.
+ * Known sources: always readable.
+ * Unknown sources via AI fallback: require ≥4 non-zero metrics AND
+ * at least one anchor metric (revenue, gross_profit, ebt) to prevent
+ * AI-hallucinated metrics from classifying non-financial docs as financial.
  */
 function isReadableFinancialDoc(
   sourceFingerprint: SourceFingerprint | null,
   extractedData: any,
+  extractionMethod?: string,
 ): boolean {
+  // Known source system → always trust
   if (sourceFingerprint && sourceFingerprint.source_system !== "unknown") {
     return true;
   }
@@ -256,6 +262,25 @@ function isReadableFinancialDoc(
   const kf = extractedData.key_figures || extractedData.metrics;
   if (!kf || typeof kf !== "object") return false;
   const numericValues = Object.values(kf).filter((v) => typeof v === "number" && v !== 0);
+  const keys = Object.keys(kf);
+
+  // Anchor metrics that a real financial document should contain
+  const ANCHOR_KEYS = ["revenue", "omsaetning", "gross_profit", "bruttofortjeneste", "daekningsbidrag", "ebt", "resultat_foer_skat"];
+  const hasAnchorMetric = keys.some(
+    (k) => ANCHOR_KEYS.includes(k) && typeof kf[k] === "number" && kf[k] !== 0
+  );
+
+  // For AI fallback on unknown sources: strict threshold
+  if (!sourceFingerprint || sourceFingerprint.source_system === "unknown") {
+    const requiredCount = 4;
+    if (numericValues.length < requiredCount || !hasAnchorMetric) {
+      console.log(`[isReadableFinancialDoc] Unknown source rejected: ${numericValues.length} non-zero metrics (need ${requiredCount}), hasAnchor=${hasAnchorMetric}, method=${extractionMethod}`);
+      return false;
+    }
+    return true;
+  }
+
+  // Fallback for any other case
   return numericValues.length >= 2;
 }
 
@@ -1366,7 +1391,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // V1: PASS -> processed, FAIL/UNSURE -> error
       // V2 cohort: readable financial docs always 'processed', validation is advisory only
       // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
-      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData);
+      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod);
       let dbStatus: string;
       if (isV2Persist) {
         // V2 cohort + readable financial doc → processed regardless of validation
