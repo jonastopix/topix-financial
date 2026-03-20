@@ -97,27 +97,31 @@ async function runPostExtractionPipeline(params: {
 
   // RP-2: No auto-AI generation on upload. Commentary is now a separate explicit action
   // after facts are committed.
-  // Re-read the report status set by the edge function — do NOT blindly overwrite to "processed".
-  // The edge function may have set status to "error" (e.g. non-financial doc in V2 cohort).
-  const { data: currentReport } = await supabase
-    .from("financial_reports")
-    .select("status")
-    .eq("id", reportId)
-    .single();
-
-  const edgeFunctionStatus = currentReport?.status;
-
-  // Only set to "processed" if the edge function left it as "processing" (normal V1 flow)
-  // If edge function already set a final status (processed/error), respect it.
-  if (edgeFunctionStatus === "processing") {
-    await supabase
+  // Re-read the report status set by the edge function.
+  // CRITICAL A1 rule: frontend must NEVER overwrite DB status.
+  const readReportStatus = async () => {
+    const { data } = await supabase
       .from("financial_reports")
-      .update({ status: "processed" } as any)
-      .eq("id", reportId);
+      .select("status")
+      .eq("id", reportId)
+      .single();
+    return data?.status as string | undefined;
+  };
+
+  let edgeFunctionStatus = await readReportStatus();
+
+  // Handle tiny replication lag/race windows by retrying reads only.
+  // Never write a fallback status from frontend.
+  if (edgeFunctionStatus === "processing") {
+    for (let i = 0; i < 4 && edgeFunctionStatus === "processing"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      edgeFunctionStatus = await readReportStatus();
+    }
   }
 
   const isError = edgeFunctionStatus === "error";
-  updateFile(fileId, { status: isError ? "error" : "done", milestonesCreated: 0, errorMessage: isError ? "Dokumentet kunne ikke genkendes som en finansiel rapport" : undefined });
+  const uiStatus = isError ? "error" : edgeFunctionStatus === "processed" ? "done" : "processing";
+  updateFile(fileId, { status: uiStatus, milestonesCreated: 0, errorMessage: isError ? "Dokumentet kunne ikke genkendes som en finansiel rapport" : undefined });
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
