@@ -1296,11 +1296,17 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // Determine final DB status based on validation
       // V1: PASS -> processed, FAIL/UNSURE -> error
       // V2 cohort: readable financial docs always 'processed', validation is advisory only
+      // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
+      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData);
       let dbStatus: string;
-      if (isV2Cohort) {
-        // V2 cohort: readable financial docs get 'processed' regardless of validation
+      if (isV2Persist) {
+        // V2 cohort + readable financial doc → processed regardless of validation
         dbStatus = "processed";
-        console.log(`[V2Rollout] V2 cohort → status=processed (validation=${finalStatus} is advisory)`);
+        console.log(`[V2Rollout] V2 cohort + readable financial → status=processed (validation=${finalStatus} is advisory)`);
+      } else if (isV2Cohort) {
+        // V2 cohort but NOT a readable financial doc → error + v1
+        dbStatus = finalStatus === "PASS" ? "processed" : "error";
+        console.log(`[V2Rollout] V2 cohort but non-financial doc → status=${dbStatus}, forcing v1`);
       } else {
         dbStatus = finalStatus === "PASS" ? "processed" : "error";
       }
