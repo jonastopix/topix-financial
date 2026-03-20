@@ -491,16 +491,10 @@ serve(async (req) => {
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + invalid structural payload`);
 
             if (reportId) {
+              const earlyExitErrors = [`Structural payload validation failed for known source ${sourceFingerprint!.source_system}: ${validationResult.errors.join("; ")}`];
               await supabase
                 .from("financial_reports")
-                .update({
-                  status: "error",
-                  extraction_method: "structural_parse_fail",
-                  validation_status: "FAIL",
-                  validation_errors: [`Structural payload validation failed for known source ${sourceFingerprint!.source_system}: ${validationResult.errors.join("; ")}`],
-                  raw_extracted_data: { routing_trace: routingTrace },
-                  processed_at: new Date().toISOString(),
-                })
+                .update(getEarlyExitPersistPayload(isV2Cohort, "structural_parse_fail", "structural_parse_fail_validation", earlyExitErrors, routingTrace))
                 .eq("id", reportId);
             }
 
