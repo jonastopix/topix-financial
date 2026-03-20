@@ -692,16 +692,10 @@ serve(async (req) => {
           console.error(`[Routing] HARD FAIL: Structural-required PDF family (${sourceFingerprint!.source_system}/${sourceFingerprint!.document_type}) requires structural payload but none was provided`);
 
           if (reportId) {
+            const earlyExitErrors = [`Known PDF source ${sourceFingerprint!.source_system} requires structural payload — client-side extraction failed or was not sent`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: "structural_payload_missing",
-                validation_status: "FAIL",
-                validation_errors: [`Known PDF source ${sourceFingerprint!.source_system} requires structural payload — client-side extraction failed or was not sent`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, "structural_payload_missing", "structural_payload_missing", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
