@@ -250,6 +250,38 @@ export default function ReportReviewDialog({
     }
   };
 
+  // Handle replace: soft-delete old report owner, then commit this one
+  const handleReplace = async () => {
+    if (!preview?.existing_owner_id) return;
+    setReplacing(true);
+    try {
+      // Soft-delete the old report that owns this period
+      const { error: delErr } = await (supabase
+        .from("financial_reports")
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq("id", preview.existing_owner_id) as any);
+      if (delErr) throw delErr;
+
+      // Now commit the new report
+      const { error: commitError } = await supabase.rpc("commit_report_facts", {
+        p_report_id: reportId,
+      });
+      if (commitError) throw commitError;
+
+      toast({ title: "Data erstattet", description: `Gammel rapport arkiveret og nye data godkendt for ${preview?.period_label || ""}.` });
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Fejl ved erstatning", description: err.message || "Ukendt fejl", variant: "destructive" });
+    } finally {
+      setReplacing(false);
+    }
+  };
+
   const isBlocked = preview && !preview.can_commit && preview.ownership_state === "other_report";
 
   return (
