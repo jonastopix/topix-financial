@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X, AlertTriangle, Info } from "lucide-react";
 import { formatDKK } from "@/lib/financialUtils";
 import OverrideFormFields from "@/components/OverrideFormFields";
 import {
