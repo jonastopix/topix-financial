@@ -253,34 +253,30 @@ function isReadableFinancialDoc(
   sourceFingerprint: SourceFingerprint | null,
   extractedData: any,
   extractionMethod?: string,
+  validationStatus?: string,
 ): boolean {
-  // Known source system → always trust
+  // Known source system → always trust (validation is advisory for known sources)
   if (sourceFingerprint && sourceFingerprint.source_system !== "unknown") {
     return true;
   }
   if (!extractedData) return false;
-  const kf = extractedData.key_figures || extractedData.metrics;
-  if (!kf || typeof kf !== "object") return false;
-  const numericValues = Object.values(kf).filter((v) => typeof v === "number" && v !== 0);
-  const keys = Object.keys(kf);
 
-  // Anchor metrics that a real financial document should contain
-  const ANCHOR_KEYS = ["revenue", "omsaetning", "gross_profit", "bruttofortjeneste", "daekningsbidrag", "ebt", "resultat_foer_skat"];
-  const hasAnchorMetric = keys.some(
-    (k) => ANCHOR_KEYS.includes(k) && typeof kf[k] === "number" && kf[k] !== 0
-  );
-
-  // For AI fallback on unknown sources: strict threshold
+  // For unknown sources with AI fallback: validation MUST pass.
+  // AI can hallucinate plausible-looking metrics from non-financial documents,
+  // so metric-count thresholds alone are insufficient. Only trust AI output
+  // when the canonical validation pipeline independently confirms the data.
   if (!sourceFingerprint || sourceFingerprint.source_system === "unknown") {
-    const requiredCount = 4;
-    if (numericValues.length < requiredCount || !hasAnchorMetric) {
-      console.log(`[isReadableFinancialDoc] Unknown source rejected: ${numericValues.length} non-zero metrics (need ${requiredCount}), hasAnchor=${hasAnchorMetric}, method=${extractionMethod}`);
+    if (validationStatus !== "PASS") {
+      console.log(`[isReadableFinancialDoc] Unknown source + validation=${validationStatus} → rejected (AI hallucination guard)`);
       return false;
     }
     return true;
   }
 
   // Fallback for any other case
+  const kf = extractedData.key_figures || extractedData.metrics;
+  if (!kf || typeof kf !== "object") return false;
+  const numericValues = Object.values(kf).filter((v) => typeof v === "number" && v !== 0);
   return numericValues.length >= 2;
 }
 
@@ -1391,7 +1387,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // V1: PASS -> processed, FAIL/UNSURE -> error
       // V2 cohort: readable financial docs always 'processed', validation is advisory only
       // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
-      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod);
+      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod, finalStatus);
       let dbStatus: string;
       if (isV2Persist) {
         // V2 cohort + readable financial doc → processed regardless of validation
