@@ -1387,7 +1387,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // V1: PASS -> processed, FAIL/UNSURE -> error
       // V2 cohort: readable financial docs always 'processed', validation is advisory only
       // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
-      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod);
+      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod, finalStatus);
       let dbStatus: string;
       if (isV2Persist) {
         // V2 cohort + readable financial doc → processed regardless of validation
