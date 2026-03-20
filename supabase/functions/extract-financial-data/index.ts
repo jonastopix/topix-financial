@@ -190,6 +190,75 @@ export function requiresStructuralPdfPayload(
   return false;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE A1: V2 PERSIST HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build the DB update payload for early-exit paths (known-source failures).
+ * V2 cohort: readable financial doc → processed/v2/quality_signals.
+ * V1: existing error behavior.
+ */
+function getEarlyExitPersistPayload(
+  isV2Cohort: boolean,
+  extractionMethod: string,
+  routingBranch: string,
+  errors: string[],
+  routingTrace: Record<string, any>,
+): Record<string, any> {
+  const base = {
+    extraction_method: extractionMethod,
+    raw_extracted_data: { routing_trace: routingTrace },
+    processed_at: new Date().toISOString(),
+  };
+
+  if (isV2Cohort) {
+    return {
+      ...base,
+      status: "processed",
+      extraction_contract_version: "v2",
+      validation_status: "FAIL",
+      validation_errors: errors,
+      quality_signals: {
+        validation_status: "FAIL",
+        validation_errors: errors,
+        canonical_checks: [],
+        ai_eligible: false,
+        has_metrics: false,
+        has_period: false,
+        extraction_method: extractionMethod,
+        routing_branch: routingBranch,
+      },
+    };
+  } else {
+    return {
+      ...base,
+      status: "error",
+      validation_status: "FAIL",
+      validation_errors: errors,
+    };
+  }
+}
+
+/**
+ * Determine if a document is a readable financial document.
+ * Known sources are always financial. Unknown sources are financial only
+ * if extraction produced meaningful key_figures (at least 2 non-zero metrics).
+ */
+function isReadableFinancialDoc(
+  sourceFingerprint: SourceFingerprint | null,
+  extractedData: any,
+): boolean {
+  if (sourceFingerprint && sourceFingerprint.source_system !== "unknown") {
+    return true;
+  }
+  if (!extractedData) return false;
+  const kf = extractedData.key_figures || extractedData.metrics;
+  if (!kf || typeof kf !== "object") return false;
+  const numericValues = Object.values(kf).filter((v) => typeof v === "number" && v !== 0);
+  return numericValues.length >= 2;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -439,16 +508,10 @@ serve(async (req) => {
           console.error(`[Routing] Semantic XLSX HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`);
 
           if (reportId) {
+            const earlyExitErrors = [`Semantic XLSX extraction failed for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: "semantic_xlsx_fail",
-                validation_status: "FAIL",
-                validation_errors: [`Semantic XLSX extraction failed for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, "semantic_xlsx_fail", "semantic_xlsx_hard_fail", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
@@ -497,16 +560,10 @@ serve(async (req) => {
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + invalid structural payload`);
 
             if (reportId) {
+              const earlyExitErrors = [`Structural payload validation failed for known source ${sourceFingerprint!.source_system}: ${validationResult.errors.join("; ")}`];
               await supabase
                 .from("financial_reports")
-                .update({
-                  status: "error",
-                  extraction_method: "structural_parse_fail",
-                  validation_status: "FAIL",
-                  validation_errors: [`Structural payload validation failed for known source ${sourceFingerprint!.source_system}: ${validationResult.errors.join("; ")}`],
-                  raw_extracted_data: { routing_trace: routingTrace },
-                  processed_at: new Date().toISOString(),
-                })
+                .update(getEarlyExitPersistPayload(isV2Cohort, "structural_parse_fail", "structural_parse_fail_validation", earlyExitErrors, routingTrace))
                 .eq("id", reportId);
             }
 
@@ -584,16 +641,10 @@ serve(async (req) => {
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + hash verification failed`);
 
             if (reportId) {
+              const earlyExitErrors = [`Structural payload hash verification failed for known source ${sourceFingerprint!.source_system}: ${hashError || "unknown"}`];
               await supabase
                 .from("financial_reports")
-                .update({
-                  status: "error",
-                  extraction_method: "structural_parse_fail",
-                  validation_status: "FAIL",
-                  validation_errors: [`Structural payload hash verification failed for known source ${sourceFingerprint!.source_system}: ${hashError || "unknown"}`],
-                  raw_extracted_data: { routing_trace: routingTrace },
-                  processed_at: new Date().toISOString(),
-                })
+                .update(getEarlyExitPersistPayload(isV2Cohort, "structural_parse_fail", "structural_parse_fail_hash", earlyExitErrors, routingTrace))
                 .eq("id", reportId);
             }
 
@@ -671,16 +722,10 @@ serve(async (req) => {
             // For structural-required families: this is a hard fail — no text fallback
             if (structuralRequired) {
               if (reportId) {
+                const earlyExitErrors = [`Structural semantic extraction failed for ${structResult.template_id}: ${structResult.error}`];
                 await supabase
                   .from("financial_reports")
-                  .update({
-                    status: "error",
-                    extraction_method: "structural_semantic_fail",
-                    validation_status: "FAIL",
-                    validation_errors: [`Structural semantic extraction failed for ${structResult.template_id}: ${structResult.error}`],
-                    raw_extracted_data: { routing_trace: routingTrace },
-                    processed_at: new Date().toISOString(),
-                  })
+                  .update(getEarlyExitPersistPayload(isV2Cohort, "structural_semantic_fail", "structural_semantic_fail", earlyExitErrors, routingTrace))
                   .eq("id", reportId);
               }
 
@@ -716,16 +761,10 @@ serve(async (req) => {
           console.error(`[Routing] HARD FAIL: Structural-required PDF family (${sourceFingerprint!.source_system}/${sourceFingerprint!.document_type}) requires structural payload but none was provided`);
 
           if (reportId) {
+            const earlyExitErrors = [`Known PDF source ${sourceFingerprint!.source_system} requires structural payload — client-side extraction failed or was not sent`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: "structural_payload_missing",
-                validation_status: "FAIL",
-                validation_errors: [`Known PDF source ${sourceFingerprint!.source_system} requires structural payload — client-side extraction failed or was not sent`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, "structural_payload_missing", "structural_payload_missing", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
@@ -778,16 +817,10 @@ serve(async (req) => {
           console.error(`[Routing] Semantic CSV HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`);
 
           if (reportId) {
+            const earlyExitErrors = [`Semantic CSV extraction failed for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: "semantic_csv_fail",
-                validation_status: "FAIL",
-                validation_errors: [`Semantic CSV extraction failed for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, "semantic_csv_fail", "semantic_csv_hard_fail", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
@@ -835,16 +868,10 @@ serve(async (req) => {
           extractionMethod = "deterministic_failed";
 
           if (reportId) {
+            const earlyExitErrors = [`Deterministic parsing failed: ${detResult.error}`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: extractionMethod,
-                validation_status: "FAIL",
-                validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, extractionMethod, "deterministic_structural_fail", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
@@ -866,16 +893,10 @@ serve(async (req) => {
             console.log(`[Routing] Known source ${sourceFingerprint.source_system} but no template matched → FAIL LOUD (AI forbidden)`);
 
             if (reportId) {
+              const earlyExitErrors = [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`];
               await supabase
                 .from("financial_reports")
-                .update({
-                  status: "error",
-                  extraction_method: "known_source_unsupported_variant",
-                  validation_status: "FAIL",
-                  validation_errors: [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`],
-                  raw_extracted_data: { routing_trace: routingTrace },
-                  processed_at: new Date().toISOString(),
-                })
+                .update(getEarlyExitPersistPayload(isV2Cohort, "known_source_unsupported_variant", "known_source_unsupported_variant", earlyExitErrors, routingTrace))
                 .eq("id", reportId);
             }
 
@@ -1344,11 +1365,17 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // Determine final DB status based on validation
       // V1: PASS -> processed, FAIL/UNSURE -> error
       // V2 cohort: readable financial docs always 'processed', validation is advisory only
+      // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
+      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData);
       let dbStatus: string;
-      if (isV2Cohort) {
-        // V2 cohort: readable financial docs get 'processed' regardless of validation
+      if (isV2Persist) {
+        // V2 cohort + readable financial doc → processed regardless of validation
         dbStatus = "processed";
-        console.log(`[V2Rollout] V2 cohort → status=processed (validation=${finalStatus} is advisory)`);
+        console.log(`[V2Rollout] V2 cohort + readable financial → status=processed (validation=${finalStatus} is advisory)`);
+      } else if (isV2Cohort) {
+        // V2 cohort but NOT a readable financial doc → error + v1
+        dbStatus = finalStatus === "PASS" ? "processed" : "error";
+        console.log(`[V2Rollout] V2 cohort but non-financial doc → status=${dbStatus}, forcing v1`);
       } else {
         dbStatus = finalStatus === "PASS" ? "processed" : "error";
       }
@@ -1469,8 +1496,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         // Phase 4: Full canonical output in normalized_data
         normalized_data: canonical,
         // Phase A1: V2 persisted marker + quality signals
-        extraction_contract_version: isV2Cohort ? "v2" : "v1",
-        quality_signals: isV2Cohort ? {
+        // Only use v2 marker for readable financial docs; non-financial stays v1
+        extraction_contract_version: isV2Persist ? "v2" : "v1",
+        quality_signals: isV2Persist ? {
           validation_status: finalStatus,
           validation_errors: allErrors.length > 0 ? allErrors : null,
           canonical_checks: canonical.validation?.canonical_checks ?? [],
