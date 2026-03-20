@@ -56,6 +56,7 @@ interface PreviewData {
   validation_status: string | null;
   metrics_preview: Record<string, number> | null;
   ownership_state: string | null;
+  existing_owner_id: string | null;
   can_commit: boolean;
   state: string;
   state_reason: string | null;
@@ -99,6 +100,7 @@ export default function ReportReviewDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
+  const [replacing, setReplacing] = useState(false);
   const queryClient = useQueryClient();
 
   // Edit mode state
@@ -248,6 +250,38 @@ export default function ReportReviewDialog({
     }
   };
 
+  // Handle replace: soft-delete old report owner, then commit this one
+  const handleReplace = async () => {
+    if (!preview?.existing_owner_id) return;
+    setReplacing(true);
+    try {
+      // Soft-delete the old report that owns this period
+      const { error: delErr } = await (supabase
+        .from("financial_reports")
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq("id", preview.existing_owner_id) as any);
+      if (delErr) throw delErr;
+
+      // Now commit the new report
+      const { error: commitError } = await supabase.rpc("commit_report_facts", {
+        p_report_id: reportId,
+      });
+      if (commitError) throw commitError;
+
+      toast({ title: "Data erstattet", description: `Gammel rapport arkiveret og nye data godkendt for ${preview?.period_label || ""}.` });
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Fejl ved erstatning", description: err.message || "Ukendt fejl", variant: "destructive" });
+    } finally {
+      setReplacing(false);
+    }
+  };
+
   const isBlocked = preview && !preview.can_commit && preview.ownership_state === "other_report";
 
   return (
@@ -325,13 +359,13 @@ export default function ReportReviewDialog({
 
             {/* Ownership state */}
             {preview.ownership_state === "other_report" && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
-                <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-3 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-destructive">Periode ejet af anden rapport</p>
-                  {preview.state_reason && (
-                    <p className="text-xs text-destructive/80 mt-0.5">{preview.state_reason}</p>
-                  )}
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Perioden har allerede godkendte data fra en tidligere rapport</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Du kan erstatte de gamle data med denne rapports data. Den gamle rapport arkiveres.
+                  </p>
                 </div>
               </div>
             )}
@@ -482,13 +516,19 @@ export default function ReportReviewDialog({
           {/* Non-edit mode footer */}
           {!editing && (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing || replacing}>
                 Annuller
               </Button>
               {preview?.can_commit && (
                 <Button onClick={handleCommit} disabled={committing}>
                   {committing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {preview.ownership_state === "same_report" ? "Opdater committed data" : "Godkend data"}
+                </Button>
+              )}
+              {isBlocked && preview?.existing_owner_id && (
+                <Button onClick={handleReplace} disabled={replacing} variant="default">
+                  {replacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Erstat gammel data
                 </Button>
               )}
             </>
