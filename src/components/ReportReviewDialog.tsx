@@ -39,6 +39,12 @@ interface QualitySignal {
   details: string;
 }
 
+interface QualitySignalsPayload {
+  canonical_checks?: QualitySignal[];
+  validation_status?: string;
+  [key: string]: unknown;
+}
+
 interface PreviewData {
   report_id: string;
   eligible: boolean;
@@ -53,7 +59,7 @@ interface PreviewData {
   can_commit: boolean;
   state: string;
   state_reason: string | null;
-  quality_signals: QualitySignal[] | null;
+  quality_signals: QualitySignalsPayload | null;
   extraction_contract_version: string | null;
 }
 
