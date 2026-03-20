@@ -100,6 +100,7 @@ export default function ReportReviewDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
+  const [replacing, setReplacing] = useState(false);
   const queryClient = useQueryClient();
 
   // Edit mode state
