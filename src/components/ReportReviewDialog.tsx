@@ -56,6 +56,7 @@ interface PreviewData {
   validation_status: string | null;
   metrics_preview: Record<string, number> | null;
   ownership_state: string | null;
+  existing_owner_id: string | null;
   can_commit: boolean;
   state: string;
   state_reason: string | null;
