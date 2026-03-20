@@ -359,13 +359,13 @@ export default function ReportReviewDialog({
 
             {/* Ownership state */}
             {preview.ownership_state === "other_report" && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
-                <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-3 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-destructive">Periode ejet af anden rapport</p>
-                  {preview.state_reason && (
-                    <p className="text-xs text-destructive/80 mt-0.5">{preview.state_reason}</p>
-                  )}
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Perioden har allerede godkendte data fra en tidligere rapport</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Du kan erstatte de gamle data med denne rapports data. Den gamle rapport arkiveres.
+                  </p>
                 </div>
               </div>
             )}
