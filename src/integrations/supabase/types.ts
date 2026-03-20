@@ -2062,11 +2062,13 @@ export type Database = {
         Returns: {
           can_commit: boolean
           eligible: boolean
+          extraction_contract_version: string
           ownership_state: string
           period_key: string
           report_id: string
           state: string
           state_reason: string
+          validation_status: string
         }[]
       }
       has_role: {
