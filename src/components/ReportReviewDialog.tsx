@@ -516,13 +516,19 @@ export default function ReportReviewDialog({
           {/* Non-edit mode footer */}
           {!editing && (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing || replacing}>
                 Annuller
               </Button>
               {preview?.can_commit && (
                 <Button onClick={handleCommit} disabled={committing}>
                   {committing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {preview.ownership_state === "same_report" ? "Opdater committed data" : "Godkend data"}
+                </Button>
+              )}
+              {isBlocked && preview?.existing_owner_id && (
+                <Button onClick={handleReplace} disabled={replacing} variant="default">
+                  {replacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Erstat gammel data
                 </Button>
               )}
             </>
