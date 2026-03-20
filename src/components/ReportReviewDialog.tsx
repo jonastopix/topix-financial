@@ -33,6 +33,12 @@ interface ReportReviewDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface QualitySignal {
+  name: string;
+  result: string; // 'PASS' | 'FAIL' | 'SKIP'
+  details: string;
+}
+
 interface PreviewData {
   report_id: string;
   eligible: boolean;
@@ -47,6 +53,8 @@ interface PreviewData {
   can_commit: boolean;
   state: string;
   state_reason: string | null;
+  quality_signals: QualitySignal[] | null;
+  extraction_contract_version: string | null;
 }
 
 // Canonical EN → Danish display labels (for read-only preview)
