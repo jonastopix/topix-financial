@@ -96,23 +96,46 @@ async function runPostExtractionPipeline(params: {
   const { extractedData, reportId, userId, companyId, companyName, fileId, updateFile, queryClient, toastFn, onPipelineComplete } = params;
 
   // RP-2: No auto-AI generation on upload. Commentary is now a separate explicit action
-  // after facts are committed. Just mark the report as processed.
-  await supabase
+  // after facts are committed.
+  // Re-read the report status set by the edge function — do NOT blindly overwrite to "processed".
+  // The edge function may have set status to "error" (e.g. non-financial doc in V2 cohort).
+  const { data: currentReport } = await supabase
     .from("financial_reports")
-    .update({ status: "processed" } as any)
-    .eq("id", reportId);
+    .select("status")
+    .eq("id", reportId)
+    .single();
 
-  updateFile(fileId, { status: "done", milestonesCreated: 0 });
+  const edgeFunctionStatus = currentReport?.status;
+
+  // Only set to "processed" if the edge function left it as "processing" (normal V1 flow)
+  // If edge function already set a final status (processed/error), respect it.
+  if (edgeFunctionStatus === "processing") {
+    await supabase
+      .from("financial_reports")
+      .update({ status: "processed" } as any)
+      .eq("id", reportId);
+  }
+
+  const isError = edgeFunctionStatus === "error";
+  updateFile(fileId, { status: isError ? "error" : "done", milestonesCreated: 0, errorMessage: isError ? "Dokumentet kunne ikke genkendes som en finansiel rapport" : undefined });
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
   queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
   onPipelineComplete?.(reportId);
 
-  toastFn({
-    title: "Rapport behandlet",
-    description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} · Klar til gennemgang`,
-  });
+  if (isError) {
+    toastFn({
+      title: "Dokument afvist",
+      description: "Filen blev ikke genkendt som en finansiel rapport.",
+      variant: "destructive",
+    });
+  } else {
+    toastFn({
+      title: "Rapport behandlet",
+      description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} · Klar til gennemgang`,
+    });
+  }
 }
 
 interface UploadedFile {
