@@ -572,16 +572,10 @@ serve(async (req) => {
             console.error(`[PdfStructural] HARD FAIL: known source ${sourceFingerprint!.source_system} + hash verification failed`);
 
             if (reportId) {
+              const earlyExitErrors = [`Structural payload hash verification failed for known source ${sourceFingerprint!.source_system}: ${hashError || "unknown"}`];
               await supabase
                 .from("financial_reports")
-                .update({
-                  status: "error",
-                  extraction_method: "structural_parse_fail",
-                  validation_status: "FAIL",
-                  validation_errors: [`Structural payload hash verification failed for known source ${sourceFingerprint!.source_system}: ${hashError || "unknown"}`],
-                  raw_extracted_data: { routing_trace: routingTrace },
-                  processed_at: new Date().toISOString(),
-                })
+                .update(getEarlyExitPersistPayload(isV2Cohort, "structural_parse_fail", "structural_parse_fail_hash", earlyExitErrors, routingTrace))
                 .eq("id", reportId);
             }
 
