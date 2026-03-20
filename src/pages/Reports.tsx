@@ -730,10 +730,15 @@ const Reports = () => {
                       {(() => {
                         const cs = commitStatesQuery.data?.get(report.id);
                         if (cs?.state === "ready") {
+                          const isV2Warning = cs.extraction_contract_version === 'v2' && cs.validation_status && cs.validation_status !== 'PASS';
                           return (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                              <CheckCircle2 className="h-2.5 w-2.5" />
-                              Klar til godkendelse
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${isV2Warning ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' : 'bg-primary/10 text-primary'}`}>
+                              {isV2Warning ? (
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                              ) : (
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                              )}
+                              {isV2Warning ? 'Klar — med advarsler' : 'Klar til godkendelse'}
                             </span>
                           );
                         }
