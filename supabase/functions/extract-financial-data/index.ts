@@ -1427,8 +1427,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         // Phase 4: Full canonical output in normalized_data
         normalized_data: canonical,
         // Phase A1: V2 persisted marker + quality signals
-        extraction_contract_version: isV2Cohort ? "v2" : "v1",
-        quality_signals: isV2Cohort ? {
+        // Only use v2 marker for readable financial docs; non-financial stays v1
+        extraction_contract_version: isV2Persist ? "v2" : "v1",
+        quality_signals: isV2Persist ? {
           validation_status: finalStatus,
           validation_errors: allErrors.length > 0 ? allErrors : null,
           canonical_checks: canonical.validation?.canonical_checks ?? [],
