@@ -10,6 +10,8 @@ export interface ReportCommitState {
   can_commit: boolean;
   state: string; // 'not_ready' | 'ready' | 'update_available' | 'blocked'
   state_reason: string | null;
+  extraction_contract_version: string | null;
+  validation_status: string | null;
 }
 
 export function useReportCommitStates(overrideCompanyId?: string) {

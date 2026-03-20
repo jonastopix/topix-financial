@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X, AlertTriangle, Info } from "lucide-react";
 import { formatDKK } from "@/lib/financialUtils";
 import OverrideFormFields from "@/components/OverrideFormFields";
 import {
@@ -33,6 +33,18 @@ interface ReportReviewDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface QualitySignal {
+  name: string;
+  result: string; // 'PASS' | 'FAIL' | 'SKIP'
+  details: string;
+}
+
+interface QualitySignalsPayload {
+  canonical_checks?: QualitySignal[];
+  validation_status?: string;
+  [key: string]: unknown;
+}
+
 interface PreviewData {
   report_id: string;
   eligible: boolean;
@@ -47,6 +59,8 @@ interface PreviewData {
   can_commit: boolean;
   state: string;
   state_reason: string | null;
+  quality_signals: QualitySignalsPayload | null;
+  extraction_contract_version: string | null;
 }
 
 // Canonical EN → Danish display labels (for read-only preview)
@@ -365,6 +379,60 @@ export default function ReportReviewDialog({
                 </div>
               </div>
             )}
+
+            {/* Quality signals for V2 reports */}
+            {(() => {
+              if (preview.extraction_contract_version !== 'v2' || !preview.quality_signals) return null;
+              const checks: QualitySignal[] = preview.quality_signals.canonical_checks || [];
+              if (checks.length === 0) return null;
+              const hasWarnings = checks.some(s => s.result === 'FAIL');
+              return (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Kvalitetssignaler
+                  </h4>
+                  <div className="space-y-1.5">
+                    {checks.map((signal, idx) => {
+                      const isFail = signal.result === 'FAIL';
+                      const isPass = signal.result === 'PASS';
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
+                            isFail
+                              ? 'border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20'
+                              : isPass
+                                ? 'border-border/50 bg-background/50'
+                                : 'border-border/30 bg-muted/20'
+                          }`}
+                        >
+                          {isFail ? (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                          ) : isPass ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                          ) : (
+                            <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <p className={`font-medium ${isFail ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'}`}>
+                              {signal.name}
+                            </p>
+                            {signal.details && (
+                              <p className="text-muted-foreground mt-0.5">{signal.details}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {hasWarnings && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 italic">
+                      Advarsler blokerer ikke godkendelse — gennemgå data før commit.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* "Ret data" button for blocked reports or when no metrics yet */}
             {preview.eligible && (!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
