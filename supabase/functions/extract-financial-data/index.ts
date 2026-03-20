@@ -799,16 +799,10 @@ serve(async (req) => {
           extractionMethod = "deterministic_failed";
 
           if (reportId) {
+            const earlyExitErrors = [`Deterministic parsing failed: ${detResult.error}`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: extractionMethod,
-                validation_status: "FAIL",
-                validation_errors: [`Deterministic parsing failed: ${detResult.error}`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, extractionMethod, "deterministic_structural_fail", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
