@@ -824,16 +824,10 @@ serve(async (req) => {
             console.log(`[Routing] Known source ${sourceFingerprint.source_system} but no template matched → FAIL LOUD (AI forbidden)`);
 
             if (reportId) {
+              const earlyExitErrors = [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`];
               await supabase
                 .from("financial_reports")
-                .update({
-                  status: "error",
-                  extraction_method: "known_source_unsupported_variant",
-                  validation_status: "FAIL",
-                  validation_errors: [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`],
-                  raw_extracted_data: { routing_trace: routingTrace },
-                  processed_at: new Date().toISOString(),
-                })
+                .update(getEarlyExitPersistPayload(isV2Cohort, "known_source_unsupported_variant", "known_source_unsupported_variant", earlyExitErrors, routingTrace))
                 .eq("id", reportId);
             }
 
