@@ -439,16 +439,10 @@ serve(async (req) => {
           console.error(`[Routing] Semantic XLSX HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`);
 
           if (reportId) {
+            const earlyExitErrors = [`Semantic XLSX extraction failed for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: "semantic_xlsx_fail",
-                validation_status: "FAIL",
-                validation_errors: [`Semantic XLSX extraction failed for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, "semantic_xlsx_fail", "semantic_xlsx_hard_fail", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
