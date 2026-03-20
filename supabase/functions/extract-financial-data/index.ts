@@ -748,16 +748,10 @@ serve(async (req) => {
           console.error(`[Routing] Semantic CSV HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`);
 
           if (reportId) {
+            const earlyExitErrors = [`Semantic CSV extraction failed for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`];
             await supabase
               .from("financial_reports")
-              .update({
-                status: "error",
-                extraction_method: "semantic_csv_fail",
-                validation_status: "FAIL",
-                validation_errors: [`Semantic CSV extraction failed for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`],
-                raw_extracted_data: { routing_trace: routingTrace },
-                processed_at: new Date().toISOString(),
-              })
+              .update(getEarlyExitPersistPayload(isV2Cohort, "semantic_csv_fail", "semantic_csv_hard_fail", earlyExitErrors, routingTrace))
               .eq("id", reportId);
           }
 
