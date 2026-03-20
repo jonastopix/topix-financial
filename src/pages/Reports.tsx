@@ -307,12 +307,12 @@ const Reports = () => {
     if (!pendingReviewReportId) return;
     const entry = commitStatesQuery.data?.get(pendingReviewReportId);
     if (!entry) return; // not in map yet, wait for next data update
-    if (entry.state === "ready" || entry.state === "update_available") {
+    if (entry.state === "ready" || entry.state === "update_available" || entry.state === "blocked") {
       const report = dbReports.find(r => r.id === pendingReviewReportId);
       const label = report ? (getEffectiveReportPeriod(report) || report.file_name) : "";
       setReviewDialogState({ open: true, reportId: pendingReviewReportId, reportLabel: label, cardState: entry.state });
       setPendingReviewReportId(null);
-    } else if (entry.state === "blocked" || entry.state === "not_ready") {
+    } else if (entry.state === "not_ready") {
       setPendingReviewReportId(null);
     }
   }, [pendingReviewReportId, commitStatesQuery.data, dbReports]);
