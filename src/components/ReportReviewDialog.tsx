@@ -381,52 +381,58 @@ export default function ReportReviewDialog({
             )}
 
             {/* Quality signals for V2 reports */}
-            {preview.extraction_contract_version === 'v2' && preview.quality_signals && preview.quality_signals.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Kvalitetssignaler
-                </h4>
-                <div className="space-y-1.5">
-                  {preview.quality_signals.map((signal, idx) => {
-                    const isFail = signal.result === 'FAIL';
-                    const isPass = signal.result === 'PASS';
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
-                          isFail
-                            ? 'border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20'
-                            : isPass
-                              ? 'border-border/50 bg-background/50'
-                              : 'border-border/30 bg-muted/20'
-                        }`}
-                      >
-                        {isFail ? (
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                        ) : isPass ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <p className={`font-medium ${isFail ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'}`}>
-                            {signal.name}
-                          </p>
-                          {signal.details && (
-                            <p className="text-muted-foreground mt-0.5">{signal.details}</p>
+            {(() => {
+              if (preview.extraction_contract_version !== 'v2' || !preview.quality_signals) return null;
+              const checks: QualitySignal[] = preview.quality_signals.canonical_checks || [];
+              if (checks.length === 0) return null;
+              const hasWarnings = checks.some(s => s.result === 'FAIL');
+              return (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Kvalitetssignaler
+                  </h4>
+                  <div className="space-y-1.5">
+                    {checks.map((signal, idx) => {
+                      const isFail = signal.result === 'FAIL';
+                      const isPass = signal.result === 'PASS';
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
+                            isFail
+                              ? 'border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20'
+                              : isPass
+                                ? 'border-border/50 bg-background/50'
+                                : 'border-border/30 bg-muted/20'
+                          }`}
+                        >
+                          {isFail ? (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                          ) : isPass ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                          ) : (
+                            <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           )}
+                          <div className="min-w-0">
+                            <p className={`font-medium ${isFail ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'}`}>
+                              {signal.name}
+                            </p>
+                            {signal.details && (
+                              <p className="text-muted-foreground mt-0.5">{signal.details}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                  {hasWarnings && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 italic">
+                      Advarsler blokerer ikke godkendelse — gennemgå data før commit.
+                    </p>
+                  )}
                 </div>
-                {preview.quality_signals.some(s => s.result === 'FAIL') && (
-                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 italic">
-                    Advarsler blokerer ikke godkendelse — gennemgå data før commit.
-                  </p>
-                )}
-              </div>
-            )}
+              );
+            })()}
 
             {/* "Ret data" button for blocked reports or when no metrics yet */}
             {preview.eligible && (!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
