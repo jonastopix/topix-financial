@@ -653,16 +653,10 @@ serve(async (req) => {
             // For structural-required families: this is a hard fail — no text fallback
             if (structuralRequired) {
               if (reportId) {
+                const earlyExitErrors = [`Structural semantic extraction failed for ${structResult.template_id}: ${structResult.error}`];
                 await supabase
                   .from("financial_reports")
-                  .update({
-                    status: "error",
-                    extraction_method: "structural_semantic_fail",
-                    validation_status: "FAIL",
-                    validation_errors: [`Structural semantic extraction failed for ${structResult.template_id}: ${structResult.error}`],
-                    raw_extracted_data: { routing_trace: routingTrace },
-                    processed_at: new Date().toISOString(),
-                  })
+                  .update(getEarlyExitPersistPayload(isV2Cohort, "structural_semantic_fail", "structural_semantic_fail", earlyExitErrors, routingTrace))
                   .eq("id", reportId);
               }
 
