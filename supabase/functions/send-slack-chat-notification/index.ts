@@ -80,21 +80,36 @@ Deno.serve(async (req) => {
     if (isAdvisorOrAdmin) {
       // Skip Slack for advisor messages, but write member notification
       try {
-        const memberId = conversation.member_id;
-        if (memberId && memberId !== callerId) {
-          const chatDeepLink = `/chat?conversationId=${conversation.id}&messageId=${message.id}`;
-          await writeNotificationToMany(admin, [memberId], {
-            type: "advisor_replied",
-            priority: "important",
-            title: `Ny besked fra din rådgiver`,
-            body: preview.length > 100 ? preview.slice(0, 100) + "…" : preview,
-            reference_type: "chat",
-            reference_id: message.id,
-            deep_link: chatDeepLink,
-            company_id: conversation.company_id,
-            dedup_key: `advisor_replied:${message.id}`,
-          });
-          console.log(`[Phase2] advisor_replied notification written for member ${memberId}`);
+        // Fetch conversation + message for notification context
+        const { data: advMsg } = await admin
+          .from("messages")
+          .select("id, conversation_id, content")
+          .eq("id", message_id)
+          .single();
+
+        if (advMsg) {
+          const { data: advConv } = await admin
+            .from("conversations")
+            .select("id, company_id, member_id")
+            .eq("id", advMsg.conversation_id)
+            .single();
+
+          if (advConv?.member_id && advConv.member_id !== callerId) {
+            const msgPreview = (advMsg.content || "").slice(0, 100);
+            const chatDeepLink = `/chat?conversationId=${advConv.id}&messageId=${advMsg.id}`;
+            await writeNotificationToMany(admin, [advConv.member_id], {
+              type: "advisor_replied",
+              priority: "important",
+              title: "Ny besked fra din rådgiver",
+              body: msgPreview.length >= 100 ? msgPreview + "…" : msgPreview,
+              reference_type: "chat",
+              reference_id: advMsg.id,
+              deep_link: chatDeepLink,
+              company_id: advConv.company_id,
+              dedup_key: `advisor_replied:${advMsg.id}`,
+            });
+            console.log(`[Phase2] advisor_replied notification written for member ${advConv.member_id}`);
+          }
         }
       } catch (e) {
         console.error("[Phase2] advisor_replied notification error (non-blocking):", e);
