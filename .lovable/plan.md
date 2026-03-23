@@ -468,3 +468,30 @@ Gating on persisted column, not runtime flag. V1/V2 paths never cross. Manual ov
 No changes to `canonicalEngine.ts`, `extract-financial-data/index.ts`, or `normalizationProfiles.ts` outside a named phase with stated parity check, rollback, and regression sign-off.
 
 Narrow scoped fixes (≤5 lines, explicit acceptance criteria, no contract changes) permitted only between phases.
+
+---
+
+# Notification Architecture — Phase 1
+
+## Status: ✅ IMPLEMENTERET
+
+### What was built
+1. **`notifications` table** with `dedup_key` UNIQUE constraint `(user_id, dedup_key)`, RLS (SELECT/UPDATE own rows only), no client INSERT/DELETE, realtime enabled
+2. **RPCs**: `mark_notifications_seen()` (batch seen_at), `mark_notification_read(p_notification_id)` (single read_at)
+3. **Shared helper**: `supabase/functions/_shared/notificationWriter.ts` — idempotent INSERT with ON CONFLICT dedup
+4. **Dual-write** in 3 edge functions: `send-slack-report-notification`, `send-slack-chat-notification`, `send-slack-handout-notification` — write to BOTH `advisor_notifications` (legacy) AND `notifications` (new)
+5. **`notification_v2_rollout`** config in `app_config` — `{ enabled: true, test_user_ids: [] }`
+6. **`NotificationCenter`** component — new bell icon with priority-aware badges, deep-link navigation, seen/read state
+7. **Scoped UI in `AppSidebar`** — test_user_ids see NotificationCenter, all others see legacy AdvisorNotifications. Never both.
+
+### What explicitly does NOT exist
+- No member-facing notifications
+- No email/push delivery
+- No migration/cutover of legacy `advisor_notifications`
+- No database triggers on `notifications`
+- No shared state between chat read and notification read
+
+### Next phases (not yet approved)
+- Phase 2: Member notifications + email + preferences
+- Phase 3: Legacy cutover + web push
+- Phase 4: Anti-spam tuning + observability
