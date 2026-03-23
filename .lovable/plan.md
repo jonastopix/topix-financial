@@ -607,13 +607,13 @@ Ny edge function `send-notification-email` (`verify_jwt = true`, service-role cr
 | Edge function writes | Revert dual-write tilføjelser | Deploy (~2 min) |
 | Database | Notifications-rækker forbliver | Ingen handling |
 
-### 10. Implementation order
+### 10. Implementation order — Status: ✅ IMPLEMENTERET
 
-1. **Migration**: `email_sent_at` on notifications (if needed) + `member_rollout` config update
-2. **Edge function modifications**: `extract-financial-data` (report_review_ready via `resolve_report_commit_candidate` + report_error), `send-slack-chat-notification` (advisor_replied), `send-report-reminder` (report_reminder)
-3. **Email worker**: `send-notification-email` (verify_jwt = true, service-role cron)
-4. **Frontend**: `AppSidebar.tsx` member scoping, `Auth.tsx` returnUrl, `NotificationCenter.tsx` member icons
-5. **Smoke test** with internal cohort
+1. ✅ **Config**: `member_rollout` added to `notification_v2_rollout`. `email_sent_at` already existed.
+2. ✅ **Edge functions**: `extract-financial-data` (report_review_ready via `resolve_report_commit_candidate` + report_error), `send-slack-chat-notification` (advisor_replied), `send-report-reminder` (report_reminder)
+3. ✅ **Email worker**: `send-notification-email` deployed (verify_jwt = true, cron `*/5 * * * *`)
+4. ✅ **Frontend**: `AppSidebar.tsx` member scoping, `Auth.tsx`/`App.tsx` returnUrl, `NotificationCenter.tsx` member icons
+5. **Smoke test** with internal cohort → pending (set `member_rollout.enabled = true` + add company_ids)
 
 ### 11. Files changed
 
