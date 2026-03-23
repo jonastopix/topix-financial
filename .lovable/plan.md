@@ -491,7 +491,187 @@ Narrow scoped fixes (≤5 lines, explicit acceptance criteria, no contract chang
 - No database triggers on `notifications`
 - No shared state between chat read and notification read
 
-### Next phases (not yet approved)
-- Phase 2: Member notifications + email + preferences
-- Phase 3: Legacy cutover + web push
-- Phase 4: Anti-spam tuning + observability
+### Next phases
+- Phase 2: Member notification experience — **GODKENDT** (se nedenfor)
+- Phase 3: Legacy cutover + web push (not yet approved)
+- Phase 4: Anti-spam tuning + observability (not yet approved)
+
+---
+
+# Notification Architecture — Phase 2: Member Notification Experience
+
+## Status: GODKENDT — ikke startet
+
+### Scope
+
+Phase 2 er et **kommunikationslag**. Det konsumerer signaler fra rapporteringssystemet men ændrer ikke rapporteringslogik. 4 member-events med in-app + email delivery, cohort-baseret rollout.
+
+**Ikke i scope:** push, quiet hours, preferences UI, advisor events, legacy cutover, Settings.tsx email-toggle, notification_preferences tabel.
+
+---
+
+### 1. Member events
+
+| Event | Priority | Trigger edge function | Trigger point | Signal consumed |
+|-------|----------|----------------------|---------------|-----------------|
+| `advisor_replied` | `important` | `send-slack-chat-notification` | When `isAdvisorOrAdmin = true` (existing guard) | Existing message + conversation ownership (already JWT-verified) |
+| `report_review_ready` | `action_required` | `extract-financial-data` | After DB update succeeds with `dbStatus !== 'error'` | Calls `resolve_report_commit_candidate(reportId)` — only writes notification if `eligible = true` |
+| `report_reminder` | `action_required` | `send-report-reminder` | Existing member loop (line 240-258) | Existing missing-report logic (unchanged) |
+| `report_error` | `action_required` | `extract-financial-data` | After DB update when `dbStatus === 'error'` | Existing error status (unchanged) |
+
+### 2. `report_review_ready` — reviewability consumption model
+
+Kommunikationslaget ejer IKKE reviewability. Det konsumerer den eksisterende `resolve_report_commit_candidate(p_report_id)` RPC som er rapporteringslagets single source of truth.
+
+**Approach:** After the existing DB update at line 1542 succeeds and `dbStatus !== 'error'`, the communication layer calls `resolve_report_commit_candidate(reportId)` using the service-role client already in the function. If `result.eligible = true`, it writes the `report_review_ready` notification. If not eligible, no notification.
+
+**Scope boundary:** Kommunikationslaget må ALDRIG definere eller ændre reviewability-regler. Rapporteringslaget ejer: status transitions, `resolve_report_commit_candidate`, extraction pipeline, commit flow.
+
+### 3. Delivery rules
+
+| Event | In-app | Email (15 min delay) | Push |
+|-------|--------|---------------------|------|
+| `advisor_replied` | INSERT + realtime, deep-link `/chat?conversationId={id}&messageId={id}` | Sendes hvis `seen_at IS NULL` efter 15 min. Subject: "Ny besked fra din rådgiver" | Ikke i phase 2 |
+| `report_review_ready` | INSERT + realtime, deep-link `/reports?reportId={id}` | Obligatorisk (action_required). Subject: "Din rapport er klar til gennemsyn" | Ikke i phase 2 |
+| `report_reminder` | INSERT, deep-link `/reports`. Dedup: `report_reminder:{company_id}:{period}` | Allerede sendt af eksisterende function. `email_sent_at = now()` på insert → email-worker skipper | Ikke i phase 2 |
+| `report_error` | INSERT, deep-link `/reports?reportId={id}` | Obligatorisk (action_required). Subject: "Der opstod en fejl med din rapport" | Ikke i phase 2 |
+
+### 4. Mandatory vs optional channels
+
+| Kanal | `action_required` | `important` | `info` |
+|-------|-------------------|-------------|--------|
+| In-app | Obligatorisk | Obligatorisk | Obligatorisk |
+| Email (15 min delay) | Obligatorisk, kan IKKE slås fra | Obligatorisk som default | Aldrig |
+| Push | Ikke i phase 2 | Ikke i phase 2 | Ikke i phase 2 |
+
+### 5. Secure event creation model
+
+Alle 4 events skrives inde i eksisterende edge functions med korrekt auth:
+
+- `send-slack-chat-notification`: JWT via `getClaims()` + caller→resource access check via RLS-scoped `callerClient`
+- `extract-financial-data`: Called via `supabase.functions.invoke()` med user JWT. Report ownership verified
+- `send-report-reminder`: Service-role auth only (cron). Ingen user-facing endpoint
+
+Ingen `verify_jwt = false` genveje. Ingen frontend fire-and-forget triggers. `writeNotification` kaldes med eksisterende service-role `admin` client.
+
+### 6. Cohort rollout
+
+Udvid `notification_v2_rollout` config:
+
+```json
+{
+  "enabled": true,
+  "test_user_ids": ["..."],
+  "member_rollout": {
+    "enabled": false,
+    "company_ids": [],
+    "all_members": false
+  }
+}
+```
+
+**Rollout-sekvens:**
+1. Uge 1: `member_rollout.enabled = false` — kun data-layer (dual write, ingen UI)
+2. Uge 2: `company_ids = ["test-company"]` — test-cohort ser NotificationCenter + modtager emails
+3. Uge 3+: Udvid gradvist
+4. Senere: `all_members = true` når stabil
+
+**UI-scoping i AppSidebar.tsx:**
+- Advisor: eksisterende `test_user_ids` logik (uændret)
+- Member: vis NotificationCenter hvis `member_rollout.enabled && (all_members || user's company_id IN company_ids)`
+
+### 7. Deep-link and login-resume
+
+- Email deep-links: `https://topix.lovable.app{deep_link}?returnUrl={deep_link}`
+- `Auth.tsx`: Læs `returnUrl` fra query params → efter login redirect til `returnUrl`
+
+### 8. Email worker
+
+Ny edge function `send-notification-email` (`verify_jwt = true`, service-role cron only):
+
+- Poller: `WHERE email_sent_at IS NULL AND seen_at IS NULL AND priority IN ('action_required', 'important') AND created_at < now() - interval '15 minutes'`
+- `action_required`: send altid
+- `important`: send altid (ingen preferences i phase 2)
+- Skip `report_reminder` type (allerede emailet)
+- Enqueue via eksisterende `enqueue_email` RPC til `transactional_emails` køen
+- Sæt `email_sent_at = now()` efter enqueue
+- Cron: `*/5 * * * *`
+- Anti-spam: Max 20 emails/dag pr. bruger
+
+### 9. Rollback plan
+
+| Komponent | Rollback | Tid |
+|-----------|----------|-----|
+| Member UI | `member_rollout.enabled = false` | Instant (config) |
+| Email-sending | Disable cron job | Instant |
+| Edge function writes | Revert dual-write tilføjelser | Deploy (~2 min) |
+| Database | Notifications-rækker forbliver | Ingen handling |
+
+### 10. Implementation order
+
+1. **Migration**: `email_sent_at` on notifications (if needed) + `member_rollout` config update
+2. **Edge function modifications**: `extract-financial-data` (report_review_ready via `resolve_report_commit_candidate` + report_error), `send-slack-chat-notification` (advisor_replied), `send-report-reminder` (report_reminder)
+3. **Email worker**: `send-notification-email` (verify_jwt = true, service-role cron)
+4. **Frontend**: `AppSidebar.tsx` member scoping, `Auth.tsx` returnUrl, `NotificationCenter.tsx` member icons
+5. **Smoke test** with internal cohort
+
+### 11. Files changed
+
+| File | Change |
+|------|--------|
+| `supabase/functions/extract-financial-data/index.ts` | Import `writeNotification`, add calls for `report_review_ready` (via `resolve_report_commit_candidate`) and `report_error` |
+| `supabase/functions/send-slack-chat-notification/index.ts` | When `isAdvisorOrAdmin = true`: skip Slack but write `advisor_replied` to member |
+| `supabase/functions/send-report-reminder/index.ts` | Add `writeNotification` with `email_sent_at = now()` |
+| `supabase/functions/send-notification-email/index.ts` | **NY** — email worker (service-role auth, cron-only) |
+| `src/components/AppSidebar.tsx` | Member rollout scoping |
+| `src/components/NotificationCenter.tsx` | Member event icons |
+| `src/pages/Auth.tsx` | `returnUrl` support |
+| `supabase/config.toml` | `[functions.send-notification-email]` entry |
+
+### 12. Acceptance tests
+
+| # | Test | Expected |
+|---|------|----------|
+| 1 | Report → extraction succeeds → `resolve_report_commit_candidate` returns `eligible = true` | `report_review_ready` notification created |
+| 2 | Report → extraction succeeds → `resolve_report_commit_candidate` returns `eligible = false` | No notification created |
+| 3 | Report → extraction fails → `dbStatus = 'error'` | `report_error` notification with `action_required` |
+| 4 | Advisor sends chat message to member | `advisor_replied` notification created |
+| 5 | Report reminder cron → member missing report | `report_reminder` notification + existing email (no double) |
+| 6 | Member in cohort sees NotificationCenter | Bell icon, correct badge count |
+| 7 | Member NOT in cohort sees no NotificationCenter | Standard sidebar |
+| 8 | Email worker sends for unseen `action_required` after 15 min | `email_sent_at` set, email enqueued |
+| 9 | Member opens platform within 15 min → email NOT sent | `seen_at` set → worker skips |
+| 10 | Email deep-link → login → redirect | `returnUrl` flow works |
+| 11 | Dedup: extraction retry → no duplicate | UNIQUE constraint holds |
+| 12 | Chat read-state independent of notification read-state | No cross-contamination |
+| 13 | Advisor notifications (phase 1) unchanged | Full regression |
+| 14 | `report_error` email mandatory | Cannot be skipped |
+| 15 | Unauthorized caller cannot trigger notification writes | All writes inside authenticated flows |
+
+### 13. Definition of done
+
+| Requirement | Done when |
+|-------------|-----------|
+| `report_review_ready` uses `resolve_report_commit_candidate` | Code review verified — no independent reviewability logic |
+| `report_error` has `action_required` priority | Verified in notifications table |
+| 4 member events create notifications from backend | Verified in production for cohort |
+| All writes inside JWT/service-role authenticated flows | No `verify_jwt = false` shortcuts |
+| Email worker delivers `action_required` reliably | >95% delivery rate |
+| 15 min delay logic works | Unseen → email. Seen → skip. Verified |
+| Cohort rollout works | Add/remove companies via config without deploy |
+| Non-cohort members see nothing new | UI verified |
+| Phase 1 advisor flow unchanged | Full regression |
+| Chat read-state independent | Verified |
+| Login-resume via deep-link works | E2E verified |
+| No frontend triggers domain events | Code review verified |
+| Min. 1 week stable with test cohort | Before expanding |
+
+### 14. Success metrics
+
+| Metrik | Mål |
+|--------|-----|
+| `advisor_replied` opdaget inden 1 time | >80% af members |
+| `report_review_ready` opdaget inden 4 timer | >90% |
+| Email delivery rate | >95% |
+| Falsk positiv rate (email sendt men allerede set) | <10% |
+| Member-klager over spam | 0 |
