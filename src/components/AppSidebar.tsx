@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdvisorNotifications from "@/components/AdvisorNotifications";
+import NotificationCenter from "@/components/NotificationCenter";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
   LayoutDashboard,
