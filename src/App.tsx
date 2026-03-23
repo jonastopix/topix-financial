@@ -67,8 +67,9 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+  const returnUrl = new URLSearchParams(window.location.search).get("returnUrl");
   if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={returnUrl || "/"} replace />;
   return <>{children}</>;
 };
 
