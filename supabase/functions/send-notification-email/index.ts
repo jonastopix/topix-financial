@@ -135,6 +135,18 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Advisor/admin email suppression: skip email for Slack-covered events
+      if (advisorUserIds.has(notif.user_id) && ADVISOR_SKIP_TYPES.has(notif.type)) {
+        // Mark email_sent_at to prevent future retries, but don't actually send
+        await admin
+          .from("notifications")
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq("id", notif.id);
+        console.log(`[advisor-skip] Skipping email for advisor ${notif.user_id}, type=${notif.type}`);
+        skipped++;
+        continue;
+      }
+
       // Get user email
       const { data: userData } = await admin.auth.admin.getUserById(notif.user_id);
       if (!userData?.user?.email) {
