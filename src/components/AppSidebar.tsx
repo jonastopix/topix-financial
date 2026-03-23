@@ -277,7 +277,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {isAdvisor && (useNewNotifications ? <NotificationCenter /> : <AdvisorNotifications />)}
+              {useNewNotifications ? <NotificationCenter /> : (isAdvisor ? <AdvisorNotifications /> : null)}
               {isMobile && (
                 <button
                   onClick={onClose}

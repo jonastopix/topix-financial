@@ -12,7 +12,9 @@ import topixIconWhite from "@/assets/topix-icon-white.png";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const inviteToken = searchParams.get("invite") || "";
+  const returnUrl = searchParams.get("returnUrl") || "";
   const modeParam = searchParams.get("mode");
   // Signup is only allowed with an invite token OR explicit mode=signup (advisor invitations)
   const hasInvitation = !!inviteToken || modeParam === "signup";
