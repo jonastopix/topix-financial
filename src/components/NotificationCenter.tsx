@@ -35,6 +35,15 @@ const NotificationCenter = () => {
         return { Icon: MessageCircle, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
       case "handout_completed":
         return { Icon: ClipboardList, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
+      // Phase 2 member events
+      case "advisor_replied":
+        return { Icon: MessageCircle, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
+      case "report_review_ready":
+        return { Icon: FileCheck, bg: "bg-primary/10", text: "text-primary" };
+      case "report_reminder":
+        return { Icon: Clock, bg: "bg-destructive/10", text: "text-destructive" };
+      case "report_error":
+        return { Icon: AlertTriangle, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
       default:
         return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
     }
