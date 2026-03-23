@@ -109,10 +109,14 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         .select("config_value")
         .eq("config_key", "notification_v2_rollout")
         .maybeSingle();
-      return (data?.config_value as { enabled?: boolean; test_user_ids?: string[] }) || null;
+      return (data?.config_value as {
+        enabled?: boolean;
+        test_user_ids?: string[];
+        member_rollout?: { enabled?: boolean; company_ids?: string[]; all_members?: boolean };
+      }) || null;
     },
     staleTime: 5 * 60_000,
-    enabled: !!user && isAdvisor,
+    enabled: !!user,
   });
 
   const useNewNotifications =
