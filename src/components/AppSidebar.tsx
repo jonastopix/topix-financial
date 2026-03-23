@@ -68,7 +68,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user, profile, signOut, isAdvisor, isAdmin, isGroupUser, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
+  const { user, profile, signOut, isAdvisor, isAdmin, isGroupUser, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
@@ -109,17 +109,32 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         .select("config_value")
         .eq("config_key", "notification_v2_rollout")
         .maybeSingle();
-      return (data?.config_value as { enabled?: boolean; test_user_ids?: string[] }) || null;
+      return (data?.config_value as {
+        enabled?: boolean;
+        test_user_ids?: string[];
+        member_rollout?: { enabled?: boolean; company_ids?: string[]; all_members?: boolean };
+      }) || null;
     },
     staleTime: 5 * 60_000,
-    enabled: !!user && isAdvisor,
+    enabled: !!user,
   });
 
-  const useNewNotifications =
+  // Advisor path (phase 1)
+  const useNewNotificationsAdvisor =
     isAdvisor &&
     v2Rollout?.enabled === true &&
     Array.isArray(v2Rollout?.test_user_ids) &&
     v2Rollout.test_user_ids.includes(user?.id || "");
+
+  // Member path (phase 2)
+  const memberRollout = v2Rollout?.member_rollout;
+  const useNewNotificationsMember =
+    !isAdvisor &&
+    !!memberRollout?.enabled &&
+    (memberRollout.all_members === true ||
+      (Array.isArray(memberRollout.company_ids) && memberRollout.company_ids.includes(companyId || "")));
+
+  const useNewNotifications = useNewNotificationsAdvisor || useNewNotificationsMember;
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
 
@@ -262,7 +277,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {isAdvisor && (useNewNotifications ? <NotificationCenter /> : <AdvisorNotifications />)}
+              {useNewNotifications ? <NotificationCenter /> : (isAdvisor ? <AdvisorNotifications /> : null)}
               {isMobile && (
                 <button
                   onClick={onClose}

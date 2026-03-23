@@ -242,6 +242,30 @@ Deno.serve(async (req) => {
         if (!userData?.user?.email) continue;
         const email = userData.user.email;
 
+        // ── Phase 2: Write report_reminder notification (with email_sent_at to prevent double email) ──
+        try {
+          const { writeNotification } = await import("../_shared/notificationWriter.ts");
+          await writeNotification(supabase, {
+            user_id: member.user_id,
+            type: "report_reminder",
+            priority: "action_required",
+            title: `Rapport for ${expectedPeriod} mangler`,
+            body: `Upload venligst rapporten for ${company.name}.`,
+            reference_type: "report",
+            deep_link: "/reports",
+            company_id: company.id,
+            dedup_key: `report_reminder:${company.id}:${expectedPeriodKey}`,
+          });
+          // Mark email_sent_at immediately since this function already sends the email
+          await supabase
+            .from("notifications")
+            .update({ email_sent_at: new Date().toISOString() })
+            .eq("user_id", member.user_id)
+            .eq("dedup_key", `report_reminder:${company.id}:${expectedPeriodKey}`);
+        } catch (notifErr) {
+          console.error(`[Phase2] report_reminder notification error (non-blocking):`, notifErr);
+        }
+
         if (!emailEnabled) {
           console.log(`[BLOCKED] Would send to: ${email} (${company.name})`);
           skipped++;
