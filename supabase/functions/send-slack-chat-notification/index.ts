@@ -75,7 +75,30 @@ Deno.serve(async (req) => {
     const isAdvisorOrAdmin = (senderRoles || []).some(
       (r: any) => r.role === "advisor" || r.role === "admin"
     );
+
+    // ── Phase 2: advisor→member notification ──
     if (isAdvisorOrAdmin) {
+      // Skip Slack for advisor messages, but write member notification
+      try {
+        const memberId = conversation.member_id;
+        if (memberId && memberId !== callerId) {
+          const chatDeepLink = `/chat?conversationId=${conversation.id}&messageId=${message.id}`;
+          await writeNotificationToMany(admin, [memberId], {
+            type: "advisor_replied",
+            priority: "important",
+            title: `Ny besked fra din rådgiver`,
+            body: preview.length > 100 ? preview.slice(0, 100) + "…" : preview,
+            reference_type: "chat",
+            reference_id: message.id,
+            deep_link: chatDeepLink,
+            company_id: conversation.company_id,
+            dedup_key: `advisor_replied:${message.id}`,
+          });
+          console.log(`[Phase2] advisor_replied notification written for member ${memberId}`);
+        }
+      } catch (e) {
+        console.error("[Phase2] advisor_replied notification error (non-blocking):", e);
+      }
       return json({ ok: true, skipped: "sender_is_advisor" });
     }
 

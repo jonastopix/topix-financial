@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, FileText, ClipboardList, MessageCircle, AlertTriangle } from "lucide-react";
+import { Bell, FileText, ClipboardList, MessageCircle, AlertTriangle, FileCheck, Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";

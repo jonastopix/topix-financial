@@ -1547,6 +1547,66 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       if (updateError) {
         console.error("DB update error:", updateError);
       }
+
+      // ── Phase 2: Member notifications for report events ──
+      // Communication layer: consume reporting truth, never redefine it
+      if (!updateError && reportId) {
+        try {
+          // Look up report owner
+          const { data: reportRow } = await supabase
+            .from("financial_reports")
+            .select("user_id, company_id")
+            .eq("id", reportId)
+            .single();
+
+          if (reportRow?.user_id) {
+            const { writeNotification } = await import("../_shared/notificationWriter.ts");
+
+            if (dbStatus === "error") {
+              // report_error: action_required, immediate
+              await writeNotification(supabase, {
+                user_id: reportRow.user_id,
+                type: "report_error",
+                priority: "action_required",
+                title: "Der opstod en fejl med din rapport",
+                body: `Filen "${fileName || "ukendt"}" kunne ikke behandles. Prøv at uploade igen.`,
+                reference_type: "report",
+                reference_id: reportId,
+                deep_link: `/reports?reportId=${reportId}`,
+                company_id: reportRow.company_id || undefined,
+                dedup_key: `report_error:${reportId}`,
+              });
+              console.log(`[Phase2] report_error notification for user ${reportRow.user_id}`);
+            } else {
+              // Check reviewability via resolve_report_commit_candidate
+              const { data: candidate, error: rpcErr } = await supabase
+                .rpc("resolve_report_commit_candidate", { p_report_id: reportId });
+
+              if (!rpcErr && candidate?.eligible === true) {
+                await writeNotification(supabase, {
+                  user_id: reportRow.user_id,
+                  type: "report_review_ready",
+                  priority: "action_required",
+                  title: "Din rapport er klar til gennemsyn",
+                  body: candidate.period_label
+                    ? `Rapport for ${candidate.period_label} er klar.`
+                    : "Din rapport er behandlet og klar til gennemsyn.",
+                  reference_type: "report",
+                  reference_id: reportId,
+                  deep_link: `/reports?reportId=${reportId}`,
+                  company_id: reportRow.company_id || undefined,
+                  dedup_key: `report_review_ready:${reportId}`,
+                });
+                console.log(`[Phase2] report_review_ready notification for user ${reportRow.user_id}`);
+              } else {
+                console.log(`[Phase2] Report ${reportId} not eligible for review (eligible=${candidate?.eligible}, rpcErr=${rpcErr?.message})`);
+              }
+            }
+          }
+        } catch (notifErr) {
+          console.error("[Phase2] Report notification error (non-blocking):", notifErr);
+        }
+      }
     }
 
     // Return extractedData + canonical for client-side use
