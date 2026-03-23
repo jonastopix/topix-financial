@@ -119,11 +119,22 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
     enabled: !!user,
   });
 
-  const useNewNotifications =
+  // Advisor path (phase 1)
+  const useNewNotificationsAdvisor =
     isAdvisor &&
     v2Rollout?.enabled === true &&
     Array.isArray(v2Rollout?.test_user_ids) &&
     v2Rollout.test_user_ids.includes(user?.id || "");
+
+  // Member path (phase 2)
+  const memberRollout = v2Rollout?.member_rollout;
+  const useNewNotificationsMember =
+    !isAdvisor &&
+    !!memberRollout?.enabled &&
+    (memberRollout.all_members === true ||
+      (Array.isArray(memberRollout.company_ids) && memberRollout.company_ids.includes(companyId || "")));
+
+  const useNewNotifications = useNewNotificationsAdvisor || useNewNotificationsMember;
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
 
