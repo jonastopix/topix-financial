@@ -51,9 +51,16 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Service-role only (cron)
-  const auth = authenticateServiceRole(req);
-  if (auth instanceof Response) return auth;
+  // Service-role only (cron) — use JWT claims parsing (same as process-email-queue)
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+  const token = authHeader.slice("Bearer ".length).trim();
+  const claims = parseJwtClaims(token);
+  if (claims?.role !== "service_role") {
+    return json({ error: "Forbidden" }, 403);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
