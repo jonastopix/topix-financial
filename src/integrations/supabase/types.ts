@@ -1625,6 +1625,66 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          company_id: string | null
+          created_at: string
+          dedup_key: string
+          deep_link: string | null
+          email_sent_at: string | null
+          group_id: string | null
+          id: string
+          priority: string
+          push_sent_at: string | null
+          read_at: string | null
+          reference_id: string | null
+          reference_type: string | null
+          seen_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          company_id?: string | null
+          created_at?: string
+          dedup_key: string
+          deep_link?: string | null
+          email_sent_at?: string | null
+          group_id?: string | null
+          id?: string
+          priority?: string
+          push_sent_at?: string | null
+          read_at?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          seen_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          company_id?: string | null
+          created_at?: string
+          dedup_key?: string
+          deep_link?: string | null
+          email_sent_at?: string | null
+          group_id?: string | null
+          id?: string
+          priority?: string
+          push_sent_at?: string | null
+          read_at?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          seen_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2092,6 +2152,11 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: number
       }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: boolean
+      }
+      mark_notifications_seen: { Args: never; Returns: number }
       move_to_dlq: {
         Args: {
           dlq_name: string

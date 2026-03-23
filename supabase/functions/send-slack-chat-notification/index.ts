@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -270,7 +271,7 @@ Deno.serve(async (req) => {
       slack_thread_ts: isNewThread ? null : threadTs,
     });
 
-    // ── Create advisor notification (server-side) ──
+    // ── Create advisor notification (legacy — dual write) ──
     await admin.from("advisor_notifications").insert({
       type: "new_message",
       title: `Ny besked fra ${senderName}`,
@@ -280,6 +281,28 @@ Deno.serve(async (req) => {
       reference_id: message.id,
       reference_type: "chat",
     });
+
+    // ── NEW notifications table (dual write, phase 1) ──
+    const { data: advisorRoles } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["advisor", "admin"]);
+    const advisorIds = (advisorRoles || []).map((r: any) => r.user_id);
+
+    if (advisorIds.length > 0) {
+      const chatDeepLink = `/chat?conversationId=${conversation.id}&messageId=${message.id}`;
+      await writeNotificationToMany(admin, advisorIds, {
+        type: "member_message",
+        priority: "important",
+        title: `Ny besked fra ${senderName}`,
+        body: preview.length > 100 ? preview.slice(0, 100) + "…" : preview,
+        reference_type: "chat",
+        reference_id: message.id,
+        deep_link: chatDeepLink,
+        company_id: conversation.company_id,
+        dedup_key: `member_message:${message.id}`,
+      });
+    }
 
     return json({ ok: true, isNewThread });
   } catch (err) {

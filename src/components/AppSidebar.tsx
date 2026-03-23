@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdvisorNotifications from "@/components/AdvisorNotifications";
+import NotificationCenter from "@/components/NotificationCenter";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
   LayoutDashboard,
@@ -98,6 +99,27 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
     refetchInterval: 60000,
   });
   const { branding } = useAppConfig();
+
+  // Scoped UI rollout: determine which notification UI to show
+  const { data: v2Rollout } = useQuery({
+    queryKey: ["app-config", "notification_v2_rollout"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_config")
+        .select("config_value")
+        .eq("config_key", "notification_v2_rollout")
+        .maybeSingle();
+      return (data?.config_value as { enabled?: boolean; test_user_ids?: string[] }) || null;
+    },
+    staleTime: 5 * 60_000,
+    enabled: !!user && isAdvisor,
+  });
+
+  const useNewNotifications =
+    isAdvisor &&
+    v2Rollout?.enabled === true &&
+    Array.isArray(v2Rollout?.test_user_ids) &&
+    v2Rollout.test_user_ids.includes(user?.id || "");
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
 
@@ -240,7 +262,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {isAdvisor && <AdvisorNotifications />}
+              {isAdvisor && (useNewNotifications ? <NotificationCenter /> : <AdvisorNotifications />)}
               {isMobile && (
                 <button
                   onClick={onClose}

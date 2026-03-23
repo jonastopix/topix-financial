@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -162,7 +163,7 @@ Deno.serve(async (req) => {
       slack_ts: slackRes?.ts || null,
     });
 
-    // ── Create advisor notification (server-side, single source of truth) ──
+    // ── Create advisor notification (legacy — dual write) ──
     await admin.from("advisor_notifications").insert({
       type: "report_uploaded",
       title: `Ny ${reportLabel.toLowerCase()} fra ${companyName}`,
@@ -172,6 +173,28 @@ Deno.serve(async (req) => {
       reference_id: report.id,
       reference_type: "report",
     });
+
+    // ── NEW notifications table (dual write, phase 1) ──
+    const { data: advisorRoles } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["advisor", "admin"]);
+    const advisorIds = (advisorRoles || []).map((r: any) => r.user_id);
+
+    if (advisorIds.length > 0) {
+      const deepLink = `/members/${report.user_id}?reportId=${report.id}`;
+      await writeNotificationToMany(admin, advisorIds, {
+        type: "report_uploaded",
+        priority: "important",
+        title: `Ny ${reportLabel.toLowerCase()} fra ${companyName}`,
+        body: `${reportLabel} for ${reportPeriod}`,
+        reference_type: "report",
+        reference_id: report.id,
+        deep_link: deepLink,
+        company_id: report.company_id,
+        dedup_key: `report_uploaded:${report.id}`,
+      });
+    }
 
     return json({ ok: true });
   } catch (err) {

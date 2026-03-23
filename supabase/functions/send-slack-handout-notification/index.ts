@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,7 +173,7 @@ Deno.serve(async (req) => {
       slack_ts: slackRes?.ts || null,
     });
 
-    // ── Create advisor notification (server-side, single source of truth) ──
+    // ── Create advisor notification (legacy — dual write) ──
     await admin.from("advisor_notifications").insert({
       type: "handout_completed",
       title: `Handout udfyldt: ${moduleTitle}`,
@@ -182,6 +183,28 @@ Deno.serve(async (req) => {
       reference_id: handout.id,
       reference_type: "handout",
     });
+
+    // ── NEW notifications table (dual write, phase 1) ──
+    const { data: advisorRoles } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["advisor", "admin"]);
+    const advisorIds = (advisorRoles || []).map((r: any) => r.user_id);
+
+    if (advisorIds.length > 0) {
+      const handoutDeepLink = `/members/${handout.user_id}?handout=${handout.module}`;
+      await writeNotificationToMany(admin, advisorIds, {
+        type: "handout_completed",
+        priority: "info",
+        title: `Handout udfyldt: ${moduleTitle}`,
+        body: `${companyName} — ${memberName}`,
+        reference_type: "handout",
+        reference_id: handout.id,
+        deep_link: handoutDeepLink,
+        company_id: handout.company_id,
+        dedup_key: `handout_completed:${handout.id}`,
+      });
+    }
 
     return json({ ok: true });
   } catch (err) {
