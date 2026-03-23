@@ -96,6 +96,20 @@ Deno.serve(async (req) => {
     // Group by user for anti-spam check
     const userIds = [...new Set(pending.map((n: any) => n.user_id))];
 
+    // Advisor/admin role lookup for email suppression
+    const { data: advisorRoleRows } = await admin
+      .from("user_roles")
+      .select("user_id, role")
+      .in("user_id", userIds)
+      .in("role", ["advisor", "admin"]);
+    const advisorUserIds = new Set((advisorRoleRows || []).map((r: any) => r.user_id));
+
+    // Events that advisors already receive via Slack — skip email for them
+    const ADVISOR_SKIP_TYPES = new Set([
+      "member_message",
+      "report_uploaded",
+    ]);
+
     // Fetch daily email counts per user
     const today = new Date();
     today.setHours(0, 0, 0, 0);
