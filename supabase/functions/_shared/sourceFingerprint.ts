@@ -1,13 +1,17 @@
 /**
- * Source-System Fingerprinting — Phase 2
+ * Source-System Fingerprinting — Phase 2 + Phase 8 (structural-aware)
  *
  * Separates known-source detection from template matching.
  * Known sources MUST resolve via deterministic templates only — AI is forbidden.
  * Unknown sources may fall through to AI extraction.
+ *
+ * Phase 8: When structural payload is available, uses structural tokens
+ * for account range detection instead of fragile raw text regex.
  */
 
 import type { SourceSystem, DocumentType } from "./semanticTypes.ts";
 import { detectEconomicAccountRanges } from "./economicRangeDetector.ts";
+import type { PdfStructuralPayload } from "./pdfStructuralTypes.ts";
 
 export interface SourceFingerprint {
   source_system: SourceSystem;
@@ -19,12 +23,15 @@ export interface SourceFingerprint {
 /**
  * Detect source system from file metadata and content.
  * This runs BEFORE template matching to gate AI fallback.
+ *
+ * @param structural - Optional validated structural payload for structural-first detection
  */
 export function detectSourceSystem(
   fileName: string,
   fileType: "pdf" | "xlsx" | "xls" | "csv",
   rawText?: string,
-  headerRows?: any[][]
+  headerRows?: any[][],
+  structural?: PdfStructuralPayload,
 ): SourceFingerprint {
   const evidence: string[] = [];
   const fileNameLower = fileName.toLowerCase();
@@ -60,9 +67,11 @@ export function detectSourceSystem(
 
     // Unbranded e-conomic-style P&L: "Resultatopgørelse" header + e-conomic account ranges
     // No footer, no brand — but account structure matches e-conomic convention.
+    // STRUCTURAL-FIRST: when structural payload is available, use structural tokens
+    // for account range detection — most robust against text formatting issues.
     // Detected at MEDIUM confidence (no brand confirmation).
     if (/resultatopgørelse/i.test(rawText) && !/saldobalance/i.test(rawText)) {
-      const rangeResult = detectEconomicAccountRanges(rawText);
+      const rangeResult = detectEconomicAccountRanges(rawText, undefined, structural);
       if (rangeResult.detected) {
         evidence.push(`Unbranded P&L with e-conomic-style account ranges (${rangeResult.method})`);
         evidence.push(...rangeResult.evidence);
@@ -112,17 +121,11 @@ export function detectSourceSystem(
     }
 
     // Combined DK: Balance/PnL pattern with "Nummer"/"Navn" columns
-    // Structural detection — company-name-agnostic. Any file with:
-    //   Row 1: contains "balance" (case-insensitive)
-    //   Row 4: has "Nummer" + "Navn" columns
-    //   Row 4: has a third column with period info (non-empty)
-    // is treated as the combined_dk family.
     const row1 = headerRows[1]?.[0]?.toString() || "";
     if (/balance/i.test(row1)) {
       const hasNummer = row4.some?.((c: any) => /nummer/i.test(c?.toString?.() || ""));
       const hasNavn = row4.some?.((c: any) => /^navn$/i.test(c?.toString?.() || ""));
       if (hasNummer && hasNavn) {
-        // Additional structural guard: row 4 must have a period/date column (col 2+)
         const hasPeriodCol = row4.length >= 3 && row4[2] != null && row4[2].toString().trim() !== "";
         if (!hasPeriodCol) {
           evidence.push("Nummer/Navn columns found but no period column — not combined_dk");

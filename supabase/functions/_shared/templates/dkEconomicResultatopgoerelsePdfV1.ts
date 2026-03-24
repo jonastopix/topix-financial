@@ -628,8 +628,9 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     if (/resultat/i.test(text)) score += 5;
 
     // e-conomic-style account-range structure signal:
-    // Uses shared detector with parsed-line + raw-text fallback.
-    const rangeResult = detectEconomicAccountRanges(text);
+    // STRUCTURAL-FIRST: when structural payload is available, use structural tokens
+    // for account range detection — immune to raw text formatting issues.
+    const rangeResult = detectEconomicAccountRanges(text, undefined, ctx.structuralPayload);
     if (rangeResult.detected) {
       score += 20;
       console.log(`[DK_ECONOMIC_PNL_PDF] Economic range signal: +20 (${rangeResult.method}, ${rangeResult.evidence.join("; ")})`);

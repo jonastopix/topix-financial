@@ -1006,3 +1006,94 @@ Deno.test("Phase 5: structural routing via registry (end-to-end)", async () => {
     assert(result.semantic.metric_candidates.length >= 5);
   }
 });
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 8: Unbranded e-conomic P&L — structural-aware detection
+// Global class regression: 4 months × fingerprint + template detection
+// ══════════════════════════════════════════════════════════════
+
+import {
+  fixture_unbranded_jan2025_text,
+  fixture_unbranded_jan2025_structural,
+  fixture_unbranded_apr2025_text,
+  fixture_unbranded_apr2025_structural,
+  fixture_unbranded_maj2025_text,
+  fixture_unbranded_maj2025_structural,
+  fixture_unbranded_jun2025_text,
+  fixture_unbranded_jun2025_structural,
+  EXPECTED_FINGERPRINT,
+  EXPECTED_TEMPLATE_ID,
+  EXPECTED_MIN_DETECTION_SCORE,
+} from "../_test_fixtures/unbrandedEconomicPdfFixtures.ts";
+
+// ── Structural-aware fingerprint tests (all 4 months) ──
+
+const UNBRANDED_MONTHS = [
+  { name: "JAN 2025", text: fixture_unbranded_jan2025_text, structural: fixture_unbranded_jan2025_structural },
+  { name: "APR 2025", text: fixture_unbranded_apr2025_text, structural: fixture_unbranded_apr2025_structural },
+  { name: "MAJ 2025", text: fixture_unbranded_maj2025_text, structural: fixture_unbranded_maj2025_structural },
+  { name: "JUN 2025", text: fixture_unbranded_jun2025_text, structural: fixture_unbranded_jun2025_structural },
+];
+
+for (const month of UNBRANDED_MONTHS) {
+  Deno.test(`Phase 8 fingerprint: unbranded e-conomic P&L ${month.name} with structural → economic/MEDIUM`, () => {
+    const result = detectSourceSystem("report.pdf", "pdf", month.text, undefined, month.structural);
+    assertEquals(result.source_system, EXPECTED_FINGERPRINT.source_system,
+      `${month.name}: Must fingerprint as economic`);
+    assertEquals(result.confidence, EXPECTED_FINGERPRINT.confidence,
+      `${month.name}: Must be MEDIUM confidence (no brand)`);
+    assertEquals(isAiAllowed(result), EXPECTED_FINGERPRINT.ai_allowed,
+      `${month.name}: AI must be blocked for known source`);
+  });
+
+  Deno.test(`Phase 8 detection: unbranded e-conomic P&L ${month.name} with structural → template match ≥ ${EXPECTED_MIN_DETECTION_SCORE}`, () => {
+    const ctx: DetectionContext = {
+      fileName: `${month.name}.pdf`,
+      fileType: "pdf",
+      sheetNames: [],
+      headerRows: [],
+      rawText: month.text,
+      structuralPayload: month.structural,
+    };
+    const result = detectTemplate(ctx);
+    assertExists(result, `${month.name}: Must detect a template`);
+    assertEquals(result!.template.template_id, EXPECTED_TEMPLATE_ID,
+      `${month.name}: Must match e-conomic P&L template`);
+    assert(result!.score >= EXPECTED_MIN_DETECTION_SCORE,
+      `${month.name}: Score ${result!.score} must be ≥ ${EXPECTED_MIN_DETECTION_SCORE}`);
+  });
+
+  Deno.test(`Phase 8 structural extraction: unbranded e-conomic P&L ${month.name} → semantic success`, () => {
+    const structResult = tryDeterministicPdfStructuralExtraction(month.structural, month.text, `${month.name}.pdf`);
+    assertEquals(structResult.type, "success", `${month.name}: Must succeed via structural path`);
+    if (structResult.type === "success") {
+      assertEquals(structResult.template_id, EXPECTED_TEMPLATE_ID);
+      assert(structResult.score >= EXPECTED_MIN_DETECTION_SCORE);
+      assertEquals(structResult.semantic.source_system, "economic");
+      assert(structResult.semantic.metric_candidates.length >= 3,
+        `${month.name}: Must extract ≥3 metric candidates`);
+      // Verify revenue is extracted
+      const revenue = structResult.semantic.metric_candidates.find(c => c.source_field_id === "omsaetning");
+      assertExists(revenue, `${month.name}: Must extract revenue`);
+    }
+  });
+}
+
+// ── Verify branded e-conomic PDF still works (regression guard) ──
+
+Deno.test("Phase 8 regression: branded e-conomic PDF still matches at HIGH confidence", () => {
+  const brandedText = "Resultatopgørelse\nhttps://secure.e-conomic.com\nOmsætning\nDækningsbidrag\nResultat\n2200 Løn 50000\n3100 Biler 2500";
+  const result = detectSourceSystem("branded.pdf", "pdf", brandedText);
+  assertEquals(result.source_system, "economic");
+  assertEquals(result.confidence, "HIGH", "Branded must stay HIGH confidence");
+  assertEquals(isAiAllowed(result), false);
+});
+
+// ── Verify structural detection does not affect non-PDF paths ──
+
+Deno.test("Phase 8 regression: XLSX fingerprint unaffected by structural payload param", () => {
+  const f = fixture_economic_xlsx_fingerprint;
+  const result = detectSourceSystem(f.file_name, f.file_type, undefined, f.header_rows);
+  assertEquals(result.source_system, "economic");
+  assertEquals(isAiAllowed(result), false);
+});
