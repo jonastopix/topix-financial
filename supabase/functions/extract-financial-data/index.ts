@@ -467,6 +467,10 @@ serve(async (req) => {
     };
 
     // ── LAG -1: SOURCE FINGERPRINTING (gates AI fallback) ──
+    // PHASE 8: Pass raw structural payload to fingerprinting for structural-first
+    // account range detection. The payload is not yet hash-verified at this point,
+    // but structural-based detection is used as a SIGNAL only (not for extraction).
+    // This is safe because fingerprinting only reads token text/positions — no data trust.
     let sourceFingerprint: SourceFingerprint | null = null;
     {
       const fpFileType: "pdf" | "xlsx" | "csv" = isCsvFile ? "csv" : isPdfFile ? "pdf" : "xlsx";
@@ -484,11 +488,16 @@ serve(async (req) => {
           fpHeaderRows = rows.slice(0, 10);
         } catch { /* fingerprinting is best-effort */ }
       }
+
+      // Pass raw structural payload for structural-first fingerprinting (PDF only)
+      const fpStructural = (isPdfFile && pdfStructural) ? pdfStructural as PdfStructuralPayload : undefined;
+
       sourceFingerprint = detectSourceSystem(
         fileName || "unknown",
         fpFileType,
         fileContent || undefined,
-        fpHeaderRows
+        fpHeaderRows,
+        fpStructural,
       );
       routingTrace.source_fingerprint = sourceFingerprint;
       console.log(`[SourceFingerprint] system=${sourceFingerprint.source_system}, doc=${sourceFingerprint.document_type}, confidence=${sourceFingerprint.confidence}, ai_allowed=${isAiAllowed(sourceFingerprint)}`);
