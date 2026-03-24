@@ -30,6 +30,8 @@ export interface DetectionContext {
   sheetNames: string[];
   headerRows: any[][];
   rawText?: string; // For PDF templates (legacy)
+  // PDF structural payload (Phase 8 — structural-first detection)
+  structuralPayload?: PdfStructuralPayload;
   // CSV structural fields (Phase 7 — used by buildCsvDetectionContext)
   csvHeaders?: string[];
   csvDelimiter?: string;
