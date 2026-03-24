@@ -215,6 +215,7 @@ export function tryDeterministicPdfStructuralExtraction(
     sheetNames: [],
     headerRows: [],
     rawText: textContent,
+    structuralPayload: structural,
   };
 
   const match = detectTemplate(ctx);
