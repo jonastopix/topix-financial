@@ -438,19 +438,30 @@ const FileUploadZone = ({
 
                 console.error(`[PdfStructural] FAIL for structural-required source [${diagnosticMarker}]:`, errMessage);
 
-                toast({
-                  title: "Fejl",
-                  description: "PDF-struktur kunne ikke udtrækkes. Uploaden blev stoppet. Prøv igen eller kontakt support.",
-                  variant: "destructive",
-                });
-
                 await supabase.from("financial_reports").update({
-                  status: "error",
+                  status: "processed",
+                  extraction_contract_version: "v1",
+                  quality_signals: {
+                    needs_manual_entry: true,
+                    has_metrics: false,
+                    has_period: false,
+                    extraction_method: "structural_client_fail",
+                    routing_branch: `structural_client_fail_${diagnosticMarker}`,
+                    validation_status: "FAIL",
+                    validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
+                    canonical_checks: [],
+                    ai_eligible: false,
+                  },
+                  validation_status: "FAIL",
                   validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
-                }).eq("id", reportRecord.id);
+                  processed_at: new Date().toISOString(),
+                } as any).eq("id", reportRecord.id);
 
-                updateFile(fileId, { status: "error" });
-                return;
+                extractedData = { needs_manual_entry: true, status: "processed" };
+                toast({
+                  title: "Manuel indtastning påkrævet",
+                  description: "PDF-strukturen kunne ikke læses — du kan indtaste tallene manuelt",
+                });
               } else {
                 console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
               }
