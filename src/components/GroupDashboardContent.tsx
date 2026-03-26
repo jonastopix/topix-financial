@@ -204,7 +204,7 @@ const GroupDashboardContent = ({
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Omsætning</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Resultat</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Likviditet</th>
-                    <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
+                    <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Status</th>
                     <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell"></th>
                   </tr>
                 </thead>

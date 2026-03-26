@@ -70,22 +70,25 @@ export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardPro
         </span>
       </td>
 
-      {/* Sparkline */}
+      {/* Status */}
       <td className="py-3 px-4 hidden sm:table-cell">
-        {has_verified_metrics ? (
-          <MiniSparkline values={revenueValues.length > 0 ? revenueValues : [0]} color={sparkColor} />
-        ) : (
-          <span className="text-[10px] text-muted-foreground">—</span>
-        )}
-      </td>
-
-      {/* Trend badge */}
-      <td className="py-3 px-4 hidden sm:table-cell">
-        {has_verified_metrics ? (
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${trendBadgeClass}`}>
-            {trend.direction === "flat" ? "—" : `${trend.pct >= 0 ? "+" : ""}${Math.round(trend.pct)}%`}
+        {!has_verified_metrics ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+            Mangler data
           </span>
-        ) : null}
+        ) : ebt === null ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+            —
+          </span>
+        ) : ebt > 0 ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+            Overskud
+          </span>
+        ) : (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+            Underskud
+          </span>
+        )}
       </td>
     </tr>
   );
