@@ -23,14 +23,8 @@ function formatDKK(value: number): string {
 type FilterTab = "alle" | "attention" | "top";
 type SortKey = "revenue" | "ebt" | "trend";
 
-function getCompanyTrendPct(c: GroupCompanySummary): number {
-  // With single-period data, trend is flat
-  // Future: compare against previous period_key
-  return 0;
-}
-
 function needsAttention(c: GroupCompanySummary): boolean {
-  return (c.cash != null && c.cash < 0) || c.missing_current_period || getCompanyTrendPct(c) < -10;
+  return (c.cash != null && c.cash < 0) || c.missing_current_period;
 }
 
 function isTopPerformer(c: GroupCompanySummary): boolean {
@@ -80,7 +74,7 @@ const GroupDashboardContent = ({
       switch (sortKey) {
         case "revenue": return (b.revenue ?? 0) - (a.revenue ?? 0);
         case "ebt": return (b.ebt ?? 0) - (a.ebt ?? 0);
-        case "trend": return getCompanyTrendPct(b) - getCompanyTrendPct(a);
+        case "trend": return (b.ebt ?? 0) - (a.ebt ?? 0);
         default: return 0;
       }
     });
@@ -210,8 +204,7 @@ const GroupDashboardContent = ({
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Omsætning</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Resultat</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Likviditet</th>
-                    <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
-                    <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell"></th>
+                     <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Status</th>
                   </tr>
                 </thead>
                 <tbody>
