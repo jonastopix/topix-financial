@@ -3,13 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
-  MessageSquare, Clock, Building2, FileText, StickyNote,
-  ChevronRight, CheckCircle2, AlertTriangle, User,
+  MessageSquare, Clock, Building2,
+  ChevronRight, CheckCircle2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
+import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
+import GroupDashboardContent from "@/components/GroupDashboardContent";
+import { buildGroupAggregates, type GroupCompanySummary } from "@/lib/groupDashboardUtils";
 
 // ── Helpers ──
 
