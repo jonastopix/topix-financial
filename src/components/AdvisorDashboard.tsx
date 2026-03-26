@@ -232,26 +232,37 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* ── Porteføljestatus ── */}
+      <GroupDashboardContent
+        companies={groupSummaries}
+        aggregates={buildGroupAggregates(groupSummaries)}
+        isLoading={isLoading}
+        groupName="Mine virksomheder"
+        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+      />
+
+      {/* ── All clear banner ── */}
+      {actionQueue.length === 0 && !hasFollowUps && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="text-sm text-emerald-700 dark:text-emerald-300">
+            Alt er stille — ingen samtaler kræver handling lige nu
+          </span>
+        </div>
+      )}
+
       {/* ── Section 1: Kræver svar ── */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <MessageSquare className="h-4 w-4 text-destructive" />
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-            Afventer dit svar
-          </h2>
-          {actionQueue.length > 0 && (
+      {actionQueue.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="h-4 w-4 text-destructive" />
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              Afventer dit svar
+            </h2>
             <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold">
               {actionQueue.length}
             </span>
-          )}
-        </div>
-
-        {actionQueue.length === 0 ? (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-secondary/50 border border-border">
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span className="text-sm text-muted-foreground">Ingen samtaler afventer dit svar</span>
           </div>
-        ) : (
           <div className="space-y-1.5">
             {actionQueue.map(conv => (
               <Link
@@ -279,8 +290,8 @@ const AdvisorDashboard = () => {
               </Link>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* ── Section 2: Follow-up ── */}
       {hasFollowUps && (
@@ -357,15 +368,6 @@ const AdvisorDashboard = () => {
           </div>
         </section>
       )}
-
-      {/* ── Section 3: Porteføljestatus ── */}
-      <GroupDashboardContent
-        companies={groupSummaries}
-        aggregates={buildGroupAggregates(groupSummaries)}
-        isLoading={isLoading}
-        groupName="Mine virksomheder"
-        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
-      />
     </div>
   );
 };
