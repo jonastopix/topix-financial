@@ -1,12 +1,11 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { getEffectiveReportPeriodKey } from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import { BvaSummaryCard, varianceColor, varianceIcon } from "./BudgetHelpers";
 import {
-  MONTHS, BUDGET_TO_REPORT_KEY, REVENUE_GROUPS, formatK,
+  MONTHS, REVENUE_GROUPS, formatK,
   type BudgetRow, type ScenarioKey,
 } from "./types";
 
@@ -17,45 +16,42 @@ interface Props {
 }
 
 export default function BudgetVsActualTab({ scenarioData, year, companyId }: Props) {
-  const { data: reports } = useQuery({
-    queryKey: ["financial-reports-actuals", companyId, year],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("financial_reports")
-        .select("report_period, extracted_data")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .eq("status", "processed");
-      return data || [];
-    },
-  });
+  const { data: facts = [] } = useCompanyFacts(companyId);
 
   const actualsMap = useMemo(() => {
     const map: Record<number, Record<string, number>> = {};
-    if (!reports) return map;
 
-    for (const report of reports) {
-      const periodKey = getEffectiveReportPeriodKey(report as any);
-      if (!periodKey) continue;
-      const [reportYear, monthStr] = periodKey.split("-");
-      if (reportYear !== year) continue;
+    for (const fact of facts) {
+      const [factYear, monthStr] = fact.period_key.split("-");
+      if (factYear !== year) continue;
       const monthIdx = parseInt(monthStr, 10) - 1;
       if (monthIdx < 0 || monthIdx > 11) continue;
 
-      const ed = report.extracted_data as Record<string, any> | null;
-      const kf = ed?.key_figures as Record<string, number> | null;
-      if (!kf) continue;
-
+      const kf = factsToDanishMetrics(fact.metrics);
       if (!map[monthIdx]) map[monthIdx] = {};
-      for (const [budgetKey, reportKey] of Object.entries(BUDGET_TO_REPORT_KEY)) {
-        if (kf[reportKey] != null) {
-          map[monthIdx][budgetKey] = Math.abs(kf[reportKey]);
+
+      const keyMapping: Record<string, number | undefined> = {
+        omsaetning: kf.omsaetning,
+        direkte_omk: kf.direkte_omkostninger,
+        vareforbrug: kf.direkte_omkostninger,
+        loenninger: kf.loenninger,
+        marketing: kf.salgsomkostninger,
+        digital_marketing: kf.salgsomkostninger,
+        lokaler: kf.lokaleomkostninger,
+        admin: kf.administrationsomkostninger,
+        admin_regnskab: kf.administrationsomkostninger,
+        tech_software: kf.administrationsomkostninger,
+        platform_tech: kf.administrationsomkostninger,
+      };
+
+      for (const [budgetKey, value] of Object.entries(keyMapping)) {
+        if (value != null) {
+          map[monthIdx][budgetKey] = Math.abs(value);
         }
       }
     }
     return map;
-  }, [reports, year]);
+  }, [facts, year]);
 
   const baseRows = scenarioData.base;
   const hasAnyActuals = Object.keys(actualsMap).length > 0;
