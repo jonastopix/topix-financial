@@ -73,7 +73,12 @@ const economic_saldobalance_credit_v1: NormalizationProfile = {
     receivable_payable_like: KEEP,    // Direction matters
     contra_or_unknown:       REJECT,
   },
-  field_overrides: {},
+  field_overrides: {
+    daekningsbidrag: { action: "abs", description: "Derived gross_profit — already in business convention" },
+    resultat_foer_skat: { action: "abs", description: "Derived EBT — already in business convention" },
+    ebitda: { action: "abs", description: "Derived EBITDA — already in business convention" },
+    resultat_efter_skat: { action: "abs", description: "Derived net result — already in business convention" },
+  },
 };
 
 // ── Profile: e-conomic Resultatopgørelse PDF (credit convention, P&L only) ──
