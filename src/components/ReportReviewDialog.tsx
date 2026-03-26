@@ -523,11 +523,37 @@ export default function ReportReviewDialog({
           <div className="space-y-4">
             {/* Manual entry info banner */}
             {(preview.quality_signals as any)?.needs_manual_entry === true && (
-              <div className="rounded-lg border border-blue-300/50 bg-blue-50/50 dark:border-blue-500/30 dark:bg-blue-950/20 p-3 flex items-start gap-2">
-                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Vi kunne ikke udtrække data automatisk fra dit dokument. Ingen grund til bekymring — indtast nøgletallene nedenfor og tryk 'Gem rettelser'.
-                </p>
+              <div className="space-y-3">
+                <div className="rounded-lg border border-blue-200/60 bg-blue-50/50 dark:border-blue-800/40 dark:bg-blue-950/20 p-3">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
+                    Vi kunne ikke læse dit dokument automatisk
+                  </p>
+                  <p className="text-xs text-blue-700/80 dark:text-blue-400/80">
+                    {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0
+                      ? "Vi fandt nogle tal — kontrollér at de er korrekte og ret dem der er forkerte."
+                      : "Systemet genkendte ikke formatet. Indtast tallene nedenfor direkte fra din rapport."}
+                  </p>
+                </div>
+
+                {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
+                  <div className="rounded-lg border border-amber-200/60 bg-amber-50/40 dark:border-amber-800/30 dark:bg-amber-950/20 p-3">
+                    <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2">
+                      Usikre tal — kontrollér disse
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Object.entries(preview.metrics_preview).map(([key, value]) => (
+                        <div key={key} className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {METRIC_LABELS[key] || key}
+                          </span>
+                          <span className="font-medium text-amber-700 dark:text-amber-400">
+                            {formatDKK(value as number)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
