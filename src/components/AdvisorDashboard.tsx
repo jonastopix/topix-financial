@@ -90,13 +90,21 @@ const AdvisorDashboard = () => {
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
-      // Build report keys per company
+      // Build report keys per company + latest key figures
       const reportKeysByCompany = new Map<string, Set<string>>();
+      const latestKfByCompany = new Map<string, { key: string; kf: Record<string, number> }>();
       for (const r of reports) {
         const key = getEffectiveReportPeriodKey(r);
         if (!key) continue;
         if (!reportKeysByCompany.has(r.company_id)) reportKeysByCompany.set(r.company_id, new Set());
         reportKeysByCompany.get(r.company_id)!.add(key);
+
+        const kf = getEffectiveKeyFigures(r);
+        if (!kf) continue;
+        const existing = latestKfByCompany.get(r.company_id);
+        if (!existing || key > existing.key) {
+          latestKfByCompany.set(r.company_id, { key, kf });
+        }
       }
 
       // Latest report key per company
@@ -154,38 +162,34 @@ const AdvisorDashboard = () => {
         if (c.company_id && noteConvIds.has(c.id)) companiesWithNote.add(c.company_id);
       }
 
-      // Portfolio status: build per company
-      const portfolio = companies.map(c => {
-        const convs = convByCompany.get(c.id) || [];
-        const awaitingCount = convs.filter(co =>
-          co.awaiting_reply_from === "advisor" &&
-          co.conversation_status === "open" &&
-          (co.assigned_advisor_id === user!.id || co.assigned_advisor_id === null)
-        ).length;
-        const missingReport = companiesMissingReport.has(c.id);
-        const hasNote = companiesWithNote.has(c.id);
+      // Build GroupCompanySummary[] for the new dashboard component
+      const groupSummaries: GroupCompanySummary[] = companies.map(c => {
+        const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
-
-        // Priority score for sorting: flagged companies first
-        let priority = 0;
-        if (awaitingCount > 0) priority += 10;
-        if (missingReport) priority += 5;
+        const missingReport = companiesMissingReport.has(c.id);
 
         return {
-          ...c,
-          awaitingCount,
-          missingReport,
-          hasNote,
-          latestReportKey: latestKey,
-          priority,
+          company_id: c.id,
+          company_name: c.name,
+          logo_url: c.logo_url,
+          has_report: !!latestKey,
+          has_verified_metrics: !!latest,
+          latest_report_id: null,
+          effective_period_label: latestKey ? formatReportKeyFull(latestKey) : null,
+          effective_period_key: latestKey,
+          revenue: latest?.kf.omsaetning ?? null,
+          gross_profit: latest?.kf.daekningsbidrag ?? null,
+          ebt: latest?.kf.resultat_foer_skat ?? null,
+          cash: latest?.kf.bank_balance ?? null,
+          missing_current_period: missingReport,
         };
-      }).sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
+      });
 
       return {
         actionQueue,
         overdueFollowUps,
         upcomingFollowUps,
-        portfolio,
+        groupSummaries,
         companyMap,
       };
     },
