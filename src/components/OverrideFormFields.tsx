@@ -17,6 +17,29 @@ import {
   FIELD_LABELS,
 } from "@/lib/reportOverrideHelpers";
 
+const FIELD_PLACEHOLDERS: Record<string, string> = {
+  omsaetning: "Eks. 1250000",
+  daekningsbidrag: "Eks. 650000",
+  loenninger: "Eks. -320000",
+  ebitda: "Eks. 180000",
+  resultat_foer_skat: "Eks. 120000",
+  resultat_efter_skat: "Eks. 90000",
+  bank_balance: "Eks. 480000",
+  debitorer: "Eks. 210000",
+  kreditorer: "Eks. -95000",
+  egenkapital: "Eks. 750000",
+  aktiver_i_alt: "Eks. 1800000",
+  gaeld_i_alt: "Eks. 1050000",
+};
+
+const REQUIRED_FIELDS = new Set([
+  "omsaetning",
+  "daekningsbidrag",
+  "resultat_foer_skat",
+  "egenkapital",
+  "aktiver_i_alt",
+]);
+
 export interface OverrideFormFieldsProps {
   reportType: string;
   onReportTypeChange: (v: string) => void;
@@ -101,7 +124,10 @@ export default function OverrideFormFields({
       {/* Section B: Key figures */}
       <div className="space-y-4">
         <p className="text-[10px] text-muted-foreground">
-          Tomt felt = ingen manuel korrektion (bruger parserens værdi). Brug negativt tal for omkostninger.
+          Brug tal i hele kroner uden punktum som tusindtalsseparator. Negative tal angives med minus: -50000
+        </p>
+        <p className="text-[10px] text-muted-foreground">
+          Tomt felt = ingen manuel korrektion (bruger parserens værdi).
         </p>
 
         <div className="space-y-3">
@@ -109,13 +135,16 @@ export default function OverrideFormFields({
           <div className="grid grid-cols-1 gap-3">
             {PNL_FIELDS.map(field => (
               <div key={field} className="flex items-center gap-3">
-                <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
+                <Label className="w-40 text-xs flex-shrink-0">
+                  {FIELD_LABELS[field]}
+                  {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
+                </Label>
                 <Input
                   type="text"
                   inputMode="numeric"
                   value={metricInputs[field] ?? ""}
                   onChange={e => onMetricChange(field, e.target.value)}
-                  placeholder="—"
+                  placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
                   className="flex-1"
                 />
               </div>
@@ -128,19 +157,24 @@ export default function OverrideFormFields({
           <div className="grid grid-cols-1 gap-3">
             {BALANCE_FIELDS.map(field => (
               <div key={field} className="flex items-center gap-3">
-                <Label className="w-32 text-xs flex-shrink-0">{FIELD_LABELS[field]}</Label>
+                <Label className="w-40 text-xs flex-shrink-0">
+                  {FIELD_LABELS[field]}
+                  {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
+                </Label>
                 <Input
                   type="text"
                   inputMode="numeric"
                   value={metricInputs[field] ?? ""}
                   onChange={e => onMetricChange(field, e.target.value)}
-                  placeholder="—"
+                  placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
                   className="flex-1"
                 />
               </div>
             ))}
           </div>
         </div>
+
+        <p className="text-[10px] text-muted-foreground italic">* Obligatorisk for AI-analyse</p>
       </div>
     </div>
   );
