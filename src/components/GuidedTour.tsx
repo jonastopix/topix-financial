@@ -117,7 +117,7 @@ export default function GuidedTour({ onComplete }: { onComplete: () => void }) {
         .eq("user_id", user.id);
     }
     onComplete();
-    navigate("/settings");
+    navigate("/reports");
   };
 
   const next = () => {
