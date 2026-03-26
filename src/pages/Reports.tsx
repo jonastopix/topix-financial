@@ -402,9 +402,14 @@ const Reports = () => {
       if (report.file_path && report.file_path.includes("/")) {
         await supabase.storage.from("financial-documents").remove([report.file_path]);
       }
+      await (supabase.from("financial_report_facts" as any)
+        .delete()
+        .eq("source_report_id", report.id) as any);
       const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
       if (error) throw error;
       setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
