@@ -99,7 +99,7 @@ interface ChatMsg {
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
   processed: { icon: CheckCircle2, ...reportStatusConfig.processed },
   processing: { icon: Clock, ...reportStatusConfig.processing },
-  error: { icon: AlertCircle, ...reportStatusConfig.error },
+  error: { icon: Pencil, label: "Afventer dine tal", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" },
 };
 
 const Reports = () => {
