@@ -352,6 +352,30 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
         </div>
       )}
 
+      {/* Next module prompt after completion */}
+      {isCompleted && (() => {
+        const currentIdx = moduleOrder.indexOf(config.module);
+        const nextModule = currentIdx >= 0 && currentIdx < moduleOrder.length - 1
+          ? moduleOrder[currentIdx + 1]
+          : null;
+        if (!nextModule) return null;
+
+        return (
+          <button
+            onClick={() => onModuleSelect?.(nextModule)}
+            className="mt-4 w-full flex items-center justify-between p-4 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-left group"
+          >
+            <div>
+              <p className="text-xs text-muted-foreground">Næste modul</p>
+              <p className="text-sm font-medium text-foreground">
+                {nextModule.charAt(0).toUpperCase() + nextModule.slice(1)}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        );
+      })()}
+
       {/* AI Feedback */}
       {handoutId && (
         <HandoutAIFeedback
