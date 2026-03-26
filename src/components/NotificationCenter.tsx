@@ -93,9 +93,12 @@ const NotificationCenter = () => {
 
         <div className="flex-1 overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="p-6 text-center">
-              <Bell className="h-6 w-6 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">Ingen notifikationer endnu</p>
+            <div className="py-8 text-center">
+              <Bell className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">Ingen notifikationer endnu</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Vi giver dig besked når der sker noget vigtigt
+              </p>
             </div>
           ) : (
             notifications.map((n) => {
