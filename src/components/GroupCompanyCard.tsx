@@ -156,15 +156,18 @@ export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardPro
 }
 
 // Keep default export for backward compat (member dashboard uses the card grid)
-const GroupCompanyCard = ({ company }: GroupCompanyCardProps) => {
+const GroupCompanyCard = ({ company, onCompanyClick }: GroupCompanyCardProps) => {
   const {
-    company_name, logo_url, has_report, has_verified_metrics,
+    company_id, company_name, logo_url, has_report, has_verified_metrics,
     effective_period_label, missing_current_period,
     revenue, gross_profit, ebt, cash,
   } = company;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3 hover:shadow-sm transition-shadow">
+    <div
+      className={`rounded-xl border border-border bg-card p-4 space-y-3 hover:shadow-sm transition-shadow ${onCompanyClick ? "cursor-pointer" : ""}`}
+      onClick={onCompanyClick ? () => onCompanyClick(company_id, company_name) : undefined}
+    >
       <div className="flex items-center gap-3">
         <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
           {logo_url ? (
