@@ -15,6 +15,7 @@ import {
   PNL_FIELDS,
   BALANCE_FIELDS,
   FIELD_LABELS,
+  parseMetricValue,
 } from "@/lib/reportOverrideHelpers";
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
