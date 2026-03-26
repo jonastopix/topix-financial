@@ -84,6 +84,7 @@ interface DbReport {
   manual_override_by: string | null;
   manual_override_at: string | null;
   manual_override_source: string | null;
+  quality_signals: Json | null;
 }
 
 interface ChatMsg {
@@ -136,7 +137,7 @@ const Reports = () => {
     const [reportsRes, convRes] = await Promise.all([
       (supabase
         .from("financial_reports")
-        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source") as any)
+        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source, quality_signals") as any)
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false }),
@@ -688,7 +689,10 @@ const Reports = () => {
       ) : (
         <div className="space-y-3">
           {dbReports.map((report) => {
-            const config = statusConfig[report.status] || statusConfig.processing;
+            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true;
+            const config = needsManualEntry
+              ? { icon: AlertTriangle, label: "Mangler data", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" }
+              : (statusConfig[report.status] || statusConfig.processing);
             const Icon = config.icon;
             const isExpanded = expandedReport === report.id;
             const msgs = chatMessages[report.id] || [];
@@ -816,7 +820,16 @@ const Reports = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        {(() => {
+                        {needsManualEntry && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Indtast tal
+                          </button>
+                        )}
+                        {!needsManualEntry && (() => {
                           const cs = commitStatesQuery.data?.get(report.id);
                           if (cs?.state === "ready") {
                             return (

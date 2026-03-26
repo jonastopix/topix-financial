@@ -206,38 +206,28 @@ function getEarlyExitPersistPayload(
   errors: string[],
   routingTrace: Record<string, any>,
 ): Record<string, any> {
-  const base = {
+  // ALWAYS return status="processed" with needs_manual_entry for known-source failures.
+  // The user will be guided to enter data manually instead of seeing a dead-end error.
+  return {
     extraction_method: extractionMethod,
     raw_extracted_data: { routing_trace: routingTrace },
     processed_at: new Date().toISOString(),
+    status: "processed",
+    extraction_contract_version: isV2Cohort ? "v2" : "v1",
+    validation_status: "FAIL",
+    validation_errors: errors,
+    quality_signals: {
+      needs_manual_entry: true,
+      validation_status: "FAIL",
+      validation_errors: errors,
+      canonical_checks: [],
+      ai_eligible: false,
+      has_metrics: false,
+      has_period: false,
+      extraction_method: extractionMethod,
+      routing_branch: routingBranch,
+    },
   };
-
-  if (isV2Cohort) {
-    return {
-      ...base,
-      status: "processed",
-      extraction_contract_version: "v2",
-      validation_status: "FAIL",
-      validation_errors: errors,
-      quality_signals: {
-        validation_status: "FAIL",
-        validation_errors: errors,
-        canonical_checks: [],
-        ai_eligible: false,
-        has_metrics: false,
-        has_period: false,
-        extraction_method: extractionMethod,
-        routing_branch: routingBranch,
-      },
-    };
-  } else {
-    return {
-      ...base,
-      status: "error",
-      validation_status: "FAIL",
-      validation_errors: errors,
-    };
-  }
 }
 
 /**
@@ -1392,22 +1382,23 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
-      // Determine final DB status based on validation
-      // V1: PASS -> processed, FAIL/UNSURE -> error
-      // V2 cohort: readable financial docs always 'processed', validation is advisory only
-      // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
-      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod, finalStatus);
+      // Determine final DB status based on document type
+      // Financial docs: ALWAYS "processed" (manual entry fallback if validation fails)
+      // Non-financial/garbage docs: "error" (truly unrecognizable)
+      const isFinancialDoc = isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod, finalStatus);
+      const isV2Persist = isV2Cohort && isFinancialDoc;
       let dbStatus: string;
-      if (isV2Persist) {
-        // V2 cohort + readable financial doc → processed regardless of validation
+      let needsManualEntry = false;
+      if (isFinancialDoc) {
         dbStatus = "processed";
-        console.log(`[V2Rollout] V2 cohort + readable financial → status=processed (validation=${finalStatus} is advisory)`);
-      } else if (isV2Cohort) {
-        // V2 cohort but NOT a readable financial doc → error + v1
-        dbStatus = finalStatus === "PASS" ? "processed" : "error";
-        console.log(`[V2Rollout] V2 cohort but non-financial doc → status=${dbStatus}, forcing v1`);
+        if (finalStatus !== "PASS") {
+          needsManualEntry = true;
+        }
+        console.log(`[StatusResolve] Financial doc → status=processed (validation=${finalStatus}, needsManualEntry=${needsManualEntry})`);
       } else {
-        dbStatus = finalStatus === "PASS" ? "processed" : "error";
+        // Non-financial doc (APV, images, random PDFs) → error
+        dbStatus = "error";
+        console.log(`[StatusResolve] Non-financial doc → status=error`);
       }
 
       // Prepare DB update — map canonical field names to DB columns for semantic path
@@ -1528,7 +1519,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         // Phase A1: V2 persisted marker + quality signals
         // Only use v2 marker for readable financial docs; non-financial stays v1
         extraction_contract_version: isV2Persist ? "v2" : "v1",
-        quality_signals: isV2Persist ? {
+        quality_signals: (isV2Persist || needsManualEntry) ? {
+          needs_manual_entry: needsManualEntry,
           validation_status: finalStatus,
           validation_errors: allErrors.length > 0 ? allErrors : null,
           canonical_checks: canonical.validation?.canonical_checks ?? [],
@@ -1572,7 +1564,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
             const { writeNotification } = await import("../_shared/notificationWriter.ts");
 
             if (dbStatus === "error") {
-              // report_error: action_required, immediate
+              // report_error: action_required, immediate (non-financial doc)
               await writeNotification(supabase, {
                 user_id: reportRow.user_id,
                 type: "report_error",
@@ -1586,6 +1578,21 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                 dedup_key: `report_error:${reportId}`,
               });
               console.log(`[Phase2] report_error notification for user ${reportRow.user_id}`);
+            } else if (needsManualEntry) {
+              // Extraction failed but doc is financial — guide user to manual entry
+              await writeNotification(supabase, {
+                user_id: reportRow.user_id,
+                type: "report_review_ready",
+                priority: "action_required",
+                title: "Din rapport kræver manuel indtastning",
+                body: `Vi kunne ikke udtrække data automatisk fra "${fileName || "ukendt"}". Indtast nøgletallene manuelt.`,
+                reference_type: "report",
+                reference_id: reportId,
+                deep_link: `/reports?reportId=${reportId}`,
+                company_id: reportRow.company_id || undefined,
+                dedup_key: `report_manual_entry:${reportId}`,
+              });
+              console.log(`[Phase2] report_manual_entry notification for user ${reportRow.user_id}`);
             } else {
               // Check reviewability via resolve_report_commit_candidate
               const { data: candidate, error: rpcErr } = await supabase
