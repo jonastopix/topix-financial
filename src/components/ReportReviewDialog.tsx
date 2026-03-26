@@ -491,6 +491,16 @@ export default function ReportReviewDialog({
         {/* Edit mode: render shared OverrideFormFields */}
         {preview && !loading && editing && (
           <div className="space-y-4">
+            {/* Manual entry info banner */}
+            {(preview.quality_signals as any)?.needs_manual_entry === true && (
+              <div className="rounded-lg border border-blue-300/50 bg-blue-50/50 dark:border-blue-500/30 dark:bg-blue-950/20 p-3 flex items-start gap-2">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Vi kunne ikke udtrække data automatisk fra dit dokument. Ingen grund til bekymring — indtast nøgletallene nedenfor og tryk 'Gem rettelser'.
+                </p>
+              </div>
+            )}
+
             {/* Blocked warning in edit mode */}
             {isBlocked && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
