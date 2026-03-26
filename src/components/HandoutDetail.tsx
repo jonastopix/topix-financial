@@ -31,7 +31,7 @@ interface LeverMilestone {
 
 type SaveStatus = "idle" | "saving" | "saved";
 
-const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
+const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetailProps) => {
   const { user, companyId, companyName } = useAuth();
   const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
