@@ -5,7 +5,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
-  BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, Wallet,
+  BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -98,6 +98,62 @@ function selectPrimaryConversation(conversations: ConvRow[]): ConvRow | null {
   return resolved[0];
 }
 
+// ── Trend helpers ──
+function calcDeltaPct(current: number | null | undefined, previous: number | null | undefined): number | null {
+  if (current == null || previous == null) return null;
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+interface TrendMetricProps {
+  icon: typeof DollarSign;
+  label: string;
+  current: number | null | undefined;
+  previous?: number | null | undefined;
+  hasPrevious: boolean;
+  negativeIsRed?: boolean;
+  periodNote?: string;
+}
+
+function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negativeIsRed, periodNote }: TrendMetricProps) {
+  const delta = calcDeltaPct(current, previous);
+  const isPositive = delta != null && delta > 5;
+  const isNegative = delta != null && delta < -5;
+  const isLargeDecline = delta != null && delta < -10;
+
+  // Signal color
+  let signalColor = "text-muted-foreground"; // neutral
+  if (isPositive) signalColor = "text-emerald-600";
+  if (isLargeDecline) signalColor = "text-destructive";
+
+  const DeltaIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+      </div>
+      <p className={`text-sm font-semibold ${negativeIsRed && (current ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>
+        {current != null ? formatDKK(current) : "—"}
+      </p>
+      {hasPrevious && delta != null ? (
+        <div className={`flex items-center gap-1 mt-0.5 ${signalColor}`}>
+          <DeltaIcon className="h-3 w-3" />
+          <span className="text-[10px] font-medium">
+            {delta >= 0 ? "+" : ""}{Math.round(delta)}%
+          </span>
+        </div>
+      ) : hasPrevious ? null : current != null ? (
+        <p className="text-[10px] text-muted-foreground mt-0.5">Første periode</p>
+      ) : null}
+      {periodNote && (
+        <p className="text-[10px] text-muted-foreground mt-0.5">{periodNote}</p>
+      )}
+    </div>
+  );
+}
+
 const AdvisorCompanyOverview = () => {
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
@@ -166,7 +222,12 @@ const AdvisorCompanyOverview = () => {
         .sort((a, b) => a.key.localeCompare(b.key));
 
       const latest = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+      const previous = sorted.length > 1 ? sorted[sorted.length - 2] : null;
       const bankReport = [...sorted].reverse().find(r => r.kf.bank_balance != null);
+      // Find the second-latest report that has bank_balance for bank trend
+      const bankPrevious = bankReport
+        ? [...sorted].reverse().find(r => r.kf.bank_balance != null && r.key !== bankReport.key)
+        : null;
 
       const missingKey = getMissingReportKey();
       const reportKeys = new Set(sorted.map(r => r.key));
@@ -180,7 +241,9 @@ const AdvisorCompanyOverview = () => {
         hasNote,
         noteConvId,
         latest,
+        previous,
         bankReport,
+        bankPrevious,
         missingReport,
         assignedName,
       };
@@ -362,40 +425,32 @@ const AdvisorCompanyOverview = () => {
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
             Seneste nøgletal · {formatReportKey(latest.key)}
+            {data?.previous ? ` vs. ${formatReportKey(data.previous.key)}` : ""}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground font-medium">Omsætning</span>
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                {formatDKK(latest.kf.omsaetning)}
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground font-medium">Resultat</span>
-              </div>
-              <p className={`text-sm font-semibold ${(latest.kf.resultat_foer_skat ?? 0) >= 0 ? "text-foreground" : "text-destructive"}`}>
-                {formatDKK(latest.kf.resultat_foer_skat)}
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground font-medium">Bank</span>
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                {bankReport ? formatDKK(bankReport.kf.bank_balance) : "—"}
-              </p>
-              {bankReport && bankReport.key !== latest.key && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  pr. {formatReportKey(bankReport.key)}
-                </p>
-              )}
-            </div>
+            <TrendMetric
+              icon={DollarSign}
+              label="Omsætning"
+              current={latest.kf.omsaetning}
+              previous={data?.previous?.kf.omsaetning}
+              hasPrevious={!!data?.previous}
+            />
+            <TrendMetric
+              icon={TrendingUp}
+              label="Resultat"
+              current={latest.kf.resultat_foer_skat}
+              previous={data?.previous?.kf.resultat_foer_skat}
+              hasPrevious={!!data?.previous}
+              negativeIsRed
+            />
+            <TrendMetric
+              icon={Wallet}
+              label="Bank"
+              current={bankReport?.kf.bank_balance}
+              previous={data?.bankPrevious?.kf.bank_balance}
+              hasPrevious={!!data?.bankPrevious}
+              periodNote={bankReport && bankReport.key !== latest.key ? `pr. ${formatReportKey(bankReport.key)}` : undefined}
+            />
           </div>
         </div>
       )}
