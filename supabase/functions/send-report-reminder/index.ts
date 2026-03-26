@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
             type: "report_reminder",
             priority: "action_required",
             title: `Rapport for ${expectedPeriod} mangler`,
-            body: `Upload venligst rapporten for ${company.name}.`,
+            body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram — det tager under 2 minutter.`,
             reference_type: "report",
             deep_link: "/reports",
             company_id: company.id,
