@@ -241,6 +241,42 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
         )}
       </div>
 
+      {/* Insufficient data — pre-generation guard */}
+      {effectivePeriodKey && !dataSufficiency.sufficient && !loading && (
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                Ikke nok data til AI-analyse
+              </h3>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80 leading-relaxed">
+                Tilføj mindst omsætning, dækningsbidrag og resultat for at modtage AI-analyse.
+                Du kan rette data via rapportens review-dialog.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Needs more data — returned from edge function */}
+      {needsMoreData && !loading && (
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-5">
+          <div className="flex items-start gap-3">
+            <Pencil className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                Tilføj venligst de manglende nøgletal
+              </h3>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80 leading-relaxed">
+                De committed data indeholder ikke nok nøgletal til en komplet AI-analyse.
+                Ret data via rapportens review-dialog og kør analysen igen.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loading */}
       {loading && (
         <div className="glass-card rounded-xl p-12 text-center">
