@@ -636,7 +636,7 @@ const AdvisorCompanyOverview = () => {
       })()}
 
       {/* ── Sessionsforberedelse ── */}
-      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} revenueTimeline={data?.revenueTimeline} />
+      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} />
 
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
