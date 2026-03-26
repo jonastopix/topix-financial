@@ -15,6 +15,7 @@ import {
   PNL_FIELDS,
   BALANCE_FIELDS,
   FIELD_LABELS,
+  parseMetricValue,
 } from "@/lib/reportOverrideHelpers";
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
@@ -60,6 +61,28 @@ export default function OverrideFormFields({
   metricInputs, onMetricChange,
   note, onNoteChange,
 }: OverrideFormFieldsProps) {
+  const omsVal = parseMetricValue(metricInputs["omsaetning"] ?? "");
+  const omsSafe = typeof omsVal === "number" ? omsVal : null;
+  const dbVal = parseMetricValue(metricInputs["daekningsbidrag"] ?? "");
+  const resVal = parseMetricValue(metricInputs["resultat_foer_skat"] ?? "");
+  const ebitdaVal = parseMetricValue(metricInputs["ebitda"] ?? "");
+
+  const fieldWarning = (field: string): JSX.Element | null => {
+    if (field === "omsaetning" && typeof omsVal === "number" && omsVal < 0) {
+      return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">Omsætning er negativ — er det korrekt?</p>;
+    }
+    if (field === "daekningsbidrag" && typeof dbVal === "number" && omsSafe !== null && omsSafe > 0 && dbVal > omsSafe) {
+      return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">Dækningsbidrag kan ikke overstige omsætningen</p>;
+    }
+    if (field === "resultat_foer_skat" && typeof resVal === "number" && omsSafe !== null && omsSafe > 0 && Math.abs(resVal) > omsSafe * 1.5) {
+      return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">Resultatet er usædvanligt stort ift. omsætningen</p>;
+    }
+    if (field === "ebitda" && typeof ebitdaVal === "number" && omsSafe !== null && omsSafe > 0 && ebitdaVal > omsSafe) {
+      return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">EBITDA kan ikke overstige omsætningen</p>;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       {/* Section A: Basics */}
@@ -134,19 +157,22 @@ export default function OverrideFormFields({
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Driftsnøgletal</h3>
           <div className="grid grid-cols-1 gap-3">
             {PNL_FIELDS.map(field => (
-              <div key={field} className="flex items-center gap-3">
-                <Label className="w-40 text-xs flex-shrink-0">
-                  {FIELD_LABELS[field]}
-                  {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
-                </Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={metricInputs[field] ?? ""}
-                  onChange={e => onMetricChange(field, e.target.value)}
-                  placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
-                  className="flex-1"
-                />
+              <div key={field}>
+                <div className="flex items-center gap-3">
+                  <Label className="w-40 text-xs flex-shrink-0">
+                    {FIELD_LABELS[field]}
+                    {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={metricInputs[field] ?? ""}
+                    onChange={e => onMetricChange(field, e.target.value)}
+                    placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
+                    className="flex-1"
+                  />
+                </div>
+                {fieldWarning(field)}
               </div>
             ))}
           </div>
