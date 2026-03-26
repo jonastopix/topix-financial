@@ -60,11 +60,7 @@ export const CANONICAL_TO_DANISH: Record<string, string> = {
   revenue: "omsaetning",
   gross_profit: "daekningsbidrag",
   payroll: "loenninger",
-  cogs: "direkte_omkostninger",
-  sales_costs: "salgsomkostninger",
-  facility_costs: "lokaleomkostninger",
-  admin_costs: "administrationsomkostninger",
-  depreciation: "afskrivninger",
+  ebitda: "ebitda",
   ebt: "resultat_foer_skat",
   net_result: "resultat_efter_skat",
   assets_total: "aktiver_i_alt",
@@ -72,6 +68,12 @@ export const CANONICAL_TO_DANISH: Record<string, string> = {
   cash: "bank_balance",
   trade_receivables: "debitorer",
   current_liabilities: "kreditorer",
+  debt_total: "gaeld_i_alt",
+  cogs: "direkte_omkostninger",
+  sales_costs: "salgsomkostninger",
+  facility_costs: "lokaleomkostninger",
+  admin_costs: "administrationsomkostninger",
+  depreciation: "afskrivninger",
 };
 
 /** Danish override key → Canonical EN key (reverse of above) */
