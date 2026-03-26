@@ -100,6 +100,13 @@ Deno.serve(async (req) => {
       return jsonRes({ error: analysis.error }, 502);
     }
 
+    // If the AI layer says we need more data, return that directly without persisting
+    if (analysis.needs_more_data) {
+      return new Response(JSON.stringify(analysis), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 6. Compute basis hash using the same function as the DB trigger
     const basisMetricsHash = await computeMetricsHash(metrics);
 

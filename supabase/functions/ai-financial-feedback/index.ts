@@ -212,6 +212,31 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     // ═══════════════════════════════════════════════════════════════
+    // DATA SUFFICIENCY CHECK — return early if too few metrics
+    // ═══════════════════════════════════════════════════════════════
+    const metricsToCheck = isCanonicalPath
+      ? (canonicalPayload?.metrics as Record<string, unknown> | undefined)
+      : (financialData as Record<string, unknown> | undefined);
+
+    if (metricsToCheck) {
+      const nonNullCount = ALL_METRIC_KEYS.filter(k => metricsToCheck[k] != null && metricsToCheck[k] !== "").length;
+      const missingCore = CORE_METRIC_KEYS.filter(k => metricsToCheck[k] == null || metricsToCheck[k] === "");
+
+      if (nonNullCount < 3) {
+        const missingFields = ALL_METRIC_KEYS.filter(k => metricsToCheck[k] == null || metricsToCheck[k] === "");
+        return new Response(JSON.stringify({
+          feedback: "Ikke nok data til analyse",
+          message: "Tilføj venligst de manglende nøgletal for at modtage en komplet AI-analyse.",
+          needs_more_data: true,
+          missing_fields: missingFields,
+          populated_count: nonNullCount,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // DUAL PATH: Canonical vs Legacy
     // ═══════════════════════════════════════════════════════════════
     const isCanonicalPath = canonicalPayload?.input_type === "canonical";
