@@ -67,7 +67,7 @@ export default function OverrideFormFields({
   const resVal = parseMetricValue(metricInputs["resultat_foer_skat"] ?? "");
   const ebitdaVal = parseMetricValue(metricInputs["ebitda"] ?? "");
 
-  const fieldWarning = (field: string): React.ReactNode => {
+  const fieldWarning = (field: string): JSX.Element | null => {
     if (field === "omsaetning" && typeof omsVal === "number" && omsVal < 0) {
       return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">Omsætning er negativ — er det korrekt?</p>;
     }
