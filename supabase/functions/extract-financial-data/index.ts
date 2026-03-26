@@ -1519,7 +1519,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         // Phase A1: V2 persisted marker + quality signals
         // Only use v2 marker for readable financial docs; non-financial stays v1
         extraction_contract_version: isV2Persist ? "v2" : "v1",
-        quality_signals: isV2Persist ? {
+        quality_signals: (isV2Persist || needsManualEntry) ? {
+          needs_manual_entry: needsManualEntry,
           validation_status: finalStatus,
           validation_errors: allErrors.length > 0 ? allErrors : null,
           canonical_checks: canonical.validation?.canonical_checks ?? [],
