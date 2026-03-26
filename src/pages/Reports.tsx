@@ -852,7 +852,9 @@ const Reports = () => {
                                 Opdater committed data
                               </button>
                             );
-                        }
+                          }
+                          return null;
+                        })()}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
