@@ -716,8 +716,21 @@ const FileUploadZone = ({
 
       if (extractError) throw extractError;
       if (extractedData?.error) {
-        const friendlyMsg = getFriendlyErrorMessage(extractedData);
-        throw new Error(friendlyMsg);
+        const isKnownFallback =
+          extractedData?.status === "semantic_xlsx_fail" ||
+          extractedData?.status === "semantic_csv_fail" ||
+          extractedData?.status === "structural_parse_fail" ||
+          extractedData?.status === "structural_payload_missing" ||
+          extractedData?.status === "error" ||
+          extractedData?.error?.includes("Known source without supported template") ||
+          extractedData?.error?.includes("Structural semantic extraction failed") ||
+          extractedData?.error?.includes("Deterministic parsing failed");
+
+        if (!isKnownFallback) {
+          const friendlyMsg = getFriendlyErrorMessage(extractedData);
+          throw new Error(friendlyMsg);
+        }
+        console.log("[Overwrite] Known fallback path detected, continuing to pipeline:", extractedData?.status);
       }
 
       updateFile(pendingFileId, { extractedData });
