@@ -369,40 +369,32 @@ const AdvisorCompanyOverview = () => {
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
             Seneste nøgletal · {formatReportKey(latest.key)}
+            {data?.previous ? ` vs. ${formatReportKey(data.previous.key)}` : ""}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground font-medium">Omsætning</span>
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                {formatDKK(latest.kf.omsaetning)}
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground font-medium">Resultat</span>
-              </div>
-              <p className={`text-sm font-semibold ${(latest.kf.resultat_foer_skat ?? 0) >= 0 ? "text-foreground" : "text-destructive"}`}>
-                {formatDKK(latest.kf.resultat_foer_skat)}
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground font-medium">Bank</span>
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                {bankReport ? formatDKK(bankReport.kf.bank_balance) : "—"}
-              </p>
-              {bankReport && bankReport.key !== latest.key && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  pr. {formatReportKey(bankReport.key)}
-                </p>
-              )}
-            </div>
+            <TrendMetric
+              icon={DollarSign}
+              label="Omsætning"
+              current={latest.kf.omsaetning}
+              previous={data?.previous?.kf.omsaetning}
+              hasPrevious={!!data?.previous}
+            />
+            <TrendMetric
+              icon={TrendingUp}
+              label="Resultat"
+              current={latest.kf.resultat_foer_skat}
+              previous={data?.previous?.kf.resultat_foer_skat}
+              hasPrevious={!!data?.previous}
+              negativeIsRed
+            />
+            <TrendMetric
+              icon={Wallet}
+              label="Bank"
+              current={bankReport?.kf.bank_balance}
+              previous={data?.bankPrevious?.kf.bank_balance}
+              hasPrevious={!!data?.bankPrevious}
+              periodNote={bankReport && bankReport.key !== latest.key ? `pr. ${formatReportKey(bankReport.key)}` : undefined}
+            />
           </div>
         </div>
       )}
