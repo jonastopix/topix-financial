@@ -107,6 +107,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 const Reports = () => {
   const { user, companyId, isAdvisor: rawAdvisor, isAdmin } = useAuth();
   const { viewingAsMember } = useViewMode();
+  const queryClient = useQueryClient();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
