@@ -83,6 +83,47 @@ Deno.serve(async (req) => {
     }
     // ── END report_committed ──
 
+    // ── milestone_completed event ──
+    if (event === "milestone_completed") {
+      const { companyId: milestoneCompanyId, milestoneTitle } = body;
+      if (!milestoneCompanyId) return json({ error: "missing companyId" }, 400);
+
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: company } = await admin
+        .from("companies")
+        .select("name")
+        .eq("id", milestoneCompanyId)
+        .single();
+
+      const companyName = company?.name || "Et member";
+      const title = milestoneTitle ? `"${milestoneTitle}"` : "Et milestone";
+
+      const { data: advisorRoles } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["advisor", "admin"]);
+
+      const advisorIds = (advisorRoles || []).map((r: any) => r.user_id);
+
+      if (advisorIds.length > 0) {
+        await writeNotificationToMany(admin, advisorIds, {
+          type: "milestone_completed",
+          priority: "info",
+          title: `${companyName} har nået ${title}`,
+          body: `Milestone fuldført — ${companyName} er et skridt tættere på sit mål.`,
+          reference_type: "milestone",
+          company_id: milestoneCompanyId,
+          deep_link: `/members?companyId=${milestoneCompanyId}`,
+          dedup_key: `milestone_completed:${milestoneCompanyId}:${milestoneTitle || "unknown"}:${Date.now()}`,
+        });
+      }
+
+      return json({ ok: true, notified: advisorIds.length });
+    }
+    // ── END milestone_completed ──
+
     const { report_id, message_id } = body;
     if (!report_id || !message_id) {
       return json({ error: "report_id and message_id required" }, 400);
