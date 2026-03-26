@@ -3,13 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
-  MessageSquare, Clock, Building2, FileText, StickyNote,
-  ChevronRight, CheckCircle2, AlertTriangle, User,
+  MessageSquare, Clock, Building2,
+  ChevronRight, CheckCircle2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
+import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
+import GroupDashboardContent from "@/components/GroupDashboardContent";
+import { buildGroupAggregates, type GroupCompanySummary } from "@/lib/groupDashboardUtils";
 
 // ── Helpers ──
 
@@ -73,7 +75,7 @@ const AdvisorDashboard = () => {
           .order("name"),
         (supabase
           .from("financial_reports")
-          .select(`company_id, report_period, ${REPORT_OVERRIDE_SELECT}`) as any)
+          .select(`company_id, report_period, extracted_data, normalized_data, ${REPORT_OVERRIDE_SELECT}`) as any)
           .is("deleted_at", null)
           .eq("status", "processed"),
         supabase
@@ -88,13 +90,21 @@ const AdvisorDashboard = () => {
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
-      // Build report keys per company
+      // Build report keys per company + latest key figures
       const reportKeysByCompany = new Map<string, Set<string>>();
+      const latestKfByCompany = new Map<string, { key: string; kf: Record<string, number> }>();
       for (const r of reports) {
         const key = getEffectiveReportPeriodKey(r);
         if (!key) continue;
         if (!reportKeysByCompany.has(r.company_id)) reportKeysByCompany.set(r.company_id, new Set());
         reportKeysByCompany.get(r.company_id)!.add(key);
+
+        const kf = getEffectiveKeyFigures(r);
+        if (!kf) continue;
+        const existing = latestKfByCompany.get(r.company_id);
+        if (!existing || key > existing.key) {
+          latestKfByCompany.set(r.company_id, { key, kf });
+        }
       }
 
       // Latest report key per company
@@ -152,38 +162,34 @@ const AdvisorDashboard = () => {
         if (c.company_id && noteConvIds.has(c.id)) companiesWithNote.add(c.company_id);
       }
 
-      // Portfolio status: build per company
-      const portfolio = companies.map(c => {
-        const convs = convByCompany.get(c.id) || [];
-        const awaitingCount = convs.filter(co =>
-          co.awaiting_reply_from === "advisor" &&
-          co.conversation_status === "open" &&
-          (co.assigned_advisor_id === user!.id || co.assigned_advisor_id === null)
-        ).length;
-        const missingReport = companiesMissingReport.has(c.id);
-        const hasNote = companiesWithNote.has(c.id);
+      // Build GroupCompanySummary[] for the new dashboard component
+      const groupSummaries: GroupCompanySummary[] = companies.map(c => {
+        const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
-
-        // Priority score for sorting: flagged companies first
-        let priority = 0;
-        if (awaitingCount > 0) priority += 10;
-        if (missingReport) priority += 5;
+        const missingReport = companiesMissingReport.has(c.id);
 
         return {
-          ...c,
-          awaitingCount,
-          missingReport,
-          hasNote,
-          latestReportKey: latestKey,
-          priority,
+          company_id: c.id,
+          company_name: c.name,
+          logo_url: c.logo_url,
+          has_report: !!latestKey,
+          has_verified_metrics: !!latest,
+          latest_report_id: null,
+          effective_period_label: latestKey ? (() => { const [y, m] = latestKey.split("-"); return `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`; })() : null,
+          effective_period_key: latestKey,
+          revenue: latest?.kf.omsaetning ?? null,
+          gross_profit: latest?.kf.daekningsbidrag ?? null,
+          ebt: latest?.kf.resultat_foer_skat ?? null,
+          cash: latest?.kf.bank_balance ?? null,
+          missing_current_period: missingReport,
         };
-      }).sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
+      });
 
       return {
         actionQueue,
         overdueFollowUps,
         upcomingFollowUps,
-        portfolio,
+        groupSummaries,
         companyMap,
       };
     },
@@ -194,7 +200,7 @@ const AdvisorDashboard = () => {
   const actionQueue = data?.actionQueue || [];
   const overdueFollowUps = data?.overdueFollowUps || [];
   const upcomingFollowUps = data?.upcomingFollowUps || [];
-  const portfolio = data?.portfolio || [];
+  const groupSummaries = data?.groupSummaries || [];
   const companyMap = data?.companyMap || new Map();
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
@@ -216,6 +222,8 @@ const AdvisorDashboard = () => {
     const monthIdx = parseInt(month, 10) - 1;
     return `${DANISH_MONTHS[monthIdx]?.slice(0, 3) || month} ${year}`;
   };
+
+  
 
   const getCompanyName = (companyId: string | null): string => {
     if (!companyId) return "Ukendt";
@@ -351,72 +359,12 @@ const AdvisorDashboard = () => {
       )}
 
       {/* ── Section 3: Porteføljestatus ── */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <Building2 className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-            Porteføljestatus
-          </h2>
-          <span className="text-xs text-muted-foreground ml-1">
-            {portfolio.length} virksomheder
-          </span>
-        </div>
-        <div className="space-y-1">
-          {portfolio.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setCompanyOverride(c.id, c.name)}
-              className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl bg-card border border-border hover:bg-accent/50 hover:border-primary/30 transition-all text-left group"
-            >
-              {/* Company logo or initial */}
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                {c.logo_url ? (
-                  <img src={c.logo_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-xs font-bold text-primary">
-                    {c.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </div>
-
-              {/* Name + latest report */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                  {c.name}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {c.latestReportKey ? formatReportKey(c.latestReportKey) : "Ingen rapporter"}
-                </p>
-              </div>
-
-              {/* Status chips */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {c.awaitingCount > 0 && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-semibold" title="Afventer svar">
-                    <MessageSquare className="h-3 w-3" />
-                    {c.awaitingCount}
-                  </span>
-                )}
-                {c.missingReport && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-chart-warning/10 text-chart-warning text-[10px] font-semibold" title={`Mangler ${getMissingReportLabel()}-rapport`}>
-                    <FileText className="h-3 w-3" />
-                  </span>
-                )}
-                {c.hasNote && (
-                  <span className="inline-flex items-center px-1 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400" title="Intern note">
-                    <StickyNote className="h-3 w-3" />
-                  </span>
-                )}
-              </div>
-
-              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-            </button>
-          ))}
-          {portfolio.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">Ingen virksomheder i porteføljen endnu.</p>
-          )}
-        </div>
-      </section>
+      <GroupDashboardContent
+        companies={groupSummaries}
+        aggregates={buildGroupAggregates(groupSummaries)}
+        isLoading={isLoading}
+        groupName="Mine virksomheder"
+      />
     </div>
   );
 };
