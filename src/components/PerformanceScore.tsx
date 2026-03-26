@@ -107,11 +107,29 @@ const PerformanceScore = () => {
   }
 
   return (
+    <TooltipProvider>
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Performance Score</h3>
+          <UITooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <p className="font-semibold text-xs mb-1">Sådan beregnes scoren</p>
+              <div className="text-[11px] space-y-0.5 text-muted-foreground">
+                <p>• Vækstrate — omsætningsvækst måned/måned</p>
+                <p>• Bruttomargin — dækningsgrad i %</p>
+                <p>• Nettoresultat — overskudsgrad i %</p>
+                <p>• Likviditet — bank vs. 6 måneders løn</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                Scoren opdateres automatisk når du uploader en ny rapport.
+              </p>
+            </TooltipContent>
+          </UITooltip>
         </div>
         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${scoreBg}/10 ${scoreColor}`}>
           {scoreLabel}
