@@ -281,7 +281,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          await enqueueReminder(email, company.name, expectedPeriod, false);
+          await enqueueReminder(email, company.name, expectedPeriod, false, memberFirstName);
           console.log(`[LIVE] Enqueued for: ${email} (${company.name})`);
           sent++;
         } catch (e) {
