@@ -463,6 +463,39 @@ const AdvisorCompanyOverview = () => {
         </div>
       )}
 
+      {/* ── Revenue Sparkline ── */}
+      {data?.revenueTimeline && data.revenueTimeline.length >= 3 && (() => {
+        const tl = data.revenueTimeline;
+        const first = tl[0].value;
+        const last = tl[tl.length - 1].value;
+        const totalDelta = first !== 0 ? Math.round(((last - first) / Math.abs(first)) * 100) : 0;
+        const isPositive = last >= first;
+        const lineColor = isPositive ? "#1D9E75" : "#E24B4A";
+        return (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Omsætning — {formatReportKey(tl[0].key)} til {formatReportKey(tl[tl.length - 1].key)}
+              </p>
+              <span className={`text-[11px] font-semibold ${isPositive ? "text-emerald-600" : "text-destructive"}`}>
+                {totalDelta >= 0 ? "+" : ""}{totalDelta}%
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={48}>
+              <LineChart data={tl}>
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke={lineColor}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      })()}
+
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
           <p className="text-sm text-muted-foreground">Ingen rapporter er behandlet endnu. Upload den første via Rapporter.</p>
