@@ -704,10 +704,12 @@ const Reports = () => {
 
       {dbReports.length === 0 ? (
         <div className="bg-card border border-border shadow-sm rounded-xl p-12 text-center">
-          <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter endnu</p>
+          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <FileText className="h-6 w-6 text-primary" />
+          </div>
+          <p className="text-sm text-foreground font-medium mb-1">Upload din første rapport for at komme i gang</p>
           <p className="text-xs text-muted-foreground">
-            Upload dit første regnskab ovenfor for at komme i gang
+            Vi understøtter PDF og Excel fra e-conomic, Dinero, Billy og de fleste andre systemer
           </p>
         </div>
       ) : (
