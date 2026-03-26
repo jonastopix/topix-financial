@@ -615,7 +615,64 @@ const Settings = () => {
             Logget ind som <span className="font-medium text-foreground">{user?.email}</span>
           </p>
         </div>
+
+        {/* Danger zone — members only */}
+        {!isAdvisor && !isAdmin && company && (
+          <div className="glass-card rounded-xl overflow-hidden animate-fade-in border border-destructive/20">
+            <div className="px-6 py-4 flex items-center gap-2 border-b border-destructive/20 bg-destructive/5">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span className="font-display font-semibold text-destructive">
+                Farlig zone
+              </span>
+            </div>
+            <div className="p-6">
+              <p className="text-sm font-medium text-foreground mb-1">Forlad virksomhed</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Du mister adgang til alle data og rapporter. 
+                Denne handling kan ikke fortrydes.
+              </p>
+              <button
+                onClick={() => { setLeaveConfirmName(""); setLeaveDialogOpen(true); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-destructive/40 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Forlad {company.name}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Leave company confirmation dialog */}
+      <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Du er ved at forlade {company?.name}. Du mister adgang til alle 
+              rapporter, milestones og chat. Skriv virksomhedens navn for at bekræfte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <input
+            value={leaveConfirmName}
+            onChange={(e) => setLeaveConfirmName(e.target.value)}
+            placeholder={company?.name || ""}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-destructive/30 mt-2"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setLeaveConfirmName("")}>
+              Annuller
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveCompany}
+              disabled={leaving || leaveConfirmName !== company?.name}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {leaving ? "Forlader..." : "Forlad virksomhed"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
