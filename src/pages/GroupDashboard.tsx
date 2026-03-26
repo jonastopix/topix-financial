@@ -6,6 +6,7 @@ import { useGroupDashboard } from "@/hooks/useGroupDashboard";
 import GroupDashboardContent from "@/components/GroupDashboardContent";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import CreateGroupCompanyDialog from "@/components/CreateGroupCompanyDialog";
+import CommunityProgress from "@/components/CommunityProgress";
 import { MessageCircle, Calculator, Plus } from "lucide-react";
 
 const GroupDashboard = () => {
@@ -59,6 +60,9 @@ const GroupDashboard = () => {
         groupName={groupName}
         actions={actions}
       />
+      <div className="mt-6">
+        <CommunityProgress />
+      </div>
       {groupId && (
         <CreateGroupCompanyDialog
           open={showCreateDialog}
