@@ -117,6 +117,7 @@ const Reports = () => {
   const [dbReports, setDbReports] = useState<DbReport[]>([]);
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
   const trendPeriod = usePeriodFilter();
+  const { data: companyFacts = [] } = useCompanyFacts();
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMsg[]>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
