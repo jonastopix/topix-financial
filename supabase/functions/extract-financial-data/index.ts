@@ -1564,7 +1564,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
             const { writeNotification } = await import("../_shared/notificationWriter.ts");
 
             if (dbStatus === "error") {
-              // report_error: action_required, immediate
+              // report_error: action_required, immediate (non-financial doc)
               await writeNotification(supabase, {
                 user_id: reportRow.user_id,
                 type: "report_error",
@@ -1578,6 +1578,21 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                 dedup_key: `report_error:${reportId}`,
               });
               console.log(`[Phase2] report_error notification for user ${reportRow.user_id}`);
+            } else if (needsManualEntry) {
+              // Extraction failed but doc is financial — guide user to manual entry
+              await writeNotification(supabase, {
+                user_id: reportRow.user_id,
+                type: "report_review_ready",
+                priority: "action_required",
+                title: "Din rapport kræver manuel indtastning",
+                body: `Vi kunne ikke udtrække data automatisk fra "${fileName || "ukendt"}". Indtast nøgletallene manuelt.`,
+                reference_type: "report",
+                reference_id: reportId,
+                deep_link: `/reports?reportId=${reportId}`,
+                company_id: reportRow.company_id || undefined,
+                dedup_key: `report_manual_entry:${reportId}`,
+              });
+              console.log(`[Phase2] report_manual_entry notification for user ${reportRow.user_id}`);
             } else {
               // Check reviewability via resolve_report_commit_candidate
               const { data: candidate, error: rpcErr } = await supabase
