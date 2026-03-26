@@ -74,7 +74,7 @@ const GroupDashboardContent = ({
       switch (sortKey) {
         case "revenue": return (b.revenue ?? 0) - (a.revenue ?? 0);
         case "ebt": return (b.ebt ?? 0) - (a.ebt ?? 0);
-        case "trend": return getCompanyTrendPct(b) - getCompanyTrendPct(a);
+        case "trend": return (b.ebt ?? 0) - (a.ebt ?? 0);
         default: return 0;
       }
     });
