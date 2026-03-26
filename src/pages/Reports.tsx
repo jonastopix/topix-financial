@@ -549,7 +549,7 @@ const Reports = () => {
       )}
 
       {/* ── Trend Charts ── */}
-      {Object.keys(reportsByMonth).length > 0 && (() => {
+      {reportCount >= 3 && Object.keys(reportsByMonth).length > 0 && (() => {
         const SERIES = [
           { key: "omsaetning", label: "Omsætning", color: "hsl(160, 84%, 39%)" },
           { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(38, 92%, 50%)" },
