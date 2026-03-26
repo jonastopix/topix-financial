@@ -206,38 +206,28 @@ function getEarlyExitPersistPayload(
   errors: string[],
   routingTrace: Record<string, any>,
 ): Record<string, any> {
-  const base = {
+  // ALWAYS return status="processed" with needs_manual_entry for known-source failures.
+  // The user will be guided to enter data manually instead of seeing a dead-end error.
+  return {
     extraction_method: extractionMethod,
     raw_extracted_data: { routing_trace: routingTrace },
     processed_at: new Date().toISOString(),
+    status: "processed",
+    extraction_contract_version: isV2Cohort ? "v2" : "v1",
+    validation_status: "FAIL",
+    validation_errors: errors,
+    quality_signals: {
+      needs_manual_entry: true,
+      validation_status: "FAIL",
+      validation_errors: errors,
+      canonical_checks: [],
+      ai_eligible: false,
+      has_metrics: false,
+      has_period: false,
+      extraction_method: extractionMethod,
+      routing_branch: routingBranch,
+    },
   };
-
-  if (isV2Cohort) {
-    return {
-      ...base,
-      status: "processed",
-      extraction_contract_version: "v2",
-      validation_status: "FAIL",
-      validation_errors: errors,
-      quality_signals: {
-        validation_status: "FAIL",
-        validation_errors: errors,
-        canonical_checks: [],
-        ai_eligible: false,
-        has_metrics: false,
-        has_period: false,
-        extraction_method: extractionMethod,
-        routing_branch: routingBranch,
-      },
-    };
-  } else {
-    return {
-      ...base,
-      status: "error",
-      validation_status: "FAIL",
-      validation_errors: errors,
-    };
-  }
 }
 
 /**
