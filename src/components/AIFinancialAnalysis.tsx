@@ -13,6 +13,7 @@ import {
   Loader2,
   RefreshCw,
   Calendar,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -73,6 +74,8 @@ interface AIFinancialAnalysisProps {
   userId?: string | null;
 }
 
+const CORE_FIELDS = ["revenue", "gross_profit", "ebt"] as const;
+
 const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialAnalysisProps) => {
   const queryClient = useQueryClient();
   const { data: facts = [] } = useCompanyFacts(companyId ?? undefined);
@@ -83,6 +86,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
   const [expandedYear, setExpandedYear] = useState<string | null>(() => String(new Date().getFullYear()));
+  const [needsMoreData, setNeedsMoreData] = useState(false);
 
   // Available periods from committed facts (sorted descending)
   const availablePeriods = useMemo(() => {
@@ -116,6 +120,16 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
 
   const isStale = currentCommentary?.is_stale ?? false;
 
+  // Check data sufficiency for the selected period
+  const dataSufficiency = useMemo(() => {
+    if (!effectivePeriodKey) return { sufficient: false, populatedCoreCount: 0 };
+    const fact = facts.find(f => f.period_key === effectivePeriodKey);
+    if (!fact?.metrics) return { sufficient: false, populatedCoreCount: 0 };
+    const metrics = fact.metrics as Record<string, unknown>;
+    const populatedCoreCount = CORE_FIELDS.filter(k => metrics[k] != null).length;
+    return { sufficient: populatedCoreCount >= 3, populatedCoreCount };
+  }, [effectivePeriodKey, facts]);
+
   const currentPeriodLabel = useMemo(() => {
     const p = availablePeriods.find(p => p.period_key === effectivePeriodKey);
     return p?.period_label || effectivePeriodKey || "";
@@ -140,10 +154,18 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     }
 
     setLoading(true);
+    setNeedsMoreData(false);
     if (periodKey) setSelectedPeriodKey(periodKey);
 
     try {
       const result = await generateCommentary(companyId, targetPeriod);
+
+      // Handle needs_more_data response from edge function
+      if ((result as any)?.needs_more_data) {
+        setNeedsMoreData(true);
+        setLoading(false);
+        return;
+      }
 
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
@@ -202,7 +224,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
             </p>
           </div>
         </div>
-        {effectivePeriodKey && (
+        {effectivePeriodKey && dataSufficiency.sufficient && (
           <button
             onClick={() => handleGenerate()}
             disabled={loading}
@@ -218,6 +240,42 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
           </button>
         )}
       </div>
+
+      {/* Insufficient data — pre-generation guard */}
+      {effectivePeriodKey && !dataSufficiency.sufficient && !loading && (
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                Ikke nok data til AI-analyse
+              </h3>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80 leading-relaxed">
+                Tilføj mindst omsætning, dækningsbidrag og resultat for at modtage AI-analyse.
+                Du kan rette data via rapportens review-dialog.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Needs more data — returned from edge function */}
+      {needsMoreData && !loading && (
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-5">
+          <div className="flex items-start gap-3">
+            <Pencil className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                Tilføj venligst de manglende nøgletal
+              </h3>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80 leading-relaxed">
+                De committed data indeholder ikke nok nøgletal til en komplet AI-analyse.
+                Ret data via rapportens review-dialog og kør analysen igen.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (

@@ -9,6 +9,14 @@ const corsHeaders = {
 // ═══════════════════════════════════════════════════════════════
 // CANONICAL SYSTEM PROMPT (Phase 3) — English canonical names
 // ═══════════════════════════════════════════════════════════════
+const CORE_METRIC_KEYS = ["revenue", "gross_profit", "ebt"];
+const ALL_METRIC_KEYS = [
+  "revenue", "cogs", "gross_profit", "gross_margin_pct", "payroll",
+  "sales_costs", "facility_costs", "admin_costs", "depreciation",
+  "ebitda", "ebit", "ebt", "net_result", "assets_total", "equity_total",
+  "cash", "trade_receivables", "current_liabilities", "liabilities_total", "debt_total",
+];
+
 const CANONICAL_SYSTEM_PROMPT = `Du er en elite finansiel rådgiver og analytiker for danske startups og SMV'er i et board-/investor-miljø kaldet "The Boardroom". 
 
 Du modtager KUN validerede, kanoniske nøgletal fra en regnskabsmotor. Tallene er allerede normaliserede og validerede — du skal IKKE gætte på fortegn.
@@ -35,6 +43,7 @@ METRICS FORMAT (engelske navne):
 - liabilities_total: Passiver i alt
 
 KRITISKE REGLER:
+- Hvis et felt er null, ignorer det i din analyse og nævn ikke at det mangler — analyser kun de tilgængelige tal.
 - Hvis cash er negativ: beskriv som "bankovertræk", IKKE "insolvens"
 - Negativ egenkapital er KUN mulig hvis equity_total < 0
 - Brug altid danske talformater (punktum som tusindtalsseparator, komma som decimaltegn)
@@ -201,6 +210,31 @@ Deno.serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    // ═══════════════════════════════════════════════════════════════
+    // DATA SUFFICIENCY CHECK — return early if too few metrics
+    // ═══════════════════════════════════════════════════════════════
+    const metricsToCheck = isCanonicalPath
+      ? (canonicalPayload?.metrics as Record<string, unknown> | undefined)
+      : (financialData as Record<string, unknown> | undefined);
+
+    if (metricsToCheck) {
+      const nonNullCount = ALL_METRIC_KEYS.filter(k => metricsToCheck[k] != null && metricsToCheck[k] !== "").length;
+      const missingCore = CORE_METRIC_KEYS.filter(k => metricsToCheck[k] == null || metricsToCheck[k] === "");
+
+      if (nonNullCount < 3) {
+        const missingFields = ALL_METRIC_KEYS.filter(k => metricsToCheck[k] == null || metricsToCheck[k] === "");
+        return new Response(JSON.stringify({
+          feedback: "Ikke nok data til analyse",
+          message: "Tilføj venligst de manglende nøgletal for at modtage en komplet AI-analyse.",
+          needs_more_data: true,
+          missing_fields: missingFields,
+          populated_count: nonNullCount,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // DUAL PATH: Canonical vs Legacy
