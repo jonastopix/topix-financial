@@ -224,7 +224,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
             </p>
           </div>
         </div>
-        {effectivePeriodKey && (
+        {effectivePeriodKey && dataSufficiency.sufficient && (
           <button
             onClick={() => handleGenerate()}
             disabled={loading}
