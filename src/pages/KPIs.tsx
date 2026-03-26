@@ -675,7 +675,20 @@ const KPIs = () => {
               )}
               {metric.benchmark.value > 0 && (
                 <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-                  <span className="px-1.5 py-0.5 rounded bg-accent/50 text-accent-foreground font-medium">Benchmark: {metric.benchmark.label}</span>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <span className="px-1.5 py-0.5 rounded bg-accent/50 text-accent-foreground font-medium inline-flex items-center gap-1 cursor-help">
+                        Benchmark: {metric.benchmark.label}
+                        <Info className="h-2.5 w-2.5" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px]">
+                      <p className="font-medium text-xs">{metric.benchmark.source || "Branchestandard"}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Baseret på danske SMV-data. Brug som vejledning — din situation kan afvige.
+                      </p>
+                    </TooltipContent>
+                  </UITooltip>
                   {(() => {
                     const aboveBenchmark = metric.lowerIsBetter
                       ? metric.numValue <= metric.benchmark.value
