@@ -509,7 +509,7 @@ const Reports = () => {
 
       {/* Upload section — primary action after delivery status */}
       {reportCount === 0 ? (
-        <div className="mb-8">
+        <div className="mb-8" data-tour="upload-zone">
           <FileUploadZone
             title="Upload finansiel rapport"
             description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"

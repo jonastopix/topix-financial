@@ -310,7 +310,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
             return (
               <button
                 key={item.path}
-                data-tour={item.path === "/reports" ? "nav-reports" : item.path === "/chat" ? "nav-chat" : undefined}
+                data-tour={item.path === "/reports" ? "nav-reports" : item.path === "/chat" ? "chat-link" : undefined}
                 onClick={() => {
                   navigate(item.path, { state: { resetKey: Date.now() } });
                   if (isMobile) onClose();
