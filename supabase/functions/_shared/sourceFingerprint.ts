@@ -101,6 +101,21 @@ export function detectSourceSystem(
 
   // ── XLSX fingerprinting ──
   if ((fileType === "xlsx" || fileType === "xls") && headerRows && headerRows.length >= 5) {
+    // e-conomic saldobalance xlsx:
+    // Row 2 (index 1): "{ID} - {company} - CVR {8digits}"
+    // Row 4 (index 3): "Saldobalance for perioden DD.MM.YY - DD.MM.YY"
+    const r2 = headerRows[1]?.[0]?.toString() || "";
+    const r4 = headerRows[3]?.[0]?.toString() || "";
+    if (/CVR\s*\d{8}/i.test(r2) && /saldobalance\s+for\s+perioden/i.test(r4)) {
+      evidence.push("e-conomic saldobalance xlsx: CVR in row 2, period header in row 4");
+      return {
+        source_system: "economic",
+        document_type: "saldobalance",
+        confidence: "HIGH",
+        evidence,
+      };
+    }
+
     // e-conomic XLSX: "Resultatopgørelse" header + "Konto"/"Tekst" columns
     const row0 = headerRows[0]?.[0]?.toString() || "";
     const row4 = headerRows[4] || [];
