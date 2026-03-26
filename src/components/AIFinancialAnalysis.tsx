@@ -120,6 +120,16 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
 
   const isStale = currentCommentary?.is_stale ?? false;
 
+  // Check data sufficiency for the selected period
+  const dataSufficiency = useMemo(() => {
+    if (!effectivePeriodKey) return { sufficient: false, populatedCoreCount: 0 };
+    const fact = facts.find(f => f.period_key === effectivePeriodKey);
+    if (!fact?.metrics) return { sufficient: false, populatedCoreCount: 0 };
+    const metrics = fact.metrics as Record<string, unknown>;
+    const populatedCoreCount = CORE_FIELDS.filter(k => metrics[k] != null).length;
+    return { sufficient: populatedCoreCount >= 3, populatedCoreCount };
+  }, [effectivePeriodKey, facts]);
+
   const currentPeriodLabel = useMemo(() => {
     const p = availablePeriods.find(p => p.period_key === effectivePeriodKey);
     return p?.period_label || effectivePeriodKey || "";
