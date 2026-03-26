@@ -182,20 +182,37 @@ const Milestones = () => {
         <>
           {/* Progress overview */}
           <div className="glass-card rounded-xl p-6 mb-6 animate-fade-in">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Target className="h-6 w-6 text-primary" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10">
+                  <Target className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-foreground">Samlet fremgang</h3>
+                  <p className="text-sm text-muted-foreground">{milestoneStats.pct}% gennemført</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-display font-semibold text-foreground">Samlet fremgang</h3>
-                <p className="text-sm text-muted-foreground">{milestoneStats.done} af {milestoneStats.total} milestones nået</p>
-              </div>
-              <div className="ml-auto text-right">
-                <p className="text-2xl font-display font-bold text-primary">{milestoneStats.pct}%</p>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary text-muted-foreground">
+                  {milestoneStats.total} i alt
+                </span>
+                {milestoneStats.done > 0 && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    {milestoneStats.done} fuldført
+                  </span>
+                )}
+                {milestoneStats.total - milestoneStats.done > 0 && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    {milestoneStats.total - milestoneStats.done} aktive
+                  </span>
+                )}
               </div>
             </div>
-            <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${milestoneStats.pct}%` }} />
+            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary rounded-full transition-all duration-700" 
+                style={{ width: `${milestoneStats.pct}%` }} 
+              />
             </div>
           </div>
 
