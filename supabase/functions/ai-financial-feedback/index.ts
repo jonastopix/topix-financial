@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       return jsonRes({ error: 'Unauthorized' }, 401);
     }
 
-    let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical } = await req.json();
+    let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical, request_type } = await req.json();
 
     // ── Caller→resource access check for company context (JWT-scoped) ──
     // If companyId is provided, verify caller has RLS access to that company
@@ -212,15 +212,62 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     // ═══════════════════════════════════════════════════════════════
+    // SESSION PREP — lightweight bullet-point path
+    // ═══════════════════════════════════════════════════════════════
+    if (request_type === "session_prep") {
+      const companyName = companyContext?.name || "Ukendt";
+      const sessionSystemPrompt = `Du er rådgiver for ${companyName} i The Boardroom. Du skal forberede Morten Larsen eller Jonas Herlev til en kort advisory-session. Baseret på de seneste finansielle data: skriv 2-3 konkrete bulletpoints som rådgiveren bør tage op i sessionen. Fokuser på det mest interessante eller bekymrende — ikke bare en opsummering af tallene. Vær direkte og konkret. Maksimalt 3 bulletpoints, hver under 20 ord.`;
+
+      const sessionUserMessage = `SENESTE FINANSIELLE DATA:
+${JSON.stringify(historicalCanonical || financialData || canonicalPayload?.metrics || {}, null, 2)}
+
+Giv 2-3 bulletpoints til sessionsforberedelse.`;
+
+      const sessionResponse = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: sessionSystemPrompt },
+              { role: "user", content: sessionUserMessage },
+            ],
+          }),
+        }
+      );
+
+      if (!sessionResponse.ok) {
+        const errText = await sessionResponse.text();
+        console.error("AI gateway error (session_prep):", sessionResponse.status, errText);
+        if (sessionResponse.status === 429) return jsonRes({ error: "For mange forespørgsler. Prøv igen om lidt." }, 429);
+        if (sessionResponse.status === 402) return jsonRes({ error: "AI-kreditter opbrugt." }, 402);
+        throw new Error(`AI error: ${sessionResponse.status}`);
+      }
+
+      const sessionResult = await sessionResponse.json();
+      const content = sessionResult.choices?.[0]?.message?.content || "";
+
+      return new Response(JSON.stringify({ note_text: content }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // DATA SUFFICIENCY CHECK — return early if too few metrics
     // ═══════════════════════════════════════════════════════════════
+    const isCanonicalPath = canonicalPayload?.input_type === "canonical";
+
     const metricsToCheck = isCanonicalPath
       ? (canonicalPayload?.metrics as Record<string, unknown> | undefined)
       : (financialData as Record<string, unknown> | undefined);
 
     if (metricsToCheck) {
       const nonNullCount = ALL_METRIC_KEYS.filter(k => metricsToCheck[k] != null && metricsToCheck[k] !== "").length;
-      const missingCore = CORE_METRIC_KEYS.filter(k => metricsToCheck[k] == null || metricsToCheck[k] === "");
 
       if (nonNullCount < 3) {
         const missingFields = ALL_METRIC_KEYS.filter(k => metricsToCheck[k] == null || metricsToCheck[k] === "");
@@ -239,7 +286,6 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════
     // DUAL PATH: Canonical vs Legacy
     // ═══════════════════════════════════════════════════════════════
-    const isCanonicalPath = canonicalPayload?.input_type === "canonical";
     let systemPrompt: string;
     let userMessage: string;
 

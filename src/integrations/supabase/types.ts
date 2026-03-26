@@ -124,6 +124,41 @@ export type Database = {
           },
         ]
       }
+      advisor_session_notes: {
+        Row: {
+          company_id: string
+          created_at: string
+          generated_at: string
+          generated_by: string
+          id: string
+          note_text: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          generated_at?: string
+          generated_by: string
+          id?: string
+          note_text?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          note_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_session_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_config: {
         Row: {
           config_key: string
