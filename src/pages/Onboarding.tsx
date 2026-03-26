@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Rocket, FileText, ClipboardList, LayoutDashboard } from "lucide-react";
+import { Rocket, FileText, ClipboardList, LayoutDashboard, TrendingUp, Target, Users } from "lucide-react";
 import { toast } from "sonner";
 
 const Onboarding = () => {
