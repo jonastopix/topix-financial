@@ -67,9 +67,9 @@ function getTrend(values: number[]): { pct: number; direction: "up" | "down" | "
   return { pct, direction: "flat" };
 }
 
-export function CompanyTableRow({ company }: GroupCompanyCardProps) {
+export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardProps) {
   const {
-    company_name, logo_url, has_verified_metrics,
+    company_id, company_name, logo_url, has_verified_metrics,
     revenue, ebt, cash, missing_current_period, has_report,
   } = company;
 
@@ -89,7 +89,10 @@ export function CompanyTableRow({ company }: GroupCompanyCardProps) {
   const needsAttention = (cash != null && cash < 0) || trend.direction === "down";
 
   return (
-    <tr className="group border-b border-border last:border-b-0 hover:bg-accent/30 transition-colors">
+    <tr
+      className={`group border-b border-border last:border-b-0 hover:bg-accent/30 transition-colors ${onCompanyClick ? "cursor-pointer" : ""}`}
+      onClick={onCompanyClick ? () => onCompanyClick(company_id, company_name) : undefined}
+    >
       {/* Company */}
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
