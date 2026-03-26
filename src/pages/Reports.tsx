@@ -477,9 +477,11 @@ const Reports = () => {
       </div>
 
       {/* ── Member-Centric Delivery Overview ── */}
-      <div className="mb-6">
-        <DeliveryOverview reports={dbReports} />
-      </div>
+      {reportCount >= 1 && (
+        <div className="mb-6">
+          <DeliveryOverview reports={dbReports} />
+        </div>
+      )}
 
       {/* Manual entry banner */}
       {(() => {
