@@ -43,6 +43,7 @@ interface GroupDashboardContentProps {
   isLoading: boolean;
   groupName: string | null;
   actions?: React.ReactNode;
+  onCompanyClick?: (companyId: string, companyName: string) => void;
 }
 
 const GroupDashboardContent = ({
