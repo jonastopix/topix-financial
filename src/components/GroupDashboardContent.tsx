@@ -216,7 +216,7 @@ const GroupDashboardContent = ({
                 </thead>
                 <tbody>
                   {filteredCompanies.map(c => (
-                    <CompanyTableRow key={c.company_id} company={c} />
+                    <CompanyTableRow key={c.company_id} company={c} onCompanyClick={onCompanyClick} />
                   ))}
                 </tbody>
               </table>
