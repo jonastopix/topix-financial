@@ -28,6 +28,10 @@ interface CompanyData {
 
 const Settings = () => {
   const { user, profile, isAdvisor, isAdmin, refreshProfile } = useAuth();
+  const navigate = useNavigate();
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [leaveConfirmName, setLeaveConfirmName] = useState("");
+  const [leaving, setLeaving] = useState(false);
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
