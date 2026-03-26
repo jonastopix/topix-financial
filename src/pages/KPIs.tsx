@@ -386,6 +386,7 @@ const KPIs = () => {
   const hitsCount = kpiMetrics.filter((m) => getTargetStatus(m).hit).length;
 
   return (
+    <TooltipProvider>
     <AppLayout>
       <div className="mb-8 flex items-start justify-between">
         <div>
