@@ -33,8 +33,8 @@ function resolveSenderFromTemplate(
 }
 
 // Hardcoded fallback if no template exists in DB
-const FALLBACK_SUBJECT = 'Påmindelse: Rapport for {{period}} mangler';
-const FALLBACK_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Rapport mangler for {{period}}</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Hej! Vi mangler stadig den månedlige rapport for <strong>{{period}}</strong> fra <strong>{{company_name}}</strong>.</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Upload venligst jeres rapport, så vi kan følge med i virksomhedens udvikling.</p><div style="text-align:center;margin:32px 0"><a href="{{report_url}}" target="_blank" style="background-color:#6366f1;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Upload rapport</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne påmindelse er sendt fra The Boardroom. Hvis rapporten allerede er uploadet, kan du ignorere denne besked.</p></div></body></html>`;
+const FALLBACK_SUBJECT = 'Påmindelse: Din rapport for {{period}} mangler';
+const FALLBACK_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Din rapport for {{period}} mangler</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Hej {{first_name}},</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Upload den når du har et øjeblik — det tager under 2 minutter, og vi trækker tallene ud automatisk.</p><div style="text-align:center;margin:32px 0"><a href="{{report_url}}" target="_blank" style="background-color:#16a34a;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Upload rapport nu</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Hvis rapporten allerede er uploadet kan du se bort fra denne besked.</p></div></body></html>`;
 
 function replaceVars(text: string, vars: Record<string, string>): string {
   let result = text;
@@ -120,11 +120,12 @@ Deno.serve(async (req) => {
     const reportUrl = "https://topix.lovable.app/reports";
 
     // Helper to build email for a specific company
-    function buildEmail(companyName: string, period: string, isTest: boolean) {
+    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null) {
       const vars: Record<string, string> = {
         period,
         company_name: companyName,
         report_url: reportUrl,
+        first_name: firstName || "dig",
       };
       const subject = (isTest ? '[TEST] ' : '') + replaceVars(subjectTpl, vars);
       const html = replaceVars(bodyTpl, vars);
@@ -132,8 +133,8 @@ Deno.serve(async (req) => {
     }
 
     // Helper to enqueue a reminder email
-    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean) {
-      const { subject, html } = buildEmail(companyName, period, isTest);
+    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null) {
+      const { subject, html } = buildEmail(companyName, period, isTest, firstName);
       const messageId = crypto.randomUUID();
 
       await supabase.from('email_send_log').insert({
@@ -242,6 +243,13 @@ Deno.serve(async (req) => {
         if (!userData?.user?.email) continue;
         const email = userData.user.email;
 
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", member.user_id)
+          .maybeSingle();
+        const memberFirstName = profileData?.full_name?.split(" ")[0] || null;
+
         // ── Phase 2: Write report_reminder notification (with email_sent_at to prevent double email) ──
         try {
           const { writeNotification } = await import("../_shared/notificationWriter.ts");
@@ -250,7 +258,7 @@ Deno.serve(async (req) => {
             type: "report_reminder",
             priority: "action_required",
             title: `Rapport for ${expectedPeriod} mangler`,
-            body: `Upload venligst rapporten for ${company.name}.`,
+            body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram — det tager under 2 minutter.`,
             reference_type: "report",
             deep_link: "/reports",
             company_id: company.id,
@@ -273,7 +281,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          await enqueueReminder(email, company.name, expectedPeriod, false);
+          await enqueueReminder(email, company.name, expectedPeriod, false, memberFirstName);
           console.log(`[LIVE] Enqueued for: ${email} (${company.name})`);
           sent++;
         } catch (e) {
