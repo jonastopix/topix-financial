@@ -180,6 +180,32 @@ const AttentionNeeded = () => {
         }
       }
 
+      // Check: no pulse check-in this month
+      if (companyId) {
+        const now2 = new Date();
+        const pk = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, "0")}`;
+        const dayOfMonth = now2.getDate();
+        if (dayOfMonth >= 10) {
+          const { data: pulse } = await (supabase
+            .from("pulse_checkins" as any)
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("period_key", pk)
+            .maybeSingle() as any);
+          if (!pulse) {
+            attentionItems.push({
+              id: "pulse-checkin",
+              type: "chat",
+              title: "Månedlig pulse — 2 minutter",
+              description: "Fortæl os hvad der gik godt og hvad der er din største udfordring",
+              urgency: "low",
+              action: "Udfyld nu",
+              link: "/pulse",
+            });
+          }
+        }
+      }
+
       return attentionItems;
     },
     enabled: !!user && !!companyId,
