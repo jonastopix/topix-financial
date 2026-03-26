@@ -60,6 +60,9 @@ const GroupDashboard = () => {
         groupName={groupName}
         actions={actions}
       />
+      <div className="mt-6">
+        <CommunityProgress />
+      </div>
       {groupId && (
         <CreateGroupCompanyDialog
           open={showCreateDialog}
