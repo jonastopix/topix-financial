@@ -211,6 +211,24 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
       }
     }
 
+    // Fallback for missing period metadata
+    if (!reportPeriodLabel) {
+      const now = new Date();
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const months = ["Januar","Februar","Marts","April","Maj","Juni",
+        "Juli","August","September","Oktober","November","December"];
+      reportPeriodLabel = `${months[prevMonth.getMonth()]} ${prevMonth.getFullYear()}`;
+      console.warn(`${LOG_PREFIX} Could not parse period from row 4, using fallback: ${reportPeriodLabel}`);
+    }
+    if (!periodEnd) {
+      const now = new Date();
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      periodEnd = `${pad(lastDay.getDate())}-${pad(lastDay.getMonth() + 1)}-${lastDay.getFullYear()}`;
+      periodStart = `01-${pad(lastDay.getMonth() + 1)}-${lastDay.getFullYear()}`;
+    }
+
     // ── Identify value columns ──
     // Col 0 = Nr., Col 1 = Navn, Col 2 = period amount, Col 4 = YTD
     const VALUE_COL = 2;
