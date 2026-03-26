@@ -30,6 +30,8 @@ const CANONICAL_TO_DANISH: Record<string, string> = {
   depreciation: "afskrivninger",
   ebt: "resultat_foer_skat",
   net_result: "resultat_efter_skat",
+  ebitda: "ebitda",
+  debt_total: "gaeld_i_alt",
   assets_total: "aktiver_i_alt",
   equity_total: "egenkapital",
   cash: "bank_balance",
