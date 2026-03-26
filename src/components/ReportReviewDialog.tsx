@@ -252,6 +252,21 @@ export default function ReportReviewDialog({
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+
+      // Notify advisors that member has approved their report
+      try {
+        await supabase.functions.invoke("send-slack-report-notification", {
+          body: {
+            event: "report_committed",
+            reportId,
+            periodLabel: preview?.period_label || null,
+          },
+        });
+      } catch (notifErr) {
+        // Non-blocking — commit already succeeded
+        console.warn("Commit notification failed (non-blocking):", notifErr);
+      }
+
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Fejl ved commit", description: err.message || "Ukendt fejl", variant: "destructive" });
