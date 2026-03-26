@@ -285,6 +285,26 @@ const Settings = () => {
     setSavingPassword(false);
   };
 
+  const handleLeaveCompany = async () => {
+    if (!user || !company) return;
+    setLeaving(true);
+    try {
+      const { error } = await supabase
+        .from("company_members")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("company_id", company.id);
+      if (error) throw error;
+      toast.success(`Du har forladt ${company.name}`);
+      setLeaveDialogOpen(false);
+      navigate("/auth", { replace: true });
+    } catch (err: any) {
+      toast.error("Noget gik galt. Prøv igen.");
+    } finally {
+      setLeaving(false);
+    }
+  };
+
   const handleSaveCompany = async () => {
     if (!company) return;
 
