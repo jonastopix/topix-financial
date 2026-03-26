@@ -348,6 +348,8 @@ const Reports = () => {
 
       setDbReports((prev) => prev.filter((r) => r.id !== report.id));
       setDeleteDialog({ open: false, report: null });
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       toast({ title: "Rapport flyttet til papirkurv", description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
     } catch (err) {
       console.error("Soft-delete error:", err);
