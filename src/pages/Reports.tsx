@@ -382,6 +382,8 @@ const Reports = () => {
       if (error) throw error;
       setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
       setRefreshKey((k) => k + 1);
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       toast({ title: "Rapport gendannet", description: `${report.report_period || report.file_name} er gendannet.` });
     } catch (err) {
       console.error("Restore error:", err);
