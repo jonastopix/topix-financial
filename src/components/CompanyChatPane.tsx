@@ -1633,6 +1633,11 @@ const CompanyChatPane = () => {
                       <p className="text-sm font-semibold text-foreground truncate">
                         {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
+                      {!isAdvisor && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Morten Larsen & Jonas Herlev
+                        </p>
+                      )}
                       {participants.length > 0 && (
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <div className="flex -space-x-1.5">
