@@ -1,8 +1,14 @@
 import { useMemo } from "react";
-import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
+import { TrendingUp, Flame, DollarSign, BarChart3, Activity, Info } from "lucide-react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MetricScore {
   label: string;
