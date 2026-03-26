@@ -233,17 +233,15 @@ const Reports = () => {
   // (delivery overview logic is now in DeliveryOverview component)
 
 
-  // Build trend data for charts (canonical-first)
+  // Build trend data for charts — reads from facts layer for consistency
   const trendData = useMemo(() => {
-    const sortedKeys = Object.keys(reportsByMonth).sort();
-    const filteredKeys = trendPeriod.filterKeys(sortedKeys);
+    const allKeys = companyFacts.map(f => f.period_key).sort();
+    const filteredKeys = trendPeriod.filterKeys(allKeys);
     return filteredKeys
       .map((key) => {
-        const r = reportsByMonth[key];
-        if (r.status !== "processed") return null;
-        const result = getEffectiveMetrics(r);
-        if (!result) return null;
-        const kf = result.metrics;
+        const fact = companyFacts.find(f => f.period_key === key);
+        if (!fact) return null;
+        const kf = factsToDanishMetrics(fact.metrics);
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
         return {
@@ -257,7 +255,7 @@ const Reports = () => {
         };
       })
       .filter(Boolean) as any[];
-  }, [reportsByMonth, trendPeriod.mode, trendPeriod.customFrom, trendPeriod.customTo]);
+  }, [companyFacts, trendPeriod.mode, trendPeriod.customFrom, trendPeriod.customTo]);
 
   const trendPeriodLabel = useMemo(() => {
     return trendPeriod.getPeriodLabel(trendData.map((d: any) => d.key));
