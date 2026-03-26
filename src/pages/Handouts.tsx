@@ -139,6 +139,7 @@ const Handouts = () => {
         <HandoutDetail
           config={handoutConfigs[activeModule]}
           onBack={() => setActiveModule(null)}
+          onModuleSelect={(m) => setActiveModule(m)}
           userId={resolvedUserId || undefined}
         />
       </AppLayout>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowLeft, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { moduleOrder } from "@/lib/handoutConfig";
 import { notifyHandoutCompleted } from "@/lib/handoutNotify";
 
 interface HandoutDetailProps {
   config: HandoutConfig;
   onBack: () => void;
   userId?: string; // for advisor viewing another member
+  onModuleSelect?: (module: HandoutModule) => void;
 }
 
 interface LeverMilestone {
@@ -29,7 +31,7 @@ interface LeverMilestone {
 
 type SaveStatus = "idle" | "saving" | "saved";
 
-const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
+const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetailProps) => {
   const { user, companyId, companyName } = useAuth();
   const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
@@ -349,6 +351,30 @@ const HandoutDetail = ({ config, onBack, userId }: HandoutDetailProps) => {
           </Button>
         </div>
       )}
+
+      {/* Next module prompt after completion */}
+      {isCompleted && (() => {
+        const currentIdx = moduleOrder.indexOf(config.module);
+        const nextModule = currentIdx >= 0 && currentIdx < moduleOrder.length - 1
+          ? moduleOrder[currentIdx + 1]
+          : null;
+        if (!nextModule) return null;
+
+        return (
+          <button
+            onClick={() => onModuleSelect?.(nextModule)}
+            className="mt-4 w-full flex items-center justify-between p-4 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-left group"
+          >
+            <div>
+              <p className="text-xs text-muted-foreground">Næste modul</p>
+              <p className="text-sm font-medium text-foreground">
+                {nextModule.charAt(0).toUpperCase() + nextModule.slice(1)}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        );
+      })()}
 
       {/* AI Feedback */}
       {handoutId && (
