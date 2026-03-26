@@ -141,6 +141,16 @@ export default function ReportReviewDialog({
     }
   }, [open, reportId, loadPreview]);
 
+  // Auto-enter edit mode for needs_manual_entry reports (no extractable metrics)
+  useEffect(() => {
+    if (!open || !preview || loading) return;
+    const needsManual = (preview.quality_signals as any)?.needs_manual_entry === true;
+    const hasMetrics = preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0;
+    if (needsManual && !hasMetrics && !editing) {
+      enterEditMode();
+    }
+  }, [open, preview, loading]);
+
   // Initialize edit form from preview data
   function enterEditMode() {
     if (!preview) return;
