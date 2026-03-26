@@ -857,10 +857,10 @@ const Reports = () => {
                         {needsManualEntry && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            Indtast tal
+                            Indtast nøgletal →
                           </button>
                         )}
                         {!needsManualEntry && (() => {
