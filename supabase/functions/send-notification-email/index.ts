@@ -37,11 +37,14 @@ const MAX_EMAILS_PER_DAY = 20;
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   advisor_replied: "Ny besked fra din rådgiver",
-  report_review_ready: "Din rapport er klar til gennemsyn",
-  report_error: "Der opstod en fejl med din rapport",
+  report_review_ready: "Dine tal er klar til gennemsyn",
+  report_error: "Din rapport kunne ikke behandles",
+  report_committed: "Nyt commit fra dit boardroom-medlem",
+  milestone_completed: "Milestone fuldført",
+  pulse_checkin_received: "Nyt pulse check-in fra dit member",
 };
 
-function buildEmailHtml(title: string, body: string, deepLink: string): string {
+function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string): string {
   const fullUrl = `${APP_URL}${deepLink}?returnUrl=${encodeURIComponent(deepLink)}`;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">${title}</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">${body}</p><div style="text-align:center;margin:32px 0"><a href="${fullUrl}" target="_blank" style="background-color:#16a34a;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Åbn i The Boardroom</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne besked er sendt fra The Boardroom.</p></div></body></html>`;
 }
