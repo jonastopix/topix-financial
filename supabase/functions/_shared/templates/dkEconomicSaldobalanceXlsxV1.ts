@@ -234,8 +234,10 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
       const labelCell = row.cells.find(c => c.col_index === 1);
       const label = (labelCell?.raw_value ?? "").toString().trim();
 
-      // Get period value from VALUE_COL
-      const valueCell = row.cells.find(c => c.col_index === VALUE_COL);
+      // P&L accounts use period column; balance accounts use YTD column
+      const isBalanceAccount = acctNum >= 5000 && acctNum <= 9999;
+      const colIndex = isBalanceAccount ? YTD_COL : VALUE_COL;
+      const valueCell = row.cells.find(c => c.col_index === colIndex);
       const rawValue = valueCell?.raw_value != null
         ? (typeof valueCell.raw_value === "number" ? valueCell.raw_value : parseDanishNumber(valueCell.raw_value))
         : null;
@@ -246,7 +248,7 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
         source_field_id: `acct_${acctNum}`,
         source_label: `${acctNum} ${label}`,
         raw_value: rawValue,
-        basis: "period",
+        basis: isBalanceAccount ? "ytd" : "period",
         account_no: acctNum.toString(),
         source_row_index: row.row_index,
       });
