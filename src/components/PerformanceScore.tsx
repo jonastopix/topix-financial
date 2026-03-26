@@ -75,7 +75,7 @@ const PerformanceScore = () => {
       { label: "Vækstrate", value: `${revenueGrowth >= 0 ? "+" : ""}${revenueGrowth.toFixed(1)}%`, score: Math.round(growthScore), icon: TrendingUp, detail: "Omsætningsvækst M/M" },
       { label: "Bruttomargin", value: `${dbMargin.toFixed(1)}%`, score: Math.round(marginScore), icon: DollarSign, detail: "Dækningsgrad" },
       { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
-      { label: "Likviditet", value: latest.bank_balance ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
+      { label: "Likviditet", value: latest.bank_balance != null ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
     ];
   }, [facts, PERF]);
 
