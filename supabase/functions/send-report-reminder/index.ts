@@ -243,6 +243,13 @@ Deno.serve(async (req) => {
         if (!userData?.user?.email) continue;
         const email = userData.user.email;
 
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", member.user_id)
+          .maybeSingle();
+        const memberFirstName = profileData?.full_name?.split(" ")[0] || null;
+
         // ── Phase 2: Write report_reminder notification (with email_sent_at to prevent double email) ──
         try {
           const { writeNotification } = await import("../_shared/notificationWriter.ts");
