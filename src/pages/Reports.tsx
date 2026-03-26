@@ -827,6 +827,14 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-4">
+                    {/* Manual entry guidance */}
+                    {needsManualEntry && !getEffectiveMetrics(report as unknown as ReportData) && (
+                      <div className="rounded-lg border border-amber-300/40 bg-amber-50/50 dark:border-amber-500/20 dark:bg-amber-950/10 p-3">
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Vi kunne ikke læse dokumentet automatisk. Klik for at indtaste tallene.
+                        </p>
+                      </div>
+                    )}
                     {/* Actions row */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
