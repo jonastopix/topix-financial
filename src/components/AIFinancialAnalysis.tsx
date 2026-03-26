@@ -154,10 +154,18 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     }
 
     setLoading(true);
+    setNeedsMoreData(false);
     if (periodKey) setSelectedPeriodKey(periodKey);
 
     try {
       const result = await generateCommentary(companyId, targetPeriod);
+
+      // Handle needs_more_data response from edge function
+      if ((result as any)?.needs_more_data) {
+        setNeedsMoreData(true);
+        setLoading(false);
+        return;
+      }
 
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
