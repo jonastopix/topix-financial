@@ -25,7 +25,7 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote, MoreHorizontal, Layers,
+  CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { Textarea } from "@/components/ui/textarea";
@@ -133,7 +133,7 @@ const MESSAGE_TOPICS: { key: MessageTopic; label: string }[] = [
 ];
 
 const CompanyChatPane = () => {
-  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride } = useAuth();
+  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
@@ -1633,6 +1633,11 @@ const CompanyChatPane = () => {
                       <p className="text-sm font-semibold text-foreground truncate">
                         {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
+                      {!isAdvisor && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Morten Larsen & Jonas Herlev
+                        </p>
+                      )}
                       {participants.length > 0 && (
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <div className="flex -space-x-1.5">
@@ -2421,10 +2426,18 @@ const CompanyChatPane = () => {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-center">
-                <div>
-                  <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+              <div className="flex-1 flex flex-col">
+                {!isAdvisor && companyName && (
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med Morten Larsen & Jonas Herlev</span>
+                  </div>
+                )}
+                <div className="flex-1 flex items-center justify-center text-center">
+                  <div>
+                    <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+                  </div>
                 </div>
               </div>
             )}
