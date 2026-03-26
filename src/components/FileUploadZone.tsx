@@ -438,19 +438,30 @@ const FileUploadZone = ({
 
                 console.error(`[PdfStructural] FAIL for structural-required source [${diagnosticMarker}]:`, errMessage);
 
-                toast({
-                  title: "Fejl",
-                  description: "PDF-struktur kunne ikke udtrækkes. Uploaden blev stoppet. Prøv igen eller kontakt support.",
-                  variant: "destructive",
-                });
-
                 await supabase.from("financial_reports").update({
-                  status: "error",
+                  status: "processed",
+                  extraction_contract_version: "v1",
+                  quality_signals: {
+                    needs_manual_entry: true,
+                    has_metrics: false,
+                    has_period: false,
+                    extraction_method: "structural_client_fail",
+                    routing_branch: `structural_client_fail_${diagnosticMarker}`,
+                    validation_status: "FAIL",
+                    validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
+                    canonical_checks: [],
+                    ai_eligible: false,
+                  },
+                  validation_status: "FAIL",
                   validation_errors: [`PDF structural extraction failed: ${diagnosticMarker}`],
-                }).eq("id", reportRecord.id);
+                  processed_at: new Date().toISOString(),
+                } as any).eq("id", reportRecord.id);
 
-                updateFile(fileId, { status: "error" });
-                return;
+                extractedData = { needs_manual_entry: true, status: "processed" };
+                toast({
+                  title: "Manuel indtastning påkrævet",
+                  description: "PDF-strukturen kunne ikke læses — du kan indtaste tallene manuelt",
+                });
               } else {
                 console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
               }
@@ -497,11 +508,29 @@ const FileUploadZone = ({
             return;
           }
           if (aiData?.error) {
-            const friendlyMsg = getFriendlyErrorMessage(aiData);
-            throw new Error(friendlyMsg);
-          }
+            // Check if the DB was still saved successfully with needs_manual_entry
+            // The edge function may return an error in the response body even when
+            // the DB record was correctly set to processed+needs_manual_entry.
+            const isKnownFallback =
+              aiData?.status === "semantic_xlsx_fail" ||
+              aiData?.status === "semantic_csv_fail" ||
+              aiData?.status === "structural_parse_fail" ||
+              aiData?.status === "structural_payload_missing" ||
+              aiData?.status === "error" ||
+              aiData?.error?.includes("Known source without supported template") ||
+              aiData?.error?.includes("Structural semantic extraction failed") ||
+              aiData?.error?.includes("Deterministic parsing failed");
 
-          extractedData = aiData;
+            if (isKnownFallback) {
+              console.log("[Upload] Known fallback path detected, continuing to pipeline:", aiData?.status);
+              extractedData = aiData;
+            } else {
+              const friendlyMsg = getFriendlyErrorMessage(aiData);
+              throw new Error(friendlyMsg);
+            }
+          } else {
+            extractedData = aiData;
+          }
         }
 
         updateFile(fileId, { extractedData });
@@ -698,8 +727,21 @@ const FileUploadZone = ({
 
       if (extractError) throw extractError;
       if (extractedData?.error) {
-        const friendlyMsg = getFriendlyErrorMessage(extractedData);
-        throw new Error(friendlyMsg);
+        const isKnownFallback =
+          extractedData?.status === "semantic_xlsx_fail" ||
+          extractedData?.status === "semantic_csv_fail" ||
+          extractedData?.status === "structural_parse_fail" ||
+          extractedData?.status === "structural_payload_missing" ||
+          extractedData?.status === "error" ||
+          extractedData?.error?.includes("Known source without supported template") ||
+          extractedData?.error?.includes("Structural semantic extraction failed") ||
+          extractedData?.error?.includes("Deterministic parsing failed");
+
+        if (!isKnownFallback) {
+          const friendlyMsg = getFriendlyErrorMessage(extractedData);
+          throw new Error(friendlyMsg);
+        }
+        console.log("[Overwrite] Known fallback path detected, continuing to pipeline:", extractedData?.status);
       }
 
       updateFile(pendingFileId, { extractedData });
