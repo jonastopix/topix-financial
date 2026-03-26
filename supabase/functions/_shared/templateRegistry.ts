@@ -146,6 +146,7 @@ export interface DetectionResult {
 // ── Template Registry ──
 
 import { dkCombinedBalancePnlV1 } from "./templates/dkCombinedBalancePnlV1.ts";
+import { dkEconomicSaldobalanceXlsxV1 } from "./templates/dkEconomicSaldobalanceXlsxV1.ts";
 import { dkEconomicSaldobalancePdfV1 } from "./templates/dkEconomicSaldobalancePdfV1.ts";
 import { dkEconomicResultatopgoerelsePdfV1 } from "./templates/dkEconomicResultatopgoerelsePdfV1.ts";
 import { dkEconomicResultatopgoerelseXlsxV1 } from "./templates/dkEconomicResultatopgoerelseXlsxV1.ts";
@@ -153,6 +154,7 @@ import { dkDineroResultatopgoerelseCsvV1 } from "./templates/dkDineroResultatopg
 import { dkDineroResultatopgoerelsePdfV1 } from "./templates/dkDineroResultatopgoerelsePdfV1.ts";
 
 const TEMPLATE_REGISTRY: TemplateEntry[] = [
+  dkEconomicSaldobalanceXlsxV1, // More specific — checked before combined
   dkCombinedBalancePnlV1,
   dkEconomicSaldobalancePdfV1,
   dkEconomicResultatopgoerelsePdfV1,
