@@ -520,7 +520,9 @@ export function runExtendedValidation(
   }
 
   // 7. balance_equation
-  if (metrics.assets_total != null && metrics.liabilities_total != null) {
+  if (statementType === "trial_balance") {
+    checks.push({ name: "balance_equation", result: "SKIP", details: "Trial balance — balance equation checked via account ranges" });
+  } else if (metrics.assets_total != null && metrics.liabilities_total != null) {
     const diff = Math.abs(metrics.assets_total - metrics.liabilities_total);
     const pass = diff <= TOLERANCE;
     checks.push({
