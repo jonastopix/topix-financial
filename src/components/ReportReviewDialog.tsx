@@ -557,6 +557,33 @@ export default function ReportReviewDialog({
               </div>
             )}
 
+            {(preview.quality_signals as any)?.needs_manual_entry === true
+              && (!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1.5">
+                <p className="font-medium text-foreground">
+                  Vi understøtter disse eksportformater:
+                </p>
+                <ul className="space-y-1">
+                  <li>
+                    <span className="font-medium text-foreground">e-conomic:</span>
+                    {" "}Regnskab → Rapporter → <strong>Balance</strong> → Excel
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">Dinero:</span>
+                    {" "}Rapporter → Resultatopgørelse → CSV eller PDF
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">Billy:</span>
+                    {" "}Rapporter → Resultatopgørelse → Excel
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">Andre:</span>
+                    {" "}Udfyld tallene nedenfor manuelt — det tager 2 minutter
+                  </li>
+                </ul>
+              </div>
+            )}
+
             {/* Blocked warning in edit mode */}
             {isBlocked && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
