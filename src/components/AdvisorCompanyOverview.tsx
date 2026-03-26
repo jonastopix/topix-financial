@@ -5,7 +5,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
-  BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, Wallet,
+  BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
