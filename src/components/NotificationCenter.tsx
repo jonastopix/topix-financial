@@ -48,6 +48,8 @@ const NotificationCenter = () => {
         return { Icon: Sparkles, bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400" };
       case "meeting_reminder":
         return { Icon: Clock, bg: "bg-primary/10", text: "text-primary" };
+      case "report_committed":
+        return { Icon: CheckCircle2, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
       default:
         return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
     }

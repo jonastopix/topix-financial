@@ -159,7 +159,18 @@ Deno.serve(async (req) => {
 
       const subject = EMAIL_SUBJECTS[notif.type] || notif.title;
       const deepLink = notif.deep_link || "/";
-      const html = buildEmailHtml(notif.title, notif.body || "", deepLink);
+      const ctaLabels: Record<string, string> = {
+        report_review_ready: "Gennemgå mine tal →",
+        report_error: "Prøv igen →",
+        advisor_replied: "Læs beskeden →",
+        report_committed: "Se virksomhedens tal →",
+      };
+      const html = buildEmailHtml(
+        notif.title,
+        notif.body || "",
+        deepLink,
+        ctaLabels[notif.type]
+      );
       const messageId = crypto.randomUUID();
 
       // Log pending
