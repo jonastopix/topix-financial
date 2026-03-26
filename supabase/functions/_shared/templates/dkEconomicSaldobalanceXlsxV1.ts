@@ -324,7 +324,7 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
         normalization_family: "profit_like",
         raw_value: grossProfit,
         raw_sign: grossProfit > 0 ? "positive" : grossProfit < 0 ? "negative" : "zero",
-        sign_convention: "credit",
+        sign_convention: "business",
         source_label: "derived:gross_profit (revenue - cogs)",
         source_row_index: null,
         source_column_slot: null,
