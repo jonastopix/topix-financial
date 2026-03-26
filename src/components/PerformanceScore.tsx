@@ -146,7 +146,7 @@ const PerformanceScore = () => {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={`text-3xl font-display font-bold ${scoreColor}`}>{overallScore}</span>
-            <span className="text-[10px] text-foreground/60 uppercase tracking-wider">/ 100</span>
+            <span className="text-[10px] text-foreground/60 uppercase tracking-wider">{scoreLabel}</span>
           </div>
         </div>
         <div className="flex-1 space-y-1.5">
