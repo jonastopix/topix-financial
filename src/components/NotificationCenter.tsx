@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, FileText, ClipboardList, MessageCircle, AlertTriangle, FileCheck, Clock } from "lucide-react";
+import { Bell, FileText, ClipboardList, MessageCircle, AlertTriangle, FileCheck, Clock, Sparkles } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
@@ -44,6 +44,10 @@ const NotificationCenter = () => {
         return { Icon: Clock, bg: "bg-destructive/10", text: "text-destructive" };
       case "report_error":
         return { Icon: AlertTriangle, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
+      case "pulse_checkin_received":
+        return { Icon: Sparkles, bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400" };
+      case "meeting_reminder":
+        return { Icon: Clock, bg: "bg-primary/10", text: "text-primary" };
       default:
         return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
     }
@@ -89,9 +93,12 @@ const NotificationCenter = () => {
 
         <div className="flex-1 overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="p-6 text-center">
-              <Bell className="h-6 w-6 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">Ingen notifikationer endnu</p>
+            <div className="py-8 text-center">
+              <Bell className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">Ingen notifikationer endnu</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Vi giver dig besked når der sker noget vigtigt
+              </p>
             </div>
           ) : (
             notifications.map((n) => {
