@@ -98,6 +98,62 @@ function selectPrimaryConversation(conversations: ConvRow[]): ConvRow | null {
   return resolved[0];
 }
 
+// ── Trend helpers ──
+function calcDeltaPct(current: number | null | undefined, previous: number | null | undefined): number | null {
+  if (current == null || previous == null) return null;
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+interface TrendMetricProps {
+  icon: typeof DollarSign;
+  label: string;
+  current: number | null | undefined;
+  previous?: number | null | undefined;
+  hasPrevious: boolean;
+  negativeIsRed?: boolean;
+  periodNote?: string;
+}
+
+function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negativeIsRed, periodNote }: TrendMetricProps) {
+  const delta = calcDeltaPct(current, previous);
+  const isPositive = delta != null && delta > 5;
+  const isNegative = delta != null && delta < -5;
+  const isLargeDecline = delta != null && delta < -10;
+
+  // Signal color
+  let signalColor = "text-muted-foreground"; // neutral
+  if (isPositive) signalColor = "text-emerald-600";
+  if (isLargeDecline) signalColor = "text-destructive";
+
+  const DeltaIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+      </div>
+      <p className={`text-sm font-semibold ${negativeIsRed && (current ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>
+        {current != null ? formatDKK(current) : "—"}
+      </p>
+      {hasPrevious && delta != null ? (
+        <div className={`flex items-center gap-1 mt-0.5 ${signalColor}`}>
+          <DeltaIcon className="h-3 w-3" />
+          <span className="text-[10px] font-medium">
+            {delta >= 0 ? "+" : ""}{Math.round(delta)}%
+          </span>
+        </div>
+      ) : hasPrevious ? null : current != null ? (
+        <p className="text-[10px] text-muted-foreground mt-0.5">Første periode</p>
+      ) : null}
+      {periodNote && (
+        <p className="text-[10px] text-muted-foreground mt-0.5">{periodNote}</p>
+      )}
+    </div>
+  );
+}
+
 const AdvisorCompanyOverview = () => {
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
