@@ -8,6 +8,7 @@ import {
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { ResponsiveContainer, LineChart, Line } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
   DANISH_MONTHS, REPORT_OVERRIDE_SELECT,
