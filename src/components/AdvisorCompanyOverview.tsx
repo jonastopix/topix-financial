@@ -166,7 +166,12 @@ const AdvisorCompanyOverview = () => {
         .sort((a, b) => a.key.localeCompare(b.key));
 
       const latest = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+      const previous = sorted.length > 1 ? sorted[sorted.length - 2] : null;
       const bankReport = [...sorted].reverse().find(r => r.kf.bank_balance != null);
+      // Find the second-latest report that has bank_balance for bank trend
+      const bankPrevious = bankReport
+        ? [...sorted].reverse().find(r => r.kf.bank_balance != null && r.key !== bankReport.key)
+        : null;
 
       const missingKey = getMissingReportKey();
       const reportKeys = new Set(sorted.map(r => r.key));
@@ -180,7 +185,9 @@ const AdvisorCompanyOverview = () => {
         hasNote,
         noteConvId,
         latest,
+        previous,
         bankReport,
+        bankPrevious,
         missingReport,
         assignedName,
       };
