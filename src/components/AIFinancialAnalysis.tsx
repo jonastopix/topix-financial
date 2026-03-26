@@ -74,6 +74,8 @@ interface AIFinancialAnalysisProps {
   userId?: string | null;
 }
 
+const CORE_FIELDS = ["revenue", "gross_profit", "ebt"] as const;
+
 const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialAnalysisProps) => {
   const queryClient = useQueryClient();
   const { data: facts = [] } = useCompanyFacts(companyId ?? undefined);
@@ -84,6 +86,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
   const [expandedYear, setExpandedYear] = useState<string | null>(() => String(new Date().getFullYear()));
+  const [needsMoreData, setNeedsMoreData] = useState(false);
 
   // Available periods from committed facts (sorted descending)
   const availablePeriods = useMemo(() => {
