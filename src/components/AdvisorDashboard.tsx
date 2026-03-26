@@ -359,72 +359,12 @@ const AdvisorDashboard = () => {
       )}
 
       {/* ── Section 3: Porteføljestatus ── */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <Building2 className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-            Porteføljestatus
-          </h2>
-          <span className="text-xs text-muted-foreground ml-1">
-            {portfolio.length} virksomheder
-          </span>
-        </div>
-        <div className="space-y-1">
-          {portfolio.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setCompanyOverride(c.id, c.name)}
-              className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl bg-card border border-border hover:bg-accent/50 hover:border-primary/30 transition-all text-left group"
-            >
-              {/* Company logo or initial */}
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                {c.logo_url ? (
-                  <img src={c.logo_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-xs font-bold text-primary">
-                    {c.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </div>
-
-              {/* Name + latest report */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                  {c.name}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {c.latestReportKey ? formatReportKey(c.latestReportKey) : "Ingen rapporter"}
-                </p>
-              </div>
-
-              {/* Status chips */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {c.awaitingCount > 0 && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-semibold" title="Afventer svar">
-                    <MessageSquare className="h-3 w-3" />
-                    {c.awaitingCount}
-                  </span>
-                )}
-                {c.missingReport && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-chart-warning/10 text-chart-warning text-[10px] font-semibold" title={`Mangler ${getMissingReportLabel()}-rapport`}>
-                    <FileText className="h-3 w-3" />
-                  </span>
-                )}
-                {c.hasNote && (
-                  <span className="inline-flex items-center px-1 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400" title="Intern note">
-                    <StickyNote className="h-3 w-3" />
-                  </span>
-                )}
-              </div>
-
-              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-            </button>
-          ))}
-          {portfolio.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">Ingen virksomheder i porteføljen endnu.</p>
-          )}
-        </div>
-      </section>
+      <GroupDashboardContent
+        companies={groupSummaries}
+        aggregates={buildGroupAggregates(groupSummaries)}
+        isLoading={isLoading}
+        groupName="Mine virksomheder"
+      />
     </div>
   );
 };
