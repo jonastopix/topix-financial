@@ -223,6 +223,8 @@ const AdvisorDashboard = () => {
     return `${DANISH_MONTHS[monthIdx]?.slice(0, 3) || month} ${year}`;
   };
 
+  /** Format report key "2026-02" → "Februar 2026" (full month) */
+
   const getCompanyName = (companyId: string | null): string => {
     if (!companyId) return "Ukendt";
     return companyMap.get(companyId)?.name || "Ukendt";
