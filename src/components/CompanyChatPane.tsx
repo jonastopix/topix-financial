@@ -2426,10 +2426,18 @@ const CompanyChatPane = () => {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-center">
-                <div>
-                  <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+              <div className="flex-1 flex flex-col">
+                {!isAdvisor && companyName && (
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med Morten Larsen & Jonas Herlev</span>
+                  </div>
+                )}
+                <div className="flex-1 flex items-center justify-center text-center">
+                  <div>
+                    <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+                  </div>
                 </div>
               </div>
             )}
