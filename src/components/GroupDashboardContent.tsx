@@ -23,14 +23,8 @@ function formatDKK(value: number): string {
 type FilterTab = "alle" | "attention" | "top";
 type SortKey = "revenue" | "ebt" | "trend";
 
-function getCompanyTrendPct(c: GroupCompanySummary): number {
-  // With single-period data, trend is flat
-  // Future: compare against previous period_key
-  return 0;
-}
-
 function needsAttention(c: GroupCompanySummary): boolean {
-  return (c.cash != null && c.cash < 0) || c.missing_current_period || getCompanyTrendPct(c) < -10;
+  return (c.cash != null && c.cash < 0) || c.missing_current_period;
 }
 
 function isTopPerformer(c: GroupCompanySummary): boolean {
