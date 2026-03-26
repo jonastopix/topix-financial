@@ -200,7 +200,7 @@ const AdvisorDashboard = () => {
   const actionQueue = data?.actionQueue || [];
   const overdueFollowUps = data?.overdueFollowUps || [];
   const upcomingFollowUps = data?.upcomingFollowUps || [];
-  const portfolio = data?.portfolio || [];
+  const groupSummaries = data?.groupSummaries || [];
   const companyMap = data?.companyMap || new Map();
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
