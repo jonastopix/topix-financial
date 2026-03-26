@@ -99,29 +99,38 @@ async function runPostExtractionPipeline(params: {
   // after facts are committed.
   // Re-read the report status set by the edge function.
   // CRITICAL A1 rule: frontend must NEVER overwrite DB status.
-  const readReportStatus = async () => {
+  const readReportData = async () => {
     const { data } = await supabase
       .from("financial_reports")
-      .select("status")
+      .select("status, quality_signals")
       .eq("id", reportId)
       .single();
-    return data?.status as string | undefined;
+    return { status: data?.status as string | undefined, quality_signals: data?.quality_signals as any };
   };
 
-  let edgeFunctionStatus = await readReportStatus();
+  let reportData = await readReportData();
 
   // Handle tiny replication lag/race windows by retrying reads only.
   // Never write a fallback status from frontend.
-  if (edgeFunctionStatus === "processing") {
-    for (let i = 0; i < 4 && edgeFunctionStatus === "processing"; i++) {
+  if (reportData.status === "processing") {
+    for (let i = 0; i < 4 && reportData.status === "processing"; i++) {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      edgeFunctionStatus = await readReportStatus();
+      reportData = await readReportData();
     }
   }
 
+  const edgeFunctionStatus = reportData.status;
+  const needsManualEntry = reportData.quality_signals?.needs_manual_entry === true;
   const isError = edgeFunctionStatus === "error";
+
+  // Always set UI status to "done" for processed reports (including needs_manual_entry)
   const uiStatus = isError ? "error" : edgeFunctionStatus === "processed" ? "done" : "processing";
-  updateFile(fileId, { status: uiStatus, milestonesCreated: 0, errorMessage: isError ? "Dokumentet kunne ikke genkendes som en finansiel rapport" : undefined });
+  updateFile(fileId, {
+    status: uiStatus,
+    milestonesCreated: 0,
+    errorMessage: isError ? "Dokumentet kunne ikke genkendes som en finansiel rapport" : undefined,
+  });
+
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
@@ -133,6 +142,11 @@ async function runPostExtractionPipeline(params: {
       title: "Dokument afvist",
       description: "Filen blev ikke genkendt som en finansiel rapport.",
       variant: "destructive",
+    });
+  } else if (needsManualEntry) {
+    toastFn({
+      title: "Manuel indtastning påkrævet",
+      description: "Vi kunne ikke læse dokumentet automatisk — du kan indtaste tallene manuelt",
     });
   } else {
     toastFn({
