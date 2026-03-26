@@ -128,6 +128,58 @@ const AttentionNeeded = () => {
         }
       }
 
+      // Check: Upcoming board meeting (first Monday of next month, within 5 days)
+      const firstMondayNextMonth = (() => {
+        const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+        return d;
+      })();
+      const daysUntilMeeting = Math.ceil(
+        (firstMondayNextMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysUntilMeeting <= 5 && daysUntilMeeting > 0) {
+        attentionItems.push({
+          id: "upcoming-meeting",
+          type: "milestone",
+          title: "Boardroom-session nærmer sig",
+          description: `${daysUntilMeeting} dag${daysUntilMeeting > 1 ? "e" : ""} til næste møde — opdater dine milestones`,
+          urgency: daysUntilMeeting <= 2 ? "high" : "medium",
+          action: "Forbered mig",
+          link: "/milestones",
+          daysLeft: daysUntilMeeting,
+        });
+      }
+
+      // Check: Latest committed report has AI commentary older than 7 days
+      if (companyId) {
+        const { data: latestReport } = await (supabase
+          .from("financial_reports")
+          .select("id, processed_at, manual_override_note")
+          .eq("company_id", companyId)
+          .eq("status", "processed")
+          .is("deleted_at", null)
+          .order("uploaded_at", { ascending: false })
+          .limit(1) as any).maybeSingle();
+
+        if (latestReport?.processed_at && !latestReport.manual_override_note) {
+          const processedDate = new Date(latestReport.processed_at);
+          const daysSinceProcessed = Math.floor(
+            (now.getTime() - processedDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          if (daysSinceProcessed >= 7) {
+            attentionItems.push({
+              id: "ai-analysis-waiting",
+              type: "chat",
+              title: "Din AI-analyse venter på din reaktion",
+              description: "Læs analysen og tilføj dine egne kommentarer til tallene",
+              urgency: "low",
+              action: "Læs analyse",
+              link: "/reports",
+            });
+          }
+        }
+      }
+
       return attentionItems;
     },
     enabled: !!user && !!companyId,
