@@ -52,6 +52,7 @@ const GroupDashboardContent = ({
   isLoading,
   groupName,
   actions,
+  onCompanyClick,
 }: GroupDashboardContentProps) => {
   const [filter, setFilter] = useState<FilterTab>("alle");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
