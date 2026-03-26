@@ -157,19 +157,22 @@ export default function OverrideFormFields({
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Driftsnøgletal</h3>
           <div className="grid grid-cols-1 gap-3">
             {PNL_FIELDS.map(field => (
-              <div key={field} className="flex items-center gap-3">
-                <Label className="w-40 text-xs flex-shrink-0">
-                  {FIELD_LABELS[field]}
-                  {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
-                </Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={metricInputs[field] ?? ""}
-                  onChange={e => onMetricChange(field, e.target.value)}
-                  placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
-                  className="flex-1"
-                />
+              <div key={field}>
+                <div className="flex items-center gap-3">
+                  <Label className="w-40 text-xs flex-shrink-0">
+                    {FIELD_LABELS[field]}
+                    {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={metricInputs[field] ?? ""}
+                    onChange={e => onMetricChange(field, e.target.value)}
+                    placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
+                    className="flex-1"
+                  />
+                </div>
+                {fieldWarning(field)}
               </div>
             ))}
           </div>
