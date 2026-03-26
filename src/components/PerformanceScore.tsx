@@ -179,12 +179,23 @@ const PerformanceScore = () => {
                   <div className={`h-full rounded-full transition-all duration-700 ${bg}`} style={{ width: `${metric.score}%` }} />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{metric.detail}</p>
+                {metric.score < 40 && (
+                  <p className="text-[10px] text-destructive mt-0.5">
+                    Under gennemsnit — se AI-analysen for forslag
+                  </p>
+                )}
+                {metric.score >= 40 && metric.score < 70 && (
+                  <p className="text-[10px] text-chart-warning mt-0.5">
+                    Plads til forbedring
+                  </p>
+                )}
               </div>
             </div>
           );
         })}
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 
