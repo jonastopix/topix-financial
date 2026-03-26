@@ -1,8 +1,14 @@
 import { useMemo } from "react";
-import { TrendingUp, Flame, DollarSign, BarChart3, Activity } from "lucide-react";
+import { TrendingUp, Flame, DollarSign, BarChart3, Activity, Info } from "lucide-react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MetricScore {
   label: string;
@@ -101,11 +107,29 @@ const PerformanceScore = () => {
   }
 
   return (
+    <TooltipProvider>
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Performance Score</h3>
+          <UITooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <p className="font-semibold text-xs mb-1">Sådan beregnes scoren</p>
+              <div className="text-[11px] space-y-0.5 text-muted-foreground">
+                <p>• Vækstrate — omsætningsvækst måned/måned</p>
+                <p>• Bruttomargin — dækningsgrad i %</p>
+                <p>• Nettoresultat — overskudsgrad i %</p>
+                <p>• Likviditet — bank vs. 6 måneders løn</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                Scoren opdateres automatisk når du uploader en ny rapport.
+              </p>
+            </TooltipContent>
+          </UITooltip>
         </div>
         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${scoreBg}/10 ${scoreColor}`}>
           {scoreLabel}
@@ -122,7 +146,7 @@ const PerformanceScore = () => {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={`text-3xl font-display font-bold ${scoreColor}`}>{overallScore}</span>
-            <span className="text-[10px] text-foreground/60 uppercase tracking-wider">/ 100</span>
+            <span className="text-[10px] text-foreground/60 uppercase tracking-wider">{scoreLabel}</span>
           </div>
         </div>
         <div className="flex-1 space-y-1.5">
@@ -155,12 +179,23 @@ const PerformanceScore = () => {
                   <div className={`h-full rounded-full transition-all duration-700 ${bg}`} style={{ width: `${metric.score}%` }} />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{metric.detail}</p>
+                {metric.score < 40 && (
+                  <p className="text-[10px] text-destructive mt-0.5">
+                    Under gennemsnit — se AI-analysen for forslag
+                  </p>
+                )}
+                {metric.score >= 40 && metric.score < 70 && (
+                  <p className="text-[10px] text-chart-warning mt-0.5">
+                    Plads til forbedring
+                  </p>
+                )}
               </div>
             </div>
           );
         })}
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 
