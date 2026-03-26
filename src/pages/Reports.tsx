@@ -99,7 +99,7 @@ interface ChatMsg {
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
   processed: { icon: CheckCircle2, ...reportStatusConfig.processed },
   processing: { icon: Clock, ...reportStatusConfig.processing },
-  error: { icon: AlertCircle, ...reportStatusConfig.error },
+  error: { icon: Pencil, label: "Afventer dine tal", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" },
 };
 
 const Reports = () => {
@@ -476,6 +476,30 @@ const Reports = () => {
         <DeliveryOverview reports={dbReports} />
       </div>
 
+      {/* Manual entry banner */}
+      {(() => {
+        const pendingManualEntryCount = dbReports.filter(r =>
+          (r.quality_signals as any)?.needs_manual_entry === true || r.status === "error"
+        ).length;
+        if (pendingManualEntryCount === 0) return null;
+        return (
+          <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-4 mb-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-amber-700 dark:text-amber-300">
+                {pendingManualEntryCount === 1
+                  ? "1 rapport afventer dine nøgletal"
+                  : `${pendingManualEntryCount} rapporter afventer dine nøgletal`}
+              </p>
+              <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                Vi kunne ikke læse disse dokumenter automatisk. Det tager kun 2 minutter at
+                indtaste tallene manuelt — det sikrer at din AI-analyse bliver korrekt.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Upload section — primary action after delivery status */}
       <div className="mb-8">
         <FileUploadZone
@@ -680,18 +704,20 @@ const Reports = () => {
 
       {dbReports.length === 0 ? (
         <div className="bg-card border border-border shadow-sm rounded-xl p-12 text-center">
-          <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-sm text-foreground font-medium mb-1">Ingen rapporter endnu</p>
+          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <FileText className="h-6 w-6 text-primary" />
+          </div>
+          <p className="text-sm text-foreground font-medium mb-1">Upload din første rapport for at komme i gang</p>
           <p className="text-xs text-muted-foreground">
-            Upload dit første regnskab ovenfor for at komme i gang
+            Vi understøtter PDF og Excel fra e-conomic, Dinero, Billy og de fleste andre systemer
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {dbReports.map((report) => {
-            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true;
+            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true || report.status === "error";
             const config = needsManualEntry
-              ? { icon: AlertTriangle, label: "Mangler data", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" }
+              ? { icon: Pencil, label: "Afventer dine tal", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" }
               : (statusConfig[report.status] || statusConfig.processing);
             const Icon = config.icon;
             const isExpanded = expandedReport === report.id;
@@ -700,7 +726,7 @@ const Reports = () => {
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (
-              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className="bg-card border border-border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300">
+              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className={`bg-card border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300 ${needsManualEntry ? "border-amber-300/50 dark:border-amber-500/30" : "border-border"}`}>
                 <button
                   onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                   className="w-full p-5 text-left hover:bg-secondary/30 transition-colors"
@@ -801,6 +827,14 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-4">
+                    {/* Manual entry guidance */}
+                    {needsManualEntry && !getEffectiveMetrics(report as unknown as ReportData) && (
+                      <div className="rounded-lg border border-amber-300/40 bg-amber-50/50 dark:border-amber-500/20 dark:bg-amber-950/10 p-3">
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Vi kunne ikke læse dokumentet automatisk. Klik for at indtaste tallene.
+                        </p>
+                      </div>
+                    )}
                     {/* Actions row */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -823,10 +857,10 @@ const Reports = () => {
                         {needsManualEntry && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            Indtast tal
+                            Indtast nøgletal →
                           </button>
                         )}
                         {!needsManualEntry && (() => {
