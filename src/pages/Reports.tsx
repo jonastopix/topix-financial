@@ -508,17 +508,45 @@ const Reports = () => {
       })()}
 
       {/* Upload section — primary action after delivery status */}
-      <div className="mb-8">
-        <FileUploadZone
-          title="Upload finansiel rapport"
-          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
-          accept=".xlsx,.xls,.csv,.pdf"
-          conversationId={conversationId}
-          userId={user?.id || null}
-          companyId={companyId || null}
-          onPipelineComplete={handlePipelineComplete}
-        />
-      </div>
+      {reportCount === 0 ? (
+        <div className="mb-8">
+          <FileUploadZone
+            title="Upload finansiel rapport"
+            description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
+            accept=".xlsx,.xls,.csv,.pdf"
+            conversationId={conversationId}
+            userId={user?.id || null}
+            companyId={companyId || null}
+            onPipelineComplete={handlePipelineComplete}
+          />
+          <p className="text-center text-xs text-muted-foreground mt-3">
+            Understøtter PDF og Excel fra e-conomic, Dinero, Billy og de fleste andre regnskabssystemer
+          </p>
+        </div>
+      ) : (
+        <>
+          <button
+            onClick={() => setUploadExpanded(v => !v)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            {uploadExpanded ? "Luk upload" : "+ Upload ny rapport"}
+          </button>
+          {uploadExpanded && (
+            <div className="mb-8">
+              <FileUploadZone
+                title="Upload finansiel rapport"
+                description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
+                accept=".xlsx,.xls,.csv,.pdf"
+                conversationId={conversationId}
+                userId={user?.id || null}
+                companyId={companyId || null}
+                onPipelineComplete={handlePipelineComplete}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Trend Charts ── */}
       {Object.keys(reportsByMonth).length > 0 && (() => {
