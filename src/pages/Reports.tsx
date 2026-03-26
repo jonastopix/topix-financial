@@ -126,6 +126,7 @@ const Reports = () => {
   const [trashedReports, setTrashedReports] = useState<DbReport[]>([]);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
+  const [uploadExpanded, setUploadExpanded] = useState(false);
 
   // RP-1: Review dialog + server-driven card states
   const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
