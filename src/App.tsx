@@ -33,6 +33,7 @@ import GroupDashboard from "./pages/GroupDashboard";
 import GroupBudget from "./pages/GroupBudget";
 import AdvisorGroupList from "./pages/AdvisorGroupList";
 import AdvisorGroupDashboard from "./pages/AdvisorGroupDashboard";
+import PulseCheckin from "./pages/PulseCheckin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
