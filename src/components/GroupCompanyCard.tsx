@@ -16,77 +16,13 @@ function formatDKK(value: number | null): string {
   }).format(value);
 }
 
-/** Tiny inline SVG sparkline — 3 data points, 50×20px */
-function MiniSparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) {
-    // Flat line for single data point
-    return (
-      <svg width="50" height="20" viewBox="0 0 50 20" className="shrink-0">
-        <line x1="0" y1="10" x2="50" y2="10" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    );
-  }
-
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const padding = 2;
-  const h = 20 - padding * 2;
-
-  const points = values
-    .map((v, i) => {
-      const x = values.length === 1 ? 25 : (i / (values.length - 1)) * 50;
-      const y = padding + h - ((v - min) / range) * h;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg width="50" height="20" viewBox="0 0 50 20" className="shrink-0">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/** Derive trend % from first to last value */
-function getTrend(values: number[]): { pct: number; direction: "up" | "down" | "flat" } {
-  if (values.length < 2) return { pct: 0, direction: "flat" };
-  const first = values[0];
-  const last = values[values.length - 1];
-  if (first === 0) return { pct: 0, direction: "flat" };
-  const pct = ((last - first) / Math.abs(first)) * 100;
-  if (pct > 5) return { pct, direction: "up" };
-  if (pct < -10) return { pct, direction: "down" };
-  return { pct, direction: "flat" };
-}
-
 export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardProps) {
   const {
     company_id, company_name, logo_url, has_verified_metrics,
     revenue, ebt, cash, missing_current_period, has_report,
   } = company;
 
-  // Use revenue as sparkline proxy — currently only one period available from RPC
-  // Build a simple array; the parent could pass historical data in the future
-  const revenueValues = revenue != null ? [revenue] : [];
-  const trend = getTrend(revenueValues);
-  const sparkColor = trend.direction === "up" ? "#1D9E75" : trend.direction === "down" ? "#E24B4A" : "hsl(var(--muted-foreground))";
-
-  const trendBadgeClass =
-    trend.direction === "up"
-      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-      : trend.direction === "down"
-        ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400"
-        : "bg-muted text-muted-foreground";
-
-  const needsAttention = (cash != null && cash < 0) || trend.direction === "down";
+  const needsAttention = (cash != null && cash < 0);
 
   return (
     <tr
