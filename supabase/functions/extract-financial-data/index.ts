@@ -1569,8 +1569,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                 user_id: reportRow.user_id,
                 type: "report_error",
                 priority: "action_required",
-                title: "Der opstod en fejl med din rapport",
-                body: `Filen "${fileName || "ukendt"}" kunne ikke behandles. Prøv at uploade igen.`,
+                title: "Din rapport kunne ikke behandles",
+                body: `Vi kunne ikke læse "${fileName || "filen"}". Prøv at eksportere direkte fra dit regnskabsprogram (e-conomic, Dinero eller Billy) og upload igen. Kontakt support hvis fejlen fortsætter.`,
                 reference_type: "report",
                 reference_id: reportId,
                 deep_link: `/reports?reportId=${reportId}`,
@@ -1584,8 +1584,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                 user_id: reportRow.user_id,
                 type: "report_review_ready",
                 priority: "action_required",
-                title: "Din rapport kræver manuel indtastning",
-                body: `Vi kunne ikke udtrække data automatisk fra "${fileName || "ukendt"}". Indtast nøgletallene manuelt.`,
+                title: "Indtast tal manuelt — 2 minutter",
+                body: `Vi kunne ikke læse "${fileName || "filen"}" automatisk. Klik her for at indtaste de vigtigste tal manuelt — så aktiverer vi din AI-analyse med det samme.`,
                 reference_type: "report",
                 reference_id: reportId,
                 deep_link: `/reports?reportId=${reportId}`,
@@ -1603,10 +1603,12 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                   user_id: reportRow.user_id,
                   type: "report_review_ready",
                   priority: "action_required",
-                  title: "Din rapport er klar til gennemsyn",
+                  title: candidate.period_label
+                    ? `${candidate.period_label} — gennemgå dine tal`
+                    : "Din rapport er klar til gennemsyn",
                   body: candidate.period_label
-                    ? `Rapport for ${candidate.period_label} er klar.`
-                    : "Din rapport er behandlet og klar til gennemsyn.",
+                    ? `Vi har trukket tallene ud fra din ${candidate.period_label}-rapport. Gennemgå og godkend dem — det tager under 1 minut. Herefter aktiveres din AI-analyse.`
+                    : "Vi har behandlet din rapport. Gennemgå tallene og godkend dem for at aktivere din AI-analyse.",
                   reference_type: "report",
                   reference_id: reportId,
                   deep_link: `/reports?reportId=${reportId}`,
