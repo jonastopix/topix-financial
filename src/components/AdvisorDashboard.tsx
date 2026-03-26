@@ -75,7 +75,7 @@ const AdvisorDashboard = () => {
           .order("name"),
         (supabase
           .from("financial_reports")
-          .select(`company_id, report_period, ${REPORT_OVERRIDE_SELECT}`) as any)
+          .select(`company_id, report_period, extracted_data, normalized_data, ${REPORT_OVERRIDE_SELECT}`) as any)
           .is("deleted_at", null)
           .eq("status", "processed"),
         supabase
