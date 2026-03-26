@@ -170,13 +170,12 @@ function SessionPrepSection({ companyId, companyName, revenueTimeline }: {
   const { data: sessionNote, isLoading } = useQuery({
     queryKey: ["session-prep-note", companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase
         .from("advisor_session_notes" as any)
         .select("id, note_text, generated_at")
         .eq("company_id", companyId)
         .order("generated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1) as any).maybeSingle();
       return data as { id: string; note_text: string; generated_at: string } | null;
     },
     enabled: !!companyId && !!user,
