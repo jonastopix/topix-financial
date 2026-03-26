@@ -120,11 +120,12 @@ Deno.serve(async (req) => {
     const reportUrl = "https://topix.lovable.app/reports";
 
     // Helper to build email for a specific company
-    function buildEmail(companyName: string, period: string, isTest: boolean) {
+    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null) {
       const vars: Record<string, string> = {
         period,
         company_name: companyName,
         report_url: reportUrl,
+        first_name: firstName || "dig",
       };
       const subject = (isTest ? '[TEST] ' : '') + replaceVars(subjectTpl, vars);
       const html = replaceVars(bodyTpl, vars);
