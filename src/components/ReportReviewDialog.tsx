@@ -573,6 +573,13 @@ export default function ReportReviewDialog({
               </div>
             )}
 
+            {(preview.quality_signals as any)?.needs_manual_entry && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Felterne er delvist udfyldt fra vores bedste forsøg — kontrollér alle tal
+              </p>
+            )}
+
             <OverrideFormFields
               reportType={editReportType}
               onReportTypeChange={setEditReportType}
