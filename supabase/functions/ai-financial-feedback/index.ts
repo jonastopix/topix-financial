@@ -216,12 +216,12 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════
     if (request_type === "session_prep") {
       const companyName = companyContext?.name || "Ukendt";
-      const sessionSystemPrompt = `Du er rådgiver for ${companyName} i The Boardroom. Du skal forberede Morten Larsen eller Jonas Herlev til en kort advisory-session. Baseret på de seneste finansielle data: skriv 2-3 konkrete bulletpoints som rådgiveren bør tage op i sessionen. Fokuser på det mest interessante eller bekymrende — ikke bare en opsummering af tallene. Vær direkte og konkret. Maksimalt 3 bulletpoints, hver under 20 ord.`;
+      const sessionSystemPrompt = `Du er rådgiver for ${companyName} i The Boardroom. Forbered Morten Larsen eller Jonas Herlev til en kort advisory-session. Skriv præcis 3 bullet points på dansk — konkrete ting rådgiveren bør spørge ind til eller tage op, baseret på de seneste finansielle data. Vær direkte. Maks 15 ord per bullet. Ingen introduktion, ingen opsummering — kun de 3 bullets. Returner KUN en JSON-array med 3 strings, fx: ["bullet 1","bullet 2","bullet 3"]`;
 
       const sessionUserMessage = `SENESTE FINANSIELLE DATA:
 ${JSON.stringify(historicalCanonical || financialData || canonicalPayload?.metrics || {}, null, 2)}
 
-Giv 2-3 bulletpoints til sessionsforberedelse.`;
+Returner præcis 3 bullet points som JSON-array.`;
 
       const sessionResponse = await fetch(
         "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -250,9 +250,25 @@ Giv 2-3 bulletpoints til sessionsforberedelse.`;
       }
 
       const sessionResult = await sessionResponse.json();
-      const content = sessionResult.choices?.[0]?.message?.content || "";
+      const content = (sessionResult.choices?.[0]?.message?.content || "").trim();
 
-      return new Response(JSON.stringify({ note_text: content }), {
+      // Parse bullet array from AI response
+      let bullets: string[] = [];
+      try {
+        // Try JSON parse first (AI was asked for JSON array)
+        const cleaned = content.replace(/^```json?\s*/, "").replace(/\s*```$/, "");
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) bullets = parsed.map((s: unknown) => String(s));
+      } catch {
+        // Fallback: split by newlines, strip bullet markers
+        bullets = content
+          .split(/\n/)
+          .map((l: string) => l.replace(/^[-•*]\s*/, "").trim())
+          .filter((l: string) => l.length > 0)
+          .slice(0, 3);
+      }
+
+      return new Response(JSON.stringify({ session_prep: bullets }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -158,33 +158,21 @@ function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negati
   );
 }
 
-// ── Session Prep Section ──
-function SessionPrepSection({ companyId, companyName, revenueTimeline }: {
+// ── Session Prep Section (local state only — resets on unmount) ──
+function SessionPrepSection({ companyId, companyName }: {
   companyId: string;
   companyName: string;
-  revenueTimeline?: { key: string; value: number }[];
 }) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const [bullets, setBullets] = useState<string[] | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { data: sessionNote, isLoading } = useQuery({
-    queryKey: ["session-prep-note", companyId],
-    queryFn: async () => {
-      const { data } = await (supabase
-        .from("advisor_session_notes" as any)
-        .select("id, note_text, generated_at")
-        .eq("company_id", companyId)
-        .order("generated_at", { ascending: false })
-        .limit(1) as any).maybeSingle();
-      return data as { id: string; note_text: string; generated_at: string } | null;
-    },
-    enabled: !!companyId && !!user,
-    staleTime: 5 * 60_000,
-  });
-
-  const generateMutation = useMutation({
-    mutationFn: async () => {
-      // Fetch last 3 months of facts for the company
+  const generate = async () => {
+    setIsGenerating(true);
+    setError(null);
+    try {
+      // Fetch last 3 periods of facts
       const { data: facts } = await supabase
         .from("financial_report_facts")
         .select("period_key, period_label, metrics, source_type")
@@ -192,46 +180,54 @@ function SessionPrepSection({ companyId, companyName, revenueTimeline }: {
         .order("period_key", { ascending: false })
         .limit(3);
 
-      const historicalCanonical = (facts || []).map((f: any) => ({
+      const canonicalPayload = (facts || []).map((f: any) => ({
         period_key: f.period_key,
         period_label: f.period_label,
         metrics: f.metrics,
         source_type: f.source_type,
       }));
 
-      const { data: result, error } = await supabase.functions.invoke("ai-financial-feedback", {
+      const { data: result, error: fnError } = await supabase.functions.invoke("ai-financial-feedback", {
         body: {
           request_type: "session_prep",
           companyId,
           companyContext: { name: companyName },
-          historicalCanonical,
+          historicalCanonical: canonicalPayload,
         },
       });
 
-      if (error) throw error;
-      const noteText = result?.note_text || "";
+      if (fnError) throw fnError;
 
-      // Save to DB
-      await (supabase.from("advisor_session_notes" as any) as any).insert({
-        company_id: companyId,
-        generated_by: user!.id,
-        note_text: noteText,
-      });
+      const items = result?.session_prep;
+      if (Array.isArray(items) && items.length > 0) {
+        setBullets(items);
+        setGeneratedAt(new Date());
+      } else {
+        throw new Error("Uventet svar fra AI");
+      }
+    } catch (err: any) {
+      setError("Kunne ikke generere — prøv igen");
+      console.error("Session prep error:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-      return noteText;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["session-prep-note", companyId] });
-    },
-    onError: (err: any) => {
-      toast({ title: "Kunne ikke generere note", description: err.message, variant: "destructive" });
-    },
-  });
+  const hasNote = bullets && bullets.length > 0;
 
-  const hasNote = !!sessionNote?.note_text;
-  const isStale = sessionNote?.generated_at
-    ? (Date.now() - new Date(sessionNote.generated_at).getTime()) > 7 * 24 * 60 * 60 * 1000
-    : false;
+  // Relative timestamp
+  const relativeTime = generatedAt
+    ? (() => {
+        const diffMs = Date.now() - generatedAt.getTime();
+        const mins = Math.floor(diffMs / 60_000);
+        if (mins < 1) return "lige nu";
+        if (mins < 60) return `for ${mins} min. siden`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `for ${hrs} time${hrs > 1 ? "r" : ""} siden`;
+        const days = Math.floor(hrs / 24);
+        return `for ${days} dag${days > 1 ? "e" : ""} siden`;
+      })()
+    : null;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -242,55 +238,57 @@ function SessionPrepSection({ companyId, companyName, revenueTimeline }: {
             Sessionsforberedelse
           </span>
         </div>
-        {(!hasNote || isStale) && (
+        {!hasNote && (
           <Button
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-[11px] gap-1"
-            onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending}
+            onClick={generate}
+            disabled={isGenerating}
           >
-            {generateMutation.isPending ? (
+            {isGenerating ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
               <Sparkles className="h-3 w-3" />
             )}
-            {generateMutation.isPending ? "Genererer…" : "Generer"}
+            {isGenerating ? "Genererer…" : "Generer briefing"}
           </Button>
         )}
       </div>
 
-      {isLoading ? (
-        <div className="h-12 rounded-lg bg-muted/50 animate-pulse" />
-      ) : hasNote ? (
+      {hasNote ? (
         <>
-          <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-            {sessionNote!.note_text}
-          </div>
-          <div className="flex items-center justify-between mt-2">
+          <ul className="space-y-1.5">
+            {bullets!.map((b, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-foreground leading-relaxed">
+                <span className="text-primary mt-0.5">•</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center justify-between mt-3">
             <p className="text-[10px] text-muted-foreground">
-              Genereret {new Date(sessionNote!.generated_at).toLocaleDateString("da-DK", {
-                day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-              })}
+              Genereret {relativeTime}
             </p>
-            {isStale && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground"
-                onClick={() => generateMutation.mutate()}
-                disabled={generateMutation.isPending}
-              >
-                {generateMutation.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
-                Opdater
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground"
+              onClick={generate}
+              disabled={isGenerating}
+            >
+              {isGenerating ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
+              Opdater
+            </Button>
           </div>
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Klik "Generer" for at få AI-forberedte talking points til næste session.
-        </p>
+        <>
+          <p className="text-xs text-muted-foreground">
+            Generer en kort briefing til dit næste møde med {companyName}
+          </p>
+          {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+        </>
       )}
     </div>
   );
@@ -638,7 +636,7 @@ const AdvisorCompanyOverview = () => {
       })()}
 
       {/* ── Sessionsforberedelse ── */}
-      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} revenueTimeline={data?.revenueTimeline} />
+      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} />
 
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
