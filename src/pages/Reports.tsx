@@ -84,6 +84,7 @@ interface DbReport {
   manual_override_by: string | null;
   manual_override_at: string | null;
   manual_override_source: string | null;
+  quality_signals: Json | null;
 }
 
 interface ChatMsg {
