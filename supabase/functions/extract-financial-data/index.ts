@@ -1027,6 +1027,15 @@ TRIN 4: PERIODE vs. ÅR TIL DATO
 - Felter MED "_aar" = År-til-dato tal (fra Kolonne 3)
 - Hvis en post viser 0,00 i periodekolonnen, er værdien 0 — brug IKKE år-til-dato!
 
+⚠️ VIGTIGT FOR SALDOBALANCER:
+I en saldobalance er der to typer kolonner:
+- RESULTATPOSTER (omsætning, omkostninger, resultat): Brug PERIODEN-kolonnen
+- BALANCEPOSTER (aktiver, passiver, bank, debitorer, kreditorer, egenkapital): 
+  Brug ÅR-TIL-DATO-kolonnen — ikke periodekolonnen!
+  Begrundelse: Periodekolonnen viser kun månedens bevægelse, ikke den samlede saldo.
+  Eksempel: Debitorer 50.000 i periode betyder at debitor STEG med 50.000 den måned.
+  Debitorer 300.000 i år-til-dato er den faktiske saldo vi vil have.
+
 ═══════════════════════════════════════════════════
 TRIN 5: RAPPORTPERIODE
 ═══════════════════════════════════════════════════
