@@ -727,9 +727,11 @@ const Reports = () => {
       })()}
 
       {/* AI Financial Analysis */}
-      <div className="mb-10">
-        <AIFinancialAnalysis conversationId={conversationId} companyId={companyId} userId={user?.id || null} />
-      </div>
+      {processedReports.length > 0 && (
+        <div className="mb-10">
+          <AIFinancialAnalysis conversationId={conversationId} companyId={companyId} userId={user?.id || null} />
+        </div>
+      )}
 
       {/* Real DB Reports */}
       <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
