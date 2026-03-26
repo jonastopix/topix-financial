@@ -198,7 +198,7 @@ const GroupDashboardContent = ({
           {isMobile ? (
             <div className="space-y-3">
               {filteredCompanies.map(c => (
-                <GroupCompanyCard key={c.company_id} company={c} />
+                <GroupCompanyCard key={c.company_id} company={c} onCompanyClick={onCompanyClick} />
               ))}
             </div>
           ) : (
