@@ -133,7 +133,7 @@ const MESSAGE_TOPICS: { key: MessageTopic; label: string }[] = [
 ];
 
 const CompanyChatPane = () => {
-  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride } = useAuth();
+  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
