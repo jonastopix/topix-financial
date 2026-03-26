@@ -55,19 +55,19 @@ const PerformanceScore = () => {
     const latest = sorted[sorted.length - 1].kf;
     const prev = sorted.length >= 2 ? sorted[sorted.length - 2].kf : null;
 
-    const revenueGrowth = prev?.omsaetning && latest.omsaetning
+    const revenueGrowth = prev?.omsaetning != null && latest.omsaetning != null
       ? ((latest.omsaetning - prev.omsaetning) / Math.abs(prev.omsaetning)) * 100 : 0;
     const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * PERF.growthMultiplier));
 
-    const dbMargin = latest.omsaetning && latest.daekningsbidrag
+    const dbMargin = latest.omsaetning != null && latest.daekningsbidrag != null
       ? (latest.daekningsbidrag / latest.omsaetning) * 100 : 0;
     const marginScore = Math.min(100, Math.max(0, dbMargin * PERF.marginMultiplier));
 
-    const netMargin = latest.omsaetning && latest.resultat_foer_skat
+    const netMargin = latest.omsaetning != null && latest.resultat_foer_skat != null
       ? (latest.resultat_foer_skat / latest.omsaetning) * 100 : 0;
     const profitScore = Math.min(100, Math.max(0, 50 + netMargin * PERF.profitMultiplier));
 
-    const bankScore = latest.bank_balance
+    const bankScore = latest.bank_balance != null
       ? Math.min(100, Math.max(0, (latest.bank_balance / (Math.abs(latest.loenninger || PERF.defaultSalaryFallback) * PERF.liquidityMonths)) * 100))
       : 50;
 
@@ -75,7 +75,7 @@ const PerformanceScore = () => {
       { label: "Vækstrate", value: `${revenueGrowth >= 0 ? "+" : ""}${revenueGrowth.toFixed(1)}%`, score: Math.round(growthScore), icon: TrendingUp, detail: "Omsætningsvækst M/M" },
       { label: "Bruttomargin", value: `${dbMargin.toFixed(1)}%`, score: Math.round(marginScore), icon: DollarSign, detail: "Dækningsgrad" },
       { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
-      { label: "Likviditet", value: latest.bank_balance ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
+      { label: "Likviditet", value: latest.bank_balance != null ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
     ];
   }, [facts, PERF]);
 

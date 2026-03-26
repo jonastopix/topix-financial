@@ -76,7 +76,7 @@ const FinancialOverview = () => {
       change: pctChange(kf.resultat_foer_skat, prev?.kf.resultat_foer_skat),
     },
     {
-      label: "EBITDA Margin",
+      label: "Resultatmargin",
       value: kf.omsaetning != null && kf.resultat_foer_skat != null && kf.omsaetning !== 0
         ? `${((kf.resultat_foer_skat / kf.omsaetning) * 100).toFixed(1)}%` : "—",
       change: null,
