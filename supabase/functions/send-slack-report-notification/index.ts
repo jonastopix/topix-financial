@@ -30,7 +30,60 @@ Deno.serve(async (req) => {
     }
 
     const callerId = claimsData.claims.sub as string;
-    const { report_id, message_id } = await req.json();
+    const body = await req.json();
+    const event = body.event || "report_uploaded";
+
+    // ── NEW: report_committed event ──
+    if (event === "report_committed") {
+      const { reportId, periodLabel } = body;
+      if (!reportId) return json({ error: "missing reportId" }, 400);
+
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: report } = await admin
+        .from("financial_reports")
+        .select("id, company_id, user_id, report_period")
+        .eq("id", reportId)
+        .single();
+
+      if (!report) return json({ error: "report not found" }, 404);
+
+      const { data: company } = await admin
+        .from("companies")
+        .select("name")
+        .eq("id", report.company_id)
+        .single();
+
+      const companyName = company?.name || "Ukendt virksomhed";
+      const period = periodLabel || report.report_period || "ukendt periode";
+
+      const { data: advisorRoles } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["advisor", "admin"]);
+
+      const advisorIds = (advisorRoles || []).map((r: any) => r.user_id);
+
+      if (advisorIds.length > 0) {
+        await writeNotificationToMany(admin, advisorIds, {
+          type: "report_committed",
+          priority: "important",
+          title: `${companyName} har godkendt sine tal for ${period}`,
+          body: `Tallene for ${period} er verificeret og klar. AI-analysen er aktiveret.`,
+          reference_type: "report",
+          reference_id: reportId,
+          deep_link: `/members/${report.user_id}?reportId=${reportId}`,
+          company_id: report.company_id,
+          dedup_key: `report_committed:${reportId}`,
+        });
+      }
+
+      return json({ ok: true, notified: advisorIds.length });
+    }
+    // ── END report_committed ──
+
+    const { report_id, message_id } = body;
     if (!report_id || !message_id) {
       return json({ error: "report_id and message_id required" }, 400);
     }
