@@ -545,7 +545,7 @@ const Reports = () => {
               />
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ── Trend Charts ── */}
