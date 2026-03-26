@@ -651,6 +651,58 @@ const AdvisorCompanyOverview = () => {
         );
       })()}
 
+      {/* ── Pulse Check-in ── */}
+      {latestPulse && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Pulse check-in · {(() => {
+                const [year, month] = (latestPulse.period_key || "").split("-");
+                const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                return `${months[parseInt(month,10)-1] || month} ${year}`;
+              })()}
+            </p>
+            {latestPulse.milestone_progress != null && (
+              <span className="text-xs font-semibold text-primary">
+                {latestPulse.milestone_progress}% på milestone
+              </span>
+            )}
+          </div>
+          <div className="space-y-3">
+            {latestPulse.went_well && (
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                  Hvad gik godt
+                </p>
+                <p className="text-sm text-foreground leading-relaxed">
+                  {latestPulse.went_well}
+                </p>
+              </div>
+            )}
+            {latestPulse.biggest_challenge && (
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                  Største udfordring
+                </p>
+                <p className="text-sm text-foreground leading-relaxed">
+                  {latestPulse.biggest_challenge}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {!latestPulse && (
+        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            Pulse check-in
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Medlemmet har endnu ikke udfyldt et check-in denne måned.
+          </p>
+        </div>
+      )}
+
       {/* ── Sessionsforberedelse ── */}
       <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} />
 
