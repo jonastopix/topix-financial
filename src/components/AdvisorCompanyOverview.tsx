@@ -158,6 +158,145 @@ function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negati
   );
 }
 
+// ── Session Prep Section ──
+function SessionPrepSection({ companyId, companyName, revenueTimeline }: {
+  companyId: string;
+  companyName: string;
+  revenueTimeline?: { key: string; value: number }[];
+}) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: sessionNote, isLoading } = useQuery({
+    queryKey: ["session-prep-note", companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("advisor_session_notes" as any)
+        .select("id, note_text, generated_at")
+        .eq("company_id", companyId)
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as { id: string; note_text: string; generated_at: string } | null;
+    },
+    enabled: !!companyId && !!user,
+    staleTime: 5 * 60_000,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      // Fetch last 3 months of facts for the company
+      const { data: facts } = await supabase
+        .from("financial_report_facts")
+        .select("period_key, period_label, metrics, source_type")
+        .eq("company_id", companyId)
+        .order("period_key", { ascending: false })
+        .limit(3);
+
+      const historicalCanonical = (facts || []).map((f: any) => ({
+        period_key: f.period_key,
+        period_label: f.period_label,
+        metrics: f.metrics,
+        source_type: f.source_type,
+      }));
+
+      const { data: result, error } = await supabase.functions.invoke("ai-financial-feedback", {
+        body: {
+          request_type: "session_prep",
+          companyId,
+          companyContext: { name: companyName },
+          historicalCanonical,
+        },
+      });
+
+      if (error) throw error;
+      const noteText = result?.note_text || "";
+
+      // Save to DB
+      await (supabase.from("advisor_session_notes" as any) as any).insert({
+        company_id: companyId,
+        generated_by: user!.id,
+        note_text: noteText,
+      });
+
+      return noteText;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["session-prep-note", companyId] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Kunne ikke generere note", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const hasNote = !!sessionNote?.note_text;
+  const isStale = sessionNote?.generated_at
+    ? (Date.now() - new Date(sessionNote.generated_at).getTime()) > 7 * 24 * 60 * 60 * 1000
+    : false;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            Sessionsforberedelse
+          </span>
+        </div>
+        {(!hasNote || isStale) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px] gap-1"
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending}
+          >
+            {generateMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            {generateMutation.isPending ? "Genererer…" : "Generer"}
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="h-12 rounded-lg bg-muted/50 animate-pulse" />
+      ) : hasNote ? (
+        <>
+          <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+            {sessionNote!.note_text}
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-[10px] text-muted-foreground">
+              Genereret {new Date(sessionNote!.generated_at).toLocaleDateString("da-DK", {
+                day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+              })}
+            </p>
+            {isStale && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground"
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
+              >
+                {generateMutation.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
+                Opdater
+              </Button>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Klik "Generer" for at få AI-forberedte talking points til næste session.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const AdvisorCompanyOverview = () => {
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
