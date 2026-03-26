@@ -439,10 +439,26 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
 
     if (error) { toast.error("Kunne ikke opdatere fremgang"); return; }
 
-    if (wasNotDone && newProgress >= 100 && conversationId && userId) {
-      confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
-      toast.success(`🎯 "${oldMs.title}" er gennemført!`);
-      postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${oldMs.title}**`, contextType: "milestone", contextMeta: { title: oldMs.title } });
+    if (wasNotDone && newProgress >= 100) {
+      if (conversationId && userId) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+        postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${oldMs.title}**`, contextType: "milestone", contextMeta: { title: oldMs.title } });
+      }
+      toast.success("Milestone fuldført! 🎉", {
+        description: "Godt gået — du er et skridt tættere på dit mål.",
+        duration: 5000,
+      });
+
+      // Notify advisors (fire and forget)
+      if (companyId) {
+        supabase.functions.invoke("send-slack-report-notification", {
+          body: {
+            event: "milestone_completed",
+            companyId,
+            milestoneTitle: oldMs.title,
+          },
+        }).catch(() => {}); // non-blocking
+      }
     }
   };
 

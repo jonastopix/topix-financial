@@ -40,6 +40,10 @@ const DashboardMilestones = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-milestones"] });
+      toast.success("Milestone fuldført! 🎉", {
+        description: "Godt gået — du er et skridt tættere på dit mål.",
+        duration: 5000,
+      });
     },
   });
 
