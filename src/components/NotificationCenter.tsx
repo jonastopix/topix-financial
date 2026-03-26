@@ -44,6 +44,10 @@ const NotificationCenter = () => {
         return { Icon: Clock, bg: "bg-destructive/10", text: "text-destructive" };
       case "report_error":
         return { Icon: AlertTriangle, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
+      case "pulse_checkin_received":
+        return { Icon: Sparkles, bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400" };
+      case "meeting_reminder":
+        return { Icon: Clock, bg: "bg-primary/10", text: "text-primary" };
       default:
         return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
     }
