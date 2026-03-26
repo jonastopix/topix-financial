@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { moduleOrder } from "@/lib/handoutConfig";
 import { notifyHandoutCompleted } from "@/lib/handoutNotify";
 
 interface HandoutDetailProps {
