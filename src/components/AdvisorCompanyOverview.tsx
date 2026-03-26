@@ -236,6 +236,12 @@ const AdvisorCompanyOverview = () => {
 
       const assignedName = (advisorProfileRes as any)?.data?.full_name ?? null;
 
+      // Last 6 months of omsaetning for sparkline
+      const revenueTimeline = sorted
+        .filter(r => r.kf.omsaetning != null)
+        .slice(-6)
+        .map(r => ({ key: r.key, value: r.kf.omsaetning as number }));
+
       return {
         company,
         primaryConv,
@@ -247,6 +253,7 @@ const AdvisorCompanyOverview = () => {
         bankPrevious,
         missingReport,
         assignedName,
+        revenueTimeline,
       };
     },
     enabled: !!companyId && !!user,
