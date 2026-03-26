@@ -175,7 +175,7 @@ const AdvisorDashboard = () => {
           has_report: !!latestKey,
           has_verified_metrics: !!latest,
           latest_report_id: null,
-          effective_period_label: latestKey ? formatReportKeyFull(latestKey) : null,
+          effective_period_label: latestKey ? (() => { const [y, m] = latestKey.split("-"); return `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`; })() : null,
           effective_period_key: latestKey,
           revenue: latest?.kf.omsaetning ?? null,
           gross_profit: latest?.kf.daekningsbidrag ?? null,
