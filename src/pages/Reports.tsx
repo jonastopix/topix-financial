@@ -32,6 +32,7 @@ import {
   Archive,
   Bug,
   Pencil,
+  Upload,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -125,6 +126,7 @@ const Reports = () => {
   const [trashedReports, setTrashedReports] = useState<DbReport[]>([]);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
+  const [uploadExpanded, setUploadExpanded] = useState(false);
 
   // RP-1: Review dialog + server-driven card states
   const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
@@ -452,6 +454,9 @@ const Reports = () => {
     );
   };
 
+  const processedReports = dbReports.filter(r => r.status === "processed");
+  const reportCount = processedReports.length;
+
   if (isAdvisor && !companyId) {
     return (
       <AppLayout>
@@ -472,9 +477,11 @@ const Reports = () => {
       </div>
 
       {/* ── Member-Centric Delivery Overview ── */}
-      <div className="mb-6">
-        <DeliveryOverview reports={dbReports} />
-      </div>
+      {reportCount >= 1 && (
+        <div className="mb-6">
+          <DeliveryOverview reports={dbReports} />
+        </div>
+      )}
 
       {/* Manual entry banner */}
       {(() => {
@@ -501,20 +508,48 @@ const Reports = () => {
       })()}
 
       {/* Upload section — primary action after delivery status */}
-      <div className="mb-8">
-        <FileUploadZone
-          title="Upload finansiel rapport"
-          description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
-          accept=".xlsx,.xls,.csv,.pdf"
-          conversationId={conversationId}
-          userId={user?.id || null}
-          companyId={companyId || null}
-          onPipelineComplete={handlePipelineComplete}
-        />
-      </div>
+      {reportCount === 0 ? (
+        <div className="mb-8">
+          <FileUploadZone
+            title="Upload finansiel rapport"
+            description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
+            accept=".xlsx,.xls,.csv,.pdf"
+            conversationId={conversationId}
+            userId={user?.id || null}
+            companyId={companyId || null}
+            onPipelineComplete={handlePipelineComplete}
+          />
+          <p className="text-center text-xs text-muted-foreground mt-3">
+            Understøtter PDF og Excel fra e-conomic, Dinero, Billy og de fleste andre regnskabssystemer
+          </p>
+        </div>
+      ) : (
+        <>
+          <button
+            onClick={() => setUploadExpanded(v => !v)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            {uploadExpanded ? "Luk upload" : "+ Upload ny rapport"}
+          </button>
+          {uploadExpanded && (
+            <div className="mb-8">
+              <FileUploadZone
+                title="Upload finansiel rapport"
+                description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
+                accept=".xlsx,.xls,.csv,.pdf"
+                conversationId={conversationId}
+                userId={user?.id || null}
+                companyId={companyId || null}
+                onPipelineComplete={handlePipelineComplete}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Trend Charts ── */}
-      {Object.keys(reportsByMonth).length > 0 && (() => {
+      {reportCount >= 3 && Object.keys(reportsByMonth).length > 0 && (() => {
         const SERIES = [
           { key: "omsaetning", label: "Omsætning", color: "hsl(160, 84%, 39%)" },
           { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(38, 92%, 50%)" },
