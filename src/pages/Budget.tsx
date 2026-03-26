@@ -222,7 +222,44 @@ const Budget = () => {
             Planlæg og følg op på dine finansielle mål
           </p>
         </div>
-        <BudgetTemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
+
+        {!changingTemplate ? (
+          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+              <Calculator className="h-7 w-7 text-primary" />
+            </div>
+            <h2 className="text-xl font-display font-bold text-foreground mb-2">
+              Byg dit første budget
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-sm text-center mb-10">
+              Start med en skabelon der passer til din virksomhedstype, eller importér et Excel-ark direkte.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
+              <button
+                onClick={() => setChangingTemplate(true)}
+                className="flex flex-col items-start gap-2 p-5 rounded-xl border-2 border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-left"
+              >
+                <Layers className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-foreground text-sm">Vælg en skabelon</span>
+                <span className="text-xs text-muted-foreground">
+                  Service, handel, produktion og SaaS
+                </span>
+              </button>
+              <button
+                onClick={() => setChangingTemplate(true)}
+                className="flex flex-col items-start gap-2 p-5 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-left"
+              >
+                <Upload className="h-5 w-5 text-muted-foreground" />
+                <span className="font-semibold text-foreground text-sm">Importér fra Excel</span>
+                <span className="text-xs text-muted-foreground">
+                  Upload dit eksisterende budgetark
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <BudgetTemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
+        )}
       </AppLayout>
     );
   }
