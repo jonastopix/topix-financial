@@ -3,15 +3,9 @@ import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  getEffectiveKeyFigures,
-  getEffectiveReportPeriodKey,
-  getEffectiveReportPeriod,
-  formatCompact,
-  DANISH_MONTHS,
-  REPORT_OVERRIDE_SELECT,
-  type ReportData,
-} from "@/lib/financialUtils";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { formatCompact, DANISH_MONTHS } from "@/lib/financialUtils";
 
 interface ComparisonRow {
   label: string;
@@ -21,33 +15,19 @@ interface ComparisonRow {
 
 const BudgetOverview = () => {
   const { user, companyId } = useAuth();
+  const { data: facts = [] } = useCompanyFacts();
 
   const { data } = useQuery({
-    queryKey: ["budget-overview-v2", companyId],
+    queryKey: ["budget-overview-v3", companyId, facts.length],
     queryFn: async () => {
-      // Step 1: Fetch latest processed report (source of truth for period)
-      const reportRes = await (supabase
-        .from("financial_reports")
-        .select(`id, report_period, extracted_data, normalized_data, status, manual_report_period_key, manual_normalized_data, manual_override_status, ${REPORT_OVERRIDE_SELECT}`) as any)
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .eq("status", "processed")
-        .order("uploaded_at", { ascending: false })
-        .limit(1);
+      const latestFact = facts.length > 0 ? facts[facts.length - 1] : null;
+      if (!latestFact) return { rows: [], periodLabel: null, hasBudget: false, state: "no-report" as const };
 
-      const report = (reportRes.data?.[0] || null) as ReportData | null;
-      if (!report) return { rows: [], periodLabel: null, hasBudget: false, state: "no-report" as const };
-
-      // Step 2: Resolve effective period key (YYYY-MM)
-      const periodKey = getEffectiveReportPeriodKey(report);
-      if (!periodKey) return { rows: [], periodLabel: null, hasBudget: false, state: "no-period" as const };
-
+      const periodKey = latestFact.period_key;
       const [yearStr, monthStr] = periodKey.split("-");
-      const monthIdx = parseInt(monthStr, 10) - 1; // 0-indexed for budget period format
+      const monthIdx = parseInt(monthStr, 10) - 1;
       const monthLabel = `${DANISH_MONTHS[monthIdx]} ${yearStr}`;
 
-      // Step 3: Fetch budget for the SAME month only (base scenario)
-      // Budget period format: "{year}-base-{monthIdx}" where monthIdx is 0-indexed
       const budgetRes = await (supabase
         .from("budget_targets")
         .select("category, budget_amount, period") as any)
@@ -57,8 +37,7 @@ const BudgetOverview = () => {
       const budgets = budgetRes.data || [];
       if (budgets.length === 0) return { rows: [], periodLabel: monthLabel, hasBudget: false, state: "no-budget" as const };
 
-      // Step 4: Build like-for-like comparison
-      const kf = getEffectiveKeyFigures(report);
+      const kf = factsToDanishMetrics(latestFact.metrics);
 
       let budgetRevenue = 0;
       let budgetExpenses = 0;
@@ -71,14 +50,13 @@ const BudgetOverview = () => {
         }
       });
 
-      const actualRevenue = kf?.omsaetning ?? 0;
-      const actualExpenses = Math.abs(kf?.loenninger ?? 0) +
-        Math.abs(kf?.direkte_omkostninger ?? 0) +
-        Math.abs(kf?.marketing ?? 0) +
-        Math.abs(kf?.lokaler ?? 0) +
-        Math.abs(kf?.admin ?? 0) +
-        Math.abs(kf?.tech_software ?? 0) +
-        Math.abs(kf?.afskrivninger ?? 0);
+      const actualRevenue = kf.omsaetning ?? 0;
+      const actualExpenses = Math.abs(kf.loenninger ?? 0) +
+        Math.abs(kf.direkte_omkostninger ?? 0) +
+        Math.abs(kf.salgsomkostninger ?? 0) +
+        Math.abs(kf.lokaleomkostninger ?? 0) +
+        Math.abs(kf.administrationsomkostninger ?? 0) +
+        Math.abs(kf.afskrivninger ?? 0);
 
       const rows: ComparisonRow[] = [];
       if (budgetRevenue > 0 || actualRevenue > 0) {
@@ -90,7 +68,7 @@ const BudgetOverview = () => {
 
       return { rows, periodLabel: monthLabel, hasBudget: true, state: "ready" as const };
     },
-    enabled: !!user && !!companyId,
+    enabled: !!user && !!companyId && facts.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
