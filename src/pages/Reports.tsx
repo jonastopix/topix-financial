@@ -454,6 +454,9 @@ const Reports = () => {
     );
   };
 
+  const processedReports = dbReports.filter(r => r.status === "processed");
+  const reportCount = processedReports.length;
+
   if (isAdvisor && !companyId) {
     return (
       <AppLayout>
