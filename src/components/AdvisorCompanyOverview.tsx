@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -6,6 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
+  Sparkles, Loader2,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -15,6 +17,7 @@ import {
   getEffectiveReportPeriodKey, getEffectiveKeyFigures,
   formatDKK, type ReportData,
 } from "@/lib/financialUtils";
+import { toast } from "@/hooks/use-toast";
 
 // ── Missing-report logic — reused from AdvisorDashboard (same as AttentionNeeded) ──
 function getMissingReportKey(): string {
