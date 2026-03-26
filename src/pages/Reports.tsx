@@ -476,6 +476,30 @@ const Reports = () => {
         <DeliveryOverview reports={dbReports} />
       </div>
 
+      {/* Manual entry banner */}
+      {(() => {
+        const pendingManualEntryCount = dbReports.filter(r =>
+          (r.quality_signals as any)?.needs_manual_entry === true || r.status === "error"
+        ).length;
+        if (pendingManualEntryCount === 0) return null;
+        return (
+          <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-4 mb-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-amber-700 dark:text-amber-300">
+                {pendingManualEntryCount === 1
+                  ? "1 rapport afventer dine nøgletal"
+                  : `${pendingManualEntryCount} rapporter afventer dine nøgletal`}
+              </p>
+              <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                Vi kunne ikke læse disse dokumenter automatisk. Det tager kun 2 minutter at
+                indtaste tallene manuelt — det sikrer at din AI-analyse bliver korrekt.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Upload section — primary action after delivery status */}
       <div className="mb-8">
         <FileUploadZone
