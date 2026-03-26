@@ -135,6 +135,7 @@ async function runPostExtractionPipeline(params: {
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
   queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
+  queryClient.invalidateQueries({ queryKey: ["company-facts"] });
   onPipelineComplete?.(reportId);
 
   if (isError) {
