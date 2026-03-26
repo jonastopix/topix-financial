@@ -19,6 +19,7 @@ interface HandoutDetailProps {
   config: HandoutConfig;
   onBack: () => void;
   userId?: string; // for advisor viewing another member
+  onModuleSelect?: (module: HandoutModule) => void;
 }
 
 interface LeverMilestone {
