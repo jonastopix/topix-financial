@@ -1382,22 +1382,23 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         }
       }
 
-      // Determine final DB status based on validation
-      // V1: PASS -> processed, FAIL/UNSURE -> error
-      // V2 cohort: readable financial docs always 'processed', validation is advisory only
-      // V2 cohort: non-financial/garbage docs stay 'error' + 'v1'
-      const isV2Persist = isV2Cohort && isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod, finalStatus);
+      // Determine final DB status based on document type
+      // Financial docs: ALWAYS "processed" (manual entry fallback if validation fails)
+      // Non-financial/garbage docs: "error" (truly unrecognizable)
+      const isFinancialDoc = isReadableFinancialDoc(sourceFingerprint, extractedData, extractionMethod, finalStatus);
+      const isV2Persist = isV2Cohort && isFinancialDoc;
       let dbStatus: string;
-      if (isV2Persist) {
-        // V2 cohort + readable financial doc → processed regardless of validation
+      let needsManualEntry = false;
+      if (isFinancialDoc) {
         dbStatus = "processed";
-        console.log(`[V2Rollout] V2 cohort + readable financial → status=processed (validation=${finalStatus} is advisory)`);
-      } else if (isV2Cohort) {
-        // V2 cohort but NOT a readable financial doc → error + v1
-        dbStatus = finalStatus === "PASS" ? "processed" : "error";
-        console.log(`[V2Rollout] V2 cohort but non-financial doc → status=${dbStatus}, forcing v1`);
+        if (finalStatus !== "PASS") {
+          needsManualEntry = true;
+        }
+        console.log(`[StatusResolve] Financial doc → status=processed (validation=${finalStatus}, needsManualEntry=${needsManualEntry})`);
       } else {
-        dbStatus = finalStatus === "PASS" ? "processed" : "error";
+        // Non-financial doc (APV, images, random PDFs) → error
+        dbStatus = "error";
+        console.log(`[StatusResolve] Non-financial doc → status=error`);
       }
 
       // Prepare DB update — map canonical field names to DB columns for semantic path
