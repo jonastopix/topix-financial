@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useReportCommitStates } from "@/hooks/useReportCommitStates";
@@ -106,6 +107,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 const Reports = () => {
   const { user, companyId, isAdvisor: rawAdvisor, isAdmin } = useAuth();
   const { viewingAsMember } = useViewMode();
+  const queryClient = useQueryClient();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
@@ -347,6 +349,8 @@ const Reports = () => {
 
       setDbReports((prev) => prev.filter((r) => r.id !== report.id));
       setDeleteDialog({ open: false, report: null });
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       toast({ title: "Rapport flyttet til papirkurv", description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
     } catch (err) {
       console.error("Soft-delete error:", err);
@@ -379,6 +383,8 @@ const Reports = () => {
       if (error) throw error;
       setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
       setRefreshKey((k) => k + 1);
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       toast({ title: "Rapport gendannet", description: `${report.report_period || report.file_name} er gendannet.` });
     } catch (err) {
       console.error("Restore error:", err);
@@ -397,9 +403,14 @@ const Reports = () => {
       if (report.file_path && report.file_path.includes("/")) {
         await supabase.storage.from("financial-documents").remove([report.file_path]);
       }
+      await (supabase.from("financial_report_facts" as any)
+        .delete()
+        .eq("source_report_id", report.id) as any);
       const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
       if (error) throw error;
       setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
