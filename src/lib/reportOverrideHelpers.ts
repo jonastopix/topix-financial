@@ -19,20 +19,37 @@ export const REPORT_TYPES = [
 ];
 
 // ── Field definitions ──
-export const PNL_FIELDS = ["omsaetning", "daekningsbidrag", "loenninger", "resultat_foer_skat"];
-export const BALANCE_FIELDS = ["bank_balance", "debitorer", "kreditorer", "egenkapital", "aktiver_i_alt"];
+export const PNL_FIELDS = [
+  "omsaetning",
+  "daekningsbidrag",
+  "loenninger",
+  "ebitda",
+  "resultat_foer_skat",
+  "resultat_efter_skat",
+];
+export const BALANCE_FIELDS = [
+  "bank_balance",
+  "debitorer",
+  "kreditorer",
+  "egenkapital",
+  "aktiver_i_alt",
+  "gaeld_i_alt",
+];
 export const ALL_FIELDS = [...PNL_FIELDS, ...BALANCE_FIELDS];
 
 export const FIELD_LABELS: Record<string, string> = {
   omsaetning: "Omsætning",
   daekningsbidrag: "Dækningsbidrag",
-  loenninger: "Lønninger",
+  loenninger: "Lønomkostninger",
+  ebitda: "EBITDA / Driftsresultat",
   resultat_foer_skat: "Resultat f. skat",
-  bank_balance: "Bank",
+  resultat_efter_skat: "Resultat efter skat",
+  bank_balance: "Bank / Likvider",
   debitorer: "Debitorer",
   kreditorer: "Kreditorer",
   egenkapital: "Egenkapital",
   aktiver_i_alt: "Aktiver i alt",
+  gaeld_i_alt: "Gæld i alt",
 };
 
 // ── EN ↔ DA canonical key mapping ──
