@@ -32,6 +32,7 @@ import {
   Archive,
   Bug,
   Pencil,
+  Upload,
 } from "lucide-react";
 import {
   AlertDialog,
