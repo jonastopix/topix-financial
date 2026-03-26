@@ -195,8 +195,8 @@ Deno.serve(async (req) => {
       const handoutDeepLink = `/members/${handout.user_id}?handout=${handout.module}`;
       await writeNotificationToMany(admin, advisorIds, {
         type: "handout_completed",
-        priority: "info",
-        title: `Handout udfyldt: ${moduleTitle}`,
+        priority: "important",
+        title: `${companyName} har udfyldt handout: ${moduleTitle}`,
         body: `${companyName} — ${memberName}`,
         reference_type: "handout",
         reference_id: handout.id,
