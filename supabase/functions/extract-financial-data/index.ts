@@ -1603,10 +1603,12 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                   user_id: reportRow.user_id,
                   type: "report_review_ready",
                   priority: "action_required",
-                  title: "Din rapport er klar til gennemsyn",
+                  title: candidate.period_label
+                    ? `${candidate.period_label} — gennemgå dine tal`
+                    : "Din rapport er klar til gennemsyn",
                   body: candidate.period_label
-                    ? `Rapport for ${candidate.period_label} er klar.`
-                    : "Din rapport er behandlet og klar til gennemsyn.",
+                    ? `Vi har trukket tallene ud fra din ${candidate.period_label}-rapport. Gennemgå og godkend dem — det tager under 1 minut. Herefter aktiveres din AI-analyse.`
+                    : "Vi har behandlet din rapport. Gennemgå tallene og godkend dem for at aktivere din AI-analyse.",
                   reference_type: "report",
                   reference_id: reportId,
                   deep_link: `/reports?reportId=${reportId}`,
