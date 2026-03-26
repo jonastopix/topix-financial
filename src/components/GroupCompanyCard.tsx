@@ -4,6 +4,7 @@ import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 interface GroupCompanyCardProps {
   company: GroupCompanySummary;
   compact?: boolean;
+  onCompanyClick?: (companyId: string, companyName: string) => void;
 }
 
 function formatDKK(value: number | null): string {
