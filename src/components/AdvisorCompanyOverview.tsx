@@ -499,6 +499,9 @@ const AdvisorCompanyOverview = () => {
         );
       })()}
 
+      {/* ── Sessionsforberedelse ── */}
+      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} revenueTimeline={data?.revenueTimeline} />
+
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
           <p className="text-sm text-muted-foreground">Ingen rapporter er behandlet endnu. Upload den første via Rapporter.</p>
