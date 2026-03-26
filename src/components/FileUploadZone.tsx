@@ -497,11 +497,29 @@ const FileUploadZone = ({
             return;
           }
           if (aiData?.error) {
-            const friendlyMsg = getFriendlyErrorMessage(aiData);
-            throw new Error(friendlyMsg);
-          }
+            // Check if the DB was still saved successfully with needs_manual_entry
+            // The edge function may return an error in the response body even when
+            // the DB record was correctly set to processed+needs_manual_entry.
+            const isKnownFallback =
+              aiData?.status === "semantic_xlsx_fail" ||
+              aiData?.status === "semantic_csv_fail" ||
+              aiData?.status === "structural_parse_fail" ||
+              aiData?.status === "structural_payload_missing" ||
+              aiData?.status === "error" ||
+              aiData?.error?.includes("Known source without supported template") ||
+              aiData?.error?.includes("Structural semantic extraction failed") ||
+              aiData?.error?.includes("Deterministic parsing failed");
 
-          extractedData = aiData;
+            if (isKnownFallback) {
+              console.log("[Upload] Known fallback path detected, continuing to pipeline:", aiData?.status);
+              extractedData = aiData;
+            } else {
+              const friendlyMsg = getFriendlyErrorMessage(aiData);
+              throw new Error(friendlyMsg);
+            }
+          } else {
+            extractedData = aiData;
+          }
         }
 
         updateFile(fileId, { extractedData });
