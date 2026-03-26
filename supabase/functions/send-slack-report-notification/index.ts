@@ -124,6 +124,51 @@ Deno.serve(async (req) => {
     }
     // ── END milestone_completed ──
 
+    // ── pulse_checkin_received event ──
+    if (event === "pulse_checkin_received") {
+      const { companyId: pulseCompanyId, periodKey: pulsePeriodKey } = body;
+      if (!pulseCompanyId) return json({ error: "missing companyId" }, 400);
+
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: company } = await admin
+        .from("companies")
+        .select("name")
+        .eq("id", pulseCompanyId)
+        .single();
+
+      const companyName = company?.name || "Et member";
+      const months = ["Januar","Februar","Marts","April","Maj","Juni",
+        "Juli","August","September","Oktober","November","December"];
+      const periodLabel = pulsePeriodKey
+        ? (() => { const [y,m] = pulsePeriodKey.split("-"); return `${months[parseInt(m,10)-1]} ${y}`; })()
+        : "denne måned";
+
+      const { data: advisorRoles } = await admin
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["advisor", "admin"]);
+
+      const advisorIds = (advisorRoles || []).map((r: any) => r.user_id);
+
+      if (advisorIds.length > 0) {
+        await writeNotificationToMany(admin, advisorIds, {
+          type: "pulse_checkin_received",
+          priority: "important",
+          title: `${companyName} har udfyldt pulse check-in for ${periodLabel}`,
+          body: `Læs hvad der gik godt og hvad der er den største udfordring inden jeres næste session.`,
+          reference_type: "pulse",
+          company_id: pulseCompanyId,
+          deep_link: `/members?companyId=${pulseCompanyId}`,
+          dedup_key: `pulse_checkin:${pulseCompanyId}:${pulsePeriodKey || "unknown"}`,
+        });
+      }
+
+      return json({ ok: true, notified: advisorIds.length });
+    }
+    // ── END pulse_checkin_received ──
+
     const { report_id, message_id } = body;
     if (!report_id || !message_id) {
       return json({ error: "report_id and message_id required" }, 400);

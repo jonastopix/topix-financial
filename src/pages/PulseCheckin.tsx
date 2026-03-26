@@ -51,6 +51,14 @@ const PulseCheckin = () => {
     setSaving(false);
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Check-in gemt!");
+    // Notify advisors (fire and forget)
+    supabase.functions.invoke("send-slack-report-notification", {
+      body: {
+        event: "pulse_checkin_received",
+        companyId,
+        periodKey,
+      },
+    }).catch(() => {});
     navigate("/");
   };
 
