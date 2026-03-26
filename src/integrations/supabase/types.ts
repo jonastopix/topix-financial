@@ -1759,6 +1759,47 @@ export type Database = {
         }
         Relationships: []
       }
+      pulse_checkins: {
+        Row: {
+          biggest_challenge: string | null
+          company_id: string
+          created_at: string
+          id: string
+          milestone_progress: number | null
+          period_key: string
+          user_id: string
+          went_well: string | null
+        }
+        Insert: {
+          biggest_challenge?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          milestone_progress?: number | null
+          period_key: string
+          user_id: string
+          went_well?: string | null
+        }
+        Update: {
+          biggest_challenge?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          milestone_progress?: number | null
+          period_key?: string
+          user_id?: string
+          went_well?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_checkins_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_conversation_threads: {
         Row: {
           company_id: string
