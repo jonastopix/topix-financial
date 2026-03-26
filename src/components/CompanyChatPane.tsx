@@ -25,7 +25,7 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote, MoreHorizontal, Layers,
+  CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { Textarea } from "@/components/ui/textarea";
