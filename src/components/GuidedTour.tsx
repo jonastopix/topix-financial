@@ -15,36 +15,36 @@ interface TourStep {
 const STEPS: TourStep[] = [
   {
     selector: null,
-    title: "Velkommen til dit dashboard! 🎉",
+    title: "Dit dashboard",
     description:
-      "Her får du et samlet overblik over din virksomheds økonomi. Lad os vise dig rundt på 30 sekunder.",
+      "Her er dit kontrolcenter. Du ser seneste nøgletal, hvad der kræver opmærksomhed, og din performance score — alt opdateres automatisk fra dine rapporter.",
   },
   {
     selector: '[data-tour="kpi-cards"]',
     title: "Dine nøgletal",
     description:
-      "Her ser du seneste måneds omsætning, udgifter, resultat og banksaldo — opdateret automatisk fra dine rapporter.",
+      "Omsætning, udgifter, resultat og bank — med trend-pile der viser om du går frem eller tilbage siden sidst. Tallene opdateres automatisk når du uploader en ny rapport.",
     position: "bottom",
   },
   {
-    selector: '[data-tour="nav-reports"]',
-    title: "Upload rapport",
+    selector: '[data-tour="upload-zone"]',
+    title: "Upload din første rapport",
     description:
-      "Upload din regnskabsrapport her for at få AI-analyse og automatisk udfyldte nøgletal.",
+      "Upload en PDF eller Excel direkte fra e-conomic, Dinero, Billy eller et andet system. Vi trækker tallene ud automatisk — du verificerer inden de gemmes.",
     position: "right",
   },
   {
-    selector: '[data-tour="nav-chat"]',
-    title: "Chat med din rådgiver",
+    selector: '[data-tour="chat-link"]',
+    title: "Direkte linje til Morten og Jonas",
     description:
-      "Skriv direkte til din rådgiver her. Du kan stille spørgsmål, dele opdateringer og få personlig sparring.",
+      "Stil spørgsmål, del en opdatering eller bed om sparring — direkte i chatten. De læser dine tal og kender din situation.",
     position: "right",
   },
   {
     selector: null,
-    title: "Du er klar! 🚀",
+    title: "Du er klar til at komme i gang",
     description:
-      "Lad os starte med at udfylde dine virksomhedsoplysninger — så er du klar til at uploade din første rapport.",
+      "Start med at uploade din seneste rapport. Det tager 2 minutter, og du får øjeblikkelig AI-analyse af dine tal.",
   },
 ];
 
@@ -117,7 +117,7 @@ export default function GuidedTour({ onComplete }: { onComplete: () => void }) {
         .eq("user_id", user.id);
     }
     onComplete();
-    navigate("/settings");
+    navigate("/reports");
   };
 
   const next = () => {
