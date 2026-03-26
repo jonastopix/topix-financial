@@ -1079,6 +1079,11 @@ Sæt validation.status til:
 - "FAIL" hvis mindst ét check fejlede
 - "UNSURE" hvis du er i tvivl om et tals korrekthed
 
+4. saldobalance_kolonne_check: For saldobalancer: check at bank, debitorer og kreditorer er hentet fra 
+   ÅR-TIL-DATO kolonnen, ikke periodekolonnen. Balanceposter ændrer sig ikke
+   med 50-100% fra måned til måned — hvis de gør, er det sandsynligvis 
+   periodekolonnen der er brugt fejlagtigt.
+
 Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSURE" og beskriv usikkerheden i checks.`;
 
       // Build user message — prefer images (vision) for accurate table reading
