@@ -43,6 +43,7 @@ interface GroupDashboardContentProps {
   isLoading: boolean;
   groupName: string | null;
   actions?: React.ReactNode;
+  onCompanyClick?: (companyId: string, companyName: string) => void;
 }
 
 const GroupDashboardContent = ({
@@ -51,6 +52,7 @@ const GroupDashboardContent = ({
   isLoading,
   groupName,
   actions,
+  onCompanyClick,
 }: GroupDashboardContentProps) => {
   const [filter, setFilter] = useState<FilterTab>("alle");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
@@ -196,7 +198,7 @@ const GroupDashboardContent = ({
           {isMobile ? (
             <div className="space-y-3">
               {filteredCompanies.map(c => (
-                <GroupCompanyCard key={c.company_id} company={c} />
+                <GroupCompanyCard key={c.company_id} company={c} onCompanyClick={onCompanyClick} />
               ))}
             </div>
           ) : (
@@ -214,7 +216,7 @@ const GroupDashboardContent = ({
                 </thead>
                 <tbody>
                   {filteredCompanies.map(c => (
-                    <CompanyTableRow key={c.company_id} company={c} />
+                    <CompanyTableRow key={c.company_id} company={c} onCompanyClick={onCompanyClick} />
                   ))}
                 </tbody>
               </table>

@@ -364,6 +364,7 @@ const AdvisorDashboard = () => {
         aggregates={buildGroupAggregates(groupSummaries)}
         isLoading={isLoading}
         groupName="Mine virksomheder"
+        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
       />
     </div>
   );
