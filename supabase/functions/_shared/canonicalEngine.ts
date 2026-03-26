@@ -520,7 +520,9 @@ export function runExtendedValidation(
   }
 
   // 7. balance_equation
-  if (metrics.assets_total != null && metrics.liabilities_total != null) {
+  if (statementType === "trial_balance") {
+    checks.push({ name: "balance_equation", result: "SKIP", details: "Trial balance — balance equation checked via account ranges" });
+  } else if (metrics.assets_total != null && metrics.liabilities_total != null) {
     const diff = Math.abs(metrics.assets_total - metrics.liabilities_total);
     const pass = diff <= TOLERANCE;
     checks.push({
@@ -589,7 +591,9 @@ export function runExtendedValidation(
   }
 
   // 12. missing_core_totals
-  if (statementType === "balance" || statementType === "trial_balance") {
+  if (statementType === "trial_balance") {
+    checks.push({ name: "missing_core_totals", result: "SKIP", details: "Trial balance — derived totals not required" });
+  } else if (statementType === "balance") {
     if (metrics.assets_total == null && metrics.liabilities_total == null) {
       checks.push({ name: "missing_core_totals", result: "FAIL", details: "Balance report without assets_total AND liabilities_total" });
       errors.push("Balance report missing core totals");
