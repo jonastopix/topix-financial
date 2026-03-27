@@ -716,6 +716,16 @@ const KPIs = () => {
               <p className="text-xs text-muted-foreground">{activeMetric.description} · {monthlyData.length} perioder</p>
             </div>
           </div>
+          {(() => {
+            const prevDataPoint = activeMetric.history.length >= 2
+              ? activeMetric.history[activeMetric.history.length - 2]
+              : null;
+            const prevValue = prevDataPoint?.value ?? null;
+            const prevChange = prevValue != null && prevValue !== 0 && activeMetric.numValue != null
+              ? ((activeMetric.numValue - prevValue) / Math.abs(prevValue)) * 100
+              : null;
+            return null; // values used below via closure
+          })()}
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Nuværende</p>
