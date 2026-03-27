@@ -1381,7 +1381,15 @@ const Members = () => {
                               <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
                             </div>
                             <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-foreground">{c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret</p>
+                              {c.committedCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                  {c.committedCount} godkendt
+                                </span>
+                              )}
+                            </div>
                               {c.committedCount > 0 && (
                                 <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                                   <CheckCircle2 className="h-2.5 w-2.5" />
