@@ -1060,9 +1060,13 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
             {data.report_period ?? data.report_period_label ?? "—"}
           </span>
-          {data.extraction_method === "deterministic" && (
+          {data.extraction_method === "deterministic" ? (
             <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              Deterministisk
+              Automatisk aflæst
+            </span>
+          ) : (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              AI-aflæst — gennemgå tal
             </span>
           )}
         </div>
