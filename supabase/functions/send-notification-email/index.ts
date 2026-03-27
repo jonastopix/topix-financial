@@ -159,6 +159,21 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // User email preference opt-out
+      const userPrefs = prefsByUser.get(notif.user_id);
+      if (userPrefs) {
+        const priorityKey = notif.priority as string;
+        if ((userPrefs as any)[priorityKey] === false) {
+          await admin
+            .from("notifications")
+            .update({ email_sent_at: new Date().toISOString() })
+            .eq("id", notif.id);
+          console.log(`[pref-optout] User ${notif.user_id} opted out of ${priorityKey} emails`);
+          skipped++;
+          continue;
+        }
+      }
+
       // Get user email
       const { data: userData } = await admin.auth.admin.getUserById(notif.user_id);
       if (!userData?.user?.email) {
