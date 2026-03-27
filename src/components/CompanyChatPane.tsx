@@ -2265,6 +2265,9 @@ const CompanyChatPane = () => {
                                 onDelete={() => handleDeleteMsg(msg.id)}
                                 onReaction={(emoji) => toggleReaction(msg.id, emoji)}
                               >
+                                {isAdvisor && !isMine && (
+                                  <p className="text-[10px] text-muted-foreground mb-1 ml-1">{senderName}</p>
+                                )}
                                 {topicInfo && (
                                   <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
                                     <topicInfo.icon className="h-2.5 w-2.5" />
@@ -2287,7 +2290,7 @@ const CompanyChatPane = () => {
                                       : "bg-secondary text-foreground rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
-                                  {!isMine && (
+                                  {!isMine && !isAdvisor && (
                                     <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
                                       {senderName}
                                     </p>
@@ -2316,6 +2319,9 @@ const CompanyChatPane = () => {
                               </MobileMessageActionDrawer>
                             ) : (
                               <>
+                                {isAdvisor && !isMine && (
+                                  <p className="text-[10px] text-muted-foreground mb-1 ml-1">{senderName}</p>
+                                )}
                                 {topicInfo && (
                                   <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
                                     <topicInfo.icon className="h-2.5 w-2.5" />
@@ -2338,7 +2344,7 @@ const CompanyChatPane = () => {
                                       : "bg-secondary text-foreground rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
-                                  {!isMine && (
+                                  {!isMine && !isAdvisor && (
                                     <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
                                       {senderName}
                                     </p>
