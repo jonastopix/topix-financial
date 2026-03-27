@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
             reference_type: "report",
             deep_link: "/reports",
             company_id: company.id,
-            dedup_key: `report_reminder:${company.id}:${expectedPeriodKey}`,
+            dedup_key: `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`,
           });
           // Mark email_sent_at immediately since this function already sends the email
           await supabase
