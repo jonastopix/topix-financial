@@ -374,7 +374,7 @@ const CompanyChatPane = () => {
 
       const reportsByCompany = new Map<string, { name: string; ids: string[] }>();
       recentReports.forEach((r: any) => {
-        const userConv = convs.find((c: any) => c.member_id === r.user_id);
+        const userConv = filteredConvs.find((c: any) => c.member_id === r.user_id);
         const cid = userConv?.company_id;
         if (cid) {
           const existing = reportsByCompany.get(cid);
