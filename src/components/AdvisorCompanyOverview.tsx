@@ -18,20 +18,6 @@ import {
 } from "@/lib/financialUtils";
 import { toast } from "@/hooks/use-toast";
 
-// ── Missing-report logic — reused from AdvisorDashboard (same as AttentionNeeded) ──
-function getMissingReportKey(): string {
-  const now = new Date();
-  const cm = now.getMonth();
-  const cy = now.getFullYear();
-  const pm = cm === 0 ? 11 : cm - 1;
-  const py = cm === 0 ? cy - 1 : cy;
-  return `${py}-${String(pm + 1).padStart(2, "0")}`;
-}
-
-function getMissingReportLabel(): string {
-  const pm = new Date().getMonth() === 0 ? 11 : new Date().getMonth() - 1;
-  return DANISH_MONTHS[pm];
-}
 
 /** Format "2026-02" → "Februar 2026" */
 function formatReportKey(key: string): string {
