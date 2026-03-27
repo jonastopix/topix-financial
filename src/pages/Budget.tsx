@@ -459,6 +459,32 @@ const Budget = () => {
           <BudgetImport userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={confirmTemplateChange} onOpenChange={setConfirmTemplateChange}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Skift budgetskabelon?</DialogTitle>
+            <DialogDescription>
+              Dette nulstiller dit nuværende budget permanent.
+              Dine indtastede tal kan ikke gendannes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmTemplateChange(false)}>
+              Annuller
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setConfirmTemplateChange(false);
+                setChangingTemplate(true);
+              }}
+            >
+              Nulstil og skift skabelon
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
