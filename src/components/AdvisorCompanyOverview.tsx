@@ -300,7 +300,7 @@ const AdvisorCompanyOverview = () => {
   const bankReport = data?.bankReport;
   const hasNote = data?.hasNote ?? false;
   const noteConvId = data?.noteConvId ?? null;
-  const missingReport = data?.missingReport ?? false;
+  
 
   const hasReport = !!latest;
   const hasPulse = !!latestPulse;
