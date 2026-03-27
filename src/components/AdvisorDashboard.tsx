@@ -378,7 +378,50 @@ const AdvisorDashboard = () => {
         </div>
       )}
 
-      {/* ── Section 3: Follow-ups ── */}
+      {/* ── Section 3: Activity feed ── */}
+      {activityFeed.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              Seneste 7 dage
+            </h2>
+          </div>
+          <div className="glass-card rounded-xl divide-y divide-border/30">
+            {activityFeed.map((event: any) => {
+              const iconConfig = {
+                report_uploaded: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Rapport" },
+                report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
+                pulse: { color: "text-purple-500", bg: "bg-purple-500/10", label: "Pulse" },
+              }[event.type as string] as { color: string; bg: string; label: string };
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => setCompanyOverride(event.companyId, event.companyName)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5
+                    hover:bg-secondary/30 transition-colors text-left"
+                >
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5
+                    rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
+                    {iconConfig.label}
+                  </span>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {event.companyName}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {event.label.split(" · ")[1] || ""}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── Section 4: Follow-ups ── */}
       {hasFollowUps && (
         <section>
           <div className="flex items-center gap-2 mb-3">
