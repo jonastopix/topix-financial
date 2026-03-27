@@ -2054,7 +2054,7 @@ const CompanyChatPane = () => {
                         <button className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-primary/5 transition-colors">
                           <Pin className="h-3 w-3 text-primary" />
                           <span className="text-[10px] font-medium text-primary uppercase tracking-wider">
-                            Pinned ({pinnedMessages.length})
+                            {isAdvisor ? `Pinned (${pinnedMessages.length})` : `Vigtige beskeder (${pinnedMessages.length})`}
                           </span>
                           <ChevronDown className="h-3 w-3 ml-auto text-primary transition-transform" />
                         </button>
