@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar, ArrowRight } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar, ArrowRight, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -21,6 +21,7 @@ import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, parseReportPeriodToKey } from "@/lib/financialUtils";
 
@@ -51,6 +52,7 @@ const Dashboard = () => {
 
   // ── Facts from the facts layer ──
   const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
+  const { data: commentaries = [] } = useCompanyCommentary();
 
   // ── Budget targets (separate query) ──
   const { data: budgetTargets = [], isLoading: budgetLoading } = useQuery({
@@ -77,6 +79,12 @@ const Dashboard = () => {
     }));
     // Already sorted by period_key from the hook
   }, [facts]);
+
+  const latestCommentary = useMemo(() => {
+    if (commentaries.length === 0 || sorted.length === 0) return null;
+    const latestPeriodKey = sorted[sorted.length - 1].key;
+    return commentaries.find(c => c.period_key === latestPeriodKey && !c.is_stale) || null;
+  }, [commentaries, sorted]);
 
   // ── Derive KPI data from sorted facts ──
   const dashboardData = useMemo(() => {
@@ -431,6 +439,28 @@ const Dashboard = () => {
         <BudgetOverview />
         <DashboardMilestones />
       </div>
+
+      {latestCommentary && !isAdvisor && (
+        <div className="mb-6">
+          <Link to="/kpis" className="block group">
+            <div className="rounded-lg border bg-card p-4 flex items-center justify-between hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Din AI-analyse er klar</p>
+                  <p className="text-xs text-muted-foreground">
+                    Se indsigter og anbefalinger for{" "}
+                    {sorted[sorted.length - 1]?.period || "seneste periode"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </Link>
+        </div>
+      )}
 
       <div className="mb-6">
         <DashboardActivity />
