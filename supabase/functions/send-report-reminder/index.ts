@@ -125,15 +125,30 @@ Deno.serve(async (req) => {
 
     const reportUrl = "https://topix.lovable.app/reports";
 
+    // Urgency-specific subjects and intros
+    type Urgency = "gentle" | "urgent" | "critical";
+    const urgencySubjects: Record<Urgency, string> = {
+      gentle: `Husk: Upload din rapport for {{period}}`,
+      urgent: `Din rapport for {{period}} mangler stadig`,
+      critical: `Vigtigt: {{period}}-rapport er nu forsinket`,
+    };
+    const urgencyIntros: Record<Urgency, string> = {
+      gentle: `Vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Upload den når du har et øjeblik — det tager under 2 minutter.`,
+      urgent: `Din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at vi har tallene inden boardroom-sessionen.`,
+      critical: `Vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt — kontakt os hvis du har problemer.`,
+    };
+
     // Helper to build email for a specific company
-    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null) {
+    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
       const vars: Record<string, string> = {
         period,
         company_name: companyName,
         report_url: reportUrl,
         first_name: firstName || "dig",
+        intro: urgencyIntros[urgency],
       };
-      const subject = (isTest ? '[TEST] ' : '') + replaceVars(subjectTpl, vars);
+      const urgencySubject = urgencySubjects[urgency];
+      const subject = (isTest ? '[TEST] ' : '') + replaceVars(urgencySubject, vars);
       const html = replaceVars(bodyTpl, vars);
       return { subject, html };
     }
