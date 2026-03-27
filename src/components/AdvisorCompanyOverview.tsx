@@ -219,9 +219,6 @@ const AdvisorCompanyOverview = () => {
         ? [...sorted].reverse().find(r => r.kf.bank_balance != null && r.key !== bankReport.key)
         : null;
 
-      const missingKey = getMissingReportKey();
-      const reportKeys = new Set(sorted.map(r => r.key));
-      const missingReport = !reportKeys.has(missingKey);
 
       const assignedName = (advisorProfileRes as any)?.data?.full_name ?? null;
 
