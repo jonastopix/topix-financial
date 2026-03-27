@@ -58,6 +58,12 @@ const Budget = () => {
     if (!user || !companyId) return;
 
     const loadBudget = async () => {
+      // Reset before loading new year
+      setSelectedTemplate(null);
+      setScenarioData(null);
+      setLabelOverrides({});
+      setDbLoaded(false);
+
       const res = await (supabase
         .from("budget_targets")
         .select("category, budget_amount, period") as any)
