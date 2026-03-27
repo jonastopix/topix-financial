@@ -213,7 +213,7 @@ const AdminConfig = () => {
   if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleSave = async (
-    key: "branding" | "performance_score" | "gamification",
+    key: "branding" | "performance_score" | "gamification" | "meetings",
     value: any
   ) => {
     setSaving(key);
@@ -224,6 +224,13 @@ const AdminConfig = () => {
       toast.error("Kunne ikke gemme");
     }
     setSaving(null);
+  };
+
+  const handleSaveMeetingDate = async (date: Date | undefined) => {
+    setMeetingDate(date);
+    await handleSave("meetings", {
+      next_meeting_date: date ? date.toISOString() : null,
+    });
   };
 
   const weightLabels = ["Vækstrate", "Bruttomargin", "Nettoresultat", "Likviditet"];
