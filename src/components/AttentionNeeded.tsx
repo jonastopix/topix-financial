@@ -36,7 +36,7 @@ const AttentionNeeded = () => {
   
 
   const { data: items = [] } = useQuery({
-    queryKey: ["attention-needed", companyId, user?.id, meetings.next_meeting_date],
+    queryKey: ["attention-needed", companyId, user?.id],
     queryFn: async () => {
       const attentionItems: AttentionItem[] = [];
       const now = new Date();
