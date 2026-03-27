@@ -103,6 +103,10 @@ const AdvisorDashboard = () => {
         (pulseRes.data || []).map((p: any) => p.company_id)
       );
 
+      const conversations = (convRes.data || []) as ConversationRow[];
+      const companies = (companiesRes.data || []) as CompanyRow[];
+      const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
+
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
       // Build report keys per company + latest key figures
