@@ -60,7 +60,7 @@ function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="background-color:#f9f9f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
 <div style="max-width:520px;margin:0 auto">
-  <div style="background:#0f1117;border-radius:10px 10px 0 0;padding:18px 28px;display:flex;align-items:center">
+  <div style="background:hsl(170,46%,14%);border-radius:10px 10px 0 0;padding:18px 28px;display:flex;align-items:center">
     ${logoMark}
     <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em">The Boardroom</span>
   </div>
