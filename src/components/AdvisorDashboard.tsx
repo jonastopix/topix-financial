@@ -61,8 +61,9 @@ const AdvisorDashboard = () => {
     queryKey: ["advisor-dashboard", user?.id],
     queryFn: async () => {
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-      const [convRes, companiesRes, reportsRes, notesRes, pulseRes] = await Promise.all([
+      const [convRes, companiesRes, reportsRes, notesRes, pulseRes, recentReportsRes, recentFactsRes] = await Promise.all([
         supabase
           .from("conversations")
           .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
@@ -83,12 +84,20 @@ const AdvisorDashboard = () => {
           .from("pulse_checkins" as any)
           .select("company_id, period_key, created_at")
           .gte("created_at", monthStart) as any),
+        (supabase
+          .from("financial_reports")
+          .select("id, company_id, uploaded_at, status, report_period")
+          .is("deleted_at", null)
+          .gte("uploaded_at", weekAgo)
+          .order("uploaded_at", { ascending: false })
+          .limit(20) as any),
+        (supabase
+          .from("financial_report_facts")
+          .select("company_id, committed_at, period_key")
+          .gte("committed_at", weekAgo)
+          .order("committed_at", { ascending: false })
+          .limit(20) as any),
       ]);
-
-      const conversations = (convRes.data || []) as ConversationRow[];
-      const companies = (companiesRes.data || []) as CompanyRow[];
-      const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
-      const noteConvIds = new Set((notesRes.data || []).map((n: any) => n.conversation_id));
 
       const pulseThisMonth = new Set(
         (pulseRes.data || []).map((p: any) => p.company_id)
