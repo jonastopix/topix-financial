@@ -59,10 +59,11 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
     const avgActual = actuals.reduce((s, v) => s + v, 0) / actuals.length;
     const avgBudget = budgetRevenue.slice(0, lastActualIdx + 1).reduce((s, v) => s + v, 0) / (lastActualIdx + 1);
     const growthFactor = avgBudget > 0 ? avgActual / avgBudget : 1;
+    const cappedGrowthFactor = Math.min(3, Math.max(0.1, growthFactor));
 
     return MONTHS.map((_, i) => {
       if (i <= lastActualIdx) return actualsMap[i]?.omsaetning ?? 0;
-      return Math.round(budgetRevenue[i] * growthFactor);
+      return Math.round(budgetRevenue[i] * cappedGrowthFactor);
     });
   }, [actualsMap, lastActualIdx, budgetRevenue]);
 
@@ -74,10 +75,11 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
     const avgActual = actuals.reduce((s, v) => s + v, 0) / actuals.length;
     const avgBudget = budgetCosts.slice(0, lastActualIdx + 1).reduce((s, v) => s + v, 0) / (lastActualIdx + 1);
     const growthFactor = avgBudget > 0 ? avgActual / avgBudget : 1;
+    const cappedGrowthFactor = Math.min(3, Math.max(0.1, growthFactor));
 
     return MONTHS.map((_, i) => {
       if (i <= lastActualIdx) return actualsMap[i]?.totalCosts ?? 0;
-      return Math.round(budgetCosts[i] * growthFactor);
+      return Math.round(budgetCosts[i] * cappedGrowthFactor);
     });
   }, [actualsMap, lastActualIdx, budgetCosts]);
 
@@ -195,6 +197,14 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
             </div>
           ))}
         </div>
+
+        {lastActualIdx >= 0 && lastActualIdx < 2 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-4">
+            <span className="text-[11px] text-amber-700 dark:text-amber-400">
+              Forecast er baseret på {lastActualIdx + 1} måneds data — præcisionen stiger når flere rapporter er uploaded.
+            </span>
+          </div>
+        )}
 
         {/* Month-by-month table */}
         <div className="overflow-x-auto">
