@@ -1642,8 +1642,8 @@ const CompanyChatPane = () => {
                         {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
                       {!isAdvisor && (
-                        <p className="text-[10px] text-muted-foreground">
-                          Morten Larsen & Jonas Herlev
+                       <p className="text-[10px] text-muted-foreground">
+                          {advisorNamesLabel}
                         </p>
                       )}
                       {participants.length > 0 && (
