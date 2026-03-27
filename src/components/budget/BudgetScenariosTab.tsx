@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Pencil, Save, X, Sparkles, Copy, Info, Plus, Trash2,
 } from "lucide-react";
