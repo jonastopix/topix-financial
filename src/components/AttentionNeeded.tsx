@@ -1,5 +1,6 @@
+import { useState } from "react";
 import {
-  AlertTriangle, Clock, MessageSquare, FileText, Target, ChevronRight,
+  AlertTriangle, Clock, MessageSquare, FileText, Target, ChevronRight, X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
