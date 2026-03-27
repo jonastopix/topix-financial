@@ -847,6 +847,41 @@ const Members = () => {
     return result;
   }, [companies, search, sortKey, sortDir, filterIndustry]);
 
+  // Split filtered companies into standalone and group-consolidated views
+  const groupedView = useMemo(() => {
+    const standaloneCompanies = filtered.filter(c => !groupInfoMap.has(c.id));
+
+    const groupMap = new Map<string, {
+      groupId: string;
+      groupName: string;
+      anchorCompany: CompanyData | null;
+      subCompanies: CompanyData[];
+    }>();
+
+    for (const c of filtered) {
+      const info = groupInfoMap.get(c.id);
+      if (!info) continue;
+
+      if (!groupMap.has(info.groupId)) {
+        groupMap.set(info.groupId, {
+          groupId: info.groupId,
+          groupName: info.groupName,
+          anchorCompany: null,
+          subCompanies: [],
+        });
+      }
+
+      const group = groupMap.get(info.groupId)!;
+      if (info.isAnchor) {
+        group.anchorCompany = c;
+      } else {
+        group.subCompanies.push(c);
+      }
+    }
+
+    return { standaloneCompanies, groups: [...groupMap.values()] };
+  }, [filtered, groupInfoMap]);
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
