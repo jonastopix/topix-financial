@@ -1709,7 +1709,7 @@ const Members = () => {
                     className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
                   >
                     {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-3 items-center">
+                    <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                           <Layers className="h-4 w-4 text-primary" />
@@ -1737,10 +1737,9 @@ const Members = () => {
                           </span>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <span className="text-xs text-muted-foreground">—</span>
                       <span className="text-xs text-muted-foreground">{totalReports} rap.</span>
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                       <div className="flex items-center justify-end">
                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
                       </div>
