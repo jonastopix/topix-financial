@@ -97,9 +97,27 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
 
     const simRev = totalForecastRev * revFactor;
 
-    const wageFraction = 0.4;
-    const mktFraction = 0.15;
-    const otherFraction = 0.45;
+    // Calculate actual fractions from budget rows
+    const totalBudgetCostAnnual = costRows.reduce(
+      (s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0
+    );
+
+    const wageCostAnnual = costRows
+      .filter(r => r.group === "personale")
+      .reduce((s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0);
+
+    const mktCostAnnual = costRows
+      .filter(r => r.group === "salg_marketing")
+      .reduce((s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0);
+
+    // Use actual fractions if budget has data, otherwise fall back to reasonable defaults
+    const wageFraction = totalBudgetCostAnnual > 0
+      ? wageCostAnnual / totalBudgetCostAnnual
+      : 0.4;
+    const mktFraction = totalBudgetCostAnnual > 0
+      ? mktCostAnnual / totalBudgetCostAnnual
+      : 0.15;
+    const otherFraction = 1 - wageFraction - mktFraction;
 
     const simWages = totalForecastCosts * wageFraction * (1 + simWagePct / 100);
     const simMkt = totalForecastCosts * mktFraction * (1 + simMktPct / 100);
@@ -119,7 +137,7 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
       margin: simMargin,
       baseEbitda: Math.round(baseEbitda),
     };
-  }, [forecastRevenue, forecastCosts, budgetCosts, costRows, simRevPct, simWagePct, simMktPct, simOtherPct]);
+  }, [forecastRevenue, forecastCosts, costRows, simRevPct, simWagePct, simMktPct, simOtherPct]);
 
   return (
     <div className="space-y-6">
