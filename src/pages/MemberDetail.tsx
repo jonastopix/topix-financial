@@ -242,7 +242,7 @@ const MemberDetail = () => {
         .maybeSingle();
       const cm = cmData as any;
       if (cm?.companies) {
-        setCompanyCtx(cm.companies as CompanyContext);
+        setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
         // Fetch invitation that was accepted by this specific user
         let invData: any = null;
         // Primary: match via accepted_by
