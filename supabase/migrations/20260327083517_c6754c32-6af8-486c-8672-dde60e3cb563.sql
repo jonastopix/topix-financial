@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS notification_email_prefs jsonb DEFAULT '{"action_required": true, "important": true}'::jsonb;
