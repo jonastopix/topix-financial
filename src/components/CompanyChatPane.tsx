@@ -1448,27 +1448,12 @@ const CompanyChatPane = () => {
 
             {/* Conversation list */}
             <div className="flex-1 overflow-y-auto">
-              {filteredConversations.length === 0 ? (
-                <div className="p-6 text-center">
-                  <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {searchQuery ? "Ingen resultater"
-                      : activeFilter === "action" ? "Ingen samtaler kræver svar 🎉"
-                      : activeFilter === "mine" ? "Ingen samtaler tildelt dig"
-                      : activeFilter === "unassigned" ? "Alle samtaler har en ejer"
-                      : "Ingen samtaler i denne kategori"}
-                  </p>
-                  {activeFilter !== "alle" && !searchQuery && (
-                    <button
-                      onClick={() => setActiveFilter("alle")}
-                      className="text-xs text-primary hover:underline mt-2"
-                    >
-                      Vis alle samtaler
-                    </button>
-                  )}
-                </div>
-              ) : (
-                filteredConversations.map((conv) => {
+              {(() => {
+                const companyConvs = filteredConversations.filter(c => c.threadType !== "group");
+                const groupConvs = filteredConversations.filter(c => c.threadType === "group");
+                const showGroups = (activeFilter === "alle" || activeFilter === "action") && groupConvs.length > 0;
+
+                const renderConvCard = (conv: ConversationWithProfile) => {
                   const isActive = activeConvId === conv.id;
                   const isResolved = conv.conversation_status === 'resolved';
                   const now = new Date();
@@ -1516,11 +1501,6 @@ const CompanyChatPane = () => {
                               <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
                                 {conv.companyName || conv.profile?.full_name || "Ukendt"}
                               </p>
-                              {conv.threadType === "group" && (
-                                <span className="inline-flex items-center text-[8px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">
-                                  Koncern
-                                </span>
-                              )}
                             </div>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
@@ -1600,8 +1580,49 @@ const CompanyChatPane = () => {
                       </div>
                     </button>
                   );
-                })
-              )}
+                };
+
+                if (companyConvs.length === 0 && groupConvs.length === 0) {
+                  return (
+                    <div className="p-6 text-center">
+                      <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {searchQuery ? "Ingen resultater"
+                          : activeFilter === "action" ? "Ingen samtaler kræver svar 🎉"
+                          : activeFilter === "mine" ? "Ingen samtaler tildelt dig"
+                          : activeFilter === "unassigned" ? "Alle samtaler har en ejer"
+                          : "Ingen samtaler i denne kategori"}
+                      </p>
+                      {activeFilter !== "alle" && !searchQuery && (
+                        <button
+                          onClick={() => setActiveFilter("alle")}
+                          className="text-xs text-primary hover:underline mt-2"
+                        >
+                          Vis alle samtaler
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    {companyConvs.map(renderConvCard)}
+
+                    {showGroups && (
+                      <>
+                        <div className="px-4 py-2 border-t border-border">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <Layers className="h-3 w-3" />
+                            Koncerner ({groupConvs.length})
+                          </p>
+                        </div>
+                        {groupConvs.map(renderConvCard)}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
