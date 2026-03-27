@@ -1,4 +1,8 @@
 import { TrendingUp, TrendingDown, DollarSign, Calculator } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine, Cell,
+} from "recharts";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import { SummaryKPI, CostGroupCard } from "./BudgetHelpers";
 import type { BudgetRow } from "./types";
