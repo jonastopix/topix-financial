@@ -98,6 +98,9 @@ const PulseCheckin = () => {
           <p className="text-sm text-muted-foreground">
             3 hurtige spørgsmål for {periodLabel} — tager 2 minutter
           </p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Dine rådgivere læser dit svar inden næste boardroom-session.
+          </p>
         </div>
 
         <div className="space-y-5">
