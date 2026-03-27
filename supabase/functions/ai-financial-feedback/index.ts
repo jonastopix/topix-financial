@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       return jsonRes({ error: 'Unauthorized' }, 401);
     }
 
-    let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical, request_type } = await req.json();
+    let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical, request_type, budgetContext } = await req.json();
 
     // ── Caller→resource access check for company context (JWT-scoped) ──
     // If companyId is provided, verify caller has RLS access to that company
