@@ -648,58 +648,51 @@ const AdminConfig = () => {
 
         {/* ─── Møder ───────────────────────────────────────── */}
         <section className="glass-card rounded-xl p-6 animate-fade-in">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              <h2 className="font-display font-semibold text-foreground">Næste boardroom-session</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-display font-semibold text-foreground">Næste boardroom-møde</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Vises på alle members' dashboard som nedtælling til mødet
+              </p>
             </div>
+            <button
+              onClick={async () => {
+                setSaving("meetings");
+                await handleSave("meetings", { next_meeting_date: meetingDate || null });
+                setSaving(null);
+              }}
+              disabled={saving === "meetings"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {saving === "meetings" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              Gem dato
+            </button>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Dato for næste møde</label>
+            <input
+              type="date"
+              value={meetingDate}
+              onChange={(e) => setMeetingDate(e.target.value)}
+              className="w-full max-w-xs px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
             {meetingDate && (
-              <button
-                onClick={() => handleSaveMeetingDate(undefined)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Fjern dato
-              </button>
+              <p className="text-xs text-muted-foreground">
+                Vises som: {new Date(meetingDate).toLocaleDateString("da-DK", {
+                  weekday: "long", day: "numeric", month: "long", year: "numeric"
+                })}
+              </p>
+            )}
+            {!meetingDate && (
+              <p className="text-xs text-muted-foreground italic">
+                Ingen dato sat — mødekortet vises ikke på dashboard
+              </p>
             )}
           </div>
-
-          <p className="text-xs text-muted-foreground mb-4">
-            Sæt datoen for næste boardroom-session. Medlemmer ser en nedtælling på deres dashboard.
-          </p>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-[280px] justify-start text-left font-normal",
-                  !meetingDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {meetingDate
-                  ? format(meetingDate, "EEEE d. MMMM yyyy", { locale: da })
-                  : "Vælg mødedato..."}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={meetingDate}
-                onSelect={(date) => handleSaveMeetingDate(date)}
-                disabled={(date) => date < new Date()}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-
-          {meetingDate && (
-            <p className="text-xs text-muted-foreground mt-3">
-              Gemmes automatisk når du vælger en dato.
-            </p>
-          )}
         </section>
       </div>
     </AppLayout>
