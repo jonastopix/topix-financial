@@ -75,10 +75,11 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
     const avgActual = actuals.reduce((s, v) => s + v, 0) / actuals.length;
     const avgBudget = budgetCosts.slice(0, lastActualIdx + 1).reduce((s, v) => s + v, 0) / (lastActualIdx + 1);
     const growthFactor = avgBudget > 0 ? avgActual / avgBudget : 1;
+    const cappedGrowthFactor = Math.min(3, Math.max(0.1, growthFactor));
 
     return MONTHS.map((_, i) => {
       if (i <= lastActualIdx) return actualsMap[i]?.totalCosts ?? 0;
-      return Math.round(budgetCosts[i] * growthFactor);
+      return Math.round(budgetCosts[i] * cappedGrowthFactor);
     });
   }, [actualsMap, lastActualIdx, budgetCosts]);
 
