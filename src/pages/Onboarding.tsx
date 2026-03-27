@@ -48,7 +48,7 @@ const Onboarding = () => {
     {
       icon: Target,
       title: "Accountability der virker",
-      description: "Sæt milestones, følg din fremgang, og mød op til sessionen forberedt.",
+      description: "Sæt milestones, følg din fremgang, og få løbende sparring fra dine rådgivere.",
     },
     {
       icon: Users,
