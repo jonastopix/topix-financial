@@ -219,8 +219,11 @@ const Budget = () => {
             <Calculator className="h-6 w-6 text-primary" />
             Budgettering
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+           <p className="text-sm text-muted-foreground mt-1">
             Planlæg og følg op på dine finansielle mål
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Tallene sammenlignes automatisk med dine uploadede rapporter under "Budget vs. Realiseret".
           </p>
         </div>
 
