@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { postActivityMessage } from "@/lib/chatActivity";
+import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { MILESTONE_CATEGORIES, CATEGORY_OPTIONS, type MilestoneCategory } from "@/lib/milestoneCategories";
 
 export interface Milestone {
@@ -387,6 +389,9 @@ const MilestoneCard = ({
 };
 
 const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, categoryFilter }: Props) => {
+  const { user, isAdvisor: rawAdvisor } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -415,6 +420,35 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     };
     fetchMilestones();
   }, [userId, companyId, refreshKey]);
+
+  // ── Milestone deadline reminder notifications ──
+  useEffect(() => {
+    if (isAdvisor) return;
+    if (!milestones || !user || !companyId) return;
+
+    const now = new Date();
+    const checkDays = [3, 7];
+
+    for (const ms of milestones) {
+      if (!ms.deadline || ms.progress >= 100) continue;
+
+      const deadline = new Date(ms.deadline);
+      const daysUntil = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (checkDays.includes(daysUntil)) {
+        supabase.functions.invoke("send-slack-report-notification", {
+          body: {
+            event: "milestone_deadline_reminder",
+            milestoneId: ms.id,
+            milestoneTitle: ms.title,
+            daysUntil,
+            userId: user.id,
+            companyId,
+          },
+        }).catch(() => {});
+      }
+    }
+  }, [milestones, user, companyId, isAdvisor]);
 
   const filtered = categoryFilter
     ? milestones.filter((m) => m.category === categoryFilter)
