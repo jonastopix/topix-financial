@@ -1016,11 +1016,13 @@ const Members = () => {
             },
             {
               label: "Inviteret",
-              count: onboardingFunnel.invitedPending.length,
+              count: onboardingFunnel.invitedPending.length + standalonePendingInvitations.length,
               companies: onboardingFunnel.invitedPending,
               color: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
               dot: "bg-amber-400",
-              action: "Afventer accept",
+              action: standalonePendingInvitations.length > 0
+                ? `Afventer accept · ${standalonePendingInvitations.length} uden virksomhed`
+                : "Afventer accept",
             },
             {
               label: "Aktiveret",
