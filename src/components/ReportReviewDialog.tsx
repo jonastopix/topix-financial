@@ -95,7 +95,7 @@ export default function ReportReviewDialog({
   open,
   onOpenChange,
 }: ReportReviewDialogProps) {
-  const { user, isAdvisor, isAdmin } = useAuth();
+  const { user, isAdvisor, isAdmin, companyId } = useAuth();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
