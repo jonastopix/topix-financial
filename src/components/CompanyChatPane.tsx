@@ -352,18 +352,17 @@ const CompanyChatPane = () => {
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
 
-      // Build set of sub-company IDs (in a group but NOT the anchor)
-      const groupSubCompanyIds = new Set<string>();
+      // Build set of ALL company IDs that belong to any group (anchor + sub-companies)
+      const groupCompanyIds = new Set<string>();
       for (const row of (groupCompaniesRes.data || []) as any[]) {
-        const anchorId = (row as any).groups?.anchor_company_id;
-        if (anchorId && row.company_id !== anchorId) {
-          groupSubCompanyIds.add(row.company_id);
-        }
+        groupCompanyIds.add(row.company_id);
       }
 
-      // For advisors: filter out conversations from group sub-companies
+      // For advisors: filter out ALL individual conversations for companies
+      // that are in any group (anchor OR sub-company).
+      // Group communication happens via group_conversations only.
       const filteredConvs = isAdvisor
-        ? convs.filter((c: any) => !c.company_id || !groupSubCompanyIds.has(c.company_id))
+        ? convs.filter((c: any) => !c.company_id || !groupCompanyIds.has(c.company_id))
         : convs;
 
       const pMap = new Map<string, { full_name: string; avatar_url: string | null }>();

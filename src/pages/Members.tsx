@@ -847,6 +847,41 @@ const Members = () => {
     return result;
   }, [companies, search, sortKey, sortDir, filterIndustry]);
 
+  // Split filtered companies into standalone and group-consolidated views
+  const groupedView = useMemo(() => {
+    const standaloneCompanies = filtered.filter(c => !groupInfoMap.has(c.id));
+
+    const groupMap = new Map<string, {
+      groupId: string;
+      groupName: string;
+      anchorCompany: CompanyData | null;
+      subCompanies: CompanyData[];
+    }>();
+
+    for (const c of filtered) {
+      const info = groupInfoMap.get(c.id);
+      if (!info) continue;
+
+      if (!groupMap.has(info.groupId)) {
+        groupMap.set(info.groupId, {
+          groupId: info.groupId,
+          groupName: info.groupName,
+          anchorCompany: null,
+          subCompanies: [],
+        });
+      }
+
+      const group = groupMap.get(info.groupId)!;
+      if (info.isAnchor) {
+        group.anchorCompany = c;
+      } else {
+        group.subCompanies.push(c);
+      }
+    }
+
+    return { standaloneCompanies, groups: [...groupMap.values()] };
+  }, [filtered, groupInfoMap]);
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -1184,7 +1219,7 @@ const Members = () => {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : (groupedView.standaloneCompanies.length === 0 && groupedView.groups.length === 0) ? (
           <div className="text-center py-16">
             <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
@@ -1193,7 +1228,7 @@ const Members = () => {
           </div>
         ) : (
           <div className="divide-y divide-border/50">
-            {filtered.map((c) => {
+            {groupedView.standaloneCompanies.map((c) => {
               const isExpanded = expandedId === c.id;
               const rev = getDisplayRevenue(c);
               return (
@@ -1235,24 +1270,6 @@ const Members = () => {
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
                                 <Send className="h-2.5 w-2.5" /> Afventer
                               </span>
-                            )}
-                            {isAdmin && groupInfoMap.has(c.id) && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold whitespace-nowrap">
-                                <Layers className="h-2.5 w-2.5" /> {groupInfoMap.get(c.id)!.groupName}
-                                {groupInfoMap.get(c.id)!.isAnchor && <span className="text-[8px] opacity-70">(Anchor)</span>}
-                              </span>
-                            )}
-                            {isAdmin && groupInfoMap.get(c.id)?.isAnchor && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const info = groupInfoMap.get(c.id)!;
-                                  setAddToGroupTarget({ groupId: info.groupId, groupName: info.groupName });
-                                }}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/5 text-primary text-[10px] font-medium hover:bg-primary/15 transition-colors border border-primary/20 whitespace-nowrap"
-                              >
-                                + Tilføj virksomhed
-                              </button>
                             )}
                             {c.unreadCount > 0 && (
                               <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
@@ -1656,12 +1673,130 @@ const Members = () => {
                 </div>
               );
             })}
+
+            {/* Group / Koncern consolidated rows */}
+            {groupedView.groups.map(group => {
+              const groupExpandKey = `group_${group.groupId}`;
+              const isGroupExpanded = expandedId === groupExpandKey;
+              const allCompanies = [group.anchorCompany, ...group.subCompanies].filter(Boolean) as CompanyData[];
+              const totalReports = allCompanies.reduce((s, c) => s + c.reportCount, 0);
+              const totalMembers = allCompanies.reduce((s, c) => s + c.members.length, 0);
+              return (
+                <div key={group.groupId} className="border-b border-border/50">
+                  <button
+                    onClick={() => setExpandedId(isGroupExpanded ? null : groupExpandKey)}
+                    className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
+                  >
+                    {/* Desktop row */}
+                    <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-3 items-center">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Layers className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground truncate">{group.groupName}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold shrink-0">
+                              Koncern
+                            </span>
+                            {isAdmin && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAddToGroupTarget({ groupId: group.groupId, groupName: group.groupName });
+                                }}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-primary/20 text-primary hover:bg-primary/10 transition-colors shrink-0"
+                              >
+                                + Tilføj
+                              </button>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {allCompanies.length} selskaber · {totalMembers} brugere
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">{totalReports} rap.</span>
+                      <div className="flex items-center justify-end">
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
+                      </div>
+                    </div>
+                    {/* Mobile row */}
+                    <div className="sm:hidden flex items-center gap-3 px-5 py-3">
+                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Layers className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground truncate">{group.groupName}</p>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">Koncern</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{allCompanies.length} selskaber · {totalReports} rapporter</p>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
+                    </div>
+                  </button>
+
+                  {/* Expanded: show sub-companies */}
+                  {isGroupExpanded && (
+                    <div className="bg-secondary/10 divide-y divide-border/30">
+                      {allCompanies.map(c => (
+                        <div key={c.id} className="px-5 py-2.5 flex items-center gap-3 pl-8 sm:pl-12 group/subrow hover:bg-secondary/20 transition-colors">
+                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                            {c.logo_url ? (
+                              <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="text-[10px] font-semibold text-primary">{getInitials(c.name)}</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-foreground truncate">{c.name}</p>
+                              {groupInfoMap.get(c.id)?.isAnchor && (
+                                <span className="text-[8px] px-1 py-0.5 rounded bg-primary/10 text-primary font-semibold">Anchor</span>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRenamingCompany({ id: c.id, currentName: c.name });
+                                  setRenameValue(c.name);
+                                }}
+                                className="opacity-0 group-hover/subrow:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0"
+                                title="Omdøb virksomhed"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {c.reportCount} rapporter · {c.members.length} brugere
+                              {c.industry && ` · ${c.industry}`}
+                            </p>
+                          </div>
+                          {c.members.length > 0 && (
+                            <Link
+                              to={`/members/${c.members[0].user_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[10px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
+                            >
+                              Se data
+                            </Link>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
         {/* Footer */}
         <div className="px-5 py-3 bg-secondary/30 border-t border-border text-xs text-muted-foreground">
-          Viser {filtered.length} af {companies.length} virksomheder
+          Viser {groupedView.standaloneCompanies.length} virksomheder + {groupedView.groups.length} koncerner af {companies.length} total
         </div>
       </div>
 
