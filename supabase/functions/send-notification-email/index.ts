@@ -33,7 +33,7 @@ const SENDER_DOMAIN = "mail.topix.dk";
 const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
 const SENDER_FROM = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
 const APP_URL = "https://topix.lovable.app";
-const MAX_EMAILS_PER_DAY = 20;
+const MAX_EMAILS_PER_DAY = 5;
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   advisor_replied: "Ny besked fra din rådgiver",
@@ -107,11 +107,8 @@ Deno.serve(async (req) => {
       .in("role", ["advisor", "admin"]);
     const advisorUserIds = new Set((advisorRoleRows || []).map((r: any) => r.user_id));
 
-    // Events that advisors already receive via Slack — skip email for them
-    const ADVISOR_SKIP_TYPES = new Set([
-      "member_message",
-      "report_uploaded",
-    ]);
+    // Advisors receive Slack notifications — email is for members only
+    const ADVISOR_EMAIL_DISABLED = true;
 
     // Fetch notification email preferences per user
     const { data: profileRows } = await admin
@@ -148,7 +145,7 @@ Deno.serve(async (req) => {
       }
 
       // Advisor/admin email suppression: skip email for Slack-covered events
-      if (advisorUserIds.has(notif.user_id) && ADVISOR_SKIP_TYPES.has(notif.type)) {
+      if (advisorUserIds.has(notif.user_id)) {
         // Mark email_sent_at to prevent future retries, but don't actually send
         await admin
           .from("notifications")
