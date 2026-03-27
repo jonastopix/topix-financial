@@ -172,6 +172,24 @@ const Members = () => {
   const [standaloneSending, setStandaloneSending] = useState(false);
   const [standaloneCompanyId, setStandaloneCompanyId] = useState<string>("");
 
+  const handleRenameCompany = async () => {
+    if (!renamingCompany || !renameValue.trim()) return;
+    setRenameSaving(true);
+    const { error } = await (supabase
+      .from("companies")
+      .update({ name: renameValue.trim() }) as any)
+      .eq("id", renamingCompany.id);
+    setRenameSaving(false);
+    if (error) {
+      toast.error("Kunne ikke omdøbe virksomheden.");
+      return;
+    }
+    toast.success(`Virksomheden hedder nu "${renameValue.trim()}"`);
+    setRenamingCompany(null);
+    setRenameValue("");
+    loadCompanies();
+  };
+
   const loadCompanies = useCallback(async () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
