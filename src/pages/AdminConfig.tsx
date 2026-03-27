@@ -213,12 +213,6 @@ const AdminConfig = () => {
     setSaving(null);
   };
 
-  const handleSaveMeetingDate = async (date: Date | undefined) => {
-    setMeetingDate(date);
-    await handleSave("meetings", {
-      next_meeting_date: date ? date.toISOString() : null,
-    });
-  };
 
   const weightLabels = ["Vækstrate", "Bruttomargin", "Nettoresultat", "Likviditet"];
 
