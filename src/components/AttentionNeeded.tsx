@@ -137,27 +137,7 @@ const AttentionNeeded = () => {
         }
       }
 
-      // Check: Upcoming board meeting — use admin-configured date if available
-      const meetingDate = meetings.next_meeting_date
-        ? new Date(meetings.next_meeting_date)
-        : null;
-      if (meetingDate) {
-        const daysUntilMeeting = Math.ceil(
-          (meetingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (daysUntilMeeting <= 7 && daysUntilMeeting > 0) {
-          attentionItems.push({
-            id: "upcoming-meeting",
-            type: "milestone",
-            title: "Boardroom-session nærmer sig",
-            description: `${daysUntilMeeting} dag${daysUntilMeeting > 1 ? "e" : ""} til næste møde — opdater dine milestones`,
-            urgency: daysUntilMeeting <= 2 ? "high" : "medium",
-            action: "Forbered mig",
-            link: "/milestones",
-            daysLeft: daysUntilMeeting,
-          });
-        }
-      }
+
 
 
       // Check: no pulse check-in this month
