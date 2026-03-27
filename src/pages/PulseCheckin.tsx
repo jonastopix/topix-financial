@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Sparkles, ChevronRight, CheckCircle2 } from "lucide-react";
+import { MessageCircle, ThumbsUp, AlertCircle, Target, ChevronRight, CheckCircle2, Loader2 } from "lucide-react";
 
 const PulseCheckin = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
@@ -51,7 +51,6 @@ const PulseCheckin = () => {
     setSaving(false);
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Check-in gemt!");
-    // Notify advisors (fire and forget)
     supabase.functions.invoke("send-slack-report-notification", {
       body: {
         event: "pulse_checkin_received",
@@ -65,27 +64,23 @@ const PulseCheckin = () => {
   if (alreadyDone) {
     return (
       <AppLayout>
-        <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-            <CheckCircle2 className="h-7 w-7 text-primary" />
+        <div className="text-center py-12 animate-fade-in">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-5">
+            <CheckCircle2 className="h-8 w-8 text-primary" />
           </div>
           <h2 className="text-xl font-display font-bold text-foreground mb-2">
-            Check-in allerede udfyldt
+            Check-in for {periodLabel} er sendt
           </h2>
-          <p className="text-sm text-muted-foreground max-w-sm text-center mb-6">
-            Du har allerede udfyldt dit check-in for {periodLabel}.
+          <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">
+            Dine rådgivere kan nu se din opdatering og vil tage den med
+            i deres sparring med dig.
           </p>
-          <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={() => setAlreadyDone(false)}
-              className="text-sm text-primary hover:underline"
-            >
-              Opdater dit svar
-            </button>
-            <button onClick={() => navigate("/")} className="text-xs text-muted-foreground hover:underline">
-              Tilbage til dashboard
-            </button>
-          </div>
+          <button
+            onClick={() => setAlreadyDone(false)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors underline"
+          >
+            Opdatér alligevel
+          </button>
         </div>
       </AppLayout>
     );
@@ -94,55 +89,81 @@ const PulseCheckin = () => {
   return (
     <AppLayout>
       <div className="max-w-xl mx-auto">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-primary/10">
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-            <h1 className="text-2xl font-display font-bold text-foreground">
-              Månedlig pulse
-            </h1>
+        <div className="text-center mb-8 animate-fade-in">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-primary/10 mb-4">
+            <MessageCircle className="h-7 w-7 text-primary" />
           </div>
-          <p className="text-sm text-muted-foreground">
-            3 hurtige spørgsmål for {periodLabel} — tager 2 minutter
-          </p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
-            Dine rådgivere læser dit svar inden næste boardroom-session.
+          <h1 className="text-2xl font-display font-bold text-foreground mb-2">
+            Månedlig check-in · {periodLabel}
+          </h1>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+            2 minutter der hjælper os med at give dig den bedste sparring.
+            Dine svar er kun synlige for dig og dine rådgivere.
           </p>
         </div>
 
-        <div className="space-y-5">
-          <div className="glass-card rounded-xl p-6">
-            <label className="block text-sm font-semibold text-foreground mb-2">
-              Hvad gik godt siden sidst?
+        {/* Field 1 */}
+        <div className="glass-card rounded-xl p-5 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <ThumbsUp className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <label className="text-sm font-semibold text-foreground">
+              Hvad er gået godt denne måned?
             </label>
-            <textarea
-              value={wentWell}
-              onChange={e => setWentWell(e.target.value)}
-              placeholder="F.eks. en stor ordre, et nyt teammedlem, en milestone nået..."
-              rows={3}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
           </div>
+          <p className="text-[11px] text-muted-foreground mb-3">
+            En ordre, et nyt samarbejde, en beslutning du er stolt af,
+            en medarbejder der har gjort det godt — stort eller småt.
+          </p>
+          <textarea
+            value={wentWell}
+            onChange={e => setWentWell(e.target.value)}
+            rows={3}
+            placeholder="Skriv her..."
+            className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
+          />
+        </div>
 
-          <div className="glass-card rounded-xl p-6">
-            <label className="block text-sm font-semibold text-foreground mb-2">
+        {/* Field 2 */}
+        <div className="glass-card rounded-xl p-5 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-7 w-7 rounded-lg bg-chart-warning/10 flex items-center justify-center shrink-0">
+              <AlertCircle className="h-3.5 w-3.5 text-chart-warning" />
+            </div>
+            <label className="text-sm font-semibold text-foreground">
               Hvad er din største udfordring lige nu?
             </label>
-            <textarea
-              value={challenge}
-              onChange={e => setChallenge(e.target.value)}
-              placeholder="F.eks. rekruttering, likviditet, en svær kundesituation..."
-              rows={3}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
           </div>
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Det er her vi kan hjælpe mest. Jo mere konkret du er,
+            des bedre sparring kan vi give dig.
+          </p>
+          <textarea
+            value={challenge}
+            onChange={e => setChallenge(e.target.value)}
+            rows={3}
+            placeholder="Skriv her..."
+            className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
+          />
+        </div>
 
-          <div className="glass-card rounded-xl p-6">
-            <label className="block text-sm font-semibold text-foreground mb-3">
-              Hvor langt er du på dit vigtigste milestone?
+        {/* Field 3 — milestone progress */}
+        <div className="glass-card rounded-xl p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+              <Target className="h-3.5 w-3.5 text-blue-500" />
+            </div>
+            <label className="text-sm font-semibold text-foreground">
+              Hvor langt er du med dine milestones?
             </label>
-            <div className="flex items-center gap-4">
+          </div>
+          <p className="text-[11px] text-muted-foreground mb-4">
+            Samlet vurdering af din fremgang mod de mål du har sat.
+          </p>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-muted-foreground w-16">Ikke startet</span>
+            <div className="flex-1">
               <input
                 type="range"
                 min={0}
@@ -150,23 +171,38 @@ const PulseCheckin = () => {
                 step={5}
                 value={milestoneProgress}
                 onChange={e => setMilestoneProgress(Number(e.target.value))}
-                className="flex-1"
+                className="w-full"
               />
-              <span className="text-2xl font-bold text-primary min-w-[4rem] text-right">
-                {milestoneProgress}%
-              </span>
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
             </div>
+            <span className="text-xs text-muted-foreground w-16 text-right">Fuldt nået</span>
           </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {saving ? "Gemmer..." : "Gem check-in"}
-            {!saving && <ChevronRight className="h-4 w-4" />}
-          </button>
+          <div className="mt-3 text-center">
+            <span className="text-2xl font-display font-bold text-foreground">
+              {milestoneProgress}%
+            </span>
+            <span className="text-xs text-muted-foreground ml-1">fremgang</span>
+          </div>
         </div>
+
+        <button
+          onClick={handleSubmit}
+          disabled={saving || (!wentWell.trim() && !challenge.trim())}
+          className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+        >
+          {saving ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Gemmer...</>
+          ) : (
+            <>Send check-in til rådgiverne <ChevronRight className="h-4 w-4" /></>
+          )}
+        </button>
+        <p className="text-center text-[11px] text-muted-foreground mt-3">
+          Dine rådgivere modtager besked og vil følge op hvis relevant.
+        </p>
       </div>
     </AppLayout>
   );
