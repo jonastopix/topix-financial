@@ -55,10 +55,28 @@ export function useNotifications() {
         },
         () => load()
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => load()
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [user, load]);
+
+  // Periodic refresh every 2 minutes to catch cross-tab/device changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      load();
+    }, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   // Badge count: unseen important + action_required
   const unseenCount = notifications.filter(
