@@ -700,26 +700,60 @@ const AdvisorDashboard = () => {
             <>
               <div className="glass-card rounded-xl overflow-hidden">
                 <table className="w-full">
+              {/* Engagement snapshot */}
+              {(() => {
+                const currentPeriodKey = getMissingReportKey();
+                const reportedCount = filteredMembers.filter(c =>
+                  !c.missing_current_period && c.has_verified_metrics).length;
+                const pulseCount = filteredMembers.filter(c =>
+                  c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000)).length;
+                return (
+                  <div className="flex items-center gap-4 mb-3 text-[11px] text-muted-foreground">
+                    <span>
+                      <span className="font-semibold text-primary">{reportedCount}</span>
+                      /{filteredMembers.length} rapporteret denne måned
+                    </span>
+                    <span>·</span>
+                    <span>
+                      <span className="font-semibold text-chart-info">{pulseCount}</span>
+                      /{filteredMembers.length} pulse seneste 30 dage
+                    </span>
+                  </div>
+                );
+              })()}
+              <div className="glass-card rounded-xl overflow-hidden">
+                <table className="w-full">
                   <thead>
                     <tr className="border-b border-border bg-secondary/30">
                       <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
-                      <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Omsætning</th>
-                      <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Resultat</th>
-                      <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Cash</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Milestones</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Aktivitet</th>
+                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
+                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
+                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">KPI mål</th>
+                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
                       <th className="py-2 px-3 w-16"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
                     {filteredMembers.map(c => {
-                      const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
+                      const currentPeriodKey = getMissingReportKey();
+                      const hasCurrentReport = c.effective_period_key === currentPeriodKey
+                        || (c.effective_period_key != null && !c.missing_current_period);
+                      const hasPulse30 = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
+                      const hasChat = (convByCompany.get(c.company_id)?.[0]?.last_member_message_at) != null;
+                      const hasMilestones = c.milestones.length > 0;
+                      const hasKpiTargets = c.kpiTargets.length > 0;
+                      const primaryKpi = c.kpiTargets.find(k => k.kpi_key === "omsaetning") || c.kpiTargets[0];
+                      const kpiPct = primaryKpi && c.revenue != null && primaryKpi.target_value > 0
+                        ? Math.min(100, (c.revenue / primaryKpi.target_value) * 100)
+                        : null;
+
                       return (
                         <tr
                           key={c.company_id}
                           className="hover:bg-accent/20 transition-colors group cursor-pointer"
                           onClick={() => setCompanyOverride(c.company_id, c.company_name)}
                         >
+                          {/* Virksomhed */}
                           <td className="py-2.5 px-4">
                             <div className="flex items-center gap-2.5">
                               <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
@@ -730,9 +764,6 @@ const AdvisorDashboard = () => {
                               </div>
                               <div className="min-w-0">
                                 <p className="text-xs font-medium text-foreground truncate max-w-[160px]">{c.company_name}</p>
-                                {c.effective_period_label && (
-                                  <p className="text-[10px] text-muted-foreground">{c.effective_period_label}</p>
-                                )}
                               </div>
                               {c.unreadMessages > 0 && (
                                 <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
@@ -741,32 +772,79 @@ const AdvisorDashboard = () => {
                               )}
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-right hidden sm:table-cell">
-                            <span className="text-xs font-medium text-foreground">{c.revenue != null ? formatCompact(c.revenue) : "—"}</span>
+                          {/* Rapport denne måned */}
+                          <td className="py-2.5 px-3 text-center hidden sm:table-cell">
+                            {hasCurrentReport ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <div className="h-2 w-2 rounded-full bg-primary" />
+                                <span className="text-[10px] text-primary font-medium">
+                                  {c.effective_period_label}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/50">
+                                Ikke rapporteret
+                              </span>
+                            )}
                           </td>
-                          <td className="py-2.5 px-3 text-right hidden sm:table-cell">
-                            <span className={`text-xs font-medium ${c.ebt == null ? "text-muted-foreground" : c.ebt >= 0 ? "text-primary" : "text-destructive"}`}>
-                              {c.ebt != null ? formatCompact(c.ebt) : "—"}
-                            </span>
+                          {/* Trend */}
+                          <td className="py-2.5 px-3 text-center hidden sm:table-cell">
+                            {c.revenueTrendPct != null ? (
+                              <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
+                                c.revenueTrendPct > 5 ? "text-primary" :
+                                c.revenueTrendPct < -5 ? "text-destructive" :
+                                "text-muted-foreground"
+                              }`}>
+                                {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}
+                                {Math.abs(c.revenueTrendPct).toFixed(0)}%
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/30">—</span>
+                            )}
                           </td>
-                          <td className="py-2.5 px-3 text-right hidden md:table-cell">
-                            <span className={`text-xs font-medium ${c.cash == null ? "text-muted-foreground" : c.cash < 0 ? "text-destructive" : "text-foreground"}`}>
-                              {c.cash != null ? formatCompact(c.cash) : "—"}
-                            </span>
+                          {/* KPI-fremskridt */}
+                          <td className="py-2.5 px-3 hidden md:table-cell">
+                            {kpiPct != null ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[80px]">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      kpiPct >= 100 ? "bg-primary" :
+                                      kpiPct >= 70 ? "bg-chart-warning" :
+                                      "bg-destructive/50"
+                                    }`}
+                                    style={{ width: `${kpiPct}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {Math.round(kpiPct)}%
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/30">Ingen mål</span>
+                            )}
                           </td>
-                          <td className="py-2.5 px-3 text-center hidden md:table-cell">
-                            {c.milestones.length > 0
-                              ? <span className="text-[10px] text-muted-foreground">{c.milestones.length} aktive</span>
-                              : <span className="text-[10px] text-muted-foreground/30">—</span>
-                            }
-                          </td>
+                          {/* Engagement */}
                           <td className="py-2.5 px-3">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <div className={`h-1.5 w-1.5 rounded-full ${c.has_verified_metrics ? "bg-primary" : "bg-muted-foreground/20"}`} title="Rapport" />
-                              <div className={`h-1.5 w-1.5 rounded-full ${hasPulse ? "bg-chart-info" : "bg-muted-foreground/20"}`} title="Pulse" />
-                              <div className={`h-1.5 w-1.5 rounded-full ${c.kpiTargets.length > 0 ? "bg-chart-warning" : "bg-muted-foreground/20"}`} title="KPI mål" />
+                            <div className="flex items-center gap-1 justify-center">
+                              {[
+                                { active: hasCurrentReport, color: "bg-primary", title: "Rapport" },
+                                { active: hasPulse30, color: "bg-chart-info", title: "Pulse" },
+                                { active: hasChat, color: "bg-purple-500", title: "Chat" },
+                                { active: hasMilestones, color: "bg-chart-warning", title: "Milestones" },
+                                { active: hasKpiTargets, color: "bg-teal-500", title: "KPI mål" },
+                              ].map((dot, i) => (
+                                <div
+                                  key={i}
+                                  title={dot.title}
+                                  className={`h-2 w-2 rounded-full transition-colors ${
+                                    dot.active ? dot.color : "bg-muted-foreground/15"
+                                  }`}
+                                />
+                              ))}
                             </div>
                           </td>
+                          {/* Action */}
                           <td className="py-2.5 px-3">
                             <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary transition-colors">Se data →</span>
                           </td>
@@ -781,12 +859,15 @@ const AdvisorDashboard = () => {
                   </p>
                 )}
               </div>
+              {/* Legend */}
               <div className="flex items-center gap-4 mt-2 px-1">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Aktivitet:</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement:</p>
                 {[
                   { color: "bg-primary", label: "Rapport" },
                   { color: "bg-chart-info", label: "Pulse" },
-                  { color: "bg-chart-warning", label: "KPI-mål" },
+                  { color: "bg-purple-500", label: "Chat" },
+                  { color: "bg-chart-warning", label: "Milestones" },
+                  { color: "bg-teal-500", label: "KPI mål" },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-1">
                     <div className={`h-1.5 w-1.5 rounded-full ${item.color}`} />
