@@ -7,7 +7,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
-  Sparkles, Loader2,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -19,20 +18,6 @@ import {
 } from "@/lib/financialUtils";
 import { toast } from "@/hooks/use-toast";
 
-// ── Missing-report logic — reused from AdvisorDashboard (same as AttentionNeeded) ──
-function getMissingReportKey(): string {
-  const now = new Date();
-  const cm = now.getMonth();
-  const cy = now.getFullYear();
-  const pm = cm === 0 ? 11 : cm - 1;
-  const py = cm === 0 ? cy - 1 : cy;
-  return `${py}-${String(pm + 1).padStart(2, "0")}`;
-}
-
-function getMissingReportLabel(): string {
-  const pm = new Date().getMonth() === 0 ? 11 : new Date().getMonth() - 1;
-  return DANISH_MONTHS[pm];
-}
 
 /** Format "2026-02" → "Februar 2026" */
 function formatReportKey(key: string): string {
@@ -158,141 +143,6 @@ function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negati
   );
 }
 
-// ── Session Prep Section (local state only — resets on unmount) ──
-function SessionPrepSection({ companyId, companyName }: {
-  companyId: string;
-  companyName: string;
-}) {
-  const [bullets, setBullets] = useState<string[] | null>(null);
-  const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const generate = async () => {
-    setIsGenerating(true);
-    setError(null);
-    try {
-      // Fetch last 3 periods of facts
-      const { data: facts } = await supabase
-        .from("financial_report_facts")
-        .select("period_key, period_label, metrics, source_type")
-        .eq("company_id", companyId)
-        .order("period_key", { ascending: false })
-        .limit(3);
-
-      const canonicalPayload = (facts || []).map((f: any) => ({
-        period_key: f.period_key,
-        period_label: f.period_label,
-        metrics: f.metrics,
-        source_type: f.source_type,
-      }));
-
-      const { data: result, error: fnError } = await supabase.functions.invoke("ai-financial-feedback", {
-        body: {
-          request_type: "session_prep",
-          companyId,
-          companyContext: { name: companyName },
-          historicalCanonical: canonicalPayload,
-        },
-      });
-
-      if (fnError) throw fnError;
-
-      const items = result?.session_prep;
-      if (Array.isArray(items) && items.length > 0) {
-        setBullets(items);
-        setGeneratedAt(new Date());
-      } else {
-        throw new Error("Uventet svar fra AI");
-      }
-    } catch (err: any) {
-      setError("Kunne ikke generere — prøv igen");
-      console.error("Session prep error:", err);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const hasNote = bullets && bullets.length > 0;
-
-  // Relative timestamp
-  const relativeTime = generatedAt
-    ? (() => {
-        const diffMs = Date.now() - generatedAt.getTime();
-        const mins = Math.floor(diffMs / 60_000);
-        if (mins < 1) return "lige nu";
-        if (mins < 60) return `for ${mins} min. siden`;
-        const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return `for ${hrs} time${hrs > 1 ? "r" : ""} siden`;
-        const days = Math.floor(hrs / 24);
-        return `for ${days} dag${days > 1 ? "e" : ""} siden`;
-      })()
-    : null;
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-            Sessionsforberedelse
-          </span>
-        </div>
-        {!hasNote && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[11px] gap-1"
-            onClick={generate}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="h-3 w-3" />
-            )}
-            {isGenerating ? "Genererer…" : "Generer briefing"}
-          </Button>
-        )}
-      </div>
-
-      {hasNote ? (
-        <>
-          <ul className="space-y-1.5">
-            {bullets!.map((b, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-foreground leading-relaxed">
-                <span className="text-primary mt-0.5">•</span>
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="flex items-center justify-between mt-3">
-            <p className="text-[10px] text-muted-foreground">
-              Genereret {relativeTime}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground"
-              onClick={generate}
-              disabled={isGenerating}
-            >
-              {isGenerating ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
-              Opdater
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-muted-foreground">
-            Generer en kort briefing til dit næste møde med {companyName}
-          </p>
-          {error && <p className="text-xs text-destructive mt-1">{error}</p>}
-        </>
-      )}
-    </div>
-  );
-}
 
 const AdvisorCompanyOverview = () => {
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
@@ -369,9 +219,6 @@ const AdvisorCompanyOverview = () => {
         ? [...sorted].reverse().find(r => r.kf.bank_balance != null && r.key !== bankReport.key)
         : null;
 
-      const missingKey = getMissingReportKey();
-      const reportKeys = new Set(sorted.map(r => r.key));
-      const missingReport = !reportKeys.has(missingKey);
 
       const assignedName = (advisorProfileRes as any)?.data?.full_name ?? null;
 
@@ -390,7 +237,7 @@ const AdvisorCompanyOverview = () => {
         previous,
         bankReport,
         bankPrevious,
-        missingReport,
+        
         assignedName,
         revenueTimeline,
       };
@@ -450,47 +297,35 @@ const AdvisorCompanyOverview = () => {
   const bankReport = data?.bankReport;
   const hasNote = data?.hasNote ?? false;
   const noteConvId = data?.noteConvId ?? null;
-  const missingReport = data?.missingReport ?? false;
+  
 
-  const hasCurrentReport = !!latest;
+  const hasReport = !!latest;
   const hasPulse = !!latestPulse;
-  const handoutsComplete = (handoutData?.completed ?? 0) >= 3;
+  const latestPeriodLabel = latest ? formatReportKey(latest.key) : null;
+  const handoutsCompleted = handoutData?.completed ?? 0;
+  const handoutsTotal = handoutData?.total ?? 5;
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* ── Session Readiness Bar ── */}
-      <div className="rounded-xl border border-border bg-card p-4 mb-2">
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Klar til session
-        </p>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label: "Rapport",
-              ok: hasCurrentReport,
-              detail: hasCurrentReport
-                ? formatReportKey(latest!.key)
-                : `${getMissingReportLabel()} mangler`,
-            },
-            {
-              label: "Pulse",
-              ok: hasPulse,
-              detail: hasPulse ? "Udfyldt" : "Mangler check-in",
-            },
-            {
-              label: "Handouts",
-              ok: handoutsComplete,
-              detail: `${handoutData?.completed ?? 0}/5 moduler`,
-            },
-          ].map(signal => (
-            <div key={signal.label} className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
-                <div className={`h-2 w-2 rounded-full ${signal.ok ? "bg-emerald-500" : "bg-amber-400"}`} />
-                <span className="text-xs font-medium text-foreground">{signal.label}</span>
-              </div>
-              <span className="text-[11px] text-muted-foreground ml-3.5">{signal.detail}</span>
-            </div>
-          ))}
+      {/* ── Engagement Status Bar ── */}
+      <div className="flex items-center gap-4 px-4 py-3 bg-secondary/30 rounded-xl mb-4 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${hasReport ? "bg-primary" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">
+            {hasReport ? `Rapport: ${latestPeriodLabel}` : "Ingen rapport endnu"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${hasPulse ? "bg-blue-500" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">
+            {hasPulse ? "Pulse udfyldt" : "Ingen pulse endnu"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${handoutsCompleted > 0 ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">
+            {handoutsCompleted}/{handoutsTotal} handouts
+          </span>
         </div>
       </div>
       {/* ── Header ── */}
@@ -601,23 +436,15 @@ const AdvisorCompanyOverview = () => {
         )}
 
         {/* Report status */}
-        {missingReport ? (
-          <Link
-            to="/reports"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-chart-warning/20 bg-chart-warning/5 text-xs font-medium text-chart-warning hover:bg-chart-warning/10 transition-colors max-w-full min-w-0"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Mangler {getMissingReportLabel()}
-          </Link>
-        ) : latest ? (
+        {latest && (
           <Link
             to="/reports"
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
           >
             <FileText className="h-3.5 w-3.5" />
-            {formatReportKey(latest.key)}
+            Seneste rapport: {formatReportKey(latest.key)}
           </Link>
-        ) : null}
+        )}
 
         {/* Internal note indicator — links to chat if possible, otherwise non-clickable */}
         {hasNote && (
@@ -759,8 +586,17 @@ const AdvisorCompanyOverview = () => {
         </div>
       )}
 
-      {/* ── Sessionsforberedelse ── */}
-      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} />
+      {/* ── Pulse highlight ── */}
+      {latestPulse?.biggest_challenge && (
+        <div className="glass-card rounded-xl p-4 mb-4">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Seneste pulse — største udfordring
+          </p>
+          <p className="text-sm text-foreground leading-relaxed">
+            "{latestPulse.biggest_challenge}"
+          </p>
+        </div>
+      )}
 
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
