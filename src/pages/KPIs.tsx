@@ -385,6 +385,14 @@ const KPIs = () => {
   const targetStatus = getTargetStatus(activeMetric);
   const hitsCount = kpiMetrics.filter((m) => getTargetStatus(m).hit).length;
 
+  const prevDataPoint = activeMetric.history.length >= 2
+    ? activeMetric.history[activeMetric.history.length - 2]
+    : null;
+  const prevValue = prevDataPoint?.value ?? null;
+  const prevChange = prevValue != null && prevValue !== 0 && activeMetric.numValue != null
+    ? ((activeMetric.numValue - prevValue) / Math.abs(prevValue)) * 100
+    : null;
+
   return (
     <TooltipProvider>
     <AppLayout>
