@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
+import { writeNotification, writeNotificationToMany } from "../_shared/notificationWriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -168,6 +168,41 @@ Deno.serve(async (req) => {
       return json({ ok: true, notified: advisorIds.length });
     }
     // ── END pulse_checkin_received ──
+
+    // ── milestone_deadline_reminder event ──
+    if (event === "milestone_deadline_reminder") {
+      const { milestoneId, milestoneTitle, daysUntil, userId, companyId: msCompanyId } = body;
+      if (!userId || !milestoneId) return json({ error: "missing userId or milestoneId" }, 400);
+
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const firstName = profile?.full_name?.split(" ")[0] || "dig";
+      const title = `"${milestoneTitle || "Dit milestone"}" — deadline om ${daysUntil} dag${daysUntil !== 1 ? "e" : ""}`;
+      const body_text = `Hej ${firstName} — du har ${daysUntil} dag${daysUntil !== 1 ? "e" : ""} til at nå dit milestone. Opdater din fremgang inden boardroom-sessionen.`;
+
+      await writeNotification(admin, {
+        user_id: userId,
+        type: "milestone_deadline_reminder",
+        priority: "important",
+        title,
+        body: body_text,
+        reference_type: "milestone",
+        reference_id: milestoneId,
+        deep_link: "/milestones",
+        company_id: msCompanyId || undefined,
+        dedup_key: `milestone_deadline:${milestoneId}:${daysUntil}d`,
+      });
+
+      return json({ ok: true });
+    }
+    // ── END milestone_deadline_reminder ──
 
     const { report_id, message_id } = body;
     if (!report_id || !message_id) {
