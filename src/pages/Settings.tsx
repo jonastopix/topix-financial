@@ -676,7 +676,26 @@ const Settings = () => {
           </div>
         )}
 
-        {/* Account info */}
+        {/* Advisor notification info */}
+        {(isAdvisor || isAdmin) && (
+          <div className="glass-card rounded-xl p-6 animate-fade-in">
+            <h2 className="font-display font-semibold text-foreground mb-1">
+              Notifikationer
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Du modtager Slack-notifikationer for al member-aktivitet. 
+              Email-notifikationer er deaktiveret for advisors.
+            </p>
+            <div className="rounded-lg bg-muted/30 border border-border/50 p-3">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">In-app notifikationer</span>
+                {" "}— Direkte beskeder fra members vises som vigtige. 
+                Rapporter, pulse og handouts vises som aktivitet uden badge.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="glass-card rounded-xl p-6 animate-fade-in">
           <h2 className="font-display font-semibold text-foreground mb-3">Konto</h2>
           <p className="text-xs text-muted-foreground">
