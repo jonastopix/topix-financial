@@ -134,35 +134,38 @@ function MemberCard({
         </div>
       </div>
 
-      {/* Financial KPIs */}
-      {c.has_verified_metrics && (
-        <div className="grid grid-cols-3 gap-2 mb-3 p-2.5 rounded-lg bg-secondary/30">
-          <div>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Omsætning</p>
-            <p className="text-xs font-semibold text-foreground">
-              {c.revenue != null ? formatCompact(c.revenue) : "—"}
-            </p>
+        {/* Financial KPIs */}
+        {c.has_verified_metrics && (
+          <div className="grid grid-cols-2 gap-2 mb-3 p-2.5 rounded-lg bg-secondary/30">
+            <div>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Omsætning</p>
+              <p className="text-xs font-semibold text-foreground">
+                {c.revenue != null ? formatCompact(c.revenue) : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Resultat</p>
+              <p className={`text-xs font-semibold ${
+                c.ebt == null ? "text-muted-foreground" :
+                c.ebt >= 0 ? "text-primary" : "text-destructive"
+              }`}>
+                {c.ebt != null ? formatCompact(c.ebt) : "—"}
+              </p>
+            </div>
+            {c.revenueTrendPct != null && (
+              <div className="col-span-2">
+                <div className="flex items-center gap-1">
+                  <span className={`text-xs font-semibold ${
+                    c.revenueTrendPct > 0 ? "text-primary" : "text-destructive"
+                  }`}>
+                    {c.revenueTrendPct > 0 ? "↑" : "↓"}
+                    {Math.abs(c.revenueTrendPct).toFixed(0)}% MoM
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Resultat</p>
-            <p className={`text-xs font-semibold ${
-              c.ebt == null ? "text-muted-foreground" :
-              c.ebt >= 0 ? "text-primary" : "text-destructive"
-            }`}>
-              {c.ebt != null ? formatCompact(c.ebt) : "—"}
-            </p>
-          </div>
-          <div>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Likviditet</p>
-            <p className={`text-xs font-semibold ${
-              c.cash == null ? "text-muted-foreground" :
-              c.cash < 0 ? "text-destructive" : "text-foreground"
-            }`}>
-              {c.cash != null ? formatCompact(c.cash) : "—"}
-            </p>
-          </div>
-        </div>
-      )}
+        )}
 
       {/* KPI targets vs actual */}
       {c.kpiTargets.length > 0 && c.has_verified_metrics && (
