@@ -11,10 +11,11 @@ import GroupSettings from "@/components/GroupSettings";
 import { MessageCircle, Calculator, Plus, Settings } from "lucide-react";
 
 const GroupDashboard = () => {
-  const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId } = useAuth();
+  const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId, user } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
   const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Page-level guard: member-only, group-only
   if (!loading && !isGroupUser) {
