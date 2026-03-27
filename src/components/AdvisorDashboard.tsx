@@ -803,27 +803,29 @@ const AdvisorDashboard = () => {
                             )}
                           </td>
                           {/* KPI-fremskridt */}
-                          <td className="py-2.5 px-3 hidden md:table-cell">
-                            {kpiPct != null ? (
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[80px]">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      kpiPct >= 100 ? "bg-primary" :
-                                      kpiPct >= 70 ? "bg-chart-warning" :
-                                      "bg-destructive/50"
-                                    }`}
-                                    style={{ width: `${kpiPct}%` }}
-                                  />
+                          {showKpiColumn && (
+                            <td className="py-2.5 px-3 hidden md:table-cell">
+                              {kpiPct != null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[80px]">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        kpiPct >= 100 ? "bg-primary" :
+                                        kpiPct >= 70 ? "bg-chart-warning" :
+                                        "bg-destructive/50"
+                                      }`}
+                                      style={{ width: `${kpiPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {Math.round(kpiPct)}%
+                                  </span>
                                 </div>
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {Math.round(kpiPct)}%
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/30">Ingen mål</span>
-                            )}
-                          </td>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/30">Ingen mål</span>
+                              )}
+                            </td>
+                          )}
                           {/* Engagement */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-1 justify-center">
