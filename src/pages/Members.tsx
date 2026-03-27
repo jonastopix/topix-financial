@@ -98,6 +98,7 @@ interface CompanyData {
   created_at: string;
   members: CompanyMember[];
   reportCount: number;
+  latestReportPeriod: string | null;
   committedCount: number;
   unreadCount: number;
   conversationId: string | null;
