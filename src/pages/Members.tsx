@@ -293,17 +293,15 @@ const Members = () => {
       }
     });
 
-    const latestPeriodByCompany = new Map<string, string>();
+    const latestPeriodByCompany = new Map<string, { period: string; uploadedAt: string }>();
     periodsByCompany.forEach((periods, companyId) => {
       reportsByCompany.set(companyId, periods.size);
-      // Keep the latest period label (lexicographic compare works for "YYYY-MM" style,
-      // but report_period is human-readable like "Februar 2026" — track from reports)
     });
     allReports.forEach((r: any) => {
       if (r.company_id && r.report_period) {
         const existing = latestPeriodByCompany.get(r.company_id);
-        if (!existing || (r.uploaded_at && (!existing || r.uploaded_at > (latestPeriodByCompany as any).__ts?.get(r.company_id)))) {
-          latestPeriodByCompany.set(r.company_id, r.report_period);
+        if (!existing || r.uploaded_at > existing.uploadedAt) {
+          latestPeriodByCompany.set(r.company_id, { period: r.report_period, uploadedAt: r.uploaded_at });
         }
       }
     });
