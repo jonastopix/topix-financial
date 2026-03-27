@@ -336,7 +336,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-display font-bold text-primary">{nextMeeting.daysUntil}</p>
+              <p className="text-2xl font-display font-bold text-primary">{daysUntilMeeting}</p>
               <p className="text-[10px] text-muted-foreground">dage</p>
             </div>
           </div>
