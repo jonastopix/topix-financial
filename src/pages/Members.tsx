@@ -440,6 +440,7 @@ const Members = () => {
             return companyLoginInfo;
           })(),
           __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
+          hasPulseThisMonth: pulseThisMonthSet.has(c.id),
         } as any;
       });
 
