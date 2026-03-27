@@ -90,19 +90,35 @@ const NotificationCenter = () => {
         className="w-80 p-0 max-h-[420px] flex flex-col"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold text-foreground">Notifikationer</h3>
-          {notifications.some(n => !n.read_at) && (
-            <button
-              onClick={() => {
-                notifications
-                  .filter(n => !n.read_at)
-                  .forEach(n => markRead(n.id));
-              }}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Marker alle som læst
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Notifikationer</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {notifications.filter(n => n.priority === "info" && !n.read_at).length > 0 && (
+              <button
+                onClick={() => {
+                  notifications
+                    .filter(n => n.priority === "info" && !n.read_at)
+                    .forEach(n => markRead(n.id));
+                }}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Ryd aktivitet
+              </button>
+            )}
+            {notifications.some(n => !n.read_at) && (
+              <button
+                onClick={() => {
+                  notifications
+                    .filter(n => !n.read_at)
+                    .forEach(n => markRead(n.id));
+                }}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Marker alle som læst
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -115,42 +131,61 @@ const NotificationCenter = () => {
               </p>
             </div>
           ) : (
-            notifications.map((n) => {
-              const { Icon, bg, text } = getIcon(n.type);
-              const dotColor = getPriorityDot(n.priority, n.read_at);
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => handleClick(n)}
-                  className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-secondary/50 transition-colors flex items-start gap-3 ${
-                    !n.read_at ? "bg-primary/5" : ""
-                  }`}
-                >
-                  <div className={`p-1.5 rounded-lg mt-0.5 flex-shrink-0 ${bg}`}>
-                    <Icon className={`h-3.5 w-3.5 ${text}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className={`text-xs font-medium text-foreground ${!n.read_at ? "font-semibold" : ""}`}>
-                        {n.title}
-                      </p>
-                      {n.priority === "action_required" && (
-                        <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-                      )}
+            (() => {
+              const actionable = notifications.filter(n => n.priority !== "info");
+              const informational = notifications.filter(n => n.priority === "info");
+
+              const renderCard = (n: Notification) => {
+                const { Icon, bg, text } = getIcon(n.type);
+                const dotColor = getPriorityDot(n.priority, n.read_at);
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => handleClick(n)}
+                    className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-secondary/50 transition-colors flex items-start gap-3 ${
+                      !n.read_at ? "bg-primary/5" : ""
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg mt-0.5 flex-shrink-0 ${bg}`}>
+                      <Icon className={`h-3.5 w-3.5 ${text}`} />
                     </div>
-                    {n.body && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className={`text-xs font-medium text-foreground ${!n.read_at ? "font-semibold" : ""}`}>
+                          {n.title}
+                        </p>
+                        {n.priority === "action_required" && (
+                          <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                        )}
+                      </div>
+                      {n.body && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                      )}
+                      <span className="text-[10px] text-muted-foreground mt-1 block">
+                        {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: da })}
+                      </span>
+                    </div>
+                    {dotColor && (
+                      <div className={`h-2 w-2 rounded-full ${dotColor} mt-1.5 flex-shrink-0`} />
                     )}
-                    <span className="text-[10px] text-muted-foreground mt-1 block">
-                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: da })}
-                    </span>
-                  </div>
-                  {dotColor && (
-                    <div className={`h-2 w-2 rounded-full ${dotColor} mt-1.5 flex-shrink-0`} />
+                  </button>
+                );
+              };
+
+              return (
+                <>
+                  {actionable.map(renderCard)}
+                  {informational.length > 0 && actionable.length > 0 && (
+                    <div className="px-4 py-2 border-b border-border bg-muted/30">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Aktivitet
+                      </p>
+                    </div>
                   )}
-                </button>
+                  {informational.map(renderCard)}
+                </>
               );
-            })
+            })()
           )}
         </div>
       </PopoverContent>
