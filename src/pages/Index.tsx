@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar, ArrowRight, Sparkles } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
