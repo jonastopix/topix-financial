@@ -309,8 +309,29 @@ export default function BudgetScenariosTab({
     setEditLabelValue("");
   };
 
+  const isScenarioEmpty = rows.every(r => r.values.every(v => v === 0));
+
   return (
     <div className="space-y-6">
+      {activeScenario !== "base" && isScenarioEmpty && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Dette scenarie er tomt
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Start med en kopi af dit base-budget og justér derfra.
+            </p>
+          </div>
+          <button
+            onClick={() => copyBaseToScenario(activeScenario)}
+            className="shrink-0 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            Kopier fra base
+          </button>
+        </div>
+      )}
+
       {/* Scenario cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {SCENARIOS.map((sc) => {
