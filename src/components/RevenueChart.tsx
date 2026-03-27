@@ -63,6 +63,32 @@ const RevenueChart = () => {
           </Link>
         </div>
       </div>
+      {(() => {
+        const hasResult = chartData.some(d => d.result != null);
+        const items: { color: string; label: string; dashed?: boolean }[] = [
+          { color: "hsl(var(--primary))", label: "Omsætning" },
+          { color: "hsl(var(--destructive))", label: "Udgifter" },
+          ...(hasResult ? [{ color: "hsl(var(--chart-2))", label: "Resultat", dashed: true }] : []),
+        ];
+        return (
+          <div className="flex items-center gap-4 mb-3">
+            {items.map(({ color, label, dashed }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                {dashed ? (
+                  <div className="flex gap-0.5">
+                    <div className="h-0.5 w-2 rounded-full" style={{ background: color }} />
+                    <div className="h-0.5 w-1.5 rounded-full opacity-0" />
+                    <div className="h-0.5 w-2 rounded-full" style={{ background: color }} />
+                  </div>
+                ) : (
+                  <div className="h-0.5 w-4 rounded-full" style={{ background: color }} />
+                )}
+                <span className="text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       <div className="h-64">
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
