@@ -90,8 +90,7 @@ const BudgetOverview = () => {
         <div className="flex-1 space-y-4">
           {rows.map(row => {
             const diff = row.actual - row.budget;
-            const isRevenue = row.label === "Omsætning";
-            const isGood = isRevenue ? diff >= 0 : diff <= 0;
+            const isGood = row.isRevenue ? diff >= 0 : diff <= 0;
             return (
               <div key={row.label}>
                 <div className="flex items-center justify-between mb-1">
@@ -115,6 +114,23 @@ const BudgetOverview = () => {
               </div>
             );
           })}
+          {margin && (
+            <div className="pt-2 border-t border-border/30 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">EBITDA-margin</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">
+                    Budget: {margin.budget.toFixed(1)}%
+                  </span>
+                  <span className={`text-[10px] font-semibold ${
+                    margin.actual >= margin.budget ? "text-primary" : "text-destructive"
+                  }`}>
+                    Actual: {margin.actual.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : state === "no-budget" ? (
         <p className="text-sm text-muted-foreground text-center py-4 flex-1 flex items-center justify-center">
