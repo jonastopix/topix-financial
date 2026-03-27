@@ -38,8 +38,10 @@ export function useAppConfig() {
   const updateConfig = async (key: ConfigKey, value: any) => {
     const { error } = await supabase
       .from("app_config")
-      .update({ config_value: value })
-      .eq("config_key", key);
+      .upsert(
+        { config_key: key, config_value: value, updated_at: new Date().toISOString() },
+        { onConflict: "config_key" }
+      );
     if (error) throw error;
     queryClient.invalidateQueries({ queryKey: ["app-config"] });
   };
