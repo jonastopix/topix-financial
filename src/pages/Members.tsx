@@ -1242,7 +1242,7 @@ const Members = () => {
                     className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
                   >
                     {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-3 items-center">
+                    <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                           {c.logo_url ? (
@@ -1275,11 +1275,6 @@ const Members = () => {
                                 <Send className="h-2.5 w-2.5" /> Afventer
                               </span>
                             )}
-                            {c.unreadCount > 0 && (
-                              <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
-                                {c.unreadCount}
-                              </span>
-                            )}
                           </div>
                           <span className="text-[10px] text-muted-foreground">
                             {c.members.length} {c.members.length === 1 ? "bruger" : "brugere"}
@@ -1289,22 +1284,44 @@ const Members = () => {
                           </span>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground truncate">{c.industry || "–"}</span>
-                      <span className="text-xs text-muted-foreground truncate">{c.contact_person || "–"}</span>
-                      <span className="text-xs text-muted-foreground truncate">{c.city || "–"}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {rev ? formatDKK(rev.value) : "–"}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">{c.reportCount}</span>
-                          {c.committedCount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                              <CheckCircle2 className="h-2.5 w-2.5" />
-                              {c.committedCount}
-                            </span>
-                          )}
-                        </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-foreground">
+                          {c.latestReportPeriod || "—"}
+                        </span>
+                        {c.committedCount > 0 && (
+                          <span className="text-[10px] text-primary">
+                            {c.committedCount} committed
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${
+                          c.hasPulseThisMonth ? "bg-emerald-500" : "bg-muted-foreground/30"
+                        }`} />
+                        <span className="text-xs text-muted-foreground">
+                          {c.hasPulseThisMonth ? "Udfyldt" : "Mangler"}
+                        </span>
+                      </div>
+                      <div>
+                        {c.unreadCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-chart-warning">
+                            <MessageSquare className="h-3 w-3" />
+                            {c.unreadCount}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${
+                          c.committedCount > 0 && c.hasPulseThisMonth ? "bg-emerald-500" :
+                          c.reportCount === 0 ? "bg-muted-foreground/30" :
+                          "bg-amber-400"
+                        }`} title={
+                          c.committedCount > 0 && c.hasPulseThisMonth ? "Klar til session" :
+                          c.reportCount === 0 ? "Ingen rapport" :
+                          "Delvist klar"
+                        } />
                         {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
