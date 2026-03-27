@@ -64,6 +64,7 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
 
   const baseRows = scenarioData.base;
   const hasAnyActuals = Object.keys(actualsMap).length > 0;
+  const isBudgetEmpty = baseRows.every(r => r.values.every(v => v === 0));
 
   const sharedFieldRows = useMemo(() => {
     const fieldCount: Record<string, number> = {};
