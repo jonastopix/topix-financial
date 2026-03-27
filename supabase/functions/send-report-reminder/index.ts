@@ -204,6 +204,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // --- Day gate: only proceed on reminder days ---
+    if (!isReminderDay) {
+      return new Response(JSON.stringify({ skipped: "not a reminder day", day: dayOfMonth }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Set urgency based on day of month
+    const urgencyLevel: Urgency = dayOfMonth >= 20 ? "critical"
+      : dayOfMonth >= 15 ? "urgent"
+      : "gentle";
+
     // --- Normal flow ---
     const { data: companies, error: compErr } = await supabase
       .from("companies").select("id, name, start_date, created_at").eq("status", "active");
