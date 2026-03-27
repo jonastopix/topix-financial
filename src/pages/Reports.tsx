@@ -763,7 +763,34 @@ const Reports = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {dbReports.map((report) => {
+          {availableYears.length >= 2 && (
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <button
+                onClick={() => setYearFilter(null)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                  !yearFilter
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Alle
+              </button>
+              {availableYears.map(year => (
+                <button
+                  key={year}
+                  onClick={() => setYearFilter(year)}
+                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                    yearFilter === year
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          )}
+          {displayedReports.map((report) => {
             const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true || report.status === "error";
             const config = needsManualEntry
               ? { icon: Pencil, label: "Afventer dine tal", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" }
