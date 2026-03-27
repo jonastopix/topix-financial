@@ -4,6 +4,9 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import {
   ArrowLeft,
@@ -61,6 +64,7 @@ interface MemberProfile {
 }
 
 interface CompanyContext {
+  company_id: string;
   name: string;
   industry: string | null;
   cvr_number: string | null;
@@ -170,6 +174,25 @@ const MemberDetail = () => {
   });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const memberCompanyId = companyCtx?.company_id ?? null;
+  const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
+
+  const { data: latestPulse } = useQuery({
+    queryKey: ["pulse-checkin-member", memberCompanyId],
+    queryFn: async () => {
+      if (!memberCompanyId) return null;
+      const { data } = await (supabase
+        .from("pulse_checkins" as any)
+        .select("went_well, biggest_challenge, milestone_progress, created_at, period_key")
+        .eq("company_id", memberCompanyId)
+        .order("created_at", { ascending: false })
+        .limit(1) as any).maybeSingle();
+      return data || null;
+    },
+    enabled: !!memberCompanyId,
+    staleTime: 5 * 60_000,
+  });
+
 
   // Clear deep-link params after consuming
   useEffect(() => {
@@ -238,7 +261,7 @@ const MemberDetail = () => {
         .maybeSingle();
       const cm = cmData as any;
       if (cm?.companies) {
-        setCompanyCtx(cm.companies as CompanyContext);
+        setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
         // Fetch invitation that was accepted by this specific user
         let invData: any = null;
         // Primary: match via accepted_by
@@ -374,7 +397,17 @@ const MemberDetail = () => {
 
   const renderExtractedData = (report: Report) => {
     const isOverridden = hasManualOverride(report as unknown as ReportData);
-    const kf = getEffectiveKeyFigures(report as unknown as ReportData);
+
+    // Prefer committed facts over raw report data
+    const matchingFact = memberFacts.find(f => f.source_report_id === report.id)
+      || memberFacts.find(f => f.period_label === report.report_period);
+
+    let kf: Record<string, number> | null = null;
+    if (matchingFact) {
+      kf = factsToDanishMetrics(matchingFact.metrics);
+    } else {
+      kf = getEffectiveKeyFigures(report as unknown as ReportData);
+    }
 
     if (!kf) {
       return <p className="text-sm text-muted-foreground">Ingen nøgletal fundet</p>;
@@ -734,6 +767,49 @@ const MemberDetail = () => {
               </div>
             )}
           </div>
+
+          {/* Pulse check-in section */}
+          {latestPulse && (
+            <div className="mb-8">
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  Pulse check-in · {(() => {
+                    const [y, m] = (latestPulse.period_key || "").split("-");
+                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                    return `${months[parseInt(m, 10) - 1] || m} ${y}`;
+                  })()}
+                </h3>
+                <div className="space-y-3">
+                  {latestPulse.went_well && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hvad gik godt</p>
+                      <p className="text-sm text-foreground">{latestPulse.went_well}</p>
+                    </div>
+                  )}
+                  {latestPulse.biggest_challenge && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Største udfordring</p>
+                      <p className="text-sm text-foreground">{latestPulse.biggest_challenge}</p>
+                    </div>
+                  )}
+                  {latestPulse.milestone_progress != null && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Milestone fremgang</p>
+                      <p className="text-sm font-medium text-foreground">{latestPulse.milestone_progress}%</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!latestPulse && memberCompanyId && (
+            <div className="mb-8">
+              <div className="glass-card rounded-xl p-5">
+                <p className="text-sm text-muted-foreground">Ingen pulse check-in denne måned endnu.</p>
+              </div>
+            </div>
+          )}
 
           {/* Handouts section */}
           <div className="mb-8">
