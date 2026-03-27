@@ -434,6 +434,20 @@ export default function EmailTemplates() {
           </Button>
         </div>
 
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <div className="flex gap-3">
+            <Info className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
+            <div className="text-sm text-amber-800 space-y-1">
+              <p className="font-medium">Skabeloner overstyrer indbyggede standardmails</p>
+              <p className="text-amber-700">
+                Når en skabelon er aktiveret her, bruges dens indhold i stedet for den indbyggede standardmail.
+                For at nulstille til standarden kan du <strong>slette</strong> eller <strong>deaktivere</strong> skabelonen — 
+                så bruges det indbyggede branded design automatisk.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
