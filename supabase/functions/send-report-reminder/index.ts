@@ -289,8 +289,10 @@ Deno.serve(async (req) => {
           await writeNotification(supabase, {
             user_id: member.user_id,
             type: "report_reminder",
-            priority: "action_required",
-            title: `Rapport for ${expectedPeriod} mangler`,
+            priority: dayOfMonth >= 15 ? "action_required" : "important",
+            title: dayOfMonth >= 15
+              ? `Rapport for ${expectedPeriod} mangler stadig`
+              : `Husk: Upload din rapport for ${expectedPeriod}`,
             body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram — det tager under 2 minutter.`,
             reference_type: "report",
             deep_link: "/reports",
