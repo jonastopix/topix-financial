@@ -1298,8 +1298,24 @@ const Members = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 group/name">
                           <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenamingCompany({ id: c.id, currentName: c.name });
+                              setRenameValue(c.name);
+                            }}
+                            className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0"
+                            title="Omdøb virksomhed"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          {(c.name.toLowerCase().endsWith("s virksomhed") || c.name.toLowerCase() === "ny bruger") && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium shrink-0">
+                              Ret navn
+                            </span>
+                          )}
                           {c.invitationStatus === 'pending' && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
                               <Send className="h-2.5 w-2.5" /> Afventer
