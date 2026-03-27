@@ -122,7 +122,9 @@ const Budget = () => {
       const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
       const loadedLabels: Record<string, string> = {};
       labelMarkers.forEach(m => {
-        const key = m.category.replace("__label__", "");
+        const key = m.category
+          .replace(/__label__\d{4}_/, "")
+          .replace("__label__", "");
         loadedLabels[key] = m.period;
       });
       setLabelOverrides(loadedLabels);

@@ -103,8 +103,8 @@ export default function BudgetScenariosTab({
 
     const toDelete = existing.filter(e =>
       e.period.startsWith(periodPrefix) ||
-      e.category.startsWith("__label__") ||
-      e.category.startsWith("__group__")
+      e.category.startsWith(`__label__${year}_`) ||
+      e.category.startsWith(`__group__${year}_`)
     );
     if (toDelete.length > 0) {
       await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
@@ -123,7 +123,7 @@ export default function BudgetScenariosTab({
     const labelInserts = Object.entries(labelOverrides).map(([key, label]) => ({
       user_id: userId,
       company_id: companyId,
-      category: `__label__${key}`,
+      category: `__label__${year}_${key}`,
       budget_amount: 0,
       period: label,
     }));
@@ -134,7 +134,7 @@ export default function BudgetScenariosTab({
       .map(r => ({
         user_id: userId,
         company_id: companyId,
-        category: `__group__${r.key}`,
+        category: `__group__${year}_${r.key}`,
         budget_amount: 0,
         period: r.group,
       }));
