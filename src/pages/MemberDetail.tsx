@@ -173,7 +173,25 @@ const MemberDetail = () => {
     return searchParams.get("reportId") || null;
   });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
+  const memberCompanyId = companyCtx?.company_id ?? null;
+  const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
+
+  const { data: latestPulse } = useQuery({
+    queryKey: ["pulse-checkin-member", memberCompanyId],
+    queryFn: async () => {
+      if (!memberCompanyId) return null;
+      const { data } = await (supabase
+        .from("pulse_checkins" as any)
+        .select("went_well, biggest_challenge, milestone_progress, created_at, period_key")
+        .eq("company_id", memberCompanyId)
+        .order("created_at", { ascending: false })
+        .limit(1) as any).maybeSingle();
+      return data || null;
+    },
+    enabled: !!memberCompanyId,
+    staleTime: 5 * 60_000,
+  });
+
 
   // Clear deep-link params after consuming
   useEffect(() => {
