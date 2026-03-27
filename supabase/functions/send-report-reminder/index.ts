@@ -78,7 +78,13 @@ Deno.serve(async (req) => {
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const expectedPeriod = `${DANISH_MONTHS[prevMonth.getMonth()]} ${prevMonth.getFullYear()}`;
 
-    console.log(`[send-report-reminder] Period: ${expectedPeriod}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
+    const dayOfMonth = now.getDate();
+
+    // Reminder triggers: day 7 (gentle), day 15 (urgent), day 20 (critical)
+    const REMINDER_DAYS = [7, 15, 20];
+    const isReminderDay = REMINDER_DAYS.includes(dayOfMonth);
+
+    console.log(`[send-report-reminder] Period: ${expectedPeriod} | Day: ${dayOfMonth}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
 
     // --- Fetch template from DB (by name), fallback to hardcoded ---
     let subjectTpl = FALLBACK_SUBJECT;
@@ -119,22 +125,37 @@ Deno.serve(async (req) => {
 
     const reportUrl = "https://topix.lovable.app/reports";
 
+    // Urgency-specific subjects and intros
+    type Urgency = "gentle" | "urgent" | "critical";
+    const urgencySubjects: Record<Urgency, string> = {
+      gentle: `Husk: Upload din rapport for {{period}}`,
+      urgent: `Din rapport for {{period}} mangler stadig`,
+      critical: `Vigtigt: {{period}}-rapport er nu forsinket`,
+    };
+    const urgencyIntros: Record<Urgency, string> = {
+      gentle: `Vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Upload den når du har et øjeblik — det tager under 2 minutter.`,
+      urgent: `Din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at vi har tallene inden boardroom-sessionen.`,
+      critical: `Vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt — kontakt os hvis du har problemer.`,
+    };
+
     // Helper to build email for a specific company
-    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null) {
+    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
       const vars: Record<string, string> = {
         period,
         company_name: companyName,
         report_url: reportUrl,
         first_name: firstName || "dig",
+        intro: urgencyIntros[urgency],
       };
-      const subject = (isTest ? '[TEST] ' : '') + replaceVars(subjectTpl, vars);
+      const urgencySubject = urgencySubjects[urgency];
+      const subject = (isTest ? '[TEST] ' : '') + replaceVars(urgencySubject, vars);
       const html = replaceVars(bodyTpl, vars);
       return { subject, html };
     }
 
     // Helper to enqueue a reminder email
-    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null) {
-      const { subject, html } = buildEmail(companyName, period, isTest, firstName);
+    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
+      const { subject, html } = buildEmail(companyName, period, isTest, firstName, urgency);
       const messageId = crypto.randomUUID();
 
       await supabase.from('email_send_log').insert({
@@ -182,6 +203,18 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // --- Day gate: only proceed on reminder days ---
+    if (!isReminderDay) {
+      return new Response(JSON.stringify({ skipped: "not a reminder day", day: dayOfMonth }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Set urgency based on day of month
+    const urgencyLevel: Urgency = dayOfMonth >= 20 ? "critical"
+      : dayOfMonth >= 15 ? "urgent"
+      : "gentle";
 
     // --- Normal flow ---
     const { data: companies, error: compErr } = await supabase
@@ -256,20 +289,22 @@ Deno.serve(async (req) => {
           await writeNotification(supabase, {
             user_id: member.user_id,
             type: "report_reminder",
-            priority: "action_required",
-            title: `Rapport for ${expectedPeriod} mangler`,
+            priority: dayOfMonth >= 15 ? "action_required" : "important",
+            title: dayOfMonth >= 15
+              ? `Rapport for ${expectedPeriod} mangler stadig`
+              : `Husk: Upload din rapport for ${expectedPeriod}`,
             body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram — det tager under 2 minutter.`,
             reference_type: "report",
             deep_link: "/reports",
             company_id: company.id,
-            dedup_key: `report_reminder:${company.id}:${expectedPeriodKey}`,
+            dedup_key: `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`,
           });
           // Mark email_sent_at immediately since this function already sends the email
           await supabase
             .from("notifications")
             .update({ email_sent_at: new Date().toISOString() })
             .eq("user_id", member.user_id)
-            .eq("dedup_key", `report_reminder:${company.id}:${expectedPeriodKey}`);
+            .eq("dedup_key", `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`);
         } catch (notifErr) {
           console.error(`[Phase2] report_reminder notification error (non-blocking):`, notifErr);
         }
@@ -281,7 +316,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          await enqueueReminder(email, company.name, expectedPeriod, false, memberFirstName);
+          await enqueueReminder(email, company.name, expectedPeriod, false, memberFirstName, urgencyLevel);
           console.log(`[LIVE] Enqueued for: ${email} (${company.name})`);
           sent++;
         } catch (e) {
