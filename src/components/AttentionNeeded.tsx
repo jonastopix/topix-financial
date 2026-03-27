@@ -6,7 +6,6 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { DANISH_MONTHS, getEffectiveReportPeriodKey, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 
 interface AttentionItem {
@@ -34,10 +33,10 @@ const urgencyBorder = {
 
 const AttentionNeeded = () => {
   const { user, companyId } = useAuth();
-  const { meetings } = useAppConfig();
+  
 
   const { data: items = [] } = useQuery({
-    queryKey: ["attention-needed", companyId, user?.id, meetings.next_meeting_date],
+    queryKey: ["attention-needed", companyId, user?.id],
     queryFn: async () => {
       const attentionItems: AttentionItem[] = [];
       const now = new Date();
@@ -138,27 +137,7 @@ const AttentionNeeded = () => {
         }
       }
 
-      // Check: Upcoming board meeting — use admin-configured date if available
-      const meetingDate = meetings.next_meeting_date
-        ? new Date(meetings.next_meeting_date)
-        : null;
-      if (meetingDate) {
-        const daysUntilMeeting = Math.ceil(
-          (meetingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (daysUntilMeeting <= 7 && daysUntilMeeting > 0) {
-          attentionItems.push({
-            id: "upcoming-meeting",
-            type: "milestone",
-            title: "Boardroom-session nærmer sig",
-            description: `${daysUntilMeeting} dag${daysUntilMeeting > 1 ? "e" : ""} til næste møde — opdater dine milestones`,
-            urgency: daysUntilMeeting <= 2 ? "high" : "medium",
-            action: "Forbered mig",
-            link: "/milestones",
-            daysLeft: daysUntilMeeting,
-          });
-        }
-      }
+
 
 
       // Check: no pulse check-in this month
