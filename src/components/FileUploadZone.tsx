@@ -1074,6 +1074,17 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
                   )}
                 </div>
               );
+              }
+              
+              // Only show warning if truly not deterministic AND not PASS
+              return (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                    Vi er ikke sikre på alle tal — gennemgå dem inden godkendelse.
+                  </p>
+                </div>
+              );
             })()}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
