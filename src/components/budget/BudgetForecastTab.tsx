@@ -111,6 +111,60 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
 
   // Business event simulator
   const [events, setEvents] = useState<SimEvent[]>([]);
+
+  // Load saved events from DB
+  useEffect(() => {
+    if (!companyId) return;
+    (async () => {
+      const { data } = await (supabase
+        .from("budget_targets")
+        .select("category, period, budget_amount") as any)
+        .eq("company_id", companyId)
+        .like("category", `__sim_event__${year}_%`);
+
+      if (!data?.length) return;
+
+      const loaded: SimEvent[] = data.map((row: any) => {
+        try {
+          return JSON.parse(row.period) as SimEvent;
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      if (loaded.length > 0) setEvents(loaded);
+    })();
+  }, [companyId, year]);
+
+  // Persist events to DB with debounce
+  useEffect(() => {
+    if (!companyId || !userId) return;
+
+    const save = async () => {
+      await (supabase
+        .from("budget_targets")
+        .delete() as any)
+        .eq("company_id", companyId)
+        .like("category", `__sim_event__${year}_%`);
+
+      if (events.length === 0) return;
+
+      const inserts = events.map((event, idx) => ({
+        user_id: userId,
+        company_id: companyId,
+        category: `__sim_event__${year}_${idx}`,
+        budget_amount: event.monthlyCost,
+        period: JSON.stringify(event),
+      }));
+
+      await (supabase
+        .from("budget_targets")
+        .insert(inserts) as any);
+    };
+
+    const timer = setTimeout(save, 1000);
+    return () => clearTimeout(timer);
+  }, [events, companyId, userId, year]);
   const [addingEvent, setAddingEvent] = useState(false);
   const [newEventType, setNewEventType] = useState<SimEvent["type"]>("hire");
   const [newEventCost, setNewEventCost] = useState(40000);
