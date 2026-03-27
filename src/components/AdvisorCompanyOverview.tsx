@@ -237,7 +237,7 @@ const AdvisorCompanyOverview = () => {
         previous,
         bankReport,
         bankPrevious,
-        missingReport,
+        
         assignedName,
         revenueTimeline,
       };
