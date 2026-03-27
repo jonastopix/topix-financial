@@ -323,7 +323,7 @@ const Dashboard = () => {
         <AttentionNeeded />
       </div>
 
-      {hasReports && !isAdvisor && (
+      {hasReports && !isAdvisor && storedMeetingDate && daysUntilMeeting !== null && daysUntilMeeting > 0 && (
         <div className="mb-6">
           <div className="glass-card rounded-xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
