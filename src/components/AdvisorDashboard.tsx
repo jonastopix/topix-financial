@@ -828,21 +828,25 @@ const AdvisorDashboard = () => {
                           )}
                           {/* Engagement */}
                           <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1 justify-center">
+                            <div className="flex items-center gap-1">
                               {[
-                                { active: hasCurrentReport, color: "bg-primary", title: "Rapport" },
-                                { active: hasPulse30, color: "bg-chart-info", title: "Pulse" },
-                                { active: hasChat, color: "bg-purple-500", title: "Chat" },
-                                { active: hasMilestones, color: "bg-chart-warning", title: "Milestones" },
-                                { active: hasKpiTargets, color: "bg-teal-500", title: "KPI mål" },
+                                { active: hasCurrentReport, color: "bg-primary", label: "R", title: "Rapport" },
+                                { active: hasPulse30, color: "bg-chart-info", label: "P", title: "Pulse" },
+                                { active: hasChat, color: "bg-purple-500", label: "C", title: "Chat" },
+                                { active: hasMilestones, color: "bg-chart-warning", label: "M", title: "Milestones" },
+                                { active: hasKpiTargets, color: "bg-teal-500", label: "K", title: "KPI" },
                               ].map((dot, i) => (
-                                <div
+                                <span
                                   key={i}
                                   title={dot.title}
-                                  className={`h-2 w-2 rounded-full transition-colors ${
-                                    dot.active ? dot.color : "bg-muted-foreground/15"
+                                  className={`inline-flex items-center justify-center h-4 w-4 rounded text-[8px] font-bold transition-colors ${
+                                    dot.active
+                                      ? `${dot.color} text-white`
+                                      : "bg-muted-foreground/10 text-muted-foreground/30"
                                   }`}
-                                />
+                                >
+                                  {dot.label}
+                                </span>
                               ))}
                             </div>
                           </td>
