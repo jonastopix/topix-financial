@@ -187,12 +187,54 @@ const AdvisorDashboard = () => {
         };
       });
 
+      // Build activity feed
+      interface ActivityEvent {
+        id: string;
+        type: "report_uploaded" | "report_committed" | "pulse";
+        companyId: string;
+        companyName: string;
+        label: string;
+        timestamp: string;
+      }
+      const activityEvents: ActivityEvent[] = [];
+
+      for (const r of (recentReportsRes.data || []) as any[]) {
+        const name = companyMap.get(r.company_id)?.name || "Ukendt";
+        activityEvents.push({
+          id: `report-${r.id}`,
+          type: "report_uploaded",
+          companyId: r.company_id,
+          companyName: name,
+          label: `Rapport uploadet${r.report_period ? ` · ${r.report_period}` : ""}`,
+          timestamp: r.uploaded_at,
+        });
+      }
+
+      for (const f of (recentFactsRes.data || []) as any[]) {
+        const name = companyMap.get(f.company_id)?.name || "Ukendt";
+        activityEvents.push({
+          id: `fact-${f.company_id}-${f.period_key}`,
+          type: "report_committed",
+          companyId: f.company_id,
+          companyName: name,
+          label: `Tal godkendt · ${f.period_key}`,
+          timestamp: f.committed_at,
+        });
+      }
+
+      const seen = new Set<string>();
+      const activityFeed = activityEvents
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+        .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
+        .slice(0, 10);
+
       return {
         actionQueue,
         overdueFollowUps,
         upcomingFollowUps,
         groupSummaries,
         companyMap,
+        activityFeed,
       };
     },
     enabled: !!user,
@@ -204,6 +246,7 @@ const AdvisorDashboard = () => {
   const upcomingFollowUps = data?.upcomingFollowUps || [];
   const groupSummaries = data?.groupSummaries || [];
   const companyMap = data?.companyMap || new Map();
+  const activityFeed = data?.activityFeed || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
