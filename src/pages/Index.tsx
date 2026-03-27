@@ -80,6 +80,12 @@ const Dashboard = () => {
     // Already sorted by period_key from the hook
   }, [facts]);
 
+  const latestCommentary = useMemo(() => {
+    if (commentaries.length === 0 || sorted.length === 0) return null;
+    const latestPeriodKey = sorted[sorted.length - 1].key;
+    return commentaries.find(c => c.period_key === latestPeriodKey && !c.is_stale) || null;
+  }, [commentaries, sorted]);
+
   // ── Derive KPI data from sorted facts ──
   const dashboardData = useMemo(() => {
     let kpiData = {
