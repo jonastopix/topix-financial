@@ -498,7 +498,7 @@ const FileUploadZone = ({
                   description: "PDF-strukturen kunne ikke læses — du kan indtaste tallene manuelt",
                 });
               } else {
-                console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
+                
               }
             }
           }
