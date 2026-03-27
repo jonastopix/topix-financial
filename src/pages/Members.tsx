@@ -196,7 +196,9 @@ const Members = () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes] = await Promise.all([
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
       supabase.from("companies" as any).select("*"),
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
@@ -207,6 +209,7 @@ const Members = () => {
       supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
       supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
       supabase.from("financial_report_facts" as any).select("company_id, period_key"),
+      (supabase.from("pulse_checkins" as any).select("company_id, period_key").gte("created_at", monthStart) as any),
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
