@@ -414,6 +414,15 @@ const Dashboard = () => {
           <RevenueChart />
         </div>
       </div>
+      <div className="flex justify-end mb-6 -mt-3">
+        <Link
+          to="/kpis"
+          className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+        >
+          Se detaljeret finansiel oversigt
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
 
       {/* 3-column snapshot grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
