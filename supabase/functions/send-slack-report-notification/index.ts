@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
           type: "pulse_checkin_received",
           priority: "info",
           title: `${companyName} har udfyldt pulse check-in for ${periodLabel}`,
-          body: `Læs hvad der gik godt og hvad der er den største udfordring inden jeres næste session.`,
+          body: `Læs hvad der gik godt og hvad der er den største udfordring — så I kan give dem den bedste sparring.`,
           reference_type: "pulse",
           company_id: pulseCompanyId,
           deep_link: `/members?companyId=${pulseCompanyId}`,
