@@ -808,8 +808,11 @@ const Reports = () => {
             </div>
           )}
           {displayedReports.map((report) => {
-            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true || report.status === "error";
-            const config = needsManualEntry
+            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true;
+            const isTrueError = report.status === "error" && !needsManualEntry;
+            const config = isTrueError
+              ? { icon: AlertCircle, label: "Ikke genkendt", className: "text-destructive", bg: "bg-destructive/10" }
+              : needsManualEntry
               ? { icon: Pencil, label: "Afventer dine tal", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" }
               : (statusConfig[report.status] || statusConfig.processing);
             const Icon = config.icon;
@@ -819,7 +822,7 @@ const Reports = () => {
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (
-              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className={`bg-card border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300 ${needsManualEntry ? "border-amber-300/50 dark:border-amber-500/30" : "border-border"}`}>
+              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className={`bg-card border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300 ${needsManualEntry ? "border-amber-300/50 dark:border-amber-500/30" : isTrueError ? "border-destructive/30" : "border-border"}`}>
                 <button
                   onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                   className="w-full p-5 text-left hover:bg-secondary/30 transition-colors"
@@ -931,6 +934,17 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-4">
+                    {/* True error guidance */}
+                    {isTrueError && (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <p className="text-sm text-destructive font-medium mb-1">
+                          Filen blev ikke genkendt som en finansiel rapport
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Slet denne rapport og upload en resultatopgørelse eller saldobalance fra dit regnskabsprogram.
+                        </p>
+                      </div>
+                    )}
                     {/* Manual entry guidance */}
                     {needsManualEntry && !getEffectiveMetrics(report as unknown as ReportData) && (
                       <div className="rounded-lg border border-amber-300/40 bg-amber-50/50 dark:border-amber-500/20 dark:bg-amber-950/10 p-3">
@@ -958,7 +972,7 @@ const Reports = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        {needsManualEntry && (
+                        {needsManualEntry && !isTrueError && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
                             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
