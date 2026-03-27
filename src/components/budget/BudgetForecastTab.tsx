@@ -334,14 +334,21 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
           <h2 className="font-display font-semibold text-foreground">
             Scenariesimulator
           </h2>
-          {events.length > 0 && (
-            <button
-              onClick={() => setEvents([])}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Nulstil alle
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {events.length > 0 && (
+              <span className="text-[10px] text-muted-foreground/60">
+                Gemt automatisk
+              </span>
+            )}
+            {events.length > 0 && (
+              <button
+                onClick={() => setEvents([])}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Nulstil alle
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-xs text-muted-foreground mb-6">
           Tilføj konkrete business-hændelser og se effekten på dit helårsresultat.

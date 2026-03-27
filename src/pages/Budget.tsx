@@ -472,6 +472,7 @@ const Budget = () => {
             rows={rows}
             year={year}
             companyId={companyId || undefined}
+            userId={user?.id}
           />
         </TabsContent>
 
