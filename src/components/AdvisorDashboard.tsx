@@ -422,8 +422,8 @@ const AdvisorDashboard = () => {
           const prev = periodMap.get(sortedKeys[sortedKeys.length - 2]);
           const latestRev = latest?.omsaetning;
           const prevRev = prev?.omsaetning;
-          if (latestRev != null && prevRev != null && prevRev !== 0) {
-            revenueTrendByCompany.set(compId, ((latestRev - prevRev) / Math.abs(prevRev)) * 100);
+          if (latestRev != null && prevRev != null && latestRev > 0 && prevRev > 0) {
+            revenueTrendByCompany.set(compId, ((latestRev - prevRev) / prevRev) * 100);
           } else {
             revenueTrendByCompany.set(compId, null);
           }
