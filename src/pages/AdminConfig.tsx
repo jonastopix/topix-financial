@@ -664,6 +664,62 @@ const AdminConfig = () => {
             </div>
           </div>
         </section>
+
+        {/* ─── Møder ───────────────────────────────────────── */}
+        <section className="glass-card rounded-xl p-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-primary" />
+              <h2 className="font-display font-semibold text-foreground">Næste boardroom-session</h2>
+            </div>
+            {meetingDate && (
+              <button
+                onClick={() => handleSaveMeetingDate(undefined)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Fjern dato
+              </button>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground mb-4">
+            Sæt datoen for næste boardroom-session. Medlemmer ser en nedtælling på deres dashboard.
+          </p>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal",
+                  !meetingDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {meetingDate
+                  ? format(meetingDate, "EEEE d. MMMM yyyy", { locale: da })
+                  : "Vælg mødedato..."}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={meetingDate}
+                onSelect={(date) => handleSaveMeetingDate(date)}
+                disabled={(date) => date < new Date()}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+
+          {meetingDate && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Gemmes automatisk når du vælger en dato.
+            </p>
+          )}
+        </section>
       </div>
     </AppLayout>
   );
