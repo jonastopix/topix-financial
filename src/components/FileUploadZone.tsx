@@ -219,7 +219,7 @@ async function extractPdfPageImages(file: File): Promise<string[]> {
     const base64 = dataUrl.split(",")[1];
     images.push(base64);
   }
-  console.log(`PDF rendered ${images.length} page images`);
+  
   return images;
 }
 
