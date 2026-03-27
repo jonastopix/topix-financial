@@ -324,7 +324,7 @@ const CompanyChatPane = () => {
         convsQuery = convsQuery.eq("member_id", user.id);
       }
 
-      const [convsRes, profilesRes, msgsRes, reportsRes] = await Promise.all([
+      const [convsRes, profilesRes, msgsRes, reportsRes, groupCompaniesRes] = await Promise.all([
         convsQuery,
         supabase.from("profiles").select("user_id, full_name, company_name, avatar_url"),
         supabase
@@ -340,12 +340,31 @@ const CompanyChatPane = () => {
               .is("reviewed_at", null)
               .order("uploaded_at", { ascending: false })
           : Promise.resolve({ data: [] }),
+        isAdvisor
+          ? (supabase
+              .from("group_companies" as any)
+              .select("company_id, group_id, groups:group_id(anchor_company_id)") as any)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const convs = convsRes.data || [];
       const profiles = profilesRes.data || [];
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
+
+      // Build set of sub-company IDs (in a group but NOT the anchor)
+      const groupSubCompanyIds = new Set<string>();
+      for (const row of (groupCompaniesRes.data || []) as any[]) {
+        const anchorId = (row as any).groups?.anchor_company_id;
+        if (anchorId && row.company_id !== anchorId) {
+          groupSubCompanyIds.add(row.company_id);
+        }
+      }
+
+      // For advisors: filter out conversations from group sub-companies
+      const filteredConvs = isAdvisor
+        ? convs.filter((c: any) => !c.company_id || !groupSubCompanyIds.has(c.company_id))
+        : convs;
 
       const pMap = new Map<string, { full_name: string; avatar_url: string | null }>();
       profiles.forEach(p => pMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url || null }));
@@ -355,7 +374,7 @@ const CompanyChatPane = () => {
 
       const reportsByCompany = new Map<string, { name: string; ids: string[] }>();
       recentReports.forEach((r: any) => {
-        const userConv = convs.find((c: any) => c.member_id === r.user_id);
+        const userConv = filteredConvs.find((c: any) => c.member_id === r.user_id);
         const cid = userConv?.company_id;
         if (cid) {
           const existing = reportsByCompany.get(cid);
@@ -374,7 +393,7 @@ const CompanyChatPane = () => {
         msgsByConv.set(m.conversation_id, arr);
       });
 
-      const enriched: ConversationWithProfile[] = convs.map((c: any) => {
+      const enriched: ConversationWithProfile[] = filteredConvs.map((c: any) => {
         const profile = profiles.find((p) => p.user_id === c.member_id) || null;
         const convMsgs = msgsByConv.get(c.id) || [];
         const lastMsg = convMsgs[0];
@@ -1272,6 +1291,31 @@ const CompanyChatPane = () => {
       setMessages(prev => prev.filter(m => m.id !== messageId));
     }
   };
+
+  // Sub-company member redirect: if member has no conversations and is in a group
+  if (!isAdvisor && !viewingAsMember && conversations.length === 0 && companyId && !activeConvId) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-12">
+        <div className="p-4 rounded-2xl bg-primary/10 mb-4">
+          <MessageCircle className="h-7 w-7 text-primary" />
+        </div>
+        <h3 className="text-base font-display font-semibold text-foreground mb-2">
+          Brug koncern-chatten
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-sm mb-4">
+          Som del af en koncern kommunikerer I med jeres rådgivere
+          via den fælles koncern-chat.
+        </p>
+        <button
+          onClick={() => navigate("/chat")}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground
+            text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Åbn koncern-chat →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
