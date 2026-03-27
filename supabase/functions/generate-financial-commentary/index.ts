@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
     };
 
     // 4b. Fetch budget for the same period to enrich AI analysis
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const periodYear = period_key.split("-")[0];
     const periodMonth = parseInt(period_key.split("-")[1], 10) - 1;
 
