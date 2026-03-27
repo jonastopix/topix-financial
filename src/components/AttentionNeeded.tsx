@@ -151,35 +151,6 @@ const AttentionNeeded = () => {
         });
       }
 
-      // Check: Latest committed report has AI commentary older than 7 days
-      if (companyId) {
-        const { data: latestReport } = await (supabase
-          .from("financial_reports")
-          .select("id, processed_at, manual_override_note")
-          .eq("company_id", companyId)
-          .eq("status", "processed")
-          .is("deleted_at", null)
-          .order("uploaded_at", { ascending: false })
-          .limit(1) as any).maybeSingle();
-
-        if (latestReport?.processed_at && !latestReport.manual_override_note) {
-          const processedDate = new Date(latestReport.processed_at);
-          const daysSinceProcessed = Math.floor(
-            (now.getTime() - processedDate.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          if (daysSinceProcessed >= 7) {
-            attentionItems.push({
-              id: "ai-analysis-waiting",
-              type: "chat",
-              title: "Din AI-analyse venter på din reaktion",
-              description: "Læs analysen og tilføj dine egne kommentarer til tallene",
-              urgency: "low",
-              action: "Læs analyse",
-              link: "/reports",
-            });
-          }
-        }
-      }
 
       // Check: no pulse check-in this month
       if (companyId) {
