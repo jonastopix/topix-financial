@@ -614,9 +614,381 @@ const MemberDetail = () => {
           </div>
           </div>
 
-          {/* Delivery Overview */}
+          {/* Advisor overview */}
+          <div className="glass-card rounded-xl p-5 mb-6 border border-border/50">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+              Advisor-overblik
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Seneste rapport</p>
+                {reports.length > 0 ? (
+                  <p className="text-sm font-semibold text-foreground">
+                    {reports[0].report_period || "Uploadet"}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground/60">Ingen endnu</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Seneste pulse</p>
+                {latestPulse ? (
+                  <p className="text-sm font-semibold text-foreground">
+                    {(() => {
+                      const [y, m] = (latestPulse.period_key || "").split("-");
+                      const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                      return `${months[parseInt(m, 10) - 1] || m} ${y}`;
+                    })()}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground/60">Ingen endnu</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Aktive milestones</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {milestones.filter(m => m.status !== "completed").length}
+                  <span className="text-muted-foreground font-normal">
+                    {" "}/ {milestones.length} total
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Handouts</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {handoutSummaries.filter(h => h.progress >= 80).length}
+                  <span className="text-muted-foreground font-normal">
+                    {" "}/ {handoutSummaries.length} fulgt
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-3 border-t border-border/30">
+              {latestPulse?.biggest_challenge && (
+                <div className="flex items-start gap-2.5">
+                  <div className="h-5 w-5 rounded bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[9px] font-bold text-destructive">!</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
+                      Største udfordring (pulse)
+                    </p>
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {latestPulse.biggest_challenge}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {milestones.filter(m =>
+                m.deadline && new Date(m.deadline) < new Date() &&
+                m.status !== "completed"
+              ).length > 0 && (
+                <div className="flex items-start gap-2.5">
+                  <div className="h-5 w-5 rounded bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[9px] font-bold text-amber-600">M</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
+                      Overskredte milestones
+                    </p>
+                    <p className="text-sm text-foreground">
+                      {milestones
+                        .filter(m => m.deadline && new Date(m.deadline) < new Date()
+                          && m.status !== "completed")
+                        .map(m => m.title)
+                        .join(" · ")
+                      }
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {handoutSummaries.some(h => h.levers.length > 0) && (
+                <div className="flex items-start gap-2.5">
+                  <div className="h-5 w-5 rounded bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[9px] font-bold text-primary">L</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
+                      Valgte løftestænger
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {handoutSummaries
+                        .flatMap(h => h.levers)
+                        .slice(0, 5)
+                        .map((lever, i) => (
+                          <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                            {lever}
+                          </span>
+                        ))
+                      }
+                      {handoutSummaries.flatMap(h => h.levers).length > 5 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          +{handoutSummaries.flatMap(h => h.levers).length - 5} flere
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!latestPulse?.biggest_challenge &&
+               milestones.filter(m => m.deadline && new Date(m.deadline) < new Date()
+                 && m.status !== "completed").length === 0 &&
+               !handoutSummaries.some(h => h.levers.length > 0) && (
+                <p className="text-xs text-muted-foreground italic">
+                  Ingen fremhævede samtaleemner — se sektionerne nedenfor.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/30">
+              <Link
+                to={`/chat`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                Skriv besked
+              </Link>
+              <span className="text-xs text-muted-foreground">
+                {reports.length > 0
+                  ? `${reports.length} rapporter uploadet`
+                  : "Ingen rapporter endnu"
+                }
+              </span>
+            </div>
+          </div>
+
+          {/* Pulse check-in section */}
+          {latestPulse && (
+            <div className="mb-8">
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  Pulse check-in · {(() => {
+                    const [y, m] = (latestPulse.period_key || "").split("-");
+                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                    return `${months[parseInt(m, 10) - 1] || m} ${y}`;
+                  })()}
+                </h3>
+                <div className="space-y-3">
+                  {latestPulse.went_well && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hvad gik godt</p>
+                      <p className="text-sm text-foreground">{latestPulse.went_well}</p>
+                    </div>
+                  )}
+                  {latestPulse.biggest_challenge && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Største udfordring</p>
+                      <p className="text-sm text-foreground">{latestPulse.biggest_challenge}</p>
+                    </div>
+                  )}
+                  {latestPulse.milestone_progress != null && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Milestone fremgang</p>
+                      <p className="text-sm font-medium text-foreground">{latestPulse.milestone_progress}%</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!latestPulse && memberCompanyId && (
+            <div className="glass-card rounded-xl p-5 mb-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-0.5">
+                    Ingen pulse check-in endnu
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Bed member om at udfylde deres månedlige pulse check-in.
+                  </p>
+                </div>
+                <Link
+                  to="/chat"
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                >
+                  Send reminder →
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Milestones section */}
           <div className="mb-8">
-            <DeliveryOverview reports={reports} />
+            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              Milestones
+            </h2>
+
+            {milestones.length === 0 ? (
+              <div className="glass-card rounded-xl p-8 text-center">
+                <Target className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Ingen milestones oprettet endnu</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {milestones.map((m) => {
+                  const isCompleted = m.status === "completed";
+                  const isOverdue = m.deadline && new Date(m.deadline) < new Date() && !isCompleted;
+
+                  return (
+                    <div key={m.id} className="glass-card rounded-xl p-4 animate-fade-in">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 p-2 rounded-lg flex-shrink-0 ${isCompleted ? "bg-primary/10" : isOverdue ? "bg-destructive/10" : "bg-muted"}`}>
+                          {isCompleted ? (
+                            <CheckCircle2 className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Target className={`h-4 w-4 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-sm font-medium ${isCompleted ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {m.title}
+                            </p>
+                            {m.source === "ai" && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                AI-foreslået
+                              </span>
+                            )}
+                            {isOverdue && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                Overskredet
+                              </span>
+                            )}
+                          </div>
+                          {m.description && (
+                            <p className="text-xs text-muted-foreground mt-1">{m.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 mt-2">
+                            {m.deadline && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(m.deadline), "d. MMM yyyy", { locale: da })}
+                              </span>
+                            )}
+                            {m.source_report && (
+                              <span className="text-xs text-muted-foreground">· {m.source_report}</span>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${isCompleted ? "bg-primary" : isOverdue ? "bg-destructive" : "bg-primary/70"}`}
+                                style={{ width: `${m.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground font-medium w-8 text-right">{m.progress}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Budget section */}
+          <div className="mb-8">
+            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" />
+              Budget
+            </h2>
+
+            {budgets.length === 0 ? (
+              <div className="glass-card rounded-xl p-8 text-center">
+                <Wallet className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Intet budget opsat endnu</p>
+              </div>
+            ) : (() => {
+              const summary = buildBudgetSummary(budgets);
+              const totalRevenue = summary.find(s => s.group === "indtaegter")?.total ?? 0;
+              const totalCosts = summary.filter(s => s.group !== "indtaegter").reduce((s, g) => s + g.total, 0);
+              const ebitda = totalRevenue - totalCosts;
+              const margin = totalRevenue > 0 ? (ebitda / totalRevenue) * 100 : 0;
+
+              if (summary.length === 0) {
+                return (
+                  <div className="glass-card rounded-xl p-6 text-center">
+                    <p className="text-sm text-muted-foreground">Budget er opsat men ikke udfyldt</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="glass-card rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-3 gap-3 p-4 bg-secondary/30 border-b border-border">
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Omsætning</p>
+                      <p className="text-sm font-display font-bold text-foreground">
+                        {formatDKK(totalRevenue)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">EBITDA</p>
+                      <p className={`text-sm font-display font-bold ${ebitda >= 0 ? "text-primary" : "text-destructive"}`}>
+                        {formatDKK(ebitda)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Margin</p>
+                      <p className={`text-sm font-display font-bold ${margin >= 0 ? "text-primary" : "text-destructive"}`}>
+                        {margin.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-border/30">
+                    {summary.map(group => (
+                      <div key={group.group} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs text-muted-foreground">{group.label}</span>
+                        <span className={`text-xs font-semibold ${group.isRevenue ? "text-primary" : "text-foreground"}`}>
+                          {formatDKK(group.total)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Handouts section */}
+          <div className="mb-8">
+            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Handouts
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {handoutSummaries.map(s => {
+                const config = handoutConfigs[s.module];
+                const statusInfo = handoutStatusLabels[s.status];
+                return (
+                  <button
+                    key={s.module}
+                    onClick={() => setActiveHandout(s.module)}
+                    className="glass-card rounded-xl p-4 text-left hover:ring-2 hover:ring-primary/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-foreground">{config.title}</h3>
+                      <Badge variant={statusInfo.variant} className="text-[10px]">{statusInfo.label}</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground">Udfyldt</span>
+                        <span className="font-medium text-foreground">{s.progress}%</span>
+                      </div>
+                      <Progress value={s.progress} className="h-1.5" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Reports section */}
