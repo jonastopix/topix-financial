@@ -557,7 +557,7 @@ const FileUploadZone = ({
               aiData?.error?.includes("Deterministic parsing failed");
 
             if (isKnownFallback) {
-              console.log("[Upload] Known fallback path detected, continuing to pipeline:", aiData?.status);
+              
               extractedData = aiData;
             } else {
               const friendlyMsg = getFriendlyErrorMessage(aiData);
