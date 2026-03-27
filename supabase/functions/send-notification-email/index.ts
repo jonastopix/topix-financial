@@ -113,6 +113,15 @@ Deno.serve(async (req) => {
       "report_uploaded",
     ]);
 
+    // Fetch notification email preferences per user
+    const { data: profileRows } = await admin
+      .from("profiles")
+      .select("user_id, notification_email_prefs")
+      .in("user_id", userIds);
+    const prefsByUser = new Map(
+      (profileRows || []).map((p: any) => [p.user_id, p.notification_email_prefs])
+    );
+
     // Fetch daily email counts per user
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -148,6 +157,21 @@ Deno.serve(async (req) => {
         console.log(`[advisor-skip] Skipping email for advisor ${notif.user_id}, type=${notif.type}`);
         skipped++;
         continue;
+      }
+
+      // User email preference opt-out
+      const userPrefs = prefsByUser.get(notif.user_id);
+      if (userPrefs) {
+        const priorityKey = notif.priority as string;
+        if ((userPrefs as any)[priorityKey] === false) {
+          await admin
+            .from("notifications")
+            .update({ email_sent_at: new Date().toISOString() })
+            .eq("id", notif.id);
+          console.log(`[pref-optout] User ${notif.user_id} opted out of ${priorityKey} emails`);
+          skipped++;
+          continue;
+        }
       }
 
       // Get user email

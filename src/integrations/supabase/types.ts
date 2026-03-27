@@ -1728,6 +1728,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          notification_email_prefs: Json | null
           onboarded_at: string | null
           tour_completed_at: string | null
           updated_at: string
@@ -1740,6 +1741,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          notification_email_prefs?: Json | null
           onboarded_at?: string | null
           tour_completed_at?: string | null
           updated_at?: string
@@ -1752,6 +1754,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          notification_email_prefs?: Json | null
           onboarded_at?: string | null
           tour_completed_at?: string | null
           updated_at?: string

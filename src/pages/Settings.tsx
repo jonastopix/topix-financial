@@ -34,6 +34,11 @@ const Settings = () => {
   const [leaving, setLeaving] = useState(false);
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [emailPrefs, setEmailPrefs] = useState({
+    action_required: true,
+    important: true,
+  });
+  const [savingPrefs, setSavingPrefs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -63,6 +68,13 @@ const Settings = () => {
       setFullName(profile.full_name || "");
       setCompanyName(profile.company_name || "");
       setAvatarUrl(profile.avatar_url || null);
+      const prefs = (profile as any)?.notification_email_prefs;
+      if (prefs) {
+        setEmailPrefs({
+          action_required: prefs.action_required !== false,
+          important: prefs.important !== false,
+        });
+      }
     }
   }, [profile]);
 
@@ -607,6 +619,62 @@ const Settings = () => {
 
         {/* Linked login methods */}
         <LinkedLoginMethods />
+
+        {/* Email notification preferences */}
+        {!isAdvisor && !isAdmin && (
+          <div className="glass-card rounded-xl p-6 animate-fade-in">
+            <h2 className="font-display font-semibold text-foreground mb-1">
+              Email-notifikationer
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Vælg hvilke emails du vil modtage. App-notifikationer påvirkes ikke.
+            </p>
+            <div className="space-y-3">
+              {[
+                { key: "action_required", label: "Vigtige handlinger", desc: "Rapport klar til gennemgang, manuel indtastning påkrævet" },
+                { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet" },
+              ].map(({ key, label, desc }) => (
+                <div key={key} className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{label}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                  <button
+                    onClick={() => setEmailPrefs(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
+                      transition-colors duration-200 focus:outline-none mt-0.5
+                      ${emailPrefs[key as keyof typeof emailPrefs] ? "bg-primary" : "bg-muted"}`}
+                    role="switch"
+                    aria-checked={emailPrefs[key as keyof typeof emailPrefs]}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
+                      transition-transform duration-200
+                      ${emailPrefs[key as keyof typeof emailPrefs] ? "translate-x-4" : "translate-x-0"}`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={async () => {
+                if (!user) return;
+                setSavingPrefs(true);
+                await supabase
+                  .from("profiles")
+                  .update({ notification_email_prefs: emailPrefs } as any)
+                  .eq("user_id", user.id);
+                setSavingPrefs(false);
+                toast.success("Notifikationsindstillinger gemt");
+              }}
+              disabled={savingPrefs}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg 
+                bg-primary text-primary-foreground text-sm font-medium 
+                hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {savingPrefs ? "Gemmer..." : "Gem indstillinger"}
+            </button>
+          </div>
+        )}
 
         {/* Account info */}
         <div className="glass-card rounded-xl p-6 animate-fade-in">
