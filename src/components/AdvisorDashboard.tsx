@@ -422,8 +422,8 @@ const AdvisorDashboard = () => {
           const prev = periodMap.get(sortedKeys[sortedKeys.length - 2]);
           const latestRev = latest?.omsaetning;
           const prevRev = prev?.omsaetning;
-          if (latestRev != null && prevRev != null && prevRev !== 0) {
-            revenueTrendByCompany.set(compId, ((latestRev - prevRev) / Math.abs(prevRev)) * 100);
+          if (latestRev != null && prevRev != null && latestRev > 0 && prevRev > 0) {
+            revenueTrendByCompany.set(compId, ((latestRev - prevRev) / prevRev) * 100);
           } else {
             revenueTrendByCompany.set(compId, null);
           }
@@ -568,8 +568,9 @@ const AdvisorDashboard = () => {
   // KPI aggregates
   const totalRevenue = investorSummaries.reduce((s, c) => s + (c.revenue ?? 0), 0);
   const totalEbt = investorSummaries.reduce((s, c) => s + (c.ebt ?? 0), 0);
-  const totalCash = investorSummaries.reduce((s, c) => s + (c.cash ?? 0), 0);
-  const withMetrics = investorSummaries.filter(c => c.has_verified_metrics).length;
+  const total = investorSummaries.length;
+  const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
+  const pulseThisMonth = investorSummaries.filter(c => c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000)).length;
 
   // Pulse companies (last 60 days)
   const pulseCompanies = investorSummaries
@@ -615,6 +616,7 @@ const AdvisorDashboard = () => {
   }, [investorSummaries, memberSearch, memberFilter]);
 
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
+  const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
   if (isLoading) {
     return (
@@ -632,8 +634,8 @@ const AdvisorDashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Samlet omsætning" value={formatCompact(totalRevenue)} accentColor="blue" />
         <KPICard title="Samlet resultat" value={formatCompact(totalEbt)} accentColor={totalEbt >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Samlet likviditet" value={formatCompact(totalCash)} accentColor={totalCash >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Aktive medlemmer" value={`${withMetrics} / ${investorSummaries.length}`} subtitle="har uploadet rapport" accentColor="amber" />
+        <KPICard title="Rapporteret denne måned" value={`${reportedThisMonth} / ${total}`} subtitle="har sendt rapport" accentColor={reportedThisMonth === total ? "emerald" : "amber"} />
+        <KPICard title="Platform-engagement" value={`${pulseThisMonth} / ${total}`} subtitle="pulse seneste 30 dage" accentColor="blue" />
       </div>
 
       {/* ── Two-column layout ── */}
@@ -726,7 +728,7 @@ const AdvisorDashboard = () => {
                       <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">KPI mål</th>
+                      {showKpiColumn && <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">KPI mål</th>}
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
                       <th className="py-2 px-3 w-16"></th>
                     </tr>
@@ -794,34 +796,36 @@ const AdvisorDashboard = () => {
                                 "text-muted-foreground"
                               }`}>
                                 {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}
-                                {Math.abs(c.revenueTrendPct).toFixed(0)}%
+                                {Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
                               </span>
                             ) : (
                               <span className="text-[10px] text-muted-foreground/30">—</span>
                             )}
                           </td>
                           {/* KPI-fremskridt */}
-                          <td className="py-2.5 px-3 hidden md:table-cell">
-                            {kpiPct != null ? (
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[80px]">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      kpiPct >= 100 ? "bg-primary" :
-                                      kpiPct >= 70 ? "bg-chart-warning" :
-                                      "bg-destructive/50"
-                                    }`}
-                                    style={{ width: `${kpiPct}%` }}
-                                  />
+                          {showKpiColumn && (
+                            <td className="py-2.5 px-3 hidden md:table-cell">
+                              {kpiPct != null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[80px]">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        kpiPct >= 100 ? "bg-primary" :
+                                        kpiPct >= 70 ? "bg-chart-warning" :
+                                        "bg-destructive/50"
+                                      }`}
+                                      style={{ width: `${kpiPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {Math.round(kpiPct)}%
+                                  </span>
                                 </div>
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {Math.round(kpiPct)}%
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/30">Ingen mål</span>
-                            )}
-                          </td>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/30">Ingen mål</span>
+                              )}
+                            </td>
+                          )}
                           {/* Engagement */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-1 justify-center">
