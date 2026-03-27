@@ -579,52 +579,39 @@ const AdvisorDashboard = () => {
     return companyMap.get(companyId)?.name || "Ukendt";
   };
 
-  // Sort: unread first, then alphabetical
-  const sortedMembers = [...investorSummaries].sort((a, b) => {
-    if (b.unreadMessages !== a.unreadMessages) return b.unreadMessages - a.unreadMessages;
-    return a.company_name.localeCompare(b.company_name, "da");
-  });
+  // Member list state
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
+  const [memberView, setMemberView] = useState<"table" | "cards">("table");
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-24 rounded-xl bg-muted/50 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
+  const filteredMembers = useMemo(() => {
+    let list = [...investorSummaries];
+    if (memberSearch.trim()) {
+      const q = memberSearch.toLowerCase();
+      list = list.filter(c => c.company_name.toLowerCase().includes(q));
+    }
+    if (memberFilter === "ubesvaret") {
+      list = list.filter(c => c.unreadMessages > 0);
+    } else if (memberFilter === "aktive") {
+      list = list.filter(c =>
+        c.has_verified_metrics ||
+        c.unreadMessages > 0 ||
+        (c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000))
+      );
+    } else if (memberFilter === "passive") {
+      list = list.filter(c =>
+        !c.has_verified_metrics &&
+        c.unreadMessages === 0 &&
+        (!c.latestPulse || new Date(c.latestPulse.created_at) < new Date(Date.now() - 30 * 86400000))
+      );
+    }
+    return list.sort((a, b) => {
+      if (b.unreadMessages !== a.unreadMessages) return b.unreadMessages - a.unreadMessages;
+      return a.company_name.localeCompare(b.company_name, "da");
+    });
+  }, [investorSummaries, memberSearch, memberFilter]);
 
-  return (
-    <div className="space-y-8">
-      {/* ── TOP: Portfolio KPI bar ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="Samlet omsætning" value={formatCompact(totalRevenue)} accentColor="blue" />
-        <KPICard title="Samlet resultat" value={formatCompact(totalEbt)} accentColor={totalEbt >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Samlet likviditet" value={formatCompact(totalCash)} accentColor={totalCash >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Aktive medlemmer" value={`${withMetrics} / ${investorSummaries.length}`} subtitle="har uploadet rapport" accentColor="amber" />
-      </div>
-
-      {/* ── Two-column layout ── */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* LEFT: Member cards (2/3) */}
-        <div className="flex-1 min-w-0 lg:w-2/3">
-          <div className="flex items-center gap-2 mb-3">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Medlemmer ({investorSummaries.length})
-            </h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {sortedMembers.map(c => (
-              <MemberCard
-                key={c.company_id}
-                company={c}
-                onCompanyClick={setCompanyOverride}
-                convByCompany={convByCompany}
-              />
-            ))}
-          </div>
+  const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
         </div>
 
         {/* RIGHT: Sidebar (1/3) */}
