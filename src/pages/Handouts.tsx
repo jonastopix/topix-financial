@@ -98,15 +98,16 @@ const Handouts = () => {
 
       setSummaries(moduleOrder.map(m => {
         const d = map.get(m);
-        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null };
+        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [] };
         const config = handoutConfigs[m];
+        const levers = (d.levers as string[]) || [];
         const progress = calcHandoutProgress(
           config,
           (d.responses as Record<string, string>) || {},
           (d.checklist as Record<string, boolean>) || {},
-          (d.levers as string[]) || []
+          levers
         );
-        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null };
+        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null, levers };
       }));
       setIsLoading(false);
     };
