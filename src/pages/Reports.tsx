@@ -856,14 +856,25 @@ const Reports = () => {
                         if (cs?.state === "ready") {
                           const isV2Warning = cs.extraction_contract_version === 'v2' && cs.validation_status && cs.validation_status !== 'PASS';
                           return (
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${isV2Warning ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' : 'bg-primary/10 text-primary'}`}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReviewDialogState({
+                                  open: true,
+                                  reportId: report.id,
+                                  reportLabel: getEffectiveReportPeriod(report) || report.file_name,
+                                  cardState: "ready"
+                                });
+                              }}
+                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${isV2Warning ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-950/30 dark:text-amber-400' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+                            >
                               {isV2Warning ? (
                                 <AlertTriangle className="h-2.5 w-2.5" />
                               ) : (
                                 <CheckCircle2 className="h-2.5 w-2.5" />
                               )}
-                              {isV2Warning ? 'Klar — med advarsler' : 'Klar til godkendelse'}
-                            </span>
+                              {isV2Warning ? 'Klar — tryk for at godkende' : 'Tryk for at godkende →'}
+                            </button>
                           );
                         }
                         if (cs?.state === "update_available") {
