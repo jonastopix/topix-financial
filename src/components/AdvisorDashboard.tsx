@@ -568,8 +568,9 @@ const AdvisorDashboard = () => {
   // KPI aggregates
   const totalRevenue = investorSummaries.reduce((s, c) => s + (c.revenue ?? 0), 0);
   const totalEbt = investorSummaries.reduce((s, c) => s + (c.ebt ?? 0), 0);
-  const totalCash = investorSummaries.reduce((s, c) => s + (c.cash ?? 0), 0);
-  const withMetrics = investorSummaries.filter(c => c.has_verified_metrics).length;
+  const total = investorSummaries.length;
+  const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
+  const pulseThisMonth = investorSummaries.filter(c => c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000)).length;
 
   // Pulse companies (last 60 days)
   const pulseCompanies = investorSummaries
