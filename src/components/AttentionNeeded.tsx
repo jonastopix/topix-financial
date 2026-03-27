@@ -81,6 +81,13 @@ const AttentionNeeded = () => {
         .lt("progress", 100)
         .not("deadline", "is", null);
 
+      const formatDeadline = (iso: string) => {
+        try {
+          const d = new Date(iso);
+          return d.toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+        } catch { return iso; }
+      };
+
       (milestones || []).forEach(ms => {
         if (!ms.deadline) return;
         const deadlineDate = new Date(ms.deadline);
@@ -90,7 +97,7 @@ const AttentionNeeded = () => {
             id: `ms-${ms.id}`,
             type: "milestone",
             title: "Milestone deadline nærmer sig",
-            description: `"${ms.title}" – deadline ${ms.deadline}`,
+            description: `"${ms.title}" – deadline ${formatDeadline(ms.deadline)}`,
             urgency: daysLeft <= 3 ? "high" : "medium",
             action: "Se status",
             link: "/milestones",
