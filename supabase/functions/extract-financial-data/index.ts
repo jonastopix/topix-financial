@@ -971,21 +971,43 @@ TRIN 1: IDENTIFICÉR RAPPORTTYPEN
 - "resultatopgørelse": Viser omsætning, omkostninger, bruttofortjeneste, resultat. Typisk fra e-conomic.
 - "saldobalance": Viser kontonumre med debet/kredit-kolonner, balance-poster.
 - Filnavnet "${fileName || ''}" kan give hint, men INDHOLDET bestemmer typen.
+- Se også efter: "Resultat" (Billy), "Income Statement" (engelsk), 
+  "Driftsregnskab" (revisorer), "P&L" — alle er resultatopgørelser
+- "Trial Balance", "Råbalance", "Kontoplan med saldi" = saldobalance
 
 ═══════════════════════════════════════════════════
 TRIN 2: FORSTÅ KOLONNE-STRUKTUREN
 ═══════════════════════════════════════════════════
-Danske resultatopgørelser har typisk FIRE talkolonner:
-  Kolonne 1: "Perioden Faktisk" — den enkelte måneds tal
-  Kolonne 2: "Perioden Året før" — samme måned sidste år  
-  Kolonne 3: "År til dato Faktisk" — akkumuleret indeværende år
-  Kolonne 4: "År til dato Året før" — akkumuleret sidste år
+Danske resultatopgørelser har typisk to til fire talkolonner.
+Identificér kolonnestrukturen fra overskrifterne:
 
-DU SKAL BRUGE:
-- Kolonne 1 ("Perioden Faktisk") til alle periodefeltter (omsaetning, loenninger, resultat_foer_skat osv.)
-- Kolonne 3 ("År til dato Faktisk") til alle _aar-felter (omsaetning_aar, resultat_foer_skat_aar osv.)
+e-conomic (4 kolonner):
+  Kolonne 1: "Perioden Faktisk" eller bare "Faktisk" — BRUG DENNE
+  Kolonne 2: "Perioden Året før" — ignorer
+  Kolonne 3: "År til dato Faktisk" — brug kun til _aar-felter
+  Kolonne 4: "År til dato Året før" — ignorer
 
-KRITISK: Læs kolonnenumrene fra VENSTRE mod HØJRE. Forveksl IKKE "Perioden Faktisk" med "Perioden Året før"!
+Billy (2-3 kolonner):
+  Kolonne 1: "Periode" eller "Denne periode" — BRUG DENNE
+  Kolonne 2: "År til dato" eller "Akkumuleret" — brug til _aar-felter
+  Kolonne 3 (hvis til stede): "Foregående år" — ignorer
+
+Visma / Uniconta (varierer):
+  Se efter kolonner med månedsnavn ("Januar", "Februar" etc.) = periodekolonne
+  Se efter "YTD", "År til dato" eller "Akkumuleret" = YTD-kolonne
+  Brug altid den kolonne der svarer til den specifikke rapportperiode
+
+Revisor-Excel (varierer):
+  Ofte kun én kolonne med tal — brug den direkte
+  Ignorer eventuelle budgetkolonner (typisk mærket "Budget" eller "Bud.")
+
+KRITISK REGEL: Vælg ALTID kolonnen med den ENKLE MÅNEDS tal (ikke akkumuleret)
+til periode-felterne. Hvis du er i tvivl — sæt validation.status = "UNSURE".
+
+KOLONNE-TJEK: Inden du returnerer, verificér:
+- Er omsætning for perioden rimelig for én måned? (typisk 50.000 - 5.000.000 DKK)
+- Er tallene IKKE identiske med år-til-dato? (ellers har du valgt forkert kolonne)
+- Giver omsætning - direkte_omk ≈ daekningsbidrag? (ellers forkert kolonne)
 
 ═══════════════════════════════════════════════════
 TRIN 3: REGNSKABSKONVENTIONER FOR FORTEGN
