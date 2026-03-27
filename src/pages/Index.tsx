@@ -221,18 +221,24 @@ const Dashboard = () => {
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
 
-  const { meetings } = useAppConfig();
-  const storedMeetingDate = meetings.next_meeting_date
-    ? new Date(meetings.next_meeting_date)
-    : null;
-  const daysUntilMeeting = storedMeetingDate
-    ? Math.ceil((storedMeetingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : null;
-  const meetingDateStr = storedMeetingDate
-    ? storedMeetingDate.toLocaleDateString("da-DK", {
-        weekday: "long", day: "numeric", month: "long"
-      })
-    : null;
+  // ── Pulse check for "Dit forløb" card ──
+  const { data: pulseThisMonth } = useQuery({
+    queryKey: ["pulse-this-month", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+      const { data } = await (supabase
+        .from("pulse_checkins" as any)
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("period_key", periodKey)
+        .maybeSingle() as any);
+      return data;
+    },
+    enabled: !!companyId && !isAdvisor,
+    staleTime: 5 * 60_000,
+  });
+  const hasPulseThisMonth = !!pulseThisMonth;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
