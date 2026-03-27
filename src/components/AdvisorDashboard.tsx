@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2,
-  ChevronRight, CheckCircle2, CalendarDays, BarChart3, ChevronDown,
+  ChevronRight, CheckCircle2, CalendarDays, BarChart3, ChevronDown, Activity,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
@@ -61,8 +61,9 @@ const AdvisorDashboard = () => {
     queryKey: ["advisor-dashboard", user?.id],
     queryFn: async () => {
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-      const [convRes, companiesRes, reportsRes, notesRes, pulseRes] = await Promise.all([
+      const [convRes, companiesRes, reportsRes, notesRes, pulseRes, recentReportsRes, recentFactsRes] = await Promise.all([
         supabase
           .from("conversations")
           .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
@@ -83,16 +84,28 @@ const AdvisorDashboard = () => {
           .from("pulse_checkins" as any)
           .select("company_id, period_key, created_at")
           .gte("created_at", monthStart) as any),
+        (supabase
+          .from("financial_reports")
+          .select("id, company_id, uploaded_at, status, report_period")
+          .is("deleted_at", null)
+          .gte("uploaded_at", weekAgo)
+          .order("uploaded_at", { ascending: false })
+          .limit(20) as any),
+        (supabase
+          .from("financial_report_facts")
+          .select("company_id, committed_at, period_key")
+          .gte("committed_at", weekAgo)
+          .order("committed_at", { ascending: false })
+          .limit(20) as any),
       ]);
-
-      const conversations = (convRes.data || []) as ConversationRow[];
-      const companies = (companiesRes.data || []) as CompanyRow[];
-      const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
-      const noteConvIds = new Set((notesRes.data || []).map((n: any) => n.conversation_id));
 
       const pulseThisMonth = new Set(
         (pulseRes.data || []).map((p: any) => p.company_id)
       );
+
+      const conversations = (convRes.data || []) as ConversationRow[];
+      const companies = (companiesRes.data || []) as CompanyRow[];
+      const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
@@ -178,12 +191,54 @@ const AdvisorDashboard = () => {
         };
       });
 
+      // Build activity feed
+      interface ActivityEvent {
+        id: string;
+        type: "report_uploaded" | "report_committed" | "pulse";
+        companyId: string;
+        companyName: string;
+        label: string;
+        timestamp: string;
+      }
+      const activityEvents: ActivityEvent[] = [];
+
+      for (const r of (recentReportsRes.data || []) as any[]) {
+        const name = companyMap.get(r.company_id)?.name || "Ukendt";
+        activityEvents.push({
+          id: `report-${r.id}`,
+          type: "report_uploaded",
+          companyId: r.company_id,
+          companyName: name,
+          label: `Rapport uploadet${r.report_period ? ` · ${r.report_period}` : ""}`,
+          timestamp: r.uploaded_at,
+        });
+      }
+
+      for (const f of (recentFactsRes.data || []) as any[]) {
+        const name = companyMap.get(f.company_id)?.name || "Ukendt";
+        activityEvents.push({
+          id: `fact-${f.company_id}-${f.period_key}`,
+          type: "report_committed",
+          companyId: f.company_id,
+          companyName: name,
+          label: `Tal godkendt · ${f.period_key}`,
+          timestamp: f.committed_at,
+        });
+      }
+
+      const seen = new Set<string>();
+      const activityFeed = activityEvents
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+        .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
+        .slice(0, 10);
+
       return {
         actionQueue,
         overdueFollowUps,
         upcomingFollowUps,
         groupSummaries,
         companyMap,
+        activityFeed,
       };
     },
     enabled: !!user,
@@ -195,6 +250,7 @@ const AdvisorDashboard = () => {
   const upcomingFollowUps = data?.upcomingFollowUps || [];
   const groupSummaries = data?.groupSummaries || [];
   const companyMap = data?.companyMap || new Map();
+  const activityFeed = data?.activityFeed || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
@@ -326,7 +382,50 @@ const AdvisorDashboard = () => {
         </div>
       )}
 
-      {/* ── Section 3: Follow-ups ── */}
+      {/* ── Section 3: Activity feed ── */}
+      {activityFeed.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              Seneste 7 dage
+            </h2>
+          </div>
+          <div className="glass-card rounded-xl divide-y divide-border/30">
+            {activityFeed.map((event: any) => {
+              const iconConfig = {
+                report_uploaded: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Rapport" },
+                report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
+                pulse: { color: "text-purple-500", bg: "bg-purple-500/10", label: "Pulse" },
+              }[event.type as string] as { color: string; bg: string; label: string };
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => setCompanyOverride(event.companyId, event.companyName)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5
+                    hover:bg-secondary/30 transition-colors text-left"
+                >
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5
+                    rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
+                    {iconConfig.label}
+                  </span>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {event.companyName}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {event.label.split(" · ")[1] || ""}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── Section 4: Follow-ups ── */}
       {hasFollowUps && (
         <section>
           <div className="flex items-center gap-2 mb-3">
