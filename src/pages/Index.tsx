@@ -434,6 +434,28 @@ const Dashboard = () => {
         <DashboardMilestones />
       </div>
 
+      {latestCommentary && !isAdvisor && (
+        <div className="mb-6">
+          <Link to="/kpis" className="block group">
+            <div className="rounded-lg border bg-card p-4 flex items-center justify-between hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Din AI-analyse er klar</p>
+                  <p className="text-xs text-muted-foreground">
+                    Se indsigter og anbefalinger for{" "}
+                    {sorted[sorted.length - 1]?.period || "seneste periode"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </Link>
+        </div>
+      )}
+
       <div className="mb-6">
         <DashboardActivity />
       </div>
