@@ -464,6 +464,14 @@ const Budget = () => {
           />
         </TabsContent>
 
+        <TabsContent value="cashflow">
+          <BudgetCashflowTab
+            rows={rows}
+            year={year}
+            companyId={companyId || undefined}
+          />
+        </TabsContent>
+
         <TabsContent value="import">
           <BudgetImport userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
         </TabsContent>
