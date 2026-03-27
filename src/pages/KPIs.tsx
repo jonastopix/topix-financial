@@ -422,6 +422,30 @@ const KPIs = () => {
     ? ((activeMetric.numValue - prevValue) / Math.abs(prevValue)) * 100
     : null;
 
+  // Progress hero computation
+  const latestKF = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1] : null;
+  const latestActual: Record<string, number | null> = {};
+  if (latestKF) {
+    KPI_DEFS.forEach(def => {
+      latestActual[def.key] = VALUE_EXTRACTORS[def.key]?.(latestKF.kf) ?? null;
+    });
+  }
+  const latestPeriodLabel = latestKF?.month || "";
+
+  const kpiProgress = KPI_DEFS.map(def => {
+    const target = getTarget(def.key);
+    const actual = latestActual[def.key];
+    if (!target || actual == null || target.value <= 0) return null;
+    const pct = def.lowerIsBetter
+      ? Math.max(0, 100 - ((actual - target.value) / target.value) * 100)
+      : Math.min(150, (actual / target.value) * 100);
+    return { def, target, actual, pct };
+  }).filter(Boolean) as { def: typeof KPI_DEFS[0]; target: { value: number; label: string }; actual: number; pct: number }[];
+
+  const avgProgress = kpiProgress.length > 0
+    ? kpiProgress.reduce((s, k) => s + Math.min(100, k.pct), 0) / kpiProgress.length
+    : null;
+
   return (
     <TooltipProvider>
     <AppLayout>
