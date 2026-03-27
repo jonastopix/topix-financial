@@ -244,7 +244,9 @@ Deno.serve(async (req) => {
         message_id: messageId,
         template_name: `notification-${notif.type}`,
         recipient_email: userData.user.email,
+        subject: subject,
         status: "pending",
+        is_test: false,
       });
 
       // Enqueue via existing email queue
