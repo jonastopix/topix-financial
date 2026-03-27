@@ -224,7 +224,18 @@ const Budget = () => {
           </p>
         </div>
 
-        {!changingTemplate ? (
+        {showImportDirect ? (
+          <div className="animate-fade-in">
+            <button
+              onClick={() => setShowImportDirect(false)}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Tilbage
+            </button>
+            <BudgetImport userId={user?.id || ""} companyId={companyId || ""} onImportComplete={(result) => { handleImportComplete(result); setShowImportDirect(false); }} />
+          </div>
+        ) : !changingTemplate ? (
           <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
             <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
               <Calculator className="h-7 w-7 text-primary" />
@@ -247,7 +258,7 @@ const Budget = () => {
                 </span>
               </button>
               <button
-                onClick={() => setChangingTemplate(true)}
+                onClick={() => setShowImportDirect(true)}
                 className="flex flex-col items-start gap-2 p-5 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors text-left"
               >
                 <Upload className="h-5 w-5 text-muted-foreground" />
@@ -257,6 +268,9 @@ const Budget = () => {
                 </span>
               </button>
             </div>
+            <p className="text-xs text-muted-foreground text-center mt-6 max-w-sm mx-auto">
+              Et budget hjælper dig med at holde styr på dine mål og se præcist hvor du er over eller under plan hver måned.
+            </p>
           </div>
         ) : (
           <BudgetTemplatePicker onSelect={handleTemplateSelect} userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
