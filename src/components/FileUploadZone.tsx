@@ -849,11 +849,11 @@ const FileUploadZone = ({
 
       {/* Upload guide */}
       <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
-        <details className="mt-4 text-left">
-          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
-            Sådan eksporterer du korrekt ▾
-          </summary>
-          <div className="mt-3 space-y-2 text-xs">
+        <div className="mt-4 text-left">
+          <p className="text-xs font-medium text-muted-foreground mb-3">
+            Sådan eksporterer du
+          </p>
+          <div className="space-y-2 text-xs">
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
               <p className="font-medium text-foreground mb-1">e-conomic</p>
               <p className="text-muted-foreground">
