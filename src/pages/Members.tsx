@@ -907,7 +907,7 @@ const Members = () => {
     });
 
     return { notInvited, invitedPending, activatedNoReport, reportedNotCommitted, fullyOnboarded };
-  }, [companies]);
+  }, [companies, standalonePendingInvitations]);
 
   const filteredMergeUsers = unassignedUsers.filter((u) => {
     if (!mergeSearch.trim()) return true;
