@@ -429,6 +429,27 @@ const FileUploadZone = ({
             } catch (structErr: any) {
               if (requiresStructuralPdfPayload(extracted.text)) {
                 const errMessage = structErr?.message || String(structErr);
+
+                // Password-protected PDFs: give a clear, specific error immediately
+                if (errMessage.includes("password")) {
+                  updateFile(fileId, {
+                    status: "error",
+                    errorMessage: "Filen er beskyttet med adgangskode. Eksportér rapporten igen uden adgangskodebeskyttelse, eller upload en Excel-version.",
+                  });
+                  toast({
+                    title: "Beskyttet PDF",
+                    description: "Filen kræver en adgangskode og kan ikke læses. Eksportér uden adgangskodebeskyttelse.",
+                    variant: "destructive",
+                  });
+                  await supabase.from("financial_reports").update({
+                    status: "error",
+                    validation_errors: ["PDF is password protected"],
+                    processed_at: new Date().toISOString(),
+                  } as any).eq("id", reportRecord.id);
+                  onPipelineComplete?.(reportRecord.id);
+                  return;
+                }
+
                 const diagnosticMarker = errMessage.includes("worker")
                   ? "pdfjs_worker_loading"
                   : errMessage.includes("password")
