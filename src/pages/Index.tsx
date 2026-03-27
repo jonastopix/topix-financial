@@ -15,6 +15,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
@@ -22,13 +23,6 @@ import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, parseReportPeriodToKey } from "@/lib/financialUtils";
 
-function getNextBoardroomDate(): { date: Date; daysUntil: number } {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
-  const daysUntil = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  return { date: d, daysUntil };
-}
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -193,10 +187,18 @@ const Dashboard = () => {
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
 
-  const nextMeeting = getNextBoardroomDate();
-  const meetingDateStr = nextMeeting.date.toLocaleDateString("da-DK", {
-    weekday: "long", day: "numeric", month: "long"
-  });
+  const { meetings } = useAppConfig();
+  const storedMeetingDate = meetings.next_meeting_date
+    ? new Date(meetings.next_meeting_date)
+    : null;
+  const daysUntilMeeting = storedMeetingDate
+    ? Math.ceil((storedMeetingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const meetingDateStr = storedMeetingDate
+    ? storedMeetingDate.toLocaleDateString("da-DK", {
+        weekday: "long", day: "numeric", month: "long"
+      })
+    : null;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -321,7 +323,7 @@ const Dashboard = () => {
         <AttentionNeeded />
       </div>
 
-      {hasReports && !isAdvisor && (
+      {hasReports && !isAdvisor && storedMeetingDate && daysUntilMeeting !== null && daysUntilMeeting > 0 && (
         <div className="mb-6">
           <div className="glass-card rounded-xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -334,7 +336,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-display font-bold text-primary">{nextMeeting.daysUntil}</p>
+              <p className="text-2xl font-display font-bold text-primary">{daysUntilMeeting}</p>
               <p className="text-[10px] text-muted-foreground">dage</p>
             </div>
           </div>

@@ -60,6 +60,12 @@ export const GAMIFICATION = {
   ] as readonly { threshold: number; label: string; emoji: string }[],
 } as const;
 
+// ─── Meetings ────────────────────────────────────────────────────────────────
+
+export const MEETINGS = {
+  next_meeting_date: null as string | null,
+} as const;
+
 // ─── KPI Fallback Targets ────────────────────────────────────────────────────
 
 export const KPI_FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {

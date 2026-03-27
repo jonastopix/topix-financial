@@ -4,9 +4,10 @@ import {
   APP_BRANDING,
   PERFORMANCE_SCORE,
   GAMIFICATION,
+  MEETINGS,
 } from "@/lib/appConfig";
 
-type ConfigKey = "branding" | "performance_score" | "gamification";
+type ConfigKey = "branding" | "performance_score" | "gamification" | "meetings";
 
 /**
  * Fetches all app_config rows and merges with static defaults.
@@ -32,6 +33,7 @@ export function useAppConfig() {
   const branding = { ...APP_BRANDING, ...(dbMap.branding || {}) };
   const performanceScore = { ...PERFORMANCE_SCORE, ...(dbMap.performance_score || {}) };
   const gamification = { ...GAMIFICATION, ...(dbMap.gamification || {}) };
+  const meetings = { ...MEETINGS, ...(dbMap.meetings || {}) };
 
   const updateConfig = async (key: ConfigKey, value: any) => {
     const { error } = await supabase
@@ -42,5 +44,5 @@ export function useAppConfig() {
     queryClient.invalidateQueries({ queryKey: ["app-config"] });
   };
 
-  return { branding, performanceScore, gamification, updateConfig };
+  return { branding, performanceScore, gamification, meetings, updateConfig };
 }
