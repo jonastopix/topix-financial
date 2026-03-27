@@ -179,14 +179,16 @@ const KPIs = () => {
     return KPI_DEFS.map((def) => {
       const extract = VALUE_EXTRACTORS[def.key];
       const currentVal = extract(latest);
-      const prevVal = prev ? extract(prev) : currentVal;
-      const changePct = prevVal !== 0 ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : 0;
+      if (currentVal == null) return null;
+      const prevVal = prev ? extract(prev) : null;
+      const changePct = prevVal != null && currentVal != null && prevVal !== 0
+        ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : 0;
       const trendIsGood = def.lowerIsBetter ? changePct <= 0 : changePct >= 0;
       const target = getTarget(def.key);
 
       const history = monthlyData.map((d) => ({
         month: d.month,
-        value: Math.round(extract(d.kf)),
+        value: Math.round(extract(d.kf) ?? 0),
       }));
 
       const formatted = Math.abs(currentVal) >= 1000
@@ -215,7 +217,7 @@ const KPIs = () => {
         history,
         benchmark,
       };
-    });
+    }).filter(Boolean) as KPIMetric[];
   }, [monthlyData, userTargets, userBenchmarks]);
 
   // Target editing
