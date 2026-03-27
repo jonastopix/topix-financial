@@ -324,39 +324,25 @@ const AdvisorCompanyOverview = () => {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* ── Session Readiness Bar ── */}
-      <div className="rounded-xl border border-border bg-card p-4 mb-2">
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Klar til session
-        </p>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label: "Rapport",
-              ok: hasCurrentReport,
-              detail: hasCurrentReport
-                ? formatReportKey(latest!.key)
-                : `${getMissingReportLabel()} mangler`,
-            },
-            {
-              label: "Pulse",
-              ok: hasPulse,
-              detail: hasPulse ? "Udfyldt" : "Mangler check-in",
-            },
-            {
-              label: "Handouts",
-              ok: handoutsComplete,
-              detail: `${handoutData?.completed ?? 0}/5 moduler`,
-            },
-          ].map(signal => (
-            <div key={signal.label} className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
-                <div className={`h-2 w-2 rounded-full ${signal.ok ? "bg-emerald-500" : "bg-amber-400"}`} />
-                <span className="text-xs font-medium text-foreground">{signal.label}</span>
-              </div>
-              <span className="text-[11px] text-muted-foreground ml-3.5">{signal.detail}</span>
-            </div>
-          ))}
+      {/* ── Engagement Status Bar ── */}
+      <div className="flex items-center gap-4 px-4 py-3 bg-secondary/30 rounded-xl mb-4 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${hasReport ? "bg-primary" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">
+            {hasReport ? `Rapport: ${latestPeriodLabel}` : "Ingen rapport endnu"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${hasPulse ? "bg-blue-500" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">
+            {hasPulse ? "Pulse udfyldt" : "Ingen pulse endnu"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${handoutsCompleted > 0 ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">
+            {handoutsCompleted}/{handoutsTotal} handouts
+          </span>
         </div>
       </div>
       {/* ── Header ── */}
