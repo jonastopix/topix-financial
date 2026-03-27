@@ -15,6 +15,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
