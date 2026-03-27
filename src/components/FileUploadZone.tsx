@@ -438,7 +438,7 @@ const FileUploadZone = ({
           if (isPdf) {
             try {
               pdfStructural = await extractPdfStructural(file);
-              console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
+              
             } catch (structErr: any) {
               if (requiresStructuralPdfPayload(extracted.text)) {
                 const errMessage = structErr?.message || String(structErr);
