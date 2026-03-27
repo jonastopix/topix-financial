@@ -646,14 +646,32 @@ const Members = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
+      // Phase 1: delete rows that reference financial_reports (facts, commentaries)
       await Promise.all([
-        supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() }).eq("company_id", deleteTarget.id),
+        supabase.from("financial_commentaries").delete().eq("company_id", deleteTarget.id),
+        supabase.from("financial_report_facts").delete().eq("company_id", deleteTarget.id),
+        supabase.from("advisor_notifications").delete().eq("company_id", deleteTarget.id),
+        supabase.from("slack_conversation_threads").delete().eq("company_id", deleteTarget.id),
+        supabase.from("slack_notification_log").delete().eq("company_id", deleteTarget.id),
+        supabase.from("slack_handout_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
+        supabase.from("slack_report_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
+        supabase.from("group_companies" as any).delete().eq("company_id", deleteTarget.id) as any,
+      ]);
+
+      // Phase 2: hard-delete financial_reports (now safe, no FK children)
+      await supabase.from("financial_reports").delete().eq("company_id", deleteTarget.id);
+
+      // Phase 3: remaining entity cleanup
+      await Promise.all([
         supabase.from("handouts").delete().eq("company_id", deleteTarget.id),
         supabase.from("milestones").delete().eq("company_id", deleteTarget.id),
         supabase.from("budget_targets").delete().eq("company_id", deleteTarget.id),
         supabase.from("kpi_targets").delete().eq("company_id", deleteTarget.id),
         supabase.from("kpi_benchmarks").delete().eq("company_id", deleteTarget.id),
         supabase.from("company_invitations").delete().eq("company_id", deleteTarget.id),
+        supabase.from("feedback").delete().eq("company_id", deleteTarget.id),
+        supabase.from("advisor_session_notes").delete().eq("company_id", deleteTarget.id),
+        supabase.from("pulse_checkins").delete().eq("company_id", deleteTarget.id),
       ]);
 
       const { data: convs } = await supabase
