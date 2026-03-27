@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
-  Activity, MessageCircle,
+  Activity, Target,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
@@ -49,6 +49,18 @@ interface CompanyRow {
   logo_url: string | null;
 }
 
+interface MilestoneData {
+  title: string;
+  deadline: string | null;
+  progress: number;
+}
+
+interface KpiTargetData {
+  kpi_key: string;
+  target_value: number;
+  target_label: string;
+}
+
 interface InvestorCompanySummary extends GroupCompanySummary {
   revenueTrendPct: number | null;
   ebitdaMargin: number | null;
@@ -57,6 +69,176 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   latestPulse: { went_well: string; biggest_challenge: string; created_at: string } | null;
   needsAttention: boolean;
   unreadMessages: number;
+  milestones: MilestoneData[];
+  kpiTargets: KpiTargetData[];
+}
+
+// ── MemberCard ──
+
+function MemberCard({
+  company: c,
+  onCompanyClick,
+  convByCompany,
+}: {
+  company: InvestorCompanySummary;
+  onCompanyClick: (id: string, name: string) => void;
+  convByCompany: Map<string, ConversationRow[]>;
+}) {
+  const conv = convByCompany.get(c.company_id)?.[0];
+  const lastMsg = conv?.last_member_message_at;
+  const hasPulse = !!c.latestPulse &&
+    new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
+
+  return (
+    <div
+      className={`glass-card rounded-xl p-4 border transition-all ${
+        c.unreadMessages > 0
+          ? "border-chart-warning/40 bg-chart-warning/5"
+          : "border-border/30"
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+            {c.logo_url ? (
+              <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <span className="text-[10px] font-bold text-muted-foreground">
+                {c.company_name.slice(0, 2).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">
+              {c.company_name}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              {c.effective_period_label || "Ingen rapport"}
+              {lastMsg && ` · Besked ${timeAgo(lastMsg)}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {c.unreadMessages > 0 && (
+            <span className="h-5 min-w-[20px] px-1 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
+              {c.unreadMessages}
+            </span>
+          )}
+          {hasPulse && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
+              Pulse ✓
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Financial KPIs */}
+      {c.has_verified_metrics && (
+        <div className="grid grid-cols-3 gap-2 mb-3 p-2.5 rounded-lg bg-secondary/30">
+          <div>
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Omsætning</p>
+            <p className="text-xs font-semibold text-foreground">
+              {c.revenue != null ? formatCompact(c.revenue) : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Resultat</p>
+            <p className={`text-xs font-semibold ${
+              c.ebt == null ? "text-muted-foreground" :
+              c.ebt >= 0 ? "text-primary" : "text-destructive"
+            }`}>
+              {c.ebt != null ? formatCompact(c.ebt) : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Likviditet</p>
+            <p className={`text-xs font-semibold ${
+              c.cash == null ? "text-muted-foreground" :
+              c.cash < 0 ? "text-destructive" : "text-foreground"
+            }`}>
+              {c.cash != null ? formatCompact(c.cash) : "—"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* KPI targets vs actual */}
+      {c.kpiTargets.length > 0 && c.has_verified_metrics && (
+        <div className="mb-3 space-y-1">
+          {c.kpiTargets.slice(0, 2).map(kpi => {
+            const actual = kpi.kpi_key === "omsaetning" ? c.revenue :
+                          kpi.kpi_key === "resultat" ? c.ebt : null;
+            const pct = actual != null && kpi.target_value > 0
+              ? (actual / kpi.target_value) * 100 : null;
+            return (
+              <div key={kpi.kpi_key} className="flex items-center gap-2">
+                <p className="text-[10px] text-muted-foreground w-20 truncate">
+                  {kpi.target_label || kpi.kpi_key}
+                </p>
+                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      pct == null ? "w-0" :
+                      pct >= 100 ? "bg-primary" :
+                      pct >= 70 ? "bg-chart-warning" :
+                      "bg-destructive/60"
+                    }`}
+                    style={{ width: `${Math.min(100, pct ?? 0)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground w-8 text-right">
+                  {pct != null ? `${Math.round(pct)}%` : "—"}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Active milestones */}
+      {c.milestones.length > 0 && (
+        <div className="mb-3 space-y-1">
+          {c.milestones.slice(0, 2).map((m, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                m.progress >= 100 ? "bg-primary" :
+                m.deadline && new Date(m.deadline) < new Date()
+                  ? "bg-destructive" : "bg-chart-warning"
+              }`} />
+              <p className="text-[11px] text-muted-foreground truncate flex-1">
+                {m.title}
+              </p>
+              {m.deadline && (
+                <p className="text-[9px] text-muted-foreground shrink-0">
+                  {new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pulse teaser */}
+      {c.latestPulse?.biggest_challenge && (
+        <div className="pt-2 border-t border-border/20">
+          <p className="text-[10px] text-muted-foreground/70 italic line-clamp-1">
+            "{c.latestPulse.biggest_challenge}"
+          </p>
+        </div>
+      )}
+
+      {/* Action */}
+      <div className="mt-3 flex justify-end">
+        <button
+          onClick={() => onCompanyClick(c.company_id, c.company_name)}
+          className="text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
+        >
+          Åbn →
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Component ──
@@ -70,7 +252,11 @@ const AdvisorDashboard = () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const currentYear = new Date().getFullYear();
 
-      const [convRes, companiesRes, reportsRes, notesRes, budgetRes, pulseRes, recentReportsRes, recentFactsRes] = await Promise.all([
+      const [
+        convRes, companiesRes, reportsRes, notesRes,
+        budgetRes, pulseRes, recentReportsRes, recentFactsRes,
+        milestonesRes, kpiTargetsRes, companyMembersRes,
+      ] = await Promise.all([
         supabase
           .from("conversations")
           .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
@@ -109,6 +295,20 @@ const AdvisorDashboard = () => {
           .gte("committed_at", weekAgo)
           .order("committed_at", { ascending: false })
           .limit(20) as any),
+        // Milestones — active ones
+        supabase
+          .from("milestones")
+          .select("user_id, title, deadline, progress, status")
+          .eq("status", "active")
+          .order("deadline", { ascending: true }),
+        // KPI targets per company
+        (supabase
+          .from("kpi_targets")
+          .select("company_id, kpi_key, target_value, target_label") as any),
+        // Company members to map user_id → company_id
+        (supabase
+          .from("company_members")
+          .select("user_id, company_id") as any),
       ]);
 
       const conversations = (convRes.data || []) as ConversationRow[];
@@ -116,6 +316,28 @@ const AdvisorDashboard = () => {
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
+
+      // user_id → company_id
+      const userToCompany = new Map<string, string>();
+      for (const m of (companyMembersRes.data || []) as any[]) {
+        userToCompany.set(m.user_id, m.company_id);
+      }
+
+      // company_id → active milestones[]
+      const milestonesByCompany = new Map<string, MilestoneData[]>();
+      for (const m of (milestonesRes.data || []) as any[]) {
+        const cid = userToCompany.get(m.user_id);
+        if (!cid) continue;
+        if (!milestonesByCompany.has(cid)) milestonesByCompany.set(cid, []);
+        milestonesByCompany.get(cid)!.push({ title: m.title, deadline: m.deadline, progress: m.progress });
+      }
+
+      // company_id → kpi targets[]
+      const kpiByCompany = new Map<string, KpiTargetData[]>();
+      for (const k of (kpiTargetsRes.data || []) as any[]) {
+        if (!kpiByCompany.has(k.company_id)) kpiByCompany.set(k.company_id, []);
+        kpiByCompany.get(k.company_id)!.push({ kpi_key: k.kpi_key, target_value: k.target_value, target_label: k.target_label });
+      }
 
       // Budget revenue by company
       const budgetRevenueByCompany = new Map<string, number>();
@@ -162,7 +384,6 @@ const AdvisorDashboard = () => {
         const kf = getEffectiveKeyFigures(r);
         if (!kf) continue;
 
-        // Store per period for trend calc
         if (!kfByCompanyPeriod.has(r.company_id)) kfByCompanyPeriod.set(r.company_id, new Map());
         const existing = kfByCompanyPeriod.get(r.company_id)!.get(key);
         if (!existing) kfByCompanyPeriod.get(r.company_id)!.set(key, kf);
@@ -276,6 +497,8 @@ const AdvisorDashboard = () => {
           latestPulse: pulse,
           needsAttention,
           unreadMessages: unreadByCompany.get(c.id) || 0,
+          milestones: milestonesByCompany.get(c.id) || [],
+          kpiTargets: kpiByCompany.get(c.id) || [],
         };
       });
 
@@ -310,7 +533,7 @@ const AdvisorDashboard = () => {
         .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
         .slice(0, 10);
 
-      // Conversations grouped by company for member list
+      // Conversations grouped by company
       const convByCompany = new Map<string, ConversationRow[]>();
       for (const c of conversations) {
         if (c.company_id) {
@@ -355,6 +578,12 @@ const AdvisorDashboard = () => {
     return companyMap.get(companyId)?.name || "Ukendt";
   };
 
+  // Sort: unread first, then alphabetical
+  const sortedMembers = [...investorSummaries].sort((a, b) => {
+    if (b.unreadMessages !== a.unreadMessages) return b.unreadMessages - a.unreadMessages;
+    return a.company_name.localeCompare(b.company_name, "da");
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -369,315 +598,200 @@ const AdvisorDashboard = () => {
     <div className="space-y-8">
       {/* ── TOP: Portfolio KPI bar ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard
-          title="Samlet omsætning"
-          value={formatCompact(totalRevenue)}
-          accentColor="blue"
-        />
-        <KPICard
-          title="Samlet resultat"
-          value={formatCompact(totalEbt)}
-          accentColor={totalEbt >= 0 ? "emerald" : "rose"}
-        />
-        <KPICard
-          title="Samlet likviditet"
-          value={formatCompact(totalCash)}
-          accentColor={totalCash >= 0 ? "emerald" : "rose"}
-        />
-        <KPICard
-          title="Aktive medlemmer"
-          value={`${withMetrics} / ${investorSummaries.length}`}
-          subtitle="har uploadet rapport"
-          accentColor="amber"
-        />
+        <KPICard title="Samlet omsætning" value={formatCompact(totalRevenue)} accentColor="blue" />
+        <KPICard title="Samlet resultat" value={formatCompact(totalEbt)} accentColor={totalEbt >= 0 ? "emerald" : "rose"} />
+        <KPICard title="Samlet likviditet" value={formatCompact(totalCash)} accentColor={totalCash >= 0 ? "emerald" : "rose"} />
+        <KPICard title="Aktive medlemmer" value={`${withMetrics} / ${investorSummaries.length}`} subtitle="har uploadet rapport" accentColor="amber" />
       </div>
 
-      {/* ── Section 1: Ubesvarede beskeder ── */}
-      {actionQueue.length > 0 ? (
-        <section>
+      {/* ── Two-column layout ── */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* LEFT: Member cards (2/3) */}
+        <div className="flex-1 min-w-0 lg:w-2/3">
           <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            <Building2 className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Afventer svar
+              Medlemmer ({investorSummaries.length})
             </h2>
-            <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[11px] font-bold">
-              {actionQueue.length}
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            {actionQueue.map(conv => (
-              <Link
-                key={conv.id}
-                to={`/chat?conversationId=${conv.id}`}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border hover:bg-accent/50 transition-all group"
-              >
-                <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {getCompanyName(conv.company_id)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
-                    {conv.assigned_advisor_id === user!.id ? (
-                      <span className="ml-2 text-muted-foreground">· Min</span>
-                    ) : conv.assigned_advisor_id === null ? (
-                      <span className="ml-2 text-chart-warning">· Ikke tildelt</span>
-                    ) : null}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-primary/5 border border-primary/20">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span className="text-sm text-foreground">
-            Alle er besvaret ✓
-          </span>
-        </div>
-      )}
-
-      {/* ── Section 2: Hvad siger medlemmerne ── */}
-      {pulseCompanies.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <MessageCircle className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Hvad siger medlemmerne
-            </h2>
-            <span className="text-xs text-muted-foreground">· Seneste pulse check-in</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {pulseCompanies.map(c => (
-              <button
+            {sortedMembers.map(c => (
+              <MemberCard
                 key={c.company_id}
-                className="glass-card rounded-xl p-4 text-left hover:bg-accent/30 transition-colors"
-                onClick={() => setCompanyOverride(c.company_id, c.company_name)}
-              >
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-sm font-medium text-foreground truncate">
-                    {c.company_name}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {formatDistanceToNow(new Date(c.latestPulse!.created_at), { locale: da, addSuffix: true })}
-                  </span>
-                </div>
-                {c.latestPulse?.biggest_challenge && (
-                  <div className="mb-2">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-                      Største udfordring
-                    </p>
-                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2">
-                      "{c.latestPulse.biggest_challenge}"
-                    </p>
-                  </div>
-                )}
-                {c.latestPulse?.went_well && (
-                  <div>
-                    <p className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider mb-0.5">
-                      Hvad gik godt
-                    </p>
-                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2">
-                      "{c.latestPulse.went_well}"
-                    </p>
-                  </div>
-                )}
-              </button>
+                company={c}
+                onCompanyClick={setCompanyOverride}
+                convByCompany={convByCompany}
+              />
             ))}
           </div>
-        </section>
-      )}
+        </div>
 
-      {/* ── Section 3: Medlemsoverblik ── */}
-      <section>
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              Alle medlemmer ({investorSummaries.length})
-            </h2>
-          </div>
-          <div className="divide-y divide-border/30">
-            {[...investorSummaries]
-              .sort((a, b) => a.company_name.localeCompare(b.company_name, "da"))
-              .map(c => {
-                const conv = convByCompany.get(c.company_id)?.[0];
-                const lastMsg = conv?.last_member_message_at;
-                const hasPulseRecent = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
-
-                return (
-                  <div
-                    key={c.company_id}
-                    className="flex items-center gap-3 px-5 py-2.5 hover:bg-secondary/20 transition-colors"
+        {/* RIGHT: Sidebar (1/3) */}
+        <div className="lg:w-[340px] shrink-0 space-y-5 lg:sticky lg:top-4 lg:self-start">
+          {/* Action queue */}
+          <div className="glass-card rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                Afventer svar
+              </p>
+              {actionQueue.length > 0 && (
+                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
+                  {actionQueue.length}
+                </span>
+              )}
+            </div>
+            {actionQueue.length > 0 ? (
+              <div className="space-y-1">
+                {actionQueue.map(conv => (
+                  <Link
+                    key={conv.id}
+                    to={`/chat?conversationId=${conv.id}`}
+                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-accent/50 transition-colors group"
                   >
-                    {/* Logo/initials */}
-                    <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                      {c.logo_url
-                        ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
-                        : <span className="text-[10px] font-bold text-muted-foreground">
-                            {c.company_name.slice(0, 2).toUpperCase()}
-                          </span>
-                      }
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {getCompanyName(conv.company_id)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
+                      </p>
                     </div>
-                    {/* Name */}
-                    <div className="w-48 min-w-0 shrink-0">
-                      <p className="text-sm font-medium text-foreground truncate">
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 py-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs text-foreground">Alle er besvaret ✓</span>
+              </div>
+            )}
+          </div>
+
+          {/* Pulse */}
+          {pulseCompanies.length > 0 && (
+            <div className="glass-card rounded-xl p-4">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                Seneste pulse
+              </p>
+              <div className="space-y-3">
+                {pulseCompanies.slice(0, 4).map(c => (
+                  <button
+                    key={c.company_id}
+                    className="w-full text-left group"
+                    onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-xs font-medium text-foreground truncate">
                         {c.company_name}
                       </p>
+                      <span className="text-[9px] text-muted-foreground shrink-0">
+                        {formatDistanceToNow(new Date(c.latestPulse!.created_at), { locale: da, addSuffix: true })}
+                      </span>
                     </div>
-                    {/* Rapport */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">
-                        {c.effective_period_label
-                          ? <span className="text-foreground">{c.effective_period_label}</span>
-                          : "Ingen rapport endnu"
-                        }
+                    {c.latestPulse?.biggest_challenge && (
+                      <p className="text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
+                        "{c.latestPulse.biggest_challenge}"
                       </p>
-                    </div>
-                    {/* Seneste besked */}
-                    <div className="w-32 shrink-0">
-                      <p className="text-xs text-muted-foreground">
-                        {lastMsg
-                          ? formatDistanceToNow(new Date(lastMsg), { locale: da, addSuffix: true })
-                          : "—"
-                        }
-                      </p>
-                    </div>
-                    {/* Pulse */}
-                    <div className="w-20 shrink-0 flex items-center gap-1">
-                      {hasPulseRecent
-                        ? <><div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                            <span className="text-[10px] text-primary">Pulse</span></>
-                        : <span className="text-[10px] text-muted-foreground/40">—</span>
-                      }
-                    </div>
-                    {/* Unread badge */}
-                    <div className="w-8 shrink-0">
-                      {c.unreadMessages > 0 && (
-                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-chart-warning text-white text-[10px] font-bold">
-                          {c.unreadMessages}
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Follow-ups */}
+          {hasFollowUps && (
+            <div className="glass-card rounded-xl p-4">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                Opfølgninger
+              </p>
+              <div className="space-y-1">
+                {overdueFollowUps.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-medium text-destructive uppercase tracking-wider mb-1">Forfalden</p>
+                    {overdueFollowUps.map(conv => (
+                      <Link
+                        key={conv.id}
+                        to={`/chat?conversationId=${conv.id}`}
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-accent/50 transition-colors group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">
+                            {getCompanyName(conv.company_id)}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-destructive font-medium shrink-0">
+                          {conv.follow_up_at ? new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" }) : ""}
                         </span>
-                      )}
-                    </div>
-                    {/* Action */}
+                      </Link>
+                    ))}
+                  </>
+                )}
+                {upcomingFollowUps.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 mt-2">Kommende</p>
+                    {upcomingFollowUps.map(conv => (
+                      <Link
+                        key={conv.id}
+                        to={`/chat?conversationId=${conv.id}`}
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-accent/50 transition-colors group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">
+                            {getCompanyName(conv.company_id)}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-medium shrink-0">
+                          {conv.follow_up_at ? new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" }) : ""}
+                        </span>
+                      </Link>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Activity feed */}
+          {activityFeed.length > 0 && (
+            <div className="glass-card rounded-xl p-4">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+                Seneste 7 dage
+              </p>
+              <div className="space-y-0.5">
+                {activityFeed.map((event: any) => {
+                  const iconConfig = {
+                    report_uploaded: { color: "text-chart-info", bg: "bg-chart-info/10", label: "Rapport" },
+                    report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
+                  }[event.type as string] as { color: string; bg: string; label: string };
+                  return (
                     <button
-                      onClick={() => setCompanyOverride(c.company_id, c.company_name)}
-                      className="shrink-0 px-3 py-1 rounded-lg text-[11px] font-medium text-muted-foreground bg-secondary hover:text-foreground hover:bg-accent transition-colors"
+                      key={event.id}
+                      onClick={() => setCompanyOverride(event.companyId, event.companyName)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary/30 transition-colors text-left"
                     >
-                      Se data →
+                      <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
+                        {iconConfig.label}
+                      </span>
+                      <span className="text-[11px] font-medium text-foreground truncate flex-1">
+                        {event.companyName}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground shrink-0">
+                        {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
+                      </span>
                     </button>
-                  </div>
-                );
-              })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
-      </section>
-
-      {/* ── Section 4: Opfølgninger ── */}
-      {hasFollowUps && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Opfølgninger
-            </h2>
-          </div>
-          <div className="space-y-1.5">
-            {overdueFollowUps.length > 0 && (
-              <>
-                <p className="text-[11px] font-medium text-destructive uppercase tracking-wider px-1 mb-1">Forfalden</p>
-                {overdueFollowUps.map(conv => (
-                  <Link
-                    key={conv.id}
-                    to={`/chat?conversationId=${conv.id}`}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border border-l-[3px] border-l-destructive hover:bg-accent/50 transition-all group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {getCompanyName(conv.company_id)}
-                      </p>
-                    </div>
-                    <span className="text-xs text-destructive font-medium shrink-0">
-                      {conv.follow_up_at
-                        ? new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })
-                        : ""}
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-                  </Link>
-                ))}
-              </>
-            )}
-            {upcomingFollowUps.length > 0 && (
-              <>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-1 mb-1 mt-2">Kommende</p>
-                {upcomingFollowUps.map(conv => (
-                  <Link
-                    key={conv.id}
-                    to={`/chat?conversationId=${conv.id}`}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border hover:bg-accent/50 transition-all group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {getCompanyName(conv.company_id)}
-                      </p>
-                    </div>
-                    <span className="text-xs text-muted-foreground font-medium shrink-0">
-                      {conv.follow_up_at
-                        ? new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })
-                        : ""}
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-                  </Link>
-                ))}
-              </>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ── Section 5: Seneste aktivitet ── */}
-      {activityFeed.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Activity className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Seneste 7 dage
-            </h2>
-          </div>
-          <div className="glass-card rounded-xl divide-y divide-border/30">
-            {activityFeed.map((event: any) => {
-              const iconConfig = {
-                report_uploaded: { color: "text-chart-info", bg: "bg-chart-info/10", label: "Rapport" },
-                report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
-              }[event.type as string] as { color: string; bg: string; label: string };
-              return (
-                <button
-                  key={event.id}
-                  onClick={() => setCompanyOverride(event.companyId, event.companyName)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/30 transition-colors text-left"
-                >
-                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
-                    {iconConfig.label}
-                  </span>
-                  <span className="text-xs font-medium text-foreground truncate flex-1">
-                    {event.companyName}
-                  </span>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {event.label.split(" · ")[1] || ""}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      </div>
     </div>
   );
 };
