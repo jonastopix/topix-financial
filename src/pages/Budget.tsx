@@ -29,6 +29,7 @@ import BudgetOverviewTab from "@/components/budget/BudgetOverviewTab";
 import BudgetScenariosTab from "@/components/budget/BudgetScenariosTab";
 import BudgetVsActualTab from "@/components/budget/BudgetVsActualTab";
 import BudgetForecastTab from "@/components/budget/BudgetForecastTab";
+import BudgetCashflowTab from "@/components/budget/BudgetCashflowTab";
 
 const Budget = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
