@@ -111,6 +111,7 @@ interface CompanyData {
   invitationAcceptedAt: string | null;
   invitationEmail: string | null;
   loginInfo: Map<string, LoginInfo>;
+  hasPulseThisMonth: boolean;
 }
 
 type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
