@@ -186,6 +186,10 @@ const CompanyChatPane = () => {
     enabled: !isAdvisor, // only needed for member view
   });
 
+  const advisorNamesLabel = allAdvisors && allAdvisors.length > 0
+    ? allAdvisors.map((a: any) => a.full_name.split(" ")[0]).join(" & ")
+    : "Dine rådgivere";
+
 
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
   const { data: advisorUsers, isError: advisorUsersError } = useQuery({
@@ -1634,8 +1638,8 @@ const CompanyChatPane = () => {
                         {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
                       {!isAdvisor && (
-                        <p className="text-[10px] text-muted-foreground">
-                          Morten Larsen & Jonas Herlev
+                       <p className="text-[10px] text-muted-foreground">
+                          {advisorNamesLabel}
                         </p>
                       )}
                       {participants.length > 0 && (
@@ -2389,7 +2393,7 @@ const CompanyChatPane = () => {
 
                 {/* Input with topic selector */}
                 <div className="p-3 md:p-4 border-t border-border">
-                  {!isGroupThread && (
+                  {!isGroupThread && isAdvisor && (
                     <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                       <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
                       {MESSAGE_TOPICS.map(t => {
@@ -2418,7 +2422,7 @@ const CompanyChatPane = () => {
                     <ChatRichInput
                       onSubmit={handleSend}
                       disabled={sending}
-                      placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${advisorNamesLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
                   </div>
@@ -2430,7 +2434,7 @@ const CompanyChatPane = () => {
                 {!isAdvisor && companyName && (
                   <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
-                    <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med Morten Larsen & Jonas Herlev</span>
+                    <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med {advisorNamesLabel}</span>
                   </div>
                 )}
                 <div className="flex-1 flex items-center justify-center text-center">
