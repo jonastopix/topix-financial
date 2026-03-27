@@ -34,6 +34,11 @@ const Settings = () => {
   const [leaving, setLeaving] = useState(false);
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [emailPrefs, setEmailPrefs] = useState({
+    action_required: true,
+    important: true,
+  });
+  const [savingPrefs, setSavingPrefs] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
