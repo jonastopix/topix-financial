@@ -1,8 +1,30 @@
 import { useMemo, useState } from "react";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, X, Plus } from "lucide-react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { MONTHS, formatK, type BudgetRow } from "./types";
+
+interface SimEvent {
+  id: string;
+  type: "hire" | "marketing" | "rent" | "software" | "custom";
+  label: string;
+  monthlyCost: number;
+  startMonth: number;
+  isRevenue: boolean;
+}
+
+const EVENT_PRESETS = [
+  { type: "hire", label: "Ansæt én medarbejder", defaultCost: 40000, isRevenue: false,
+    hint: "Løn + 8% arbejdsgiverbidrag inkl." },
+  { type: "marketing", label: "Fordobl marketing", defaultCost: 0, isRevenue: false,
+    hint: "Beregnes automatisk fra dit marketingbudget" },
+  { type: "rent", label: "Flyt til større lokaler", defaultCost: 15000, isRevenue: false,
+    hint: "Ekstra månedlig husleje" },
+  { type: "software", label: "Nyt softwareabonnement", defaultCost: 2500, isRevenue: false,
+    hint: "Månedlig licens" },
+  { type: "custom", label: "Brugerdefineret", defaultCost: 10000, isRevenue: false,
+    hint: "Indtast selv beløb og navn" },
+] as const;
 
 interface Props {
   rows: BudgetRow[];
@@ -85,51 +107,42 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
 
   const forecastEbitda = MONTHS.map((_, i) => forecastRevenue[i] - forecastCosts[i]);
 
-  // Simulator sliders
-  const [simRevPct, setSimRevPct] = useState(0);
-  const [simWagePct, setSimWagePct] = useState(0);
-  const [simMktPct, setSimMktPct] = useState(0);
-  const [simOtherPct, setSimOtherPct] = useState(0);
+  // Business event simulator
+  const [events, setEvents] = useState<SimEvent[]>([]);
+  const [addingEvent, setAddingEvent] = useState(false);
+  const [newEventType, setNewEventType] = useState<SimEvent["type"]>("hire");
+  const [newEventCost, setNewEventCost] = useState(40000);
+  const [newEventLabel, setNewEventLabel] = useState("");
+  const [newEventMonth, setNewEventMonth] = useState(0);
+  const [newEventIsRevenue, setNewEventIsRevenue] = useState(false);
 
   const simulated = useMemo(() => {
-    const revFactor = 1 + simRevPct / 100;
-
     const totalForecastRev = forecastRevenue.reduce((s, v) => s + v, 0);
     const totalForecastCosts = forecastCosts.reduce((s, v) => s + v, 0);
-
-    const simRev = totalForecastRev * revFactor;
-
-    // Calculate actual fractions from budget rows
-    const totalBudgetCostAnnual = costRows.reduce(
-      (s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0
-    );
-
-    const wageCostAnnual = costRows
-      .filter(r => r.group === "personale")
-      .reduce((s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0);
-
-    const mktCostAnnual = costRows
-      .filter(r => r.group === "salg_marketing")
-      .reduce((s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0);
-
-    // Use actual fractions if budget has data, otherwise fall back to reasonable defaults
-    const wageFraction = totalBudgetCostAnnual > 0
-      ? wageCostAnnual / totalBudgetCostAnnual
-      : 0.4;
-    const mktFraction = totalBudgetCostAnnual > 0
-      ? mktCostAnnual / totalBudgetCostAnnual
-      : 0.15;
-    const otherFraction = 1 - wageFraction - mktFraction;
-
-    const simWages = totalForecastCosts * wageFraction * (1 + simWagePct / 100);
-    const simMkt = totalForecastCosts * mktFraction * (1 + simMktPct / 100);
-    const simOther = totalForecastCosts * otherFraction * (1 + simOtherPct / 100);
-    const simCosts = simWages + simMkt + simOther;
-
-    const simEbitda = simRev - simCosts;
     const baseEbitda = totalForecastRev - totalForecastCosts;
+
+    let extraRevenue = 0;
+    let extraCosts = 0;
+    for (const event of events) {
+      const monthsActive = 12 - event.startMonth;
+      const annualImpact = event.monthlyCost * monthsActive;
+      if (event.isRevenue) {
+        extraRevenue += annualImpact;
+      } else {
+        extraCosts += annualImpact;
+      }
+    }
+
+    const simRev = totalForecastRev + extraRevenue;
+    const simCosts = totalForecastCosts + extraCosts;
+    const simEbitda = simRev - simCosts;
     const ebitdaDelta = simEbitda - baseEbitda;
     const simMargin = simRev > 0 ? (simEbitda / simRev) * 100 : 0;
+
+    const monthlyImpact = events.reduce((s, e) => {
+      const monthly = e.isRevenue ? e.monthlyCost : -e.monthlyCost;
+      return s + monthly;
+    }, 0);
 
     return {
       revenue: Math.round(simRev),
@@ -137,9 +150,11 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
       ebitda: Math.round(simEbitda),
       ebitdaDelta: Math.round(ebitdaDelta),
       margin: simMargin,
-      baseEbitda: Math.round(baseEbitda),
+      monthlyImpact: Math.round(monthlyImpact),
+      extraCosts: Math.round(extraCosts),
+      extraRevenue: Math.round(extraRevenue),
     };
-  }, [forecastRevenue, forecastCosts, costRows, simRevPct, simWagePct, simMktPct, simOtherPct]);
+  }, [forecastRevenue, forecastCosts, events]);
 
   const isBudgetEmpty = rows.every(r => r.values.every(v => v === 0));
 
@@ -257,115 +272,273 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
         </div>
       </div>
 
-      {/* ── SECTION 2: What-if simulator ── */}
+      {/* ── SECTION 2: Business event simulator ── */}
       <div className="glass-card rounded-xl p-6">
         <div className="flex items-center justify-between mb-1">
           <h2 className="font-display font-semibold text-foreground">
-            What-if simulator
+            Scenariesimulator
           </h2>
-          <button
-            onClick={() => { setSimRevPct(0); setSimWagePct(0); setSimMktPct(0); setSimOtherPct(0); }}
-            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Nulstil
-          </button>
+          {events.length > 0 && (
+            <button
+              onClick={() => setEvents([])}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Nulstil alle
+            </button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground mb-6">
-          Skru på tallene og se hvad der sker med dit helårsresultat.
+          Tilføj konkrete business-hændelser og se effekten på dit helårsresultat.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {[
-            { label: "Omsætning", value: simRevPct, set: setSimRevPct, isRevenue: true },
-            { label: "Lønninger", value: simWagePct, set: setSimWagePct, isRevenue: false },
-            { label: "Marketing", value: simMktPct, set: setSimMktPct, isRevenue: false },
-            { label: "Andre omkostninger", value: simOtherPct, set: setSimOtherPct, isRevenue: false },
-          ].map(slider => (
-            <div key={slider.label}>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-foreground">{slider.label}</label>
-                <span className={`text-sm font-bold min-w-[48px] text-right ${
-                  slider.value === 0 ? "text-muted-foreground" :
-                  (slider.isRevenue ? slider.value > 0 : slider.value < 0) ? "text-primary" : "text-destructive"
-                }`}>
-                  {slider.value > 0 ? "+" : ""}{slider.value}%
-                </span>
+        {/* Event list */}
+        {events.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {events.map(event => (
+              <div key={event.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border/30">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{event.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {event.isRevenue ? "+" : "-"}{(event.monthlyCost / 1000).toFixed(0)}k kr./md
+                    {" · "}fra {MONTHS[event.startMonth]}
+                    {" · "}
+                    <span className={event.isRevenue ? "text-primary" : "text-destructive"}>
+                      {event.isRevenue ? "+" : "-"}
+                      {((event.monthlyCost * (12 - event.startMonth)) / 1000).toFixed(0)}k kr. i år
+                    </span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEvents(prev => prev.filter(e => e.id !== event.id))}
+                  className="ml-3 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <input
-                type="range"
-                min="-50"
-                max="100"
-                step="1"
-                value={slider.value}
-                onChange={e => slider.set(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>-50%</span>
-                <span>0</span>
-                <span>+100%</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* Impact display */}
-        <div className="rounded-xl border border-border bg-secondary/30 p-5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-            Effekt på helårsresultat
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1">Omsætning</p>
-              <p className="text-base font-display font-bold text-foreground">{formatK(simulated.revenue)} kr.</p>
+        {/* Add event */}
+        {!addingEvent ? (
+          <button
+            onClick={() => setAddingEvent(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed border-border/50 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all"
+          >
+            <Plus className="h-4 w-4" />
+            Tilføj hændelse
+          </button>
+        ) : (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Ny hændelse</p>
+            {/* Preset buttons */}
+            <div className="flex flex-wrap gap-2">
+              {EVENT_PRESETS.map(preset => (
+                <button
+                  key={preset.type}
+                  onClick={() => {
+                    setNewEventType(preset.type as SimEvent["type"]);
+                    setNewEventLabel(preset.label);
+                    if (preset.type === "marketing") {
+                      const mktRows = costRows.filter(r => r.group === "salg_marketing");
+                      const avgMonthly = mktRows.reduce(
+                        (s, r) => s + r.values.reduce((a, b) => a + b, 0), 0
+                      ) / 12;
+                      setNewEventCost(Math.round(avgMonthly));
+                    } else {
+                      setNewEventCost(preset.defaultCost);
+                    }
+                    setNewEventIsRevenue(preset.isRevenue);
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors ${
+                    newEventType === preset.type
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1">Omkostninger</p>
-              <p className="text-base font-display font-bold text-foreground">{formatK(simulated.costs)} kr.</p>
+
+            {/* Event details */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">Navn</label>
+                <input
+                  value={newEventLabel}
+                  onChange={e => setNewEventLabel(e.target.value)}
+                  placeholder="Beskriv hændelsen"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">Månedlig beløb (kr.)</label>
+                <input
+                  type="number"
+                  value={newEventCost}
+                  onChange={e => setNewEventCost(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1">EBITDA</p>
-              <p className={`text-base font-display font-bold ${simulated.ebitda >= 0 ? "text-primary" : "text-destructive"}`}>
-                {formatK(simulated.ebitda)} kr.
-              </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">Fra hvilken måned?</label>
+                <select
+                  value={newEventMonth}
+                  onChange={e => setNewEventMonth(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none"
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={m} value={i}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">Type</label>
+                <div className="flex gap-2 h-[38px] items-center">
+                  {[
+                    { key: false, label: "Omkostning" },
+                    { key: true, label: "Indtægt" },
+                  ].map(opt => (
+                    <button
+                      key={String(opt.key)}
+                      onClick={() => setNewEventIsRevenue(opt.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                        newEventIsRevenue === opt.key
+                          ? opt.key
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-destructive/10 text-destructive border-destructive/30"
+                          : "bg-background text-muted-foreground border-border"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1">Ændring vs. forecast</p>
-              <div className="flex items-center gap-1.5">
-                {simulated.ebitdaDelta > 0 ? (
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                ) : simulated.ebitdaDelta < 0 ? (
-                  <TrendingDown className="h-4 w-4 text-destructive" />
-                ) : (
-                  <Minus className="h-4 w-4 text-muted-foreground" />
-                )}
-                <p className={`text-base font-display font-bold ${
-                  simulated.ebitdaDelta > 0 ? "text-primary" :
-                  simulated.ebitdaDelta < 0 ? "text-destructive" :
-                  "text-muted-foreground"
-                }`}>
-                  {simulated.ebitdaDelta > 0 ? "+" : ""}{formatK(simulated.ebitdaDelta)} kr.
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => {
+                  if (!newEventLabel.trim() || newEventCost <= 0) return;
+                  setEvents(prev => [...prev, {
+                    id: crypto.randomUUID(),
+                    type: newEventType,
+                    label: newEventLabel.trim(),
+                    monthlyCost: newEventCost,
+                    startMonth: newEventMonth,
+                    isRevenue: newEventIsRevenue,
+                  }]);
+                  setAddingEvent(false);
+                  setNewEventLabel("");
+                  setNewEventCost(40000);
+                  setNewEventMonth(0);
+                  setNewEventIsRevenue(false);
+                }}
+                disabled={!newEventLabel.trim() || newEventCost <= 0}
+                className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                Tilføj
+              </button>
+              <button
+                onClick={() => setAddingEvent(false)}
+                className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Annuller
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Impact summary */}
+        {events.length > 0 && (
+          <div className="rounded-xl border border-border bg-secondary/30 p-5 mt-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+              Samlet effekt på helåret
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">Ekstra omkostninger</p>
+                <p className="text-base font-display font-bold text-destructive">
+                  -{formatK(simulated.extraCosts)} kr.
                 </p>
               </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">Ekstra omsætning</p>
+                <p className="text-base font-display font-bold text-primary">
+                  +{formatK(simulated.extraRevenue)} kr.
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">EBITDA</p>
+                <p className={`text-base font-display font-bold ${simulated.ebitda >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {formatK(simulated.ebitda)} kr.
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">Ændring vs. forecast</p>
+                <div className="flex items-center gap-1.5">
+                  {simulated.ebitdaDelta > 0 ? (
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                  ) : simulated.ebitdaDelta < 0 ? (
+                    <TrendingDown className="h-4 w-4 text-destructive" />
+                  ) : (
+                    <Minus className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <p className={`text-base font-display font-bold ${
+                    simulated.ebitdaDelta > 0 ? "text-primary" :
+                    simulated.ebitdaDelta < 0 ? "text-destructive" :
+                    "text-muted-foreground"
+                  }`}>
+                    {simulated.ebitdaDelta > 0 ? "+" : ""}{formatK(simulated.ebitdaDelta)} kr.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Margin bar */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] text-muted-foreground">EBITDA-margin</span>
-              <span className={`text-xs font-bold ${simulated.margin >= 0 ? "text-primary" : "text-destructive"}`}>
-                {simulated.margin.toFixed(1)}%
-              </span>
+            {/* Monthly impact bar */}
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-muted-foreground">Månedlig nettoeffekt</span>
+                <span className={`text-xs font-bold ${simulated.monthlyImpact >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {simulated.monthlyImpact >= 0 ? "+" : ""}{formatK(simulated.monthlyImpact)} kr./md
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${simulated.ebitdaDelta >= 0 ? "bg-primary" : "bg-destructive"}`}
+                  style={{
+                    width: `${Math.min(100, Math.max(5,
+                      Math.abs(simulated.ebitdaDelta) /
+                      Math.max(1, Math.abs(simulated.ebitda - simulated.ebitdaDelta)) * 100
+                    ))}%`
+                  }}
+                />
+              </div>
             </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${simulated.margin >= 0 ? "bg-primary" : "bg-destructive"}`}
-                style={{ width: `${Math.min(100, Math.max(0, Math.abs(simulated.margin)))}%` }}
-              />
+
+            {/* EBITDA margin */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-muted-foreground">EBITDA-margin</span>
+                <span className={`text-xs font-bold ${simulated.margin >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {simulated.margin.toFixed(1)}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${simulated.margin >= 0 ? "bg-primary" : "bg-destructive"}`}
+                  style={{ width: `${Math.min(100, Math.max(0, Math.abs(simulated.margin)))}%` }}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
     </div>
