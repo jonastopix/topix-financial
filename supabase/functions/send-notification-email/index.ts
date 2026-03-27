@@ -113,6 +113,15 @@ Deno.serve(async (req) => {
       "report_uploaded",
     ]);
 
+    // Fetch notification email preferences per user
+    const { data: profileRows } = await admin
+      .from("profiles")
+      .select("user_id, notification_email_prefs")
+      .in("user_id", userIds);
+    const prefsByUser = new Map(
+      (profileRows || []).map((p: any) => [p.user_id, p.notification_email_prefs])
+    );
+
     // Fetch daily email counts per user
     const today = new Date();
     today.setHours(0, 0, 0, 0);
