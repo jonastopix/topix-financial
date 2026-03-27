@@ -2437,12 +2437,29 @@ const CompanyChatPane = () => {
                     <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med {advisorNamesLabel}</span>
                   </div>
                 )}
-                <div className="flex-1 flex items-center justify-center text-center">
-                  <div>
-                    <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+                {!isAdvisor ? (
+                  <div className="flex-1 flex items-center justify-center text-center px-6">
+                    <div className="max-w-sm">
+                      <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                        <MessageCircle className="h-7 w-7 text-primary" />
+                      </div>
+                      <h3 className="text-base font-semibold text-foreground mb-2">
+                        Din direkte linje til {advisorNamesLabel}
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Stil spørgsmål, del opdateringer eller få sparring på dine tal og beslutninger.
+                        Vi svarer typisk inden for 24 timer.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-center">
+                    <div>
+                      <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
