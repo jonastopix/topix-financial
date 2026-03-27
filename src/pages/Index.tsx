@@ -11,6 +11,7 @@ import PerformanceScore from "@/components/PerformanceScore";
 import AttentionNeeded from "@/components/AttentionNeeded";
 import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
+import DashboardActivity from "@/components/DashboardActivity";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
