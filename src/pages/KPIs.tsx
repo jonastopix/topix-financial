@@ -499,6 +499,107 @@ const KPIs = () => {
         )}
       </div>
 
+      {/* Progress hero */}
+      {kpiProgress.length > 0 && (
+        <div className="glass-card rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-display font-semibold text-foreground">
+                Din fremgang mod årets mål
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Baseret på seneste rapport · {latestPeriodLabel}
+              </p>
+            </div>
+            {avgProgress != null && (
+              <div className="text-right">
+                <p className="text-3xl font-display font-bold text-primary">
+                  {Math.round(avgProgress)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  samlet fremgang
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="space-y-4">
+            {kpiProgress.map(k => {
+              const { def, target, actual, pct } = k;
+              const Icon = def.icon;
+              const isGood = pct >= 100;
+              const isClose = pct >= 70 && pct < 100;
+
+              return (
+                <div key={def.key}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">
+                        {def.label}
+                      </span>
+                      {target.label && (
+                        <span className="text-[10px] text-muted-foreground">
+                          · {target.label}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {def.unit === "DKK"
+                          ? `${formatCompact(actual)} / ${formatCompact(target.value)}`
+                          : `${actual.toFixed(1)}${def.unit} / ${target.value}${def.unit}`
+                        }
+                      </span>
+                      <span className={`text-xs font-bold min-w-[40px] text-right ${
+                        isGood ? "text-primary" :
+                        isClose ? "text-chart-warning" :
+                        "text-muted-foreground"
+                      }`}>
+                        {Math.round(Math.min(150, pct))}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isGood ? "bg-primary" :
+                        isClose ? "bg-chart-warning" :
+                        "bg-muted-foreground/40"
+                      }`}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                  {isGood && (
+                    <p className="text-[10px] text-primary mt-1">
+                      ✓ Mål nået — {Math.round(pct - 100)}% over target
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {kpiProgress.length === 0 && !editingTargets && (
+        <div className="glass-card rounded-xl p-5 mb-6 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Sæt dine KPI-mål
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Definer hvad du vil opnå i år — så viser vi din fremgang her.
+            </p>
+          </div>
+          <button
+            onClick={startEditingTargets}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
+          >
+            Sæt mål →
+          </button>
+        </div>
+      )}
+
       {/* Target editing panel */}
       {editingTargets && (
         <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-primary/30">
