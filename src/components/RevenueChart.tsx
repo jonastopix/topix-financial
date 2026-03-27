@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -19,6 +20,7 @@ const RevenueChart = () => {
         key: f.period_key,
         revenue: kf.omsaetning || 0,
         expenses: calcTotalExpenses(kf),
+        result: kf.resultat_foer_skat ?? null,
         month: `${SHORT_MONTHS[monthIdx]} ${year.slice(2)}`,
       };
     });
@@ -53,6 +55,12 @@ const RevenueChart = () => {
               {m === "last12" ? "12 mdr" : "År til dato"}
             </button>
           ))}
+          <Link
+            to="/kpis"
+            className="text-[10px] text-muted-foreground hover:text-primary transition-colors ml-2 hidden sm:block"
+          >
+            Se alle KPI'er →
+          </Link>
         </div>
       </div>
       <div className="h-64">
@@ -68,16 +76,24 @@ const RevenueChart = () => {
                   <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.15} />
                   <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id="colorResult" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 12 }} className="fill-muted-foreground" axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
               <Tooltip
                 contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", color: "hsl(var(--foreground))" }}
-                formatter={(value: number) => [`${(value / 1000).toFixed(0)}k DKK`, ""]}
+                formatter={(value: number, name: string) => [
+                  `${(value / 1000).toFixed(0)}k DKK`,
+                  name === "revenue" ? "Omsætning" : name === "expenses" ? "Udgifter" : "Resultat"
+                ]}
               />
               <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorRevenue)" name="Omsætning" />
               <Area type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" strokeWidth={2} fill="url(#colorExpenses)" name="Udgifter" />
+              <Area type="monotone" dataKey="result" stroke="hsl(var(--chart-2))" strokeWidth={2} fill="url(#colorResult)" name="Resultat" strokeDasharray="4 2" connectNulls dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
