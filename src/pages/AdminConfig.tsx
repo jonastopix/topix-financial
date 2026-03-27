@@ -112,14 +112,12 @@ const AdminConfig = () => {
   }, [gamification.pointsPerReport, gamification.pointsPerMilestone, gamification.levels]);
 
   // ─── Meetings state ─────────────────────────────────────
-  const [meetingDate, setMeetingDate] = useState<Date | undefined>(undefined);
+  const [meetingDate, setMeetingDate] = useState<string>(
+    meetings.next_meeting_date || ""
+  );
 
   useEffect(() => {
-    if (meetings.next_meeting_date) {
-      setMeetingDate(new Date(meetings.next_meeting_date));
-    } else {
-      setMeetingDate(undefined);
-    }
+    setMeetingDate(meetings.next_meeting_date || "");
   }, [meetings.next_meeting_date]);
 
   // ─── Load advisors ─────────────────────────────────────
