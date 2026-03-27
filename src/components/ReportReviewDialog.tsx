@@ -363,20 +363,18 @@ export default function ReportReviewDialog({
 
         {preview && !loading && !editing && (
           <div className="space-y-4">
-            {/* Status badges */}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={preview.eligible ? "default" : "destructive"}>
-                {preview.eligible ? "Eligible" : "Ikke eligible"}
-              </Badge>
-              {preview.source_type && (
-                <Badge variant="secondary">
-                  {SOURCE_LABELS[preview.source_type] || preview.source_type}
-                </Badge>
-              )}
-              {preview.validation_status && (
-                <Badge variant="outline">{preview.validation_status}</Badge>
-              )}
-            </div>
+            {/* Status */}
+            {preview.eligible ? (
+              <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                Vi har trukket tallene ud — kontrollér at de ser rigtige ud
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                Rapporten er ikke klar til godkendelse endnu
+              </div>
+            )}
 
             {/* Period & type info */}
             <div className="grid grid-cols-2 gap-3">
