@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       if (advisorIds.length > 0) {
         await writeNotificationToMany(admin, advisorIds, {
           type: "report_committed",
-          priority: "important",
+          priority: "info",
           title: `${companyName} har godkendt sine tal for ${period}`,
           body: `Tallene for ${period} er verificeret og klar. AI-analysen er aktiveret.`,
           reference_type: "report",
