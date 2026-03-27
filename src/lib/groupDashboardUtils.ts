@@ -17,6 +17,7 @@ export interface GroupCompanySummary {
   ebt: number | null;
   cash: number | null;
   missing_current_period: boolean;
+  has_pulse?: boolean;
 }
 
 export interface GroupAggregates {
