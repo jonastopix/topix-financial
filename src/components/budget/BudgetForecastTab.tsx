@@ -31,9 +31,10 @@ interface Props {
   rows: BudgetRow[];
   year: string;
   companyId: string | undefined;
+  userId: string | undefined;
 }
 
-const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
+const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
   const { data: facts = [] } = useCompanyFacts(companyId);
 
   const actualsMap = useMemo(() => {
