@@ -107,51 +107,42 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
 
   const forecastEbitda = MONTHS.map((_, i) => forecastRevenue[i] - forecastCosts[i]);
 
-  // Simulator sliders
-  const [simRevPct, setSimRevPct] = useState(0);
-  const [simWagePct, setSimWagePct] = useState(0);
-  const [simMktPct, setSimMktPct] = useState(0);
-  const [simOtherPct, setSimOtherPct] = useState(0);
+  // Business event simulator
+  const [events, setEvents] = useState<SimEvent[]>([]);
+  const [addingEvent, setAddingEvent] = useState(false);
+  const [newEventType, setNewEventType] = useState<SimEvent["type"]>("hire");
+  const [newEventCost, setNewEventCost] = useState(40000);
+  const [newEventLabel, setNewEventLabel] = useState("");
+  const [newEventMonth, setNewEventMonth] = useState(0);
+  const [newEventIsRevenue, setNewEventIsRevenue] = useState(false);
 
   const simulated = useMemo(() => {
-    const revFactor = 1 + simRevPct / 100;
-
     const totalForecastRev = forecastRevenue.reduce((s, v) => s + v, 0);
     const totalForecastCosts = forecastCosts.reduce((s, v) => s + v, 0);
-
-    const simRev = totalForecastRev * revFactor;
-
-    // Calculate actual fractions from budget rows
-    const totalBudgetCostAnnual = costRows.reduce(
-      (s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0
-    );
-
-    const wageCostAnnual = costRows
-      .filter(r => r.group === "personale")
-      .reduce((s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0);
-
-    const mktCostAnnual = costRows
-      .filter(r => r.group === "salg_marketing")
-      .reduce((s, r) => s + r.values.reduce((a, b) => a + Math.abs(b), 0), 0);
-
-    // Use actual fractions if budget has data, otherwise fall back to reasonable defaults
-    const wageFraction = totalBudgetCostAnnual > 0
-      ? wageCostAnnual / totalBudgetCostAnnual
-      : 0.4;
-    const mktFraction = totalBudgetCostAnnual > 0
-      ? mktCostAnnual / totalBudgetCostAnnual
-      : 0.15;
-    const otherFraction = 1 - wageFraction - mktFraction;
-
-    const simWages = totalForecastCosts * wageFraction * (1 + simWagePct / 100);
-    const simMkt = totalForecastCosts * mktFraction * (1 + simMktPct / 100);
-    const simOther = totalForecastCosts * otherFraction * (1 + simOtherPct / 100);
-    const simCosts = simWages + simMkt + simOther;
-
-    const simEbitda = simRev - simCosts;
     const baseEbitda = totalForecastRev - totalForecastCosts;
+
+    let extraRevenue = 0;
+    let extraCosts = 0;
+    for (const event of events) {
+      const monthsActive = 12 - event.startMonth;
+      const annualImpact = event.monthlyCost * monthsActive;
+      if (event.isRevenue) {
+        extraRevenue += annualImpact;
+      } else {
+        extraCosts += annualImpact;
+      }
+    }
+
+    const simRev = totalForecastRev + extraRevenue;
+    const simCosts = totalForecastCosts + extraCosts;
+    const simEbitda = simRev - simCosts;
     const ebitdaDelta = simEbitda - baseEbitda;
     const simMargin = simRev > 0 ? (simEbitda / simRev) * 100 : 0;
+
+    const monthlyImpact = events.reduce((s, e) => {
+      const monthly = e.isRevenue ? e.monthlyCost : -e.monthlyCost;
+      return s + monthly;
+    }, 0);
 
     return {
       revenue: Math.round(simRev),
@@ -159,9 +150,11 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
       ebitda: Math.round(simEbitda),
       ebitdaDelta: Math.round(ebitdaDelta),
       margin: simMargin,
-      baseEbitda: Math.round(baseEbitda),
+      monthlyImpact: Math.round(monthlyImpact),
+      extraCosts: Math.round(extraCosts),
+      extraRevenue: Math.round(extraRevenue),
     };
-  }, [forecastRevenue, forecastCosts, costRows, simRevPct, simWagePct, simMktPct, simOtherPct]);
+  }, [forecastRevenue, forecastCosts, events]);
 
   const isBudgetEmpty = rows.every(r => r.values.every(v => v === 0));
 
