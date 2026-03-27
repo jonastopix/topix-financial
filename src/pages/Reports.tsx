@@ -421,6 +421,18 @@ const Reports = () => {
       if (report.file_path && report.file_path.includes("/")) {
         await supabase.storage.from("financial-documents").remove([report.file_path]);
       }
+      // Delete commentaries linked to this report's facts (defensive — CASCADE also handles this)
+      const { data: reportFacts } = await (supabase
+        .from("financial_report_facts" as any)
+        .select("id")
+        .eq("source_report_id", report.id) as any);
+      if (reportFacts && reportFacts.length > 0) {
+        const factIds = reportFacts.map((f: any) => f.id);
+        await (supabase
+          .from("financial_commentaries" as any)
+          .delete()
+          .in("facts_id", factIds) as any);
+      }
       await (supabase.from("financial_report_facts" as any)
         .delete()
         .eq("source_report_id", report.id) as any);
@@ -429,6 +441,7 @@ const Reports = () => {
       setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["company-commentaries"] });
       toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
