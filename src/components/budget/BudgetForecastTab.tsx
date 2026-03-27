@@ -141,6 +141,24 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
     };
   }, [forecastRevenue, forecastCosts, costRows, simRevPct, simWagePct, simMktPct, simOtherPct]);
 
+  const isBudgetEmpty = rows.every(r => r.values.every(v => v === 0));
+
+  if (isBudgetEmpty) {
+    return (
+      <div className="flex flex-col items-center text-center py-16 glass-card rounded-xl">
+        <div className="p-4 rounded-2xl bg-primary/10 mb-4">
+          <TrendingUp className="h-8 w-8 text-primary" />
+        </div>
+        <h3 className="text-base font-display font-semibold text-foreground mb-2">
+          Udfyld dit budget først
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Forecast og simulator kræver at du har et budget med tal. Gå til Oversigt eller Importér for at komme i gang.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
