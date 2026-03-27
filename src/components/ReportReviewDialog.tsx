@@ -412,7 +412,7 @@ export default function ReportReviewDialog({
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-2">
                 <RefreshCw className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-primary">
-                  Denne rapport ejer allerede perioden — data opdateres ved commit.
+                  Denne rapport har allerede godkendte tal for denne periode — de opdateres.
                 </p>
               </div>
             )}
