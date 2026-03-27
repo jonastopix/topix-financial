@@ -91,6 +91,68 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
       </div>
 
       <div className="glass-card rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display font-semibold text-foreground">
+            Månedlig overblik
+          </h3>
+          <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-primary/60" />
+              Omsætning
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
+              EBITDA positiv
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-destructive" />
+              EBITDA negativ
+            </span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={chartData} barGap={4} barCategoryGap="25%">
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" vertical={false} />
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 11, fill: "#888" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "#888" }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+              width={45}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => [
+                `${Math.round(value / 1000)}k kr.`,
+                name === "omsaetning" ? "Omsætning" : "EBITDA",
+              ]}
+              contentStyle={{
+                background: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "8px",
+                fontSize: "12px",
+              }}
+            />
+            <ReferenceLine y={0} stroke="rgba(128,128,128,0.3)" />
+            <Bar dataKey="omsaetning" fill="hsl(var(--primary))" opacity={0.4} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="ebitda" radius={[3, 3, 0, 0]}>
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.ebitda >= 0 ? "#22c55e" : "#ef4444"}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="glass-card rounded-xl p-6">
         <h3 className="font-display font-semibold text-foreground mb-4">Omkostninger fordelt på grupper</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {costByGroup.map(g => (
