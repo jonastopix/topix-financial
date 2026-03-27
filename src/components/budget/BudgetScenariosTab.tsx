@@ -516,6 +516,67 @@ export default function BudgetScenariosTab({
                               )}
                             </div>
                           </td>
+                          {editing && row.isEditable && (() => {
+                            const currentVals = editValues[row.key] ?? row.values;
+                            const currentTotal = currentVals.reduce((s, v) => s + v, 0);
+                            return (
+                              <td colSpan={12} className="py-0 px-1">
+                                <div className="flex items-center gap-2 mb-1 px-1">
+                                  <label className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                    Årsbeløb:
+                                  </label>
+                                  <input
+                                    type="number"
+                                    placeholder="F.eks. 300000"
+                                    className="w-28 px-2 py-0.5 text-xs rounded border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                    onChange={(e) => {
+                                      const annual = Number(e.target.value);
+                                      if (annual <= 0) return;
+                                      const monthly = Math.round(annual / 12);
+                                      const newValues = Array(12).fill(monthly);
+                                      newValues[11] += annual - monthly * 12;
+                                      setEditValues(prev => ({ ...prev, [row.key]: newValues }));
+                                    }}
+                                  />
+                                  <span className="text-[10px] text-muted-foreground">→ fordeles</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (currentTotal === 0) return;
+                                      const monthly = Math.round(currentTotal / 12);
+                                      const newValues = Array(12).fill(monthly);
+                                      newValues[11] += currentTotal - monthly * 12;
+                                      setEditValues(prev => ({ ...prev, [row.key]: newValues }));
+                                    }}
+                                    className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                  >
+                                    Fordel jævnt (÷12)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (currentTotal === 0) return;
+                                      const t = currentTotal;
+                                      const seasonal = [
+                                        Math.round(t * 0.065), Math.round(t * 0.065), Math.round(t * 0.070),
+                                        Math.round(t * 0.085), Math.round(t * 0.090), Math.round(t * 0.090),
+                                        Math.round(t * 0.090), Math.round(t * 0.085), Math.round(t * 0.085),
+                                        Math.round(t * 0.085), Math.round(t * 0.080), Math.round(t * 0.110),
+                                      ];
+                                      seasonal[11] += t - seasonal.reduce((s, v) => s + v, 0);
+                                      setEditValues(prev => ({ ...prev, [row.key]: seasonal }));
+                                    }}
+                                    className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                  >
+                                    Sæsonfordel
+                                  </button>
+                                </div>
+                              </td>
+                            );
+                          })()}
+                        </tr>
+                        <tr key={`${row.key}-cells`} className="border-b border-border/30">
+                          <td className="py-0 px-3 sticky left-0 bg-card z-10"></td>
                           {row.values.map((val, i) => (
                             <td key={i} className="py-2.5 px-2.5 text-right font-display text-xs">
                               {editing && row.isEditable ? (
