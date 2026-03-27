@@ -9,9 +9,10 @@ interface ReactionBarProps {
   reactions: AggregatedReaction[];
   onToggle: (emoji: string) => void;
   isMine: boolean;
+  getReactorName?: (userId: string) => string;
 }
 
-export const ReactionBar: React.FC<ReactionBarProps> = ({ reactions, onToggle, isMine }) => {
+export const ReactionBar: React.FC<ReactionBarProps> = ({ reactions, onToggle, isMine, getReactorName }) => {
   if (reactions.length === 0) return null;
 
   return (
