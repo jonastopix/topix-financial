@@ -98,6 +98,7 @@ interface CompanyData {
   created_at: string;
   members: CompanyMember[];
   reportCount: number;
+  committedCount: number;
   unreadCount: number;
   conversationId: string | null;
   circleInfo: CircleInfo[];
@@ -168,7 +169,7 @@ const Members = () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes] = await Promise.all([
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes] = await Promise.all([
       supabase.from("companies" as any).select("*"),
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
@@ -178,6 +179,7 @@ const Members = () => {
       supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
       supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
       supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
+      supabase.from("financial_report_facts" as any).select("company_id, period_key"),
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
@@ -189,6 +191,14 @@ const Members = () => {
     const allCircleActivity = (circleActivityRes.data || []) as any[];
     const allInvitations = (invitationsRes.data || []) as any[];
     const allLoginLogs = (loginLogsRes.data || []) as any[];
+    const allFacts = (factsRes.data || []) as any[];
+
+    // Build committedByCompany map
+    const committedByCompany = new Map<string, number>();
+    for (const fact of allFacts) {
+      const id = fact.company_id;
+      committedByCompany.set(id, (committedByCompany.get(id) || 0) + 1);
+    }
 
     // Fetch latest sent_at from email_send_log for pending invitation emails
     const pendingEmails = allInvitations
@@ -361,6 +371,7 @@ const Members = () => {
           created_at: c.created_at,
           members: membersByCompany.get(c.id) || [],
           reportCount: reportsByCompany.get(c.id) || 0,
+          committedCount: committedByCompany.get(c.id) || 0,
           unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
           conversationId: conv?.id || null,
           circleInfo: circleInfoByCompany.get(c.id) || [],
@@ -1093,7 +1104,15 @@ const Members = () => {
                         {rev ? formatDKK(rev.value) : "–"}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{c.reportCount}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">{c.reportCount}</span>
+                          {c.committedCount > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              {c.committedCount}
+                            </span>
+                          )}
+                        </div>
                         {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
@@ -1361,7 +1380,23 @@ const Members = () => {
                               <FileText className="h-4 w-4 text-primary" />
                               <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
                             </div>
-                            <p className="text-sm font-medium text-foreground">{c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret</p>
+                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">{c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret</p>
+                              {c.committedCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                  {c.committedCount} godkendt
+                                </span>
+                              )}
+                            </div>
+                              {c.committedCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                  {c.committedCount} godkendt
+                                </span>
+                              )}
+                            </div>
                             {c.unreadCount > 0 && (
                               <p className="text-xs text-chart-warning font-semibold mt-1">{c.unreadCount} ubesvarede beskeder</p>
                             )}
