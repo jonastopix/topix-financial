@@ -193,6 +193,11 @@ const Dashboard = () => {
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
 
+  const nextMeeting = getNextBoardroomDate();
+  const meetingDateStr = nextMeeting.date.toLocaleDateString("da-DK", {
+    weekday: "long", day: "numeric", month: "long"
+  });
+
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
   const currentMonthName = DANISH_MONTHS[now.getMonth()].toLowerCase();
