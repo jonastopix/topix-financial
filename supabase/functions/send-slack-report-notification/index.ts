@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       if (advisorIds.length > 0) {
         await writeNotificationToMany(admin, advisorIds, {
           type: "pulse_checkin_received",
-          priority: "important",
+          priority: "info",
           title: `${companyName} har udfyldt pulse check-in for ${periodLabel}`,
           body: `Læs hvad der gik godt og hvad der er den største udfordring inden jeres næste session.`,
           reference_type: "pulse",
