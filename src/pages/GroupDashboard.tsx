@@ -71,6 +71,16 @@ const GroupDashboard = () => {
         groupName={groupName}
         actions={actions}
       />
+      {isGroupOwner && showSettings && groupId && user && (
+        <div className="mt-6">
+          <GroupSettings
+            groupId={groupId}
+            groupName={groupName}
+            companies={companies}
+            userId={user.id}
+          />
+        </div>
+      )}
       <div className="mt-6">
         <CommunityProgress />
       </div>
