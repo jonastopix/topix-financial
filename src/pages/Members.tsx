@@ -1219,7 +1219,7 @@ const Members = () => {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : (groupedView.standaloneCompanies.length === 0 && groupedView.groups.length === 0) ? (
           <div className="text-center py-16">
             <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
@@ -1228,7 +1228,7 @@ const Members = () => {
           </div>
         ) : (
           <div className="divide-y divide-border/50">
-            {filtered.map((c) => {
+            {groupedView.standaloneCompanies.map((c) => {
               const isExpanded = expandedId === c.id;
               const rev = getDisplayRevenue(c);
               return (
