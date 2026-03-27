@@ -39,7 +39,7 @@ const FALLBACK_HTML = `<!DOCTYPE html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="background-color:#f9f9f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
 <div style="max-width:520px;margin:0 auto">
-  <div style="background:#0f1117;border-radius:10px 10px 0 0;padding:18px 28px">
+  <div style="background:hsl(170,46%,14%);border-radius:10px 10px 0 0;padding:18px 28px">
     <div style="width:28px;height:28px;background:#16a34a;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:10px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="white"/><rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity=".3"/></svg></div>
     <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em">The Boardroom</span>
   </div>
@@ -194,7 +194,9 @@ Deno.serve(async (req) => {
         message_id: messageId,
         template_name: 'report-reminder',
         recipient_email: recipientEmail,
+        subject: subject,
         status: 'pending',
+        is_test: isTest ?? false,
       });
 
       const { error: enqueueError } = await supabase.rpc('enqueue_email', {
