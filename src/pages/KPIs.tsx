@@ -122,6 +122,32 @@ const KPIs = () => {
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
 
+  const { data: budgetData } = useQuery({
+    queryKey: ["budget-for-kpi-targets", companyId],
+    queryFn: async () => {
+      const { data } = await (supabase
+        .from("budget_targets")
+        .select("category, budget_amount, period") as any)
+        .eq("company_id", companyId!)
+        .like("period", `${new Date().getFullYear()}-base-%`);
+      return (data || []) as { category: string; budget_amount: number; period: string }[];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  });
+
+  const budgetTotals = useMemo(() => {
+    if (!budgetData?.length) return null;
+    const revenue = budgetData
+      .filter(b => b.category === "omsaetning")
+      .reduce((s, b) => s + b.budget_amount, 0);
+    const costs = budgetData
+      .filter(b => b.category !== "omsaetning" && !b.category.startsWith("__"))
+      .reduce((s, b) => s + b.budget_amount, 0);
+    const ebitda = revenue - costs;
+    return { revenue: Math.round(revenue), ebitda: Math.round(ebitda) };
+  }, [budgetData]);
+
   useEffect(() => {
     if (!user || !companyId) return;
     const load = async () => {
