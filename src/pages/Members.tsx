@@ -222,6 +222,9 @@ const Members = () => {
     const allInvitations = (invitationsRes.data || []) as any[];
     const allLoginLogs = (loginLogsRes.data || []) as any[];
     const allFacts = (factsRes.data || []) as any[];
+    const pulseThisMonthSet = new Set(
+      (pulseRes.data || []).map((p: any) => p.company_id)
+    );
 
     // Build committedByCompany map
     const committedByCompany = new Map<string, number>();
