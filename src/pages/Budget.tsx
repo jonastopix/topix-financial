@@ -98,7 +98,9 @@ const Budget = () => {
       const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
       const extraGroupMap: Record<string, string> = {};
       groupMarkers.forEach(g => {
-        const key = g.category.replace("__group__", "");
+        const key = g.category
+          .replace(/__group__\d{4}_/, "")
+          .replace("__group__", "");
         extraGroupMap[key] = g.period;
       });
 
