@@ -114,7 +114,7 @@ interface CompanyData {
   hasPulseThisMonth: boolean;
 }
 
-type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
+type SortKey = "name" | "reportCount" | "latest_report";
 type SortDir = "asc" | "desc";
 
 interface UnassignedUser {
