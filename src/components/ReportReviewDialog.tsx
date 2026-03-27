@@ -461,7 +461,7 @@ export default function ReportReviewDialog({
               return (
                 <div>
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Kvalitetssignaler
+                    Validering
                   </h4>
                   <div className="space-y-1.5">
                     {checks.map((signal, idx) => {
