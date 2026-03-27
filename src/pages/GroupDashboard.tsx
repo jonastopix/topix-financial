@@ -26,6 +26,15 @@ const GroupDashboard = () => {
     <>
       {isGroupOwner && (
         <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+        >
+          <Settings className="h-4 w-4" />
+          Indstillinger
+        </button>
+      )}
+      {isGroupOwner && (
+        <button
           onClick={() => setShowCreateDialog(true)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
         >
