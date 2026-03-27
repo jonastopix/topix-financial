@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar, ArrowRight, Sparkles } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -16,7 +16,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
-import { useAppConfig } from "@/hooks/useAppConfig";
+
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
@@ -221,18 +221,24 @@ const Dashboard = () => {
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
 
-  const { meetings } = useAppConfig();
-  const storedMeetingDate = meetings.next_meeting_date
-    ? new Date(meetings.next_meeting_date)
-    : null;
-  const daysUntilMeeting = storedMeetingDate
-    ? Math.ceil((storedMeetingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : null;
-  const meetingDateStr = storedMeetingDate
-    ? storedMeetingDate.toLocaleDateString("da-DK", {
-        weekday: "long", day: "numeric", month: "long"
-      })
-    : null;
+  // ── Pulse check for "Dit forløb" card ──
+  const { data: pulseThisMonth } = useQuery({
+    queryKey: ["pulse-this-month", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+      const { data } = await (supabase
+        .from("pulse_checkins" as any)
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("period_key", periodKey)
+        .maybeSingle() as any);
+      return data;
+    },
+    enabled: !!companyId && !isAdvisor,
+    staleTime: 5 * 60_000,
+  });
+  const hasPulseThisMonth = !!pulseThisMonth;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
@@ -373,30 +379,78 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Dit forløb denne måned — member progress overview */}
+      {!isAdvisor && (
+        <div className="glass-card rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-foreground">
+              Dit forløb denne måned
+            </p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              {new Date().toLocaleDateString("da-DK", { month: "long", year: "numeric" })}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              {
+                label: "Rapport",
+                done: hasReports,
+                action: "/reports",
+                actionLabel: "Upload",
+              },
+              {
+                label: "Pulse check-in",
+                done: hasPulseThisMonth,
+                action: "/pulse",
+                actionLabel: "Udfyld",
+              },
+              {
+                label: "Milestones",
+                done: false,
+                action: "/milestones",
+                actionLabel: "Se status",
+              },
+            ].map(item => (
+              <Link key={item.label} to={item.action}
+                className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
+                  item.done
+                    ? "border-primary/20 bg-primary/5"
+                    : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
+                }`}
+              >
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                  item.done ? "bg-primary/20" : "bg-muted"
+                }`}>
+                  {item.done
+                    ? <CheckCircle2 className="h-4 w-4 text-primary" />
+                    : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  }
+                </div>
+                <p className={`text-xs font-medium ${
+                  item.done ? "text-primary" : "text-foreground"
+                }`}>
+                  {item.label}
+                </p>
+                {!item.done && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {item.actionLabel} →
+                  </span>
+                )}
+                {item.done && (
+                  <span className="text-[10px] text-primary">
+                    ✓ Gjort
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Attention needed — action-first, before KPI data */}
       <div className="mb-6">
         <AttentionNeeded />
       </div>
-
-      {hasReports && !isAdvisor && storedMeetingDate && daysUntilMeeting !== null && daysUntilMeeting > 0 && (
-        <div className="mb-6">
-          <div className="glass-card rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Calendar className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Næste boardroom-session</p>
-                <p className="text-xs text-muted-foreground capitalize">{meetingDateStr}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-display font-bold text-primary">{daysUntilMeeting}</p>
-              <p className="text-[10px] text-muted-foreground">dage</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* KPI cards – only shown when we have processed data */}
       {kpiData.period && (
@@ -481,9 +535,9 @@ const Dashboard = () => {
 
       {/* 3-column snapshot grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
+        <DashboardMilestones />
         <DashboardHandouts />
         <BudgetOverview />
-        <DashboardMilestones />
       </div>
 
       {latestCommentary && !isAdvisor && (
