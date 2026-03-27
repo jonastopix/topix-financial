@@ -49,33 +49,72 @@ serve(async (req) => {
 
     const systemPrompt = `Du er en ekspert i at læse og forstå danske budgetter og regnskaber fra Excel-filer.
 
-Du modtager indholdet af en Excel-fil (parset som tekst/CSV). Din opgave er at:
+Du modtager indholdet af en Excel-fil (parset som tekst/CSV).
+Din opgave er at udtrække budgetdata præcist og bevare så mange
+detaljer som muligt.
 
-1. Identificere ALLE budgetår i filen (f.eks. 2025 OG 2026 hvis begge findes)
-2. For HVERT år: udtrække ALLE budgetposter med månedlige beløb (Januar-December)
-3. Intelligent gruppere posterne i følgende hovedkategorier:
-   - "omsaetning" (Omsætning / indtægter)
-   - "vareforbrug" (Vareforbrug, COGS, direkte omkostninger)
-   - "loenninger" (Lønninger, medarbejderomkostninger, personalepleje)
-   - "marketing" (Marketing, content, repræsentation)
-   - "lokaler" (Kontorleje, lager, el, vand, varme)
-   - "tech_software" (Platform, hosting, software, domæner, IT-udstyr)
-   - "admin" (Bogføring, revision, advokat, forsikring, kontorartikler, telefon)
-   - "betalingsgebyrer" (Betalingshåndtering, transaktionsgebyrer)
-   - "andet" (Alt der ikke passer andre kategorier)
+TRIN 1: IDENTIFICÉR ALLE BUDGETÅR
+Find alle år der har budgettal (f.eks. 2025 OG 2026).
+Returnér hvert år separat.
 
-4. For hver kategori, summer ALLE relevante underposter per måned
+TRIN 2: FOR HVERT ÅR — UDTRÉK ALLE POSTER MED MÅNEDLIGE BELØB
+Bevar ALLE budgetlinjer som separate kategorier når det giver mening.
+Sammenlæg kun poster der er indholdsmæssigt identiske.
 
-Regler:
-- Alle beløb skal være POSITIVE tal (fjern minus-tegn fra omkostninger)
-- Omsætning er positiv, omkostninger er positive (vi ved de er omkostninger fra kategorien)
-- Ignorer tomme rækker, totaler, marginer og beregnede felter
-- Returnér ALLE budgetår der findes i filen — hvert år som et separat objekt i "years" arrayet
-- Ignorer "uforudsete omkostninger" som separat post — inkluder dem i "andet"
+TRIN 3: BRUG DISSE KATEGORINØGLER (vælg den mest præcise):
 
-Returnér resultatet som et JSON-objekt med denne struktur:
+INDTÆGTER:
+- "omsaetning" — Omsætning, nettoomsætning, salg, honorar, MRR
+
+VARIABLE OMKOSTNINGER:
+- "vareforbrug" — Vareforbrug, COGS, indkøb af varer, råvarer, materialer
+- "fragt_levering" — Fragt, levering, forsendelse, porto, transport af varer
+- "betalingsgebyrer" — Betalingsgebyrer, kortgebyrer, Stripe, MobilePay
+- "underleverandoerer" — Underleverandører, underentreprenører, ekstern produktion
+
+PERSONALE:
+- "loenninger" — Lønninger, personaleomkostninger, medarbejdere, A-løn
+- "freelance_konsulenter" — Freelancere, konsulenter, honorarer til ekstern arbejdskraft
+- "uddannelse" — Kurser, uddannelse, kompetenceudvikling, certificeringer
+
+SALG & MARKETING:
+- "digital_marketing" — Digital marketing, Meta Ads, Google Ads, SoMe-annoncering
+- "seo_content" — SEO, content marketing, blogging, tekstforfatter
+- "email_marketing" — E-mail marketing, nyhedsbrev, Klaviyo, Mailchimp
+- "lokal_marketing" — Lokal markedsføring, flyers, skilte, lokale events
+- "salg_kundepleje" — Salg, CRM, salgspersonale, kundearrangementer
+- "rejser_repraesentant" — Rejser, repræsentation, messer, kundebesøg, hotel
+
+DRIFT:
+- "platform_tech" — Webshop-platform, Shopify, WooCommerce, hosting
+- "tech_software" — Software, licenser, SaaS-abonnementer, IT-værktøjer
+- "hosting_infra" — Hosting, cloud, AWS, infrastruktur, servere
+- "booking_tech" — Booking-system, kasse-system, POS
+- "lager_logistik" — Lagerleje, lagerhold, 3PL, pakkeri
+- "koeretoej_braendstof" — Køretøjer, firmabil, brændstof, leasing af bil
+- "maskiner_vaerktoj" — Maskiner, udstyr, værktøj, inventar
+
+FASTE OMKOSTNINGER:
+- "lokaler" — Husleje, kontorleje, lokaler (generisk)
+- "lokaler_husleje" — Butikshusleje, butiksleje, butikslokale
+- "lokaler_vaerksted" — Værksted, produktionslokale, lagerbygning
+- "forsikring" — Forsikringer (generisk)
+- "forsikring_abonnementer" — Forsikring + diverse abonnementer
+- "admin_regnskab" — Administration, regnskab, revisor, bogføring, juridisk
+- "telefon_internet" — Telefon, mobilabonnement, internet, kommunikation
+- "andet" — Alt der ikke passer i ovenstående kategorier
+
+REGLER:
+- Beløb skal ALTID være POSITIVE tal
+- Ignorer totaler, subtotaler, marginer og beregnede felter
+- Ignorer tomme rækker
+- Bevar granularitet: "Fragt" og "Vareforbrug" skal IKKE slås sammen
+- Hvis en post er uklar, brug "andet" frem for at gætte forkert
+- Returnér kun kategorier med faktiske tal (ikke tomme kategorier)
+
+RETURNÉR JSON med denne struktur:
 {
-  "company_name": "Firmanavn",
+  "company_name": "Firmanavn hvis det fremgår",
   "years": [
     {
       "year": "2025",
@@ -84,13 +123,9 @@ Returnér resultatet som et JSON-objekt med denne struktur:
           "key": "omsaetning",
           "label": "Omsætning",
           "monthly": [jan, feb, mar, apr, maj, jun, jul, aug, sep, okt, nov, dec],
-          "details": ["Topix salg", "Boardroom salg"]
+          "details": ["Specificerede underposter fundet i filen"]
         }
       ]
-    },
-    {
-      "year": "2026",
-      "categories": [...]
     }
   ]
 }`;
