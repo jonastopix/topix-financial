@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { supabase } from "@/integrations/supabase/client";
-import { Calculator, ArrowLeft, BarChart3, Layers, DollarSign, Upload, TrendingUp } from "lucide-react";
+import { Calculator, ArrowLeft, BarChart3, Layers, DollarSign, Upload, TrendingUp, Droplets } from "lucide-react";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
 import BudgetImport from "@/components/BudgetImport";
 import {
@@ -29,6 +29,7 @@ import BudgetOverviewTab from "@/components/budget/BudgetOverviewTab";
 import BudgetScenariosTab from "@/components/budget/BudgetScenariosTab";
 import BudgetVsActualTab from "@/components/budget/BudgetVsActualTab";
 import BudgetForecastTab from "@/components/budget/BudgetForecastTab";
+import BudgetCashflowTab from "@/components/budget/BudgetCashflowTab";
 
 const Budget = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
@@ -422,6 +423,10 @@ const Budget = () => {
             <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
             Forecast & Simulator
           </TabsTrigger>
+          <TabsTrigger value="cashflow" className="text-xs shrink-0">
+            <Droplets className="h-3.5 w-3.5 mr-1.5" />
+            Cashflow
+          </TabsTrigger>
           <TabsTrigger value="import" className="text-xs shrink-0">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Importér
@@ -453,6 +458,14 @@ const Budget = () => {
 
         <TabsContent value="forecast">
           <BudgetForecastTab
+            rows={rows}
+            year={year}
+            companyId={companyId || undefined}
+          />
+        </TabsContent>
+
+        <TabsContent value="cashflow">
+          <BudgetCashflowTab
             rows={rows}
             year={year}
             companyId={companyId || undefined}
