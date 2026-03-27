@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       }
 
       // Advisor/admin email suppression: skip email for Slack-covered events
-      if (advisorUserIds.has(notif.user_id) && ADVISOR_SKIP_TYPES.has(notif.type)) {
+      if (advisorUserIds.has(notif.user_id)) {
         // Mark email_sent_at to prevent future retries, but don't actually send
         await admin
           .from("notifications")
