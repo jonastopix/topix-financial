@@ -253,6 +253,20 @@ export default function ReportReviewDialog({
       queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
 
+      // Confirm to member that their commit succeeded (fire and forget)
+      try {
+        await supabase.from("notifications" as any).insert({
+          user_id: user!.id,
+          type: "report_review_ready",
+          priority: "info",
+          title: `${preview?.period_label || "Rapporten"} er godkendt`,
+          body: "Dine tal er gemt og klar. Din AI-analyse er nu opdateret.",
+          deep_link: "/reports",
+          company_id: companyId || undefined,
+          dedup_key: `member-commit-confirmed:${reportId}`,
+        } as any);
+      } catch {}
+
       // Notify advisors that member has approved their report
       try {
         await supabase.functions.invoke("send-slack-report-notification", {
