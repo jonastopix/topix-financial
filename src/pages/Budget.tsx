@@ -377,7 +377,7 @@ const Budget = () => {
             </p>
             {selectedTemplate && (
               <button
-                onClick={() => setChangingTemplate(true)}
+                onClick={() => setConfirmTemplateChange(true)}
                 className="text-[10px] text-primary hover:underline"
               >
                 Skift skabelon
