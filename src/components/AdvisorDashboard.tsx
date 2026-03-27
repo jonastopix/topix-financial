@@ -796,7 +796,7 @@ const AdvisorDashboard = () => {
                                 "text-muted-foreground"
                               }`}>
                                 {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}
-                                {Math.abs(c.revenueTrendPct).toFixed(0)}%
+                                {Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
                               </span>
                             ) : (
                               <span className="text-[10px] text-muted-foreground/30">—</span>
