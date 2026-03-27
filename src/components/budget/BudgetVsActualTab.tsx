@@ -126,6 +126,11 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
   );
   const totalActualEbitda = totalActualRevenue - totalActualCosts;
 
+  const chartData = MONTHS.map((month, i) => ({
+    month,
+    budget: Math.round(budgetEbitda[i]),
+    actual: actualEbitda[i] !== null ? Math.round(actualEbitda[i]!) : null,
+  }));
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
