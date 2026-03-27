@@ -10,7 +10,7 @@ import { Rocket, FileText, ClipboardList, LayoutDashboard, TrendingUp, Target, U
 import { toast } from "sonner";
 
 const Onboarding = () => {
-  const { user, profile, companyName, setOnboardingComplete } = useAuth();
+  const { user, profile, companyName, setOnboardingComplete, companyId } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [saving, setSaving] = useState(false);
