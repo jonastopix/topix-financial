@@ -11,9 +11,7 @@ import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, get
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
-import {
-  Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
-} from "@/components/ui/table";
+import KPICard from "@/components/KPICard";
 
 // ── Helpers ──
 
