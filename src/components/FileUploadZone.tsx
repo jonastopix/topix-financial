@@ -857,7 +857,9 @@ const FileUploadZone = ({
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
               <p className="font-medium text-foreground mb-1">e-conomic</p>
               <p className="text-muted-foreground">
-                Regnskab → Rapporter → <strong className="text-foreground">Balance</strong> → Excel. Brug ikke "Saldobalance" — den giver upræcise resultater.
+                <strong className="text-foreground">Balance Excel</strong> — Regnskab → Rapporter → Balance → Excel (anbefalet)<br />
+                <strong className="text-foreground">Saldobalance Excel</strong> — Regnskab → Rapporter → Saldobalance → Excel<br />
+                <strong className="text-foreground">Resultatopgørelse PDF</strong> — Regnskab → Rapporter → Resultatopgørelse → PDF
               </p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
