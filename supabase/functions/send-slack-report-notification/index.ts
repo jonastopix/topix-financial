@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
           type: "pulse_checkin_received",
           priority: "info",
           title: `${companyName} har udfyldt pulse check-in for ${periodLabel}`,
-          body: `Læs hvad der gik godt og hvad der er den største udfordring inden jeres næste session.`,
+          body: `Læs hvad der gik godt og hvad der er den største udfordring — så I kan give dem den bedste sparring.`,
           reference_type: "pulse",
           company_id: pulseCompanyId,
           deep_link: `/members?companyId=${pulseCompanyId}`,
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
 
       const firstName = profile?.full_name?.split(" ")[0] || "dig";
       const title = `"${milestoneTitle || "Dit milestone"}" — deadline om ${daysUntil} dag${daysUntil !== 1 ? "e" : ""}`;
-      const body_text = `Hej ${firstName} — du har ${daysUntil} dag${daysUntil !== 1 ? "e" : ""} til at nå dit milestone. Opdater din fremgang inden boardroom-sessionen.`;
+      const body_text = `Hej ${firstName} — du har ${daysUntil} dag${daysUntil !== 1 ? "e" : ""} til at nå dit milestone. Opdater din fremgang på platformen.`;
 
       await writeNotification(admin, {
         user_id: userId,

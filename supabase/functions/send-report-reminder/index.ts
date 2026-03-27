@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     };
     const intros: Record<Urgency, string> = {
       gentle: `vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Det tager under 2 minutter, og vi trækker tallene ud automatisk.`,
-      urgent: `din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at tallene er klar inden boardroom-sessionen.`,
+      urgent: `din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Upload den snarest så vi kan følge med i udviklingen og give dig den bedste sparring.`,
       critical: `vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt.`,
     };
     const emailSubjects: Record<Urgency, string> = {
