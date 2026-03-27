@@ -98,7 +98,9 @@ const Budget = () => {
       const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
       const extraGroupMap: Record<string, string> = {};
       groupMarkers.forEach(g => {
-        const key = g.category.replace("__group__", "");
+        const key = g.category
+          .replace(/__group__\d{4}_/, "")
+          .replace("__group__", "");
         extraGroupMap[key] = g.period;
       });
 
@@ -120,7 +122,9 @@ const Budget = () => {
       const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
       const loadedLabels: Record<string, string> = {};
       labelMarkers.forEach(m => {
-        const key = m.category.replace("__label__", "");
+        const key = m.category
+          .replace(/__label__\d{4}_/, "")
+          .replace("__label__", "");
         loadedLabels[key] = m.period;
       });
       setLabelOverrides(loadedLabels);
