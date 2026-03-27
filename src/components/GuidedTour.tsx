@@ -1,101 +1,51 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { X, ChevronRight, PartyPopper, Sparkles } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, PartyPopper, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
 
 interface TourStep {
-  selector: string | null; // null = no spotlight (welcome/finish)
   title: string;
   description: string;
-  position?: "bottom" | "right" | "top";
 }
 
 const STEPS: TourStep[] = [
   {
-    selector: null,
-    title: "Dit dashboard",
+    title: "Velkommen til dit dashboard",
     description:
-      "Her er dit kontrolcenter. Du ser seneste nøgletal, hvad der kræver opmærksomhed, og din performance score — alt opdateres automatisk fra dine rapporter.",
+      "Her ser du dine seneste nøgletal, hvad der kræver opmærksomhed, og din performance — alt opdateres automatisk fra dine rapporter.",
   },
   {
-    selector: '[data-tour="kpi-cards"]',
-    title: "Dine nøgletal",
+    title: "Upload din rapport",
     description:
-      "Omsætning, udgifter, resultat og bank — med trend-pile der viser om du går frem eller tilbage siden sidst. Tallene opdateres automatisk når du uploader en ny rapport.",
-    position: "bottom",
+      "Gå til Rapportering i menuen og upload en PDF eller Excel fra e-conomic, Dinero eller Billy. Vi trækker tallene ud automatisk.",
   },
   {
-    selector: '[data-tour="upload-zone"]',
-    title: "Upload din første rapport",
+    title: "Sæt dine mål",
     description:
-      "Upload en PDF eller Excel direkte fra e-conomic, Dinero, Billy eller et andet system. Vi trækker tallene ud automatisk — du verificerer inden de gemmes.",
-    position: "right",
+      "Under Milestones og KPI'er definerer du hvad du vil opnå. Jo mere konkret du er, des bedre sparring kan vi give dig.",
   },
   {
-    selector: '[data-tour="chat-link"]',
-    title: "Direkte linje til Morten og Jonas",
+    title: "Din direkte linje til rådgiverne",
     description:
-      "Stil spørgsmål, del en opdatering eller bed om sparring — direkte i chatten. De læser dine tal og kender din situation.",
-    position: "right",
+      "Brug chatten til at stille spørgsmål, dele opdateringer eller bede om sparring. Morten og Jonas læser dine tal og kender din situation.",
   },
   {
-    selector: null,
     title: "Du er klar til at komme i gang",
     description:
       "Start med at uploade din seneste rapport. Det tager 2 minutter, og du får øjeblikkelig AI-analyse af dine tal.",
   },
 ];
 
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
 export default function GuidedTour({ onComplete }: { onComplete: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState(0);
-  const [targetRect, setTargetRect] = useState<Rect | null>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const current = STEPS[step];
   const isFirst = step === 0;
   const isLast = step === STEPS.length - 1;
-
-  // Measure target element
-  const measure = useCallback(() => {
-    if (!current.selector) {
-      setTargetRect(null);
-      return;
-    }
-    const el = document.querySelector(current.selector);
-    if (el) {
-      const r = el.getBoundingClientRect();
-      const pad = 8;
-      setTargetRect({
-        top: r.top - pad + window.scrollY,
-        left: r.left - pad,
-        width: r.width + pad * 2,
-        height: r.height + pad * 2,
-      });
-    } else {
-      setTargetRect(null);
-    }
-  }, [current.selector]);
-
-  useEffect(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [measure]);
 
   // Fire confetti on last step
   useEffect(() => {
@@ -128,142 +78,99 @@ export default function GuidedTour({ onComplete }: { onComplete: () => void }) {
     }
   };
 
-  const skip = () => finish();
-
-  // Compute tooltip position
-  const getTooltipStyle = (): React.CSSProperties => {
-    if (!targetRect) {
-      // Center on screen
-      return {
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-      };
-    }
-    const pos = current.position || "bottom";
-    if (pos === "right") {
-      return {
-        position: "absolute",
-        top: targetRect.top,
-        left: targetRect.left + targetRect.width + 16,
-      };
-    }
-    // bottom
-    return {
-      position: "absolute",
-      top: targetRect.top + targetRect.height + 16,
-      left: targetRect.left,
-    };
+  const back = () => {
+    if (!isFirst) setStep((s) => s - 1);
   };
 
-  // Build clip-path polygon to create spotlight hole
-  const overlayStyle: React.CSSProperties = targetRect
-    ? {
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: document.documentElement.scrollHeight,
-        background: "rgba(0,0,0,0.6)",
-        clipPath: `polygon(
-          0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
-          ${targetRect.left}px ${targetRect.top}px,
-          ${targetRect.left}px ${targetRect.top + targetRect.height}px,
-          ${targetRect.left + targetRect.width}px ${targetRect.top + targetRect.height}px,
-          ${targetRect.left + targetRect.width}px ${targetRect.top}px,
-          ${targetRect.left}px ${targetRect.top}px
-        )`,
-        zIndex: 9998,
-        pointerEvents: "auto",
-      }
-    : {
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        zIndex: 9998,
-      };
+  const skip = () => finish();
 
   return (
     <div
       style={{ position: "fixed", inset: 0, zIndex: 9998 }}
-      onClick={(e) => {
-        // clicking overlay = do nothing (prevent interaction behind)
-        e.stopPropagation();
-      }}
+      onClick={(e) => e.stopPropagation()}
     >
-      {/* Overlay with spotlight hole */}
-      <div style={overlayStyle} />
+      {/* Overlay */}
+      <div className="fixed inset-0 bg-black/60" />
 
-      {/* Tooltip */}
+      {/* Centered modal */}
       <div
-        ref={tooltipRef}
-        style={{ ...getTooltipStyle(), zIndex: 9999 }}
-        className="w-[320px] max-w-[90vw] rounded-xl border border-border bg-card p-5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 flex items-center justify-center p-4"
+        style={{ zIndex: 9999 }}
       >
-        {/* Step indicator */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex gap-1.5">
-            {STEPS.map((_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === step
-                    ? "w-6 bg-primary"
-                    : i < step
-                    ? "w-1.5 bg-primary/40"
-                    : "w-1.5 bg-muted-foreground/20"
-                }`}
-              />
-            ))}
-          </div>
-          <button
-            onClick={skip}
-            className="text-muted-foreground hover:text-foreground transition-colors p-1 -m-1"
-            aria-label="Luk tour"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex items-start gap-3 mb-4">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-            {isLast ? (
-              <PartyPopper className="h-4 w-4 text-primary" />
-            ) : (
-              <Sparkles className="h-4 w-4 text-primary" />
-            )}
-          </div>
-          <div>
-            <h3 className="font-display font-semibold text-foreground text-sm mb-1">
-              {current.title}
-            </h3>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              {current.description}
-            </p>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between">
-          {!isFirst && !isLast ? (
+        <div
+          className="w-[360px] max-w-[90vw] rounded-xl border border-border bg-card p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Step indicator */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-1.5">
+              {STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === step
+                      ? "w-6 bg-primary"
+                      : i < step
+                      ? "w-1.5 bg-primary/40"
+                      : "w-1.5 bg-muted-foreground/20"
+                  }`}
+                />
+              ))}
+            </div>
             <button
               onClick={skip}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 -m-1"
+              aria-label="Luk tour"
             >
-              Spring over
+              <X className="h-4 w-4" />
             </button>
-          ) : (
-            <span />
-          )}
-          <button
-            onClick={next}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-          >
-            {isLast ? "Kom i gang" : isFirst ? "Start tour" : "Næste"}
-            {!isLast && <ChevronRight className="h-3 w-3" />}
-          </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex items-start gap-3 mb-5">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+              {isLast ? (
+                <PartyPopper className="h-4.5 w-4.5 text-primary" />
+              ) : (
+                <Sparkles className="h-4.5 w-4.5 text-primary" />
+              )}
+            </div>
+            <div>
+              <h3 className="font-display font-semibold text-foreground text-sm mb-1.5">
+                {current.title}
+              </h3>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {current.description}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between">
+            {!isFirst ? (
+              <button
+                onClick={back}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Tilbage
+              </button>
+            ) : (
+              <button
+                onClick={skip}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Spring over
+              </button>
+            )}
+            <button
+              onClick={next}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              {isLast ? "Kom i gang" : isFirst ? "Start tour" : "Næste"}
+              {!isLast && <ChevronRight className="h-3 w-3" />}
+            </button>
+          </div>
         </div>
       </div>
     </div>
