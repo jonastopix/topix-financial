@@ -1,7 +1,7 @@
 import {
   TrendingUp, Megaphone, Users, Building2, Truck, Package, Globe, Monitor,
   ShoppingCart, Wrench, CreditCard, Phone, Wifi, Shield, FileText, Fuel,
-  Warehouse, HeartHandshake, GraduationCap, Briefcase,
+  Warehouse, HeartHandshake, GraduationCap, Briefcase, UtensilsCrossed,
 } from "lucide-react";
 
 export interface BudgetCategory {
@@ -178,12 +178,48 @@ const haandvaerk: BudgetTemplate = {
   ],
 };
 
+// ─── Restaurant & café (B2C) ───
+const restaurantCafe: BudgetTemplate = {
+  key: "restaurant_cafe",
+  label: "Restaurant & café",
+  description: "Serveringssted med mad og drikke — fokus på råvarer, personale og husleje",
+  segment: "B2C",
+  icon: UtensilsCrossed,
+  categories: [
+    { key: "omsaetning", label: "Omsætning", icon: TrendingUp, group: "indtaegter",
+      hint: "Mad, drikke, takeaway, events, catering" },
+    { key: "raavarerfood", label: "Råvarer & food cost", icon: Package, group: "variable",
+      hint: "Indkøb af mad og drikke — typisk 28–35% af omsætning" },
+    { key: "betalingsgebyrer", label: "Betalingsgebyrer", icon: CreditCard, group: "variable",
+      hint: "Kortterminaler, MobilePay, online bestilling" },
+    { key: "loenninger", label: "Lønninger", icon: Users, group: "personale",
+      hint: "Tjenere, køkken, opvask, administration" },
+    { key: "lokaler", label: "Husleje & lokaler", icon: Building2, group: "faste",
+      hint: "Husleje, el, vand, varme, renovation" },
+    { key: "udstyr_inventar", label: "Udstyr & inventar", icon: Wrench, group: "drift",
+      hint: "Køkkenudstyr, møbler, service, vedligeholdelse" },
+    { key: "lokal_marketing", label: "Marketing & events", icon: Megaphone, group: "salg_marketing",
+      hint: "SoMe, Google, annoncer, særarrangementer, tilbud" },
+    { key: "booking_tech", label: "Booking & kassesystem", icon: Monitor, group: "drift",
+      hint: "POS, bordbooking, online bestilling (Wolt, Just Eat)" },
+    { key: "musik_rettigheder", label: "Musik & underholdning", icon: FileText, group: "faste",
+      hint: "KODA/Gramex-licens, live musik, underholdning" },
+    { key: "forsikring", label: "Forsikring", icon: Shield, group: "faste",
+      hint: "Ansvarsforsikring, inventarforsikring, arbejdsskade" },
+    { key: "admin_regnskab", label: "Admin & regnskab", icon: FileText, group: "faste",
+      hint: "Revisor, bogføring, vagtplan, HR" },
+    { key: "telefon_internet", label: "Telefon & internet", icon: Wifi, group: "drift",
+      hint: "Wifi til gæster, mobil, fastnet" },
+  ],
+};
+
 export const BUDGET_TEMPLATES: BudgetTemplate[] = [
   webshopB2C,
   webshopB2B,
   serviceB2B,
   serviceB2C,
   detailB2C,
+  restaurantCafe,
   saasB2B,
   haandvaerk,
 ];

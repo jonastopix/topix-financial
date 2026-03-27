@@ -33,6 +33,7 @@ const Q2_SERVICE = [
   { key: "b2b", label: "Andre virksomheder (B2B)", emoji: "🏢" },
   { key: "b2c", label: "Private forbrugere (B2C)", emoji: "👤" },
   { key: "haandvaerk", label: "Håndværk / produktion", emoji: "🔧" },
+  { key: "mad_drikke", label: "Mad & drikke / serveringssted", emoji: "🍽️" },
 ];
 
 export default function BudgetTemplatePicker({ onSelect, userId, companyId, onImportComplete }: Props) {
@@ -51,6 +52,7 @@ export default function BudgetTemplatePicker({ onSelect, userId, companyId, onIm
       if (q2Answer === "b2b") return "service_b2b";
       if (q2Answer === "b2c") return "service_b2c";
       if (q2Answer === "haandvaerk") return "haandvaerk";
+      if (q2Answer === "mad_drikke") return "restaurant_cafe";
     }
     return null;
   }, [q1Answer, q2Answer]);

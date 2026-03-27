@@ -63,6 +63,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   admin_regnskab: "Administration & regnskab",
   admin: "Admin & regnskab",
   telefon_internet: "Telefon & internet",
+  raavarerfood: "Råvarer & food cost",
+  udstyr_inventar: "Udstyr & inventar",
+  musik_rettigheder: "Musik & underholdning",
   andet: "Andet",
 };
 
