@@ -6,7 +6,6 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { DANISH_MONTHS, getEffectiveReportPeriodKey, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 
 interface AttentionItem {
