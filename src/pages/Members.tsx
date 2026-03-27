@@ -191,6 +191,14 @@ const Members = () => {
     const allCircleActivity = (circleActivityRes.data || []) as any[];
     const allInvitations = (invitationsRes.data || []) as any[];
     const allLoginLogs = (loginLogsRes.data || []) as any[];
+    const allFacts = (factsRes.data || []) as any[];
+
+    // Build committedByCompany map
+    const committedByCompany = new Map<string, number>();
+    for (const fact of allFacts) {
+      const id = fact.company_id;
+      committedByCompany.set(id, (committedByCompany.get(id) || 0) + 1);
+    }
 
     // Fetch latest sent_at from email_send_log for pending invitation emails
     const pendingEmails = allInvitations
