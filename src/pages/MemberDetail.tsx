@@ -1156,3 +1156,4 @@ const MemberDetail = () => {
 };
 
 export default MemberDetail;
+
