@@ -423,7 +423,7 @@ const FileUploadZone = ({
               return;
             }
           } catch (templateErr) {
-            console.log("Multi-sheet detection check passed (not multi-sheet):", templateErr);
+            
           }
         }
 
