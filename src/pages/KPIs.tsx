@@ -472,17 +472,36 @@ const KPIs = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Værdi</label>
-                      <input
-                        type="number"
-                        value={ev.value}
-                        onChange={(e) =>
-                          setEditValues((prev) => ({
-                            ...prev,
-                            [def.key]: { ...prev[def.key], value: e.target.value },
-                          }))
-                        }
-                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <input
+                          type="number"
+                          value={ev.value}
+                          onChange={(e) =>
+                            setEditValues((prev) => ({
+                              ...prev,
+                              [def.key]: { ...prev[def.key], value: e.target.value },
+                            }))
+                          }
+                          className="w-full px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        {budgetTotals && (def.key === "omsaetning" || def.key === "resultat") && (
+                          <button
+                            onClick={() => {
+                              const val = def.key === "omsaetning"
+                                ? Math.round(budgetTotals.revenue / 12)
+                                : Math.round(budgetTotals.ebitda / 12);
+                              setEditValues((prev) => ({
+                                ...prev,
+                                [def.key]: { ...prev[def.key], value: String(val) },
+                              }));
+                            }}
+                            className="text-[10px] px-2 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
+                            title="Hent månedligt gennemsnit fra dit budget"
+                          >
+                            Fra budget
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Label</label>
