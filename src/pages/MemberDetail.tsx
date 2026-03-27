@@ -261,6 +261,13 @@ const MemberDetail = () => {
       const cm = cmData as any;
       if (cm?.companies) {
         setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
+        // Fetch budgets by company_id (correct key)
+        const { data: budgetData } = await supabase
+          .from("budget_targets")
+          .select("*")
+          .eq("company_id", cm.company_id)
+          .order("category");
+        setBudgets(budgetData || []);
         // Fetch invitation that was accepted by this specific user
         let invData: any = null;
         // Primary: match via accepted_by
