@@ -4,16 +4,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
-  BarChart3, Activity, TrendingUp, TrendingDown, AlertTriangle, MessageCircle,
+  Activity, MessageCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
-import {
-  Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
-} from "@/components/ui/table";
+import KPICard from "@/components/KPICard";
 
 // ── Helpers ──
 
@@ -312,9 +310,18 @@ const AdvisorDashboard = () => {
         .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
         .slice(0, 10);
 
+      // Conversations grouped by company for member list
+      const convByCompany = new Map<string, ConversationRow[]>();
+      for (const c of conversations) {
+        if (c.company_id) {
+          if (!convByCompany.has(c.company_id)) convByCompany.set(c.company_id, []);
+          convByCompany.get(c.company_id)!.push(c);
+        }
+      }
+
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
-        investorSummaries, companyMap, activityFeed,
+        investorSummaries, companyMap, activityFeed, convByCompany,
       };
     },
     enabled: !!user,
@@ -327,14 +334,21 @@ const AdvisorDashboard = () => {
   const investorSummaries = data?.investorSummaries || [];
   const companyMap = data?.companyMap || new Map();
   const activityFeed = data?.activityFeed || [];
+  const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
-  const attentionCompanies = investorSummaries.filter(c => c.needsAttention);
+
+  // KPI aggregates
   const totalRevenue = investorSummaries.reduce((s, c) => s + (c.revenue ?? 0), 0);
+  const totalEbt = investorSummaries.reduce((s, c) => s + (c.ebt ?? 0), 0);
+  const totalCash = investorSummaries.reduce((s, c) => s + (c.cash ?? 0), 0);
+  const withMetrics = investorSummaries.filter(c => c.has_verified_metrics).length;
+
+  // Pulse companies (last 60 days)
   const pulseCompanies = investorSummaries
-    .filter(c => c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000))
+    .filter(c => c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 60 * 86400000))
     .sort((a, b) => b.latestPulse!.created_at.localeCompare(a.latestPulse!.created_at))
-    .slice(0, 8);
+    .slice(0, 6);
 
   const getCompanyName = (companyId: string | null): string => {
     if (!companyId) return "Ukendt";
@@ -353,189 +367,81 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* ── Section 1: Kræver opmærksomhed ── */}
-      {attentionCompanies.length > 0 ? (
+      {/* ── TOP: Portfolio KPI bar ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KPICard
+          title="Samlet omsætning"
+          value={formatCompact(totalRevenue)}
+          accentColor="blue"
+        />
+        <KPICard
+          title="Samlet resultat"
+          value={formatCompact(totalEbt)}
+          accentColor={totalEbt >= 0 ? "emerald" : "rose"}
+        />
+        <KPICard
+          title="Samlet likviditet"
+          value={formatCompact(totalCash)}
+          accentColor={totalCash >= 0 ? "emerald" : "rose"}
+        />
+        <KPICard
+          title="Aktive medlemmer"
+          value={`${withMetrics} / ${investorSummaries.length}`}
+          subtitle="har uploadet rapport"
+          accentColor="amber"
+        />
+      </div>
+
+      {/* ── Section 1: Ubesvarede beskeder ── */}
+      {actionQueue.length > 0 ? (
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Kræver opmærksomhed
+              Afventer svar
             </h2>
-            <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold">
-              {attentionCompanies.length}
+            <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[11px] font-bold">
+              {actionQueue.length}
             </span>
           </div>
           <div className="space-y-1.5">
-            {attentionCompanies.map(c => (
-              <div
-                key={c.company_id}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border hover:border-destructive/30 transition-all"
+            {actionQueue.map(conv => (
+              <Link
+                key={conv.id}
+                to={`/chat?conversationId=${conv.id}`}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border hover:bg-accent/50 transition-all group"
               >
-                <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                  {c.logo_url
-                    ? <img src={c.logo_url} alt="" className="h-8 w-8 object-cover rounded-lg" />
-                    : <span className="text-[10px] font-bold text-muted-foreground">
-                        {c.company_name.slice(0, 2).toUpperCase()}
-                      </span>
-                  }
+                <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{c.company_name}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {c.cash != null && c.cash < 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
-                        Negativ cash
-                      </span>
-                    )}
-                    {c.revenueTrendPct != null && c.revenueTrendPct < -15 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
-                        Omsætning {c.revenueTrendPct.toFixed(0)}% MoM
-                      </span>
-                    )}
-                    {c.missing_current_period && !c.has_report && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-chart-warning/10 text-chart-warning font-medium">
-                        Ingen rapport
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {getCompanyName(conv.company_id)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
+                    {conv.assigned_advisor_id === user!.id ? (
+                      <span className="ml-2 text-muted-foreground">· Min</span>
+                    ) : conv.assigned_advisor_id === null ? (
+                      <span className="ml-2 text-chart-warning">· Ikke tildelt</span>
+                    ) : null}
+                  </p>
                 </div>
-                <button
-                  onClick={() => setCompanyOverride(c.company_id, c.company_name)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-accent transition-colors"
-                >
-                  Se data →
-                </button>
-              </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+              </Link>
             ))}
           </div>
         </section>
       ) : (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span className="text-sm text-emerald-700 dark:text-emerald-300">
-            Alt ser godt ud — ingen virksomheder kræver opmærksomhed
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-primary/5 border border-primary/20">
+          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm text-foreground">
+            Alle er besvaret ✓
           </span>
         </div>
       )}
 
-      {/* ── Section 2: Porteføljeoverblik ── */}
-      <section>
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold text-foreground">
-                Portefølje ({investorSummaries.length} virksomheder)
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              Samlet omsætning: {formatCompact(totalRevenue)}
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[180px]">Virksomhed</TableHead>
-                  <TableHead className="text-right">Omsætning</TableHead>
-                  <TableHead className="text-right">Margin</TableHead>
-                  <TableHead className="text-right">Vækst MoM</TableHead>
-                  <TableHead className="text-right">Cash</TableHead>
-                  <TableHead className="text-right">vs. Budget</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {investorSummaries
-                  .sort((a, b) => (b.revenue ?? -Infinity) - (a.revenue ?? -Infinity))
-                  .map(c => (
-                    <TableRow
-                      key={c.company_id}
-                      className="cursor-pointer"
-                      onClick={() => setCompanyOverride(c.company_id, c.company_name)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                            {c.logo_url
-                              ? <img src={c.logo_url} alt="" className="h-7 w-7 object-cover rounded-md" />
-                              : <span className="text-[9px] font-bold text-muted-foreground">
-                                  {c.company_name.slice(0, 2).toUpperCase()}
-                                </span>
-                            }
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-medium text-foreground truncate">
-                                {c.company_name}
-                              </span>
-                              {c.needsAttention && (
-                                <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-                              )}
-                            </div>
-                            {c.effective_period_label && (
-                              <span className="text-[10px] text-muted-foreground">
-                                {c.effective_period_label}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="text-sm font-medium text-foreground">
-                          {c.revenue != null ? formatCompact(c.revenue) : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={`text-sm ${
-                          c.ebitdaMargin == null ? "text-muted-foreground" :
-                          c.ebitdaMargin >= 10 ? "text-primary" :
-                          c.ebitdaMargin >= 0 ? "text-foreground" :
-                          "text-destructive"
-                        }`}>
-                          {c.ebitdaMargin != null ? `${c.ebitdaMargin.toFixed(1)}%` : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {c.revenueTrendPct != null ? (
-                          <span className={`inline-flex items-center gap-0.5 text-sm ${
-                            c.revenueTrendPct >= 0 ? "text-primary" : "text-destructive"
-                          }`}>
-                            {c.revenueTrendPct >= 0
-                              ? <TrendingUp className="h-3 w-3" />
-                              : <TrendingDown className="h-3 w-3" />
-                            }
-                            {c.revenueTrendPct > 0 ? "+" : ""}{c.revenueTrendPct.toFixed(1)}%
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={`text-sm ${c.cash != null && c.cash < 0 ? "text-destructive font-medium" : "text-foreground"}`}>
-                          {c.cash != null ? formatCompact(c.cash) : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {c.budgetVsActualPct != null ? (
-                          <span className={`text-sm ${
-                            c.budgetVsActualPct >= 0 ? "text-primary" : "text-destructive"
-                          }`}>
-                            {c.budgetVsActualPct > 0 ? "+" : ""}
-                            {c.budgetVsActualPct.toFixed(0)}%
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Section 3: Hvad siger medlemmerne ── */}
+      {/* ── Section 2: Hvad siger medlemmerne ── */}
       {pulseCompanies.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
@@ -562,7 +468,7 @@ const AdvisorDashboard = () => {
                 </div>
                 {c.latestPulse?.biggest_challenge && (
                   <div className="mb-2">
-                    <p className="text-[10px] font-semibold text-destructive/70 uppercase tracking-wider mb-0.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
                       Største udfordring
                     </p>
                     <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2">
@@ -586,53 +492,96 @@ const AdvisorDashboard = () => {
         </section>
       )}
 
-      {/* ── Section 4: Ubesvarede beskeder ── */}
-      {actionQueue.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="h-4 w-4 text-destructive" />
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Ubesvarede beskeder
+      {/* ── Section 3: Medlemsoverblik ── */}
+      <section>
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              Alle medlemmer ({investorSummaries.length})
             </h2>
-            <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold">
-              {actionQueue.length}
-            </span>
           </div>
-          <div className="space-y-1.5">
-            {actionQueue.map(conv => (
-              <Link
-                key={conv.id}
-                to={`/chat?conversationId=${conv.id}`}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border hover:border-destructive/30 hover:bg-accent/50 transition-all group"
-              >
-                <div className="h-8 w-8 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                  <Building2 className="h-4 w-4 text-destructive" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {getCompanyName(conv.company_id)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
-                    {conv.assigned_advisor_id === user!.id ? (
-                      <span className="ml-2 text-muted-foreground">· Min</span>
-                    ) : conv.assigned_advisor_id === null ? (
-                      <span className="ml-2 text-chart-warning">· Ikke tildelt</span>
-                    ) : null}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-destructive transition-colors shrink-0" />
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+          <div className="divide-y divide-border/30">
+            {[...investorSummaries]
+              .sort((a, b) => a.company_name.localeCompare(b.company_name, "da"))
+              .map(c => {
+                const conv = convByCompany.get(c.company_id)?.[0];
+                const lastMsg = conv?.last_member_message_at;
+                const hasPulseRecent = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
 
-      {/* ── Section 5: Opfølgninger ── */}
+                return (
+                  <div
+                    key={c.company_id}
+                    className="flex items-center gap-3 px-5 py-2.5 hover:bg-secondary/20 transition-colors"
+                  >
+                    {/* Logo/initials */}
+                    <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                      {c.logo_url
+                        ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
+                        : <span className="text-[10px] font-bold text-muted-foreground">
+                            {c.company_name.slice(0, 2).toUpperCase()}
+                          </span>
+                      }
+                    </div>
+                    {/* Name */}
+                    <div className="w-48 min-w-0 shrink-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {c.company_name}
+                      </p>
+                    </div>
+                    {/* Rapport */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">
+                        {c.effective_period_label
+                          ? <span className="text-foreground">{c.effective_period_label}</span>
+                          : "Ingen rapport endnu"
+                        }
+                      </p>
+                    </div>
+                    {/* Seneste besked */}
+                    <div className="w-32 shrink-0">
+                      <p className="text-xs text-muted-foreground">
+                        {lastMsg
+                          ? formatDistanceToNow(new Date(lastMsg), { locale: da, addSuffix: true })
+                          : "—"
+                        }
+                      </p>
+                    </div>
+                    {/* Pulse */}
+                    <div className="w-20 shrink-0 flex items-center gap-1">
+                      {hasPulseRecent
+                        ? <><div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            <span className="text-[10px] text-primary">Pulse</span></>
+                        : <span className="text-[10px] text-muted-foreground/40">—</span>
+                      }
+                    </div>
+                    {/* Unread badge */}
+                    <div className="w-8 shrink-0">
+                      {c.unreadMessages > 0 && (
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-chart-warning text-white text-[10px] font-bold">
+                          {c.unreadMessages}
+                        </span>
+                      )}
+                    </div>
+                    {/* Action */}
+                    <button
+                      onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                      className="shrink-0 px-3 py-1 rounded-lg text-[11px] font-medium text-muted-foreground bg-secondary hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                      Se data →
+                    </button>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 4: Opfølgninger ── */}
       {hasFollowUps && (
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <Clock className="h-4 w-4 text-chart-warning" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
               Opfølgninger
             </h2>
@@ -690,7 +639,7 @@ const AdvisorDashboard = () => {
         </section>
       )}
 
-      {/* ── Section 6: Seneste aktivitet ── */}
+      {/* ── Section 5: Seneste aktivitet ── */}
       {activityFeed.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
@@ -702,7 +651,7 @@ const AdvisorDashboard = () => {
           <div className="glass-card rounded-xl divide-y divide-border/30">
             {activityFeed.map((event: any) => {
               const iconConfig = {
-                report_uploaded: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Rapport" },
+                report_uploaded: { color: "text-chart-info", bg: "bg-chart-info/10", label: "Rapport" },
                 report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
               }[event.type as string] as { color: string; bg: string; label: string };
               return (
