@@ -768,6 +768,49 @@ const MemberDetail = () => {
             )}
           </div>
 
+          {/* Pulse check-in section */}
+          {latestPulse && (
+            <div className="mb-8">
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  Pulse check-in · {(() => {
+                    const [y, m] = (latestPulse.period_key || "").split("-");
+                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                    return `${months[parseInt(m, 10) - 1] || m} ${y}`;
+                  })()}
+                </h3>
+                <div className="space-y-3">
+                  {latestPulse.went_well && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hvad gik godt</p>
+                      <p className="text-sm text-foreground">{latestPulse.went_well}</p>
+                    </div>
+                  )}
+                  {latestPulse.biggest_challenge && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Største udfordring</p>
+                      <p className="text-sm text-foreground">{latestPulse.biggest_challenge}</p>
+                    </div>
+                  )}
+                  {latestPulse.milestone_progress != null && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Milestone fremgang</p>
+                      <p className="text-sm font-medium text-foreground">{latestPulse.milestone_progress}%</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!latestPulse && memberCompanyId && (
+            <div className="mb-8">
+              <div className="glass-card rounded-xl p-5">
+                <p className="text-sm text-muted-foreground">Ingen pulse check-in denne måned endnu.</p>
+              </div>
+            </div>
+          )}
+
           {/* Handouts section */}
           <div className="mb-8">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
