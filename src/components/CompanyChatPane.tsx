@@ -393,7 +393,7 @@ const CompanyChatPane = () => {
         msgsByConv.set(m.conversation_id, arr);
       });
 
-      const enriched: ConversationWithProfile[] = convs.map((c: any) => {
+      const enriched: ConversationWithProfile[] = filteredConvs.map((c: any) => {
         const profile = profiles.find((p) => p.user_id === c.member_id) || null;
         const convMsgs = msgsByConv.get(c.id) || [];
         const lastMsg = convMsgs[0];
