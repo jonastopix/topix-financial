@@ -29,10 +29,12 @@ export function useNotifications() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data } = await supabase
       .from("notifications" as any)
       .select("*")
       .eq("user_id", user.id)
+      .gte("created_at", thirtyDaysAgo)
       .order("created_at", { ascending: false })
       .limit(50);
     setNotifications((data as any as Notification[]) || []);
