@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppConfig } from "@/hooks/useAppConfig";
@@ -20,6 +20,7 @@ import {
   Send,
   CheckCircle2,
   Clock,
+  CalendarIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -37,6 +38,16 @@ import {
   PERFORMANCE_SCORE,
   GAMIFICATION,
 } from "@/lib/appConfig";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface AdvisorEntry {
   email: string;
@@ -48,7 +59,7 @@ interface AdvisorEntry {
 
 const AdminConfig = () => {
   const { isAdvisor, isAdmin } = useAuth();
-  const { branding, performanceScore, gamification, updateConfig } = useAppConfig();
+  const { branding, performanceScore, gamification, meetings, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -110,6 +121,17 @@ const AdminConfig = () => {
       levels: [...(gamification.levels || [])].map((l) => ({ ...l })),
     });
   }, [gamification.pointsPerReport, gamification.pointsPerMilestone, gamification.levels]);
+
+  // ─── Meetings state ─────────────────────────────────────
+  const [meetingDate, setMeetingDate] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+    if (meetings.next_meeting_date) {
+      setMeetingDate(new Date(meetings.next_meeting_date));
+    } else {
+      setMeetingDate(undefined);
+    }
+  }, [meetings.next_meeting_date]);
 
   // ─── Load advisors ─────────────────────────────────────
   const loadAdvisors = async () => {
@@ -191,7 +213,7 @@ const AdminConfig = () => {
   if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleSave = async (
-    key: "branding" | "performance_score" | "gamification",
+    key: "branding" | "performance_score" | "gamification" | "meetings",
     value: any
   ) => {
     setSaving(key);
@@ -202,6 +224,13 @@ const AdminConfig = () => {
       toast.error("Kunne ikke gemme");
     }
     setSaving(null);
+  };
+
+  const handleSaveMeetingDate = async (date: Date | undefined) => {
+    setMeetingDate(date);
+    await handleSave("meetings", {
+      next_meeting_date: date ? date.toISOString() : null,
+    });
   };
 
   const weightLabels = ["Vækstrate", "Bruttomargin", "Nettoresultat", "Likviditet"];
@@ -634,6 +663,62 @@ const AdminConfig = () => {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* ─── Møder ───────────────────────────────────────── */}
+        <section className="glass-card rounded-xl p-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-primary" />
+              <h2 className="font-display font-semibold text-foreground">Næste boardroom-session</h2>
+            </div>
+            {meetingDate && (
+              <button
+                onClick={() => handleSaveMeetingDate(undefined)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Fjern dato
+              </button>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground mb-4">
+            Sæt datoen for næste boardroom-session. Medlemmer ser en nedtælling på deres dashboard.
+          </p>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal",
+                  !meetingDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {meetingDate
+                  ? format(meetingDate, "EEEE d. MMMM yyyy", { locale: da })
+                  : "Vælg mødedato..."}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={meetingDate}
+                onSelect={(date) => handleSaveMeetingDate(date)}
+                disabled={(date) => date < new Date()}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+
+          {meetingDate && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Gemmes automatisk når du vælger en dato.
+            </p>
+          )}
         </section>
       </div>
     </AppLayout>
