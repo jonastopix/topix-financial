@@ -75,9 +75,17 @@ const PulseCheckin = () => {
           <p className="text-sm text-muted-foreground max-w-sm text-center mb-6">
             Du har allerede udfyldt dit check-in for {periodLabel}.
           </p>
-          <button onClick={() => navigate("/")} className="text-sm text-primary hover:underline">
-            Tilbage til dashboard
-          </button>
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={() => setAlreadyDone(false)}
+              className="text-sm text-primary hover:underline"
+            >
+              Opdater dit svar
+            </button>
+            <button onClick={() => navigate("/")} className="text-xs text-muted-foreground hover:underline">
+              Tilbage til dashboard
+            </button>
+          </div>
         </div>
       </AppLayout>
     );
@@ -97,6 +105,9 @@ const PulseCheckin = () => {
           </div>
           <p className="text-sm text-muted-foreground">
             3 hurtige spørgsmål for {periodLabel} — tager 2 minutter
+          </p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Dine rådgivere læser dit svar inden næste boardroom-session.
           </p>
         </div>
 
