@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
 
       const firstName = profile?.full_name?.split(" ")[0] || "dig";
       const title = `"${milestoneTitle || "Dit milestone"}" — deadline om ${daysUntil} dag${daysUntil !== 1 ? "e" : ""}`;
-      const body_text = `Hej ${firstName} — du har ${daysUntil} dag${daysUntil !== 1 ? "e" : ""} til at nå dit milestone. Opdater din fremgang inden boardroom-sessionen.`;
+      const body_text = `Hej ${firstName} — du har ${daysUntil} dag${daysUntil !== 1 ? "e" : ""} til at nå dit milestone. Opdater din fremgang på platformen.`;
 
       await writeNotification(admin, {
         user_id: userId,
