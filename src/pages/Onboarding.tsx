@@ -136,17 +136,11 @@ const Onboarding = () => {
                   variant="ghost"
                   className="w-full"
                   onClick={() => {
-                    if (user && companyId) {
-                      supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle().then(({ data: conv }) => {
-                        if (conv?.id) {
-                          supabase.from("messages").insert({
-                            conversation_id: conv.id,
-                            sender_id: user.id,
-                            content: `Hej ${fullName.split(" ")[0]} 👋 Velkommen til The Boardroom!\n\nVi glæder os til at arbejde med dig. Start med at uploade din første rapport — det tager 2 minutter, og vi trækker tallene ud automatisk.\n\nHar du spørgsmål undervejs, er du altid velkommen til at skrive her.`,
-                            message_type: "system",
-                          } as any).then(() => {});
-                        }
-                      });
+                    // Send welcome message from advisor (fire and forget)
+                    if (companyId) {
+                      supabase.functions.invoke("send-welcome-message", {
+                        body: { companyId, memberName: fullName.trim() },
+                      }).catch(() => {});
                     }
                     setOnboardingComplete(); navigate("/", { replace: true });
                   }}
