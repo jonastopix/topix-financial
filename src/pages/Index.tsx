@@ -52,6 +52,7 @@ const Dashboard = () => {
 
   // ── Facts from the facts layer ──
   const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
+  const { data: commentaries = [] } = useCompanyCommentary();
 
   // ── Budget targets (separate query) ──
   const { data: budgetTargets = [], isLoading: budgetLoading } = useQuery({
