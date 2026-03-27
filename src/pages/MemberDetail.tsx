@@ -312,7 +312,6 @@ const MemberDetail = () => {
       const reportsList = reportsRes.data || [];
       setProfile(profileRes.data);
       setReports(reportsList);
-      setBudgets(budgetsRes.data || []);
       setMilestones(milestonesRes.data || []);
       setConversationId(convRes.data?.id || null);
 
