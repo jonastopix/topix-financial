@@ -64,6 +64,7 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
 
   const baseRows = scenarioData.base;
   const hasAnyActuals = Object.keys(actualsMap).length > 0;
+  const isBudgetEmpty = baseRows.every(r => r.values.every(v => v === 0));
 
   const sharedFieldRows = useMemo(() => {
     const fieldCount: Record<string, number> = {};
@@ -139,101 +140,121 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
         <BvaSummaryCard label="EBITDA" budget={totalBudgetEbitda} actual={hasAnyActuals ? totalActualEbitda : null} isRevenue />
       </div>
 
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left py-2.5 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[180px] z-10">Kategori</th>
-                {MONTHS.map(m => (
-                  <th key={m} className="text-right py-2.5 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[75px]">{m}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {groupedRows.map(group => (
-                <>
-                  <tr key={`bva-group-${group.group}`} className="bg-muted/30">
-                    <td colSpan={13} className="py-2 px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10">
-                      {group.label}
-                    </td>
-                  </tr>
-                  {group.rows.map(row => {
-                    const isRevenue = REVENUE_GROUPS.has(row.group);
-                    const RowIcon = row.icon;
-                    const reportField = getBudgetRowReportField(row.key);
-                    return (
-                      <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
-                        <td className="py-2 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
-                          <div className="flex items-center gap-1.5">
-                            {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
-                            <span>{row.label}</span>
-                            {sharedFieldRows.has(row.key) && (
-                              <span className="ml-1 text-[9px] text-muted-foreground/60">
-                                (delt felt)
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        {row.values.map((budgetVal, i) => {
-                          const actualVal = reportField && actualsMap[i]
-                            ? (actualsMap[i][reportField] ?? null)
-                            : null;
-                          const color = varianceColor(budgetVal, actualVal, isRevenue);
-                          return (
-                            <td key={i} className="py-1.5 px-2 text-right">
-                              <div className="flex flex-col items-end gap-0.5">
-                                <span className="text-xs font-display text-muted-foreground">{budgetVal === 0 ? "—" : formatK(budgetVal)}</span>
-                                <span className={`text-xs font-display font-semibold ${actualVal != null ? color : "text-muted-foreground/50"}`}>
-                                  {actualVal != null ? formatK(actualVal) : "--"}
+      {isBudgetEmpty && !hasAnyActuals ? (
+        <div className="flex flex-col items-center text-center py-16 glass-card rounded-xl">
+          <div className="p-4 rounded-2xl bg-primary/10 mb-4">
+            <BarChart3 className="h-8 w-8 text-primary" />
+          </div>
+          <h3 className="text-base font-display font-semibold text-foreground mb-2">
+            Ingen data endnu
+          </h3>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Udfyld dit budget under Oversigt og upload månedlige rapporter for at se sammenligningen her.
+          </p>
+        </div>
+      ) : isBudgetEmpty ? (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            Dit budget er ikke udfyldt — sammenligning er ikke mulig. Gå til Oversigt for at udfylde dit budget.
+          </p>
+        </div>
+      ) : (
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30">
+                  <th className="text-left py-2.5 px-3 text-muted-foreground font-medium text-xs uppercase tracking-wider sticky left-0 bg-secondary/30 min-w-[180px] z-10">Kategori</th>
+                  {MONTHS.map(m => (
+                    <th key={m} className="text-right py-2.5 px-2 text-muted-foreground font-medium text-xs uppercase tracking-wider min-w-[75px]">{m}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {groupedRows.map(group => (
+                  <>
+                    <tr key={`bva-group-${group.group}`} className="bg-muted/30">
+                      <td colSpan={13} className="py-2 px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10">
+                        {group.label}
+                      </td>
+                    </tr>
+                    {group.rows.map(row => {
+                      const isRevenue = REVENUE_GROUPS.has(row.group);
+                      const RowIcon = row.icon;
+                      const reportField = getBudgetRowReportField(row.key);
+                      return (
+                        <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                          <td className="py-2 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
+                            <div className="flex items-center gap-1.5">
+                              {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                              <span>{row.label}</span>
+                              {sharedFieldRows.has(row.key) && (
+                                <span className="ml-1 text-[9px] text-muted-foreground/60">
+                                  (delt felt)
                                 </span>
-                                {actualVal != null && budgetVal !== 0 && (
-                                  <span className={`text-[10px] ${color} flex items-center gap-0.5`}>
-                                    {varianceIcon(budgetVal, actualVal, isRevenue)}
-                                    {(() => {
-                                      const diff = isRevenue ? actualVal - budgetVal : budgetVal - actualVal;
-                                      const pct = (diff / Math.abs(budgetVal)) * 100;
-                                      return `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`;
-                                    })()}
+                              )}
+                            </div>
+                          </td>
+                          {row.values.map((budgetVal, i) => {
+                            const actualVal = reportField && actualsMap[i]
+                              ? (actualsMap[i][reportField] ?? null)
+                              : null;
+                            const color = varianceColor(budgetVal, actualVal, isRevenue);
+                            return (
+                              <td key={i} className="py-1.5 px-2 text-right">
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-xs font-display text-muted-foreground">{budgetVal === 0 ? "—" : formatK(budgetVal)}</span>
+                                  <span className={`text-xs font-display font-semibold ${actualVal != null ? color : "text-muted-foreground/50"}`}>
+                                    {actualVal != null ? formatK(actualVal) : "--"}
                                   </span>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
+                                  {actualVal != null && budgetVal !== 0 && (
+                                    <span className={`text-[10px] ${color} flex items-center gap-0.5`}>
+                                      {varianceIcon(budgetVal, actualVal, isRevenue)}
+                                      {(() => {
+                                        const diff = isRevenue ? actualVal - budgetVal : budgetVal - actualVal;
+                                        const pct = (diff / Math.abs(budgetVal)) * 100;
+                                        return `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`;
+                                      })()}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </>
+                ))}
+                <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
+                  <td className="py-2.5 px-3 text-foreground font-bold text-xs sticky left-0 bg-secondary/20 z-10">EBITDA</td>
+                  {budgetEbitda.map((bVal, i) => {
+                    const aVal = actualEbitda[i];
+                    const color = varianceColor(bVal, aVal, true);
+                    return (
+                      <td key={i} className="py-1.5 px-2 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className={`text-xs font-display font-bold ${bVal >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(bVal)}</span>
+                          <span className={`text-xs font-display font-bold ${aVal != null ? color : "text-muted-foreground/50"}`}>
+                            {aVal != null ? formatK(aVal) : "--"}
+                          </span>
+                        </div>
+                      </td>
                     );
                   })}
-                </>
-              ))}
-              <tr className="border-t-2 border-border bg-secondary/20 font-semibold">
-                <td className="py-2.5 px-3 text-foreground font-bold text-xs sticky left-0 bg-secondary/20 z-10">EBITDA</td>
-                {budgetEbitda.map((bVal, i) => {
-                  const aVal = actualEbitda[i];
-                  const color = varianceColor(bVal, aVal, true);
-                  return (
-                    <td key={i} className="py-1.5 px-2 text-right">
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className={`text-xs font-display font-bold ${bVal >= 0 ? "text-primary" : "text-destructive"}`}>{formatK(bVal)}</span>
-                        <span className={`text-xs font-display font-bold ${aVal != null ? color : "text-muted-foreground/50"}`}>
-                          {aVal != null ? formatK(aVal) : "--"}
-                        </span>
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            </tbody>
-          </table>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2 border-t border-border/30 flex items-center gap-4 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground inline-block" /> Budget</span>
+            <span className="flex items-center gap-1"><span className="font-bold text-foreground">Fed</span> Realiseret</span>
+            <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-primary" /> Favorable</span>
+            <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-chart-warning" /> {'<10% afvigelse'}</span>
+            <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-destructive" /> {'>10% afvigelse'}</span>
+          </div>
         </div>
-        <div className="px-4 py-2 border-t border-border/30 flex items-center gap-4 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground inline-block" /> Budget</span>
-          <span className="flex items-center gap-1"><span className="font-bold text-foreground">Fed</span> Realiseret</span>
-          <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-primary" /> Favorable</span>
-          <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-chart-warning" /> {'<10% afvigelse'}</span>
-          <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-destructive" /> {'>10% afvigelse'}</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
