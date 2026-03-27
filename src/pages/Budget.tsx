@@ -408,6 +408,11 @@ const Budget = () => {
               })}
             </SelectContent>
           </Select>
+          {dbLoaded && !selectedTemplate && !scenarioData && year !== String(new Date().getFullYear()) && (
+            <span className="text-[10px] text-muted-foreground">
+              Intet budget for {year}
+            </span>
+          )}
         </div>
       </div>
 
