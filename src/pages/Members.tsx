@@ -877,6 +877,38 @@ const Members = () => {
     return { active, inactive, never };
   }, [companies]);
 
+  const onboardingFunnel = useMemo(() => {
+    const notInvited: CompanyData[] = [];
+    const invitedPending: CompanyData[] = [];
+    const activatedNoReport: CompanyData[] = [];
+    const reportedNotCommitted: CompanyData[] = [];
+    const fullyOnboarded: CompanyData[] = [];
+
+    companies.forEach(c => {
+      const hasMembers = c.members.length > 0;
+      const hasReport = c.reportCount > 0;
+      const hasCommitted = c.committedCount > 0;
+      const hasLoggedIn = c.members.some(m => {
+        const info = c.loginInfo.get(m.user_id);
+        return info && info.lastLogin;
+      });
+
+      if (!hasMembers && c.invitationStatus === null) {
+        notInvited.push(c);
+      } else if (!hasMembers && c.invitationStatus === 'pending') {
+        invitedPending.push(c);
+      } else if (hasMembers && !hasReport) {
+        activatedNoReport.push(c);
+      } else if (hasReport && !hasCommitted) {
+        reportedNotCommitted.push(c);
+      } else if (hasCommitted) {
+        fullyOnboarded.push(c);
+      }
+    });
+
+    return { notInvited, invitedPending, activatedNoReport, reportedNotCommitted, fullyOnboarded };
+  }, [companies]);
+
   const filteredMergeUsers = unassignedUsers.filter((u) => {
     if (!mergeSearch.trim()) return true;
     const q = mergeSearch.toLowerCase();
