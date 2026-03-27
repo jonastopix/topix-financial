@@ -87,7 +87,8 @@ function Toolbar({ editor, onAttach }: { editor: Editor; onAttach: () => void })
   }, [editor]);
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border">
+    <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-muted/30">
+      <span className="text-[9px] text-muted-foreground/60 mr-1 select-none">Formater:</span>
       <ToolbarBtn
         active={editor.isActive("bold")}
         onClick={() => editor.chain().focus().toggleBold().run()}
