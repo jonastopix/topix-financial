@@ -122,6 +122,17 @@ const AdminConfig = () => {
     });
   }, [gamification.pointsPerReport, gamification.pointsPerMilestone, gamification.levels]);
 
+  // ─── Meetings state ─────────────────────────────────────
+  const [meetingDate, setMeetingDate] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+    if (meetings.next_meeting_date) {
+      setMeetingDate(new Date(meetings.next_meeting_date));
+    } else {
+      setMeetingDate(undefined);
+    }
+  }, [meetings.next_meeting_date]);
+
   // ─── Load advisors ─────────────────────────────────────
   const loadAdvisors = async () => {
     setAdvisorsLoading(true);
