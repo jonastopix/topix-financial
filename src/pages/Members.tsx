@@ -845,10 +845,12 @@ const Members = () => {
 
     result.sort((a, b) => {
       let cmp = 0;
-      if (sortKey === "name" || sortKey === "industry" || sortKey === "city" || sortKey === "contact_person") {
-        cmp = (a[sortKey] || "").localeCompare(b[sortKey] || "", "da");
-      } else if (sortKey === "annual_revenue" || sortKey === "reportCount") {
-        cmp = a[sortKey] - b[sortKey];
+      if (sortKey === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "", "da");
+      } else if (sortKey === "reportCount") {
+        cmp = a.reportCount - b.reportCount;
+      } else if (sortKey === "latest_report") {
+        cmp = (a.latestReportPeriod || "").localeCompare(b.latestReportPeriod || "");
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
