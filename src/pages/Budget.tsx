@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +42,7 @@ const Budget = () => {
   const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
   const [changingTemplate, setChangingTemplate] = useState(false);
   const [showImportDirect, setShowImportDirect] = useState(false);
+  const [confirmTemplateChange, setConfirmTemplateChange] = useState(false);
 
   // Navigation reset
   const resetKey = useNavigationReset();
@@ -371,7 +377,7 @@ const Budget = () => {
             </p>
             {selectedTemplate && (
               <button
-                onClick={() => setChangingTemplate(true)}
+                onClick={() => setConfirmTemplateChange(true)}
                 className="text-[10px] text-primary hover:underline"
               >
                 Skift skabelon
@@ -453,6 +459,32 @@ const Budget = () => {
           <BudgetImport userId={user?.id || ""} companyId={companyId || ""} onImportComplete={handleImportComplete} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={confirmTemplateChange} onOpenChange={setConfirmTemplateChange}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Skift budgetskabelon?</DialogTitle>
+            <DialogDescription>
+              Dette nulstiller dit nuværende budget permanent.
+              Dine indtastede tal kan ikke gendannes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmTemplateChange(false)}>
+              Annuller
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setConfirmTemplateChange(false);
+                setChangingTemplate(true);
+              }}
+            >
+              Nulstil og skift skabelon
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
