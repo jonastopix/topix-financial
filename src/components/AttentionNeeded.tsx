@@ -34,7 +34,7 @@ const urgencyBorder = {
 
 const AttentionNeeded = () => {
   const { user, companyId } = useAuth();
-  const { meetings } = useAppConfig();
+  
 
   const { data: items = [] } = useQuery({
     queryKey: ["attention-needed", companyId, user?.id, meetings.next_meeting_date],
