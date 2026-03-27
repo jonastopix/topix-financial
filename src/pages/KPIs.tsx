@@ -701,6 +701,23 @@ const KPIs = () => {
                       style={{ width: `${status.pct}%` }}
                     />
                   </div>
+                  {budgetTotals && !editingTargets && (() => {
+                    const budgetVal = metric.key === "omsaetning"
+                      ? Math.round(budgetTotals.revenue / 12)
+                      : metric.key === "resultat"
+                      ? Math.round(budgetTotals.ebitda / 12)
+                      : null;
+                    if (!budgetVal || !metric.targetNum) return null;
+                    const diff = Math.abs(metric.targetNum - budgetVal) / Math.max(budgetVal, 1);
+                    if (diff < 0.1) return null;
+                    return (
+                      <p className="text-[9px] text-chart-warning mt-1">
+                        Budget: {new Intl.NumberFormat("da-DK", {
+                          style: "currency", currency: "DKK", maximumFractionDigits: 0
+                        }).format(budgetVal)}/md
+                      </p>
+                    );
+                  })()}
                 </div>
               )}
               {metric.benchmark.value > 0 && (
