@@ -149,6 +149,60 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
         <BvaSummaryCard label="EBITDA" budget={totalBudgetEbitda} actual={hasAnyActuals ? totalActualEbitda : null} isRevenue />
       </div>
 
+      {hasAnyActuals && !isBudgetEmpty && (
+        <div className="glass-card rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-display font-semibold text-foreground">
+              Budget vs. Realiseret — EBITDA per måned
+            </h3>
+            <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm opacity-40" style={{ background: "#639922" }} />
+                Budget
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#378ADD" }} />
+                Realiseret
+              </span>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} barGap={2} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" vertical={false} />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: "#888" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#888" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+                width={45}
+              />
+              <Tooltip
+                formatter={(value: number | null, name: string) =>
+                  value !== null
+                    ? [`${Math.round(value / 1000)}k kr.`, name === "budget" ? "Budget" : "Realiseret"]
+                    : ["—", name === "budget" ? "Budget" : "Realiseret"]
+                }
+                contentStyle={{
+                  background: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                }}
+              />
+              <ReferenceLine y={0} stroke="rgba(128,128,128,0.3)" />
+              <Bar dataKey="budget" fill="#639922" opacity={0.4} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="actual" fill="#378ADD" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {isBudgetEmpty && !hasAnyActuals ? (
         <div className="flex flex-col items-center text-center py-16 glass-card rounded-xl">
           <div className="p-4 rounded-2xl bg-primary/10 mb-4">
