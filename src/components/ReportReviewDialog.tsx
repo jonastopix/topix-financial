@@ -342,7 +342,7 @@ export default function ReportReviewDialog({
                 ? "Opdater committed data"
                 : "Godkend data"}
           </DialogTitle>
-          <DialogDescription>{reportLabel}</DialogDescription>
+          <DialogDescription>Er tallene korrekte? Tjek at vi har læst din {reportLabel} rigtigt.</DialogDescription>
         </DialogHeader>
 
         {loading && (
@@ -363,20 +363,18 @@ export default function ReportReviewDialog({
 
         {preview && !loading && !editing && (
           <div className="space-y-4">
-            {/* Status badges */}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={preview.eligible ? "default" : "destructive"}>
-                {preview.eligible ? "Eligible" : "Ikke eligible"}
-              </Badge>
-              {preview.source_type && (
-                <Badge variant="secondary">
-                  {SOURCE_LABELS[preview.source_type] || preview.source_type}
-                </Badge>
-              )}
-              {preview.validation_status && (
-                <Badge variant="outline">{preview.validation_status}</Badge>
-              )}
-            </div>
+            {/* Status */}
+            {preview.eligible ? (
+              <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                Vi har trukket tallene ud — kontrollér at de ser rigtige ud
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                Rapporten er ikke klar til godkendelse endnu
+              </div>
+            )}
 
             {/* Period & type info */}
             <div className="grid grid-cols-2 gap-3">
@@ -402,7 +400,7 @@ export default function ReportReviewDialog({
               <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-3 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Perioden har allerede godkendte data fra en tidligere rapport</p>
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Du har allerede godkendt tal for denne periode fra en anden rapport</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Du kan erstatte de gamle data med denne rapports data. Den gamle rapport arkiveres.
                   </p>
@@ -414,7 +412,7 @@ export default function ReportReviewDialog({
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-2">
                 <RefreshCw className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-primary">
-                  Denne rapport ejer allerede perioden — data opdateres ved commit.
+                  Denne rapport har allerede godkendte tal for denne periode — de opdateres.
                 </p>
               </div>
             )}
@@ -430,7 +428,7 @@ export default function ReportReviewDialog({
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Metrics preview
+                    Vi fandt disse tal i din rapport
                   </h4>
                   {preview.eligible && (
                     <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={enterEditMode}>
@@ -463,7 +461,7 @@ export default function ReportReviewDialog({
               return (
                 <div>
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Kvalitetssignaler
+                    Validering
                   </h4>
                   <div className="space-y-1.5">
                     {checks.map((signal, idx) => {
@@ -501,7 +499,7 @@ export default function ReportReviewDialog({
                   </div>
                   {hasWarnings && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 italic">
-                      Advarsler blokerer ikke godkendelse — gennemgå data før commit.
+                      Du kan stadig godkende — men tjek tallene nedenfor før du trykker.
                     </p>
                   )}
                 </div>
