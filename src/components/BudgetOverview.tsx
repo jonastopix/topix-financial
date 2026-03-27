@@ -76,7 +76,7 @@ const BudgetOverview = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { rows = [], periodLabel, state } = data || {};
+  const { rows = [], margin, periodLabel, state } = data || {};
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in h-full flex flex-col">
