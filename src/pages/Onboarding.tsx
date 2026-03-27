@@ -10,7 +10,7 @@ import { Rocket, FileText, ClipboardList, LayoutDashboard, TrendingUp, Target, U
 import { toast } from "sonner";
 
 const Onboarding = () => {
-  const { user, profile, companyName, setOnboardingComplete } = useAuth();
+  const { user, profile, companyName, setOnboardingComplete, companyId } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [saving, setSaving] = useState(false);
@@ -120,14 +120,42 @@ const Onboarding = () => {
               <div className="space-y-2 pt-2">
                 <Button
                   className="w-full"
-                  onClick={() => { setOnboardingComplete(); navigate("/reports", { replace: true }); }}
+                  onClick={() => {
+                    if (user && companyId) {
+                      supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle().then(({ data: conv }) => {
+                        if (conv?.id) {
+                          supabase.from("messages").insert({
+                            conversation_id: conv.id,
+                            sender_id: user.id,
+                            content: `Hej ${fullName.split(" ")[0]} 👋 Velkommen til The Boardroom!\n\nVi glæder os til at arbejde med dig. Start med at uploade din første rapport — det tager 2 minutter, og vi trækker tallene ud automatisk.\n\nHar du spørgsmål undervejs, er du altid velkommen til at skrive her.`,
+                            message_type: "system",
+                          } as any).then(() => {});
+                        }
+                      });
+                    }
+                    setOnboardingComplete(); navigate("/reports", { replace: true });
+                  }}
                 >
                   Upload min første rapport
                 </Button>
                 <Button
                   variant="ghost"
                   className="w-full"
-                  onClick={() => { setOnboardingComplete(); navigate("/", { replace: true }); }}
+                  onClick={() => {
+                    if (user && companyId) {
+                      supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle().then(({ data: conv }) => {
+                        if (conv?.id) {
+                          supabase.from("messages").insert({
+                            conversation_id: conv.id,
+                            sender_id: user.id,
+                            content: `Hej ${fullName.split(" ")[0]} 👋 Velkommen til The Boardroom!\n\nVi glæder os til at arbejde med dig. Start med at uploade din første rapport — det tager 2 minutter, og vi trækker tallene ud automatisk.\n\nHar du spørgsmål undervejs, er du altid velkommen til at skrive her.`,
+                            message_type: "system",
+                          } as any).then(() => {});
+                        }
+                      });
+                    }
+                    setOnboardingComplete(); navigate("/", { replace: true });
+                  }}
                 >
                   Se dashboardet først
                 </Button>
