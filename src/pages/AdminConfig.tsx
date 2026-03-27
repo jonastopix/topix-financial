@@ -59,7 +59,7 @@ interface AdvisorEntry {
 
 const AdminConfig = () => {
   const { isAdvisor, isAdmin } = useAuth();
-  const { branding, performanceScore, gamification, updateConfig } = useAppConfig();
+  const { branding, performanceScore, gamification, meetings, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
 
