@@ -396,7 +396,17 @@ const MemberDetail = () => {
 
   const renderExtractedData = (report: Report) => {
     const isOverridden = hasManualOverride(report as unknown as ReportData);
-    const kf = getEffectiveKeyFigures(report as unknown as ReportData);
+
+    // Prefer committed facts over raw report data
+    const matchingFact = memberFacts.find(f => f.source_report_id === report.id)
+      || memberFacts.find(f => f.period_label === report.report_period);
+
+    let kf: Record<string, number> | null = null;
+    if (matchingFact) {
+      kf = factsToDanishMetrics(matchingFact.metrics);
+    } else {
+      kf = getEffectiveKeyFigures(report as unknown as ReportData);
+    }
 
     if (!kf) {
       return <p className="text-sm text-muted-foreground">Ingen nøgletal fundet</p>;
