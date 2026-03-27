@@ -151,6 +151,11 @@ const Members = () => {
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [standalonePendingInvitations, setStandalonePendingInvitations] = useState<any[]>([]);
 
+  // Rename state
+  const [renamingCompany, setRenamingCompany] = useState<{ id: string; currentName: string } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
+
   // Group/Koncern state (admin-only)
   const [groupInfoMap, setGroupInfoMap] = useState<Map<string, { groupName: string; groupId: string; isAnchor: boolean }>>(new Map());
   const [groupedCompanyIds, setGroupedCompanyIds] = useState<Set<string>>(new Set());
