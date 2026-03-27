@@ -385,6 +385,14 @@ const KPIs = () => {
   const targetStatus = getTargetStatus(activeMetric);
   const hitsCount = kpiMetrics.filter((m) => getTargetStatus(m).hit).length;
 
+  const prevDataPoint = activeMetric.history.length >= 2
+    ? activeMetric.history[activeMetric.history.length - 2]
+    : null;
+  const prevValue = prevDataPoint?.value ?? null;
+  const prevChange = prevValue != null && prevValue !== 0 && activeMetric.numValue != null
+    ? ((activeMetric.numValue - prevValue) / Math.abs(prevValue)) * 100
+    : null;
+
   return (
     <TooltipProvider>
     <AppLayout>
@@ -721,6 +729,23 @@ const KPIs = () => {
               <p className="text-xs text-muted-foreground">Nuværende</p>
               <p className="text-lg font-display font-bold text-foreground">{activeMetric.value}</p>
             </div>
+            {prevDataPoint && (
+              <div className="text-right mt-1">
+                <p className="text-[10px] text-muted-foreground">{prevDataPoint.month}</p>
+                <p className="text-sm text-muted-foreground">
+                  {prevValue != null ? prevValue.toLocaleString("da-DK", { maximumFractionDigits: 0 }) : "—"}
+                </p>
+                {prevChange != null && (
+                  <p className={`text-[10px] font-medium ${
+                    (activeMetric.lowerIsBetter ? prevChange <= 0 : prevChange >= 0)
+                      ? "text-primary"
+                      : "text-destructive"
+                  }`}>
+                    {prevChange >= 0 ? "+" : ""}{prevChange.toFixed(1)}%
+                  </p>
+                )}
+              </div>
+            )}
             {activeMetric.targetNum > 0 && (
               <>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
