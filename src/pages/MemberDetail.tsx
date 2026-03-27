@@ -132,6 +132,7 @@ interface HandoutSummaryItem {
   module: HandoutModule;
   status: 'not_started' | 'in_progress' | 'completed';
   progress: number;
+  levers: string[];
 }
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; className: string; bg: string }> = {
