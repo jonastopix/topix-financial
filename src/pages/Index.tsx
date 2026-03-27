@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -21,6 +21,14 @@ import GuidedTour from "@/components/GuidedTour";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { formatDKK, formatCompact, pctChange, calcTotalExpenses, DANISH_MONTHS, parseReportPeriodToKey } from "@/lib/financialUtils";
+
+function getNextBoardroomDate(): { date: Date; daysUntil: number } {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+  const daysUntil = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return { date: d, daysUntil };
+}
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -185,6 +193,11 @@ const Dashboard = () => {
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
 
+  const nextMeeting = getNextBoardroomDate();
+  const meetingDateStr = nextMeeting.date.toLocaleDateString("da-DK", {
+    weekday: "long", day: "numeric", month: "long"
+  });
+
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
   const currentMonthName = DANISH_MONTHS[now.getMonth()].toLowerCase();
@@ -307,6 +320,26 @@ const Dashboard = () => {
       <div className="mb-6">
         <AttentionNeeded />
       </div>
+
+      {hasReports && !isAdvisor && (
+        <div className="mb-6">
+          <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Calendar className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Næste boardroom-session</p>
+                <p className="text-xs text-muted-foreground capitalize">{meetingDateStr}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-display font-bold text-primary">{nextMeeting.daysUntil}</p>
+              <p className="text-[10px] text-muted-foreground">dage</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI cards – only shown when we have processed data */}
       {kpiData.period && (
