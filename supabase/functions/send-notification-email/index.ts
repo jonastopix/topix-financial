@@ -33,7 +33,7 @@ const SENDER_DOMAIN = "mail.topix.dk";
 const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
 const SENDER_FROM = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
 const APP_URL = "https://topix.lovable.app";
-const MAX_EMAILS_PER_DAY = 20;
+const MAX_EMAILS_PER_DAY = 5;
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   advisor_replied: "Ny besked fra din rådgiver",
