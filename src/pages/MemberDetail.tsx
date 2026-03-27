@@ -243,10 +243,9 @@ const MemberDetail = () => {
 
     const load = async () => {
       setLoading(true);
-      const [profileRes, reportsRes, budgetsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
+      const [profileRes, reportsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
         supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
         (supabase.from("financial_reports").select("*") as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }),
-        supabase.from("budget_targets").select("*").eq("user_id", userId).order("category"),
         supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
         supabase.from("conversations").select("id").eq("member_id", userId).single(),
         supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
@@ -262,6 +261,13 @@ const MemberDetail = () => {
       const cm = cmData as any;
       if (cm?.companies) {
         setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
+        // Fetch budgets by company_id (correct key)
+        const { data: budgetData } = await supabase
+          .from("budget_targets")
+          .select("*")
+          .eq("company_id", cm.company_id)
+          .order("category");
+        setBudgets(budgetData || []);
         // Fetch invitation that was accepted by this specific user
         let invData: any = null;
         // Primary: match via accepted_by
@@ -306,7 +312,6 @@ const MemberDetail = () => {
       const reportsList = reportsRes.data || [];
       setProfile(profileRes.data);
       setReports(reportsList);
-      setBudgets(budgetsRes.data || []);
       setMilestones(milestonesRes.data || []);
       setConversationId(convRes.data?.id || null);
 
