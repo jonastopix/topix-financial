@@ -866,20 +866,23 @@ const AdvisorDashboard = () => {
                 )}
               </div>
               {/* Legend */}
-              <div className="flex items-center gap-4 mt-2 px-1">
+              <div className="flex items-center gap-4 mt-2 px-1 flex-wrap">
                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement:</p>
                 {[
-                  { color: "bg-primary", label: "Rapport" },
-                  { color: "bg-chart-info", label: "Pulse" },
-                  { color: "bg-purple-500", label: "Chat" },
-                  { color: "bg-chart-warning", label: "Milestones" },
-                  { color: "bg-teal-500", label: "KPI mål" },
+                  { color: "bg-primary", label: "R = Rapport denne måned" },
+                  { color: "bg-chart-info", label: "P = Pulse" },
+                  { color: "bg-purple-500", label: "C = Chat" },
+                  { color: "bg-chart-warning", label: "M = Milestones" },
+                  { color: "bg-teal-500", label: "K = KPI mål" },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-1">
                     <div className={`h-1.5 w-1.5 rounded-full ${item.color}`} />
                     <span className="text-[9px] text-muted-foreground">{item.label}</span>
                   </div>
                 ))}
+                <span className="text-[9px] text-muted-foreground ml-2">
+                  · MoM = måned-over-måned omsætningsvækst
+                </span>
               </div>
             </>
           ) : (
