@@ -535,9 +535,9 @@ const Dashboard = () => {
 
       {/* 3-column snapshot grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
+        <DashboardMilestones />
         <DashboardHandouts />
         <BudgetOverview />
-        <DashboardMilestones />
       </div>
 
       {latestCommentary && !isAdvisor && (
