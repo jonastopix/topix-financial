@@ -1,5 +1,6 @@
+import { useState } from "react";
 import {
-  AlertTriangle, Clock, MessageSquare, FileText, Target, ChevronRight,
+  AlertTriangle, Clock, MessageSquare, FileText, Target, ChevronRight, X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -212,9 +213,36 @@ const AttentionNeeded = () => {
     staleTime: 3 * 60 * 1000,
   });
 
-  if (items.length === 0) return null;
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("attention-dismissed");
+      if (!raw) return new Set();
+      const parsed: { id: string; until: number }[] = JSON.parse(raw);
+      const now = Date.now();
+      return new Set(parsed.filter(d => d.until > now).map(d => d.id));
+    } catch { return new Set(); }
+  });
 
-  const highCount = items.filter((i) => i.urgency === "high").length;
+  const dismissItem = (id: string) => {
+    const now = new Date();
+    const until = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+    const existing: { id: string; until: number }[] = (() => {
+      try { return JSON.parse(localStorage.getItem("attention-dismissed") || "[]"); }
+      catch { return []; }
+    })();
+    const updated = [
+      ...existing.filter(d => d.id !== id && d.until > Date.now()),
+      { id, until },
+    ];
+    localStorage.setItem("attention-dismissed", JSON.stringify(updated));
+    setDismissed(prev => new Set([...prev, id]));
+  };
+
+  const visibleItems = items.filter(item => !dismissed.has(item.id));
+
+  if (visibleItems.length === 0) return null;
+
+  const highCount = visibleItems.filter((i) => i.urgency === "high").length;
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
@@ -230,33 +258,41 @@ const AttentionNeeded = () => {
         )}
       </div>
       <div className="space-y-2">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const config = typeConfig[item.type];
           const Icon = config.icon;
           return (
-            <Link
-              key={item.id}
-              to={item.link}
-              className={`flex items-start gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors border-l-[3px] ${urgencyBorder[item.urgency]} group`}
-            >
-              <div className={`p-1.5 rounded-md ${config.bg} flex-shrink-0 mt-0.5`}>
-                <Icon className={`h-3.5 w-3.5 ${config.color}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                  {item.title}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.description}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {item.daysLeft !== undefined && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
-                    <Clock className="h-3 w-3" />{item.daysLeft}d
-                  </span>
-                )}
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              </div>
-            </Link>
+            <div key={item.id} className="flex items-center gap-1">
+              <Link
+                to={item.link}
+                className={`flex-1 flex items-start gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors border-l-[3px] ${urgencyBorder[item.urgency]} group`}
+              >
+                <div className={`p-1.5 rounded-md ${config.bg} flex-shrink-0 mt-0.5`}>
+                  <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                    {item.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.description}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {item.daysLeft !== undefined && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
+                      <Clock className="h-3 w-3" />{item.daysLeft}d
+                    </span>
+                  )}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+              </Link>
+              <button
+                onClick={(e) => { e.preventDefault(); dismissItem(item.id); }}
+                className="p-1.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary transition-colors shrink-0 ml-1"
+                title="Skjul til næste måned"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           );
         })}
       </div>
