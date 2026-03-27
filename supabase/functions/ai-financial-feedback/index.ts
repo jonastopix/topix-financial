@@ -326,6 +326,8 @@ ${JSON.stringify(canonicalPayload.metrics, null, 2)}
 ${historicalCanonical && historicalCanonical.length > 0 ? `HISTORISKE DATA (kun validerede PASS-rapporter):
 ${JSON.stringify(historicalCanonical, null, 2)}` : "Ingen historiske data endnu."}
 
+${budgetContext || ""}
+${budgetContext ? "- Sammenlign nøgletal med budgetmålene og fremhæv væsentlige afvigelser (>10%)" : ""}
 Giv din detaljerede finansielle analyse.`;
 
     } else {

@@ -135,9 +135,7 @@ Deno.serve(async (req) => {
     // 6. Compute basis hash using the same function as the DB trigger
     const basisMetricsHash = await computeMetricsHash(metrics);
 
-    // 7. Persist commentary via service-role (client has no INSERT policy)
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    // 7. Persist commentary via service-role (adminClient already created above)
 
     const { data: commentary, error: insertErr } = await adminClient
       .from("financial_commentaries")
