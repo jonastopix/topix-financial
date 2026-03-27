@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, Calendar, ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -413,6 +413,15 @@ const Dashboard = () => {
         <div className="lg:col-span-8">
           <RevenueChart />
         </div>
+      </div>
+      <div className="flex justify-end mb-6 -mt-3">
+        <Link
+          to="/kpis"
+          className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+        >
+          Se detaljeret finansiel oversigt
+          <ArrowRight className="h-3 w-3" />
+        </Link>
       </div>
 
       {/* 3-column snapshot grid */}
