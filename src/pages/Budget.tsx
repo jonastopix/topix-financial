@@ -58,6 +58,12 @@ const Budget = () => {
     if (!user || !companyId) return;
 
     const loadBudget = async () => {
+      // Reset before loading new year
+      setSelectedTemplate(null);
+      setScenarioData(null);
+      setLabelOverrides({});
+      setDbLoaded(false);
+
       const res = await (supabase
         .from("budget_targets")
         .select("category, budget_amount, period") as any)
@@ -163,7 +169,7 @@ const Budget = () => {
     };
 
     loadBudget();
-  }, [user, companyId]);
+  }, [user, companyId, year]);
 
   const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
     setSelectedTemplate(tmpl);
@@ -402,6 +408,11 @@ const Budget = () => {
               })}
             </SelectContent>
           </Select>
+          {dbLoaded && !selectedTemplate && !scenarioData && year !== String(new Date().getFullYear()) && (
+            <span className="text-[10px] text-muted-foreground">
+              Intet budget for {year}
+            </span>
+          )}
         </div>
       </div>
 
