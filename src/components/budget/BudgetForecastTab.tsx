@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { TrendingUp, TrendingDown, Minus, X, Plus } from "lucide-react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -30,9 +31,10 @@ interface Props {
   rows: BudgetRow[];
   year: string;
   companyId: string | undefined;
+  userId: string | undefined;
 }
 
-const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
+const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
   const { data: facts = [] } = useCompanyFacts(companyId);
 
   const actualsMap = useMemo(() => {
@@ -109,6 +111,60 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
 
   // Business event simulator
   const [events, setEvents] = useState<SimEvent[]>([]);
+
+  // Load saved events from DB
+  useEffect(() => {
+    if (!companyId) return;
+    (async () => {
+      const { data } = await (supabase
+        .from("budget_targets")
+        .select("category, period, budget_amount") as any)
+        .eq("company_id", companyId)
+        .like("category", `__sim_event__${year}_%`);
+
+      if (!data?.length) return;
+
+      const loaded: SimEvent[] = data.map((row: any) => {
+        try {
+          return JSON.parse(row.period) as SimEvent;
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      if (loaded.length > 0) setEvents(loaded);
+    })();
+  }, [companyId, year]);
+
+  // Persist events to DB with debounce
+  useEffect(() => {
+    if (!companyId || !userId) return;
+
+    const save = async () => {
+      await (supabase
+        .from("budget_targets")
+        .delete() as any)
+        .eq("company_id", companyId)
+        .like("category", `__sim_event__${year}_%`);
+
+      if (events.length === 0) return;
+
+      const inserts = events.map((event, idx) => ({
+        user_id: userId,
+        company_id: companyId,
+        category: `__sim_event__${year}_${idx}`,
+        budget_amount: event.monthlyCost,
+        period: JSON.stringify(event),
+      }));
+
+      await (supabase
+        .from("budget_targets")
+        .insert(inserts) as any);
+    };
+
+    const timer = setTimeout(save, 1000);
+    return () => clearTimeout(timer);
+  }, [events, companyId, userId, year]);
   const [addingEvent, setAddingEvent] = useState(false);
   const [newEventType, setNewEventType] = useState<SimEvent["type"]>("hire");
   const [newEventCost, setNewEventCost] = useState(40000);
@@ -278,14 +334,21 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
           <h2 className="font-display font-semibold text-foreground">
             Scenariesimulator
           </h2>
-          {events.length > 0 && (
-            <button
-              onClick={() => setEvents([])}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Nulstil alle
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {events.length > 0 && (
+              <span className="text-[10px] text-muted-foreground/60">
+                Gemt automatisk
+              </span>
+            )}
+            {events.length > 0 && (
+              <button
+                onClick={() => setEvents([])}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Nulstil alle
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-xs text-muted-foreground mb-6">
           Tilføj konkrete business-hændelser og se effekten på dit helårsresultat.
