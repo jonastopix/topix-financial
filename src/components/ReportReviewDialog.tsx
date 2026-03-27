@@ -532,6 +532,9 @@ export default function ReportReviewDialog({
                       : "Systemet genkendte ikke formatet. Indtast tallene nedenfor direkte fra din rapport."}
                   </p>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Felter markeret med <span className="text-destructive">*</span> er de vigtigste — udfyld mindst disse tre for at aktivere din AI-analyse.
+                </p>
 
                 {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
                   <div className="rounded-lg border border-amber-200/60 bg-amber-50/40 dark:border-amber-800/30 dark:bg-amber-950/20 p-3">
