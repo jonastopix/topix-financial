@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
             .from("notifications")
             .update({ email_sent_at: new Date().toISOString() })
             .eq("user_id", member.user_id)
-            .eq("dedup_key", `report_reminder:${company.id}:${expectedPeriodKey}`);
+            .eq("dedup_key", `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`);
         } catch (notifErr) {
           console.error(`[Phase2] report_reminder notification error (non-blocking):`, notifErr);
         }
