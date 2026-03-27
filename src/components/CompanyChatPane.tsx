@@ -2426,7 +2426,7 @@ const CompanyChatPane = () => {
                     <ChatRichInput
                       onSubmit={handleSend}
                       disabled={sending}
-                      placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : "Skriv en besked..."}
+                      placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${advisorNamesLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
                   </div>
