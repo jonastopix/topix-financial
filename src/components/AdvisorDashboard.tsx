@@ -566,11 +566,26 @@ const AdvisorDashboard = () => {
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
   // KPI aggregates
-  const totalRevenue = investorSummaries.reduce((s, c) => s + (c.revenue ?? 0), 0);
-  const totalEbt = investorSummaries.reduce((s, c) => s + (c.ebt ?? 0), 0);
   const total = investorSummaries.length;
   const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
-  const pulseThisMonth = investorSummaries.filter(c => c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000)).length;
+
+  const engagementScores = investorSummaries.map(c => {
+    const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
+    let score = 0;
+    if (c.has_verified_metrics && !c.missing_current_period) score++;
+    if (hasPulse) score++;
+    if (c.milestones.length > 0) score++;
+    if (c.kpiTargets.length > 0) score++;
+    return score;
+  });
+  const avgEngagement = total > 0 ? engagementScores.reduce((s, v) => s + v, 0) / total : 0;
+  const fullyEngaged = engagementScores.filter(s => s >= 3).length;
+
+  const withFoundation = investorSummaries.filter(c => c.kpiTargets.length > 0 && c.milestones.length > 0).length;
+
+  const withPositiveTrend = investorSummaries.filter(c => c.revenueTrendPct != null && c.revenueTrendPct > 0).length;
+  const withNegativeTrend = investorSummaries.filter(c => c.revenueTrendPct != null && c.revenueTrendPct < -5).length;
+  const withTrendData = investorSummaries.filter(c => c.revenueTrendPct != null).length;
 
   // Pulse companies (last 60 days)
   const pulseCompanies = investorSummaries
@@ -632,10 +647,10 @@ const AdvisorDashboard = () => {
     <div className="space-y-8">
       {/* ── TOP: Portfolio KPI bar ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="Samlet omsætning" value={formatCompact(totalRevenue)} accentColor="blue" />
-        <KPICard title="Samlet resultat" value={formatCompact(totalEbt)} accentColor={totalEbt >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Rapporteret denne måned" value={`${reportedThisMonth} / ${total}`} subtitle="har sendt rapport" accentColor={reportedThisMonth === total ? "emerald" : "amber"} />
-        <KPICard title="Platform-engagement" value={`${pulseThisMonth} / ${total}`} subtitle="pulse seneste 30 dage" accentColor="blue" />
+        <KPICard title="Rapporterer aktivt" value={`${reportedThisMonth} / ${total}`} subtitle="sendt rapport denne måned" accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"} />
+        <KPICard title="Platform-engagement" value={`${fullyEngaged} / ${total}`} subtitle={`bruger 3+ funktioner · snit ${avgEngagement.toFixed(1)}/4`} accentColor={total > 0 && fullyEngaged / total >= 0.5 ? "emerald" : "blue"} />
+        <KPICard title="Fundament på plads" value={`${withFoundation} / ${total}`} subtitle="KPI-mål + milestones sat" accentColor={total > 0 && withFoundation / total >= 0.6 ? "emerald" : "amber"} />
+        <KPICard title="Omsætningstrend" value={withTrendData > 0 ? `${withPositiveTrend} ↑ · ${withNegativeTrend} ↓` : "Ingen data"} subtitle={withTrendData > 0 ? `af ${withTrendData} med sammenlignbare tal` : "kræver 2+ måneders rapporter"} accentColor={withNegativeTrend > withPositiveTrend ? "rose" : "emerald"} />
       </div>
 
       {/* ── Two-column layout ── */}
