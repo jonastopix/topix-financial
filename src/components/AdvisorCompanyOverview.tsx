@@ -453,23 +453,15 @@ const AdvisorCompanyOverview = () => {
         )}
 
         {/* Report status */}
-        {missingReport ? (
-          <Link
-            to="/reports"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-chart-warning/20 bg-chart-warning/5 text-xs font-medium text-chart-warning hover:bg-chart-warning/10 transition-colors max-w-full min-w-0"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Mangler {getMissingReportLabel()}
-          </Link>
-        ) : latest ? (
+        {latest && (
           <Link
             to="/reports"
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
           >
             <FileText className="h-3.5 w-3.5" />
-            {formatReportKey(latest.key)}
+            Seneste rapport: {formatReportKey(latest.key)}
           </Link>
-        ) : null}
+        )}
 
         {/* Internal note indicator — links to chat if possible, otherwise non-clickable */}
         {hasNote && (
