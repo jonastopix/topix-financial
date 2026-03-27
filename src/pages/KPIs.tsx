@@ -3,6 +3,7 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import {
   TrendingUp,
@@ -120,6 +121,32 @@ const KPIs = () => {
   const [editingBenchmarks, setEditingBenchmarks] = useState(false);
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
+
+  const { data: budgetData } = useQuery({
+    queryKey: ["budget-for-kpi-targets", companyId],
+    queryFn: async () => {
+      const { data } = await (supabase
+        .from("budget_targets")
+        .select("category, budget_amount, period") as any)
+        .eq("company_id", companyId!)
+        .like("period", `${new Date().getFullYear()}-base-%`);
+      return (data || []) as { category: string; budget_amount: number; period: string }[];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  });
+
+  const budgetTotals = useMemo(() => {
+    if (!budgetData?.length) return null;
+    const revenue = budgetData
+      .filter(b => b.category === "omsaetning")
+      .reduce((s, b) => s + b.budget_amount, 0);
+    const costs = budgetData
+      .filter(b => b.category !== "omsaetning" && !b.category.startsWith("__"))
+      .reduce((s, b) => s + b.budget_amount, 0);
+    const ebitda = revenue - costs;
+    return { revenue: Math.round(revenue), ebitda: Math.round(ebitda) };
+  }, [budgetData]);
 
   useEffect(() => {
     if (!user || !companyId) return;
@@ -471,17 +498,36 @@ const KPIs = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Værdi</label>
-                      <input
-                        type="number"
-                        value={ev.value}
-                        onChange={(e) =>
-                          setEditValues((prev) => ({
-                            ...prev,
-                            [def.key]: { ...prev[def.key], value: e.target.value },
-                          }))
-                        }
-                        className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <input
+                          type="number"
+                          value={ev.value}
+                          onChange={(e) =>
+                            setEditValues((prev) => ({
+                              ...prev,
+                              [def.key]: { ...prev[def.key], value: e.target.value },
+                            }))
+                          }
+                          className="w-full px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        {budgetTotals && (def.key === "omsaetning" || def.key === "resultat") && (
+                          <button
+                            onClick={() => {
+                              const val = def.key === "omsaetning"
+                                ? Math.round(budgetTotals.revenue / 12)
+                                : Math.round(budgetTotals.ebitda / 12);
+                              setEditValues((prev) => ({
+                                ...prev,
+                                [def.key]: { ...prev[def.key], value: String(val) },
+                              }));
+                            }}
+                            className="text-[10px] px-2 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
+                            title="Hent månedligt gennemsnit fra dit budget"
+                          >
+                            Fra budget
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Label</label>
@@ -681,6 +727,23 @@ const KPIs = () => {
                       style={{ width: `${status.pct}%` }}
                     />
                   </div>
+                  {budgetTotals && !editingTargets && (() => {
+                    const budgetVal = metric.key === "omsaetning"
+                      ? Math.round(budgetTotals.revenue / 12)
+                      : metric.key === "resultat"
+                      ? Math.round(budgetTotals.ebitda / 12)
+                      : null;
+                    if (!budgetVal || !metric.targetNum) return null;
+                    const diff = Math.abs(metric.targetNum - budgetVal) / Math.max(budgetVal, 1);
+                    if (diff < 0.1) return null;
+                    return (
+                      <p className="text-[9px] text-chart-warning mt-1">
+                        Budget: {new Intl.NumberFormat("da-DK", {
+                          style: "currency", currency: "DKK", maximumFractionDigits: 0
+                        }).format(budgetVal)}/md
+                      </p>
+                    );
+                  })()}
                 </div>
               )}
               {metric.benchmark.value > 0 && (
