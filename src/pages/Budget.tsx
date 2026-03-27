@@ -423,6 +423,10 @@ const Budget = () => {
             <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
             Forecast & Simulator
           </TabsTrigger>
+          <TabsTrigger value="cashflow" className="text-xs shrink-0">
+            <Droplets className="h-3.5 w-3.5 mr-1.5" />
+            Cashflow
+          </TabsTrigger>
           <TabsTrigger value="import" className="text-xs shrink-0">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Importér
