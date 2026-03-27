@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       if (advisorIds.length > 0) {
         await writeNotificationToMany(admin, advisorIds, {
           type: "report_committed",
-          priority: "important",
+          priority: "info",
           title: `${companyName} har godkendt sine tal for ${period}`,
           body: `Tallene for ${period} er verificeret og klar. AI-analysen er aktiveret.`,
           reference_type: "report",
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       if (advisorIds.length > 0) {
         await writeNotificationToMany(admin, advisorIds, {
           type: "pulse_checkin_received",
-          priority: "important",
+          priority: "info",
           title: `${companyName} har udfyldt pulse check-in for ${periodLabel}`,
           body: `Læs hvad der gik godt og hvad der er den største udfordring inden jeres næste session.`,
           reference_type: "pulse",
@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
       const deepLink = `/members/${report.user_id}?reportId=${report.id}`;
       await writeNotificationToMany(admin, advisorIds, {
         type: "report_uploaded",
-        priority: "important",
+        priority: "info",
         title: `Ny ${reportLabel.toLowerCase()} fra ${companyName}`,
         body: `${reportLabel} for ${reportPeriod}`,
         reference_type: "report",
