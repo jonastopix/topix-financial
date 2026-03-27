@@ -42,6 +42,7 @@ const Budget = () => {
   const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>({});
   const [changingTemplate, setChangingTemplate] = useState(false);
   const [showImportDirect, setShowImportDirect] = useState(false);
+  const [confirmTemplateChange, setConfirmTemplateChange] = useState(false);
 
   // Navigation reset
   const resetKey = useNavigationReset();
