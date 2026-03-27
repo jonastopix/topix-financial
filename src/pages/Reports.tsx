@@ -934,6 +934,17 @@ const Reports = () => {
 
                 {isExpanded && (
                   <div className="border-t border-border/50 px-5 py-5 space-y-4">
+                    {/* True error guidance */}
+                    {isTrueError && (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <p className="text-sm text-destructive font-medium mb-1">
+                          Filen blev ikke genkendt som en finansiel rapport
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Slet denne rapport og upload en resultatopgørelse eller saldobalance fra dit regnskabsprogram.
+                        </p>
+                      </div>
+                    )}
                     {/* Manual entry guidance */}
                     {needsManualEntry && !getEffectiveMetrics(report as unknown as ReportData) && (
                       <div className="rounded-lg border border-amber-300/40 bg-amber-50/50 dark:border-amber-500/20 dark:bg-amber-950/10 p-3">
