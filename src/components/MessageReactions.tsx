@@ -21,6 +21,10 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({ reactions, onToggle, i
         <button
           key={r.emoji}
           onClick={() => onToggle(r.emoji)}
+          title={r.reactorUserIds.length > 0 && getReactorName
+            ? r.reactorUserIds.map(id => getReactorName(id)).filter(Boolean).join(", ")
+            : undefined
+          }
           className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-colors border ${
             r.reacted
               ? "bg-primary/10 border-primary/30 text-foreground"

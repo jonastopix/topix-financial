@@ -110,17 +110,19 @@ export function useMessageReactions(
   const getAggregated = useCallback(
     (messageId: string): AggregatedReaction[] => {
       const list = reactions.get(messageId) || [];
-      const emojiMap = new Map<string, { count: number; reacted: boolean }>();
+      const emojiMap = new Map<string, { count: number; reacted: boolean; userIds: string[] }>();
       list.forEach((r) => {
-        const existing = emojiMap.get(r.emoji) || { count: 0, reacted: false };
+        const existing = emojiMap.get(r.emoji) || { count: 0, reacted: false, userIds: [] };
         existing.count++;
         if (r.user_id === currentUserId) existing.reacted = true;
+        existing.userIds.push(r.user_id);
         emojiMap.set(r.emoji, existing);
       });
       return Array.from(emojiMap.entries()).map(([emoji, v]) => ({
         emoji,
         count: v.count,
         reacted: v.reacted,
+        reactorUserIds: v.userIds,
       }));
     },
     [reactions, currentUserId]
