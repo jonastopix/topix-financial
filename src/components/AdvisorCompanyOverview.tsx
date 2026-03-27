@@ -246,6 +246,40 @@ const AdvisorCompanyOverview = () => {
     staleTime: 2 * 60_000,
   });
 
+  const { data: milestonesData } = useQuery({
+    queryKey: ["milestones-advisor", companyId],
+    queryFn: async () => {
+      const { data: members } = await (supabase
+        .from("company_members" as any)
+        .select("user_id")
+        .eq("company_id", companyId!) as any);
+
+      if (!members?.length) return [];
+
+      const userIds = members.map((m: any) => m.user_id);
+
+      const { data } = await supabase
+        .from("milestones")
+        .select("id, title, deadline, progress, status")
+        .in("user_id", userIds)
+        .eq("status", "active")
+        .order("deadline", { ascending: true });
+
+      return (data || []) as {
+        id: string;
+        title: string;
+        deadline: string | null;
+        progress: number;
+        status: string;
+      }[];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  });
+  const milestones = milestonesData || [];
+  const overdueMilestones = milestones.filter(m =>
+    m.deadline && new Date(m.deadline) < new Date()
+  );
 
   const { data: latestPulse } = useQuery({
     queryKey: ["pulse-checkin", companyId],
