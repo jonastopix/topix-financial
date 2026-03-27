@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -399,43 +399,6 @@ const AdvisorCompanyOverview = () => {
     staleTime: 2 * 60_000,
   });
 
-  // Notify member that advisor has viewed their latest report (once per session per period)
-  useEffect(() => {
-    if (!data?.latest || !companyId || !user) return;
-
-    const reportPeriodKey = data.latest.key;
-    if (!reportPeriodKey) return;
-
-    const storageKey = `advisor-viewed:${user.id}:${companyId}:${reportPeriodKey}`;
-    if (sessionStorage.getItem(storageKey)) return;
-    sessionStorage.setItem(storageKey, "1");
-
-    supabase
-      .from("company_members" as any)
-      .select("user_id")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data: member }: any) => {
-        if (!member?.user_id) return;
-
-        supabase.from("notifications" as any).insert({
-          user_id: member.user_id,
-          type: "advisor_replied",
-          priority: "info",
-          title: `Din ${reportPeriodKey.replace(/^(\d{4})-(\d{2})$/, (_: string, y: string, m: string) => {
-            const months = ["januar","februar","marts","april","maj","juni",
-              "juli","august","september","oktober","november","december"];
-            return months[parseInt(m,10)-1] + " " + y;
-          })}-rapport er set`,
-          body: "Din rådgiver har gennemgået dine tal og forbereder næste møde.",
-          deep_link: "/chat",
-          company_id: companyId,
-          dedup_key: `advisor-viewed:${companyId}:${reportPeriodKey}`,
-        } as any).then(() => {});
-      });
-  }, [data?.latest?.key, companyId, user]);
 
   const { data: latestPulse } = useQuery({
     queryKey: ["pulse-checkin", companyId],
