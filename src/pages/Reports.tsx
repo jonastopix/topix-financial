@@ -822,7 +822,7 @@ const Reports = () => {
             const userMsgs = msgs.filter((m) => m.message_type === "user");
 
             return (
-              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className={`bg-card border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300 ${needsManualEntry ? "border-amber-300/50 dark:border-amber-500/30" : "border-border"}`}>
+              <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className={`bg-card border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300 ${needsManualEntry ? "border-amber-300/50 dark:border-amber-500/30" : isTrueError ? "border-destructive/30" : "border-border"}`}>
                 <button
                   onClick={() => setExpandedReport(isExpanded ? null : report.id)}
                   className="w-full p-5 text-left hover:bg-secondary/30 transition-colors"
