@@ -154,15 +154,20 @@ Deno.serve(async (req) => {
 
     // Urgency-specific subjects and intros
     type Urgency = "gentle" | "urgent" | "critical";
-    const urgencySubjects: Record<Urgency, string> = {
+    const subjectLines: Record<Urgency, string> = {
+      gentle: `Husk at uploade din rapport`,
+      urgent: `Din rapport mangler stadig`,
+      critical: `Vigtigt — rapporten er forsinket`,
+    };
+    const intros: Record<Urgency, string> = {
+      gentle: `vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Det tager under 2 minutter, og vi trækker tallene ud automatisk.`,
+      urgent: `din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at tallene er klar inden boardroom-sessionen.`,
+      critical: `vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt.`,
+    };
+    const emailSubjects: Record<Urgency, string> = {
       gentle: `Husk: Upload din rapport for {{period}}`,
       urgent: `Din rapport for {{period}} mangler stadig`,
       critical: `Vigtigt: {{period}}-rapport er nu forsinket`,
-    };
-    const urgencyIntros: Record<Urgency, string> = {
-      gentle: `Vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Upload den når du har et øjeblik — det tager under 2 minutter.`,
-      urgent: `Din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at vi har tallene inden boardroom-sessionen.`,
-      critical: `Vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt — kontakt os hvis du har problemer.`,
     };
 
     // Helper to build email for a specific company
@@ -172,10 +177,10 @@ Deno.serve(async (req) => {
         company_name: companyName,
         report_url: reportUrl,
         first_name: firstName || "dig",
-        intro: urgencyIntros[urgency],
+        subject_line: subjectLines[urgency],
+        intro: replaceVars(intros[urgency], { period }),
       };
-      const urgencySubject = urgencySubjects[urgency];
-      const subject = (isTest ? '[TEST] ' : '') + replaceVars(urgencySubject, vars);
+      const subject = (isTest ? '[TEST] ' : '') + replaceVars(emailSubjects[urgency], { period });
       const html = replaceVars(bodyTpl, vars);
       return { subject, html };
     }
