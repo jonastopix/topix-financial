@@ -1,5 +1,9 @@
 import { useMemo } from "react";
 import { BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
