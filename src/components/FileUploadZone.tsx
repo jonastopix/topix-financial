@@ -151,8 +151,8 @@ async function runPostExtractionPipeline(params: {
     });
   } else {
     toastFn({
-      title: "Rapport behandlet",
-      description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} · Klar til gennemgang`,
+      title: "Rapport behandlet ✓",
+      description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} — tryk "Klar til godkendelse" for at bekræfte tallene`,
     });
   }
 }
