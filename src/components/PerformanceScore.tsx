@@ -55,9 +55,11 @@ const PerformanceScore = () => {
     const latest = sorted[sorted.length - 1].kf;
     const prev = sorted.length >= 2 ? sorted[sorted.length - 2].kf : null;
 
-    const revenueGrowth = prev?.omsaetning != null && latest.omsaetning != null
-      ? ((latest.omsaetning - prev.omsaetning) / Math.abs(prev.omsaetning)) * 100 : 0;
-    const growthScore = Math.min(100, Math.max(0, 50 + revenueGrowth * PERF.growthMultiplier));
+    const hasGrowthData = prev?.omsaetning != null && latest.omsaetning != null;
+    const revenueGrowth = hasGrowthData
+      ? ((latest.omsaetning - prev!.omsaetning) / Math.abs(prev!.omsaetning)) * 100 : null;
+    const growthScore = revenueGrowth != null
+      ? Math.min(100, Math.max(0, 50 + revenueGrowth * PERF.growthMultiplier)) : 50;
 
     const dbMargin = latest.omsaetning != null && latest.daekningsbidrag != null
       ? (latest.daekningsbidrag / latest.omsaetning) * 100 : 0;
@@ -72,7 +74,7 @@ const PerformanceScore = () => {
       : 50;
 
     return [
-      { label: "Vækstrate", value: `${revenueGrowth >= 0 ? "+" : ""}${revenueGrowth.toFixed(1)}%`, score: Math.round(growthScore), icon: TrendingUp, detail: "Omsætningsvækst M/M" },
+      { label: "Vækstrate", value: revenueGrowth != null ? `${revenueGrowth >= 0 ? "+" : ""}${revenueGrowth.toFixed(1)}%` : "—", score: Math.round(growthScore), icon: TrendingUp, detail: "Omsætningsvækst M/M" },
       { label: "Bruttomargin", value: `${dbMargin.toFixed(1)}%`, score: Math.round(marginScore), icon: DollarSign, detail: "Dækningsgrad" },
       { label: "Nettoresultat", value: `${netMargin.toFixed(1)}%`, score: Math.round(profitScore), icon: Flame, detail: "Overskudsgrad" },
       { label: "Likviditet", value: latest.bank_balance != null ? `${(latest.bank_balance / 1000).toFixed(0)}k` : "—", score: Math.round(bankScore), icon: BarChart3, detail: "Banksaldo vs. 6 mdr. løn" },
