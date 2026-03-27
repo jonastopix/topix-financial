@@ -132,25 +132,31 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
     setSaving(true);
 
     try {
-      const periodPrefix = `${preview.year}-base-`;
       const { data: existing } = await supabase
         .from("budget_targets")
         .select("id, period")
         .eq("user_id", userId)
-        .like("period", `${periodPrefix}%`);
+        .eq("company_id", companyId)
+        .or(
+          `period.like.${preview.year}-base-%,` +
+          `period.like.${preview.year}-optimistisk-%,` +
+          `period.like.${preview.year}-pessimistisk-%`
+        );
 
       if (existing && existing.length > 0) {
         await supabase.from("budget_targets").delete().in("id", existing.map((e) => e.id));
       }
 
       const inserts = preview.categories.flatMap((cat) =>
-        cat.monthly.map((amount, monthIdx) => ({
-          user_id: userId,
-          company_id: companyId,
-          category: cat.key,
-          budget_amount: amount,
-          period: `${preview.year}-base-${monthIdx}`,
-        }))
+        (["base", "optimistisk", "pessimistisk"] as const).flatMap((scenario) =>
+          cat.monthly.map((amount, monthIdx) => ({
+            user_id: userId,
+            company_id: companyId,
+            category: cat.key,
+            budget_amount: amount,
+            period: `${preview.year}-${scenario}-${monthIdx}`,
+          }))
+        )
       );
 
       const { error } = await supabase.from("budget_targets").insert(inserts);
