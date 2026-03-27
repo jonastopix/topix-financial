@@ -183,6 +183,14 @@ const CompanyChatPane = () => {
       }));
     },
     staleTime: 10 * 60 * 1000,
+  });
+
+  const advisorNamesLabel = allAdvisors && allAdvisors.length > 0
+    ? allAdvisors.map((a: any) => a.full_name.split(" ")[0]).join(" & ")
+    : "Dine rådgivere";
+
+  // (hook continues below — remove duplicate closing brace added by insertion)
+
     enabled: !isAdvisor, // only needed for member view
   });
 
