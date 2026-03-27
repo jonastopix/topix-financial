@@ -19,6 +19,7 @@ interface HandoutSummary {
   status: "not_started" | "in_progress" | "completed";
   progress: number;
   completedAt: string | null;
+  levers: string[];
 }
 
 const Handouts = () => {
@@ -27,7 +28,7 @@ const Handouts = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
-    moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null }))
+    moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [] }))
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,15 +98,16 @@ const Handouts = () => {
 
       setSummaries(moduleOrder.map(m => {
         const d = map.get(m);
-        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null };
+        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [] };
         const config = handoutConfigs[m];
+        const levers = (d.levers as string[]) || [];
         const progress = calcHandoutProgress(
           config,
           (d.responses as Record<string, string>) || {},
           (d.checklist as Record<string, boolean>) || {},
-          (d.levers as string[]) || []
+          levers
         );
-        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null };
+        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null, levers };
       }));
       setIsLoading(false);
     };
@@ -230,6 +232,73 @@ const Handouts = () => {
           ))}
         </div>
       )}
+
+      {!isAdvisor && !isLoading && (() => {
+        const allLevers = summaries.flatMap(s =>
+          s.levers.map(lever => ({
+            lever,
+            module: s.module,
+            moduleTitle: handoutConfigs[s.module]?.title || s.module,
+          }))
+        );
+
+        return (
+          <>
+            {allLevers.length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-1 w-6 rounded-full bg-primary" />
+                  <h2 className="text-sm font-semibold text-foreground uppercase tracking-widest">
+                    Dine valgte løftestænger
+                  </h2>
+                  <span className="text-xs text-muted-foreground">
+                    {allLevers.length} aktive
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Dette er de konkrete indsatser du har valgt at arbejde med
+                  i dit forløb. Del dem gerne med din rådgiver i chatten.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {allLevers.map((item, i) => (
+                    <div key={i}
+                      className="flex items-start gap-3 p-3 rounded-xl bg-secondary/30 border border-border/30">
+                      <div className="h-5 w-5 rounded bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm text-foreground leading-snug">
+                          {item.lever}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {item.moduleTitle}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {allLevers.length === 0 && summaries.some(s => s.progress > 0) && (
+              <div className="mt-8 glass-card rounded-xl p-5 flex items-center gap-4">
+                <div className="p-2.5 rounded-xl bg-primary/10 shrink-0">
+                  <Lightbulb className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Vælg dine løftestænger
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Løftestænger er de konkrete indsatser du vil arbejde med.
+                    Du finder dem i hvert handout-modul.
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
     </AppLayout>
   );
 };
