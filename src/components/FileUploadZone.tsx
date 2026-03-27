@@ -271,14 +271,19 @@ function getFriendlyErrorMessage(data: any): string {
   const err = data?.error || "";
   const source = data?.source_system || "";
   const status = data?.status || "";
+  const systemLabel = (s: string) =>
+    s === "economic" ? "e-conomic"
+    : s === "dinero" ? "Dinero"
+    : s === "combined_dk" ? "e-conomic"
+    : s || "dit regnskabsprogram";
   if (err.includes("Known source without supported template") || status === "error" && source) {
-    return `Vi kan se at filen kommer fra ${source}, men denne rapporttype understøttes ikke endnu. Prøv at eksportere en standard resultatopgørelse eller saldobalance fra ${source}.`;
+    return `Vi kan se at filen kommer fra ${systemLabel(source)}, men denne rapporttype understøttes ikke endnu. Prøv at eksportere en standard resultatopgørelse eller saldobalance fra ${systemLabel(source)}.`;
   }
   if (status === "semantic_xlsx_fail" || status === "semantic_csv_fail") {
-    return `Filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Kontrollér at det er en standard resultatopgørelse eller saldobalance, og prøv igen.`;
+    return `Filen fra ${systemLabel(source)} kunne ikke læses korrekt. Kontrollér at det er en standard resultatopgørelse eller saldobalance, og prøv igen.`;
   }
   if (err.includes("Structural semantic extraction failed")) {
-    return `PDF-filen fra ${source || "dit regnskabsprogram"} kunne ikke læses korrekt. Prøv at eksportere filen igen, eller upload en Excel-version i stedet.`;
+    return `PDF-filen fra ${systemLabel(source)} kunne ikke læses korrekt. Prøv at eksportere filen igen, eller upload en Excel-version i stedet.`;
   }
   if (err.includes("sign_convention") || err.includes("unknown convention")) {
     return "Fortegnskonventionen i filen kunne ikke bestemmes. Upload venligst en standardeksport direkte fra dit regnskabsprogram.";
