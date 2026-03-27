@@ -169,7 +169,7 @@ const Budget = () => {
     };
 
     loadBudget();
-  }, [user, companyId]);
+  }, [user, companyId, year]);
 
   const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
     setSelectedTemplate(tmpl);
