@@ -10,6 +10,7 @@ import {
   Building2,
   Search,
   MessageCircle,
+  MessageSquare,
   FileText,
   ChevronDown,
   ChevronUp,
