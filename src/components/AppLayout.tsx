@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { Eye, Building2, Menu } from "lucide-react";
+import { Eye, Building2, Menu, X } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
 
