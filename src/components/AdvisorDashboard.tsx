@@ -1,18 +1,19 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
-  MessageSquare, Clock, Building2,
-  ChevronRight, CheckCircle2, CalendarDays, BarChart3, ChevronDown, Activity,
+  MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
+  BarChart3, Activity, TrendingUp, TrendingDown, AlertTriangle, MessageCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
+import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
-import GroupDashboardContent from "@/components/GroupDashboardContent";
-import { buildGroupAggregates, type GroupCompanySummary } from "@/lib/groupDashboardUtils";
+import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
+} from "@/components/ui/table";
 
 // ── Helpers ──
 
@@ -21,7 +22,6 @@ function timeAgo(dateStr: string | null): string {
   return formatDistanceToNow(new Date(dateStr), { locale: da, addSuffix: true });
 }
 
-/** Missing-report logic — mirrors AttentionNeeded exactly */
 function getMissingReportKey(): string {
   const now = new Date();
   const currentMonth = now.getMonth();
@@ -51,19 +51,28 @@ interface CompanyRow {
   logo_url: string | null;
 }
 
+interface InvestorCompanySummary extends GroupCompanySummary {
+  revenueTrendPct: number | null;
+  ebitdaMargin: number | null;
+  budgetRevenue: number | null;
+  budgetVsActualPct: number | null;
+  latestPulse: { went_well: string; biggest_challenge: string; created_at: string } | null;
+  needsAttention: boolean;
+  unreadMessages: number;
+}
+
 // ── Component ──
 
 const AdvisorDashboard = () => {
   const { user, setCompanyOverride } = useAuth();
-  const [showPortfolio, setShowPortfolio] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-dashboard", user?.id],
     queryFn: async () => {
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const currentYear = new Date().getFullYear();
 
-      const [convRes, companiesRes, reportsRes, notesRes, pulseRes, recentReportsRes, recentFactsRes] = await Promise.all([
+      const [convRes, companiesRes, reportsRes, notesRes, budgetRes, pulseRes, recentReportsRes, recentFactsRes] = await Promise.all([
         supabase
           .from("conversations")
           .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
@@ -80,10 +89,15 @@ const AdvisorDashboard = () => {
         supabase
           .from("conversation_notes")
           .select("conversation_id"),
+        supabase
+          .from("budget_targets")
+          .select("company_id, category, budget_amount, period")
+          .like("period", `${currentYear}-base-%`),
         (supabase
           .from("pulse_checkins" as any)
-          .select("company_id, period_key, created_at")
-          .gte("created_at", monthStart) as any),
+          .select("company_id, went_well, biggest_challenge, created_at")
+          .order("created_at", { ascending: false })
+          .limit(100) as any),
         (supabase
           .from("financial_reports")
           .select("id, company_id, uploaded_at, status, report_period")
@@ -99,19 +113,48 @@ const AdvisorDashboard = () => {
           .limit(20) as any),
       ]);
 
-      const pulseThisMonth = new Set(
-        (pulseRes.data || []).map((p: any) => p.company_id)
-      );
-
       const conversations = (convRes.data || []) as ConversationRow[];
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
-      // Build report keys per company + latest key figures
+      // Budget revenue by company
+      const budgetRevenueByCompany = new Map<string, number>();
+      for (const bt of (budgetRes.data || []) as any[]) {
+        if (bt.category === "omsaetning") {
+          budgetRevenueByCompany.set(
+            bt.company_id,
+            (budgetRevenueByCompany.get(bt.company_id) || 0) + (bt.budget_amount || 0)
+          );
+        }
+      }
+
+      // Latest pulse by company
+      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; created_at: string }>();
+      for (const p of (pulseRes.data || []) as any[]) {
+        if (!latestPulseByCompany.has(p.company_id)) {
+          latestPulseByCompany.set(p.company_id, {
+            went_well: p.went_well || "",
+            biggest_challenge: p.biggest_challenge || "",
+            created_at: p.created_at,
+          });
+        }
+      }
+
+      // Unread messages per company
+      const unreadByCompany = new Map<string, number>();
+      for (const c of conversations) {
+        if (c.company_id && c.awaiting_reply_from === "advisor") {
+          unreadByCompany.set(c.company_id, (unreadByCompany.get(c.company_id) || 0) + 1);
+        }
+      }
+
+      // Build report keys per company + KFs by period
       const reportKeysByCompany = new Map<string, Set<string>>();
+      const kfByCompanyPeriod = new Map<string, Map<string, Record<string, number>>>();
       const latestKfByCompany = new Map<string, { key: string; kf: Record<string, number> }>();
+
       for (const r of reports) {
         const key = getEffectiveReportPeriodKey(r);
         if (!key) continue;
@@ -120,8 +163,14 @@ const AdvisorDashboard = () => {
 
         const kf = getEffectiveKeyFigures(r);
         if (!kf) continue;
-        const existing = latestKfByCompany.get(r.company_id);
-        if (!existing || key > existing.key) {
+
+        // Store per period for trend calc
+        if (!kfByCompanyPeriod.has(r.company_id)) kfByCompanyPeriod.set(r.company_id, new Map());
+        const existing = kfByCompanyPeriod.get(r.company_id)!.get(key);
+        if (!existing) kfByCompanyPeriod.get(r.company_id)!.set(key, kf);
+
+        const latestExisting = latestKfByCompany.get(r.company_id);
+        if (!latestExisting || key > latestExisting.key) {
           latestKfByCompany.set(r.company_id, { key, kf });
         }
       }
@@ -141,7 +190,26 @@ const AdvisorDashboard = () => {
         if (!keys || !keys.has(missingKey)) companiesMissingReport.add(c.id);
       }
 
-      // Personal scope: assigned to me OR unassigned
+      // Revenue trend per company
+      const revenueTrendByCompany = new Map<string, number | null>();
+      for (const [compId, periodMap] of kfByCompanyPeriod) {
+        const sortedKeys = [...periodMap.keys()].sort();
+        if (sortedKeys.length >= 2) {
+          const latest = periodMap.get(sortedKeys[sortedKeys.length - 1]);
+          const prev = periodMap.get(sortedKeys[sortedKeys.length - 2]);
+          const latestRev = latest?.omsaetning;
+          const prevRev = prev?.omsaetning;
+          if (latestRev != null && prevRev != null && prevRev !== 0) {
+            revenueTrendByCompany.set(compId, ((latestRev - prevRev) / Math.abs(prevRev)) * 100);
+          } else {
+            revenueTrendByCompany.set(compId, null);
+          }
+        } else {
+          revenueTrendByCompany.set(compId, null);
+        }
+      }
+
+      // Personal scope
       const myConversations = conversations.filter(c =>
         c.assigned_advisor_id === user!.id || c.assigned_advisor_id === null
       );
@@ -150,28 +218,44 @@ const AdvisorDashboard = () => {
       const now = new Date();
       const actionQueue = myConversations
         .filter(c => isConversationActionable(c, now))
-        .sort((a, b) => {
-          const aTime = a.last_member_message_at || "";
-          const bTime = b.last_member_message_at || "";
-          return aTime.localeCompare(bTime);
-        });
+        .sort((a, b) => (a.last_member_message_at || "").localeCompare(b.last_member_message_at || ""));
 
       // Follow-ups
-      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
+      const weekFromNow = new Date(now.getTime() + 7 * 86400000);
       const overdueFollowUps = myConversations
         .filter(c => c.follow_up_at && new Date(c.follow_up_at) <= now)
         .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
-
       const upcomingFollowUps = myConversations
         .filter(c => c.follow_up_at && new Date(c.follow_up_at) > now && new Date(c.follow_up_at) <= weekFromNow)
         .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
 
-      // Build GroupCompanySummary[]
-      const groupSummaries: GroupCompanySummary[] = companies.map(c => {
+      // Build InvestorCompanySummary[]
+      const monthsElapsed = new Date().getMonth() + 1;
+
+      const investorSummaries: InvestorCompanySummary[] = companies.map(c => {
         const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
         const missingReport = companiesMissingReport.has(c.id);
+        const revenue = latest?.kf.omsaetning ?? null;
+        const ebt = latest?.kf.resultat_foer_skat ?? null;
+        const cash = latest?.kf.bank_balance ?? null;
+        const revenueTrendPct = revenueTrendByCompany.get(c.id) ?? null;
+        const budgetRevenue = budgetRevenueByCompany.get(c.id) ?? null;
+        const pulse = latestPulseByCompany.get(c.id) ?? null;
+
+        const ebitdaMargin = revenue != null && revenue > 0 && ebt != null
+          ? (ebt / revenue) * 100 : null;
+
+        let budgetVsActualPct: number | null = null;
+        if (budgetRevenue != null && budgetRevenue > 0 && revenue != null) {
+          const proratedBudget = (budgetRevenue / 12) * monthsElapsed;
+          budgetVsActualPct = ((revenue - proratedBudget) / proratedBudget) * 100;
+        }
+
+        const needsAttention =
+          (cash != null && cash < 0)
+          || (revenueTrendPct != null && revenueTrendPct < -15)
+          || (missingReport && !latestKey);
 
         return {
           company_id: c.id,
@@ -182,50 +266,46 @@ const AdvisorDashboard = () => {
           latest_report_id: null,
           effective_period_label: latestKey ? (() => { const [y, m] = latestKey.split("-"); return `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`; })() : null,
           effective_period_key: latestKey,
-          revenue: latest?.kf.omsaetning ?? null,
+          revenue,
           gross_profit: latest?.kf.daekningsbidrag ?? null,
-          ebt: latest?.kf.resultat_foer_skat ?? null,
-          cash: latest?.kf.bank_balance ?? null,
+          ebt,
+          cash,
           missing_current_period: missingReport,
-          has_pulse: pulseThisMonth.has(c.id),
+          revenueTrendPct,
+          ebitdaMargin,
+          budgetRevenue,
+          budgetVsActualPct,
+          latestPulse: pulse,
+          needsAttention,
+          unreadMessages: unreadByCompany.get(c.id) || 0,
         };
       });
 
-      // Build activity feed
+      // Activity feed
       interface ActivityEvent {
         id: string;
-        type: "report_uploaded" | "report_committed" | "pulse";
+        type: "report_uploaded" | "report_committed";
         companyId: string;
         companyName: string;
         label: string;
         timestamp: string;
       }
       const activityEvents: ActivityEvent[] = [];
-
       for (const r of (recentReportsRes.data || []) as any[]) {
         const name = companyMap.get(r.company_id)?.name || "Ukendt";
         activityEvents.push({
-          id: `report-${r.id}`,
-          type: "report_uploaded",
-          companyId: r.company_id,
-          companyName: name,
-          label: `Rapport uploadet${r.report_period ? ` · ${r.report_period}` : ""}`,
+          id: `report-${r.id}`, type: "report_uploaded", companyId: r.company_id,
+          companyName: name, label: `Rapport uploadet${r.report_period ? ` · ${r.report_period}` : ""}`,
           timestamp: r.uploaded_at,
         });
       }
-
       for (const f of (recentFactsRes.data || []) as any[]) {
         const name = companyMap.get(f.company_id)?.name || "Ukendt";
         activityEvents.push({
-          id: `fact-${f.company_id}-${f.period_key}`,
-          type: "report_committed",
-          companyId: f.company_id,
-          companyName: name,
-          label: `Tal godkendt · ${f.period_key}`,
-          timestamp: f.committed_at,
+          id: `fact-${f.company_id}-${f.period_key}`, type: "report_committed", companyId: f.company_id,
+          companyName: name, label: `Tal godkendt · ${f.period_key}`, timestamp: f.committed_at,
         });
       }
-
       const seen = new Set<string>();
       const activityFeed = activityEvents
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
@@ -233,12 +313,8 @@ const AdvisorDashboard = () => {
         .slice(0, 10);
 
       return {
-        actionQueue,
-        overdueFollowUps,
-        upcomingFollowUps,
-        groupSummaries,
-        companyMap,
-        activityFeed,
+        actionQueue, overdueFollowUps, upcomingFollowUps,
+        investorSummaries, companyMap, activityFeed,
       };
     },
     enabled: !!user,
@@ -248,16 +324,22 @@ const AdvisorDashboard = () => {
   const actionQueue = data?.actionQueue || [];
   const overdueFollowUps = data?.overdueFollowUps || [];
   const upcomingFollowUps = data?.upcomingFollowUps || [];
-  const groupSummaries = data?.groupSummaries || [];
+  const investorSummaries = data?.investorSummaries || [];
   const companyMap = data?.companyMap || new Map();
   const activityFeed = data?.activityFeed || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
+  const attentionCompanies = investorSummaries.filter(c => c.needsAttention);
+  const totalRevenue = investorSummaries.reduce((s, c) => s + (c.revenue ?? 0), 0);
+  const pulseCompanies = investorSummaries
+    .filter(c => c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000))
+    .sort((a, b) => b.latestPulse!.created_at.localeCompare(a.latestPulse!.created_at))
+    .slice(0, 8);
 
-  // Session readiness
-  const sessionReady = groupSummaries.filter(c => c.has_verified_metrics && c.has_pulse);
-  const missingReport = groupSummaries.filter(c => !c.has_verified_metrics);
-  const missingPulse = groupSummaries.filter(c => c.has_verified_metrics && !c.has_pulse);
+  const getCompanyName = (companyId: string | null): string => {
+    if (!companyId) return "Ukendt";
+    return companyMap.get(companyId)?.name || "Ukendt";
+  };
 
   if (isLoading) {
     return (
@@ -269,30 +351,248 @@ const AdvisorDashboard = () => {
     );
   }
 
-  const getCompanyName = (companyId: string | null): string => {
-    if (!companyId) return "Ukendt";
-    return companyMap.get(companyId)?.name || "Ukendt";
-  };
-
   return (
-    <div className="space-y-6">
-      {/* ── All clear banner ── */}
-      {actionQueue.length === 0 && !hasFollowUps && (
+    <div className="space-y-8">
+      {/* ── Section 1: Kræver opmærksomhed ── */}
+      {attentionCompanies.length > 0 ? (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              Kræver opmærksomhed
+            </h2>
+            <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold">
+              {attentionCompanies.length}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {attentionCompanies.map(c => (
+              <div
+                key={c.company_id}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border hover:border-destructive/30 transition-all"
+              >
+                <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                  {c.logo_url
+                    ? <img src={c.logo_url} alt="" className="h-8 w-8 object-cover rounded-lg" />
+                    : <span className="text-[10px] font-bold text-muted-foreground">
+                        {c.company_name.slice(0, 2).toUpperCase()}
+                      </span>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{c.company_name}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {c.cash != null && c.cash < 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+                        Negativ cash
+                      </span>
+                    )}
+                    {c.revenueTrendPct != null && c.revenueTrendPct < -15 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+                        Omsætning {c.revenueTrendPct.toFixed(0)}% MoM
+                      </span>
+                    )}
+                    {c.missing_current_period && !c.has_report && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-chart-warning/10 text-chart-warning font-medium">
+                        Ingen rapport
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                >
+                  Se data →
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
         <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span className="text-sm text-emerald-700 dark:text-emerald-300">
-            Alt er stille — ingen samtaler kræver handling lige nu
+            Alt ser godt ud — ingen virksomheder kræver opmærksomhed
           </span>
         </div>
       )}
 
-      {/* ── Section 1: Kræver svar ── */}
+      {/* ── Section 2: Porteføljeoverblik ── */}
+      <section>
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold text-foreground">
+                Portefølje ({investorSummaries.length} virksomheder)
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Samlet omsætning: {formatCompact(totalRevenue)}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[180px]">Virksomhed</TableHead>
+                  <TableHead className="text-right">Omsætning</TableHead>
+                  <TableHead className="text-right">Margin</TableHead>
+                  <TableHead className="text-right">Vækst MoM</TableHead>
+                  <TableHead className="text-right">Cash</TableHead>
+                  <TableHead className="text-right">vs. Budget</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {investorSummaries
+                  .sort((a, b) => (b.revenue ?? -Infinity) - (a.revenue ?? -Infinity))
+                  .map(c => (
+                    <TableRow
+                      key={c.company_id}
+                      className="cursor-pointer"
+                      onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                            {c.logo_url
+                              ? <img src={c.logo_url} alt="" className="h-7 w-7 object-cover rounded-md" />
+                              : <span className="text-[9px] font-bold text-muted-foreground">
+                                  {c.company_name.slice(0, 2).toUpperCase()}
+                                </span>
+                            }
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium text-foreground truncate">
+                                {c.company_name}
+                              </span>
+                              {c.needsAttention && (
+                                <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                              )}
+                            </div>
+                            {c.effective_period_label && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {c.effective_period_label}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="text-sm font-medium text-foreground">
+                          {c.revenue != null ? formatCompact(c.revenue) : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={`text-sm ${
+                          c.ebitdaMargin == null ? "text-muted-foreground" :
+                          c.ebitdaMargin >= 10 ? "text-primary" :
+                          c.ebitdaMargin >= 0 ? "text-foreground" :
+                          "text-destructive"
+                        }`}>
+                          {c.ebitdaMargin != null ? `${c.ebitdaMargin.toFixed(1)}%` : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {c.revenueTrendPct != null ? (
+                          <span className={`inline-flex items-center gap-0.5 text-sm ${
+                            c.revenueTrendPct >= 0 ? "text-primary" : "text-destructive"
+                          }`}>
+                            {c.revenueTrendPct >= 0
+                              ? <TrendingUp className="h-3 w-3" />
+                              : <TrendingDown className="h-3 w-3" />
+                            }
+                            {c.revenueTrendPct > 0 ? "+" : ""}{c.revenueTrendPct.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={`text-sm ${c.cash != null && c.cash < 0 ? "text-destructive font-medium" : "text-foreground"}`}>
+                          {c.cash != null ? formatCompact(c.cash) : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {c.budgetVsActualPct != null ? (
+                          <span className={`text-sm ${
+                            c.budgetVsActualPct >= 0 ? "text-primary" : "text-destructive"
+                          }`}>
+                            {c.budgetVsActualPct > 0 ? "+" : ""}
+                            {c.budgetVsActualPct.toFixed(0)}%
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 3: Hvad siger medlemmerne ── */}
+      {pulseCompanies.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              Hvad siger medlemmerne
+            </h2>
+            <span className="text-xs text-muted-foreground">· Seneste pulse check-in</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {pulseCompanies.map(c => (
+              <button
+                key={c.company_id}
+                className="glass-card rounded-xl p-4 text-left hover:bg-accent/30 transition-colors"
+                onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+              >
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-sm font-medium text-foreground truncate">
+                    {c.company_name}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {formatDistanceToNow(new Date(c.latestPulse!.created_at), { locale: da, addSuffix: true })}
+                  </span>
+                </div>
+                {c.latestPulse?.biggest_challenge && (
+                  <div className="mb-2">
+                    <p className="text-[10px] font-semibold text-destructive/70 uppercase tracking-wider mb-0.5">
+                      Største udfordring
+                    </p>
+                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2">
+                      "{c.latestPulse.biggest_challenge}"
+                    </p>
+                  </div>
+                )}
+                {c.latestPulse?.went_well && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider mb-0.5">
+                      Hvad gik godt
+                    </p>
+                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2">
+                      "{c.latestPulse.went_well}"
+                    </p>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Section 4: Ubesvarede beskeder ── */}
       {actionQueue.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
             <MessageSquare className="h-4 w-4 text-destructive" />
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Afventer dit svar
+              Ubesvarede beskeder
             </h2>
             <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold">
               {actionQueue.length}
@@ -328,104 +628,7 @@ const AdvisorDashboard = () => {
         </section>
       )}
 
-      {/* ── Section 2: Session readiness ── */}
-      {groupSummaries.length > 0 && (
-        <div className="glass-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">
-                Klar til boardroom-session
-              </h2>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {sessionReady.length}/{groupSummaries.length} klar
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="text-center p-3 rounded-lg bg-emerald-500/10">
-              <p className="text-xl font-bold text-emerald-600">{sessionReady.length}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Klar</p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-amber-500/10">
-              <p className="text-xl font-bold text-amber-600">{missingReport.length}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Mangler rapport</p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-blue-500/10">
-              <p className="text-xl font-bold text-blue-600">{missingPulse.length}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Mangler pulse</p>
-            </div>
-          </div>
-          {missingReport.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Mangler rapport
-              </p>
-              {missingReport.slice(0, 5).map(c => (
-                <button
-                  key={c.company_id}
-                  onClick={() => setCompanyOverride(c.company_id, c.company_name)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg
-                    hover:bg-secondary/50 transition-colors text-left"
-                >
-                  <div className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                  <span className="text-xs text-foreground truncate">{c.company_name}</span>
-                </button>
-              ))}
-              {missingReport.length > 5 && (
-                <p className="text-[10px] text-muted-foreground pl-3">
-                  +{missingReport.length - 5} flere
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Section 3: Activity feed ── */}
-      {activityFeed.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Activity className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Seneste 7 dage
-            </h2>
-          </div>
-          <div className="glass-card rounded-xl divide-y divide-border/30">
-            {activityFeed.map((event: any) => {
-              const iconConfig = {
-                report_uploaded: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Rapport" },
-                report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
-                pulse: { color: "text-purple-500", bg: "bg-purple-500/10", label: "Pulse" },
-              }[event.type as string] as { color: string; bg: string; label: string };
-              return (
-                <button
-                  key={event.id}
-                  onClick={() => setCompanyOverride(event.companyId, event.companyName)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5
-                    hover:bg-secondary/30 transition-colors text-left"
-                >
-                  <span className={`text-[9px] font-semibold px-1.5 py-0.5
-                    rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
-                    {iconConfig.label}
-                  </span>
-                  <span className="text-xs font-medium text-foreground truncate flex-1">
-                    {event.companyName}
-                  </span>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {event.label.split(" · ")[1] || ""}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">
-                    {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ── Section 4: Follow-ups ── */}
+      {/* ── Section 5: Opfølgninger ── */}
       {hasFollowUps && (
         <section>
           <div className="flex items-center gap-2 mb-3">
@@ -447,13 +650,6 @@ const AdvisorDashboard = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
                         {getCompanyName(conv.company_id)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {conv.assigned_advisor_id === user!.id ? (
-                          <span className="text-muted-foreground">Min</span>
-                        ) : conv.assigned_advisor_id === null ? (
-                          <span className="text-chart-warning">Ikke tildelt</span>
-                        ) : null}
                       </p>
                     </div>
                     <span className="text-xs text-destructive font-medium shrink-0">
@@ -479,13 +675,6 @@ const AdvisorDashboard = () => {
                       <p className="text-sm font-medium text-foreground truncate">
                         {getCompanyName(conv.company_id)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {conv.assigned_advisor_id === user!.id ? (
-                          <span className="text-muted-foreground">Min</span>
-                        ) : conv.assigned_advisor_id === null ? (
-                          <span className="text-chart-warning">Ikke tildelt</span>
-                        ) : null}
-                      </p>
                     </div>
                     <span className="text-xs text-muted-foreground font-medium shrink-0">
                       {conv.follow_up_at
@@ -501,34 +690,45 @@ const AdvisorDashboard = () => {
         </section>
       )}
 
-      {/* ── Section 4: Portfolio (collapsed) ── */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <button
-          onClick={() => setShowPortfolio(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-4
-            hover:bg-secondary/30 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">
-              Porteføljeoversigt ({groupSummaries.length} virksomheder)
-            </span>
+      {/* ── Section 6: Seneste aktivitet ── */}
+      {activityFeed.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+              Seneste 7 dage
+            </h2>
           </div>
-          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform
-            ${showPortfolio ? "rotate-180" : ""}`} />
-        </button>
-        {showPortfolio && (
-          <div className="border-t border-border">
-            <GroupDashboardContent
-              companies={groupSummaries}
-              aggregates={buildGroupAggregates(groupSummaries)}
-              isLoading={isLoading}
-              groupName={null}
-              onCompanyClick={(id, name) => setCompanyOverride(id, name)}
-            />
+          <div className="glass-card rounded-xl divide-y divide-border/30">
+            {activityFeed.map((event: any) => {
+              const iconConfig = {
+                report_uploaded: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Rapport" },
+                report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
+              }[event.type as string] as { color: string; bg: string; label: string };
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => setCompanyOverride(event.companyId, event.companyName)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/30 transition-colors text-left"
+                >
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
+                    {iconConfig.label}
+                  </span>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {event.companyName}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {event.label.split(" · ")[1] || ""}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </section>
+      )}
     </div>
   );
 };
