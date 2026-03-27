@@ -808,8 +808,11 @@ const Reports = () => {
             </div>
           )}
           {displayedReports.map((report) => {
-            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true || report.status === "error";
-            const config = needsManualEntry
+            const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true;
+            const isTrueError = report.status === "error" && !needsManualEntry;
+            const config = isTrueError
+              ? { icon: AlertCircle, label: "Ikke genkendt", className: "text-destructive", bg: "bg-destructive/10" }
+              : needsManualEntry
               ? { icon: Pencil, label: "Afventer dine tal", className: "text-amber-700 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-950/30" }
               : (statusConfig[report.status] || statusConfig.processing);
             const Icon = config.icon;
