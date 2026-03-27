@@ -408,6 +408,10 @@ const Budget = () => {
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />
             Månedsoversigt
           </TabsTrigger>
+          <TabsTrigger value="forecast" className="text-xs shrink-0">
+            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+            Forecast & Simulator
+          </TabsTrigger>
           <TabsTrigger value="import" className="text-xs shrink-0">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Importér
