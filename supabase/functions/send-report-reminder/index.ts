@@ -34,7 +34,34 @@ function resolveSenderFromTemplate(
 
 // Hardcoded fallback if no template exists in DB
 const FALLBACK_SUBJECT = 'Påmindelse: Din rapport for {{period}} mangler';
-const FALLBACK_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Din rapport for {{period}} mangler</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Hej {{first_name}},</p><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Upload den når du har et øjeblik — det tager under 2 minutter, og vi trækker tallene ud automatisk.</p><div style="text-align:center;margin:32px 0"><a href="{{report_url}}" target="_blank" style="background-color:#16a34a;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Upload rapport nu</a></div><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Hvis rapporten allerede er uploadet kan du se bort fra denne besked.</p></div></body></html>`;
+const FALLBACK_HTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="background-color:#f9f9f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
+<div style="max-width:520px;margin:0 auto">
+  <div style="background:#0f1117;border-radius:10px 10px 0 0;padding:18px 28px">
+    <div style="width:28px;height:28px;background:#16a34a;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:10px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="white"/><rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity=".3"/></svg></div>
+    <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em">The Boardroom</span>
+  </div>
+  <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
+    <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Rapportering · {{period}}</p>
+    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">{{subject_line}}</h1>
+    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Hej {{first_name}} — {{intro}}</p>
+    <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0">
+      <p style="color:#166534;font-size:13px;margin:0;font-weight:500">Eksportér direkte fra e-conomic, Dinero eller Billy og upload filen.</p>
+    </div>
+    <div style="padding:20px 0">
+      <a href="{{report_url}}" target="_blank" style="background:#16a34a;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 28px;text-decoration:none">Upload rapport →</a>
+    </div>
+    <div style="height:0.5px;background:#e5e7eb"></div>
+    <div style="padding:16px 0;display:flex;justify-content:space-between">
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · topix.dk</span>
+      <a href="{{report_url}}" style="font-size:12px;color:#9ca3af;text-decoration:underline">Afmeld påmindelser</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
 
 function replaceVars(text: string, vars: Record<string, string>): string {
   let result = text;
@@ -127,15 +154,20 @@ Deno.serve(async (req) => {
 
     // Urgency-specific subjects and intros
     type Urgency = "gentle" | "urgent" | "critical";
-    const urgencySubjects: Record<Urgency, string> = {
+    const subjectLines: Record<Urgency, string> = {
+      gentle: `Husk at uploade din rapport`,
+      urgent: `Din rapport mangler stadig`,
+      critical: `Vigtigt — rapporten er forsinket`,
+    };
+    const intros: Record<Urgency, string> = {
+      gentle: `vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Det tager under 2 minutter, og vi trækker tallene ud automatisk.`,
+      urgent: `din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at tallene er klar inden boardroom-sessionen.`,
+      critical: `vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt.`,
+    };
+    const emailSubjects: Record<Urgency, string> = {
       gentle: `Husk: Upload din rapport for {{period}}`,
       urgent: `Din rapport for {{period}} mangler stadig`,
       critical: `Vigtigt: {{period}}-rapport er nu forsinket`,
-    };
-    const urgencyIntros: Record<Urgency, string> = {
-      gentle: `Vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Upload den når du har et øjeblik — det tager under 2 minutter.`,
-      urgent: `Din rapport for <strong>{{period}}</strong> er stadig ikke modtaget. Det er vigtigt at vi har tallene inden boardroom-sessionen.`,
-      critical: `Vi mangler fortsat din rapport for <strong>{{period}}</strong>. Upload den hurtigst muligt — kontakt os hvis du har problemer.`,
     };
 
     // Helper to build email for a specific company
@@ -145,10 +177,10 @@ Deno.serve(async (req) => {
         company_name: companyName,
         report_url: reportUrl,
         first_name: firstName || "dig",
-        intro: urgencyIntros[urgency],
+        subject_line: subjectLines[urgency],
+        intro: replaceVars(intros[urgency], { period }),
       };
-      const urgencySubject = urgencySubjects[urgency];
-      const subject = (isTest ? '[TEST] ' : '') + replaceVars(urgencySubject, vars);
+      const subject = (isTest ? '[TEST] ' : '') + replaceVars(emailSubjects[urgency], { period });
       const html = replaceVars(bodyTpl, vars);
       return { subject, html };
     }
