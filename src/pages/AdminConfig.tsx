@@ -37,16 +37,6 @@ import {
   PERFORMANCE_SCORE,
   GAMIFICATION,
 } from "@/lib/appConfig";
-import { format } from "date-fns";
-import { da } from "date-fns/locale";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 interface AdvisorEntry {
   email: string;
