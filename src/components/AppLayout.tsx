@@ -129,7 +129,26 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   /** Desktop banners (no topbar needed — sidebar is always visible) */
   const desktopBanners = !isMobile ? (
     <>
-      {viewingAsMember && (
+      {showAnnouncement && !isAdvisor && (
+        <div className="sticky top-0 z-30 flex items-start justify-between gap-3 px-6 py-3 bg-primary/5 border-b border-primary/20">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-primary mb-1">{CURRENT_ANNOUNCEMENT.title}</p>
+            <ul className="flex flex-wrap gap-x-4 gap-y-0.5">
+              {CURRENT_ANNOUNCEMENT.items.map(item => (
+                <li key={item} className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <span className="text-primary/60">·</span> {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={dismissAnnouncement}
+            className="text-muted-foreground hover:text-foreground transition-colors shrink-0 p-1"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
         <div className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-1.5 bg-primary/10 border-b border-primary/20 text-xs font-medium text-primary">
           <Eye className="h-3.5 w-3.5" />
           <span>Medlemsvisning aktiv</span>
