@@ -68,6 +68,13 @@ const Settings = () => {
       setFullName(profile.full_name || "");
       setCompanyName(profile.company_name || "");
       setAvatarUrl(profile.avatar_url || null);
+      const prefs = (profile as any)?.notification_email_prefs;
+      if (prefs) {
+        setEmailPrefs({
+          action_required: prefs.action_required !== false,
+          important: prefs.important !== false,
+        });
+      }
     }
   }, [profile]);
 
