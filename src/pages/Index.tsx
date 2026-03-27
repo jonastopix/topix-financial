@@ -68,6 +68,31 @@ const Dashboard = () => {
     staleTime: 5 * 60_000,
   });
 
+  // ── Company name check ──
+  const { data: companyInfo } = useQuery({
+    queryKey: ["company-name-check", companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("companies")
+        .select("name")
+        .eq("id", companyId!)
+        .single();
+      return data;
+    },
+    enabled: !!companyId && !isAdvisor,
+    staleTime: 10 * 60_000,
+  });
+
+  const needsCompanyName = useMemo(() => {
+    if (!companyInfo?.name) return false;
+    const name = companyInfo.name;
+    return (
+      name.toLowerCase().endsWith("s virksomhed") ||
+      name.toLowerCase() === "ny bruger" ||
+      name.trim().length < 3
+    );
+  }, [companyInfo]);
+
   const isLoading = factsLoading || budgetLoading;
 
   // ── Transform facts to sorted Danish-key shape ──
