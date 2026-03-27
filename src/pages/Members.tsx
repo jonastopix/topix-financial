@@ -98,6 +98,7 @@ interface CompanyData {
   created_at: string;
   members: CompanyMember[];
   reportCount: number;
+  latestReportPeriod: string | null;
   committedCount: number;
   unreadCount: number;
   conversationId: string | null;
@@ -292,8 +293,17 @@ const Members = () => {
       }
     });
 
+    const latestPeriodByCompany = new Map<string, { period: string; uploadedAt: string }>();
     periodsByCompany.forEach((periods, companyId) => {
       reportsByCompany.set(companyId, periods.size);
+    });
+    allReports.forEach((r: any) => {
+      if (r.company_id && r.report_period) {
+        const existing = latestPeriodByCompany.get(r.company_id);
+        if (!existing || r.uploaded_at > existing.uploadedAt) {
+          latestPeriodByCompany.set(r.company_id, { period: r.report_period, uploadedAt: r.uploaded_at });
+        }
+      }
     });
 
     // Conversations by company
@@ -371,6 +381,7 @@ const Members = () => {
           created_at: c.created_at,
           members: membersByCompany.get(c.id) || [],
           reportCount: reportsByCompany.get(c.id) || 0,
+          latestReportPeriod: latestPeriodByCompany.get(c.id)?.period || null,
           committedCount: committedByCompany.get(c.id) || 0,
           unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
           conversationId: conv?.id || null,
@@ -1382,7 +1393,14 @@ const Members = () => {
                             </div>
                             <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-foreground">{c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret</p>
+                              <p className="text-sm font-medium text-foreground">
+                                {c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret
+                                {c.latestReportPeriod && (
+                                  <span className="text-muted-foreground font-normal ml-1.5">
+                                    · seneste: {c.latestReportPeriod}
+                                  </span>
+                                )}
+                              </p>
                               {c.committedCount > 0 && (
                                 <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                                   <CheckCircle2 className="h-2.5 w-2.5" />
