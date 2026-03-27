@@ -145,9 +145,17 @@ async function runPostExtractionPipeline(params: {
       variant: "destructive",
     });
   } else if (needsManualEntry) {
+    // Build a contextual description based on what we know
+    const sourceHint = extractedData?.source_system && extractedData.source_system !== "unknown"
+      ? ` Vi genkender det som ${extractedData.source_system === "economic" ? "e-conomic" : extractedData.source_system}, men formatet er ukendt for os.`
+      : "";
+    const actionHint = extractedData?.extraction_method?.includes("pdf")
+      ? " Prøv at eksportere som Excel i stedet."
+      : "";
+
     toastFn({
-      title: "Manuel indtastning påkrævet",
-      description: "Vi kunne ikke læse dokumentet automatisk — du kan indtaste tallene manuelt",
+      title: "Tjek tallene manuelt",
+      description: `Vi kunne ikke aflæse alle tal automatisk.${sourceHint}${actionHint} Klik på rapporten for at indtaste de vigtigste tal — det tager 1-2 minutter.`,
     });
   } else {
     toastFn({
