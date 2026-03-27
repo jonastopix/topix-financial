@@ -10,6 +10,7 @@ import {
   Building2,
   Search,
   MessageCircle,
+  MessageSquare,
   FileText,
   ChevronDown,
   ChevronUp,
@@ -110,9 +111,10 @@ interface CompanyData {
   invitationAcceptedAt: string | null;
   invitationEmail: string | null;
   loginInfo: Map<string, LoginInfo>;
+  hasPulseThisMonth: boolean;
 }
 
-type SortKey = "name" | "industry" | "city" | "annual_revenue" | "reportCount" | "contact_person";
+type SortKey = "name" | "reportCount" | "latest_report";
 type SortDir = "asc" | "desc";
 
 interface UnassignedUser {
@@ -194,7 +196,9 @@ const Members = () => {
     if (!user || !isAdvisor) return;
     setLoading(true);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes] = await Promise.all([
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
       supabase.from("companies" as any).select("*"),
       supabase.from("company_members" as any).select("company_id, user_id, role"),
       supabase.from("profiles").select("user_id, full_name, avatar_url"),
@@ -205,6 +209,7 @@ const Members = () => {
       supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
       supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
       supabase.from("financial_report_facts" as any).select("company_id, period_key"),
+      (supabase.from("pulse_checkins" as any).select("company_id, period_key").gte("created_at", monthStart) as any),
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
@@ -217,6 +222,9 @@ const Members = () => {
     const allInvitations = (invitationsRes.data || []) as any[];
     const allLoginLogs = (loginLogsRes.data || []) as any[];
     const allFacts = (factsRes.data || []) as any[];
+    const pulseThisMonthSet = new Set(
+      (pulseRes.data || []).map((p: any) => p.company_id)
+    );
 
     // Build committedByCompany map
     const committedByCompany = new Map<string, number>();
@@ -432,6 +440,7 @@ const Members = () => {
             return companyLoginInfo;
           })(),
           __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
+          hasPulseThisMonth: pulseThisMonthSet.has(c.id),
         } as any;
       });
 
@@ -836,10 +845,12 @@ const Members = () => {
 
     result.sort((a, b) => {
       let cmp = 0;
-      if (sortKey === "name" || sortKey === "industry" || sortKey === "city" || sortKey === "contact_person") {
-        cmp = (a[sortKey] || "").localeCompare(b[sortKey] || "", "da");
-      } else if (sortKey === "annual_revenue" || sortKey === "reportCount") {
-        cmp = a[sortKey] - b[sortKey];
+      if (sortKey === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "", "da");
+      } else if (sortKey === "reportCount") {
+        cmp = a.reportCount - b.reportCount;
+      } else if (sortKey === "latest_report") {
+        cmp = (a.latestReportPeriod || "").localeCompare(b.latestReportPeriod || "");
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -1194,24 +1205,17 @@ const Members = () => {
       {/* Members table */}
       <div className="glass-card rounded-xl overflow-hidden mb-6">
         {/* Table header */}
-        <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
+        <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
           <button onClick={() => toggleSort("name")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Virksomhed <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("industry")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Branche <ArrowUpDown className="h-3 w-3" />
+          <button onClick={() => toggleSort("latest_report")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+            Seneste rapport <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("contact_person")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Kontakt <ArrowUpDown className="h-3 w-3" />
-          </button>
-          <button onClick={() => toggleSort("city")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            By <ArrowUpDown className="h-3 w-3" />
-          </button>
-          <button onClick={() => toggleSort("annual_revenue")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Omsætning <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <span>Pulse</span>
+          <span>Chat</span>
           <button onClick={() => toggleSort("reportCount")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Rapporter <ArrowUpDown className="h-3 w-3" />
+            Status <ArrowUpDown className="h-3 w-3" />
           </button>
         </div>
 
@@ -1238,7 +1242,7 @@ const Members = () => {
                     className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
                   >
                     {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-3 items-center">
+                    <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                           {c.logo_url ? (
@@ -1271,11 +1275,6 @@ const Members = () => {
                                 <Send className="h-2.5 w-2.5" /> Afventer
                               </span>
                             )}
-                            {c.unreadCount > 0 && (
-                              <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
-                                {c.unreadCount}
-                              </span>
-                            )}
                           </div>
                           <span className="text-[10px] text-muted-foreground">
                             {c.members.length} {c.members.length === 1 ? "bruger" : "brugere"}
@@ -1285,22 +1284,44 @@ const Members = () => {
                           </span>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground truncate">{c.industry || "–"}</span>
-                      <span className="text-xs text-muted-foreground truncate">{c.contact_person || "–"}</span>
-                      <span className="text-xs text-muted-foreground truncate">{c.city || "–"}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {rev ? formatDKK(rev.value) : "–"}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">{c.reportCount}</span>
-                          {c.committedCount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                              <CheckCircle2 className="h-2.5 w-2.5" />
-                              {c.committedCount}
-                            </span>
-                          )}
-                        </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-foreground">
+                          {c.latestReportPeriod || "—"}
+                        </span>
+                        {c.committedCount > 0 && (
+                          <span className="text-[10px] text-primary">
+                            {c.committedCount} committed
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${
+                          c.hasPulseThisMonth ? "bg-emerald-500" : "bg-muted-foreground/30"
+                        }`} />
+                        <span className="text-xs text-muted-foreground">
+                          {c.hasPulseThisMonth ? "Udfyldt" : "Mangler"}
+                        </span>
+                      </div>
+                      <div>
+                        {c.unreadCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-chart-warning">
+                            <MessageSquare className="h-3 w-3" />
+                            {c.unreadCount}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2 w-2 rounded-full ${
+                          c.committedCount > 0 && c.hasPulseThisMonth ? "bg-emerald-500" :
+                          c.reportCount === 0 ? "bg-muted-foreground/30" :
+                          "bg-amber-400"
+                        }`} title={
+                          c.committedCount > 0 && c.hasPulseThisMonth ? "Klar til session" :
+                          c.reportCount === 0 ? "Ingen rapport" :
+                          "Delvist klar"
+                        } />
                         {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
@@ -1688,7 +1709,7 @@ const Members = () => {
                     className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
                   >
                     {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-3 items-center">
+                    <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                           <Layers className="h-4 w-4 text-primary" />
@@ -1716,10 +1737,9 @@ const Members = () => {
                           </span>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <span className="text-xs text-muted-foreground">—</span>
                       <span className="text-xs text-muted-foreground">{totalReports} rap.</span>
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                       <div className="flex items-center justify-end">
                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
                       </div>
