@@ -466,132 +466,133 @@ export default function BudgetScenariosTab({
                       const isManual = row.key.startsWith("manual_");
                       const isRenamingThis = editingLabel === row.key;
                       return (
-                        <tr key={row.key} className="group border-b border-border/30 hover:bg-secondary/20 transition-colors">
-                          <td className="py-2.5 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
-                            <div className="flex items-center gap-1.5">
-                              {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
-                              {isRenamingThis ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    autoFocus
-                                    value={editLabelValue}
-                                    onChange={e => setEditLabelValue(e.target.value)}
-                                    onKeyDown={e => { if (e.key === "Enter") commitRenameLabel(); if (e.key === "Escape") setEditingLabel(null); }}
-                                    className="w-28 bg-secondary border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                                  />
-                                  <button onClick={commitRenameLabel} className="text-primary hover:text-primary/80"><Save className="h-3 w-3" /></button>
-                                  <button onClick={() => setEditingLabel(null)} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
-                                </div>
-                              ) : (
-                                <>
-                                  <span>{row.label}</span>
-                                  {isManual && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">Manuelt</span>}
-                                  <button
-                                    onClick={() => startRenameLabel(row.key, row.label)}
-                                    className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                                    title="Omdøb"
-                                  >
-                                    <Pencil className="h-2.5 w-2.5" />
-                                  </button>
-                                </>
-                              )}
-                              {row.hint && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3 w-3 text-muted-foreground/50 flex-shrink-0 cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="max-w-[200px] text-xs">
-                                    {row.hint}
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                              {isManual && (
-                                <button
-                                  onClick={() => handleDeleteCategory(row.key)}
-                                  className="text-muted-foreground hover:text-destructive transition-colors ml-auto"
-                                  title="Slet kategori"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                        <React.Fragment key={row.key}>
                           {editing && row.isEditable && (() => {
                             const currentVals = editValues[row.key] ?? row.values;
-                            const currentTotal = currentVals.reduce((s, v) => s + v, 0);
+                            const currentTotal = currentVals.reduce((s: number, v: number) => s + v, 0);
                             return (
-                              <td colSpan={12} className="py-0 px-1">
-                                <div className="flex items-center gap-2 mb-1 px-1">
-                                  <label className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                    Årsbeløb:
-                                  </label>
-                                  <input
-                                    type="number"
-                                    placeholder="F.eks. 300000"
-                                    className="w-28 px-2 py-0.5 text-xs rounded border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                                    onChange={(e) => {
-                                      const annual = Number(e.target.value);
-                                      if (annual <= 0) return;
-                                      const monthly = Math.round(annual / 12);
-                                      const newValues = Array(12).fill(monthly);
-                                      newValues[11] += annual - monthly * 12;
-                                      setEditValues(prev => ({ ...prev, [row.key]: newValues }));
-                                    }}
-                                  />
-                                  <span className="text-[10px] text-muted-foreground">→ fordeles</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (currentTotal === 0) return;
-                                      const monthly = Math.round(currentTotal / 12);
-                                      const newValues = Array(12).fill(monthly);
-                                      newValues[11] += currentTotal - monthly * 12;
-                                      setEditValues(prev => ({ ...prev, [row.key]: newValues }));
-                                    }}
-                                    className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                                  >
-                                    Fordel jævnt (÷12)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (currentTotal === 0) return;
-                                      const t = currentTotal;
-                                      const seasonal = [
-                                        Math.round(t * 0.065), Math.round(t * 0.065), Math.round(t * 0.070),
-                                        Math.round(t * 0.085), Math.round(t * 0.090), Math.round(t * 0.090),
-                                        Math.round(t * 0.090), Math.round(t * 0.085), Math.round(t * 0.085),
-                                        Math.round(t * 0.085), Math.round(t * 0.080), Math.round(t * 0.110),
-                                      ];
-                                      seasonal[11] += t - seasonal.reduce((s, v) => s + v, 0);
-                                      setEditValues(prev => ({ ...prev, [row.key]: seasonal }));
-                                    }}
-                                    className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                                  >
-                                    Sæsonfordel
-                                  </button>
-                                </div>
-                              </td>
+                              <tr className="bg-secondary/10">
+                                <td colSpan={13} className="py-1.5 px-3">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <label className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                      Årsbeløb:
+                                    </label>
+                                    <input
+                                      type="number"
+                                      placeholder="F.eks. 300000"
+                                      className="w-28 px-2 py-0.5 text-xs rounded border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                      onChange={(e) => {
+                                        const annual = Number(e.target.value);
+                                        if (annual <= 0) return;
+                                        const monthly = Math.round(annual / 12);
+                                        const newValues = Array(12).fill(monthly);
+                                        newValues[11] += annual - monthly * 12;
+                                        setEditValues(prev => ({ ...prev, [row.key]: newValues }));
+                                      }}
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">→</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (currentTotal === 0) return;
+                                        const monthly = Math.round(currentTotal / 12);
+                                        const newValues = Array(12).fill(monthly);
+                                        newValues[11] += currentTotal - monthly * 12;
+                                        setEditValues(prev => ({ ...prev, [row.key]: newValues }));
+                                      }}
+                                      className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                    >
+                                      Fordel jævnt (÷12)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (currentTotal === 0) return;
+                                        const t = currentTotal;
+                                        const seasonal = [
+                                          Math.round(t * 0.065), Math.round(t * 0.065), Math.round(t * 0.070),
+                                          Math.round(t * 0.085), Math.round(t * 0.090), Math.round(t * 0.090),
+                                          Math.round(t * 0.090), Math.round(t * 0.085), Math.round(t * 0.085),
+                                          Math.round(t * 0.085), Math.round(t * 0.080), Math.round(t * 0.110),
+                                        ];
+                                        seasonal[11] += t - seasonal.reduce((s, v) => s + v, 0);
+                                        setEditValues(prev => ({ ...prev, [row.key]: seasonal }));
+                                      }}
+                                      className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                    >
+                                      Sæsonfordel
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
                             );
                           })()}
-                        </tr>
-                        <tr key={`${row.key}-cells`} className="border-b border-border/30">
-                          <td className="py-0 px-3 sticky left-0 bg-card z-10"></td>
-                          {row.values.map((val, i) => (
-                            <td key={i} className="py-2.5 px-2.5 text-right font-display text-xs">
-                              {editing && row.isEditable ? (
-                                <input
-                                  type="number"
-                                  value={editValues[row.key]?.[i] ?? val}
-                                  onChange={(e) => updateCell(row.key, i, e.target.value)}
-                                  className="w-16 text-right bg-secondary border border-border rounded px-1 py-0.5 text-foreground text-xs font-display focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                              ) : (
-                                <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
-                              )}
+                          <tr className="group border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                            <td className="py-2.5 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
+                              <div className="flex items-center gap-1.5">
+                                {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                                {isRenamingThis ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      autoFocus
+                                      value={editLabelValue}
+                                      onChange={e => setEditLabelValue(e.target.value)}
+                                      onKeyDown={e => { if (e.key === "Enter") commitRenameLabel(); if (e.key === "Escape") setEditingLabel(null); }}
+                                      className="w-28 bg-secondary border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                    <button onClick={commitRenameLabel} className="text-primary hover:text-primary/80"><Save className="h-3 w-3" /></button>
+                                    <button onClick={() => setEditingLabel(null)} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span>{row.label}</span>
+                                    {isManual && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">Manuelt</span>}
+                                    <button
+                                      onClick={() => startRenameLabel(row.key, row.label)}
+                                      className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                                      title="Omdøb"
+                                    >
+                                      <Pencil className="h-2.5 w-2.5" />
+                                    </button>
+                                  </>
+                                )}
+                                {row.hint && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="h-3 w-3 text-muted-foreground/50 flex-shrink-0 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="max-w-[200px] text-xs">
+                                      {row.hint}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {isManual && (
+                                  <button
+                                    onClick={() => handleDeleteCategory(row.key)}
+                                    className="text-muted-foreground hover:text-destructive transition-colors ml-auto"
+                                    title="Slet kategori"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
-                          ))}
-                        </tr>
+                            {row.values.map((val, i) => (
+                              <td key={i} className="py-2.5 px-2.5 text-right font-display text-xs">
+                                {editing && row.isEditable ? (
+                                  <input
+                                    type="number"
+                                    value={editValues[row.key]?.[i] ?? val}
+                                    onChange={(e) => updateCell(row.key, i, e.target.value)}
+                                    className="w-16 text-right bg-secondary border border-border rounded px-1 py-0.5 text-foreground text-xs font-display focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                ) : (
+                                  <span className={val === 0 ? "text-muted-foreground" : "text-foreground"}>{formatK(val)}</span>
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        </React.Fragment>
                       );
                     })}
                     {/* Add category button */}
