@@ -499,7 +499,7 @@ export default function ReportReviewDialog({
                   </div>
                   {hasWarnings && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 italic">
-                      Advarsler blokerer ikke godkendelse — gennemgå data før commit.
+                      Du kan stadig godkende — men tjek tallene nedenfor før du trykker.
                     </p>
                   )}
                 </div>
