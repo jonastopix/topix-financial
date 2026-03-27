@@ -52,6 +52,7 @@ export default function BudgetTemplatePicker({ onSelect, userId, companyId, onIm
       if (q2Answer === "b2b") return "service_b2b";
       if (q2Answer === "b2c") return "service_b2c";
       if (q2Answer === "haandvaerk") return "haandvaerk";
+      if (q2Answer === "mad_drikke") return "restaurant_cafe";
     }
     return null;
   }, [q1Answer, q2Answer]);
