@@ -431,6 +431,10 @@ const Dashboard = () => {
         <BudgetOverview />
         <DashboardMilestones />
       </div>
+
+      <div className="mb-6">
+        <DashboardActivity />
+      </div>
     </AppLayout>
   );
 };
