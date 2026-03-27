@@ -324,7 +324,7 @@ const CompanyChatPane = () => {
         convsQuery = convsQuery.eq("member_id", user.id);
       }
 
-      const [convsRes, profilesRes, msgsRes, reportsRes] = await Promise.all([
+      const [convsRes, profilesRes, msgsRes, reportsRes, groupCompaniesRes] = await Promise.all([
         convsQuery,
         supabase.from("profiles").select("user_id, full_name, company_name, avatar_url"),
         supabase
@@ -340,12 +340,31 @@ const CompanyChatPane = () => {
               .is("reviewed_at", null)
               .order("uploaded_at", { ascending: false })
           : Promise.resolve({ data: [] }),
+        isAdvisor
+          ? (supabase
+              .from("group_companies" as any)
+              .select("company_id, group_id, groups:group_id(anchor_company_id)") as any)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const convs = convsRes.data || [];
       const profiles = profilesRes.data || [];
       const allMessages = msgsRes.data || [];
       const recentReports = reportsRes.data || [];
+
+      // Build set of sub-company IDs (in a group but NOT the anchor)
+      const groupSubCompanyIds = new Set<string>();
+      for (const row of (groupCompaniesRes.data || []) as any[]) {
+        const anchorId = (row as any).groups?.anchor_company_id;
+        if (anchorId && row.company_id !== anchorId) {
+          groupSubCompanyIds.add(row.company_id);
+        }
+      }
+
+      // For advisors: filter out conversations from group sub-companies
+      const filteredConvs = isAdvisor
+        ? convs.filter((c: any) => !c.company_id || !groupSubCompanyIds.has(c.company_id))
+        : convs;
 
       const pMap = new Map<string, { full_name: string; avatar_url: string | null }>();
       profiles.forEach(p => pMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url || null }));
