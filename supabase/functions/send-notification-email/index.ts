@@ -220,11 +220,22 @@ Deno.serve(async (req) => {
         advisor_replied: "Læs beskeden →",
         report_committed: "Se virksomhedens tal →",
       };
+      const eyebrows: Record<string, string> = {
+        report_review_ready: "Dine tal er klar",
+        report_error: "Rapport fejl",
+        advisor_replied: "Ny besked",
+      };
+      const highlights: Record<string, string> = {
+        report_review_ready: "Omsætning, dækningsbidrag og resultat er klar til verifikation.",
+        report_error: "Prøv at eksportere filen direkte fra dit regnskabsprogram og upload igen.",
+      };
       const html = buildEmailHtml(
         notif.title,
         notif.body || "",
         deepLink,
-        ctaLabels[notif.type]
+        ctaLabels[notif.type],
+        eyebrows[notif.type],
+        highlights[notif.type]
       );
       const messageId = crypto.randomUUID();
 
