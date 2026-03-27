@@ -27,6 +27,12 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
   const totalCosts = costRows.reduce((sum, row) => sum + Math.abs(row.values.reduce((s, v) => s + v, 0)), 0);
   const totalEbitda = ebitda.reduce((s, v) => s + v, 0);
 
+  const chartData = MONTHS.map((month, i) => ({
+    month,
+    omsaetning: revenueRows.reduce((s, r) => s + r.values[i], 0),
+    ebitda: ebitda[i],
+  }));
+
   const costByGroup = GROUP_ORDER.filter(g => g !== "indtaegter").map(g => {
     const groupRows = rows.filter(r => r.group === g);
     const total = groupRows.reduce((sum, row) => sum + Math.abs(row.values.reduce((s, v) => s + v, 0)), 0);
