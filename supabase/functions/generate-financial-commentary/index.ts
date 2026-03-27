@@ -63,14 +63,39 @@ Deno.serve(async (req) => {
       period_start: null,
       period_end: null,
       report_period_label: facts.period_label,
-      statement_type: "pnl" as const,  // facts are canonical metrics, treat as pnl-like
+      statement_type: "pnl" as const,
       selected_period_basis: "period" as const,
       validation_status: "PASS" as const,
       metrics,
     };
 
-    // 5. Call ai-financial-feedback edge function (server-to-server with caller's auth)
+    // 4b. Fetch budget for the same period to enrich AI analysis
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const periodYear = period_key.split("-")[0];
+    const periodMonth = parseInt(period_key.split("-")[1], 10) - 1;
+
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    const { data: budgetRows } = await adminClient
+      .from("budget_targets")
+      .select("category, budget_amount, period")
+      .eq("company_id", company_id)
+      .eq("period", `${periodYear}-base-${periodMonth}`);
+
+    let budgetContext = "";
+    if (budgetRows && budgetRows.length > 0) {
+      const budgetRevenue = budgetRows
+        .filter((b: any) => b.category === "omsaetning")
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const budgetCosts = budgetRows
+        .filter((b: any) => b.category !== "omsaetning" && !b.category.startsWith("__"))
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const budgetEbitda = budgetRevenue - budgetCosts;
+      budgetContext = `\nBUDGETMÅL FOR ${period_key}:\n- Budgetteret omsætning: ${Math.round(budgetRevenue).toLocaleString("da-DK")} kr.\n- Budgetterede omkostninger: ${Math.round(budgetCosts).toLocaleString("da-DK")} kr.\n- Budgetteret EBITDA: ${Math.round(budgetEbitda).toLocaleString("da-DK")} kr.\n- Budget EBITDA-margin: ${budgetRevenue > 0 ? ((budgetEbitda / budgetRevenue) * 100).toFixed(1) : "—"}%\nSammenlign altid med disse budgetmål i analysen når de er tilgængelige.\nAngiv afvigelse i procent: f.eks. "Omsætningen er 12% under budgetmålet".\n`;
+    }
+
+    // 5. Call ai-financial-feedback edge function (server-to-server with caller's auth)
     const aiFeedbackUrl = `${supabaseUrl}/functions/v1/ai-financial-feedback`;
 
     const aiResponse = await fetch(aiFeedbackUrl, {
@@ -86,6 +111,7 @@ Deno.serve(async (req) => {
           industry: companyData.industry,
         },
         companyId: company_id,
+        budgetContext,
       }),
     });
 
@@ -110,9 +136,7 @@ Deno.serve(async (req) => {
     // 6. Compute basis hash using the same function as the DB trigger
     const basisMetricsHash = await computeMetricsHash(metrics);
 
-    // 7. Persist commentary via service-role (client has no INSERT policy)
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    // 7. Persist commentary via service-role (adminClient already created above)
 
     const { data: commentary, error: insertErr } = await adminClient
       .from("financial_commentaries")

@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       return jsonRes({ error: 'Unauthorized' }, 401);
     }
 
-    let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical, request_type } = await req.json();
+    let { financialData, historicalData, companyContext, companyId, canonicalPayload, historicalCanonical, request_type, budgetContext } = await req.json();
 
     // ── Caller→resource access check for company context (JWT-scoped) ──
     // If companyId is provided, verify caller has RLS access to that company
@@ -326,6 +326,8 @@ ${JSON.stringify(canonicalPayload.metrics, null, 2)}
 ${historicalCanonical && historicalCanonical.length > 0 ? `HISTORISKE DATA (kun validerede PASS-rapporter):
 ${JSON.stringify(historicalCanonical, null, 2)}` : "Ingen historiske data endnu."}
 
+${budgetContext || ""}
+${budgetContext ? "- Sammenlign nøgletal med budgetmålene og fremhæv væsentlige afvigelser (>10%)" : ""}
 Giv din detaljerede finansielle analyse.`;
 
     } else {
