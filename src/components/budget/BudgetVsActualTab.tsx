@@ -9,6 +9,28 @@ import {
   type BudgetRow, type ScenarioKey,
 } from "./types";
 
+const REPORT_FIELD_TO_BUDGET_KEYS: Record<string, string[]> = {
+  omsaetning: ["omsaetning"],
+  direkte_omkostninger: ["vareforbrug", "direkte_omk", "fragt_levering",
+    "betalingsgebyrer", "produktions_omk", "lager_logistik"],
+  loenninger: ["loenninger", "personale", "konsulenter_freelance",
+    "rekruttering", "personale_udvikling"],
+  salgsomkostninger: ["marketing", "digital_marketing", "seo_content",
+    "email_marketing", "salg_kundepleje", "reklame"],
+  lokaleomkostninger: ["lokaler", "leje_lokaler", "forsikring_abonnementer",
+    "el_vand_varme"],
+  administrationsomkostninger: ["admin", "admin_regnskab", "tech_software",
+    "platform_tech", "it_udstyr", "forsikring", "revision_jura",
+    "kontorhold", "andet"],
+};
+
+function getBudgetRowReportField(key: string): string | null {
+  for (const [field, keys] of Object.entries(REPORT_FIELD_TO_BUDGET_KEYS)) {
+    if (keys.includes(key)) return field;
+  }
+  return null;
+}
+
 interface Props {
   scenarioData: Record<ScenarioKey, BudgetRow[]>;
   year: string;
@@ -30,31 +52,34 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
       const kf = factsToDanishMetrics(fact.metrics);
       if (!map[monthIdx]) map[monthIdx] = {};
 
-      const keyMapping: Record<string, number | undefined> = {
-        omsaetning: kf.omsaetning,
-        direkte_omk: kf.direkte_omkostninger,
-        vareforbrug: kf.direkte_omkostninger,
-        loenninger: kf.loenninger,
-        marketing: kf.salgsomkostninger,
-        digital_marketing: kf.salgsomkostninger,
-        lokaler: kf.lokaleomkostninger,
-        admin: kf.administrationsomkostninger,
-        admin_regnskab: kf.administrationsomkostninger,
-        tech_software: kf.administrationsomkostninger,
-        platform_tech: kf.administrationsomkostninger,
-      };
-
-      for (const [budgetKey, value] of Object.entries(keyMapping)) {
-        if (value != null) {
-          map[monthIdx][budgetKey] = Math.abs(value);
-        }
-      }
+      if (kf.omsaetning != null) map[monthIdx]["omsaetning"] = Math.abs(kf.omsaetning);
+      if (kf.direkte_omkostninger != null) map[monthIdx]["direkte_omkostninger"] = Math.abs(kf.direkte_omkostninger);
+      if (kf.loenninger != null) map[monthIdx]["loenninger"] = Math.abs(kf.loenninger);
+      if (kf.salgsomkostninger != null) map[monthIdx]["salgsomkostninger"] = Math.abs(kf.salgsomkostninger);
+      if (kf.lokaleomkostninger != null) map[monthIdx]["lokaleomkostninger"] = Math.abs(kf.lokaleomkostninger);
+      if (kf.administrationsomkostninger != null) map[monthIdx]["administrationsomkostninger"] = Math.abs(kf.administrationsomkostninger);
     }
     return map;
   }, [facts, year]);
 
   const baseRows = scenarioData.base;
   const hasAnyActuals = Object.keys(actualsMap).length > 0;
+
+  const sharedFieldRows = useMemo(() => {
+    const fieldCount: Record<string, number> = {};
+    for (const row of baseRows) {
+      const field = getBudgetRowReportField(row.key);
+      if (field) fieldCount[field] = (fieldCount[field] || 0) + 1;
+    }
+    return new Set(
+      baseRows
+        .filter(r => {
+          const f = getBudgetRowReportField(r.key);
+          return f && fieldCount[f]! > 1;
+        })
+        .map(r => r.key)
+    );
+  }, [baseRows]);
 
   const groupedRows = GROUP_ORDER
     .map(g => ({ group: g, label: GROUP_LABELS[g], rows: baseRows.filter(r => r.group === g) }))
@@ -71,17 +96,29 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
 
   const actualEbitda = MONTHS.map((_, i) => {
     if (!actualsMap[i]) return null;
-    const rev = revenueRows.reduce((s, r) => s + (actualsMap[i]?.[r.key] ?? 0), 0);
-    const cost = costRows.reduce((s, r) => s + (actualsMap[i]?.[r.key] ?? 0), 0);
-    return rev - cost;
+    const rev = actualsMap[i]["omsaetning"] ?? 0;
+    const costs = (actualsMap[i]["direkte_omkostninger"] ?? 0)
+      + (actualsMap[i]["loenninger"] ?? 0)
+      + (actualsMap[i]["salgsomkostninger"] ?? 0)
+      + (actualsMap[i]["lokaleomkostninger"] ?? 0)
+      + (actualsMap[i]["administrationsomkostninger"] ?? 0);
+    return rev - costs;
   });
 
   const totalBudgetRevenue = revenueRows.reduce((s, r) => s + r.values.reduce((a, b) => a + b, 0), 0);
   const totalBudgetCosts = costRows.reduce((s, r) => s + Math.abs(r.values.reduce((a, b) => a + b, 0)), 0);
   const totalBudgetEbitda = totalBudgetRevenue - totalBudgetCosts;
 
-  const totalActualRevenue = MONTHS.reduce((s, _, i) => s + revenueRows.reduce((rs, r) => rs + (actualsMap[i]?.[r.key] ?? 0), 0), 0);
-  const totalActualCosts = MONTHS.reduce((s, _, i) => s + costRows.reduce((rs, r) => rs + (actualsMap[i]?.[r.key] ?? 0), 0), 0);
+  const totalActualRevenue = MONTHS.reduce((s, _, i) =>
+    s + (actualsMap[i]?.["omsaetning"] ?? 0), 0
+  );
+  const totalActualCosts = MONTHS.reduce((s, _, i) =>
+    s + (actualsMap[i]?.["direkte_omkostninger"] ?? 0)
+    + (actualsMap[i]?.["loenninger"] ?? 0)
+    + (actualsMap[i]?.["salgsomkostninger"] ?? 0)
+    + (actualsMap[i]?.["lokaleomkostninger"] ?? 0)
+    + (actualsMap[i]?.["administrationsomkostninger"] ?? 0), 0
+  );
   const totalActualEbitda = totalActualRevenue - totalActualCosts;
 
   return (
@@ -124,16 +161,24 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
                   {group.rows.map(row => {
                     const isRevenue = REVENUE_GROUPS.has(row.group);
                     const RowIcon = row.icon;
+                    const reportField = getBudgetRowReportField(row.key);
                     return (
                       <tr key={row.key} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
                         <td className="py-2 px-3 text-foreground font-medium text-xs sticky left-0 bg-card z-10">
                           <div className="flex items-center gap-1.5">
                             {RowIcon && <RowIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
                             <span>{row.label}</span>
+                            {sharedFieldRows.has(row.key) && (
+                              <span className="ml-1 text-[9px] text-muted-foreground/60">
+                                (delt felt)
+                              </span>
+                            )}
                           </div>
                         </td>
                         {row.values.map((budgetVal, i) => {
-                          const actualVal = actualsMap[i]?.[row.key] ?? null;
+                          const actualVal = reportField && actualsMap[i]
+                            ? (actualsMap[i][reportField] ?? null)
+                            : null;
                           const color = varianceColor(budgetVal, actualVal, isRevenue);
                           return (
                             <td key={i} className="py-1.5 px-2 text-right">
