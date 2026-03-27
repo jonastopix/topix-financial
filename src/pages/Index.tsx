@@ -187,10 +187,18 @@ const Dashboard = () => {
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
 
-  const nextMeeting = getNextBoardroomDate();
-  const meetingDateStr = nextMeeting.date.toLocaleDateString("da-DK", {
-    weekday: "long", day: "numeric", month: "long"
-  });
+  const { meetings } = useAppConfig();
+  const storedMeetingDate = meetings.next_meeting_date
+    ? new Date(meetings.next_meeting_date)
+    : null;
+  const daysUntilMeeting = storedMeetingDate
+    ? Math.ceil((storedMeetingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const meetingDateStr = storedMeetingDate
+    ? storedMeetingDate.toLocaleDateString("da-DK", {
+        weekday: "long", day: "numeric", month: "long"
+      })
+    : null;
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
