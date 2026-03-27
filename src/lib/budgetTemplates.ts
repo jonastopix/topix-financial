@@ -1,7 +1,7 @@
 import {
   TrendingUp, Megaphone, Users, Building2, Truck, Package, Globe, Monitor,
   ShoppingCart, Wrench, CreditCard, Phone, Wifi, Shield, FileText, Fuel,
-  Warehouse, HeartHandshake, GraduationCap, Briefcase,
+  Warehouse, HeartHandshake, GraduationCap, Briefcase, UtensilsCrossed,
 } from "lucide-react";
 
 export interface BudgetCategory {
