@@ -7,13 +7,15 @@ import GroupDashboardContent from "@/components/GroupDashboardContent";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import CreateGroupCompanyDialog from "@/components/CreateGroupCompanyDialog";
 import CommunityProgress from "@/components/CommunityProgress";
-import { MessageCircle, Calculator, Plus } from "lucide-react";
+import GroupSettings from "@/components/GroupSettings";
+import { MessageCircle, Calculator, Plus, Settings } from "lucide-react";
 
 const GroupDashboard = () => {
-  const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId } = useAuth();
+  const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId, user } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
   const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Page-level guard: member-only, group-only
   if (!loading && !isGroupUser) {
@@ -22,6 +24,15 @@ const GroupDashboard = () => {
 
   const actions = (
     <>
+      {isGroupOwner && (
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+        >
+          <Settings className="h-4 w-4" />
+          Indstillinger
+        </button>
+      )}
       {isGroupOwner && (
         <button
           onClick={() => setShowCreateDialog(true)}
@@ -60,6 +71,16 @@ const GroupDashboard = () => {
         groupName={groupName}
         actions={actions}
       />
+      {isGroupOwner && showSettings && groupId && user && (
+        <div className="mt-6">
+          <GroupSettings
+            groupId={groupId}
+            groupName={groupName}
+            companies={companies}
+            userId={user.id}
+          />
+        </div>
+      )}
       <div className="mt-6">
         <CommunityProgress />
       </div>
