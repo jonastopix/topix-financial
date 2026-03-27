@@ -342,7 +342,7 @@ export default function ReportReviewDialog({
                 ? "Opdater committed data"
                 : "Godkend data"}
           </DialogTitle>
-          <DialogDescription>{reportLabel}</DialogDescription>
+          <DialogDescription>Er tallene korrekte? Tjek at vi har læst din {reportLabel} rigtigt.</DialogDescription>
         </DialogHeader>
 
         {loading && (
