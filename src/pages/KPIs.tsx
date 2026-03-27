@@ -89,13 +89,13 @@ const KPI_DEFS = [
   { key: "ebitda_margin", label: "Resultat Margin", unit: "%", icon: BarChart3, description: "Resultat før skat i % af omsætning", lowerIsBetter: false },
 ];
 
-const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number> = {
-  omsaetning: (kf) => kf.omsaetning || 0,
-  db_margin: (kf) => calcDbMargin(kf) ?? 0,
-  loenninger: (kf) => Math.abs(kf.loenninger || 0),
-  resultat: (kf) => kf.resultat_foer_skat || 0,
-  omkostninger: (kf) => calcTotalExpenses(kf),
-  ebitda_margin: (kf) => calcResultMargin(kf) ?? 0,
+const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number | null> = {
+  omsaetning: (kf) => kf.omsaetning ?? null,
+  db_margin: (kf) => calcDbMargin(kf) ?? null,
+  loenninger: (kf) => kf.loenninger != null ? Math.abs(kf.loenninger) : null,
+  resultat: (kf) => kf.resultat_foer_skat ?? null,
+  omkostninger: (kf) => { const v = calcTotalExpenses(kf); return v > 0 ? v : null; },
+  ebitda_margin: (kf) => calcResultMargin(kf) ?? null,
 };
 
 const tooltipStyle = {
