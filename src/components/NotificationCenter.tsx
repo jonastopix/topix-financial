@@ -91,6 +91,18 @@ const NotificationCenter = () => {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold text-foreground">Notifikationer</h3>
+          {notifications.some(n => !n.read_at) && (
+            <button
+              onClick={() => {
+                notifications
+                  .filter(n => !n.read_at)
+                  .forEach(n => markRead(n.id));
+              }}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Marker alle som læst
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
