@@ -10,6 +10,16 @@ import { Eye, Building2, Menu, X } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
 
+const CURRENT_ANNOUNCEMENT = {
+  id: "v2026-03-pulse-reports",
+  title: "Nyheder i The Boardroom",
+  items: [
+    "Pulse check-in — fortæl hvad der gik godt og hvad der er svært",
+    "Forbedret rapportering — vi læser nu flere formater automatisk",
+    "Performance Score forklarer nu præcist hvad der indgår",
+  ],
+};
+
 interface AppLayoutProps {
   children: ReactNode;
   fullscreen?: boolean;
@@ -23,8 +33,19 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const { branding } = useAppConfig();
   const isStandalone = useStandalone();
 
-  // AppLayout owns drawer open/close state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [showAnnouncement, setShowAnnouncement] = useState(() => {
+    try {
+      const dismissed = localStorage.getItem("dismissed-announcement");
+      return dismissed !== CURRENT_ANNOUNCEMENT.id;
+    } catch { return false; }
+  });
+  const dismissAnnouncement = () => {
+    try { localStorage.setItem("dismissed-announcement", CURRENT_ANNOUNCEMENT.id); }
+    catch {}
+    setShowAnnouncement(false);
+  };
 
   const handleExitCompanyOverride = () => {
     clearCompanyOverride();
