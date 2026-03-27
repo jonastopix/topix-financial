@@ -881,7 +881,7 @@ const FileUploadZone = ({
               </p>
             </div>
           </div>
-        </details>
+        </div>
         <div className="flex items-start gap-2 pt-1">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
           <p className="text-[10px] text-muted-foreground leading-relaxed">
