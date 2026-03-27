@@ -14,6 +14,7 @@ export interface AggregatedReaction {
   emoji: string;
   count: number;
   reacted: boolean; // current user has reacted
+  reactorUserIds: string[];
 }
 
 export function useMessageReactions(
