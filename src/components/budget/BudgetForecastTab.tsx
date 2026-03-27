@@ -4,6 +4,28 @@ import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { MONTHS, formatK, type BudgetRow } from "./types";
 
+interface SimEvent {
+  id: string;
+  type: "hire" | "marketing" | "rent" | "software" | "custom";
+  label: string;
+  monthlyCost: number;
+  startMonth: number;
+  isRevenue: boolean;
+}
+
+const EVENT_PRESETS = [
+  { type: "hire", label: "Ansæt én medarbejder", defaultCost: 40000, isRevenue: false,
+    hint: "Løn + 8% arbejdsgiverbidrag inkl." },
+  { type: "marketing", label: "Fordobl marketing", defaultCost: 0, isRevenue: false,
+    hint: "Beregnes automatisk fra dit marketingbudget" },
+  { type: "rent", label: "Flyt til større lokaler", defaultCost: 15000, isRevenue: false,
+    hint: "Ekstra månedlig husleje" },
+  { type: "software", label: "Nyt softwareabonnement", defaultCost: 2500, isRevenue: false,
+    hint: "Månedlig licens" },
+  { type: "custom", label: "Brugerdefineret", defaultCost: 10000, isRevenue: false,
+    hint: "Indtast selv beløb og navn" },
+] as const;
+
 interface Props {
   rows: BudgetRow[];
   year: string;
