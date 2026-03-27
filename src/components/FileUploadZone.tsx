@@ -151,8 +151,8 @@ async function runPostExtractionPipeline(params: {
     });
   } else {
     toastFn({
-      title: "Rapport behandlet",
-      description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} · Klar til gennemgang`,
+      title: "Rapport behandlet ✓",
+      description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} — tryk "Klar til godkendelse" for at bekræfte tallene`,
     });
   }
 }
@@ -849,15 +849,17 @@ const FileUploadZone = ({
 
       {/* Upload guide */}
       <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
-        <details className="mt-4 text-left">
-          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
-            Sådan eksporterer du korrekt ▾
-          </summary>
-          <div className="mt-3 space-y-2 text-xs">
+        <div className="mt-4 text-left">
+          <p className="text-xs font-medium text-muted-foreground mb-3">
+            Sådan eksporterer du
+          </p>
+          <div className="space-y-2 text-xs">
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
               <p className="font-medium text-foreground mb-1">e-conomic</p>
               <p className="text-muted-foreground">
-                Regnskab → Rapporter → <strong className="text-foreground">Balance</strong> → Excel. Brug ikke "Saldobalance" — den giver upræcise resultater.
+                <strong className="text-foreground">Balance Excel</strong> — Regnskab → Rapporter → Balance → Excel (anbefalet)<br />
+                <strong className="text-foreground">Saldobalance Excel</strong> — Regnskab → Rapporter → Saldobalance → Excel<br />
+                <strong className="text-foreground">Resultatopgørelse PDF</strong> — Regnskab → Rapporter → Resultatopgørelse → PDF
               </p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
@@ -879,7 +881,7 @@ const FileUploadZone = ({
               </p>
             </div>
           </div>
-        </details>
+        </div>
         <div className="flex items-start gap-2 pt-1">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
           <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -1042,32 +1044,19 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
 
             {/* Validation & Financial Indicators */}
             {(() => {
-              const validationStatus = data.validation?.status || "FAIL";
+              // For v2 extractions, check extraction_method instead of validation.status
+              // Deterministic extractions are always valid by definition
+              const isDeterministic = data.extraction_method === "deterministic";
+              const validationStatus = data.validation?.status;
               
-              // Scenario 1: Validation ikke PASS → kun advarsel
-              if (validationStatus !== "PASS") {
+              if (isDeterministic || validationStatus === "PASS") {
+                // Show success badges
                 return (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">
-                        Validation {validationStatus === "FAIL" ? "fejlede" : "ufuldstændig"}
-                      </p>
-                      <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                        AI-analyse og milestone-oprettelse er deaktiveret. Gennemgå data manuelt.
-                      </p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Scenario 2: PASS → vis altid "Data valideret" + finansielle badges
-              return (
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Data valideret
-                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {isDeterministic ? "Automatisk aflæst" : "Data valideret"}
+                    </span>
                   {hasPositiveEquity && (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       Positiv egenkapital
@@ -1083,6 +1072,17 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
                       Høj kapitalbinding
                     </span>
                   )}
+                </div>
+              );
+              }
+              
+              // Only show warning if truly not deterministic AND not PASS
+              return (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                    Vi er ikke sikre på alle tal — gennemgå dem inden godkendelse.
+                  </p>
                 </div>
               );
             })()}
