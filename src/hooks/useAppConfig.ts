@@ -33,6 +33,7 @@ export function useAppConfig() {
   const branding = { ...APP_BRANDING, ...(dbMap.branding || {}) };
   const performanceScore = { ...PERFORMANCE_SCORE, ...(dbMap.performance_score || {}) };
   const gamification = { ...GAMIFICATION, ...(dbMap.gamification || {}) };
+  const meetings = { ...MEETINGS, ...(dbMap.meetings || {}) };
 
   const updateConfig = async (key: ConfigKey, value: any) => {
     const { error } = await supabase
