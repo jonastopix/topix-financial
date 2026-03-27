@@ -198,6 +198,14 @@ const BudgetForecastTab = ({ rows, year, companyId }: Props) => {
           ))}
         </div>
 
+        {lastActualIdx >= 0 && lastActualIdx < 2 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-4">
+            <span className="text-[11px] text-amber-700 dark:text-amber-400">
+              Forecast er baseret på {lastActualIdx + 1} måneds data — præcisionen stiger når flere rapporter er uploaded.
+            </span>
+          </div>
+        )}
+
         {/* Month-by-month table */}
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
