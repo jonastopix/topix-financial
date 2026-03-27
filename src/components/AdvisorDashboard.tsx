@@ -698,8 +698,6 @@ const AdvisorDashboard = () => {
           {/* Member content */}
           {memberView === "table" ? (
             <>
-              <div className="glass-card rounded-xl overflow-hidden">
-                <table className="w-full">
               {/* Engagement snapshot */}
               {(() => {
                 const currentPeriodKey = getMissingReportKey();
