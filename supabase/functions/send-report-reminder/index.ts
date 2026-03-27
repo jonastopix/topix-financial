@@ -154,8 +154,8 @@ Deno.serve(async (req) => {
     }
 
     // Helper to enqueue a reminder email
-    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null) {
-      const { subject, html } = buildEmail(companyName, period, isTest, firstName);
+    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
+      const { subject, html } = buildEmail(companyName, period, isTest, firstName, urgency);
       const messageId = crypto.randomUUID();
 
       await supabase.from('email_send_log').insert({
