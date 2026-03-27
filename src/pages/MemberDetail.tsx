@@ -1156,8 +1156,6 @@ const MemberDetail = () => {
 };
 
 export default MemberDetail;
-              <div className="glass-card rounded-xl p-8 text-center">
-                <Wallet className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">Intet budget opsat endnu</p>
               </div>
             ) : (() => {
