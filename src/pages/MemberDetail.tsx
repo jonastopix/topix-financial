@@ -356,15 +356,16 @@ const MemberDetail = () => {
       const handoutMap = new Map((handoutsRes.data || []).map((d: any) => [d.module, d]));
       setHandoutSummaries(moduleOrder.map(m => {
         const d = handoutMap.get(m) as any;
-        if (!d) return { module: m, status: 'not_started' as const, progress: 0 };
+        if (!d) return { module: m, status: 'not_started' as const, progress: 0, levers: [] };
         const config = handoutConfigs[m];
+        const rawLevers = (d.levers as string[]) || [];
         const progress = calcHandoutProgress(
           config,
           (d.responses as Record<string, string>) || {},
           (d.checklist as Record<string, boolean>) || {},
-          (d.levers as string[]) || []
+          rawLevers
         );
-        return { module: m, status: d.status as HandoutSummaryItem["status"], progress };
+        return { module: m, status: d.status as HandoutSummaryItem["status"], progress, levers: rawLevers.filter(l => l.trim()) };
       }));
 
       // Fetch chat messages with report context
