@@ -1039,9 +1039,6 @@ const MemberDetail = () => {
                                     <Pencil className="h-2.5 w-2.5" /> Rettet
                                   </span>
                                 )}
-                                <span className="text-xs text-muted-foreground">
-                                  · {format(new Date(report.uploaded_at), "d. MMM yyyy", { locale: da })}
-                                </span>
                               </div>
                             </div>
                           </div>
