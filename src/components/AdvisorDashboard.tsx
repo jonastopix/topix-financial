@@ -633,8 +633,8 @@ const AdvisorDashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Samlet omsætning" value={formatCompact(totalRevenue)} accentColor="blue" />
         <KPICard title="Samlet resultat" value={formatCompact(totalEbt)} accentColor={totalEbt >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Samlet likviditet" value={formatCompact(totalCash)} accentColor={totalCash >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Aktive medlemmer" value={`${withMetrics} / ${investorSummaries.length}`} subtitle="har uploadet rapport" accentColor="amber" />
+        <KPICard title="Rapporteret denne måned" value={`${reportedThisMonth} / ${total}`} subtitle="har sendt rapport" accentColor={reportedThisMonth === total ? "emerald" : "amber"} />
+        <KPICard title="Platform-engagement" value={`${pulseThisMonth} / ${total}`} subtitle="pulse seneste 30 dage" accentColor="blue" />
       </div>
 
       {/* ── Two-column layout ── */}
