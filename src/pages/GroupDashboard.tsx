@@ -7,7 +7,8 @@ import GroupDashboardContent from "@/components/GroupDashboardContent";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import CreateGroupCompanyDialog from "@/components/CreateGroupCompanyDialog";
 import CommunityProgress from "@/components/CommunityProgress";
-import { MessageCircle, Calculator, Plus } from "lucide-react";
+import GroupSettings from "@/components/GroupSettings";
+import { MessageCircle, Calculator, Plus, Settings } from "lucide-react";
 
 const GroupDashboard = () => {
   const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId } = useAuth();
