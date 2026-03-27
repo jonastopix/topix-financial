@@ -321,6 +321,26 @@ const Dashboard = () => {
         <AttentionNeeded />
       </div>
 
+      {hasReports && !isAdvisor && (
+        <div className="mb-6">
+          <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Calendar className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Næste boardroom-session</p>
+                <p className="text-xs text-muted-foreground capitalize">{meetingDateStr}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-display font-bold text-primary">{nextMeeting.daysUntil}</p>
+              <p className="text-[10px] text-muted-foreground">dage</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI cards – only shown when we have processed data */}
       {kpiData.period && (
         <>
