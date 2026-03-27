@@ -33,6 +33,7 @@ const Q2_SERVICE = [
   { key: "b2b", label: "Andre virksomheder (B2B)", emoji: "🏢" },
   { key: "b2c", label: "Private forbrugere (B2C)", emoji: "👤" },
   { key: "haandvaerk", label: "Håndværk / produktion", emoji: "🔧" },
+  { key: "mad_drikke", label: "Mad & drikke / serveringssted", emoji: "🍽️" },
 ];
 
 export default function BudgetTemplatePicker({ onSelect, userId, companyId, onImportComplete }: Props) {
