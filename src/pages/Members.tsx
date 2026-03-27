@@ -381,7 +381,7 @@ const Members = () => {
           created_at: c.created_at,
           members: membersByCompany.get(c.id) || [],
           reportCount: reportsByCompany.get(c.id) || 0,
-          latestReportPeriod: latestPeriodByCompany.get(c.id) || null,
+          latestReportPeriod: latestPeriodByCompany.get(c.id)?.period || null,
           committedCount: committedByCompany.get(c.id) || 0,
           unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
           conversationId: conv?.id || null,
