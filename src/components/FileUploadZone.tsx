@@ -396,7 +396,7 @@ const FileUploadZone = ({
             const workbook = XLSX.read(arrayBuffer, { type: "array" });
             
             if (detectTemplate(workbook)) {
-              console.warn("⚠️ Unsupported multi-sheet format detected (DATA + P&L Top Line). Blocking upload.");
+              
               
               await supabase
                 .from("financial_reports")
