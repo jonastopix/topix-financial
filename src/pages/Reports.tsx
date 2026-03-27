@@ -369,6 +369,7 @@ const Reports = () => {
       setDeleteDialog({ open: false, report: null });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
       toast({ title: "Rapport flyttet til papirkurv", description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
     } catch (err) {
       console.error("Soft-delete error:", err);
@@ -403,6 +404,7 @@ const Reports = () => {
       setRefreshKey((k) => k + 1);
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
       toast({ title: "Rapport gendannet", description: `${report.report_period || report.file_name} er gendannet.` });
     } catch (err) {
       console.error("Restore error:", err);
@@ -442,6 +444,7 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       queryClient.invalidateQueries({ queryKey: ["company-commentaries"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
       toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
