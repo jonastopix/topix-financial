@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2,
-  ChevronRight, CheckCircle2,
+  ChevronRight, CheckCircle2, CalendarDays, BarChart3, ChevronDown,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
@@ -28,12 +29,6 @@ function getMissingReportKey(): string {
   const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
   const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
   return `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
-}
-
-function getMissingReportLabel(): string {
-  const now = new Date();
-  const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-  return DANISH_MONTHS[prevMonth];
 }
 
 // ── Types ──
@@ -60,11 +55,14 @@ interface CompanyRow {
 
 const AdvisorDashboard = () => {
   const { user, setCompanyOverride } = useAuth();
+  const [showPortfolio, setShowPortfolio] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-dashboard", user?.id],
     queryFn: async () => {
-      const [convRes, companiesRes, reportsRes, notesRes] = await Promise.all([
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+      const [convRes, companiesRes, reportsRes, notesRes, pulseRes] = await Promise.all([
         supabase
           .from("conversations")
           .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
@@ -81,12 +79,20 @@ const AdvisorDashboard = () => {
         supabase
           .from("conversation_notes")
           .select("conversation_id"),
+        (supabase
+          .from("pulse_checkins" as any)
+          .select("company_id, period_key, created_at")
+          .gte("created_at", monthStart) as any),
       ]);
 
       const conversations = (convRes.data || []) as ConversationRow[];
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
       const noteConvIds = new Set((notesRes.data || []).map((n: any) => n.conversation_id));
+
+      const pulseThisMonth = new Set(
+        (pulseRes.data || []).map((p: any) => p.company_id)
+      );
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
@@ -127,14 +133,14 @@ const AdvisorDashboard = () => {
         c.assigned_advisor_id === user!.id || c.assigned_advisor_id === null
       );
 
-      // Action Queue: uses shared actionable-now logic (excludes acknowledged/snoozed)
+      // Action Queue
       const now = new Date();
       const actionQueue = myConversations
         .filter(c => isConversationActionable(c, now))
         .sort((a, b) => {
           const aTime = a.last_member_message_at || "";
           const bTime = b.last_member_message_at || "";
-          return aTime.localeCompare(bTime); // oldest first
+          return aTime.localeCompare(bTime);
         });
 
       // Follow-ups
@@ -148,21 +154,7 @@ const AdvisorDashboard = () => {
         .filter(c => c.follow_up_at && new Date(c.follow_up_at) > now && new Date(c.follow_up_at) <= weekFromNow)
         .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
 
-      // Conversation lookup by company for portfolio status
-      const convByCompany = new Map<string, ConversationRow[]>();
-      for (const c of conversations) {
-        if (!c.company_id) continue;
-        if (!convByCompany.has(c.company_id)) convByCompany.set(c.company_id, []);
-        convByCompany.get(c.company_id)!.push(c);
-      }
-
-      // Has note per company
-      const companiesWithNote = new Set<string>();
-      for (const c of conversations) {
-        if (c.company_id && noteConvIds.has(c.id)) companiesWithNote.add(c.company_id);
-      }
-
-      // Build GroupCompanySummary[] for the new dashboard component
+      // Build GroupCompanySummary[]
       const groupSummaries: GroupCompanySummary[] = companies.map(c => {
         const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
@@ -182,6 +174,7 @@ const AdvisorDashboard = () => {
           ebt: latest?.kf.resultat_foer_skat ?? null,
           cash: latest?.kf.bank_balance ?? null,
           missing_current_period: missingReport,
+          has_pulse: pulseThisMonth.has(c.id),
         };
       });
 
@@ -205,6 +198,11 @@ const AdvisorDashboard = () => {
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
+  // Session readiness
+  const sessionReady = groupSummaries.filter(c => c.has_verified_metrics && c.has_pulse);
+  const missingReport = groupSummaries.filter(c => !c.has_verified_metrics);
+  const missingPulse = groupSummaries.filter(c => c.has_verified_metrics && !c.has_pulse);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -215,16 +213,6 @@ const AdvisorDashboard = () => {
     );
   }
 
-  /** Format report key "2026-02" → "Feb 2026" */
-  const formatReportKey = (key: string | null): string => {
-    if (!key) return "Ingen";
-    const [year, month] = key.split("-");
-    const monthIdx = parseInt(month, 10) - 1;
-    return `${DANISH_MONTHS[monthIdx]?.slice(0, 3) || month} ${year}`;
-  };
-
-  
-
   const getCompanyName = (companyId: string | null): string => {
     if (!companyId) return "Ukendt";
     return companyMap.get(companyId)?.name || "Ukendt";
@@ -232,15 +220,6 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* ── Porteføljestatus ── */}
-      <GroupDashboardContent
-        companies={groupSummaries}
-        aggregates={buildGroupAggregates(groupSummaries)}
-        isLoading={isLoading}
-        groupName="Mine virksomheder"
-        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
-      />
-
       {/* ── All clear banner ── */}
       {actionQueue.length === 0 && !hasFollowUps && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
@@ -293,7 +272,61 @@ const AdvisorDashboard = () => {
         </section>
       )}
 
-      {/* ── Section 2: Follow-up ── */}
+      {/* ── Section 2: Session readiness ── */}
+      {groupSummaries.length > 0 && (
+        <div className="glass-card rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">
+                Klar til boardroom-session
+              </h2>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {sessionReady.length}/{groupSummaries.length} klar
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="text-center p-3 rounded-lg bg-emerald-500/10">
+              <p className="text-xl font-bold text-emerald-600">{sessionReady.length}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Klar</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-amber-500/10">
+              <p className="text-xl font-bold text-amber-600">{missingReport.length}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Mangler rapport</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-blue-500/10">
+              <p className="text-xl font-bold text-blue-600">{missingPulse.length}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Mangler pulse</p>
+            </div>
+          </div>
+          {missingReport.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Mangler rapport
+              </p>
+              {missingReport.slice(0, 5).map(c => (
+                <button
+                  key={c.company_id}
+                  onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg
+                    hover:bg-secondary/50 transition-colors text-left"
+                >
+                  <div className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                  <span className="text-xs text-foreground truncate">{c.company_name}</span>
+                </button>
+              ))}
+              {missingReport.length > 5 && (
+                <p className="text-[10px] text-muted-foreground pl-3">
+                  +{missingReport.length - 5} flere
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section 3: Follow-ups ── */}
       {hasFollowUps && (
         <section>
           <div className="flex items-center gap-2 mb-3">
@@ -368,6 +401,35 @@ const AdvisorDashboard = () => {
           </div>
         </section>
       )}
+
+      {/* ── Section 4: Portfolio (collapsed) ── */}
+      <div className="glass-card rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowPortfolio(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-4
+            hover:bg-secondary/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">
+              Porteføljeoversigt ({groupSummaries.length} virksomheder)
+            </span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform
+            ${showPortfolio ? "rotate-180" : ""}`} />
+        </button>
+        {showPortfolio && (
+          <div className="border-t border-border">
+            <GroupDashboardContent
+              companies={groupSummaries}
+              aggregates={buildGroupAggregates(groupSummaries)}
+              isLoading={isLoading}
+              groupName={null}
+              onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
