@@ -193,6 +193,53 @@ const MemberDetail = () => {
     staleTime: 5 * 60_000,
   });
 
+function buildBudgetSummary(budgets: { category: string; budget_amount: number; period: string }[]) {
+  const GROUP_LABELS: Record<string, string> = {
+    indtaegter: "Indtægter",
+    variable: "Variable omk.",
+    personale: "Personale",
+    salg_marketing: "Salg & marketing",
+    drift: "Drift",
+    faste: "Faste omk.",
+  };
+  const baseRows = budgets.filter(b => b.period.includes("-base-"));
+  const catTotals: Record<string, number> = {};
+  for (const row of baseRows) {
+    catTotals[row.category] = (catTotals[row.category] || 0) + row.budget_amount;
+  }
+  const CATEGORY_GROUPS: Record<string, string> = {
+    omsaetning: "indtaegter",
+    vareforbrug: "variable", fragt_levering: "variable", betalingsgebyrer: "variable",
+    underleverandoerer: "variable", materialer: "variable", raavarerfood: "variable",
+    loenninger: "personale", freelance_konsulenter: "personale", uddannelse: "personale",
+    loenninger_dev: "personale", loenninger_salg: "personale", loenninger_admin: "personale",
+    digital_marketing: "salg_marketing", seo_content: "salg_marketing",
+    email_marketing: "salg_marketing", lokal_marketing: "salg_marketing",
+    salg_kundepleje: "salg_marketing", rejser_repraesentant: "salg_marketing",
+    salg_netvaerk: "salg_marketing", marketing: "salg_marketing",
+    platform_tech: "drift", tech_software: "drift", hosting_infra: "drift",
+    booking_tech: "drift", lager_logistik: "drift", koeretoej_braendstof: "drift",
+    maskiner_vaerktoj: "drift", telefon_internet: "drift", udstyr_inventar: "drift",
+    lokaler: "faste", lokaler_husleje: "faste", lokaler_vaerksted: "faste",
+    forsikring: "faste", forsikring_abonnementer: "faste",
+    admin_regnskab: "faste", admin: "faste", musik_rettigheder: "faste",
+  };
+  const groupTotals: Record<string, number> = {};
+  for (const [cat, amount] of Object.entries(catTotals)) {
+    const group = CATEGORY_GROUPS[cat] || "faste";
+    groupTotals[group] = (groupTotals[group] || 0) + amount;
+  }
+  const ORDER = ["indtaegter", "variable", "personale", "salg_marketing", "drift", "faste"];
+  return ORDER
+    .filter(g => groupTotals[g] > 0)
+    .map(g => ({
+      group: g,
+      label: GROUP_LABELS[g] || g,
+      total: groupTotals[g],
+      isRevenue: g === "indtaegter",
+    }));
+}
+
 
   // Clear deep-link params after consuming
   useEffect(() => {
