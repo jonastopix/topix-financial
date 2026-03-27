@@ -428,7 +428,7 @@ export default function ReportReviewDialog({
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Metrics preview
+                    Vi fandt disse tal i din rapport
                   </h4>
                   {preview.eligible && (
                     <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={enterEditMode}>
