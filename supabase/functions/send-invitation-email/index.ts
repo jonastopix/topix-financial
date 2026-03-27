@@ -10,7 +10,34 @@ const VERIFIED_FROM_EMAIL = 'noreply@mail.topix.dk';
 
 // Hardcoded fallback if no template exists in DB
 const FALLBACK_SUBJECT = 'Du er inviteret til {{company_name}} på The Boardroom';
-const FALLBACK_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0"><div style="max-width:480px;margin:0 auto;padding:0 12px"><h1 style="color:#1a1a2e;font-size:24px;font-weight:bold;margin:40px 0 20px">Velkommen til The Boardroom</h1><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Du er blevet inviteret til at blive en del af <strong>{{company_name}}</strong> på The Boardroom — en platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p><div style="text-align:center;margin:32px 0"><a href="{{signup_url}}" target="_blank" style="background-color:#0fa968;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 32px;text-decoration:none">Acceptér invitation</a></div><p style="color:#333;font-size:14px;line-height:24px;margin:16px 0">Du kan oprette dig med en hvilken som helst e-mail — du bliver automatisk tilknyttet {{company_name}} via dit invitationslink.</p><p style="color:#898989;font-size:12px;line-height:20px;margin-top:32px">Denne invitation er sendt fra The Boardroom. Hvis du ikke forventer denne besked, kan du ignorere den.</p></div></body></html>`;
+const FALLBACK_HTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="background-color:#f9f9f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
+<div style="max-width:520px;margin:0 auto">
+  <div style="background:#0f1117;border-radius:10px 10px 0 0;padding:18px 28px">
+    <div style="width:28px;height:28px;background:#16a34a;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:10px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="white"/><rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity=".3"/></svg></div>
+    <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em">The Boardroom</span>
+  </div>
+  <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
+    <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Du er inviteret</p>
+    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">{{company_name}} har åbnet døren for dig</h1>
+    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Du er inviteret til The Boardroom — et privat rum for økonomi, strategi og dialog med dine rådgivere. Opret dig på under 2 minutter.</p>
+    <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0">
+      <p style="color:#166534;font-size:13px;margin:0;font-weight:500">Brug en hvilken som helst e-mail — du tilknyttes {{company_name}} automatisk via dit invitationslink.</p>
+    </div>
+    <div style="padding:20px 0">
+      <a href="{{signup_url}}" target="_blank" style="background:#16a34a;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 28px;text-decoration:none">Acceptér invitation →</a>
+    </div>
+    <div style="height:0.5px;background:#e5e7eb"></div>
+    <div style="padding:16px 0;display:flex;justify-content:space-between">
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · topix.dk</span>
+      <span style="font-size:12px;color:#9ca3af">Ignorer denne besked hvis du ikke forventer den.</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
 
 function replaceVars(text: string, vars: Record<string, string>): string {
   let result = text;
