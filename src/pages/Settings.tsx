@@ -539,6 +539,18 @@ const Settings = () => {
 
             <div className="space-y-4">
               {companyField("Virksomhedsnavn", "name", "Virksomhedsnavn", <Building2 className="h-4 w-4" />)}
+              {(() => {
+                const name = companyForm.name;
+                const needsUpdate = name.toLowerCase().endsWith("s virksomhed") ||
+                  name.toLowerCase() === "ny bruger" ||
+                  name.trim().length < 3;
+                return needsUpdate ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 -mt-2 mb-1">
+                    Dette ser ud til at være et automatisk genereret navn — opdater
+                    det til dit rigtige virksomhedsnavn.
+                  </p>
+                ) : null;
+              })()}
               {companyField("CVR-nummer", "cvr_number", "12345678", <Hash className="h-4 w-4" />)}
               {companyField("Kontakt e-mail", "contact_email", "kontakt@firma.dk")}
               {companyField("Hjemmeside", "website", "https://firma.dk", <Globe className="h-4 w-4" />)}

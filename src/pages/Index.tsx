@@ -352,6 +352,27 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Company name banner */}
+      {needsCompanyName && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-4 animate-fade-in">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              Giv din virksomhed et rigtigt navn
+            </p>
+            <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+              Dit virksomhedsnavn er stadig det automatisk genererede.
+              Opdater det i Indstillinger så dit board ser professionelt ud.
+            </p>
+          </div>
+          <Link
+            to="/settings"
+            className="shrink-0 px-3 py-2 rounded-lg bg-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-500/30 transition-colors"
+          >
+            Ret navn →
+          </Link>
+        </div>
+      )}
+
       {/* Attention needed — action-first, before KPI data */}
       <div className="mb-6">
         <AttentionNeeded />
