@@ -4,9 +4,10 @@ import {
   APP_BRANDING,
   PERFORMANCE_SCORE,
   GAMIFICATION,
+  MEETINGS,
 } from "@/lib/appConfig";
 
-type ConfigKey = "branding" | "performance_score" | "gamification";
+type ConfigKey = "branding" | "performance_score" | "gamification" | "meetings";
 
 /**
  * Fetches all app_config rows and merges with static defaults.
