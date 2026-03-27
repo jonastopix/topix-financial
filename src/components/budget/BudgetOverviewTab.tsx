@@ -29,12 +29,54 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
     return { group: g, label: GROUP_LABELS[g], total, count: groupRows.length };
   }).filter(g => g.total > 0 || g.count > 0);
 
+  const filledMonths = MONTHS.filter((_, i) =>
+    revenueRows.some(r => r.values[i] > 0)
+  ).length;
+  const isEmpty = totalOmsaetning === 0;
+  const isComplete = filledMonths >= 10;
+  const isPartial = !isEmpty && !isComplete;
+
   return (
     <div className="space-y-6">
+      {isEmpty && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-2">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              Budget er ikke udfyldt
+            </p>
+            <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+              Gå til Scenarier-fanen for at indtaste dine månedlige tal, eller importér et Excel-budget under Importér.
+            </p>
+          </div>
+        </div>
+      )}
+      {isPartial && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 mb-2">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+              Budget er delvist udfyldt — {filledMonths}/12 måneder
+            </p>
+            <p className="text-xs text-blue-700/80 dark:text-blue-400/80 mt-0.5">
+              Udfyld de resterende måneder for at få præcise sammenligninger med dine rapporter.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="glass-card rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-semibold text-foreground">Budget {year}</h2>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Konsolideret overblik</span>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+              isComplete
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : isPartial
+                ? "bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            }`}>
+              {isComplete ? "Komplet" : isPartial ? `${filledMonths}/12 måneder` : "Ikke udfyldt"}
+            </span>
+          </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryKPI icon={TrendingUp} label="Total omsætning" value={`${(totalOmsaetning / 1000).toFixed(0)}k kr.`} />
