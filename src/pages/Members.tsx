@@ -1998,6 +1998,40 @@ const Members = () => {
           onSuccess={() => setReloadTrigger((t) => t + 1)}
         />
       )}
+
+      {/* Rename company dialog */}
+      <Dialog
+        open={!!renamingCompany}
+        onOpenChange={(open) => { if (!open) setRenamingCompany(null); }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Omdøb virksomhed</DialogTitle>
+            <DialogDescription>
+              Nuværende navn: {renamingCompany?.currentName}
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleRenameCompany(); }}
+            placeholder="Nyt virksomhedsnavn"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            autoFocus
+          />
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setRenamingCompany(null)}>
+              Annuller
+            </Button>
+            <Button
+              onClick={handleRenameCompany}
+              disabled={renameSaving || !renameValue.trim()}
+            >
+              {renameSaving ? "Gemmer..." : "Gem navn"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
