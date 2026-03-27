@@ -330,7 +330,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
               <Target className="h-4 w-4 text-primary" />
               Nøglefund
             </h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {analysis.key_findings.map((finding, i) => {
                 const config = severityConfig[finding.severity];
                 const Icon = config.icon;
