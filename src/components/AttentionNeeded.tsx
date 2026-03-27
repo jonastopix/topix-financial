@@ -131,26 +131,26 @@ const AttentionNeeded = () => {
         }
       }
 
-      // Check: Upcoming board meeting (first Monday of next month, within 5 days)
-      const firstMondayNextMonth = (() => {
-        const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
-        return d;
-      })();
-      const daysUntilMeeting = Math.ceil(
-        (firstMondayNextMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (daysUntilMeeting <= 5 && daysUntilMeeting > 0) {
-        attentionItems.push({
-          id: "upcoming-meeting",
-          type: "milestone",
-          title: "Boardroom-session nærmer sig",
-          description: `${daysUntilMeeting} dag${daysUntilMeeting > 1 ? "e" : ""} til næste møde — opdater dine milestones`,
-          urgency: daysUntilMeeting <= 2 ? "high" : "medium",
-          action: "Forbered mig",
-          link: "/milestones",
-          daysLeft: daysUntilMeeting,
-        });
+      // Check: Upcoming board meeting — use admin-configured date if available
+      const meetingDate = meetings.next_meeting_date
+        ? new Date(meetings.next_meeting_date)
+        : null;
+      if (meetingDate) {
+        const daysUntilMeeting = Math.ceil(
+          (meetingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (daysUntilMeeting <= 7 && daysUntilMeeting > 0) {
+          attentionItems.push({
+            id: "upcoming-meeting",
+            type: "milestone",
+            title: "Boardroom-session nærmer sig",
+            description: `${daysUntilMeeting} dag${daysUntilMeeting > 1 ? "e" : ""} til næste møde — opdater dine milestones`,
+            urgency: daysUntilMeeting <= 2 ? "high" : "medium",
+            action: "Forbered mig",
+            link: "/milestones",
+            daysLeft: daysUntilMeeting,
+          });
+        }
       }
 
 
