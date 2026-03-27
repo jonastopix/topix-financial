@@ -1104,7 +1104,15 @@ const Members = () => {
                         {rev ? formatDKK(rev.value) : "–"}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{c.reportCount}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">{c.reportCount}</span>
+                          {c.committedCount > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              {c.committedCount}
+                            </span>
+                          )}
+                        </div>
                         {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
