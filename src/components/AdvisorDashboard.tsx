@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2,
-  ChevronRight, CheckCircle2, CalendarDays, BarChart3, ChevronDown,
+  ChevronRight, CheckCircle2, CalendarDays, BarChart3, ChevronDown, Activity,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
