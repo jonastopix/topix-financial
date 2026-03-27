@@ -11,6 +11,7 @@ interface ComparisonRow {
   label: string;
   budget: number;
   actual: number;
+  isRevenue: boolean;
 }
 
 const BudgetOverview = () => {
@@ -21,7 +22,7 @@ const BudgetOverview = () => {
     queryKey: ["budget-overview-v3", companyId, facts.length],
     queryFn: async () => {
       const latestFact = facts.length > 0 ? facts[facts.length - 1] : null;
-      if (!latestFact) return { rows: [], periodLabel: null, hasBudget: false, state: "no-report" as const };
+      if (!latestFact) return { rows: [], margin: null, periodLabel: null, hasBudget: false, state: "no-report" as const };
 
       const periodKey = latestFact.period_key;
       const [yearStr, monthStr] = periodKey.split("-");
@@ -35,20 +36,18 @@ const BudgetOverview = () => {
         .eq("period", `${yearStr}-base-${monthIdx}`);
 
       const budgets = budgetRes.data || [];
-      if (budgets.length === 0) return { rows: [], periodLabel: monthLabel, hasBudget: false, state: "no-budget" as const };
+      if (budgets.length === 0) return { rows: [], margin: null, periodLabel: monthLabel, hasBudget: false, state: "no-budget" as const };
 
       const kf = factsToDanishMetrics(latestFact.metrics);
 
-      let budgetRevenue = 0;
-      let budgetExpenses = 0;
-      budgets.forEach((b: any) => {
-        const cat = b.category.toLowerCase();
-        if (cat.includes("omsaetning") || cat.includes("omsætning") || cat.includes("revenue") || cat.includes("salg")) {
-          budgetRevenue += Number(b.budget_amount);
-        } else {
-          budgetExpenses += Math.abs(Number(b.budget_amount));
-        }
-      });
+      const budgetRevenue = budgets
+        .filter((b: any) => b.category === "omsaetning")
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const budgetExpenses = budgets
+        .filter((b: any) => b.category !== "omsaetning" && !b.category.startsWith("__"))
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const budgetEbitda = budgetRevenue - budgetExpenses;
+      const budgetMargin = budgetRevenue > 0 ? (budgetEbitda / budgetRevenue) * 100 : 0;
 
       const actualRevenue = kf.omsaetning ?? 0;
       const actualExpenses = Math.abs(kf.loenninger ?? 0) +
@@ -57,16 +56,21 @@ const BudgetOverview = () => {
         Math.abs(kf.lokaleomkostninger ?? 0) +
         Math.abs(kf.administrationsomkostninger ?? 0) +
         Math.abs(kf.afskrivninger ?? 0);
+      const actualEbitda = actualRevenue - actualExpenses;
+      const actualMargin = actualRevenue > 0 ? (actualEbitda / actualRevenue) * 100 : 0;
 
-      const rows: ComparisonRow[] = [];
-      if (budgetRevenue > 0 || actualRevenue > 0) {
-        rows.push({ label: "Omsætning", budget: budgetRevenue, actual: actualRevenue });
-      }
-      if (budgetExpenses > 0 || actualExpenses > 0) {
-        rows.push({ label: "Omkostninger", budget: budgetExpenses, actual: actualExpenses });
-      }
+      const rows: ComparisonRow[] = [
+        { label: "Omsætning", budget: budgetRevenue, actual: actualRevenue, isRevenue: true },
+        { label: "EBITDA", budget: budgetEbitda, actual: actualEbitda, isRevenue: true },
+      ];
 
-      return { rows, periodLabel: monthLabel, hasBudget: true, state: "ready" as const };
+      return {
+        rows,
+        margin: { budget: budgetMargin, actual: actualMargin },
+        periodLabel: monthLabel,
+        hasBudget: true,
+        state: "ready" as const,
+      };
     },
     enabled: !!user && !!companyId && facts.length > 0,
     staleTime: 5 * 60 * 1000,
