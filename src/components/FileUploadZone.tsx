@@ -219,7 +219,7 @@ async function extractPdfPageImages(file: File): Promise<string[]> {
     const base64 = dataUrl.split(",")[1];
     images.push(base64);
   }
-  console.log(`PDF rendered ${images.length} page images`);
+  
   return images;
 }
 
@@ -396,7 +396,7 @@ const FileUploadZone = ({
             const workbook = XLSX.read(arrayBuffer, { type: "array" });
             
             if (detectTemplate(workbook)) {
-              console.warn("⚠️ Unsupported multi-sheet format detected (DATA + P&L Top Line). Blocking upload.");
+              
               
               await supabase
                 .from("financial_reports")
@@ -423,7 +423,7 @@ const FileUploadZone = ({
               return;
             }
           } catch (templateErr) {
-            console.log("Multi-sheet detection check passed (not multi-sheet):", templateErr);
+            
           }
         }
 
@@ -438,7 +438,7 @@ const FileUploadZone = ({
           if (isPdf) {
             try {
               pdfStructural = await extractPdfStructural(file);
-              console.log(`[PdfStructural] Payload ready: ${pdfStructural.metadata.total_row_count} rows, hash=${pdfStructural.metadata.content_hash.slice(0, 12)}...`);
+              
             } catch (structErr: any) {
               if (requiresStructuralPdfPayload(extracted.text)) {
                 const errMessage = structErr?.message || String(structErr);
@@ -498,7 +498,7 @@ const FileUploadZone = ({
                   description: "PDF-strukturen kunne ikke læses — du kan indtaste tallene manuelt",
                 });
               } else {
-                console.warn("[PdfStructural] Client-side extraction failed for non-structural-required source, continuing to backend:", structErr);
+                
               }
             }
           }
@@ -557,7 +557,7 @@ const FileUploadZone = ({
               aiData?.error?.includes("Deterministic parsing failed");
 
             if (isKnownFallback) {
-              console.log("[Upload] Known fallback path detected, continuing to pipeline:", aiData?.status);
+              
               extractedData = aiData;
             } else {
               const friendlyMsg = getFriendlyErrorMessage(aiData);
@@ -786,7 +786,7 @@ const FileUploadZone = ({
           const friendlyMsg = getFriendlyErrorMessage(extractedData);
           throw new Error(friendlyMsg);
         }
-        console.log("[Overwrite] Known fallback path detected, continuing to pipeline:", extractedData?.status);
+        
       }
 
       updateFile(pendingFileId, { extractedData });
