@@ -2370,6 +2370,11 @@ const CompanyChatPane = () => {
                               reactions={getReactions(msg.id)}
                               onToggle={(emoji) => toggleReaction(msg.id, emoji)}
                               isMine={isMine}
+                              getReactorName={(userId) =>
+                                profilesMap.get(userId)?.full_name ||
+                                participants.find(p => p.user_id === userId)?.full_name ||
+                                "Ukendt"
+                              }
                             />
                           </div>
                           {isMine && (
