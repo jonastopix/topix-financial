@@ -2290,7 +2290,7 @@ const CompanyChatPane = () => {
                                       : "bg-secondary text-foreground rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
-                                  {!isMine && (
+                                  {!isMine && !isAdvisor && (
                                     <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
                                       {senderName}
                                     </p>
