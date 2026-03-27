@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { supabase } from "@/integrations/supabase/client";
-import { Calculator, ArrowLeft, BarChart3, Layers, DollarSign, Upload, TrendingUp } from "lucide-react";
+import { Calculator, ArrowLeft, BarChart3, Layers, DollarSign, Upload, TrendingUp, Droplets } from "lucide-react";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
 import BudgetImport from "@/components/BudgetImport";
 import {
