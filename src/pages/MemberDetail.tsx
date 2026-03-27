@@ -4,6 +4,9 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import {
   ArrowLeft,
