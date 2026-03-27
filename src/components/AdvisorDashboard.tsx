@@ -727,7 +727,7 @@ const AdvisorDashboard = () => {
                     <tr className="border-b border-border bg-secondary/30">
                       <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
+                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Omsætning MoM</th>
                       {showKpiColumn && <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">KPI mål</th>}
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
                       <th className="py-2 px-3 w-16"></th>
@@ -828,21 +828,25 @@ const AdvisorDashboard = () => {
                           )}
                           {/* Engagement */}
                           <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1 justify-center">
+                            <div className="flex items-center gap-1">
                               {[
-                                { active: hasCurrentReport, color: "bg-primary", title: "Rapport" },
-                                { active: hasPulse30, color: "bg-chart-info", title: "Pulse" },
-                                { active: hasChat, color: "bg-purple-500", title: "Chat" },
-                                { active: hasMilestones, color: "bg-chart-warning", title: "Milestones" },
-                                { active: hasKpiTargets, color: "bg-teal-500", title: "KPI mål" },
+                                { active: hasCurrentReport, color: "bg-primary", label: "R", title: "Rapport" },
+                                { active: hasPulse30, color: "bg-chart-info", label: "P", title: "Pulse" },
+                                { active: hasChat, color: "bg-purple-500", label: "C", title: "Chat" },
+                                { active: hasMilestones, color: "bg-chart-warning", label: "M", title: "Milestones" },
+                                { active: hasKpiTargets, color: "bg-teal-500", label: "K", title: "KPI" },
                               ].map((dot, i) => (
-                                <div
+                                <span
                                   key={i}
                                   title={dot.title}
-                                  className={`h-2 w-2 rounded-full transition-colors ${
-                                    dot.active ? dot.color : "bg-muted-foreground/15"
+                                  className={`inline-flex items-center justify-center h-4 w-4 rounded text-[8px] font-bold transition-colors ${
+                                    dot.active
+                                      ? `${dot.color} text-white`
+                                      : "bg-muted-foreground/10 text-muted-foreground/30"
                                   }`}
-                                />
+                                >
+                                  {dot.label}
+                                </span>
                               ))}
                             </div>
                           </td>
@@ -862,20 +866,23 @@ const AdvisorDashboard = () => {
                 )}
               </div>
               {/* Legend */}
-              <div className="flex items-center gap-4 mt-2 px-1">
+              <div className="flex items-center gap-4 mt-2 px-1 flex-wrap">
                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement:</p>
                 {[
-                  { color: "bg-primary", label: "Rapport" },
-                  { color: "bg-chart-info", label: "Pulse" },
-                  { color: "bg-purple-500", label: "Chat" },
-                  { color: "bg-chart-warning", label: "Milestones" },
-                  { color: "bg-teal-500", label: "KPI mål" },
+                  { color: "bg-primary", label: "R = Rapport denne måned" },
+                  { color: "bg-chart-info", label: "P = Pulse" },
+                  { color: "bg-purple-500", label: "C = Chat" },
+                  { color: "bg-chart-warning", label: "M = Milestones" },
+                  { color: "bg-teal-500", label: "K = KPI mål" },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-1">
                     <div className={`h-1.5 w-1.5 rounded-full ${item.color}`} />
                     <span className="text-[9px] text-muted-foreground">{item.label}</span>
                   </div>
                 ))}
+                <span className="text-[9px] text-muted-foreground ml-2">
+                  · MoM = måned-over-måned omsætningsvækst
+                </span>
               </div>
             </>
           ) : (
