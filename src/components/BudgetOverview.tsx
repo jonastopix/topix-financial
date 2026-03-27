@@ -11,6 +11,7 @@ interface ComparisonRow {
   label: string;
   budget: number;
   actual: number;
+  isRevenue: boolean;
 }
 
 const BudgetOverview = () => {
@@ -21,7 +22,7 @@ const BudgetOverview = () => {
     queryKey: ["budget-overview-v3", companyId, facts.length],
     queryFn: async () => {
       const latestFact = facts.length > 0 ? facts[facts.length - 1] : null;
-      if (!latestFact) return { rows: [], periodLabel: null, hasBudget: false, state: "no-report" as const };
+      if (!latestFact) return { rows: [], margin: null, periodLabel: null, hasBudget: false, state: "no-report" as const };
 
       const periodKey = latestFact.period_key;
       const [yearStr, monthStr] = periodKey.split("-");
@@ -35,20 +36,18 @@ const BudgetOverview = () => {
         .eq("period", `${yearStr}-base-${monthIdx}`);
 
       const budgets = budgetRes.data || [];
-      if (budgets.length === 0) return { rows: [], periodLabel: monthLabel, hasBudget: false, state: "no-budget" as const };
+      if (budgets.length === 0) return { rows: [], margin: null, periodLabel: monthLabel, hasBudget: false, state: "no-budget" as const };
 
       const kf = factsToDanishMetrics(latestFact.metrics);
 
-      let budgetRevenue = 0;
-      let budgetExpenses = 0;
-      budgets.forEach((b: any) => {
-        const cat = b.category.toLowerCase();
-        if (cat.includes("omsaetning") || cat.includes("omsætning") || cat.includes("revenue") || cat.includes("salg")) {
-          budgetRevenue += Number(b.budget_amount);
-        } else {
-          budgetExpenses += Math.abs(Number(b.budget_amount));
-        }
-      });
+      const budgetRevenue = budgets
+        .filter((b: any) => b.category === "omsaetning")
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const budgetExpenses = budgets
+        .filter((b: any) => b.category !== "omsaetning" && !b.category.startsWith("__"))
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const budgetEbitda = budgetRevenue - budgetExpenses;
+      const budgetMargin = budgetRevenue > 0 ? (budgetEbitda / budgetRevenue) * 100 : 0;
 
       const actualRevenue = kf.omsaetning ?? 0;
       const actualExpenses = Math.abs(kf.loenninger ?? 0) +
@@ -57,22 +56,27 @@ const BudgetOverview = () => {
         Math.abs(kf.lokaleomkostninger ?? 0) +
         Math.abs(kf.administrationsomkostninger ?? 0) +
         Math.abs(kf.afskrivninger ?? 0);
+      const actualEbitda = actualRevenue - actualExpenses;
+      const actualMargin = actualRevenue > 0 ? (actualEbitda / actualRevenue) * 100 : 0;
 
-      const rows: ComparisonRow[] = [];
-      if (budgetRevenue > 0 || actualRevenue > 0) {
-        rows.push({ label: "Omsætning", budget: budgetRevenue, actual: actualRevenue });
-      }
-      if (budgetExpenses > 0 || actualExpenses > 0) {
-        rows.push({ label: "Omkostninger", budget: budgetExpenses, actual: actualExpenses });
-      }
+      const rows: ComparisonRow[] = [
+        { label: "Omsætning", budget: budgetRevenue, actual: actualRevenue, isRevenue: true },
+        { label: "EBITDA", budget: budgetEbitda, actual: actualEbitda, isRevenue: true },
+      ];
 
-      return { rows, periodLabel: monthLabel, hasBudget: true, state: "ready" as const };
+      return {
+        rows,
+        margin: { budget: budgetMargin, actual: actualMargin },
+        periodLabel: monthLabel,
+        hasBudget: true,
+        state: "ready" as const,
+      };
     },
     enabled: !!user && !!companyId && facts.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { rows = [], periodLabel, state } = data || {};
+  const { rows = [], margin, periodLabel, state } = data || {};
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in h-full flex flex-col">
@@ -86,8 +90,7 @@ const BudgetOverview = () => {
         <div className="flex-1 space-y-4">
           {rows.map(row => {
             const diff = row.actual - row.budget;
-            const isRevenue = row.label === "Omsætning";
-            const isGood = isRevenue ? diff >= 0 : diff <= 0;
+            const isGood = row.isRevenue ? diff >= 0 : diff <= 0;
             return (
               <div key={row.label}>
                 <div className="flex items-center justify-between mb-1">
@@ -111,6 +114,23 @@ const BudgetOverview = () => {
               </div>
             );
           })}
+          {margin && (
+            <div className="pt-2 border-t border-border/30 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">EBITDA-margin</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">
+                    Budget: {margin.budget.toFixed(1)}%
+                  </span>
+                  <span className={`text-[10px] font-semibold ${
+                    margin.actual >= margin.budget ? "text-primary" : "text-destructive"
+                  }`}>
+                    Actual: {margin.actual.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : state === "no-budget" ? (
         <p className="text-sm text-muted-foreground text-center py-4 flex-1 flex items-center justify-center">
