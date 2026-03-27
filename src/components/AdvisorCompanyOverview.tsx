@@ -415,6 +415,22 @@ const AdvisorCompanyOverview = () => {
     staleTime: 5 * 60_000,
   });
 
+  const { data: handoutData } = useQuery({
+    queryKey: ["handout-summary-advisor", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("handouts")
+        .select("module, status")
+        .eq("company_id", companyId);
+      const completed = (data || []).filter(h => h.status === "completed").length;
+      const total = 5;
+      return { completed, total };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -435,8 +451,47 @@ const AdvisorCompanyOverview = () => {
   const noteConvId = data?.noteConvId ?? null;
   const missingReport = data?.missingReport ?? false;
 
+  const hasCurrentReport = !!latest;
+  const hasPulse = !!latestPulse;
+  const handoutsComplete = (handoutData?.completed ?? 0) >= 3;
+
   return (
     <div className="space-y-6 max-w-3xl">
+      {/* ── Session Readiness Bar ── */}
+      <div className="rounded-xl border border-border bg-card p-4 mb-2">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Klar til session
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label: "Rapport",
+              ok: hasCurrentReport,
+              detail: hasCurrentReport
+                ? formatReportKey(latest!.key)
+                : `${getMissingReportLabel()} mangler`,
+            },
+            {
+              label: "Pulse",
+              ok: hasPulse,
+              detail: hasPulse ? "Udfyldt" : "Mangler check-in",
+            },
+            {
+              label: "Handouts",
+              ok: handoutsComplete,
+              detail: `${handoutData?.completed ?? 0}/5 moduler`,
+            },
+          ].map(signal => (
+            <div key={signal.label} className="flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <div className={`h-2 w-2 rounded-full ${signal.ok ? "bg-emerald-500" : "bg-amber-400"}`} />
+                <span className="text-xs font-medium text-foreground">{signal.label}</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground ml-3.5">{signal.detail}</span>
+            </div>
+          ))}
+        </div>
+      </div>
       {/* ── Header ── */}
       {isMobile ? (
         /* Mobile: stacked header */
