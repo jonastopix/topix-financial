@@ -316,9 +316,11 @@ const AdvisorCompanyOverview = () => {
   const noteConvId = data?.noteConvId ?? null;
   const missingReport = data?.missingReport ?? false;
 
-  const hasCurrentReport = !!latest;
+  const hasReport = !!latest;
   const hasPulse = !!latestPulse;
-  const handoutsComplete = (handoutData?.completed ?? 0) >= 3;
+  const latestPeriodLabel = latest ? formatReportKey(latest.key) : null;
+  const handoutsCompleted = handoutData?.completed ?? 0;
+  const handoutsTotal = handoutData?.total ?? 5;
 
   return (
     <div className="space-y-6 max-w-3xl">
