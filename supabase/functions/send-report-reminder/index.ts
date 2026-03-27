@@ -78,7 +78,13 @@ Deno.serve(async (req) => {
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const expectedPeriod = `${DANISH_MONTHS[prevMonth.getMonth()]} ${prevMonth.getFullYear()}`;
 
-    console.log(`[send-report-reminder] Period: ${expectedPeriod}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
+    const dayOfMonth = now.getDate();
+
+    // Reminder triggers: day 7 (gentle), day 15 (urgent), day 20 (critical)
+    const REMINDER_DAYS = [7, 15, 20];
+    const isReminderDay = REMINDER_DAYS.includes(dayOfMonth);
+
+    console.log(`[send-report-reminder] Period: ${expectedPeriod} | Day: ${dayOfMonth}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
 
     // --- Fetch template from DB (by name), fallback to hardcoded ---
     let subjectTpl = FALLBACK_SUBJECT;
