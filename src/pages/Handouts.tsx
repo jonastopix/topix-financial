@@ -19,6 +19,7 @@ interface HandoutSummary {
   status: "not_started" | "in_progress" | "completed";
   progress: number;
   completedAt: string | null;
+  levers: string[];
 }
 
 const Handouts = () => {
