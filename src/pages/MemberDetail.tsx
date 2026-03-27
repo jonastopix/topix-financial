@@ -747,30 +747,59 @@ const MemberDetail = () => {
                 <Wallet className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">Intet budget opsat endnu</p>
               </div>
-            ) : (
-              <div className="glass-card rounded-xl overflow-hidden">
-                <div className="hidden sm:grid grid-cols-3 gap-2 px-5 py-3 bg-secondary/50 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  <span>Kategori</span>
-                  <span>Periode</span>
-                  <span className="text-right">Budgetteret</span>
-                </div>
-                <div className="divide-y divide-border/50">
-                  {budgets.map((b) => (
-                    <div key={b.id} className="px-5 py-3 grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-2 items-center">
-                      <span className="text-sm font-medium text-foreground">{b.category}</span>
-                      <span className="text-sm text-muted-foreground">{b.period}</span>
-                      <span className="text-sm font-medium text-foreground sm:text-right">{formatDKK(b.budget_amount)}</span>
+            ) : (() => {
+              const summary = buildBudgetSummary(budgets);
+              const totalRevenue = summary.find(s => s.group === "indtaegter")?.total ?? 0;
+              const totalCosts = summary.filter(s => s.group !== "indtaegter").reduce((s, g) => s + g.total, 0);
+              const ebitda = totalRevenue - totalCosts;
+              const margin = totalRevenue > 0 ? (ebitda / totalRevenue) * 100 : 0;
+
+              if (summary.length === 0) {
+                return (
+                  <div className="glass-card rounded-xl p-6 text-center">
+                    <p className="text-sm text-muted-foreground">Budget er opsat men ikke udfyldt</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="glass-card rounded-xl overflow-hidden">
+                  {/* KPI summary */}
+                  <div className="grid grid-cols-3 gap-3 p-4 bg-secondary/30 border-b border-border">
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Omsætning</p>
+                      <p className="text-sm font-display font-bold text-foreground">
+                        {formatDKK(totalRevenue)}
+                      </p>
                     </div>
-                  ))}
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">EBITDA</p>
+                      <p className={`text-sm font-display font-bold ${ebitda >= 0 ? "text-primary" : "text-destructive"}`}>
+                        {formatDKK(ebitda)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Margin</p>
+                      <p className={`text-sm font-display font-bold ${margin >= 0 ? "text-primary" : "text-destructive"}`}>
+                        {margin.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Group breakdown */}
+                  <div className="divide-y divide-border/30">
+                    {summary.map(group => (
+                      <div key={group.group} className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs text-muted-foreground">{group.label}</span>
+                        <span className={`text-xs font-semibold ${group.isRevenue ? "text-primary" : "text-foreground"}`}>
+                          {formatDKK(group.total)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="px-5 py-3 bg-secondary/30 border-t border-border flex justify-between items-center">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase">Total</span>
-                  <span className="text-sm font-bold text-foreground">
-                    {formatDKK(budgets.reduce((sum, b) => sum + Number(b.budget_amount), 0))}
-                  </span>
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Pulse check-in section */}
