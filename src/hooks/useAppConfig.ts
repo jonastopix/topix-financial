@@ -44,5 +44,5 @@ export function useAppConfig() {
     queryClient.invalidateQueries({ queryKey: ["app-config"] });
   };
 
-  return { branding, performanceScore, gamification, updateConfig };
+  return { branding, performanceScore, gamification, meetings, updateConfig };
 }
