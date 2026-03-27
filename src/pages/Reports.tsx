@@ -404,6 +404,7 @@ const Reports = () => {
       setRefreshKey((k) => k + 1);
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
       toast({ title: "Rapport gendannet", description: `${report.report_period || report.file_name} er gendannet.` });
     } catch (err) {
       console.error("Restore error:", err);
