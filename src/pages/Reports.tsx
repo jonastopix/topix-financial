@@ -376,7 +376,7 @@ const Reports = () => {
     } finally {
       setDeleting(false);
     }
-  }, []);
+  }, [queryClient]);
 
   // Load trashed reports (advisor only)
   const loadTrashedReports = useCallback(async () => {
