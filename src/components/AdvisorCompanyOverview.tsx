@@ -603,8 +603,17 @@ const AdvisorCompanyOverview = () => {
         </div>
       )}
 
-      {/* ── Sessionsforberedelse ── */}
-      <SessionPrepSection companyId={companyId!} companyName={company?.name || companyName || "Virksomhed"} />
+      {/* ── Pulse highlight ── */}
+      {latestPulse?.biggest_challenge && (
+        <div className="glass-card rounded-xl p-4 mb-4">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Seneste pulse — største udfordring
+          </p>
+          <p className="text-sm text-foreground leading-relaxed">
+            "{latestPulse.biggest_challenge}"
+          </p>
+        </div>
+      )}
 
       {!latest && (
         <div className="rounded-xl border border-border bg-card p-4 text-center">
