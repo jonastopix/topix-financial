@@ -972,7 +972,7 @@ const Reports = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        {needsManualEntry && (
+                        {needsManualEntry && !isTrueError && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setReviewDialogState({ open: true, reportId: report.id, reportLabel: getEffectiveReportPeriod(report) || report.file_name, cardState: "ready" }); }}
                             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
