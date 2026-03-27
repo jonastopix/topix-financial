@@ -786,7 +786,7 @@ const FileUploadZone = ({
           const friendlyMsg = getFriendlyErrorMessage(extractedData);
           throw new Error(friendlyMsg);
         }
-        console.log("[Overwrite] Known fallback path detected, continuing to pipeline:", extractedData?.status);
+        
       }
 
       updateFile(pendingFileId, { extractedData });
