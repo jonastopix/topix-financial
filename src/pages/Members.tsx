@@ -1205,24 +1205,17 @@ const Members = () => {
       {/* Members table */}
       <div className="glass-card rounded-xl overflow-hidden mb-6">
         {/* Table header */}
-        <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_0.7fr_0.7fr_0.5fr] gap-3 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
+        <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
           <button onClick={() => toggleSort("name")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Virksomhed <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("industry")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Branche <ArrowUpDown className="h-3 w-3" />
+          <button onClick={() => toggleSort("latest_report")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+            Seneste rapport <ArrowUpDown className="h-3 w-3" />
           </button>
-          <button onClick={() => toggleSort("contact_person")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Kontakt <ArrowUpDown className="h-3 w-3" />
-          </button>
-          <button onClick={() => toggleSort("city")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            By <ArrowUpDown className="h-3 w-3" />
-          </button>
-          <button onClick={() => toggleSort("annual_revenue")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Omsætning <ArrowUpDown className="h-3 w-3" />
-          </button>
+          <span>Pulse</span>
+          <span>Chat</span>
           <button onClick={() => toggleSort("reportCount")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
-            Rapporter <ArrowUpDown className="h-3 w-3" />
+            Status <ArrowUpDown className="h-3 w-3" />
           </button>
         </div>
 
