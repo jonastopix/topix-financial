@@ -1292,6 +1292,31 @@ const CompanyChatPane = () => {
     }
   };
 
+  // Sub-company member redirect: if member has no conversations and is in a group
+  if (!isAdvisor && !viewingAsMember && conversations.length === 0 && companyId && !activeConvId) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-12">
+        <div className="p-4 rounded-2xl bg-primary/10 mb-4">
+          <MessageCircle className="h-7 w-7 text-primary" />
+        </div>
+        <h3 className="text-base font-display font-semibold text-foreground mb-2">
+          Brug koncern-chatten
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-sm mb-4">
+          Som del af en koncern kommunikerer I med jeres rådgivere
+          via den fælles koncern-chat.
+        </p>
+        <button
+          onClick={() => navigate("/chat")}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground
+            text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Åbn koncern-chat →
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       {isAdvisor && !isFullscreen && !isMobile && (

@@ -2221,6 +2221,7 @@ export type Database = {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
+      is_group_subcompany: { Args: { p_company_id: string }; Returns: boolean }
       log_user_login: { Args: never; Returns: undefined }
       lookup_invite_company: { Args: { invite_token: string }; Returns: string }
       lookup_invite_company_info: {
