@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
       const deepLink = `/members/${report.user_id}?reportId=${report.id}`;
       await writeNotificationToMany(admin, advisorIds, {
         type: "report_uploaded",
-        priority: "important",
+        priority: "info",
         title: `Ny ${reportLabel.toLowerCase()} fra ${companyName}`,
         body: `${reportLabel} for ${reportPeriod}`,
         reference_type: "report",
