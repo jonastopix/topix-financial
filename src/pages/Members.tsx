@@ -1271,24 +1271,6 @@ const Members = () => {
                                 <Send className="h-2.5 w-2.5" /> Afventer
                               </span>
                             )}
-                            {isAdmin && groupInfoMap.has(c.id) && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold whitespace-nowrap">
-                                <Layers className="h-2.5 w-2.5" /> {groupInfoMap.get(c.id)!.groupName}
-                                {groupInfoMap.get(c.id)!.isAnchor && <span className="text-[8px] opacity-70">(Anchor)</span>}
-                              </span>
-                            )}
-                            {isAdmin && groupInfoMap.get(c.id)?.isAnchor && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const info = groupInfoMap.get(c.id)!;
-                                  setAddToGroupTarget({ groupId: info.groupId, groupName: info.groupName });
-                                }}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/5 text-primary text-[10px] font-medium hover:bg-primary/15 transition-colors border border-primary/20 whitespace-nowrap"
-                              >
-                                + Tilføj virksomhed
-                              </button>
-                            )}
                             {c.unreadCount > 0 && (
                               <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
                                 {c.unreadCount}
