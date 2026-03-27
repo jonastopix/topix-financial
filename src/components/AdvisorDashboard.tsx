@@ -647,10 +647,10 @@ const AdvisorDashboard = () => {
     <div className="space-y-8">
       {/* ── TOP: Portfolio KPI bar ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="Samlet omsætning" value={formatCompact(totalRevenue)} accentColor="blue" />
-        <KPICard title="Samlet resultat" value={formatCompact(totalEbt)} accentColor={totalEbt >= 0 ? "emerald" : "rose"} />
-        <KPICard title="Rapporteret denne måned" value={`${reportedThisMonth} / ${total}`} subtitle="har sendt rapport" accentColor={reportedThisMonth === total ? "emerald" : "amber"} />
-        <KPICard title="Platform-engagement" value={`${pulseThisMonth} / ${total}`} subtitle="pulse seneste 30 dage" accentColor="blue" />
+        <KPICard title="Rapporterer aktivt" value={`${reportedThisMonth} / ${total}`} subtitle="sendt rapport denne måned" accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"} />
+        <KPICard title="Platform-engagement" value={`${fullyEngaged} / ${total}`} subtitle={`bruger 3+ funktioner · snit ${avgEngagement.toFixed(1)}/4`} accentColor={total > 0 && fullyEngaged / total >= 0.5 ? "emerald" : "blue"} />
+        <KPICard title="Fundament på plads" value={`${withFoundation} / ${total}`} subtitle="KPI-mål + milestones sat" accentColor={total > 0 && withFoundation / total >= 0.6 ? "emerald" : "amber"} />
+        <KPICard title="Omsætningstrend" value={withTrendData > 0 ? `${withPositiveTrend} ↑ · ${withNegativeTrend} ↓` : "Ingen data"} subtitle={withTrendData > 0 ? `af ${withTrendData} med sammenlignbare tal` : "kræver 2+ måneders rapporter"} accentColor={withNegativeTrend > withPositiveTrend ? "rose" : "emerald"} />
       </div>
 
       {/* ── Two-column layout ── */}
