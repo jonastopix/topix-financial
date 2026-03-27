@@ -1044,32 +1044,19 @@ function ExtractedDataPreview({ data }: { data: ExtractedData }) {
 
             {/* Validation & Financial Indicators */}
             {(() => {
-              const validationStatus = data.validation?.status || "FAIL";
+              // For v2 extractions, check extraction_method instead of validation.status
+              // Deterministic extractions are always valid by definition
+              const isDeterministic = data.extraction_method === "deterministic";
+              const validationStatus = data.validation?.status;
               
-              // Scenario 1: Validation ikke PASS → kun advarsel
-              if (validationStatus !== "PASS") {
+              if (isDeterministic || validationStatus === "PASS") {
+                // Show success badges
                 return (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">
-                        Validation {validationStatus === "FAIL" ? "fejlede" : "ufuldstændig"}
-                      </p>
-                      <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                        AI-analyse og milestone-oprettelse er deaktiveret. Gennemgå data manuelt.
-                      </p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Scenario 2: PASS → vis altid "Data valideret" + finansielle badges
-              return (
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Data valideret
-                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {isDeterministic ? "Automatisk aflæst" : "Data valideret"}
+                    </span>
                   {hasPositiveEquity && (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       Positiv egenkapital
