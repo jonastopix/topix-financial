@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
       await writeNotification(admin, {
         user_id: userId,
         type: "milestone_deadline_reminder",
-        priority: "important",
+        priority: daysUntil <= 3 ? "important" : "info",
         title,
         body: body_text,
         reference_type: "milestone",
