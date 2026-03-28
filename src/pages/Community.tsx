@@ -1,83 +1,183 @@
-import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { X, Info } from "lucide-react";
-
-const TABS = [
-  { value: "events", label: "Events", src: "https://app.topix.dk/c/calendar/?iframe=true" },
-  { value: "community", label: "Community", src: "https://app.topix.dk/c/community/?iframe=true" },
-  { value: "classroom", label: "Classroom", src: "https://app.topix.dk/c/classroom/?iframe=true" },
-] as const;
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { CalendarDays, MessageSquare, ExternalLink } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { format, formatDistanceToNow } from "date-fns";
+import { da } from "date-fns/locale";
 
 const Community = () => {
-  const [activeTab, setActiveTab] = useState<string>("events");
-  const [iframeLoading, setIframeLoading] = useState<Record<string, boolean>>({});
-  const [bannerDismissed, setBannerDismissed] = useState(
-    () => localStorage.getItem("circle_banner_dismissed") === "true"
-  );
+  const { user } = useAuth();
 
-  const dismissBanner = () => {
-    localStorage.setItem("circle_banner_dismissed", "true");
-    setBannerDismissed(true);
-  };
+  const { data: events, isLoading: eventsLoading } = useQuery({
+    queryKey: ["circle-events"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("circle_activity")
+        .select("*")
+        .eq("activity_type", "event")
+        .order("activity_at", { ascending: true })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: posts, isLoading: postsLoading } = useQuery({
+    queryKey: ["circle-posts"],
+    queryFn: async () => {
+      const { data: activities, error } = await supabase
+        .from("circle_activity")
+        .select("*")
+        .eq("activity_type", "post")
+        .order("activity_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      if (!activities?.length) return [];
+
+      const memberIds = [...new Set(activities.map((a) => a.circle_member_id))];
+      const { data: members } = await supabase
+        .from("circle_members")
+        .select("circle_id, name")
+        .in("circle_id", memberIds);
+
+      const memberMap = new Map(members?.map((m) => [m.circle_id, m.name]) ?? []);
+      return activities.map((a) => ({
+        ...a,
+        member_name: memberMap.get(a.circle_member_id) ?? "Ukendt",
+      }));
+    },
+    enabled: !!user,
+  });
 
   return (
     <AppLayout>
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-8">
         <h1 className="text-2xl font-bold text-foreground">Community</h1>
 
-        {!bannerDismissed && (
-          <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-            <Info className="h-4 w-4 text-amber-600 shrink-0" />
-            <span className="text-sm text-foreground flex-1">
-              Du skal være logget ind på app.topix.dk for at se indholdet herunder.
-            </span>
-            <a
-              href="https://app.topix.dk"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-amber-700 hover:text-amber-800 whitespace-nowrap"
-            >
-              Åbn app.topix.dk
-            </a>
-            <button
-              onClick={dismissBanner}
-              className="p-1 rounded hover:bg-amber-500/20 transition-colors"
-              aria-label="Luk"
-            >
-              <X className="h-4 w-4 text-amber-600" />
-            </button>
+        {/* Section 1: Kommende events */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Kommende events</h2>
           </div>
-        )}
+          {eventsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            </div>
+          ) : !events?.length ? (
+            <Card>
+              <CardContent className="py-6 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Ingen kommende events — tjek app.topix.dk for opdateringer
+                </p>
+                <Button asChild variant="outline" size="sm">
+                  <a href="https://app.topix.dk/c/calendar/" target="_blank" rel="noopener noreferrer">
+                    Åbn kalender
+                    <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {events.map((event) => (
+                <Card key={event.id}>
+                  <CardContent className="py-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">{event.title ?? "Event"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(event.activity_at), "d. MMMM yyyy", { locale: da })}
+                      </p>
+                    </div>
+                    <a
+                      href="https://app.topix.dk/c/calendar/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-primary hover:underline whitespace-nowrap flex items-center gap-1"
+                    >
+                      Se event
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            {TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        {/* Section 2: Community aktivitet */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Seneste i community</h2>
+          </div>
+          {postsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            </div>
+          ) : !posts?.length ? (
+            <p className="text-sm text-muted-foreground">Ingen aktivitet endnu</p>
+          ) : (
+            <div className="grid gap-3">
+              {posts.map((post) => {
+                const memberName = post.member_name;
+                const preview =
+                  post.content_preview && post.content_preview.length > 120
+                  post.content_preview && post.content_preview.length > 120
+                    ? post.content_preview.slice(0, 120) + "…"
+                    : post.content_preview;
+                return (
+                  <Card key={post.id}>
+                    <CardContent className="py-4 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-foreground">{memberName}</span>
+                        {post.space_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            {post.space_name}
+                          </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+                          {formatDistanceToNow(new Date(post.activity_at), {
+                            addSuffix: true,
+                            locale: da,
+                          })}
+                        </span>
+                      </div>
+                      {post.title && (
+                        <p className="font-medium text-foreground text-sm">{post.title}</p>
+                      )}
+                      {preview && (
+                        <p className="text-xs text-muted-foreground">{preview}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-          {TABS.map((tab) => (
-            <TabsContent key={tab.value} value={tab.value}>
-              <div className="relative">
-                {iframeLoading[tab.value] !== false && activeTab === tab.value && (
-                  <div className="absolute inset-0 flex items-center justify-center" style={{ height: "calc(100vh - 200px)" }}>
-                    <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  </div>
-                )}
-                {activeTab === tab.value && (
-                  <iframe
-                    src={tab.src}
-                    style={{ border: 0, width: "100%", height: "calc(100vh - 200px)" }}
-                    onLoad={() => setIframeLoading((prev) => ({ ...prev, [tab.value]: false }))}
-                  />
-                )}
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
+        {/* Section 3: Link til community */}
+        <section>
+          <Card>
+            <CardContent className="py-6 text-center space-y-3">
+              <Button asChild className="bg-primary hover:bg-primary/90">
+                <a href="https://app.topix.dk/c/" target="_blank" rel="noopener noreferrer">
+                  Åbn The Boardroom community
+                  <ExternalLink className="ml-1.5 h-4 w-4" />
+                </a>
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Du skal være logget ind på app.topix.dk for at se indholdet.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </AppLayout>
   );
