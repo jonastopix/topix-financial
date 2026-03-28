@@ -87,6 +87,7 @@ const App = () => (
             <ScrollToTop />
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
+              <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
