@@ -44,6 +44,16 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [returnUrl, navigate]);
 
+  // If already logged in and returnUrl is set, redirect immediately
+  useEffect(() => {
+    if (!returnUrl) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && returnUrl.startsWith("https://")) {
+        window.location.href = returnUrl;
+      }
+    });
+  }, [returnUrl]);
+
   // Look up company info from invite token
   useEffect(() => {
     if (!inviteToken) return;
