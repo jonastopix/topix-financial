@@ -30,14 +30,26 @@ const Community = () => {
   const { data: posts, isLoading: postsLoading } = useQuery({
     queryKey: ["circle-posts"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: activities, error } = await supabase
         .from("circle_activity")
-        .select("*, circle_members!inner(name)")
+        .select("*")
         .eq("activity_type", "post")
         .order("activity_at", { ascending: false })
         .limit(5);
       if (error) throw error;
-      return data;
+      if (!activities?.length) return [];
+
+      const memberIds = [...new Set(activities.map((a) => a.circle_member_id))];
+      const { data: members } = await supabase
+        .from("circle_members")
+        .select("circle_id, name")
+        .in("circle_id", memberIds);
+
+      const memberMap = new Map(members?.map((m) => [m.circle_id, m.name]) ?? []);
+      return activities.map((a) => ({
+        ...a,
+        member_name: memberMap.get(a.circle_member_id) ?? "Ukendt",
+      }));
     },
     enabled: !!user,
   });
