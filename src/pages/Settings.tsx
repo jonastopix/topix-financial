@@ -26,6 +26,125 @@ interface CompanyData {
   industry: string | null;
 }
 
+const CircleProfileSection = ({ userId }: { userId?: string }) => {
+  const [circleEmail, setCircleEmail] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [linkedProfile, setLinkedProfile] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [loadingLinked, setLoadingLinked] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    const check = async () => {
+      const { data } = await supabase
+        .from("circle_members")
+        .select("id, name, email")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (data) setLinkedProfile({ id: data.id, name: data.name, email: data.email });
+      setLoadingLinked(false);
+    };
+    check();
+  }, [userId]);
+
+  const handleLink = async () => {
+    if (!userId || !circleEmail.trim()) return;
+    setLinking(true);
+    const { data, error } = await supabase
+      .from("circle_members")
+      .select("id, name, email")
+      .ilike("email", circleEmail.trim())
+      .maybeSingle();
+
+    if (error || !data) {
+      toast.error("Ingen Circle-profil fundet med den email");
+      setLinking(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("circle_members")
+      .update({ user_id: userId })
+      .eq("id", data.id);
+
+    if (updateError) {
+      toast.error("Kunne ikke tilknytte profil");
+    } else {
+      setLinkedProfile({ id: data.id, name: data.name, email: data.email });
+      setCircleEmail("");
+      toast.success("Circle-profil tilknyttet");
+    }
+    setLinking(false);
+  };
+
+  const handleUnlink = async () => {
+    if (!userId) return;
+    setLinking(true);
+    const { error } = await supabase
+      .from("circle_members")
+      .update({ user_id: null })
+      .eq("user_id", userId);
+
+    if (error) {
+      toast.error("Kunne ikke fjerne tilknytning");
+    } else {
+      setLinkedProfile(null);
+      toast.success("Tilknytning fjernet");
+    }
+    setLinking(false);
+  };
+
+  if (loadingLinked) return null;
+
+  return (
+    <div className="glass-card rounded-xl p-6 animate-fade-in">
+      <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
+        <Link2 className="h-4 w-4 text-primary" />
+        Tilknyt Circle-profil
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Hvis du bruger en anden email på app.topix.dk end her på platformen, kan du tilknytte din Circle-profil her.
+      </p>
+
+      {linkedProfile ? (
+        <div className="space-y-2">
+          <p className="text-sm text-green-600 dark:text-green-400">
+            ✓ Tilknyttet som {linkedProfile.name} ({linkedProfile.email})
+          </p>
+          <button
+            onClick={handleUnlink}
+            disabled={linking}
+            className="text-sm text-muted-foreground hover:text-destructive underline transition-colors disabled:opacity-50"
+          >
+            Fjern tilknytning
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+              Din email på app.topix.dk
+            </label>
+            <input
+              value={circleEmail}
+              onChange={(e) => setCircleEmail(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="din@email.dk"
+            />
+          </div>
+          <button
+            onClick={handleLink}
+            disabled={linking || !circleEmail.trim()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+            Tilknyt profil
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Settings = () => {
   const { user, profile, isAdvisor, isAdmin, refreshProfile } = useAuth();
   const navigate = useNavigate();
