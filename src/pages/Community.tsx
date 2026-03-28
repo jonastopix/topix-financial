@@ -58,9 +58,17 @@ const Community = () => {
           ))}
         </div>
 
-        <p className="text-xs text-muted-foreground text-center">
-          Du skal være logget ind på app.topix.dk for at se indholdet. Brug den email du er registreret med.
-        </p>
+        <div className="flex flex-col items-center gap-3">
+          <Button asChild variant="outline" className="max-w-xs w-full">
+            <a href="https://app.topix.dk/c/community/" target="_blank" rel="noopener noreferrer">
+              Log ind på app.topix.dk
+              <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+            </a>
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Første gang skal du logge ind på app.topix.dk med knappen herover. Derefter åbner community direkte.
+          </p>
+        </div>
       </div>
     </AppLayout>
   );
