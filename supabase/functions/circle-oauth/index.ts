@@ -62,9 +62,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const authorizeUrl = new URL(req.url);
-    const fullAuthorizeUrl = authorizeUrl.toString();
-    const LOGIN_URL = `https://topix.lovable.app/auth?returnUrl=${encodeURIComponent(fullAuthorizeUrl)}`;
+    const reqUrl = new URL(req.url);
+    const canonicalUrl = new URL("https://loiavmastgeieqyiwyyr.supabase.co/functions/v1/circle-oauth/authorize");
+    reqUrl.searchParams.forEach((value, key) => canonicalUrl.searchParams.set(key, value));
+    const LOGIN_URL = `https://topix.lovable.app/auth?returnUrl=${encodeURIComponent(canonicalUrl.toString())}`;
 
     if (!accessToken) return redirect(LOGIN_URL);
 
