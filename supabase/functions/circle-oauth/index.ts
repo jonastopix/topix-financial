@@ -62,7 +62,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    const params = url.searchParams;
     const callbackUrl = "https://loiavmastgeieqyiwyyr.supabase.co/functions/v1/circle-oauth/authorize"
       + "?client_id=" + encodeURIComponent(params.get("client_id") ?? "")
       + "&redirect_uri=" + encodeURIComponent(params.get("redirect_uri") ?? "")
