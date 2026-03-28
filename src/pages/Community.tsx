@@ -125,9 +125,9 @@ const Community = () => {
           ) : (
             <div className="grid gap-3">
               {posts.map((post) => {
-                const memberName =
-                  (post as any).circle_members?.name ?? "Ukendt";
+                const memberName = post.member_name;
                 const preview =
+                  post.content_preview && post.content_preview.length > 120
                   post.content_preview && post.content_preview.length > 120
                     ? post.content_preview.slice(0, 120) + "…"
                     : post.content_preview;
