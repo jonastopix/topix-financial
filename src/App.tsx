@@ -34,6 +34,7 @@ import GroupBudget from "./pages/GroupBudget";
 import AdvisorGroupList from "./pages/AdvisorGroupList";
 import AdvisorGroupDashboard from "./pages/AdvisorGroupDashboard";
 import PulseCheckin from "./pages/PulseCheckin";
+import Community from "./pages/Community";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -96,6 +97,7 @@ const App = () => (
               <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><ChatShell /></ProtectedRoute>} />
               <Route path="/pulse" element={<ProtectedRoute><PulseCheckin /></ProtectedRoute>} />
+              <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
               
               <Route path="/members" element={<AdvisorRoute><Members /></AdvisorRoute>} />
               <Route path="/members/:userId" element={<AdvisorRoute><MemberDetail /></AdvisorRoute>} />
