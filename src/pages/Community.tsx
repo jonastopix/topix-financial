@@ -34,7 +34,7 @@ const Community = () => {
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">Community</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Her finder du The Boardroom community, kommende live sessions og videomoduler i Classroom. Log ind med din email på app.topix.dk.
+            Genveje til dit The Boardroom community på app.topix.dk.
           </p>
         </div>
 
@@ -66,7 +66,7 @@ const Community = () => {
             </a>
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Første gang skal du logge ind på app.topix.dk med knappen herover. Derefter åbner community direkte.
+            Åbner app.topix.dk — log ind med din sædvanlige email.
           </p>
         </div>
       </div>
