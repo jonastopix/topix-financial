@@ -143,6 +143,25 @@ async function fetchSpaceMembers(apiKey: string, spaceId: number) {
   return members;
 }
 
+// Fetch events
+async function fetchEvents(apiKey: string) {
+  const events: any[] = [];
+  let page = 1;
+  const perPage = 50;
+  while (true) {
+    const data = await circleGet("/events", apiKey, {
+      per_page: String(perPage),
+      page: String(page),
+    });
+    const records = data?.records ?? data ?? [];
+    if (!Array.isArray(records) || records.length === 0) break;
+    events.push(...records);
+    if (records.length < perPage) break;
+    page++;
+  }
+  return events;
+}
+
 // Fetch posts for a specific space
 async function fetchPosts(apiKey: string, spaceId?: number) {
   const params: Record<string, string> = { per_page: "100", sort: "latest" };
