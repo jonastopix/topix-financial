@@ -1,26 +1,17 @@
 
 
-## Plan: Add session-check useEffect to Auth.tsx
+## Add "Regnskab" milestone category
 
-### What
-Add a new `useEffect` in `src/pages/Auth.tsx` that checks if the user is already logged in when the page loads with a `returnUrl` parameter. If so, immediately redirect to that URL.
+A new milestone category "Regnskab" will be added to the existing category registry.
 
-### Where
-Insert the new `useEffect` block right after the existing "Redirect after successful auth" `useEffect` (around line 38, after the `return () => subscription.unsubscribe();` block closes).
+### Changes
 
-### Code to add
-```typescript
-// If already logged in and returnUrl is set, redirect immediately
-useEffect(() => {
-  if (!returnUrl) return;
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session && returnUrl.startsWith("https://")) {
-      window.location.href = returnUrl;
-    }
-  });
-}, [returnUrl]);
-```
+**File: `src/lib/milestoneCategories.ts`**
+- Add `"regnskab"` to the `MilestoneCategory` type union
+- Add entry in `MILESTONE_CATEGORIES` with:
+  - Label: "Regnskab"
+  - Icon: `Calculator` (from lucide-react)
+  - Badge style: a warm color not yet used (e.g. `bg-rose-500/15 text-rose-600`)
 
-### Files modified
-- `src/pages/Auth.tsx` — one addition, no other changes
+That's it — one file, ~5 lines added. The `CATEGORY_OPTIONS` export auto-generates from the record, so all dropdowns and displays pick it up immediately.
 
