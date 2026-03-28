@@ -69,6 +69,11 @@ export const MILESTONE_SUGGESTIONS: Record<MilestoneCategory, MilestoneSuggestio
     { title: "Udarbejde pitch deck", description: "Skab et investorklar pitch deck med financials, traction og markedsanalyse.", baselineHint: "Beskriv nuværende status på materialer" },
     { title: "Nå break-even inden næste runde", description: "Opnå break-even på månedsbasis inden næste planlagte kapitalrejsning.", baselineHint: "Indtast nuværende månedligt burn rate" },
   ],
+  regnskab: [
+    { title: "Afslut årsregnskab til tiden", description: "Færdiggør og indsend årsregnskabet inden deadline.", baselineHint: "Seneste regnskabsperiode afsluttet" },
+    { title: "Implementer månedlig bogføring", description: "Sørg for at bogføring sker løbende hver måned.", baselineHint: "Nuværende bogføringsfrekvens" },
+    { title: "Reducér bogføringsefterslæb", description: "Bring bogføringen ajour så den altid er maks 2 uger bagud.", baselineHint: "Nuværende forsinkelse i bogføring" },
+  ],
   other: [
     { title: "Etabler advisory board", description: "Saml et advisory board med 3-5 relevante rådgivere fra branchen.", baselineHint: "Antal rådgivere pt." },
     { title: "Implementer nyt ERP-system", description: "Vælg, implementér og migrer til et nyt ERP-system der understøtter væksten.", baselineHint: "Beskriv nuværende systemopsætning" },
