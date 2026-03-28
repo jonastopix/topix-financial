@@ -58,17 +58,9 @@ const Community = () => {
           ))}
         </div>
 
-        <div className="flex flex-col items-center gap-3">
-          <Button asChild variant="outline" className="max-w-xs w-full">
-            <a href="https://app.topix.dk/c/community/" target="_blank" rel="noopener noreferrer">
-              Log ind på app.topix.dk
-              <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-            </a>
-          </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            Åbner app.topix.dk — log ind med din sædvanlige email.
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          Åbner app.topix.dk — log ind med din sædvanlige email.
+        </p>
       </div>
     </AppLayout>
   );
