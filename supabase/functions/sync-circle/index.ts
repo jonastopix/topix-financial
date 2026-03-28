@@ -143,6 +143,25 @@ async function fetchSpaceMembers(apiKey: string, spaceId: number) {
   return members;
 }
 
+// Fetch events
+async function fetchEvents(apiKey: string) {
+  const events: any[] = [];
+  let page = 1;
+  const perPage = 50;
+  while (true) {
+    const data = await circleGet("/events", apiKey, {
+      per_page: String(perPage),
+      page: String(page),
+    });
+    const records = data?.records ?? data ?? [];
+    if (!Array.isArray(records) || records.length === 0) break;
+    events.push(...records);
+    if (records.length < perPage) break;
+    page++;
+  }
+  return events;
+}
+
 // Fetch posts for a specific space
 async function fetchPosts(apiKey: string, spaceId?: number) {
   const params: Record<string, string> = { per_page: "100", sort: "latest" };
@@ -445,6 +464,32 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn(`Could not sync posts for space ${spaceId}:`, e);
       }
+    }
+
+    // ─── Sync Events ───
+    console.log("Fetching Circle events...");
+    try {
+      const events = await fetchEvents(circleApiKey);
+      console.log(`Found ${events.length} events`);
+      for (const event of events) {
+        if (!event.id) continue;
+        const memberId = event.community_member_id ?? null;
+        await supabase.from("circle_activity").upsert(
+          {
+            circle_member_id: memberId ?? 0,
+            activity_type: "event",
+            circle_post_id: event.id,
+            space_name: event.space?.name ?? event.location ?? null,
+            title: event.name ?? event.title ?? null,
+            content_preview: event.description ? String(event.description).substring(0, 300) : null,
+            activity_at: event.starts_at ?? event.start_time ?? event.created_at ?? new Date().toISOString(),
+            synced_at: new Date().toISOString(),
+          },
+          { onConflict: "circle_post_id" }
+        );
+      }
+    } catch (e) {
+      console.warn("Could not sync events:", e);
     }
 
     console.log("Sync complete:", stats);
