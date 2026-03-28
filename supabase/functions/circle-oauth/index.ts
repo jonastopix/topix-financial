@@ -62,7 +62,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    const LOGIN_URL = "https://topix.lovable.app/auth?next=/community";
+    const authorizeUrl = new URL(req.url);
+    const fullAuthorizeUrl = authorizeUrl.toString();
+    const LOGIN_URL = `https://topix.lovable.app/auth?returnUrl=${encodeURIComponent(fullAuthorizeUrl)}`;
 
     if (!accessToken) return redirect(LOGIN_URL);
 
