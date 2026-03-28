@@ -52,6 +52,25 @@ const AdminConfig = () => {
   const { branding, performanceScore, gamification, meetings, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleCircleSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-circle", {
+        body: { action: "sync" },
+      });
+      if (error) {
+        toast.error("Synkronisering fejlede");
+      } else {
+        toast.success(`Synkronisering færdig — ${data?.stats?.members_synced ?? 0} medlemmer opdateret`);
+      }
+    } catch {
+      toast.error("Synkronisering fejlede");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // ─── Advisor management state ───────────────────────────
   const [advisors, setAdvisors] = useState<AdvisorEntry[]>([]);
