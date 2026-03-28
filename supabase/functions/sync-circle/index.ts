@@ -424,6 +424,7 @@ Deno.serve(async (req) => {
         for (const post of posts) {
           const memberId = post.community_member_id || post.user_id;
           if (!memberId) continue;
+          if (!post.id) continue;
 
           const { error: actErr } = await supabase.from("circle_activity").upsert(
             {
@@ -436,7 +437,7 @@ Deno.serve(async (req) => {
               activity_at: post.created_at || new Date().toISOString(),
               synced_at: new Date().toISOString(),
             },
-            { onConflict: "id" }
+            { onConflict: "circle_post_id" }
           );
 
           if (!actErr) stats.activities_synced++;
