@@ -466,6 +466,32 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ─── Sync Events ───
+    console.log("Fetching Circle events...");
+    try {
+      const events = await fetchEvents(circleApiKey);
+      console.log(`Found ${events.length} events`);
+      for (const event of events) {
+        if (!event.id) continue;
+        const memberId = event.community_member_id ?? null;
+        await supabase.from("circle_activity").upsert(
+          {
+            circle_member_id: memberId ?? 0,
+            activity_type: "event",
+            circle_post_id: event.id,
+            space_name: event.space?.name ?? event.location ?? null,
+            title: event.name ?? event.title ?? null,
+            content_preview: event.description ? String(event.description).substring(0, 300) : null,
+            activity_at: event.starts_at ?? event.start_time ?? event.created_at ?? new Date().toISOString(),
+            synced_at: new Date().toISOString(),
+          },
+          { onConflict: "circle_post_id" }
+        );
+      }
+    } catch (e) {
+      console.warn("Could not sync events:", e);
+    }
+
     console.log("Sync complete:", stats);
 
     return new Response(JSON.stringify({ success: true, action: "sync", stats }), {
