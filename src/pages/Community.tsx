@@ -40,12 +40,16 @@ const Community = () => {
       if (!activities?.length) return [];
 
       const memberIds = [...new Set(activities.map((a) => a.circle_member_id))];
-      const { data: members } = await supabase
-        .from("circle_members")
-        .select("circle_id, name")
-        .in("circle_id", memberIds);
-
-      const memberMap = new Map(members?.map((m) => [m.circle_id, m.name]) ?? []);
+      let memberMap = new Map<number, string>();
+      if (memberIds.length > 0) {
+        const { data: members } = await supabase
+          .from("circle_members")
+          .select("circle_id, name, email")
+          .in("circle_id", memberIds);
+        memberMap = new Map(
+          (members ?? []).map((m) => [m.circle_id, m.name || m.email?.split("@")[0] || "Ukendt"])
+        );
+      }
       return activities.map((a) => ({
         ...a,
         member_name: memberMap.get(a.circle_member_id) ?? "Ukendt",
