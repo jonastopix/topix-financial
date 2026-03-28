@@ -66,7 +66,7 @@ const Community = () => {
             </a>
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Første gang skal du logge ind på app.topix.dk med knappen herover. Derefter åbner community direkte.
+            Åbner app.topix.dk — log ind med din sædvanlige email.
           </p>
         </div>
       </div>
