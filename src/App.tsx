@@ -34,6 +34,7 @@ import GroupBudget from "./pages/GroupBudget";
 import AdvisorGroupList from "./pages/AdvisorGroupList";
 import AdvisorGroupDashboard from "./pages/AdvisorGroupDashboard";
 import PulseCheckin from "./pages/PulseCheckin";
+import Community from "./pages/Community";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
