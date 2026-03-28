@@ -496,6 +496,9 @@ const Settings = () => {
           </button>
         </div>
 
+        {/* Circle profile section */}
+        <CircleProfileSection userId={user?.id} />
+
         {/* Company section */}
         {company && (
           <div className="glass-card rounded-xl p-6 animate-fade-in">
