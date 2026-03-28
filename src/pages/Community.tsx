@@ -1,5 +1,4 @@
 import AppLayout from "@/components/AppLayout";
-import { useAuth } from "@/hooks/useAuth";
 import { MessageSquare, CalendarDays, PlayCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,41 +9,25 @@ const cards = [
     title: "Community",
     description: "Del erfaringer, stil spørgsmål og få sparring fra andre iværksættere.",
     label: "Åbn community",
-    destination: "https://app.topix.dk/c/community/",
+    href: "https://app.topix.dk/c/community/",
   },
   {
     icon: CalendarDays,
     title: "Live sessions",
     description: "Se kommende online sessions og tilmeld dig direkte.",
     label: "Se kalender",
-    destination: "https://app.topix.dk/c/calendar/",
+    href: "https://app.topix.dk/c/calendar/",
   },
   {
     icon: PlayCircle,
     title: "Classroom",
     description: "Videomoduler og undervisning tilgængelig når det passer dig.",
     label: "Åbn Classroom",
-    destination: "https://app.topix.dk/c/classroom/",
+    href: "https://app.topix.dk/c/classroom/",
   },
 ];
 
 const Community = () => {
-  const { session } = useAuth();
-
-  const circleUrl = (destination: string) => {
-    const base = "https://loiavmastgeieqyiwyyr.supabase.co/functions/v1/circle-oauth/authorize";
-    const params = new URLSearchParams({
-      client_id: "topix-boardroom",
-      redirect_uri: "https://app.topix.dk/oauth2/callback",
-      response_type: "code",
-      state: destination,
-    });
-    if (session?.access_token) {
-      params.set("access_token", session.access_token);
-    }
-    return `${base}?${params.toString()}`;
-  };
-
   return (
     <AppLayout>
       <div className="p-4 md:p-6 space-y-6">
@@ -65,7 +48,7 @@ const Community = () => {
                   <p className="text-sm text-muted-foreground">{card.description}</p>
                 </div>
                 <Button asChild variant="outline" size="sm">
-                  <a href={circleUrl(card.destination)} target="_blank" rel="noopener noreferrer">
+                  <a href={card.href} target="_blank" rel="noopener noreferrer">
                     {card.label}
                     <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
                   </a>
