@@ -43,7 +43,6 @@ const baseNavItems = [
   { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
-  { icon: Users, label: "Community", path: "/community" },
 ];
 
 const advisorNavItems = [
