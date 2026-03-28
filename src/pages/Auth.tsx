@@ -30,6 +30,20 @@ const Auth = () => {
   const [inviteCompany, setInviteCompany] = useState<{ name: string; logo_url: string | null } | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Redirect after successful auth
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        if (returnUrl && returnUrl.startsWith("https://")) {
+          window.location.href = returnUrl;
+        } else {
+          navigate(returnUrl || "/", { replace: true });
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [returnUrl, navigate]);
+
   // Look up company info from invite token
   useEffect(() => {
     if (!inviteToken) return;
