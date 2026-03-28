@@ -1,13 +1,14 @@
 import {
   TrendingUp, Coins, Clock, Users, BarChart3, Target,
   Package, ShoppingCart, Heart, Megaphone, Scale, Landmark,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 
 export type MilestoneCategory =
   | "vaekst" | "profit" | "timer" | "medarbejdere" | "db"
   | "produkt" | "salg" | "kunder" | "marketing" | "juridisk" | "funding"
-  | "other";
+  | "regnskab" | "other";
 
 export interface CategoryConfig {
   label: string;
@@ -70,6 +71,11 @@ export const MILESTONE_CATEGORIES: Record<MilestoneCategory, CategoryConfig> = {
     label: "Funding",
     icon: Landmark,
     badgeClass: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+  },
+  regnskab: {
+    label: "Regnskab",
+    icon: Calculator,
+    badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   },
   other: {
     label: "Andet",
