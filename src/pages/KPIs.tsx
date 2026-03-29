@@ -451,6 +451,54 @@ const KPIs = () => {
 
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) || kpiMetrics[0];
 
+  const activeCommentsByPeriod = useMemo(() => {
+    const map: Record<string, { id: string; content: string; author_id: string }> = {};
+    chartComments
+      .filter(c => c.kpi_key === selectedKPI)
+      .forEach(c => { map[c.period_key] = c; });
+    return map;
+  }, [chartComments, selectedKPI]);
+
+  const handleSaveComment = async () => {
+    if (!commentPopover || !companyId || !user || !commentDraft.trim()) return;
+    setSavingComment(true);
+    const { error } = await (supabase
+      .from("kpi_chart_comments" as any)
+      .upsert({
+        company_id: companyId,
+        period_key: commentPopover.periodKey,
+        period_label: commentPopover.periodLabel,
+        kpi_key: selectedKPI,
+        content: commentDraft.trim(),
+        author_id: user.id,
+      }, { onConflict: "company_id,period_key,kpi_key" }) as any);
+    setSavingComment(false);
+    if (error) { toast.error("Kunne ikke gemme kommentar"); return; }
+    setCommentPopover(null);
+    setCommentDraft("");
+    refetchComments();
+
+    supabase.functions.invoke("send-slack-report-notification", {
+      body: {
+        event: "advisor_kpi_comment",
+        companyId,
+        periodKey: commentPopover.periodKey,
+        kpiKey: selectedKPI,
+      },
+    }).catch(() => {});
+  };
+
+  const handleDeleteComment = async (periodKey: string) => {
+    if (!companyId) return;
+    await (supabase
+      .from("kpi_chart_comments" as any)
+      .delete()
+      .eq("company_id", companyId)
+      .eq("period_key", periodKey)
+      .eq("kpi_key", selectedKPI) as any);
+    refetchComments();
+  };
+
   function getTargetStatus(metric: KPIMetric): { hit: boolean; pct: number } {
     if (!metric.targetNum) return { hit: false, pct: 0 };
     const hit = metric.lowerIsBetter
