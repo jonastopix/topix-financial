@@ -450,6 +450,7 @@ export type Database = {
           start_date: string | null
           status: string | null
           website: string | null
+          weekly_focus_enabled: boolean
         }
         Insert: {
           address?: string | null
@@ -472,6 +473,7 @@ export type Database = {
           start_date?: string | null
           status?: string | null
           website?: string | null
+          weekly_focus_enabled?: boolean
         }
         Update: {
           address?: string | null
@@ -494,8 +496,71 @@ export type Database = {
           start_date?: string | null
           status?: string | null
           website?: string | null
+          weekly_focus_enabled?: boolean
         }
         Relationships: []
+      }
+      company_actions: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          context: string | null
+          created_at: string
+          dismissed_at: string | null
+          generated_at: string | null
+          id: string
+          priority: string
+          source_id: string | null
+          source_type: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+          week_key: string | null
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          context?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          generated_at?: string | null
+          id?: string
+          priority?: string
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          week_key?: string | null
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          context?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          generated_at?: string | null
+          id?: string
+          priority?: string
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          week_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_invitations: {
         Row: {
@@ -1493,6 +1558,48 @@ export type Database = {
           },
         ]
       }
+      industry_benchmarks: {
+        Row: {
+          benchmark_label: string
+          benchmark_max: number
+          benchmark_min: number
+          benchmark_value: number
+          created_at: string
+          id: string
+          industry_code: string
+          industry_label: string
+          kpi_key: string
+          source_label: string
+          updated_at: string
+        }
+        Insert: {
+          benchmark_label: string
+          benchmark_max: number
+          benchmark_min: number
+          benchmark_value: number
+          created_at?: string
+          id?: string
+          industry_code: string
+          industry_label: string
+          kpi_key: string
+          source_label?: string
+          updated_at?: string
+        }
+        Update: {
+          benchmark_label?: string
+          benchmark_max?: number
+          benchmark_min?: number
+          benchmark_value?: number
+          created_at?: string
+          id?: string
+          industry_code?: string
+          industry_label?: string
+          kpi_key?: string
+          source_label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       kpi_benchmarks: {
         Row: {
           benchmark_label: string
@@ -2103,6 +2210,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      weekly_focus: {
+        Row: {
+          actions_generated: number
+          company_id: string
+          created_at: string
+          data_freshness_days: number | null
+          expires_at: string
+          generated_at: string
+          headline: string | null
+          id: string
+          seen_at: string | null
+          status: string
+          summary: string | null
+          trigger_data: Json
+          triggers_fired: Json
+          week_key: string
+        }
+        Insert: {
+          actions_generated?: number
+          company_id: string
+          created_at?: string
+          data_freshness_days?: number | null
+          expires_at?: string
+          generated_at?: string
+          headline?: string | null
+          id?: string
+          seen_at?: string | null
+          status?: string
+          summary?: string | null
+          trigger_data?: Json
+          triggers_fired?: Json
+          week_key: string
+        }
+        Update: {
+          actions_generated?: number
+          company_id?: string
+          created_at?: string
+          data_freshness_days?: number | null
+          expires_at?: string
+          generated_at?: string
+          headline?: string | null
+          id?: string
+          seen_at?: string | null
+          status?: string
+          summary?: string | null
+          trigger_data?: Json
+          triggers_fired?: Json
+          week_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_focus_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
