@@ -74,6 +74,11 @@ export const MILESTONE_SUGGESTIONS: Record<MilestoneCategory, MilestoneSuggestio
     { title: "Implementer månedlig bogføring", description: "Sørg for at bogføring sker løbende hver måned.", baselineHint: "Nuværende bogføringsfrekvens" },
     { title: "Reducér bogføringsefterslæb", description: "Bring bogføringen ajour så den altid er maks 2 uger bagud.", baselineHint: "Nuværende forsinkelse i bogføring" },
   ],
+  administration: [
+    { title: "Opret og vedligehold forsikringsoverblik", description: "Saml alle virksomhedens forsikringer ét sted og gennemgå dækning årligt.", baselineHint: "Antal forsikringer registreret pt." },
+    { title: "Implementer digital dokumenthåndtering", description: "Indfør et system til digital arkivering af kontrakter, kvitteringer og dokumenter.", baselineHint: "Nuværende dokumenthåndtering" },
+    { title: "Gennemfør årlig leverandørvurdering", description: "Evaluér alle faste leverandører på pris, kvalitet og leveringstid.", baselineHint: "Antal faste leverandører" },
+  ],
   other: [
     { title: "Etabler advisory board", description: "Saml et advisory board med 3-5 relevante rådgivere fra branchen.", baselineHint: "Antal rådgivere pt." },
     { title: "Implementer nyt ERP-system", description: "Vælg, implementér og migrer til et nyt ERP-system der understøtter væksten.", baselineHint: "Beskriv nuværende systemopsætning" },

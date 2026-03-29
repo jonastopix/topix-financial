@@ -77,6 +77,11 @@ export const MILESTONE_CATEGORIES: Record<MilestoneCategory, CategoryConfig> = {
     icon: Calculator,
     badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   },
+  administration: {
+    label: "Administration",
+    icon: ClipboardList,
+    badgeClass: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+  },
   other: {
     label: "Andet",
     icon: Target,
