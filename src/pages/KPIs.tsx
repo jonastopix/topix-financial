@@ -451,13 +451,13 @@ const KPIs = () => {
 
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) || kpiMetrics[0];
 
-  const activeCommentsByPeriod = useMemo(() => {
+  const activeCommentsByPeriod = (() => {
     const map: Record<string, { id: string; content: string; author_id: string }> = {};
     chartComments
       .filter(c => c.kpi_key === selectedKPI)
       .forEach(c => { map[c.period_key] = c; });
     return map;
-  }, [chartComments, selectedKPI]);
+  })();
 
   const handleSaveComment = async () => {
     if (!commentPopover || !companyId || !user || !commentDraft.trim()) return;
