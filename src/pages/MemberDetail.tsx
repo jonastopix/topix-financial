@@ -541,9 +541,9 @@ const MemberDetail = () => {
                     <Building2 className="h-3.5 w-3.5 text-primary" /> {companyCtx.name}
                   </span>
                 )}
-                {companyCtx?.industry && (
+                {companyCtx?.industry_label && (
                   <span className="flex items-center gap-1">
-                    <Globe className="h-3.5 w-3.5" /> {companyCtx.industry}
+                    <Globe className="h-3.5 w-3.5" /> {companyCtx.industry_label}
                   </span>
                 )}
                 {companyCtx?.cvr_number && (

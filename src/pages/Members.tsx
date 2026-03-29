@@ -1810,7 +1810,7 @@ const Members = () => {
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {c.reportCount} rapporter · {c.members.length} brugere
-                              {c.industry && ` · ${c.industry}`}
+                              {c.industry_label && ` · ${c.industry_label}`}
                             </p>
                           </div>
                           {c.members.length > 0 && (

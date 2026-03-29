@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
     // Use provided values or fall back to DB
     const effectiveCompanyName = company_name || (handout as any).companies?.name || null;
-    const effectiveIndustry = industry || (handout as any).companies?.industry || null;
+    const effectiveIndustry = industry || (handout as any).companies?.industry_label || null;
 
     const responses = handout.responses || {};
     const checklist = handout.checklist || {};

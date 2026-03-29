@@ -199,12 +199,12 @@ Deno.serve(async (req) => {
 
       const { data: company } = await callerClient
         .from("companies")
-        .select("industry")
+        .select("industry_label")
         .eq("name", companyContext.name)
         .maybeSingle();
 
-      if (company?.industry) {
-        companyContext = { ...companyContext, industry: company.industry };
+      if (company?.industry_label) {
+        companyContext = { ...companyContext, industry: company.industry_label };
       }
     }
 
