@@ -622,6 +622,12 @@ const Dashboard = () => {
         <BudgetOverview />
       </div>
 
+      {rollingForecast && !isAdvisor && (
+        <div className="mb-6">
+          <RollingForecastCard {...rollingForecast} />
+        </div>
+      )}
+
       {latestCommentary && !isAdvisor && (
         <div className="mb-6">
           <Link to="/kpis" className="block group">
