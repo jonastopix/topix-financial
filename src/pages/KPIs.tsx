@@ -216,6 +216,7 @@ const KPIs = () => {
 
       const history = monthlyData.map((d) => ({
         month: d.month,
+        periodKey: d.sortKey,
         value: Math.round(extract(d.kf) ?? 0),
       }));
 
