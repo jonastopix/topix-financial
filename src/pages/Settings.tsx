@@ -772,7 +772,60 @@ const Settings = () => {
               {companyField("Kontakt e-mail", "contact_email", "kontakt@firma.dk")}
               {companyField("Hjemmeside", "website", "https://firma.dk", <Globe className="h-4 w-4" />)}
               {companyField("Telefon", "contact_phone", "+45 12 34 56 78", <Phone className="h-4 w-4" />)}
-              {companyField("Branche", "industry", "F.eks. E-commerce, Håndværker, Autoværksted…", <Briefcase className="h-4 w-4" />)}
+              {/* Industry two-level dropdown */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Branche
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Select
+                    value={selectedMainCategory}
+                    onValueChange={(val) => {
+                      setSelectedMainCategory(val);
+                      // Reset subcategory when main changes
+                      const cat = INDUSTRY_OPTIONS.find(c => c.value === val);
+                      if (cat && cat.sub.length === 1) {
+                        // Auto-select if only one sub
+                        setCompanyForm(p => ({ ...p, industry_code: cat.sub[0].value, industry_label: cat.sub[0].label }));
+                      } else {
+                        setCompanyForm(p => ({ ...p, industry_code: "", industry_label: "" }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-secondary border-border">
+                      <SelectValue placeholder="Vælg kategori" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto">
+                      {INDUSTRY_OPTIONS.map(cat => (
+                        <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {selectedMainCategory && (() => {
+                    const cat = INDUSTRY_OPTIONS.find(c => c.value === selectedMainCategory);
+                    if (!cat || cat.sub.length <= 1) return null;
+                    return (
+                      <Select
+                        value={companyForm.industry_code}
+                        onValueChange={(val) => {
+                          const sub = cat.sub.find(s => s.value === val);
+                          setCompanyForm(p => ({ ...p, industry_code: val, industry_label: sub?.label || "" }));
+                        }}
+                      >
+                        <SelectTrigger className="bg-secondary border-border">
+                          <SelectValue placeholder="Vælg underkategori" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto">
+                          {cat.sub.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
             <button
               onClick={handleSaveCompany}
