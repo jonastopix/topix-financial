@@ -460,12 +460,12 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
   const COST_CATEGORIES = CATEGORIES.filter(c => c !== "Omsætning");
 
   const COST_COLORS: Record<string, string> = {
-    "Lønninger": "hsl(220, 70%, 55%)",
-    "Marketing": "hsl(280, 60%, 55%)",
-    "Lokaler": "hsl(35, 80%, 50%)",
-    "Administration": "hsl(190, 60%, 45%)",
-    "Direkte omk.": "hsl(340, 65%, 50%)",
-    "Afskrivninger": "hsl(150, 40%, 45%)",
+    "Lønninger": "hsl(var(--chart-1))",
+    "Marketing": "hsl(var(--chart-2))",
+    "Lokaler": "hsl(var(--chart-3))",
+    "Administration": "hsl(var(--chart-4))",
+    "Direkte omk.": "hsl(var(--chart-5))",
+    "Afskrivninger": "hsl(var(--chart-warning))",
   };
 
   const data = sorted.map((period) => {
