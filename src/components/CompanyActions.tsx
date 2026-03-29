@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { CheckCircle2, Circle, Archive, X, Plus } from "lucide-react";
+import { CheckCircle2, Circle, Target, X, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 interface CompanyActionsProps {
   companyId: string;
@@ -55,6 +56,29 @@ const CompanyActions = ({ companyId }: CompanyActionsProps) => {
         .eq("id", id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["company-actions", companyId] }),
+  });
+
+  const convertToMilestone = useMutation({
+    mutationFn: async (action: CompanyAction) => {
+      const { error } = await supabase.from("milestones").insert({
+        company_id: companyId,
+        user_id: user!.id,
+        title: action.title,
+        description: action.context || undefined,
+        status: "active",
+        source: "action",
+      } as any);
+      if (error) throw error;
+      await supabase
+        .from("company_actions")
+        .update({ status: "done", completed_at: new Date().toISOString() } as any)
+        .eq("id", action.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-actions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+      toast.success("Handling konverteret til milestone");
+    },
   });
 
   const addAction = useMutation({
@@ -121,13 +145,11 @@ const CompanyActions = ({ companyId }: CompanyActionsProps) => {
 
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
-                onClick={() =>
-                  updateAction.mutate({ id: action.id, updates: { status: "parked" } })
-                }
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                title="Parkér"
+                onClick={() => convertToMilestone.mutate(action)}
+                className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                title="Gør til milestone"
               >
-                <Archive className="h-3.5 w-3.5" />
+                <Target className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() =>
