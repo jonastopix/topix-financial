@@ -29,6 +29,7 @@ const Milestones = () => {
   const [milestoneStats, setMilestoneStats] = useState({ total: 0, done: 0, pct: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState<MilestoneCategory | "all">("all");
+  const [usedCategories, setUsedCategories] = useState<Set<string>>(new Set());
 
   // Create dialog state
   const [open, setOpen] = useState(false);
