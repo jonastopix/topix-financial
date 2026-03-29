@@ -60,7 +60,7 @@ interface KPIMetric {
   icon: any;
   description: string;
   lowerIsBetter: boolean;
-  history: { month: string; value: number }[];
+  history: { month: string; periodKey: string; value: number }[];
   benchmark: { value: number; label: string; source: string };
 }
 
