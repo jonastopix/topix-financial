@@ -66,7 +66,7 @@ interface MemberProfile {
 interface CompanyContext {
   company_id: string;
   name: string;
-  industry: string | null;
+  industry_label: string | null;
   cvr_number: string | null;
   slack_channel: string | null;
   city: string | null;
