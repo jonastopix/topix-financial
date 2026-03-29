@@ -1059,7 +1059,7 @@ const KPIs = () => {
           </div>
         </div>
 
-        <div className="h-72">
+        <div className="h-72 relative">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={activeMetric.history} margin={{ top: 10, right: 10, bottom: 5, left: 5 }}>
               <defs>
@@ -1068,26 +1068,27 @@ const KPIs = () => {
                   <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
               {activeMetric.targetNum > 0 && (
-                <ReferenceLine
-                  y={activeMetric.targetNum}
-                  stroke="hsl(160, 84%, 39%)"
-                  strokeDasharray="4 2"
-                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }}
-                />
+                <ReferenceLine y={activeMetric.targetNum} stroke="hsl(160, 84%, 39%)" strokeDasharray="4 2"
+                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }} />
               )}
               {activeMetric.benchmark.value > 0 && (
-                <ReferenceLine
-                  y={activeMetric.benchmark.value}
-                  stroke="hsl(220, 70%, 60%)"
-                  strokeDasharray="6 3"
-                  label={{ value: `Benchmark: ${activeMetric.benchmark.label}`, position: "insideTopRight", fill: "hsl(220, 70%, 60%)", fontSize: 10 }}
-                />
+                <ReferenceLine y={activeMetric.benchmark.value} stroke="hsl(var(--primary))" strokeDasharray="6 3"
+                  label={{ value: `Benchmark: ${activeMetric.benchmark.label}`, position: "insideTopRight", fill: "hsl(var(--primary))", fontSize: 10 }} />
               )}
+              {/* Vertical reference lines for periods with comments */}
+              {Object.keys(activeCommentsByPeriod).map(pk => {
+                const point = activeMetric.history.find(h => h.periodKey === pk);
+                if (!point) return null;
+                return (
+                  <ReferenceLine key={pk} x={point.month} stroke="hsl(var(--primary))"
+                    strokeDasharray="3 3" strokeOpacity={0.5} />
+                );
+              })}
               <Area
                 type="monotone"
                 dataKey="value"
@@ -1095,12 +1096,92 @@ const KPIs = () => {
                 strokeWidth={2.5}
                 fill="url(#kpiGradient)"
                 name={activeMetric.label}
-                dot={{ r: 4, fill: "hsl(160, 84%, 39%)", strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: "hsl(160, 84%, 39%)", strokeWidth: 2, stroke: "hsl(220, 25%, 9%)" }}
+                dot={(props: any) => (
+                  <CustomDot
+                    {...props}
+                    hasComment={!!activeCommentsByPeriod[props.payload?.periodKey]}
+                    isAdvisor={isAdvisor}
+                    onClick={(pk: string, label: string, x: number, y: number) => {
+                      const existing = activeCommentsByPeriod[pk];
+                      setCommentDraft(existing?.content || "");
+                      setCommentPopover({ periodKey: pk, periodLabel: label, x, y });
+                    }}
+                  />
+                )}
+                activeDot={{ r: 6, fill: "hsl(160, 84%, 39%)", strokeWidth: 2, stroke: "hsl(var(--background))" }}
               />
             </AreaChart>
           </ResponsiveContainer>
+
+          {/* Comment popover — advisors only */}
+          {isAdvisor && commentPopover && (
+            <div
+              className="absolute z-10 bg-card border border-border rounded-xl shadow-lg p-4 w-72"
+              style={{ left: Math.min(commentPopover.x, 280), top: Math.max(commentPopover.y - 120, 0) }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-foreground">
+                  Kommentar · {commentPopover.periodLabel}
+                </p>
+                <button onClick={() => setCommentPopover(null)}
+                  className="text-muted-foreground hover:text-foreground transition-colors text-xs">✕</button>
+              </div>
+              <textarea
+                value={commentDraft}
+                onChange={e => setCommentDraft(e.target.value)}
+                placeholder="Skriv en observation eller anbefaling til founder..."
+                className="w-full text-sm bg-secondary border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
+                rows={3}
+                autoFocus
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveComment}
+                  disabled={savingComment || !commentDraft.trim()}
+                  className="flex-1 text-xs font-medium py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {savingComment ? "Gemmer..." : "Gem"}
+                </button>
+                {activeCommentsByPeriod[commentPopover.periodKey] && (
+                  <button
+                    onClick={() => { handleDeleteComment(commentPopover.periodKey); setCommentPopover(null); }}
+                    className="text-xs font-medium py-2 px-3 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    Slet
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Comment badges below chart — visible to both advisors and founders */}
+        {Object.entries(activeCommentsByPeriod).length > 0 && (
+          <div className="mt-3 space-y-2">
+            {Object.entries(activeCommentsByPeriod).map(([pk, comment]) => {
+              const point = activeMetric.history.find(h => h.periodKey === pk);
+              return (
+                <div key={pk} className="flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/15">
+                  <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <MessageSquare className="h-3 w-3 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-primary mb-0.5">{point?.month || pk}</p>
+                    <p className="text-xs text-foreground leading-relaxed">{comment.content}</p>
+                  </div>
+                  {isAdvisor && (
+                    <button
+                      onClick={() => { setCommentDraft(comment.content); setCommentPopover({ periodKey: pk, periodLabel: point?.month || pk, x: 0, y: 0 }); }}
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors flex-shrink-0 mt-0.5"
+                    >
+                      Rediger
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Period comparison table */}
         <div className="mt-6 overflow-x-auto">
