@@ -81,6 +81,7 @@ const CompanyActions = ({ companyId }: CompanyActionsProps) => {
     },
   });
 
+  const addAction = useMutation({
     mutationFn: async (title: string) => {
       await supabase
         .from("company_actions")
@@ -144,13 +145,11 @@ const CompanyActions = ({ companyId }: CompanyActionsProps) => {
 
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
-                onClick={() =>
-                  updateAction.mutate({ id: action.id, updates: { status: "parked" } })
-                }
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                title="Parkér"
+                onClick={() => convertToMilestone.mutate(action)}
+                className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                title="Gør til milestone"
               >
-                <Archive className="h-3.5 w-3.5" />
+                <Target className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() =>
