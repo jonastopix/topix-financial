@@ -1,0 +1,1 @@
+ALTER TABLE public.companies ALTER COLUMN weekly_focus_enabled SET DEFAULT true;
