@@ -22,6 +22,7 @@ import {
   X,
   Info,
   MessageSquare,
+  Download,
 } from "lucide-react";
 import {
   Tooltip as UITooltip,
