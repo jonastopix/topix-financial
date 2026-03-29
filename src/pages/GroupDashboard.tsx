@@ -82,6 +82,11 @@ const GroupDashboard = () => {
           />
         </div>
       )}
+      {companies.length > 1 && (
+        <div className="mt-6">
+          <GroupLeaderboard companies={companies} />
+        </div>
+      )}
       <div className="mt-6">
         <CommunityProgress />
       </div>

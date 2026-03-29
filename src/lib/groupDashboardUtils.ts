@@ -77,3 +77,16 @@ export function buildGroupAggregates(companies: GroupCompanySummary[]): GroupAgg
     companiesMissingPeriod,
   };
 }
+
+/**
+ * Compute a 0–100 momentum score for leaderboard ranking.
+ * Report uploaded (40p), pulse check-in (20p), positive result (20p), revenue registered (20p).
+ */
+export function computeMomentumScore(company: GroupCompanySummary): number {
+  let score = 0;
+  if (!company.missing_current_period && company.has_verified_metrics) score += 40;
+  if (company.has_pulse) score += 20;
+  if ((company.ebt ?? 0) > 0) score += 20;
+  if ((company.revenue ?? 0) > 0) score += 20;
+  return score;
+}
