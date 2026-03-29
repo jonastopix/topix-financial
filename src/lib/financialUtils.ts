@@ -8,6 +8,12 @@ export const DANISH_MONTHS = [
 
 export const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
+/** Lowercase Danish month name → 0-based index lookup */
+export const DANISH_MONTHS_INDEX: Record<string, number> = {
+  januar: 0, februar: 1, marts: 2, april: 3, maj: 4, juni: 5,
+  juli: 6, august: 7, september: 8, oktober: 9, november: 10, december: 11,
+};
+
 // ── Report period parsing ──
 export function parseReportPeriodToKey(period: string | null): string | null {
   if (!period) return null;

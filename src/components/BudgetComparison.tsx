@@ -53,19 +53,16 @@ const INTERNAL_TO_DISPLAY: Record<string, string> = {
   afskrivninger: "Afskrivninger",
 };
 
+import { DANISH_MONTHS_INDEX } from "@/lib/financialUtils";
+
 // Convert Danish period "Januar 2026" → "2026-base-0"
 function danishPeriodToBudgetKey(period: string): string | null {
   const parts = period.toLowerCase().split(" ");
-  const monthIdx = DANISH_MONTHS_ORDER_LOCAL[parts[0]];
+  const monthIdx = DANISH_MONTHS_INDEX[parts[0]];
   const year = parts[1];
   if (monthIdx == null || !year) return null;
   return `${year}-base-${monthIdx}`;
 }
-
-const DANISH_MONTHS_ORDER_LOCAL: Record<string, number> = {
-  januar: 0, februar: 1, marts: 2, april: 3, maj: 4, juni: 5,
-  juli: 6, august: 7, september: 8, oktober: 9, november: 10, december: 11,
-};
 
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
