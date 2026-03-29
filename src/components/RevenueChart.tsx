@@ -9,7 +9,7 @@ import { calcTotalExpenses, SHORT_MONTHS } from "@/lib/financialUtils";
 
 const RevenueChart = () => {
   const [mode, setMode] = useState<"last12" | "ytd">("last12");
-  const { data: facts = [] } = useCompanyFacts();
+  const { data: facts = [], isLoading, isError } = useCompanyFacts();
 
   const chartData = useMemo(() => {
     let sorted = facts.map((f) => {
@@ -90,7 +90,16 @@ const RevenueChart = () => {
         );
       })()}
       <div className="h-64">
-        {hasData ? (
+        {isLoading ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+            <div className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin mr-2" />
+            Henter data...
+          </div>
+        ) : isError ? (
+          <div className="h-full flex items-center justify-center text-sm text-destructive">
+            Kunne ikke hente data. Prøv at genindlæse siden.
+          </div>
+        ) : hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <defs>

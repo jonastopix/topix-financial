@@ -57,7 +57,7 @@ const PulseCheckin = () => {
         companyId,
         periodKey,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error("[PulseCheckin] Slack notification failed:", err));
     navigate("/");
   };
 

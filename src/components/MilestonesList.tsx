@@ -445,7 +445,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
             userId: user.id,
             companyId,
           },
-        }).catch(() => {});
+        }).catch((err) => console.error("[Milestones] Deadline reminder failed:", err));
       }
     }
   }, [milestones, user, companyId, isAdvisor]);
@@ -491,7 +491,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
             companyId,
             milestoneTitle: oldMs.title,
           },
-        }).catch(() => {}); // non-blocking
+        }).catch((err) => console.error("[Milestones] Completion notification failed:", err));
       }
     }
   };

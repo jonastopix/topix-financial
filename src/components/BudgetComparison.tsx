@@ -35,9 +35,9 @@ function mapReportToActuals(kf: Record<string, number>): Record<string, number> 
     "Omsætning": Math.abs(kf.omsaetning || 0),
     "Direkte omk.": Math.abs(kf.direkte_omkostninger || 0),
     "Lønninger": Math.abs(kf.loenninger || 0),
-    "Marketing": Math.abs(kf.marketing || 0),
-    "Lokaler": Math.abs(kf.lokaler || 0),
-    "Administration": Math.abs(kf.admin || 0),
+    "Marketing": Math.abs(kf.salgsomkostninger || 0),
+    "Lokaler": Math.abs(kf.lokaleomkostninger || 0),
+    "Administration": Math.abs(kf.administrationsomkostninger || 0),
     "Afskrivninger": Math.abs(kf.afskrivninger || 0),
   };
 }
