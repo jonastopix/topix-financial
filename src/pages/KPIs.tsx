@@ -40,6 +40,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import { formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
+import IndustryBenchmarkGauge from "@/components/IndustryBenchmarkGauge";
+import type { GaugeEntry } from "@/components/IndustryBenchmarkGauge";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
