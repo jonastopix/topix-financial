@@ -40,6 +40,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import { formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
+import IndustryBenchmarkGauge from "@/components/IndustryBenchmarkGauge";
+import type { GaugeEntry } from "@/components/IndustryBenchmarkGauge";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
@@ -161,6 +163,39 @@ const KPIs = () => {
     },
     enabled: !!companyId,
     staleTime: 5 * 60_000,
+  });
+
+  // Fetch company industry benchmarks
+  const { data: industryBenchmarkData } = useQuery({
+    queryKey: ["industry-benchmarks-for-company", companyId],
+    queryFn: async () => {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("industry_code, industry_label")
+        .eq("id", companyId!)
+        .maybeSingle();
+      if (!company?.industry_code) return null;
+
+      const { data: benchmarks } = await supabase
+        .from("industry_benchmarks")
+        .select("kpi_key, benchmark_value, benchmark_label, benchmark_min, benchmark_max, source_label")
+        .eq("industry_code", company.industry_code);
+
+      return {
+        industryCode: company.industry_code,
+        industryLabel: company.industry_label,
+        benchmarks: (benchmarks || []) as {
+          kpi_key: string;
+          benchmark_value: number;
+          benchmark_label: string;
+          benchmark_min: number;
+          benchmark_max: number;
+          source_label: string;
+        }[],
+      };
+    },
+    enabled: !!companyId && !isAdvisor,
+    staleTime: 10 * 60_000,
   });
 
   const { data: chartComments = [], refetch: refetchComments } = useQuery({
@@ -899,6 +934,44 @@ const KPIs = () => {
           />
         </div>
       </div>
+
+      {/* Industry benchmark gauge */}
+      {industryBenchmarkData && (() => {
+        const latestKFEntry = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].kf : null;
+        if (!latestKFEntry) return null;
+
+        const gaugeEntries = industryBenchmarkData.benchmarks
+          .map(b => {
+            let actualValue: number | null = null;
+            let label = "";
+            const unit = "%";
+            if (b.kpi_key === "gross_margin_pct") {
+              actualValue = calcDbMargin(latestKFEntry);
+              label = "DB-margin";
+            } else if (b.kpi_key === "ebitda_margin_pct") {
+              actualValue = calcResultMargin(latestKFEntry);
+              label = "Resultatmargin";
+            }
+            if (actualValue == null) return null;
+            return {
+              kpi_key: b.kpi_key, label, actualValue,
+              benchmarkValue: Number(b.benchmark_value),
+              benchmarkMin: Number(b.benchmark_min),
+              benchmarkMax: Number(b.benchmark_max),
+              benchmarkLabel: b.benchmark_label, unit,
+              sourceLabel: b.source_label,
+            } as GaugeEntry;
+          })
+          .filter(Boolean) as GaugeEntry[];
+
+        if (gaugeEntries.length === 0) return null;
+        return (
+          <IndustryBenchmarkGauge
+            industryLabel={industryBenchmarkData.industryLabel || ""}
+            entries={gaugeEntries}
+          />
+        );
+      })()}
 
       {/* KPI cards grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
