@@ -48,7 +48,7 @@ const Milestones = () => {
     const load = async () => {
       const [convRes, msRes] = await Promise.all([
         supabase.from("conversations").select("id").eq("company_id", companyId).maybeSingle(),
-        supabase.from("milestones").select("progress").eq("company_id", companyId),
+        supabase.from("milestones").select("progress, category").eq("company_id", companyId),
       ]);
       setConversationId(convRes.data?.id || null);
       
@@ -56,6 +56,8 @@ const Milestones = () => {
       const done = all.filter((m) => m.progress >= 100).length;
       const pct = all.length > 0 ? Math.round(all.reduce((s, m) => s + m.progress, 0) / all.length) : 0;
       setMilestoneStats({ total: all.length, done, pct });
+      const cats = new Set(all.map((m) => m.category).filter(Boolean));
+      setUsedCategories(cats as Set<string>);
     };
     load();
   }, [user, companyId, refreshKey]);
