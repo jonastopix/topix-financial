@@ -441,6 +441,8 @@ export type Database = {
           end_date: string | null
           id: string
           industry: string | null
+          industry_code: string | null
+          industry_label: string | null
           logo_url: string | null
           name: string
           postal_code: string | null
@@ -461,6 +463,8 @@ export type Database = {
           end_date?: string | null
           id?: string
           industry?: string | null
+          industry_code?: string | null
+          industry_label?: string | null
           logo_url?: string | null
           name?: string
           postal_code?: string | null
@@ -481,6 +485,8 @@ export type Database = {
           end_date?: string | null
           id?: string
           industry?: string | null
+          industry_code?: string | null
+          industry_label?: string | null
           logo_url?: string | null
           name?: string
           postal_code?: string | null

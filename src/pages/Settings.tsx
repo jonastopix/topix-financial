@@ -9,6 +9,94 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, AlertTriangle, LogOut } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+
+const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; value: string }[] }[] = [
+  { label: "Detailhandel", value: "retail", sub: [
+    { label: "Dagligvarer og fødevarer", value: "retail_grocery" },
+    { label: "Tøj og accessories", value: "retail_fashion" },
+    { label: "Møbler og interiør", value: "retail_furniture" },
+    { label: "Elektronik og IT-udstyr", value: "retail_electronics" },
+    { label: "Sport og fritid", value: "retail_sport" },
+    { label: "Biler og køretøjer", value: "retail_automotive" },
+    { label: "Anden detailhandel", value: "retail_other" },
+  ]},
+  { label: "Engroshandel og import/eksport", value: "wholesale", sub: [
+    { label: "Engroshandel og import/eksport", value: "wholesale_general" },
+  ]},
+  { label: "Produktion og fremstilling", value: "production", sub: [
+    { label: "Fødevareproduktion", value: "production_food" },
+    { label: "Industriel produktion", value: "production_industrial" },
+    { label: "Håndværksproduktion", value: "production_craft" },
+  ]},
+  { label: "Bygge og anlæg", value: "construction", sub: [
+    { label: "Entreprenør og anlæg", value: "construction_contractor" },
+    { label: "Håndværk og installation", value: "construction_craft" },
+    { label: "Arkitektur og rådgivning", value: "construction_consulting" },
+  ]},
+  { label: "Transport og logistik", value: "transport", sub: [
+    { label: "Varetransport og spedition", value: "transport_freight" },
+    { label: "Personbefordring", value: "transport_passenger" },
+    { label: "Eventlogistik og specialtransport", value: "transport_event" },
+  ]},
+  { label: "IT og teknologi", value: "tech", sub: [
+    { label: "Softwareudvikling", value: "tech_software" },
+    { label: "IT-drift og support", value: "tech_support" },
+    { label: "Tech-startup", value: "tech_startup" },
+  ]},
+  { label: "Rådgivning og konsulentydelser", value: "consulting", sub: [
+    { label: "Økonomi og regnskab", value: "consulting_finance" },
+    { label: "Juridisk rådgivning", value: "consulting_legal" },
+    { label: "Management og strategi", value: "consulting_management" },
+    { label: "HR og rekruttering", value: "consulting_hr" },
+    { label: "Marketing og kommunikation", value: "consulting_marketing" },
+  ]},
+  { label: "Sundhed og velvære", value: "health", sub: [
+    { label: "Klinik og behandling", value: "health_clinic" },
+    { label: "Træning og fitness", value: "health_fitness" },
+    { label: "Apotek og helse", value: "health_pharmacy" },
+  ]},
+  { label: "Fødevarer og restauration", value: "food", sub: [
+    { label: "Restaurant og café", value: "food_restaurant" },
+    { label: "Catering og events", value: "food_catering" },
+    { label: "Takeaway og levering", value: "food_takeaway" },
+  ]},
+  { label: "Håndværk og serviceerhverv", value: "trades", sub: [
+    { label: "El, VVS og ventilation", value: "trades_electrical" },
+    { label: "Maler og gulv", value: "trades_painter" },
+    { label: "Rengøring og facility", value: "trades_cleaning" },
+    { label: "Anden håndværksservice", value: "trades_other" },
+  ]},
+  { label: "Ejendom og bolig", value: "realestate", sub: [
+    { label: "Ejendomsmægling", value: "realestate_agency" },
+    { label: "Udlejning og administration", value: "realestate_rental" },
+    { label: "Ejendomsudvikling", value: "realestate_development" },
+  ]},
+  { label: "Medier, kultur og kreative erhverv", value: "creative", sub: [
+    { label: "Reklame og design", value: "creative_advertising" },
+    { label: "Foto og video", value: "creative_photo" },
+    { label: "Musik og underholdning", value: "creative_music" },
+  ]},
+  { label: "Uddannelse og undervisning", value: "education", sub: [
+    { label: "Uddannelse og undervisning", value: "education_general" },
+  ]},
+  { label: "Landbrug, gartneri og natur", value: "agriculture", sub: [
+    { label: "Landbrug, gartneri og natur", value: "agriculture_general" },
+  ]},
+  { label: "Finans og forsikring", value: "finance", sub: [
+    { label: "Finans og forsikring", value: "finance_general" },
+  ]},
+  { label: "Andet", value: "other", sub: [
+    { label: "Andet", value: "other_general" },
+  ]},
+];
+
+function findMainCategoryBySubValue(subValue: string): string {
+  for (const cat of INDUSTRY_OPTIONS) {
+    if (cat.sub.some(s => s.value === subValue)) return cat.value;
+  }
+  return "";
+}
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -24,6 +112,8 @@ interface CompanyData {
   contact_phone: string | null;
   logo_url: string | null;
   industry: string | null;
+  industry_code: string | null;
+  industry_label: string | null;
 }
 
 const CircleProfileSection = ({ userId }: { userId?: string }) => {
@@ -175,8 +265,10 @@ const Settings = () => {
     contact_email: "",
     website: "",
     contact_phone: "",
-    industry: "",
+    industry_code: "",
+    industry_label: "",
   });
+  const [selectedMainCategory, setSelectedMainCategory] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -211,21 +303,26 @@ const Settings = () => {
 
       const { data } = await supabase
         .from("companies")
-        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry")
+        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry, industry_code, industry_label")
         .eq("id", cm.company_id)
         .single();
 
       if (data) {
-        setCompany(data as CompanyData);
+        const companyData = data as CompanyData;
+        setCompany(companyData);
         setCompanyForm({
           name: data.name || "",
           cvr_number: data.cvr_number || "",
           contact_email: data.contact_email || "",
           website: data.website || "",
           contact_phone: data.contact_phone || "",
-          industry: data.industry || "",
+          industry_code: (data as any).industry_code || "",
+          industry_label: (data as any).industry_label || "",
         });
         setLogoUrl(data.logo_url || null);
+        // Derive main category from stored industry_code
+        const mainCat = findMainCategoryBySubValue((data as any).industry_code || "");
+        setSelectedMainCategory(mainCat);
       }
     };
     fetchCompany();
@@ -445,7 +542,8 @@ const Settings = () => {
     const email = companyForm.contact_email.trim();
     const website = companyForm.website.trim();
     const phone = companyForm.contact_phone.trim();
-    const industry = companyForm.industry.trim();
+    const industryCode = companyForm.industry_code.trim();
+    const industryLabel = companyForm.industry_label.trim();
 
     if (!name || name.length > 200) {
       toast.error("Virksomhedsnavn skal udfyldes (max 200 tegn)");
@@ -467,10 +565,6 @@ const Settings = () => {
       toast.error("Ugyldigt telefonnummer");
       return;
     }
-    if (industry.length > 100) {
-      toast.error("Branche må max være 100 tegn");
-      return;
-    }
 
     setSavingCompany(true);
 
@@ -482,7 +576,8 @@ const Settings = () => {
         contact_email: email || null,
         website: website || null,
         contact_phone: phone || null,
-        industry: industry || null,
+        industry_code: industryCode || null,
+        industry_label: industryLabel || null,
       })
       .eq("id", company.id);
 
@@ -677,7 +772,60 @@ const Settings = () => {
               {companyField("Kontakt e-mail", "contact_email", "kontakt@firma.dk")}
               {companyField("Hjemmeside", "website", "https://firma.dk", <Globe className="h-4 w-4" />)}
               {companyField("Telefon", "contact_phone", "+45 12 34 56 78", <Phone className="h-4 w-4" />)}
-              {companyField("Branche", "industry", "F.eks. E-commerce, Håndværker, Autoværksted…", <Briefcase className="h-4 w-4" />)}
+              {/* Industry two-level dropdown */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Branche
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Select
+                    value={selectedMainCategory}
+                    onValueChange={(val) => {
+                      setSelectedMainCategory(val);
+                      // Reset subcategory when main changes
+                      const cat = INDUSTRY_OPTIONS.find(c => c.value === val);
+                      if (cat && cat.sub.length === 1) {
+                        // Auto-select if only one sub
+                        setCompanyForm(p => ({ ...p, industry_code: cat.sub[0].value, industry_label: cat.sub[0].label }));
+                      } else {
+                        setCompanyForm(p => ({ ...p, industry_code: "", industry_label: "" }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-secondary border-border">
+                      <SelectValue placeholder="Vælg kategori" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto">
+                      {INDUSTRY_OPTIONS.map(cat => (
+                        <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {selectedMainCategory && (() => {
+                    const cat = INDUSTRY_OPTIONS.find(c => c.value === selectedMainCategory);
+                    if (!cat || cat.sub.length <= 1) return null;
+                    return (
+                      <Select
+                        value={companyForm.industry_code}
+                        onValueChange={(val) => {
+                          const sub = cat.sub.find(s => s.value === val);
+                          setCompanyForm(p => ({ ...p, industry_code: val, industry_label: sub?.label || "" }));
+                        }}
+                      >
+                        <SelectTrigger className="bg-secondary border-border">
+                          <SelectValue placeholder="Vælg underkategori" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto">
+                          {cat.sub.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
             <button
               onClick={handleSaveCompany}
