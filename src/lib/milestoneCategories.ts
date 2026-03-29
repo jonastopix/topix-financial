@@ -1,7 +1,7 @@
 import {
   TrendingUp, Coins, Clock, Users, BarChart3, Target,
   Package, ShoppingCart, Heart, Megaphone, Scale, Landmark,
-  Calculator,
+  Calculator, ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
