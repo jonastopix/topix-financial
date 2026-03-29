@@ -432,6 +432,14 @@ const MemberDetail = () => {
     setSubmittingComment(null);
   };
 
+  const handleWeeklyFocusToggle = async (enabled: boolean) => {
+    setWeeklyFocusEnabled(enabled);
+    await supabase
+      .from("companies")
+      .update({ weekly_focus_enabled: enabled } as any)
+      .eq("id", memberCompanyId!);
+  };
+
   const handleViewOriginalFile = async (filePath: string) => {
     await openReportFile(filePath);
   };
