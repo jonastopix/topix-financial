@@ -392,6 +392,22 @@ async function processCompany(
     }
   }
 
+  // REPORT_UPLOADED alone is not sufficient for AI analysis
+  // Only keep it if at least one other substantive trigger is also active
+  if (triggers.length === 1 && triggers[0] === "REPORT_UPLOADED") {
+    await admin.from("weekly_focus").upsert({
+      company_id: company.id,
+      week_key: weekKey,
+      status: "quiet",
+      triggers_fired: triggers,
+      trigger_data: triggerData,
+      data_freshness_days: dataFreshnessDays,
+      generated_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString(),
+    }, { onConflict: "company_id,week_key" });
+    return;
+  }
+
   // ── STEP 3: QUIET WEEK CHECK ──────────────────────────────────────
   if (triggers.length === 0) {
     await admin.from("weekly_focus").upsert({
