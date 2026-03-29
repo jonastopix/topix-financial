@@ -8,6 +8,7 @@ import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import CreateGroupCompanyDialog from "@/components/CreateGroupCompanyDialog";
 import CommunityProgress from "@/components/CommunityProgress";
 import GroupSettings from "@/components/GroupSettings";
+import GroupLeaderboard from "@/components/GroupLeaderboard";
 import { MessageCircle, Calculator, Plus, Settings } from "lucide-react";
 
 const GroupDashboard = () => {
@@ -79,6 +80,11 @@ const GroupDashboard = () => {
             companies={companies}
             userId={user.id}
           />
+        </div>
+      )}
+      {companies.length > 1 && (
+        <div className="mt-6">
+          <GroupLeaderboard companies={companies} />
         </div>
       )}
       <div className="mt-6">
