@@ -1,0 +1,106 @@
+import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+
+const SYSTEM_PROMPT = `Du er en finansiel sparringspartner for en dansk virksomhedsejer i The Boardroom.
+Du har adgang til virksomhedens komplette finansielle historik nedenfor.
+Svar altid på dansk. Vær konkret og referer til de faktiske tal.
+Brug danske talformater (punktum som tusindtalsseparator, komma som decimaltegn).
+Hold svar kortfattede — max 4-6 sætninger medmindre brugeren beder om mere.
+Du må ikke opfinde tal der ikke er i dataen.`;
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await authenticateUser(req);
+  if (auth instanceof Response) return auth;
+  const { callerClient } = auth;
+
+  const { company_id, messages } = await req.json() as {
+    company_id: string;
+    messages: { role: "user" | "assistant"; content: string }[];
+  };
+  if (!company_id || !messages?.length) {
+    return new Response(JSON.stringify({ error: "company_id and messages required" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Verify access via RLS
+  const { data: company } = await callerClient
+    .from("companies").select("name").eq("id", company_id).maybeSingle();
+  if (!company) {
+    return new Response(JSON.stringify({ error: "Access denied" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Fetch all committed facts for the company (RLS-scoped)
+  const { data: facts } = await callerClient
+    .from("financial_report_facts")
+    .select("period_key, period_label, metrics")
+    .eq("company_id", company_id)
+    .order("period_key", { ascending: true });
+
+  // Serialize facts as compact context
+  const factsContext = (facts || []).map(f => {
+    const m = f.metrics as Record<string, number | null>;
+    const lines = Object.entries(m)
+      .filter(([, v]) => v != null)
+      .map(([k, v]) => `  ${k}: ${(v as number).toLocaleString("da-DK", { maximumFractionDigits: 0 })}`)
+      .join("\n");
+    return `${f.period_label} (${f.period_key}):\n${lines}`;
+  }).join("\n\n");
+
+  const systemWithData = `${SYSTEM_PROMPT}\n\nVIRKSOMHED: ${company.name}\n\nFINANSIELLE DATA:\n${factsContext || "Ingen data endnu."}`;
+
+  // Call Lovable AI Gateway with streaming
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    return new Response(JSON.stringify({ error: "AI not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: systemWithData },
+        ...messages,
+      ],
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      return new Response(JSON.stringify({ error: "For mange forespørgsler — prøv igen om lidt." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (response.status === 402) {
+      return new Response(JSON.stringify({ error: "AI-kreditter opbrugt." }), {
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const t = await response.text();
+    console.error("AI gateway error:", response.status, t);
+    return new Response(JSON.stringify({ error: "AI-fejl" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response(response.body, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+  });
+});
