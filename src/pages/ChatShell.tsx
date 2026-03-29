@@ -1,17 +1,20 @@
+import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import CompanyChatPane from "@/components/CompanyChatPane";
 import GroupChatInline from "@/components/GroupChatInline";
+import FinancialAIChat from "@/components/FinancialAIChat";
 
 /**
  * Unified /chat route orchestrator.
  * Renders the correct chat experience based on user type:
  * - Advisor → flat inbox (company + group threads in one list)
  * - Group member → group chat inline
- * - Single-company member → company chat
+ * - Single-company member → company chat with AI tab
  */
 const ChatShell = () => {
   const { isAdvisor, isGroupUser, loading } = useAuth();
+  const [chatTab, setChatTab] = useState<"advisor" | "ai">("advisor");
 
   if (loading) {
     return (
@@ -41,10 +44,29 @@ const ChatShell = () => {
     );
   }
 
-  // Single-company member: existing company chat
+  // Single-company member: company chat with AI tab
   return (
     <AppLayout fullscreen>
-      <CompanyChatPane />
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-1 px-4 pt-2 bg-card border-b border-border">
+          {(["advisor", "ai"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setChatTab(tab)}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                chatTab === tab
+                  ? "bg-background text-foreground border border-b-0 border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab === "advisor" ? "Advisor" : "Finansiel AI"}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 min-h-0">
+          {chatTab === "advisor" ? <CompanyChatPane /> : <FinancialAIChat />}
+        </div>
+      </div>
     </AppLayout>
   );
 };
