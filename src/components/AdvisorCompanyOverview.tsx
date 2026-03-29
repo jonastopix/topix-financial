@@ -155,7 +155,7 @@ const AdvisorCompanyOverview = () => {
     queryFn: async () => {
       // Stage 1: parallel fetch of company, conversations, reports
       const [companyRes, convsRes, reportsRes] = await Promise.all([
-        supabase.from("companies").select("id, name, industry, cvr_number, logo_url").eq("id", companyId!).single(),
+        supabase.from("companies").select("id, name, industry_label, cvr_number, logo_url").eq("id", companyId!).single(),
         supabase.from("conversations")
           .select("id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_message_at")
           .eq("company_id", companyId!)
@@ -378,10 +378,10 @@ const AdvisorCompanyOverview = () => {
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pl-9 min-w-0">
-            {company?.industry && <span>{company.industry}</span>}
+            {company?.industry_label && <span>{company.industry_label}</span>}
             {company?.cvr_number && (
               <>
-                {company?.industry && <span>·</span>}
+                {company?.industry_label && <span>·</span>}
                 <span>CVR {company.cvr_number}</span>
               </>
             )}
@@ -418,10 +418,10 @@ const AdvisorCompanyOverview = () => {
               {company?.name || companyName || "Virksomhed"}
             </h1>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-              {company?.industry && <span>{company.industry}</span>}
+              {company?.industry_label && <span>{company.industry_label}</span>}
               {company?.cvr_number && (
                 <>
-                  {company?.industry && <span>·</span>}
+                  {company?.industry_label && <span>·</span>}
                   <span>CVR {company.cvr_number}</span>
                 </>
               )}

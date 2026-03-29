@@ -66,7 +66,7 @@ interface MemberProfile {
 interface CompanyContext {
   company_id: string;
   name: string;
-  industry: string | null;
+  industry_label: string | null;
   cvr_number: string | null;
   slack_channel: string | null;
   city: string | null;
@@ -291,7 +291,7 @@ const MemberDetail = () => {
       // Fetch company context via company_members
       const { data: cmData } = await supabase
         .from("company_members" as any)
-        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
+        .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
@@ -541,9 +541,9 @@ const MemberDetail = () => {
                     <Building2 className="h-3.5 w-3.5 text-primary" /> {companyCtx.name}
                   </span>
                 )}
-                {companyCtx?.industry && (
+                {companyCtx?.industry_label && (
                   <span className="flex items-center gap-1">
-                    <Globe className="h-3.5 w-3.5" /> {companyCtx.industry}
+                    <Globe className="h-3.5 w-3.5" /> {companyCtx.industry_label}
                   </span>
                 )}
                 {companyCtx?.cvr_number && (

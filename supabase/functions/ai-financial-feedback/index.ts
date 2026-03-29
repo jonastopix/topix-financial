@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
 
       const { data: companyAccess, error: companyAccessErr } = await callerClient
         .from("companies")
-        .select("name, industry")
+        .select("name, industry_label")
         .eq("id", companyId)
         .maybeSingle();
 
@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
       companyContext = {
         ...companyContext,
         name: companyAccess.name || companyContext?.name,
-        industry: companyAccess.industry || companyContext?.industry,
+        industry: companyAccess.industry_label || companyContext?.industry,
       };
       console.log(`[ai-financial-feedback] Using RLS-verified company name: "${companyAccess.name}"`);
     } else if (companyContext?.name && !companyContext.industry) {
@@ -199,12 +199,12 @@ Deno.serve(async (req) => {
 
       const { data: company } = await callerClient
         .from("companies")
-        .select("industry")
+        .select("industry_label")
         .eq("name", companyContext.name)
         .maybeSingle();
 
-      if (company?.industry) {
-        companyContext = { ...companyContext, industry: company.industry };
+      if (company?.industry_label) {
+        companyContext = { ...companyContext, industry: company.industry_label };
       }
     }
 

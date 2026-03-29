@@ -83,7 +83,7 @@ interface CompanyData {
   id: string;
   name: string;
   cvr_number: string | null;
-  industry: string;
+  industry_label: string;
   contact_person: string;
   contact_email: string;
   contact_phone: string;
@@ -396,7 +396,7 @@ const Members = () => {
           id: c.id,
           name: c.name || "",
           cvr_number: c.cvr_number,
-          industry: c.industry || "",
+          industry_label: c.industry_label || "",
           contact_person: c.contact_person || "",
           contact_email: c.contact_email || "",
           contact_phone: c.contact_phone || "",
@@ -701,7 +701,7 @@ const Members = () => {
   };
 
   const industries = useMemo(() => {
-    const set = new Set(companies.map((c) => c.industry).filter(Boolean));
+    const set = new Set(companies.map((c) => c.industry_label).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b, "da"));
   }, [companies]);
 
@@ -846,7 +846,7 @@ const Members = () => {
     let result = companies;
 
     if (filterIndustry !== "all") {
-      result = result.filter((c) => c.industry === filterIndustry);
+      result = result.filter((c) => c.industry_label === filterIndustry);
     }
 
     if (search.trim()) {
@@ -854,7 +854,7 @@ const Members = () => {
       result = result.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          c.industry.toLowerCase().includes(q) ||
+          c.industry_label.toLowerCase().includes(q) ||
           c.contact_person.toLowerCase().includes(q) ||
           c.city.toLowerCase().includes(q) ||
           c.slack_channel.toLowerCase().includes(q)
@@ -1384,7 +1384,7 @@ const Members = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
-                          <p className="text-xs text-muted-foreground truncate">{c.industry || "–"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.industry_label || "–"}</p>
                           <span className="text-[10px] text-muted-foreground">{c.city}</span>
                           {c.slack_channel && (
                             <span className="text-[10px] text-primary flex items-center gap-0.5">
@@ -1810,7 +1810,7 @@ const Members = () => {
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {c.reportCount} rapporter · {c.members.length} brugere
-                              {c.industry && ` · ${c.industry}`}
+                              {c.industry_label && ` · ${c.industry_label}`}
                             </p>
                           </div>
                           {c.members.length > 0 && (
