@@ -53,6 +53,7 @@ const AdminConfig = () => {
 
   const [saving, setSaving] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [testingWeeklyFocus, setTestingWeeklyFocus] = useState(false);
 
   const handleCircleSync = async () => {
     setSyncing(true);
