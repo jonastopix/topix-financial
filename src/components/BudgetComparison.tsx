@@ -70,11 +70,11 @@ const DANISH_MONTHS_ORDER_LOCAL: Record<string, number> = {
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
 const tooltipStyle = {
-  background: "hsl(220, 25%, 9%)",
-  border: "1px solid hsl(220, 20%, 14%)",
+  background: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "hsl(220, 10%, 90%)",
+  color: "hsl(var(--foreground))",
 };
 
 function variance(budget: number, actual: number, isRevenue: boolean) {
