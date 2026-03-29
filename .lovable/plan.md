@@ -1,35 +1,71 @@
 
 
+# Implementering af prioriterede fixes
 
-## Add "Regnskab" milestone category
+## Overblik
+Implementering af de 4 højest prioriterede punkter fra analysen.
 
-A new milestone category "Regnskab" will be added to the existing category registry.
+---
 
-### Changes
+## 1. Fix `auth.getUser` → `auth.getClaims` i generate-weekly-focus
 
-**File: `src/lib/milestoneCategories.ts`**
-- Add `"regnskab"` to the `MilestoneCategory` type union
-- Add entry in `MILESTONE_CATEGORIES` with:
-  - Label: "Regnskab"
-  - Icon: `Calculator` (from lucide-react)
-  - Badge style: a warm color not yet used (e.g. `bg-rose-500/15 text-rose-600`)
+**Fil:** `supabase/functions/generate-weekly-focus/index.ts` (linje 34-49)
 
-That's it — one file, ~5 lines added. The `CATEGORY_OPTIONS` export auto-generates from the record, so all dropdowns and displays pick it up immediately.
+Erstat `authClient.auth.getUser(token)` med `authClient.auth.getClaims(token)` og brug `claimsData.claims.sub` til at hente userId — i overensstemmelse med projektets auth-pattern.
 
-## Replace free-text industry field with two-level dropdown ✅
+---
 
-### Summary
-Replaced the single free-text "Branche" input in Settings.tsx with two side-by-side Select dropdowns (main category → subcategory). Added `industry_code` and `industry_label` columns to companies table.
+## 2. Fix ebitda_margin mapping i weekly focus T5
 
-### Migration
-- Added `industry_code text` and `industry_label text` columns to `companies`
-- Migrated existing free-text `industry` values to `industry_label` for companies without `industry_code`
+**Fil:** `supabase/functions/generate-weekly-focus/index.ts` (linje 277-283)
 
-### Implementation
-- `INDUSTRY_OPTIONS` constant with 16 main categories and subcategories
-- Two Select dropdowns: main category + subcategory (only shown when main has multiple subs; auto-selected when only one sub)
-- On load: derives main category from stored `industry_code`
-- On save: persists both `industry_code` and `industry_label`
+Ret `ebitda_margin: "ebitda"` til `ebitda_margin: "ebitda_margin_pct"` så margin-procent sammenlignes med margin-target (ikke et absolut beløb). Fjern den manuelle on-the-fly beregning (linje 293-295) da `ebitda_margin_pct` allerede er en procentværdi i metrics.
 
-### Note for future work
-- `industry_label` (not `industry_code`) should be sent to AI functions — the human-readable label provides meaningful context (e.g. "Eventlogistik og specialtransport" vs "transport_event")
+---
+
+## 3. Fix hardcoded `done: false` for milestones i dashboard
+
+**Fil:** `src/pages/Index.tsx` (linje 411)
+
+Beregn om der er mindst én aktiv milestone med progress > 0 eller status "done" denne måned. Brug eksisterende milestones-query (hvis den allerede er tilgængelig) eller tilføj en simpel count-query for milestones med `updated_at` i denne måned.
+
+---
+
+## 4. Tilføj toast-feedback ved KPI sync
+
+**Fil:** `src/pages/Settings.tsx` (linje 601-633)
+
+Efter sync-loopet afsluttes, vis en informativ toast: "KPI-mål opdateret fra branchestandard" så brugeren ved at deres targets er ændret.
+
+---
+
+## Tekniske detaljer
+
+### generate-weekly-focus auth fix (punkt 1)
+```typescript
+// Before:
+const { data: claimsData } = await authClient.auth.getUser(token);
+if (claimsData?.user) { ... claimsData.user.id ... }
+
+// After:
+const { data: claimsData } = await authClient.auth.getClaims(token);
+const callerId = claimsData?.claims?.sub as string | undefined;
+if (callerId) { ... callerId ... }
+```
+
+### ebitda mapping fix (punkt 2)
+```typescript
+// Before:
+ebitda_margin: "ebitda",  // WRONG: ebitda is an amount, not a margin
+
+// After:
+ebitda_margin: "ebitda_margin_pct",  // CORRECT: compare margin % with margin target
+```
+Fjern linje 293-295 (on-the-fly ebitda margin beregning) da `ebitda_margin_pct` allerede er den korrekte procentværdi.
+
+### Milestones done-status (punkt 3)
+Tilføj en query for milestones denne måned og beregn `hasMilestoneProgressThisMonth` baseret på om der er mindst én milestone med `status = 'done'` eller `progress > 0` opdateret i denne måned.
+
+### Toast feedback (punkt 4)
+Tilføj `toast.info("KPI-mål opdateret fra branchestandard")` efter sync-loopet.
+
