@@ -601,6 +601,7 @@ const Settings = () => {
         if (industryBenchmarks && industryBenchmarks.length > 0) {
           for (const ib of industryBenchmarks) {
             const mappedKey = KPI_KEY_MAP[ib.kpi_key] || ib.kpi_key;
+            // Sync benchmarks
             await supabase
               .from("kpi_benchmarks")
               .upsert(
@@ -611,6 +612,20 @@ const Settings = () => {
                   benchmark_value: ib.benchmark_value,
                   benchmark_label: ib.benchmark_label,
                   source_label: ib.source_label,
+                } as any,
+                { onConflict: "company_id,kpi_key" } as any
+              );
+            // Sync targets (use benchmark_value as default target)
+            await supabase
+              .from("kpi_targets")
+              .upsert(
+                {
+                  company_id: company.id,
+                  user_id: user!.id,
+                  kpi_key: mappedKey,
+                  target_value: ib.benchmark_value,
+                  target_label: ib.benchmark_label,
+                  lower_is_better: false,
                 } as any,
                 { onConflict: "company_id,kpi_key" } as any
               );
