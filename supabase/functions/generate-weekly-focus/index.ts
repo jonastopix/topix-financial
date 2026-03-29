@@ -356,7 +356,7 @@ async function processCompany(
     .select("id, module, completed_at, created_at")
     .eq("company_id", company.id)
     .is("completed_at", null)
-    .lt("created_at", thirtyDaysAgo)
+    .lt("created_at", new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString())
     .limit(3);
 
   if ((overdueHandouts || []).length > 0) {
