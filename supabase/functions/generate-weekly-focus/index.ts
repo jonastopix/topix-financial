@@ -573,7 +573,7 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
     .eq("company_id", company.id);
 
   for (const member of (members2 || [])) {
-    await admin.from("notifications").insert({
+    const { error: notifErr } = await admin.from("notifications").insert({
       user_id: member.user_id,
       company_id: company.id,
       type: "weekly_focus_ready",
@@ -582,7 +582,10 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
       body: headline,
       deep_link: "/",
       dedup_key: `weekly_focus:${company.id}:${weekKey}`,
-    }).throwOnError();
+    });
+    if (notifErr && notifErr.code !== "23505") {
+      console.error("[weekly-focus] Notification error:", notifErr);
+    }
   }
 
   console.log(`[weekly-focus] Done: ${company.name} — ${triggers.length} triggers, ${actions.length} actions`);
