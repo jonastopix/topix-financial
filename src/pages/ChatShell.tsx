@@ -48,7 +48,7 @@ const ChatShell = () => {
   return (
     <AppLayout fullscreen>
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-1 px-4 pt-2 bg-card border-b border-border">
+        <div className="flex items-center gap-1 px-4 pt-2 bg-card border-b border-border shrink-0 sticky top-0 z-10">
           {(["advisor", "ai"] as const).map(tab => (
             <button
               key={tab}
