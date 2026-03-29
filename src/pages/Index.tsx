@@ -328,14 +328,6 @@ const Dashboard = () => {
     );
   }
 
-  // Trigger tour after render (in useEffect to avoid setState during render)
-  useEffect(() => {
-    if (shouldShowTour && !tourTriggered && !isLoading) {
-      const timer = setTimeout(() => setShowTour(true), 800);
-      setTourTriggered(true);
-      return () => clearTimeout(timer);
-    }
-  }, [shouldShowTour, tourTriggered, isLoading]);
 
   return (
     <AppLayout>
