@@ -226,6 +226,7 @@ Deno.serve(async (req) => {
         report_review_ready: "Dine tal er klar",
         report_error: "Rapport fejl",
         advisor_replied: "Ny besked",
+        weekly_focus_ready: "Ugens fokus",
       };
       const highlights: Record<string, string> = {
         report_review_ready: "Omsætning, dækningsbidrag og resultat er klar til verifikation.",
