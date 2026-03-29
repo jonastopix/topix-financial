@@ -9,6 +9,7 @@ import RevenueChart from "@/components/RevenueChart";
 import BudgetOverview from "@/components/BudgetOverview";
 import PerformanceScore from "@/components/PerformanceScore";
 import AttentionNeeded from "@/components/AttentionNeeded";
+import CompanyActions from "@/components/CompanyActions";
 import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import DashboardActivity from "@/components/DashboardActivity";
@@ -450,6 +451,7 @@ const Dashboard = () => {
       {/* Attention needed — action-first, before KPI data */}
       <div className="mb-6">
         <AttentionNeeded />
+        {companyId && <CompanyActions companyId={companyId} />}
       </div>
 
       {/* KPI cards – only shown when we have processed data */}
