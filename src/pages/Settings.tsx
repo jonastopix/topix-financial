@@ -308,16 +308,21 @@ const Settings = () => {
         .single();
 
       if (data) {
-        setCompany(data as CompanyData);
+        const companyData = data as CompanyData;
+        setCompany(companyData);
         setCompanyForm({
           name: data.name || "",
           cvr_number: data.cvr_number || "",
           contact_email: data.contact_email || "",
           website: data.website || "",
           contact_phone: data.contact_phone || "",
-          industry: data.industry || "",
+          industry_code: (data as any).industry_code || "",
+          industry_label: (data as any).industry_label || "",
         });
         setLogoUrl(data.logo_url || null);
+        // Derive main category from stored industry_code
+        const mainCat = findMainCategoryBySubValue((data as any).industry_code || "");
+        setSelectedMainCategory(mainCat);
       }
     };
     fetchCompany();
