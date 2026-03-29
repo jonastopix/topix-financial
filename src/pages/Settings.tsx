@@ -576,7 +576,8 @@ const Settings = () => {
         contact_email: email || null,
         website: website || null,
         contact_phone: phone || null,
-        industry: industry || null,
+        industry_code: industryCode || null,
+        industry_label: industryLabel || null,
       })
       .eq("id", company.id);
 
