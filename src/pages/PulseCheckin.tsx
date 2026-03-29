@@ -38,8 +38,8 @@ const PulseCheckin = () => {
   const handleSubmit = async () => {
     if (!user || !companyId) return;
     setSaving(true);
-    const { error } = await (supabase
-      .from("pulse_checkins" as any)
+    const { error } = await supabase
+      .from("pulse_checkins")
       .upsert({
         company_id: companyId,
         user_id: user.id,
@@ -47,7 +47,7 @@ const PulseCheckin = () => {
         went_well: wentWell.trim() || null,
         biggest_challenge: challenge.trim() || null,
         milestone_progress: milestoneProgress,
-      }, { onConflict: "company_id,period_key" }) as any);
+      }, { onConflict: "company_id,period_key" });
     setSaving(false);
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Check-in gemt!");

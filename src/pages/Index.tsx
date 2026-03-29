@@ -238,12 +238,12 @@ const Dashboard = () => {
     queryFn: async () => {
       if (!companyId) return null;
       const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-      const { data } = await (supabase
-        .from("pulse_checkins" as any)
+      const { data } = await supabase
+        .from("pulse_checkins")
         .select("id")
         .eq("company_id", companyId)
         .eq("period_key", periodKey)
-        .maybeSingle() as any);
+        .maybeSingle();
       return data;
     },
     enabled: !!companyId && !isAdvisor,

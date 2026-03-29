@@ -146,12 +146,12 @@ const AttentionNeeded = () => {
         const pk = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, "0")}`;
         const dayOfMonth = now2.getDate();
         if (dayOfMonth >= 10) {
-          const { data: pulse } = await (supabase
-            .from("pulse_checkins" as any)
+          const { data: pulse } = await supabase
+            .from("pulse_checkins")
             .select("id")
             .eq("company_id", companyId)
             .eq("period_key", pk)
-            .maybeSingle() as any);
+            .maybeSingle();
           if (!pulse) {
             attentionItems.push({
               id: "pulse-checkin",

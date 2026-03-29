@@ -281,11 +281,11 @@ const AdvisorDashboard = () => {
           .from("budget_targets")
           .select("company_id, category, budget_amount, period")
           .like("period", `${currentYear}-base-%`),
-        (supabase
-          .from("pulse_checkins" as any)
+        supabase
+          .from("pulse_checkins")
           .select("company_id, went_well, biggest_challenge, created_at")
           .order("created_at", { ascending: false })
-          .limit(100) as any),
+          .limit(100),
         (supabase
           .from("financial_reports")
           .select("id, company_id, uploaded_at, status, report_period")

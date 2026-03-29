@@ -209,7 +209,7 @@ const Members = () => {
       supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
       supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
       supabase.from("financial_report_facts" as any).select("company_id, period_key"),
-      (supabase.from("pulse_checkins" as any).select("company_id, period_key").gte("created_at", monthStart) as any),
+      supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
     ]);
 
     const allCompanies = (companiesRes.data || []) as any[];
