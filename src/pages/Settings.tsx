@@ -270,6 +270,7 @@ const Settings = () => {
   });
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
+  const [weeklyFocusEnabled, setWeeklyFocusEnabled] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
