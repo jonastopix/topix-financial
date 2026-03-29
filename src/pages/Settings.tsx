@@ -8,7 +8,7 @@ import {
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, AlertTriangle, LogOut } from "lucide-react";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; value: string }[] }[] = [
