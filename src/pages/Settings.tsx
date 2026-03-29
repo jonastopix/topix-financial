@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; value: string }[] }[] = [
   { label: "Detailhandel", value: "retail", sub: [
@@ -1025,27 +1026,22 @@ const Settings = () => {
                   Analysen kører hver mandag morgen og kræver mindst én rapport, milestone og handout.
                 </p>
               </div>
-              <button
-                onClick={async () => {
-                  const next = !weeklyFocusEnabled;
+              <Switch
+                checked={weeklyFocusEnabled}
+                onCheckedChange={async (next) => {
                   setWeeklyFocusEnabled(next);
-                  await supabase
+                  const { error } = await supabase
                     .from("companies")
                     .update({ weekly_focus_enabled: next } as any)
                     .eq("id", company.id);
+                  if (error) {
+                    setWeeklyFocusEnabled(!next);
+                    toast.error("Kunne ikke ændre indstillingen");
+                    return;
+                  }
                   toast.success(next ? "Ugens Fokus aktiveret" : "Ugens Fokus deaktiveret");
                 }}
-                className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
-                  transition-colors duration-200 focus:outline-none mt-0.5
-                  ${weeklyFocusEnabled ? "bg-primary" : "bg-muted"}`}
-                role="switch"
-                aria-checked={weeklyFocusEnabled}
-              >
-                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
-                  transition-transform duration-200
-                  ${weeklyFocusEnabled ? "translate-x-4" : "translate-x-0"}`}
-                />
-              </button>
+              />
             </div>
           </div>
         )}
