@@ -37,11 +37,12 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
     const { data: claimsData } = await authClient.auth.getUser(token);
-    if (claimsData?.user) {
+    const callerId = (claimsData as any)?.user?.id as string | undefined;
+    if (callerId) {
       const { data: roleCheck } = await createClient(supabaseUrl, serviceKey)
         .from("user_roles")
         .select("role")
-        .eq("user_id", claimsData.user.id)
+        .eq("user_id", callerId)
         .in("role", ["admin"])
         .limit(1);
       isAdminUser = (roleCheck && roleCheck.length > 0);
@@ -276,7 +277,7 @@ async function processCompany(
   // Danish KPI key → canonical metrics key mapping
   const kpiKeyMap: Record<string, string> = {
     db_margin: "gross_margin_pct",
-    ebitda_margin: "ebitda",
+    ebitda_margin: "ebitda_margin_pct",
     omsaetning: "revenue",
     resultat: "net_result",
     loenninger: "payroll",
@@ -289,15 +290,8 @@ async function processCompany(
     let actual = metrics[canonicalKey] ?? null;
     if (actual === null) continue;
 
-    // Calculate ebitda_margin_pct on the fly
-    if (kpi.kpi_key === "ebitda_margin" && revenue && revenue > 0) {
-      actual = (actual / revenue) * 100;
-    }
-    // Calculate gross_margin_pct — already in metrics as gross_margin_pct
-    if (kpi.kpi_key === "db_margin") {
-      actual = metrics.gross_margin_pct ?? null;
-      if (actual === null) continue;
-    }
+    // Both db_margin and ebitda_margin now map directly to their canonical pct keys
+    // No on-the-fly calculation needed
 
     const deviation = Math.abs((actual - kpi.target_value) / Math.abs(kpi.target_value || 1)) * 100;
     const offTarget = kpi.lower_is_better

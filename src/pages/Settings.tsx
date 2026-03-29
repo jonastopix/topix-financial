@@ -630,6 +630,7 @@ const Settings = () => {
                 { onConflict: "company_id,kpi_key" } as any
               );
           }
+          toast.info("KPI-mål opdateret fra branchestandard");
         }
       }
     }

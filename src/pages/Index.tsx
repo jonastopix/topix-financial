@@ -242,6 +242,26 @@ const Dashboard = () => {
   });
   const hasPulseThisMonth = !!pulseThisMonth;
 
+  // ── Milestones progress this month ──
+  const { data: milestonesThisMonth } = useQuery({
+    queryKey: ["milestones-this-month", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const { data } = await supabase
+        .from("milestones")
+        .select("id")
+        .eq("company_id", companyId)
+        .or(`status.eq.done,progress.gt.0`)
+        .gte("updated_at", monthStart)
+        .limit(1);
+      return data;
+    },
+    enabled: !!companyId && !isAdvisor,
+    staleTime: 5 * 60_000,
+  });
+  const hasMilestoneProgressThisMonth = !!(milestonesThisMonth && milestonesThisMonth.length > 0);
+
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
   const now = new Date();
   const currentMonthName = DANISH_MONTHS[now.getMonth()].toLowerCase();
@@ -408,7 +428,7 @@ const Dashboard = () => {
               },
               {
                 label: "Milestones",
-                done: false,
+                done: hasMilestoneProgressThisMonth,
                 action: "/milestones",
                 actionLabel: "Se status",
               },
