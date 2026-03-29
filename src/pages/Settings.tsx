@@ -1026,27 +1026,22 @@ const Settings = () => {
                   Analysen kører hver mandag morgen og kræver mindst én rapport, milestone og handout.
                 </p>
               </div>
-              <button
-                onClick={async () => {
-                  const next = !weeklyFocusEnabled;
+              <Switch
+                checked={weeklyFocusEnabled}
+                onCheckedChange={async (next) => {
                   setWeeklyFocusEnabled(next);
-                  await supabase
+                  const { error } = await supabase
                     .from("companies")
                     .update({ weekly_focus_enabled: next } as any)
                     .eq("id", company.id);
+                  if (error) {
+                    setWeeklyFocusEnabled(!next);
+                    toast.error("Kunne ikke ændre indstillingen");
+                    return;
+                  }
                   toast.success(next ? "Ugens Fokus aktiveret" : "Ugens Fokus deaktiveret");
                 }}
-                className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
-                  transition-colors duration-200 focus:outline-none mt-0.5
-                  ${weeklyFocusEnabled ? "bg-primary" : "bg-muted"}`}
-                role="switch"
-                aria-checked={weeklyFocusEnabled}
-              >
-                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
-                  transition-transform duration-200
-                  ${weeklyFocusEnabled ? "translate-x-4" : "translate-x-0"}`}
-                />
-              </button>
+              />
             </div>
           </div>
         )}
