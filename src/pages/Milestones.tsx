@@ -232,7 +232,7 @@ const Milestones = () => {
             >
               Alle
             </button>
-            {CATEGORY_OPTIONS.map((opt) => {
+            {CATEGORY_OPTIONS.filter((opt) => usedCategories.has(opt.value)).map((opt) => {
               const cfg = MILESTONE_CATEGORIES[opt.value];
               const Icon = cfg.icon;
               const isActive = categoryFilter === opt.value;
