@@ -50,6 +50,12 @@ const NotificationCenter = () => {
         return { Icon: Clock, bg: "bg-primary/10", text: "text-primary" };
       case "report_committed":
         return { Icon: CheckCircle2, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
+      case "alert_revenue_drop":
+        return { Icon: TrendingDown, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
+      case "alert_negative_cash":
+        return { Icon: AlertTriangle, bg: "bg-destructive/10", text: "text-destructive" };
+      case "alert_result_negative":
+        return { Icon: TrendingDown, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
       default:
         return { Icon: Bell, bg: "bg-muted", text: "text-muted-foreground" };
     }
