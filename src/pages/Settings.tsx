@@ -303,7 +303,7 @@ const Settings = () => {
 
       const { data } = await supabase
         .from("companies")
-        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry")
+        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry, industry_code, industry_label")
         .eq("id", cm.company_id)
         .single();
 
