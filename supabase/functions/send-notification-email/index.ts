@@ -42,6 +42,7 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   report_committed: "Nyt commit fra dit boardroom-medlem",
   milestone_completed: "Milestone fuldført",
   pulse_checkin_received: "Nyt pulse check-in fra dit member",
+  weekly_focus_ready: "Ugens fokus er klar",
 };
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
@@ -219,11 +220,13 @@ Deno.serve(async (req) => {
         report_error: "Prøv igen →",
         advisor_replied: "Læs beskeden →",
         report_committed: "Se virksomhedens tal →",
+        weekly_focus_ready: "Se ugens fokus",
       };
       const eyebrows: Record<string, string> = {
         report_review_ready: "Dine tal er klar",
         report_error: "Rapport fejl",
         advisor_replied: "Ny besked",
+        weekly_focus_ready: "Ugens fokus",
       };
       const highlights: Record<string, string> = {
         report_review_ready: "Omsætning, dækningsbidrag og resultat er klar til verifikation.",
