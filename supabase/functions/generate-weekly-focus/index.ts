@@ -25,13 +25,31 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
 
-  // Auth gate: service role only
+  // Auth gate: service role or authenticated admin
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace("Bearer ", "");
   const isServiceRole = token === serviceKey;
-  const isAnonTest = token === Deno.env.get("SUPABASE_ANON_KEY");
-  if (!isServiceRole && !isAnonTest) {
-    return new Response(JSON.stringify({ error: "Unauthorized", token_length: token.length }), {
+
+  let isAdminUser = false;
+  if (!isServiceRole && token.length > 0) {
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: claimsData } = await authClient.auth.getUser(token);
+    if (claimsData?.user) {
+      const { data: roleCheck } = await createClient(supabaseUrl, serviceKey)
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", claimsData.user.id)
+        .in("role", ["admin"])
+        .limit(1);
+      isAdminUser = (roleCheck && roleCheck.length > 0);
+    }
+  }
+
+  if (!isServiceRole && !isAdminUser) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
