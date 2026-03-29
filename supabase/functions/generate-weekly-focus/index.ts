@@ -277,7 +277,7 @@ async function processCompany(
   // Danish KPI key → canonical metrics key mapping
   const kpiKeyMap: Record<string, string> = {
     db_margin: "gross_margin_pct",
-    ebitda_margin: "ebitda",
+    ebitda_margin: "ebitda_margin_pct",
     omsaetning: "revenue",
     resultat: "net_result",
     loenninger: "payroll",
