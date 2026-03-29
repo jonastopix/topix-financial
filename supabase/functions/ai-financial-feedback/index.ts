@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
       companyContext = {
         ...companyContext,
         name: companyAccess.name || companyContext?.name,
-        industry: companyAccess.industry || companyContext?.industry,
+        industry: companyAccess.industry_label || companyContext?.industry,
       };
       console.log(`[ai-financial-feedback] Using RLS-verified company name: "${companyAccess.name}"`);
     } else if (companyContext?.name && !companyContext.industry) {
