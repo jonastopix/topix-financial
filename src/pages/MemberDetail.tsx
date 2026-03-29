@@ -73,7 +73,7 @@ interface CompanyContext {
   website: string | null;
   logo_url: string | null;
   start_date: string | null;
-  weekly_focus_enabled: boolean | null;
+  
 }
 
 interface Report {
@@ -212,7 +212,6 @@ const MemberDetail = () => {
   });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  const [weeklyFocusEnabled, setWeeklyFocusEnabled] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
@@ -293,7 +292,7 @@ const MemberDetail = () => {
       // Fetch company context via company_members
       const { data: cmData } = await supabase
         .from("company_members" as any)
-        .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, weekly_focus_enabled)" as any)
+        .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
@@ -301,7 +300,6 @@ const MemberDetail = () => {
       if (cm?.companies) {
         const ctx = { ...cm.companies, company_id: cm.company_id } as CompanyContext;
         setCompanyCtx(ctx);
-        setWeeklyFocusEnabled(ctx.weekly_focus_enabled ?? false);
         // Fetch budgets by company_id (correct key)
         const { data: budgetData } = await supabase
           .from("budget_targets")
@@ -432,14 +430,6 @@ const MemberDetail = () => {
     setSubmittingComment(null);
   };
 
-  const handleWeeklyFocusToggle = async (enabled: boolean) => {
-    setWeeklyFocusEnabled(enabled);
-    await supabase
-      .from("companies")
-      .update({ weekly_focus_enabled: enabled } as any)
-      .eq("id", memberCompanyId!);
-  };
-
   const handleViewOriginalFile = async (filePath: string) => {
     await openReportFile(filePath);
   };
@@ -567,20 +557,6 @@ const MemberDetail = () => {
                   <span className="flex items-center gap-1">
                     <Hash className="h-3.5 w-3.5" /> {companyCtx.slack_channel}
                   </span>
-                )}
-                {isAdvisor && (
-                  <div className="flex items-center justify-between py-2 border-t border-border/50 mt-2">
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Ugens Fokus</p>
-                      <p className="text-xs text-muted-foreground">AI-ugentlig analyse aktiveret</p>
-                    </div>
-                    <button
-                      onClick={() => handleWeeklyFocusToggle(!weeklyFocusEnabled)}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${weeklyFocusEnabled ? 'bg-primary' : 'bg-muted'}`}
-                    >
-                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${weeklyFocusEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </button>
-                  </div>
                 )}
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" /> Medlem siden {format(new Date(profile.created_at), "MMMM yyyy", { locale: da })}
