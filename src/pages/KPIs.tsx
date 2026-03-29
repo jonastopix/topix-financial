@@ -22,6 +22,7 @@ import {
   X,
   Info,
   MessageSquare,
+  Download,
 } from "lucide-react";
 import {
   Tooltip as UITooltip,
@@ -150,6 +151,21 @@ const KPIs = () => {
   const [editingBenchmarks, setEditingBenchmarks] = useState(false);
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { exportKPIReport } = await import("@/lib/exportPdf");
+      const { data: companyRow } = await supabase.from("companies").select("name").eq("id", companyId!).maybeSingle();
+      const companyName = companyRow?.name || "rapport";
+      const date = new Date().toLocaleDateString("da-DK", { month: "short", year: "numeric" }).replace(" ", "-");
+      await exportKPIReport("kpi-export-area", `${companyName}-kpi-${date}.pdf`);
+    } catch (e) {
+      toast.error("PDF-eksport fejlede. Prøv igen.");
+    }
+    setExporting(false);
+  };
 
   const { data: budgetData } = useQuery({
     queryKey: ["budget-for-kpi-targets", companyId],
@@ -596,6 +612,14 @@ const KPIs = () => {
         {!editingTargets && !editingBenchmarks ? (
           <div className="flex items-center gap-2">
             <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {exporting ? "Eksporterer..." : "Download PDF"}
+            </button>
+            <button
               onClick={startEditingBenchmarks}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
             >
@@ -633,6 +657,7 @@ const KPIs = () => {
         )}
       </div>
 
+      <div id="kpi-export-area">
       {/* Progress hero */}
       {kpiProgress.length > 0 && (
         <div className="glass-card rounded-xl p-6 mb-6">
@@ -1318,6 +1343,7 @@ const KPIs = () => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
       <p className="text-[10px] text-muted-foreground text-center mt-8 mb-2">
         Benchmarks er vejledende og baseret på aggregerede data fra danske virksomheder.
