@@ -224,7 +224,8 @@ const MemberDetail = () => {
         .select("went_well, biggest_challenge, milestone_progress, created_at, period_key")
         .eq("company_id", memberCompanyId)
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
       return data || null;
     },
     enabled: !!memberCompanyId,
