@@ -140,7 +140,7 @@ const Onboarding = () => {
                     if (companyId) {
                       supabase.functions.invoke("send-welcome-message", {
                         body: { companyId, memberName: fullName.trim() },
-                      }).catch(() => {});
+                      }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
                     }
                     setOnboardingComplete(); navigate("/", { replace: true });
                   }}
