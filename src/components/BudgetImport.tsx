@@ -175,7 +175,6 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
       const inserts = preview.categories.flatMap((cat) =>
         (["base", "optimistisk", "pessimistisk"] as const).flatMap((scenario) =>
           cat.monthly.map((amount, monthIdx) => ({
-            user_id: userId,
             company_id: companyId,
             category: cat.key,
             budget_amount: amount,
