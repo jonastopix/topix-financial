@@ -701,7 +701,7 @@ const Members = () => {
   };
 
   const industries = useMemo(() => {
-    const set = new Set(companies.map((c) => c.industry).filter(Boolean));
+    const set = new Set(companies.map((c) => c.industry_label).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b, "da"));
   }, [companies]);
 
