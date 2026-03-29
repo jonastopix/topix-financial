@@ -150,6 +150,21 @@ const KPIs = () => {
   const [editingBenchmarks, setEditingBenchmarks] = useState(false);
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { exportKPIReport } = await import("@/lib/exportPdf");
+      const { data: companyRow } = await supabase.from("companies").select("name").eq("id", companyId!).maybeSingle();
+      const companyName = companyRow?.name || "rapport";
+      const date = new Date().toLocaleDateString("da-DK", { month: "short", year: "numeric" }).replace(" ", "-");
+      await exportKPIReport("kpi-export-area", `${companyName}-kpi-${date}.pdf`);
+    } catch (e) {
+      toast.error("PDF-eksport fejlede. Prøv igen.");
+    }
+    setExporting(false);
+  };
 
   const { data: budgetData } = useQuery({
     queryKey: ["budget-for-kpi-targets", companyId],
