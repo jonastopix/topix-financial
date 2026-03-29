@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
 
       const { data: companyAccess, error: companyAccessErr } = await callerClient
         .from("companies")
-        .select("name, industry")
+        .select("name, industry_label")
         .eq("id", companyId)
         .maybeSingle();
 
