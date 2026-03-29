@@ -1,6 +1,6 @@
 import { Building2 } from "lucide-react";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
-import { formatDKKFull as formatDKK } from "@/lib/financialUtils";
+import { formatDKK } from "@/lib/financialUtils";
 
 interface GroupCompanyCardProps {
   company: GroupCompanySummary;
