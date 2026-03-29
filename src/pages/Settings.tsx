@@ -60,6 +60,7 @@ const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; va
     { label: "Klinik og behandling", value: "health_clinic" },
     { label: "Træning og fitness", value: "health_fitness" },
     { label: "Apotek og helse", value: "health_pharmacy" },
+    { label: "Optiker og synspleje", value: "health_optician" },
   ]},
   { label: "Fødevarer og restauration", value: "food", sub: [
     { label: "Restaurant og café", value: "food_restaurant" },
