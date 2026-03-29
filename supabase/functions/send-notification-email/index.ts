@@ -42,6 +42,7 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   report_committed: "Nyt commit fra dit boardroom-medlem",
   milestone_completed: "Milestone fuldført",
   pulse_checkin_received: "Nyt pulse check-in fra dit member",
+  weekly_focus_ready: "Ugens fokus er klar",
 };
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
