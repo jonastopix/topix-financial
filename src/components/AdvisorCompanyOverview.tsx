@@ -155,7 +155,7 @@ const AdvisorCompanyOverview = () => {
     queryFn: async () => {
       // Stage 1: parallel fetch of company, conversations, reports
       const [companyRes, convsRes, reportsRes] = await Promise.all([
-        supabase.from("companies").select("id, name, industry, cvr_number, logo_url").eq("id", companyId!).single(),
+        supabase.from("companies").select("id, name, industry_label, cvr_number, logo_url").eq("id", companyId!).single(),
         supabase.from("conversations")
           .select("id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_message_at")
           .eq("company_id", companyId!)
