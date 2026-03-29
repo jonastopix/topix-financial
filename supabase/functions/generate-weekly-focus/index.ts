@@ -327,17 +327,27 @@ async function processCompany(
     }
   }
 
-  // T7: NO_REPORT_60_DAYS
-  const { data: anyFact } = await admin
+  // T7: NO_REPORT_60_DAYS — own query not bounded by 90-day window
+  const { data: anyRecentFact } = await admin
     .from("financial_report_facts")
     .select("id, committed_at")
     .eq("company_id", company.id)
     .gte("committed_at", sixtyDaysAgo)
     .limit(1);
 
-  if (!anyFact || anyFact.length === 0) {
+  const { data: anyFactEver } = await admin
+    .from("financial_report_facts")
+    .select("id, committed_at")
+    .eq("company_id", company.id)
+    .order("committed_at", { ascending: false })
+    .limit(1);
+
+  if (!anyRecentFact || anyRecentFact.length === 0) {
+    const lastFactDaysAgo = anyFactEver?.[0]?.committed_at
+      ? Math.floor((now.getTime() - new Date(anyFactEver[0].committed_at).getTime()) / (1000 * 60 * 60 * 24))
+      : null;
     triggers.push("NO_REPORT_60_DAYS");
-    triggerData.NO_REPORT_60_DAYS = { last_report_days_ago: dataFreshnessDays };
+    triggerData.NO_REPORT_60_DAYS = { last_report_days_ago: lastFactDaysAgo };
   }
 
   // T8: HANDOUT_OVERDUE — handout not answered in 30+ days
@@ -346,7 +356,7 @@ async function processCompany(
     .select("id, module, completed_at, created_at")
     .eq("company_id", company.id)
     .is("completed_at", null)
-    .lt("created_at", thirtyDaysAgo)
+    .lt("created_at", new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString())
     .limit(3);
 
   if ((overdueHandouts || []).length > 0) {
@@ -380,6 +390,22 @@ async function processCompany(
       triggers.push("POSITIVE_MOMENTUM");
       triggerData.POSITIVE_MOMENTUM = { months_above_budget: positiveMonths };
     }
+  }
+
+  // REPORT_UPLOADED alone is not sufficient for AI analysis
+  // Only keep it if at least one other substantive trigger is also active
+  if (triggers.length === 1 && triggers[0] === "REPORT_UPLOADED") {
+    await admin.from("weekly_focus").upsert({
+      company_id: company.id,
+      week_key: weekKey,
+      status: "quiet",
+      triggers_fired: triggers,
+      trigger_data: triggerData,
+      data_freshness_days: dataFreshnessDays,
+      generated_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString(),
+    }, { onConflict: "company_id,week_key" });
+    return;
   }
 
   // ── STEP 3: QUIET WEEK CHECK ──────────────────────────────────────
@@ -547,7 +573,7 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
     .eq("company_id", company.id);
 
   for (const member of (members2 || [])) {
-    await admin.from("notifications").insert({
+    const { error: notifErr } = await admin.from("notifications").insert({
       user_id: member.user_id,
       company_id: company.id,
       type: "weekly_focus_ready",
@@ -556,7 +582,10 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
       body: headline,
       deep_link: "/",
       dedup_key: `weekly_focus:${company.id}:${weekKey}`,
-    }).throwOnError();
+    });
+    if (notifErr && notifErr.code !== "23505") {
+      console.error("[weekly-focus] Notification error:", notifErr);
+    }
   }
 
   console.log(`[weekly-focus] Done: ${company.name} — ${triggers.length} triggers, ${actions.length} actions`);
