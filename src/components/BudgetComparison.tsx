@@ -435,12 +435,10 @@ const BudgetComparison = () => {
     </div>
   );
 };
-// Reuse the local Danish months order for sorting
-const DANISH_MONTHS_ORDER = DANISH_MONTHS_ORDER_LOCAL;
 
 function periodSortKey(period: string): string {
   const parts = period.toLowerCase().split(" ");
-  const monthIdx = DANISH_MONTHS_ORDER[parts[0]] ?? 0;
+  const monthIdx = DANISH_MONTHS_INDEX[parts[0]] ?? 0;
   const year = parts[1] || "2025";
   return `${year}-${String(monthIdx).padStart(2, "0")}`;
 }
@@ -448,7 +446,7 @@ function periodSortKey(period: string): string {
 function shortMonth(period: string): string {
   const SHORT = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
   const parts = period.toLowerCase().split(" ");
-  const idx = DANISH_MONTHS_ORDER[parts[0]] ?? 0;
+  const idx = DANISH_MONTHS_INDEX[parts[0]] ?? 0;
   return SHORT[idx];
 }
 
