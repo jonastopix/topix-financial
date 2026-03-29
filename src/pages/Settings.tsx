@@ -112,6 +112,8 @@ interface CompanyData {
   contact_phone: string | null;
   logo_url: string | null;
   industry: string | null;
+  industry_code: string | null;
+  industry_label: string | null;
 }
 
 const CircleProfileSection = ({ userId }: { userId?: string }) => {
