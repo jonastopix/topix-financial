@@ -328,7 +328,7 @@ export default function ReportReviewDialog({
       // Detect and write financial alerts — non-blocking
       supabase.functions.invoke("detect-financial-alerts", {
         body: {
-          company_id: preview?.existing_owner_id ? companyId : companyId,
+          company_id: companyId,
           period_key: preview?.period_key,
           report_id: reportId,
         },
