@@ -183,7 +183,10 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
         )
       );
 
-      const { error } = await supabase.from("budget_targets").insert(inserts);
+      const { error } = await supabase.from("budget_targets").upsert(inserts, {
+        onConflict: "company_id,category,period",
+        ignoreDuplicates: false,
+      });
       if (error) throw error;
 
       toast.success(`Budget ${preview.year} importeret!`);
