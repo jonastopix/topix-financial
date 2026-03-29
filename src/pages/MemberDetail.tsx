@@ -219,12 +219,13 @@ const MemberDetail = () => {
     queryKey: ["pulse-checkin-member", memberCompanyId],
     queryFn: async () => {
       if (!memberCompanyId) return null;
-      const { data } = await (supabase
-        .from("pulse_checkins" as any)
+      const { data } = await supabase
+        .from("pulse_checkins")
         .select("went_well, biggest_challenge, milestone_progress, created_at, period_key")
         .eq("company_id", memberCompanyId)
         .order("created_at", { ascending: false })
-        .limit(1) as any).maybeSingle();
+        .limit(1)
+        .maybeSingle();
       return data || null;
     },
     enabled: !!memberCompanyId,

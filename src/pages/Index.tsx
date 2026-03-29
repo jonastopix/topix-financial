@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
@@ -96,6 +96,15 @@ const Dashboard = () => {
   }, [companyInfo]);
 
   const isLoading = factsLoading || budgetLoading;
+
+  // Trigger tour after data loads (must be before early returns)
+  useEffect(() => {
+    if (shouldShowTour && !tourTriggered && !isLoading) {
+      const timer = setTimeout(() => setShowTour(true), 800);
+      setTourTriggered(true);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldShowTour, tourTriggered, isLoading]);
 
   // ── Transform facts to sorted Danish-key shape ──
   const sorted = useMemo(() => {
@@ -229,12 +238,12 @@ const Dashboard = () => {
     queryFn: async () => {
       if (!companyId) return null;
       const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-      const { data } = await (supabase
-        .from("pulse_checkins" as any)
+      const { data } = await supabase
+        .from("pulse_checkins")
         .select("id")
         .eq("company_id", companyId)
         .eq("period_key", periodKey)
-        .maybeSingle() as any);
+        .maybeSingle();
       return data;
     },
     enabled: !!companyId && !isAdvisor,
@@ -319,11 +328,6 @@ const Dashboard = () => {
     );
   }
 
-  // Trigger tour after render
-  if (shouldShowTour && !tourTriggered && !isLoading) {
-    setTimeout(() => setShowTour(true), 800);
-    setTourTriggered(true);
-  }
 
   return (
     <AppLayout>

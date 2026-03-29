@@ -70,11 +70,11 @@ const DANISH_MONTHS_ORDER_LOCAL: Record<string, number> = {
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
 const tooltipStyle = {
-  background: "hsl(220, 25%, 9%)",
-  border: "1px solid hsl(220, 20%, 14%)",
+  background: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "hsl(220, 10%, 90%)",
+  color: "hsl(var(--foreground))",
 };
 
 function variance(budget: number, actual: number, isRevenue: boolean) {
@@ -332,12 +332,12 @@ const BudgetComparison = () => {
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={visibleData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
-              <Bar dataKey="budget" name="Budget" fill="hsl(220, 10%, 30%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="budget" name="Budget" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="actual" name="Actual" radius={[4, 4, 0, 0]}>
                 {visibleData.map((entry) => {
                   const isRev = entry.category === "Omsætning";
@@ -541,12 +541,12 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <Area type="monotone" dataKey="budgetRevenue" name="Budget" fill="hsl(220, 10%, 20%)" stroke="hsl(220, 10%, 40%)" fillOpacity={0.3} strokeDasharray="5 5" />
+                <Area type="monotone" dataKey="budgetRevenue" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
                 <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={{ fill: "hsl(160, 84%, 39%)", r: 4 }} activeDot={{ r: 6 }} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -559,13 +559,13 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <ReferenceLine y={0} stroke="hsl(220, 10%, 30%)" strokeDasharray="3 3" />
-                <Area type="monotone" dataKey="budgetResult" name="Budget" fill="hsl(220, 10%, 20%)" stroke="hsl(220, 10%, 40%)" fillOpacity={0.3} strokeDasharray="5 5" />
+                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                <Area type="monotone" dataKey="budgetResult" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
                 <Line type="monotone" dataKey="actualResult" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={(props: any) => {
                   const { cx, cy, value } = props;
                   const color = value >= 0 ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 51%)";
@@ -583,9 +583,9 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
         <div className="h-60">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [`${value.toLocaleString("da-DK")} DKK`, name]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
               <Legend wrapperStyle={{ fontSize: "11px" }} />
               {COST_CATEGORIES.map((cat) => (
@@ -595,8 +595,8 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                   dataKey={cat}
                   name={cat}
                   stackId="costs"
-                  stroke={COST_COLORS[cat] || "hsl(220, 10%, 40%)"}
-                  fill={COST_COLORS[cat] || "hsl(220, 10%, 20%)"}
+                  stroke={COST_COLORS[cat] || "hsl(var(--muted-foreground))"}
+                  fill={COST_COLORS[cat] || "hsl(var(--muted))"}
                   fillOpacity={0.6}
                 />
               ))}
