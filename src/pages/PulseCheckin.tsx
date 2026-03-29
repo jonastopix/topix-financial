@@ -24,13 +24,13 @@ const PulseCheckin = () => {
 
   useEffect(() => {
     if (!user || !companyId) return;
-    (supabase
-      .from("pulse_checkins" as any)
+    supabase
+      .from("pulse_checkins")
       .select("id")
       .eq("company_id", companyId)
       .eq("period_key", periodKey)
-      .maybeSingle() as any)
-      .then(({ data }: any) => { if (data) setAlreadyDone(true); });
+      .maybeSingle()
+      .then(({ data }) => { if (data) setAlreadyDone(true); });
   }, [user, companyId, periodKey]);
 
   if (isAdvisor) return <Navigate to="/" replace />;
