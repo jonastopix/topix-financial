@@ -72,13 +72,8 @@ export function useNotifications() {
     return () => { supabase.removeChannel(channel); };
   }, [user, load]);
 
-  // Periodic refresh every 2 minutes to catch cross-tab/device changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      load();
-    }, 2 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [load]);
+  // Removed redundant polling — Realtime subscription handles INSERT/UPDATE events.
+  // Cross-tab/device sync relies on Realtime; manual refresh via load() if needed.
 
   // Badge count: unseen important + action_required
   const unseenCount = notifications.filter(
