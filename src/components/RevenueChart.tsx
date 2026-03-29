@@ -9,7 +9,7 @@ import { calcTotalExpenses, SHORT_MONTHS } from "@/lib/financialUtils";
 
 const RevenueChart = () => {
   const [mode, setMode] = useState<"last12" | "ytd">("last12");
-  const { data: facts = [] } = useCompanyFacts();
+  const { data: facts = [], isLoading, isError } = useCompanyFacts();
 
   const chartData = useMemo(() => {
     let sorted = facts.map((f) => {
