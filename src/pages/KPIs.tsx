@@ -657,6 +657,7 @@ const KPIs = () => {
         )}
       </div>
 
+      <div id="kpi-export-area">
       {/* Progress hero */}
       {kpiProgress.length > 0 && (
         <div className="glass-card rounded-xl p-6 mb-6">
