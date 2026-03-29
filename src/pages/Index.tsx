@@ -10,6 +10,7 @@ import BudgetOverview from "@/components/BudgetOverview";
 import PerformanceScore from "@/components/PerformanceScore";
 import AttentionNeeded from "@/components/AttentionNeeded";
 import CompanyActions from "@/components/CompanyActions";
+import WeeklyFocusWidget from "@/components/WeeklyFocusWidget";
 import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import DashboardActivity from "@/components/DashboardActivity";
