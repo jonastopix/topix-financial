@@ -1384,7 +1384,7 @@ const Members = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
-                          <p className="text-xs text-muted-foreground truncate">{c.industry || "–"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.industry_label || "–"}</p>
                           <span className="text-[10px] text-muted-foreground">{c.city}</span>
                           {c.slack_channel && (
                             <span className="text-[10px] text-primary flex items-center gap-0.5">
