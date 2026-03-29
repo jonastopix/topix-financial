@@ -73,6 +73,7 @@ interface CompanyContext {
   website: string | null;
   logo_url: string | null;
   start_date: string | null;
+  weekly_focus_enabled: boolean | null;
 }
 
 interface Report {
