@@ -568,8 +568,6 @@ const MemberDetail = () => {
                     <Hash className="h-3.5 w-3.5" /> {companyCtx.slack_channel}
                   </span>
                 )}
-                {isAdvisor && (
-                )}
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" /> Medlem siden {format(new Date(profile.created_at), "MMMM yyyy", { locale: da })}
                 </span>
