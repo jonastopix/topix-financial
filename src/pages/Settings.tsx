@@ -321,6 +321,7 @@ const Settings = () => {
           industry_label: (data as any).industry_label || "",
         });
         setLogoUrl(data.logo_url || null);
+        setWeeklyFocusEnabled((data as any).weekly_focus_enabled ?? false);
         // Derive main category from stored industry_code
         const mainCat = findMainCategoryBySubValue((data as any).industry_code || "");
         setSelectedMainCategory(mainCat);
