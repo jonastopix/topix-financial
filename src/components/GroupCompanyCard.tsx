@@ -1,19 +1,11 @@
 import { Building2 } from "lucide-react";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
+import { formatDKK } from "@/lib/financialUtils";
 
 interface GroupCompanyCardProps {
   company: GroupCompanySummary;
   compact?: boolean;
   onCompanyClick?: (companyId: string, companyName: string) => void;
-}
-
-function formatDKK(value: number | null): string {
-  if (value == null) return "—";
-  return new Intl.NumberFormat("da-DK", {
-    style: "currency",
-    currency: "DKK",
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardProps) {
