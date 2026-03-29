@@ -274,14 +274,23 @@ const AdminConfig = () => {
           <p className="text-sm text-muted-foreground mb-4">
             Synkroniserer medlemmer, opslag og events fra Circle til platformen.
           </p>
-          <button
-            onClick={handleCircleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Synkroniserer..." : "Synkroniser nu"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCircleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Synkroniserer..." : "Synkroniser nu"}
+            </button>
+            <button
+              onClick={handleTestWeeklyFocus}
+              disabled={testingWeeklyFocus}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50"
+            >
+              {testingWeeklyFocus ? "Genererer..." : "Test Ugens Fokus"}
+            </button>
+          </div>
         </section>
 
         {/* ─── Advisors ────────────────────────────────── */}
