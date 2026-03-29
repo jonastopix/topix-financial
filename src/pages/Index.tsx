@@ -97,6 +97,15 @@ const Dashboard = () => {
 
   const isLoading = factsLoading || budgetLoading;
 
+  // Trigger tour after data loads (must be before early returns)
+  useEffect(() => {
+    if (shouldShowTour && !tourTriggered && !isLoading) {
+      const timer = setTimeout(() => setShowTour(true), 800);
+      setTourTriggered(true);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldShowTour, tourTriggered, isLoading]);
+
   // ── Transform facts to sorted Danish-key shape ──
   const sorted = useMemo(() => {
     return facts.map((f) => ({
