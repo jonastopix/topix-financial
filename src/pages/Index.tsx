@@ -428,7 +428,7 @@ const Dashboard = () => {
               },
               {
                 label: "Milestones",
-                done: false,
+                done: hasMilestoneProgressThisMonth,
                 action: "/milestones",
                 actionLabel: "Se status",
               },
