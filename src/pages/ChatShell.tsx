@@ -63,8 +63,16 @@ const ChatShell = () => {
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0">
-          {chatTab === "advisor" ? <CompanyChatPane /> : <FinancialAIChat />}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {chatTab === "advisor" ? (
+            <div className="flex-1 min-h-0 flex flex-col">
+              <CompanyChatPane />
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0">
+              <FinancialAIChat />
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
