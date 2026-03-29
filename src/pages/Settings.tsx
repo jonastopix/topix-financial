@@ -40,6 +40,10 @@ const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; va
     { label: "Personbefordring", value: "transport_passenger" },
     { label: "Eventlogistik og specialtransport", value: "transport_event" },
   ]},
+  { label: "Rejse og turisme", value: "travel", sub: [
+    { label: "Rejsebureau og turoperatør", value: "travel_tour" },
+    { label: "Eventrejser og specialture", value: "travel_event" },
+  ]},
   { label: "IT og teknologi", value: "tech", sub: [
     { label: "Softwareudvikling", value: "tech_software" },
     { label: "IT-drift og support", value: "tech_support" },
