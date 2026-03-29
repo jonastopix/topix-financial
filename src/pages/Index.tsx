@@ -451,6 +451,7 @@ const Dashboard = () => {
       {/* Attention needed — action-first, before KPI data */}
       <div className="mb-6">
         <AttentionNeeded />
+        {companyId && <CompanyActions companyId={companyId} />}
       </div>
 
       {/* KPI cards – only shown when we have processed data */}
