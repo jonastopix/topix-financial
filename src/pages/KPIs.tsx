@@ -935,6 +935,44 @@ const KPIs = () => {
         </div>
       </div>
 
+      {/* Industry benchmark gauge */}
+      {industryBenchmarkData && (() => {
+        const latestKFEntry = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].kf : null;
+        if (!latestKFEntry) return null;
+
+        const gaugeEntries = industryBenchmarkData.benchmarks
+          .map(b => {
+            let actualValue: number | null = null;
+            let label = "";
+            const unit = "%";
+            if (b.kpi_key === "gross_margin_pct") {
+              actualValue = calcDbMargin(latestKFEntry);
+              label = "DB-margin";
+            } else if (b.kpi_key === "ebitda_margin_pct") {
+              actualValue = calcResultMargin(latestKFEntry);
+              label = "Resultatmargin";
+            }
+            if (actualValue == null) return null;
+            return {
+              kpi_key: b.kpi_key, label, actualValue,
+              benchmarkValue: Number(b.benchmark_value),
+              benchmarkMin: Number(b.benchmark_min),
+              benchmarkMax: Number(b.benchmark_max),
+              benchmarkLabel: b.benchmark_label, unit,
+              sourceLabel: b.source_label,
+            } as GaugeEntry;
+          })
+          .filter(Boolean) as GaugeEntry[];
+
+        if (gaugeEntries.length === 0) return null;
+        return (
+          <IndustryBenchmarkGauge
+            industryLabel={industryBenchmarkData.industryLabel || ""}
+            entries={gaugeEntries}
+          />
+        );
+      })()}
+
       {/* KPI cards grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         {kpiMetrics.map((metric) => {
