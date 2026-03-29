@@ -47,9 +47,9 @@ const INTERNAL_TO_DISPLAY: Record<string, string> = {
   omsaetning: "Omsætning",
   direkte_omkostninger: "Direkte omk.",
   loenninger: "Lønninger",
-  marketing: "Marketing",
-  lokaler: "Lokaler",
-  admin: "Administration",
+  salgsomkostninger: "Marketing",
+  lokaleomkostninger: "Lokaler",
+  administrationsomkostninger: "Administration",
   afskrivninger: "Afskrivninger",
 };
 
