@@ -79,8 +79,8 @@ const CompanyActions = ({ companyId }: CompanyActionsProps) => {
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
       toast.success("Handling konverteret til milestone");
     },
+  });
 
-  const addAction = useMutation({
     mutationFn: async (title: string) => {
       await supabase
         .from("company_actions")
