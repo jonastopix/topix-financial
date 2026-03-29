@@ -26,8 +26,9 @@ Deno.serve(async (req) => {
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
 
   // Auth gate: service role only
-  const authHeader = req.headers.get("Authorization");
-  if (authHeader !== `Bearer ${serviceKey}`) {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace("Bearer ", "");
+  if (token !== serviceKey) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
