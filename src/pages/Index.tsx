@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 
+import RollingForecastCard from "@/components/RollingForecastCard";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
