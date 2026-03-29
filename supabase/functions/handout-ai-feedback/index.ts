@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
     const { data: handout, error: hErr } = await sb
       .from("handouts")
-      .select("*, companies:company_id(name, industry)")
+      .select("*, companies:company_id(name, industry_label)")
       .eq("id", handout_id)
       .single();
     if (hErr || !handout) throw new Error("Handout not found");
