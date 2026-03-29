@@ -381,7 +381,7 @@ const AdvisorCompanyOverview = () => {
             {company?.industry_label && <span>{company.industry_label}</span>}
             {company?.cvr_number && (
               <>
-                {company?.industry && <span>·</span>}
+                {company?.industry_label && <span>·</span>}
                 <span>CVR {company.cvr_number}</span>
               </>
             )}
