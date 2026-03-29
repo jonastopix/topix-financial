@@ -585,6 +585,38 @@ const Settings = () => {
       toast.error("Kunne ikke gemme virksomhedsdata");
     } else {
       toast.success("Virksomhed opdateret");
+
+      // Auto-sync KPI benchmarks from industry_benchmarks when industry changes
+      if (industryCode) {
+        const KPI_KEY_MAP: Record<string, string> = {
+          gross_margin_pct: "db_margin",
+          ebitda_margin_pct: "ebitda_margin",
+        };
+
+        const { data: industryBenchmarks } = await supabase
+          .from("industry_benchmarks")
+          .select("kpi_key, benchmark_value, benchmark_label, source_label")
+          .eq("industry_code", industryCode);
+
+        if (industryBenchmarks && industryBenchmarks.length > 0) {
+          for (const ib of industryBenchmarks) {
+            const mappedKey = KPI_KEY_MAP[ib.kpi_key] || ib.kpi_key;
+            await supabase
+              .from("kpi_benchmarks")
+              .upsert(
+                {
+                  company_id: company.id,
+                  user_id: user!.id,
+                  kpi_key: mappedKey,
+                  benchmark_value: ib.benchmark_value,
+                  benchmark_label: ib.benchmark_label,
+                  source_label: ib.source_label,
+                } as any,
+                { onConflict: "company_id,kpi_key" } as any
+              );
+          }
+        }
+      }
     }
     setSavingCompany(false);
   };
