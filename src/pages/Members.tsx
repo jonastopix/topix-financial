@@ -846,7 +846,7 @@ const Members = () => {
     let result = companies;
 
     if (filterIndustry !== "all") {
-      result = result.filter((c) => c.industry === filterIndustry);
+      result = result.filter((c) => c.industry_label === filterIndustry);
     }
 
     if (search.trim()) {
