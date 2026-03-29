@@ -8,7 +8,7 @@ import {
 export type MilestoneCategory =
   | "vaekst" | "profit" | "timer" | "medarbejdere" | "db"
   | "produkt" | "salg" | "kunder" | "marketing" | "juridisk" | "funding"
-  | "regnskab" | "other";
+  | "regnskab" | "administration" | "other";
 
 export interface CategoryConfig {
   label: string;
