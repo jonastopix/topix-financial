@@ -332,9 +332,9 @@ const BudgetComparison = () => {
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={visibleData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               <Bar dataKey="budget" name="Budget" fill="hsl(220, 10%, 30%)" radius={[4, 4, 0, 0]} />
