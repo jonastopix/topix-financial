@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
         canonicalPayload,
         companyContext: {
           name: companyData.name,
-          industry: companyData.industry,
+          industry: companyData.industry_label,
         },
         companyId: company_id,
         budgetContext,
