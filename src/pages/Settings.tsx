@@ -542,7 +542,8 @@ const Settings = () => {
     const email = companyForm.contact_email.trim();
     const website = companyForm.website.trim();
     const phone = companyForm.contact_phone.trim();
-    const industry = companyForm.industry.trim();
+    const industryCode = companyForm.industry_code.trim();
+    const industryLabel = companyForm.industry_label.trim();
 
     if (!name || name.length > 200) {
       toast.error("Virksomhedsnavn skal udfyldes (max 200 tegn)");
