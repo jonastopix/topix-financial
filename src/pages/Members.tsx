@@ -396,7 +396,7 @@ const Members = () => {
           id: c.id,
           name: c.name || "",
           cvr_number: c.cvr_number,
-          industry: c.industry || "",
+          industry_label: c.industry_label || "",
           contact_person: c.contact_person || "",
           contact_email: c.contact_email || "",
           contact_phone: c.contact_phone || "",
