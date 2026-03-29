@@ -53,6 +53,7 @@ const AdminConfig = () => {
 
   const [saving, setSaving] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [testingWeeklyFocus, setTestingWeeklyFocus] = useState(false);
 
   const handleCircleSync = async () => {
     setSyncing(true);
@@ -69,6 +70,21 @@ const AdminConfig = () => {
       toast.error("Synkronisering fejlede");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleTestWeeklyFocus = async () => {
+    setTestingWeeklyFocus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-weekly-focus", {
+        body: { company_id: "927a4f36-748d-4326-9259-bff940da7e3d" },
+      });
+      if (error) throw error;
+      toast.success(`Ugens fokus genereret: ${JSON.stringify(data)}`);
+    } catch (err: any) {
+      toast.error(`Fejl: ${err.message}`);
+    } finally {
+      setTestingWeeklyFocus(false);
     }
   };
 
@@ -258,14 +274,23 @@ const AdminConfig = () => {
           <p className="text-sm text-muted-foreground mb-4">
             Synkroniserer medlemmer, opslag og events fra Circle til platformen.
           </p>
-          <button
-            onClick={handleCircleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Synkroniserer..." : "Synkroniser nu"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCircleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Synkroniserer..." : "Synkroniser nu"}
+            </button>
+            <button
+              onClick={handleTestWeeklyFocus}
+              disabled={testingWeeklyFocus}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50"
+            >
+              {testingWeeklyFocus ? "Genererer..." : "Test Ugens Fokus"}
+            </button>
+          </div>
         </section>
 
         {/* ─── Advisors ────────────────────────────────── */}
