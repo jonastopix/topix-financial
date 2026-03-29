@@ -101,8 +101,8 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
   // Fetch industry from company
   useEffect(() => {
     if (!companyId) return;
-    supabase.from("companies").select("industry").eq("id", companyId).maybeSingle().then(({ data }) => {
-      setIndustry(data?.industry || null);
+    supabase.from("companies").select("industry_label").eq("id", companyId).maybeSingle().then(({ data }) => {
+      setIndustry(data?.industry_label || null);
     });
   }, [companyId]);
 
