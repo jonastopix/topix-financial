@@ -291,7 +291,7 @@ const MemberDetail = () => {
       // Fetch company context via company_members
       const { data: cmData } = await supabase
         .from("company_members" as any)
-        .select("company_id, companies:company_id(name, industry, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
+        .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
