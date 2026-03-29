@@ -2,38 +2,35 @@ import AppLayout from "@/components/AppLayout";
 import { MessageSquare, CalendarDays, PlayCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAppConfig } from "@/hooks/useAppConfig";
 
-const COMMUNITY_BASE_URL_DEFAULT = "https://app.topix.dk";
+/** Central base URL — change here if the community domain changes */
+const COMMUNITY_BASE_URL = "https://app.topix.dk";
+
+const cards = [
+  {
+    icon: MessageSquare,
+    title: "Community",
+    description: "Del erfaringer, stil spørgsmål og få sparring fra andre iværksættere.",
+    label: "Åbn community",
+    path: "/c/community/",
+  },
+  {
+    icon: CalendarDays,
+    title: "Live sessions",
+    description: "Se kommende online sessions og tilmeld dig direkte.",
+    label: "Se kalender",
+    path: "/c/calendar/",
+  },
+  {
+    icon: PlayCircle,
+    title: "Classroom",
+    description: "Videomoduler og undervisning tilgængelig når det passer dig.",
+    label: "Åbn Classroom",
+    path: "/c/classroom/",
+  },
+];
 
 const Community = () => {
-  const { getConfig } = useAppConfig();
-  const baseUrl = (getConfig("community_base_url") as string) || COMMUNITY_BASE_URL_DEFAULT;
-
-  const cards = [
-    {
-      icon: MessageSquare,
-      title: "Community",
-      description: "Del erfaringer, stil spørgsmål og få sparring fra andre iværksættere.",
-      label: "Åbn community",
-      href: `${baseUrl}/c/community/`,
-    },
-    {
-      icon: CalendarDays,
-      title: "Live sessions",
-      description: "Se kommende online sessions og tilmeld dig direkte.",
-      label: "Se kalender",
-      href: `${baseUrl}/c/calendar/`,
-    },
-    {
-      icon: PlayCircle,
-      title: "Classroom",
-      description: "Videomoduler og undervisning tilgængelig når det passer dig.",
-      label: "Åbn Classroom",
-      href: `${baseUrl}/c/classroom/`,
-    },
-  ];
-
   return (
     <AppLayout>
       <div className="p-4 md:p-6 space-y-6">
@@ -54,7 +51,7 @@ const Community = () => {
                   <p className="text-sm text-muted-foreground">{card.description}</p>
                 </div>
                 <Button asChild variant="outline" size="sm">
-                  <a href={card.href} target="_blank" rel="noopener noreferrer">
+                  <a href={`${COMMUNITY_BASE_URL}${card.path}`} target="_blank" rel="noopener noreferrer">
                     {card.label}
                     <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
                   </a>
