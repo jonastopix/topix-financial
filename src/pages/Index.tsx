@@ -282,6 +282,7 @@ const Dashboard = () => {
   const budgetData = dashboardData.budgetData;
   const spark = dashboardData.sparklines;
   const hasReports = dashboardData.hasReports;
+  const rollingForecast = dashboardData.rollingForecast;
 
   // ── Pulse check for "Dit forløb" card ──
   const { data: pulseThisMonth } = useQuery({
