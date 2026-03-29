@@ -163,6 +163,29 @@ const KPIs = () => {
     staleTime: 5 * 60_000,
   });
 
+  const { data: chartComments = [], refetch: refetchComments } = useQuery({
+    queryKey: ["kpi-chart-comments", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("kpi_chart_comments" as any)
+        .select("id, period_key, period_label, kpi_key, content, author_id, created_at")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return (data || []) as { id: string; period_key: string; period_label: string; kpi_key: string; content: string; author_id: string; created_at: string }[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+
+  const [commentPopover, setCommentPopover] = useState<{
+    periodKey: string;
+    periodLabel: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
+
   const budgetTotals = useMemo(() => {
     if (!budgetData?.length) return null;
     const revenue = budgetData
