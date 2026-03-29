@@ -265,8 +265,10 @@ const Settings = () => {
     contact_email: "",
     website: "",
     contact_phone: "",
-    industry: "",
+    industry_code: "",
+    industry_label: "",
   });
+  const [selectedMainCategory, setSelectedMainCategory] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
