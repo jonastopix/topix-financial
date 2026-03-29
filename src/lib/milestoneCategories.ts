@@ -89,7 +89,14 @@ export const MILESTONE_CATEGORIES: Record<MilestoneCategory, CategoryConfig> = {
   },
 };
 
-export const CATEGORY_OPTIONS = Object.entries(MILESTONE_CATEGORIES).map(([key, cfg]) => ({
-  value: key as MilestoneCategory,
-  label: cfg.label,
-}));
+export const CATEGORY_OPTIONS = Object.entries(MILESTONE_CATEGORIES)
+  .map(([key, cfg]) => ({
+    value: key as MilestoneCategory,
+    label: cfg.label,
+  }))
+  .sort((a, b) => {
+    // "Andet" always last
+    if (a.value === "other") return 1;
+    if (b.value === "other") return -1;
+    return a.label.localeCompare(b.label, "da");
+  });
