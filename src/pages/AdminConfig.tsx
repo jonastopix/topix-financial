@@ -73,6 +73,21 @@ const AdminConfig = () => {
     }
   };
 
+  const handleTestWeeklyFocus = async () => {
+    setTestingWeeklyFocus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-weekly-focus", {
+        body: { company_id: "927a4f36-748d-4326-9259-bff940da7e3d" },
+      });
+      if (error) throw error;
+      toast.success(`Ugens fokus genereret: ${JSON.stringify(data)}`);
+    } catch (err: any) {
+      toast.error(`Fejl: ${err.message}`);
+    } finally {
+      setTestingWeeklyFocus(false);
+    }
+  };
+
   // ─── Advisor management state ───────────────────────────
   const [advisors, setAdvisors] = useState<AdvisorEntry[]>([]);
   const [advisorsLoading, setAdvisorsLoading] = useState(false);
