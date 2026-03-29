@@ -83,7 +83,7 @@ interface CompanyData {
   id: string;
   name: string;
   cvr_number: string | null;
-  industry: string;
+  industry_label: string;
   contact_person: string;
   contact_email: string;
   contact_phone: string;
