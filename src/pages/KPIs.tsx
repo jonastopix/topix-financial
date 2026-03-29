@@ -165,6 +165,39 @@ const KPIs = () => {
     staleTime: 5 * 60_000,
   });
 
+  // Fetch company industry benchmarks
+  const { data: industryBenchmarkData } = useQuery({
+    queryKey: ["industry-benchmarks-for-company", companyId],
+    queryFn: async () => {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("industry_code, industry_label")
+        .eq("id", companyId!)
+        .maybeSingle();
+      if (!company?.industry_code) return null;
+
+      const { data: benchmarks } = await supabase
+        .from("industry_benchmarks")
+        .select("kpi_key, benchmark_value, benchmark_label, benchmark_min, benchmark_max, source_label")
+        .eq("industry_code", company.industry_code);
+
+      return {
+        industryCode: company.industry_code,
+        industryLabel: company.industry_label,
+        benchmarks: (benchmarks || []) as {
+          kpi_key: string;
+          benchmark_value: number;
+          benchmark_label: string;
+          benchmark_min: number;
+          benchmark_max: number;
+          source_label: string;
+        }[],
+      };
+    },
+    enabled: !!companyId && !isAdvisor,
+    staleTime: 10 * 60_000,
+  });
+
   const { data: chartComments = [], refetch: refetchComments } = useQuery({
     queryKey: ["kpi-chart-comments", companyId],
     queryFn: async () => {
