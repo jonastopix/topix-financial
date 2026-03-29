@@ -1344,6 +1344,7 @@ const KPIs = () => {
           </table>
         </div>
       </div>
+      </div>
       <p className="text-[10px] text-muted-foreground text-center mt-8 mb-2">
         Benchmarks er vejledende og baseret på aggregerede data fra danske virksomheder.
         Hover over et benchmark for at se kilden.
