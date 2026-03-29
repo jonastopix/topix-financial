@@ -337,7 +337,7 @@ const BudgetComparison = () => {
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
-              <Bar dataKey="budget" name="Budget" fill="hsl(220, 10%, 30%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="budget" name="Budget" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="actual" name="Actual" radius={[4, 4, 0, 0]}>
                 {visibleData.map((entry) => {
                   const isRev = entry.category === "Omsætning";

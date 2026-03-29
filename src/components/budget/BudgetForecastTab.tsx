@@ -50,7 +50,8 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
         + Math.abs(kf.salgsomkostninger ?? 0)
         + Math.abs(kf.lokaleomkostninger ?? 0)
         + Math.abs(kf.administrationsomkostninger ?? 0)
-        + Math.abs(kf.direkte_omkostninger ?? 0);
+        + Math.abs(kf.direkte_omkostninger ?? 0)
+        + Math.abs(kf.afskrivninger ?? 0);
       map[monthIdx] = { omsaetning, totalCosts };
     }
     return map;
