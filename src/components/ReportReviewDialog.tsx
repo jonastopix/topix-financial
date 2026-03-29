@@ -267,6 +267,17 @@ export default function ReportReviewDialog({
         console.warn("Commit notification failed (non-blocking):", notifErr);
       }
 
+      // Detect and write financial alerts — non-blocking
+      supabase.functions.invoke("detect-financial-alerts", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          report_id: reportId,
+        },
+      }).catch((alertErr) => {
+        console.warn("Alert detection failed (non-blocking):", alertErr);
+      });
+
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Fejl ved commit", description: err.message || "Ukendt fejl", variant: "destructive" });
@@ -313,6 +324,17 @@ export default function ReportReviewDialog({
         // Non-blocking — commit already succeeded
         console.warn("Commit notification failed (non-blocking):", notifErr);
       }
+
+      // Detect and write financial alerts — non-blocking
+      supabase.functions.invoke("detect-financial-alerts", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          report_id: reportId,
+        },
+      }).catch((alertErr) => {
+        console.warn("Alert detection failed (non-blocking):", alertErr);
+      });
 
       onOpenChange(false);
     } catch (err: any) {
