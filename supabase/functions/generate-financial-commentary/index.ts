@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // 2. Access check — caller must have RLS access to company
     const { data: companyData, error: companyErr } = await callerClient
       .from("companies")
-      .select("id, name, industry")
+      .select("id, name, industry_label")
       .eq("id", company_id)
       .maybeSingle();
 
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
         canonicalPayload,
         companyContext: {
           name: companyData.name,
-          industry: companyData.industry,
+          industry: companyData.industry_label,
         },
         companyId: company_id,
         budgetContext,
