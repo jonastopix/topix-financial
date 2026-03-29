@@ -212,6 +212,7 @@ const MemberDetail = () => {
   });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [weeklyFocusEnabled, setWeeklyFocusEnabled] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
