@@ -595,8 +595,8 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                   dataKey={cat}
                   name={cat}
                   stackId="costs"
-                  stroke={COST_COLORS[cat] || "hsl(220, 10%, 40%)"}
-                  fill={COST_COLORS[cat] || "hsl(220, 10%, 20%)"}
+                  stroke={COST_COLORS[cat] || "hsl(var(--muted-foreground))"}
+                  fill={COST_COLORS[cat] || "hsl(var(--muted))"}
                   fillOpacity={0.6}
                 />
               ))}
