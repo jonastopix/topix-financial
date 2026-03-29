@@ -300,7 +300,6 @@ const MemberDetail = () => {
       if (cm?.companies) {
         const ctx = { ...cm.companies, company_id: cm.company_id } as CompanyContext;
         setCompanyCtx(ctx);
-        setWeeklyFocusEnabled(ctx.weekly_focus_enabled ?? false);
         // Fetch budgets by company_id (correct key)
         const { data: budgetData } = await supabase
           .from("budget_targets")
