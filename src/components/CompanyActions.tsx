@@ -58,6 +58,28 @@ const CompanyActions = ({ companyId }: CompanyActionsProps) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["company-actions", companyId] }),
   });
 
+  const convertToMilestone = useMutation({
+    mutationFn: async (action: CompanyAction) => {
+      const { error } = await supabase.from("milestones").insert({
+        company_id: companyId,
+        user_id: user!.id,
+        title: action.title,
+        description: action.context || undefined,
+        status: "active",
+        source: "action",
+      } as any);
+      if (error) throw error;
+      await supabase
+        .from("company_actions")
+        .update({ status: "done", completed_at: new Date().toISOString() } as any)
+        .eq("id", action.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-actions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+      toast.success("Handling konverteret til milestone");
+    },
+
   const addAction = useMutation({
     mutationFn: async (title: string) => {
       await supabase
