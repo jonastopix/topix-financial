@@ -418,7 +418,7 @@ const AdvisorCompanyOverview = () => {
               {company?.name || companyName || "Virksomhed"}
             </h1>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-              {company?.industry && <span>{company.industry}</span>}
+              {company?.industry_label && <span>{company.industry_label}</span>}
               {company?.cvr_number && (
                 <>
                   {company?.industry && <span>·</span>}
