@@ -220,6 +220,7 @@ Deno.serve(async (req) => {
         report_error: "Prøv igen →",
         advisor_replied: "Læs beskeden →",
         report_committed: "Se virksomhedens tal →",
+        weekly_focus_ready: "Se ugens fokus",
       };
       const eyebrows: Record<string, string> = {
         report_review_ready: "Dine tal er klar",
