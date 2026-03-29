@@ -108,6 +108,32 @@ const tooltipStyle = {
   color: "hsl(var(--foreground))",
 };
 
+interface CustomDotProps {
+  cx?: number; cy?: number; payload?: { periodKey: string; month: string };
+  hasComment: boolean;
+  isAdvisor: boolean;
+  onClick: (periodKey: string, periodLabel: string, x: number, y: number) => void;
+}
+
+const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: CustomDotProps) => {
+  if (!payload) return null;
+  return (
+    <g>
+      <circle
+        cx={cx} cy={cy} r={hasComment ? 6 : 4}
+        fill={hasComment ? "hsl(var(--primary))" : "hsl(160, 84%, 39%)"}
+        stroke={hasComment ? "hsl(var(--background))" : "none"}
+        strokeWidth={2}
+        style={{ cursor: isAdvisor ? "pointer" : "default" }}
+        onClick={() => isAdvisor && onClick(payload.periodKey, payload.month, cx, cy)}
+      />
+      {hasComment && (
+        <circle cx={cx + 5} cy={cy - 5} r={3} fill="hsl(var(--primary))" />
+      )}
+    </g>
+  );
+};
+
 const KPIs = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
