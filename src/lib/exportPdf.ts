@@ -41,21 +41,8 @@ export async function exportKPIReport(
 
   const startY = margin + 12;
 
-  if (imgHeight <= pageHeight - startY - margin) {
-    pdf.addImage(imgData, "PNG", margin, startY, contentWidth, imgHeight);
-  } else {
-    // Multi-page: slice the canvas
-    const pageContentHeight = pageHeight - startY - margin;
-    const totalPages = Math.ceil(imgHeight / pageContentHeight);
-    for (let page = 0; page < totalPages; page++) {
-      if (page > 0) pdf.addPage();
-      const yOffset = page * pageContentHeight;
-      pdf.addImage(
-        imgData, "PNG", margin, page === 0 ? startY : margin,
-        contentWidth, imgHeight, undefined, "FAST", 0, -yOffset
-      );
-    }
-  }
+  // Place full image; jsPDF clips to page boundaries automatically
+  pdf.addImage(imgData, "PNG", margin, startY, contentWidth, imgHeight);
 
   pdf.save(filename);
 }
