@@ -568,6 +568,20 @@ const MemberDetail = () => {
                     <Hash className="h-3.5 w-3.5" /> {companyCtx.slack_channel}
                   </span>
                 )}
+                {isAdvisor && (
+                  <div className="flex items-center justify-between py-2 border-t border-border/50 mt-2">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">Ugens Fokus</p>
+                      <p className="text-xs text-muted-foreground">AI-ugentlig analyse aktiveret</p>
+                    </div>
+                    <button
+                      onClick={() => handleWeeklyFocusToggle(!weeklyFocusEnabled)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${weeklyFocusEnabled ? 'bg-primary' : 'bg-muted'}`}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${weeklyFocusEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                )}
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" /> Medlem siden {format(new Date(profile.created_at), "MMMM yyyy", { locale: da })}
                 </span>
