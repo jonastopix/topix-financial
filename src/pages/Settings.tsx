@@ -1008,7 +1008,49 @@ const Settings = () => {
           </div>
         )}
 
-        {/* Advisor notification info */}
+        {/* Ugens Fokus toggle — member only */}
+        {!isAdvisor && !isAdmin && company && (
+          <div className="glass-card rounded-xl p-6 animate-fade-in">
+            <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Ugens Fokus
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Få en ugentlig AI-analyse med konkrete handlinger baseret på dine rapporter, milestones og handouts.
+            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Aktivér Ugens Fokus</p>
+                <p className="text-xs text-muted-foreground">
+                  Analysen kører hver mandag morgen og kræver mindst én rapport, milestone og handout.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  const next = !weeklyFocusEnabled;
+                  setWeeklyFocusEnabled(next);
+                  await supabase
+                    .from("companies")
+                    .update({ weekly_focus_enabled: next } as any)
+                    .eq("id", company.id);
+                  toast.success(next ? "Ugens Fokus aktiveret" : "Ugens Fokus deaktiveret");
+                }}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
+                  transition-colors duration-200 focus:outline-none mt-0.5
+                  ${weeklyFocusEnabled ? "bg-primary" : "bg-muted"}`}
+                role="switch"
+                aria-checked={weeklyFocusEnabled}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
+                  transition-transform duration-200
+                  ${weeklyFocusEnabled ? "translate-x-4" : "translate-x-0"}`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
+
+
         {(isAdvisor || isAdmin) && (
           <div className="glass-card rounded-xl p-6 animate-fade-in">
             <h2 className="font-display font-semibold text-foreground mb-1">
