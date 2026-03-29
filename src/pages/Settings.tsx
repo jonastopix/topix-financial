@@ -565,10 +565,6 @@ const Settings = () => {
       toast.error("Ugyldigt telefonnummer");
       return;
     }
-    if (industry.length > 100) {
-      toast.error("Branche må max være 100 tegn");
-      return;
-    }
 
     setSavingCompany(true);
 
