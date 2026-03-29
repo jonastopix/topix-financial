@@ -21,6 +21,7 @@ import {
   Save,
   X,
   Info,
+  MessageSquare,
 } from "lucide-react";
 import {
   Tooltip as UITooltip,
@@ -59,7 +60,7 @@ interface KPIMetric {
   icon: any;
   description: string;
   lowerIsBetter: boolean;
-  history: { month: string; value: number }[];
+  history: { month: string; periodKey: string; value: number }[];
   benchmark: { value: number; label: string; source: string };
 }
 
@@ -107,6 +108,32 @@ const tooltipStyle = {
   color: "hsl(var(--foreground))",
 };
 
+interface CustomDotProps {
+  cx?: number; cy?: number; payload?: { periodKey: string; month: string };
+  hasComment: boolean;
+  isAdvisor: boolean;
+  onClick: (periodKey: string, periodLabel: string, x: number, y: number) => void;
+}
+
+const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: CustomDotProps) => {
+  if (!payload) return null;
+  return (
+    <g>
+      <circle
+        cx={cx} cy={cy} r={hasComment ? 6 : 4}
+        fill={hasComment ? "hsl(var(--primary))" : "hsl(160, 84%, 39%)"}
+        stroke={hasComment ? "hsl(var(--background))" : "none"}
+        strokeWidth={2}
+        style={{ cursor: isAdvisor ? "pointer" : "default" }}
+        onClick={() => isAdvisor && onClick(payload.periodKey, payload.month, cx, cy)}
+      />
+      {hasComment && (
+        <circle cx={cx + 5} cy={cy - 5} r={3} fill="hsl(var(--primary))" />
+      )}
+    </g>
+  );
+};
+
 const KPIs = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
@@ -135,6 +162,29 @@ const KPIs = () => {
     enabled: !!companyId,
     staleTime: 5 * 60_000,
   });
+
+  const { data: chartComments = [], refetch: refetchComments } = useQuery({
+    queryKey: ["kpi-chart-comments", companyId],
+    queryFn: async () => {
+      const { data, error } = await (supabase
+        .from("kpi_chart_comments" as any)
+        .select("id, period_key, period_label, kpi_key, content, author_id, created_at") as any)
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return (data || []) as any as { id: string; period_key: string; period_label: string; kpi_key: string; content: string; author_id: string; created_at: string }[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+
+  const [commentPopover, setCommentPopover] = useState<{
+    periodKey: string;
+    periodLabel: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
 
   const budgetTotals = useMemo(() => {
     if (!budgetData?.length) return null;
@@ -215,6 +265,7 @@ const KPIs = () => {
 
       const history = monthlyData.map((d) => ({
         month: d.month,
+        periodKey: d.sortKey,
         value: Math.round(extract(d.kf) ?? 0),
       }));
 
@@ -399,6 +450,54 @@ const KPIs = () => {
   }
 
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) || kpiMetrics[0];
+
+  const activeCommentsByPeriod = (() => {
+    const map: Record<string, { id: string; content: string; author_id: string }> = {};
+    chartComments
+      .filter(c => c.kpi_key === selectedKPI)
+      .forEach(c => { map[c.period_key] = c; });
+    return map;
+  })();
+
+  const handleSaveComment = async () => {
+    if (!commentPopover || !companyId || !user || !commentDraft.trim()) return;
+    setSavingComment(true);
+    const { error } = await (supabase
+      .from("kpi_chart_comments" as any)
+      .upsert({
+        company_id: companyId,
+        period_key: commentPopover.periodKey,
+        period_label: commentPopover.periodLabel,
+        kpi_key: selectedKPI,
+        content: commentDraft.trim(),
+        author_id: user.id,
+      }, { onConflict: "company_id,period_key,kpi_key" }) as any);
+    setSavingComment(false);
+    if (error) { toast.error("Kunne ikke gemme kommentar"); return; }
+    setCommentPopover(null);
+    setCommentDraft("");
+    refetchComments();
+
+    supabase.functions.invoke("send-slack-report-notification", {
+      body: {
+        event: "advisor_kpi_comment",
+        companyId,
+        periodKey: commentPopover.periodKey,
+        kpiKey: selectedKPI,
+      },
+    }).catch(() => {});
+  };
+
+  const handleDeleteComment = async (periodKey: string) => {
+    if (!companyId) return;
+    await (supabase
+      .from("kpi_chart_comments" as any)
+      .delete()
+      .eq("company_id", companyId)
+      .eq("period_key", periodKey)
+      .eq("kpi_key", selectedKPI) as any);
+    refetchComments();
+  };
 
   function getTargetStatus(metric: KPIMetric): { hit: boolean; pct: number } {
     if (!metric.targetNum) return { hit: false, pct: 0 };
@@ -960,7 +1059,7 @@ const KPIs = () => {
           </div>
         </div>
 
-        <div className="h-72">
+        <div className="h-72 relative">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={activeMetric.history} margin={{ top: 10, right: 10, bottom: 5, left: 5 }}>
               <defs>
@@ -969,26 +1068,27 @@ const KPIs = () => {
                   <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
               {activeMetric.targetNum > 0 && (
-                <ReferenceLine
-                  y={activeMetric.targetNum}
-                  stroke="hsl(160, 84%, 39%)"
-                  strokeDasharray="4 2"
-                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }}
-                />
+                <ReferenceLine y={activeMetric.targetNum} stroke="hsl(160, 84%, 39%)" strokeDasharray="4 2"
+                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }} />
               )}
               {activeMetric.benchmark.value > 0 && (
-                <ReferenceLine
-                  y={activeMetric.benchmark.value}
-                  stroke="hsl(220, 70%, 60%)"
-                  strokeDasharray="6 3"
-                  label={{ value: `Benchmark: ${activeMetric.benchmark.label}`, position: "insideTopRight", fill: "hsl(220, 70%, 60%)", fontSize: 10 }}
-                />
+                <ReferenceLine y={activeMetric.benchmark.value} stroke="hsl(var(--primary))" strokeDasharray="6 3"
+                  label={{ value: `Benchmark: ${activeMetric.benchmark.label}`, position: "insideTopRight", fill: "hsl(var(--primary))", fontSize: 10 }} />
               )}
+              {/* Vertical reference lines for periods with comments */}
+              {Object.keys(activeCommentsByPeriod).map(pk => {
+                const point = activeMetric.history.find(h => h.periodKey === pk);
+                if (!point) return null;
+                return (
+                  <ReferenceLine key={pk} x={point.month} stroke="hsl(var(--primary))"
+                    strokeDasharray="3 3" strokeOpacity={0.5} />
+                );
+              })}
               <Area
                 type="monotone"
                 dataKey="value"
@@ -996,12 +1096,92 @@ const KPIs = () => {
                 strokeWidth={2.5}
                 fill="url(#kpiGradient)"
                 name={activeMetric.label}
-                dot={{ r: 4, fill: "hsl(160, 84%, 39%)", strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: "hsl(160, 84%, 39%)", strokeWidth: 2, stroke: "hsl(220, 25%, 9%)" }}
+                dot={(props: any) => (
+                  <CustomDot
+                    {...props}
+                    hasComment={!!activeCommentsByPeriod[props.payload?.periodKey]}
+                    isAdvisor={isAdvisor}
+                    onClick={(pk: string, label: string, x: number, y: number) => {
+                      const existing = activeCommentsByPeriod[pk];
+                      setCommentDraft(existing?.content || "");
+                      setCommentPopover({ periodKey: pk, periodLabel: label, x, y });
+                    }}
+                  />
+                )}
+                activeDot={{ r: 6, fill: "hsl(160, 84%, 39%)", strokeWidth: 2, stroke: "hsl(var(--background))" }}
               />
             </AreaChart>
           </ResponsiveContainer>
+
+          {/* Comment popover — advisors only */}
+          {isAdvisor && commentPopover && (
+            <div
+              className="absolute z-10 bg-card border border-border rounded-xl shadow-lg p-4 w-72"
+              style={{ left: Math.min(commentPopover.x, 280), top: Math.max(commentPopover.y - 120, 0) }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-foreground">
+                  Kommentar · {commentPopover.periodLabel}
+                </p>
+                <button onClick={() => setCommentPopover(null)}
+                  className="text-muted-foreground hover:text-foreground transition-colors text-xs">✕</button>
+              </div>
+              <textarea
+                value={commentDraft}
+                onChange={e => setCommentDraft(e.target.value)}
+                placeholder="Skriv en observation eller anbefaling til founder..."
+                className="w-full text-sm bg-secondary border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
+                rows={3}
+                autoFocus
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveComment}
+                  disabled={savingComment || !commentDraft.trim()}
+                  className="flex-1 text-xs font-medium py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {savingComment ? "Gemmer..." : "Gem"}
+                </button>
+                {activeCommentsByPeriod[commentPopover.periodKey] && (
+                  <button
+                    onClick={() => { handleDeleteComment(commentPopover.periodKey); setCommentPopover(null); }}
+                    className="text-xs font-medium py-2 px-3 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    Slet
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Comment badges below chart — visible to both advisors and founders */}
+        {Object.entries(activeCommentsByPeriod).length > 0 && (
+          <div className="mt-3 space-y-2">
+            {Object.entries(activeCommentsByPeriod).map(([pk, comment]) => {
+              const point = activeMetric.history.find(h => h.periodKey === pk);
+              return (
+                <div key={pk} className="flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/15">
+                  <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <MessageSquare className="h-3 w-3 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-primary mb-0.5">{point?.month || pk}</p>
+                    <p className="text-xs text-foreground leading-relaxed">{comment.content}</p>
+                  </div>
+                  {isAdvisor && (
+                    <button
+                      onClick={() => { setCommentDraft(comment.content); setCommentPopover({ periodKey: pk, periodLabel: point?.month || pk, x: 0, y: 0 }); }}
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors flex-shrink-0 mt-0.5"
+                    >
+                      Rediger
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Period comparison table */}
         <div className="mt-6 overflow-x-auto">

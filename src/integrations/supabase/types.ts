@@ -1644,6 +1644,50 @@ export type Database = {
           },
         ]
       }
+      kpi_chart_comments: {
+        Row: {
+          author_id: string
+          company_id: string
+          content: string
+          created_at: string
+          id: string
+          kpi_key: string
+          period_key: string
+          period_label: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          company_id: string
+          content: string
+          created_at?: string
+          id?: string
+          kpi_key: string
+          period_key: string
+          period_label: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          company_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          kpi_key?: string
+          period_key?: string
+          period_label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_chart_comments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_targets: {
         Row: {
           company_id: string
