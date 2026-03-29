@@ -612,6 +612,14 @@ const KPIs = () => {
         {!editingTargets && !editingBenchmarks ? (
           <div className="flex items-center gap-2">
             <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {exporting ? "Eksporterer..." : "Download PDF"}
+            </button>
+            <button
               onClick={startEditingBenchmarks}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
             >
