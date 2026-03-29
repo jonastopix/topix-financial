@@ -37,11 +37,12 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
     const { data: claimsData } = await authClient.auth.getUser(token);
-    if (claimsData?.user) {
+    const callerId = (claimsData as any)?.user?.id as string | undefined;
+    if (callerId) {
       const { data: roleCheck } = await createClient(supabaseUrl, serviceKey)
         .from("user_roles")
         .select("role")
-        .eq("user_id", claimsData.user.id)
+        .eq("user_id", callerId)
         .in("role", ["admin"])
         .limit(1);
       isAdminUser = (roleCheck && roleCheck.length > 0);
