@@ -99,7 +99,7 @@ const PerformanceScore = () => {
       <div className="glass-card rounded-xl p-5 animate-fade-in">
         <div className="flex items-center gap-2 mb-3">
           <Activity className="h-4 w-4 text-primary" />
-          <h3 className="font-display font-semibold text-foreground">Performance Score</h3>
+          <h3 className="font-display font-semibold text-foreground">Virksomhedens sundhed</h3>
         </div>
         <p className="text-sm text-muted-foreground text-center py-4">
           Upload mindst én rapport for at se din performance score.
@@ -114,18 +114,18 @@ const PerformanceScore = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
-          <h3 className="font-display font-semibold text-foreground">Performance Score</h3>
+          <h3 className="font-display font-semibold text-foreground">Virksomhedens sundhed</h3>
           <UITooltip>
             <TooltipTrigger asChild>
               <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <p className="font-semibold text-xs mb-1">Sådan beregnes scoren</p>
-              <div className="text-[11px] space-y-0.5 text-muted-foreground">
-                <p>• Vækstrate — omsætningsvækst måned/måned</p>
-                <p>• Bruttomargin — dækningsgrad i %</p>
-                <p>• Nettoresultat — overskudsgrad i %</p>
-                <p>• Likviditet — bank vs. 6 måneders løn</p>
+              <div className="text-[11px] space-y-1 text-muted-foreground">
+                <p>• <strong>Vækstrate</strong> — omsætningsvækst M/M. Over 5% = grøn</p>
+                <p>• <strong>Bruttomargin</strong> — dækningsgrad. Over 50% = grøn</p>
+                <p>• <strong>Nettoresultat</strong> — overskudsgrad. Over 10% = grøn</p>
+                <p>• <strong>Likviditet</strong> — bank dækker 6+ mdrs. løn = grøn</p>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1.5">
                 Scoren opdateres automatisk når du uploader en ny rapport.
@@ -155,7 +155,13 @@ const PerformanceScore = () => {
           <p className="text-xs text-muted-foreground leading-relaxed">
             Din samlede forretningssundhed baseret på vækst, marginer, resultat og likviditet.
           </p>
-          <p className="text-[10px] text-foreground/50">Baseret på uploadede rapporter</p>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            {overallScore >= 75
+              ? "Du klarer dig godt på tværs af de fire områder."
+              : overallScore >= 50
+              ? "Der er rum til forbedring — se hvilke områder der trækker ned."
+              : "Flere areas kræver opmærksomhed — kig på de røde indikatorer nedenfor."}
+          </p>
         </div>
       </div>
 
