@@ -581,11 +581,26 @@ const AdvisorDashboard = () => {
             score += 50;
           }
 
+          // Signal: No pulse check-in this month (after day 15)
+          const dayOfMonth = now.getDate();
+          const hasPulseThisMonth = c.latestPulse != null &&
+            new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
+          if (!hasPulseThisMonth && dayOfMonth > 15 && c.has_verified_metrics) {
+            reasons.push({ label: "Ingen pulse check-in denne måned", urgency: "medium" });
+            score += 25;
+          }
+
+          // Signal: No milestones set at all (first time signal only — company has data)
+          if (c.milestones.length === 0 && c.has_verified_metrics) {
+            reasons.push({ label: "Ingen milestones sat endnu", urgency: "medium" });
+            score += 20;
+          }
+
           return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score };
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 8);
+        .slice(0, 10);
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,

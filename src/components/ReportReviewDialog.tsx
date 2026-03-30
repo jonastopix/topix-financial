@@ -389,10 +389,19 @@ export default function ReportReviewDialog({
           <div className="space-y-4">
             {/* Status */}
             {preview.eligible ? (
-              <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
-                Vi har trukket tallene ud — kontrollér at de ser rigtige ud
-              </div>
+              <>
+                <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Vi har trukket tallene ud — kontrollér at de ser rigtige ud
+                </div>
+                <div className="rounded-lg bg-secondary/50 border border-border/30 p-3 flex items-start gap-2.5">
+                  <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-muted-foreground leading-relaxed">
+                    <span className="font-medium text-foreground">Hvad sker der når du godkender?</span>
+                    {" "}Tallene nedenfor gemmes på dit dashboard og bruges i dine KPI-grafer, performance-score og budget-sammenligning. Du kan altid uploade en ny rapport og godkende igen.
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
