@@ -781,13 +781,25 @@ const AdvisorDashboard = () => {
       />
 
       {/* ── Advisor fordeling ── */}
-      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs">
-        <div className="flex items-center gap-1.5">
-          <UserCheck className="h-3.5 w-3.5 text-primary" />
-          <span className="font-medium text-foreground">Mine: {myAssignments}</span>
-        </div>
-        <div className="h-3 w-px bg-border" />
-        <span className="text-muted-foreground">Tildelte i alt: {totalAssigned} / {total}</span>
+      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs flex-wrap">
+        <UserCheck className="h-3.5 w-3.5 text-primary shrink-0" />
+        {advisorProfiles
+          .map(a => ({
+            ...a,
+            count: assignmentCounts[a.user_id] || 0,
+            isMe: a.user_id === user?.id,
+          }))
+          .sort((a, b) => b.count - a.count)
+          .map(a => (
+            <div key={a.user_id} className="flex items-center gap-1.5">
+              <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary">
+                {a.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
+              <span className={a.isMe ? "font-medium text-foreground" : "text-muted-foreground"}>
+                {a.full_name.split(" ")[0]}: {a.count}
+              </span>
+            </div>
+          ))}
         {unassignedCount > 0 && (
           <>
             <div className="h-3 w-px bg-border" />
