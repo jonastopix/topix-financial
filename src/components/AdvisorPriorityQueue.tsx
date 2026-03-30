@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MessageSquare, FileCheck, Wallet, TrendingDown, Clock, AlertTriangle, CheckCircle2, ChevronRight, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MessageSquare, FileCheck, Wallet, TrendingDown, Clock, AlertTriangle, CheckCircle2, ChevronRight, X, UserCheck } from "lucide-react";
 
 interface Reason {
   label: string;
@@ -10,6 +10,7 @@ export interface PriorityItem {
   company: { company_id: string; company_name: string; logo_url: string | null };
   reasons: Reason[];
   score: number;
+  assigned_advisor_id?: string | null;
 }
 
 const ACTION_HINT: Record<string, string> = {
@@ -42,16 +43,28 @@ function ReasonIcon({ label }: { label: string }) {
 interface AdvisorPriorityQueueProps {
   items: PriorityItem[];
   onCompanyClick: (companyId: string, companyName: string, reason?: string) => void;
+  advisorProfiles?: { user_id: string; full_name: string }[];
+  currentUserId?: string;
+  onAssign?: (companyId: string, advisorUserId: string | null) => void;
   onIgnore?: (companyId: string) => void;
 }
 
-export default function AdvisorPriorityQueue({ items, onCompanyClick, onIgnore }: AdvisorPriorityQueueProps) {
+export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorProfiles, currentUserId, onAssign, onIgnore }: AdvisorPriorityQueueProps) {
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
+  const [assignOpen, setAssignOpen] = useState<string | null>(null);
 
   const visibleItems = items.filter(i => !ignored.has(i.company.company_id));
   const displayItems = showAll ? visibleItems : visibleItems.slice(0, 10);
   const hiddenCount = visibleItems.length - displayItems.length;
+
+  // Close assign dropdown on outside click
+  useEffect(() => {
+    if (!assignOpen) return;
+    const handler = () => setAssignOpen(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [assignOpen]);
 
   if (visibleItems.length === 0) return (
     <div className="glass-card rounded-xl p-6 flex items-center gap-4">
@@ -112,11 +125,71 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick, onIgnore }
               </div>
             </div>
 
+            {/* Assigned advisor badge */}
+            {item.assigned_advisor_id && (
+              <div
+                className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-[9px] font-bold text-primary"
+                title={advisorProfiles?.find(a => a.user_id === item.assigned_advisor_id)?.full_name || "Tildelt"}
+              >
+                {(advisorProfiles?.find(a => a.user_id === item.assigned_advisor_id)?.full_name || "?")
+                  .split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
+            )}
+
+            {/* Assign dropdown */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAssignOpen(assignOpen === item.company.company_id ? null : item.company.company_id);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary hover:text-foreground transition-all shrink-0"
+                title="Tildel rådgiver"
+              >
+                <UserCheck className="h-3 w-3" />
+                Tildel
+              </button>
+              {assignOpen === item.company.company_id && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[160px]">
+                  {(advisorProfiles || []).map(a => (
+                    <button
+                      key={a.user_id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAssign?.(item.company.company_id, a.user_id);
+                        setAssignOpen(null);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
+                    >
+                      {a.user_id === currentUserId && (
+                        <span className="text-[9px] text-primary font-medium">(mig)</span>
+                      )}
+                      {a.full_name}
+                    </button>
+                  ))}
+                  <div className="border-t border-border mt-1 pt-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAssign?.(item.company.company_id, null);
+                        setAssignOpen(null);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                    >
+                      Fjern tildeling
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Ignore button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setIgnored(prev => new Set([...prev, item.company.company_id]));
                 onIgnore?.(item.company.company_id);
+                setAssignOpen(null);
               }}
               className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-muted-foreground hover:bg-secondary transition-all shrink-0"
               title="Ignorer — fjern fra listen"

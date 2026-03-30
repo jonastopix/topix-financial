@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
@@ -596,7 +596,8 @@ const AdvisorDashboard = () => {
             score += 20;
           }
 
-          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score };
+          const primaryConv = convByCompany.get(c.company_id)?.[0];
+          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score, assigned_advisor_id: primaryConv?.assigned_advisor_id ?? null };
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -745,12 +746,43 @@ const AdvisorDashboard = () => {
     );
   }
 
+  const queryClient = useQueryClient();
+
+  // Fetch advisor profiles for assignment dropdown
+  const { data: advisorProfiles = [] } = useQuery({
+    queryKey: ["advisor-profiles"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("company_members")
+        .select("user_id, profiles:user_id(full_name)")
+        .in("role", ["advisor", "admin"]);
+      return (data || []).map((r: any) => ({
+        user_id: r.user_id,
+        full_name: r.profiles?.full_name || "Ukendt",
+      })) as { user_id: string; full_name: string }[];
+    },
+    enabled: !!user,
+    staleTime: 10 * 60_000,
+  });
+
+  const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
+    const conv = convByCompany.get(companyId)?.[0];
+    if (!conv) return;
+    await supabase.from("conversations")
+      .update({ assigned_advisor_id: advisorUserId })
+      .eq("id", conv.id);
+    queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+  };
+
   return (
     <div className="space-y-8">
       {/* ── Priority Queue ── */}
       <AdvisorPriorityQueue
         items={priorityItems}
         onCompanyClick={handleAdvisorCompanyClick}
+        advisorProfiles={advisorProfiles}
+        currentUserId={user?.id}
+        onAssign={handleAssignAdvisor}
       />
 
       {/* ── Advisor fordeling ── */}
