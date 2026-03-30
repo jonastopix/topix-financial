@@ -271,7 +271,7 @@ const MemberDetail = () => {
       toast.success("Medlem fjernet", { description: "Brugeren er blevet fjernet fra virksomheden." });
       navigate('/members');
     } catch (err: any) {
-      toast({ title: "Fejl", description: err.message || "Kunne ikke fjerne medlem", variant: "destructive" });
+      toast.error("Fejl", { description: err.message || "Kunne ikke fjerne medlem" });
     } finally {
       setRemoving(false);
     }

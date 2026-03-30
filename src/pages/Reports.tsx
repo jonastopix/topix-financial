@@ -466,7 +466,7 @@ const Reports = () => {
       setDbReports(prev => prev.map(r => r.id === report.id ? { ...r, file_path: newPath } : r));
       toast.success("Fil uploadet", { description: "Originalfilen er nu tilknyttet rapporten." });
     } else {
-      toast({ title: "Upload fejlede", description: "Kunne ikke uploade filen. Prøv igen.", variant: "destructive" });
+      toast.error("Upload fejlede", { description: "Kunne ikke uploade filen. Prøv igen." });
     }
   };
 

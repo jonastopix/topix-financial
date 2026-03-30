@@ -368,7 +368,7 @@ const AdminFeedback = () => {
       setReplyText("");
     } catch (err) {
       console.error("Reply error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke sende svaret. Prøv igen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke sende svaret. Prøv igen." });
     } finally {
       setReplySending(false);
     }
