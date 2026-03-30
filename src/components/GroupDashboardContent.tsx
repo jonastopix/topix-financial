@@ -39,6 +39,7 @@ interface GroupDashboardContentProps {
   actions?: React.ReactNode;
   onCompanyClick?: (companyId: string, companyName: string) => void;
   onUploadClick?: (companyId: string, companyName: string) => void;
+  onBudgetClick?: (companyId: string, companyName: string) => void;
 }
 
 const GroupDashboardContent = ({
@@ -49,6 +50,7 @@ const GroupDashboardContent = ({
   actions,
   onCompanyClick,
   onUploadClick,
+  onBudgetClick,
 }: GroupDashboardContentProps) => {
   const [filter, setFilter] = useState<FilterTab>("alle");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
