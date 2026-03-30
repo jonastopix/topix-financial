@@ -149,10 +149,17 @@ const Milestones = () => {
           <h2 className="text-xl font-display font-bold text-foreground mb-2">
             Sæt dit første mål
           </h2>
-          <p className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed">
+          <p className="text-sm text-muted-foreground max-w-md mb-6 leading-relaxed">
             Milestones hjælper dig med at holde fokus på de vigtigste mål for din virksomhed.
             Start med et af forslagene nedenfor, eller opret dit eget.
           </p>
+          <Link
+            to="/handouts"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors mb-8"
+          >
+            <BookOpen className="h-4 w-4 text-primary" />
+            Gå til Handouts — generer milestones automatisk
+          </Link>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
             {STARTER_PICKS.map((pick) => {

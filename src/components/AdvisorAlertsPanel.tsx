@@ -72,8 +72,19 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{alert.company_name}</p>
                 <p className="text-xs text-muted-foreground truncate">{alert.title}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(alert.created_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
+                  </span>
+                  {alert.seen_at ? (
+                    <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
+                      <CheckCircle2 className="h-3 w-3" /> Set
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-500 font-medium">Ikke set</span>
+                  )}
+                </div>
               </div>
-              <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo}</span>
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             </button>
           );
