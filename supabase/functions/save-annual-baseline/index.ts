@@ -55,25 +55,34 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Not a member of this company" }), { status: 403, headers: CORS_HEADERS });
     }
 
-    // ── Create sentinel report row if not exists ──
-    const sentinelId = "00000000-0000-0000-0000-000000000001";
+    // ── Create sentinel report row per company if not exists ──
+    const sentinelFileName = `_annual_baseline_sentinel_${company_id}`;
     const { data: existingSentinel } = await adminClient
       .from("financial_reports")
       .select("id")
-      .eq("id", sentinelId)
+      .eq("company_id", company_id)
+      .eq("file_name", sentinelFileName)
       .maybeSingle();
 
-    if (!existingSentinel) {
-      await adminClient.from("financial_reports").insert({
-        id: sentinelId,
-        company_id,
-        user_id: userId,
-        file_name: "_annual_baseline_sentinel",
-        file_path: "_sentinel",
-        report_type: "annual_baseline",
-        status: "processed",
-        extraction_contract_version: "baseline_v1",
-      });
+    let sentinelId: string;
+    if (existingSentinel) {
+      sentinelId = existingSentinel.id;
+    } else {
+      const { data: newSentinel, error: sentinelErr } = await adminClient
+        .from("financial_reports")
+        .insert({
+          company_id,
+          user_id: userId,
+          file_name: sentinelFileName,
+          file_path: "_sentinel",
+          report_type: "annual_baseline",
+          status: "processed",
+          extraction_contract_version: "baseline_v1",
+        })
+        .select("id")
+        .single();
+      if (sentinelErr || !newSentinel) throw sentinelErr || new Error("Failed to create sentinel report");
+      sentinelId = newSentinel.id;
     }
 
     // ── Build 12 monthly rows ──
