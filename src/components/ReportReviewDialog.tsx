@@ -232,7 +232,7 @@ export default function ReportReviewDialog({
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
     } catch (err: any) {
       console.error("Inline override save error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke gemme rettelser.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke gemme rettelser." });
     } finally {
       setSaving(false);
     }
