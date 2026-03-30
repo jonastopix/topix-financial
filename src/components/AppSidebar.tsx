@@ -57,7 +57,6 @@ const advisorNavItems = [
 ];
 
 const adminNavItems = [
-  { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
   { icon: MessageCircle, label: "Feedback", path: "/admin/feedback" },

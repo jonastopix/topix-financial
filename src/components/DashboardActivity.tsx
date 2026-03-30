@@ -117,7 +117,7 @@ const DashboardActivity = () => {
             const card = (
               <div
                 key={event.id}
-                className="flex-shrink-0 w-44 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors border border-border/30"
+                className="flex-shrink-0 w-44 p-3 rounded-lg bg-secondary/50 hover:bg-secondary hover:ring-1 hover:ring-primary/20 transition-all border border-border/30"
               >
                 <div className={`h-7 w-7 rounded-full ${cfg.bg} flex items-center justify-center mb-2`}>
                   <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
@@ -126,6 +126,9 @@ const DashboardActivity = () => {
                 <p className="text-[10px] text-muted-foreground">
                   {format(new Date(event.timestamp), "d. MMM · HH:mm", { locale: da })}
                 </p>
+                {event.link && (
+                  <p className="text-[10px] text-primary mt-1.5 font-medium">{cfg.action} →</p>
+                )}
               </div>
             );
 
