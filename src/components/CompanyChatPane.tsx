@@ -1796,7 +1796,7 @@ const CompanyChatPane = () => {
                           onClick={() => prevConv && setActiveConvId(prevConv.id)}
                           disabled={!prevConv}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
-                          title={prevConv ? `← ${prevConv.companyName}` : undefined}
+                          title={prevConv ? `← ${prevConv.companyName}` : "Ingen tidligere"}
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </button>
