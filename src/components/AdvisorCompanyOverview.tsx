@@ -146,6 +146,7 @@ function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negati
 
 
 const AdvisorCompanyOverview = () => {
+  const [showDetails, setShowDetails] = useState(false);
   const { user, companyId, companyName, clearCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
   const isMobile = useIsMobile();
