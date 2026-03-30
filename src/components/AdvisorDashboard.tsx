@@ -605,6 +605,7 @@ const AdvisorDashboard = () => {
   const companyMap = data?.companyMap || new Map();
   const activityFeed = data?.activityFeed || [];
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
+  const priorityItems = data?.priorityItems || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
