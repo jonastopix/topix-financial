@@ -360,6 +360,10 @@ const AdvisorDashboard = () => {
       }));
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
+      // Add groups as pseudo-companies so they resolve in companyMap
+      for (const [gid, gname] of groupNameMap) {
+        companyMap.set(`group_${gid}`, { id: `group_${gid}`, name: gname, logo_url: null });
+      }
 
       // user_id → company_id
       const userToCompany = new Map<string, string>();
