@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
-  ChevronRight, ChevronDown,
+  ChevronRight, ChevronDown, Sparkles,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -147,7 +147,7 @@ function TrendMetric({ icon: Icon, label, current, previous, hasPrevious, negati
 
 const AdvisorCompanyOverview = () => {
   const [showDetails, setShowDetails] = useState(false);
-  const { user, companyId, companyName, clearCompanyOverride } = useAuth();
+  const { user, companyId, companyName, clearCompanyOverride, setCompanyOverride } = useAuth();
   const { toggleViewMode } = useViewMode();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -316,6 +316,29 @@ const AdvisorCompanyOverview = () => {
     staleTime: 5 * 60_000,
   });
 
+  const { data: weeklyFocus } = useQuery({
+    queryKey: ["advisor-weekly-focus", companyId],
+    queryFn: async () => {
+      const d = new Date();
+      const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = utc.getUTCDay() || 7;
+      utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((utc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      const weekKey = `${utc.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+      const { data } = await supabase
+        .from("weekly_focus")
+        .select("headline, summary, status, week_key")
+        .eq("company_id", companyId!)
+        .eq("week_key", weekKey)
+        .eq("status", "active")
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!companyId,
+    staleTime: 30 * 60_000,
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -364,6 +387,23 @@ const AdvisorCompanyOverview = () => {
           </span>
         </div>
       </div>
+
+      {weeklyFocus && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-primary/5 border border-primary/10 rounded-xl">
+          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">
+              AI-chef denne uge
+            </p>
+            <p className="text-xs font-medium text-foreground leading-snug">{weeklyFocus.headline}</p>
+            {weeklyFocus.summary && (
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">
+                {weeklyFocus.summary}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {/* ── Header ── */}
       {isMobile ? (
         /* Mobile: stacked header */
@@ -781,20 +821,25 @@ const AdvisorCompanyOverview = () => {
       {/* ── Quick Links ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {[
-          { to: primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat", icon: MessageSquare, label: "Chat" },
-          { to: "/reports", icon: FileText, label: "Rapporter" },
-          { to: "/handouts", icon: BookOpen, label: "Handouts" },
-          { to: "/milestones", icon: Target, label: "Milestones" },
-          { to: "/kpis", icon: BarChart3, label: "KPI'er" },
+          { to: primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat", icon: MessageSquare, label: "Chat", direct: true },
+          { to: "/reports", icon: FileText, label: "Rapporter", direct: false },
+          { to: "/handouts", icon: BookOpen, label: "Handouts", direct: false },
+          { to: "/milestones", icon: Target, label: "Milestones", direct: false },
+          { to: "/kpis", icon: BarChart3, label: "KPI'er", direct: false },
         ].map(link => (
-          <Link
+          <button
             key={link.label}
-            to={link.to}
+            onClick={() => {
+              if (!link.direct && companyId && companyName) {
+                setCompanyOverride(companyId, companyName);
+              }
+              navigate(link.to);
+            }}
             className="flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border border-border bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-center group"
           >
             <link.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
             <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">{link.label}</span>
-          </Link>
+          </button>
         ))}
       </div>
     </div>
