@@ -252,6 +252,7 @@ export default function ReportReviewDialog({
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
 
       // Notify advisors that member has approved their report
       try {
@@ -310,6 +311,7 @@ export default function ReportReviewDialog({
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
 
       // Notify advisors that member has approved their report
       try {

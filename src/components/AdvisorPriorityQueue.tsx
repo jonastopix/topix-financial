@@ -88,11 +88,14 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorP
               <p className="text-xs font-semibold text-foreground truncate">{item.company.company_name}</p>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                 {item.reasons.map((r, i) => (
-                  <span key={i} className={`inline-flex items-center gap-1 text-[10px] ${
-                    r.urgency === "high" ? "text-destructive" : "text-chart-warning"
-                  }`}>
-                    <ReasonIcon label={r.label} />
-                    {r.label}
+                  <span key={i} className="inline-flex flex-col">
+                    <span className={`inline-flex items-center gap-1 text-[10px] ${
+                      r.urgency === "high" ? "text-destructive" : "text-chart-warning"
+                    }`}>
+                      <ReasonIcon label={r.label} />
+                      {r.label}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground ml-4">→ {getActionHint(r.label)}</span>
                   </span>
                 ))}
               </div>

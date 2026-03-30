@@ -659,6 +659,10 @@ const AdvisorDashboard = () => {
         return;
       }
     }
+    if (reason?.includes("godkendelse")) {
+      navigate("/reports");
+      return;
+    }
   };
 
   // Member list state
