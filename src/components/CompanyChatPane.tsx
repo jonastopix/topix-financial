@@ -1800,8 +1800,11 @@ const CompanyChatPane = () => {
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </button>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                           {currentConvIdx + 1} / {advisorConvList.length}
+                          {activeFilter === "action" && (
+                            <span className="ml-1 text-amber-500">kræver svar</span>
+                          )}
                         </span>
                         <button
                           onClick={() => nextConv && setActiveConvId(nextConv.id)}
