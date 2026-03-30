@@ -408,7 +408,7 @@ const Reports = () => {
       toast.success("Rapport gendannet", { description: `${report.report_period || report.file_name} er gendannet.` });
     } catch (err) {
       console.error("Restore error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke gendanne rapporten.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke gendanne rapporten." });
     } finally {
       setRestoring(null);
     }
