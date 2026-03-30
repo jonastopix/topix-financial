@@ -612,132 +612,153 @@ const AdvisorCompanyOverview = () => {
         );
       })()}
 
-      {/* ── Pulse Check-in ── */}
-      {latestPulse && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-              Pulse check-in · {(() => {
-                const [year, month] = (latestPulse.period_key || "").split("-");
-                const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
-                return `${months[parseInt(month,10)-1] || month} ${year}`;
-              })()}
-            </p>
-            {latestPulse.milestone_progress != null && (
-              <span className="text-xs font-semibold text-primary">
-                {latestPulse.milestone_progress}% på milestone
-              </span>
-            )}
-          </div>
-          <div className="space-y-3">
-            {latestPulse.went_well && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                  Hvad gik godt
-                </p>
-                <p className="text-sm text-foreground leading-relaxed">
-                  {latestPulse.went_well}
-                </p>
-              </div>
-            )}
-            {latestPulse.biggest_challenge && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                  Største udfordring
-                </p>
-                <p className="text-sm text-foreground leading-relaxed">
-                  {latestPulse.biggest_challenge}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {!latestPulse && (
-        <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            Pulse check-in
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Medlemmet har endnu ikke udfyldt et check-in denne måned.
-          </p>
-        </div>
-      )}
-
-      {/* ── Pulse highlight ── */}
-      {latestPulse?.biggest_challenge && (
-        <div className="glass-card rounded-xl p-4 mb-4">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Seneste pulse — største udfordring
-          </p>
-          <p className="text-sm text-foreground leading-relaxed">
-            "{latestPulse.biggest_challenge}"
-          </p>
-        </div>
-      )}
-
-      {/* ── Milestones ── */}
-      {milestones.length > 0 && (
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Aktive milestones
-            </p>
-            {overdueMilestones.length > 0 && (
-              <span className="text-[10px] font-semibold text-destructive">
-                {overdueMilestones.length} overskredet
-              </span>
-            )}
-          </div>
-          <div className="space-y-2">
-            {milestones.slice(0, 4).map(m => {
-              const isOverdue = m.deadline && new Date(m.deadline) < new Date();
-              return (
-                <div key={m.id} className="flex items-center gap-2.5">
-                  <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                    isOverdue ? "bg-destructive" :
-                    m.progress >= 70 ? "bg-primary" : "bg-chart-warning"
-                  }`} />
-                  <span className="text-xs text-foreground flex-1 truncate">
-                    {m.title}
-                  </span>
-                  {m.deadline && (
-                    <span className={`text-[10px] shrink-0 ${
-                      isOverdue ? "text-destructive" : "text-muted-foreground"
-                    }`}>
-                      {new Date(m.deadline).toLocaleDateString("da-DK",
-                        { day: "numeric", month: "short" })}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-            {milestones.length > 4 && (
-              <p className="text-[10px] text-muted-foreground pl-3.5">
-                +{milestones.length - 4} flere
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Handouts ── */}
-      {handoutsTotal > 0 && (
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Handouts
-            </p>
-            <span className="text-xs font-semibold text-foreground">
-              {handoutsCompleted}/{handoutsTotal} fulgt
+      {/* ── Details toggle ── */}
+      <button
+        onClick={() => setShowDetails(v => !v)}
+        className="flex items-center justify-between w-full px-3 py-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-left"
+      >
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {latestPulse && (
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              Pulse: {latestPulse.milestone_progress != null ? `${latestPulse.milestone_progress}% milestone` : "indsendt"}
             </span>
-          </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${(handoutsCompleted / handoutsTotal) * 100}%` }}
-            />
-          </div>
+          )}
+          {milestones.length > 0 && (
+            <span className="flex items-center gap-1">
+              <div className={`h-1.5 w-1.5 rounded-full ${overdueMilestones.length > 0 ? "bg-destructive" : "bg-chart-warning"}`} />
+              {milestones.length} milestone{milestones.length !== 1 ? "s" : ""}
+              {overdueMilestones.length > 0 && <span className="text-destructive">({overdueMilestones.length} overskredet)</span>}
+            </span>
+          )}
+          {handoutsTotal > 0 && (
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              {handoutsCompleted}/{handoutsTotal} handouts
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showDetails ? "rotate-180" : ""}`} />
+      </button>
+
+      {showDetails && (
+        <div className="space-y-3">
+          {/* ── Pulse Check-in ── */}
+          {latestPulse && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Pulse check-in · {(() => {
+                    const [year, month] = (latestPulse.period_key || "").split("-");
+                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                    return `${months[parseInt(month,10)-1] || month} ${year}`;
+                  })()}
+                </p>
+                {latestPulse.milestone_progress != null && (
+                  <span className="text-xs font-semibold text-primary">
+                    {latestPulse.milestone_progress}% på milestone
+                  </span>
+                )}
+              </div>
+              <div className="space-y-3">
+                {latestPulse.went_well && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                      Hvad gik godt
+                    </p>
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {latestPulse.went_well}
+                    </p>
+                  </div>
+                )}
+                {latestPulse.biggest_challenge && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                      Største udfordring
+                    </p>
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {latestPulse.biggest_challenge}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {!latestPulse && (
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                Pulse check-in
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Medlemmet har endnu ikke udfyldt et check-in denne måned.
+              </p>
+            </div>
+          )}
+
+          {/* ── Milestones ── */}
+          {milestones.length > 0 && (
+            <div className="glass-card rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Aktive milestones
+                </p>
+                {overdueMilestones.length > 0 && (
+                  <span className="text-[10px] font-semibold text-destructive">
+                    {overdueMilestones.length} overskredet
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {milestones.slice(0, 4).map(m => {
+                  const isOverdue = m.deadline && new Date(m.deadline) < new Date();
+                  return (
+                    <div key={m.id} className="flex items-center gap-2.5">
+                      <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                        isOverdue ? "bg-destructive" :
+                        m.progress >= 70 ? "bg-primary" : "bg-chart-warning"
+                      }`} />
+                      <span className="text-xs text-foreground flex-1 truncate">
+                        {m.title}
+                      </span>
+                      {m.deadline && (
+                        <span className={`text-[10px] shrink-0 ${
+                          isOverdue ? "text-destructive" : "text-muted-foreground"
+                        }`}>
+                          {new Date(m.deadline).toLocaleDateString("da-DK",
+                            { day: "numeric", month: "short" })}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                {milestones.length > 4 && (
+                  <p className="text-[10px] text-muted-foreground pl-3.5">
+                    +{milestones.length - 4} flere
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Handouts ── */}
+          {handoutsTotal > 0 && (
+            <div className="glass-card rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Handouts
+                </p>
+                <span className="text-xs font-semibold text-foreground">
+                  {handoutsCompleted}/{handoutsTotal} fulgt
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${(handoutsCompleted / handoutsTotal) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
