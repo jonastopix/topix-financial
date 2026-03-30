@@ -22,7 +22,7 @@ function ReasonIcon({ label }: { label: string }) {
 
 interface AdvisorPriorityQueueProps {
   items: PriorityItem[];
-  onCompanyClick: (companyId: string, companyName: string) => void;
+  onCompanyClick: (companyId: string, companyName: string, reason?: string) => void;
 }
 
 export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorPriorityQueueProps) {
