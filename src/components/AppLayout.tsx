@@ -11,12 +11,12 @@ import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
 
 const CURRENT_ANNOUNCEMENT = {
-  id: "v2026-03-pulse-reports",
+  id: "v2026-03-ai-chef",
   title: "Nyheder i The Boardroom",
   items: [
-    "Pulse check-in — fortæl hvad der gik godt og hvad der er svært",
-    "Forbedret rapportering — vi læser nu flere formater automatisk",
-    "Performance Score forklarer nu præcist hvad der indgår",
+    "Din AI-chef — se ugens fokus og handlinger direkte på dit dashboard",
+    "Hvad-hvis? simulator — simulér effekten af at ansætte eller investere under Budget",
+    "Sæt baseline med årstal — kom hurtigt i gang med 5 nøgletal fra dit årsregnskab",
   ],
 };
 

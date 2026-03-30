@@ -28,7 +28,7 @@ const founderFeatures = [
     icon: Calculator, title: "Budget", path: "/budget",
     color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Byg dit årsbudget og følg om du rammer dine mål — omsætning, EBITDA og cashflow.",
-    tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. actual for hver måned", "Kør scenarier: hvad sker der hvis omsætningen falder 20%?"],
+    tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. actual for hver måned under 'Budget vs. Realiseret'", "Brug 'Hvad-hvis?'-fanen til at simulere effekten af at ansætte eller investere"],
   },
   {
     icon: Target, title: "Milestones", path: "/milestones",
@@ -63,7 +63,7 @@ const founderFeatures = [
 ];
 
 const founderTimeline = [
-  { week: "Uge 1", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
+  { week: "Uge 1", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Har du et årsregnskab? Start med 'Sæt baseline med årstal' i stedet.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
   { week: "Uge 2", title: "Gennemse dine tal", desc: "Godkend dine nøgletal og se hvad AI-analysen siger om din udvikling.", icon: BarChart3, color: "bg-chart-info/10 text-chart-info", link: "/kpis" },
   { week: "Løbende", title: "Pulse check-in", desc: "Fortæl hvad der gik godt og hvad der er svært. Tager 2 minutter — bruges af rådgiverne til sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
 ];

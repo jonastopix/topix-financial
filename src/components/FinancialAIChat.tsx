@@ -9,10 +9,10 @@ interface Message {
 }
 
 const STARTERS = [
+  "Hvad skal jeg fokusere på denne uge?",
   "Hvad var min bedste måned i år?",
   "Hvad driver mine udgifter?",
-  "Hvornår var mit resultat negativt?",
-  "Hvad er min gennemsnitlige omsætning de seneste 6 måneder?",
+  "Hvor er jeg i forhold til mit budget?",
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-data-chat`;

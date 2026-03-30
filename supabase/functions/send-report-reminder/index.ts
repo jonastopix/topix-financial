@@ -269,26 +269,17 @@ Deno.serve(async (req) => {
     // Compute expected period key (YYYY-MM) for structured matching
     const expectedPeriodKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
 
-    // Fetch minimal fields for effective-period resolution; exclude soft-deleted reports
-    const { data: existingReports, error: repErr } = await supabase
-      .from("financial_reports")
-      .select("company_id, report_period, manual_override_status, manual_report_period_label, manual_report_period_key")
-      .is("deleted_at", null);
-    if (repErr) throw repErr;
+    // Check committed facts instead of uploaded reports
+    // A reminder should only be skipped if the period is COMMITTED — not just uploaded
+    const { data: committedFacts, error: factsErr } = await supabase
+      .from("financial_report_facts")
+      .select("company_id, period_key, source_type")
+      .eq("period_key", expectedPeriodKey);
+    if (factsErr) throw factsErr;
 
-    // Resolve effective period per report — exclusive, not additive
-    const reportedIds = new Set<string>();
-    for (const r of existingReports || []) {
-      if (r.manual_override_status === 'applied') {
-        if (r.manual_report_period_key) {
-          if (r.manual_report_period_key === expectedPeriodKey) reportedIds.add(r.company_id);
-        } else if (r.manual_report_period_label === expectedPeriod) {
-          reportedIds.add(r.company_id);
-        }
-      } else {
-        if (r.report_period === expectedPeriod) reportedIds.add(r.company_id);
-      }
-    }
+    const reportedIds = new Set<string>(
+      (committedFacts || []).map((f: any) => f.company_id)
+    );
     const missingCompanies = companies.filter((c: any) => {
       if (reportedIds.has(c.id)) return false;
       const start = new Date(c.start_date || c.created_at);
