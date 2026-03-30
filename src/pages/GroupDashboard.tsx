@@ -89,6 +89,7 @@ const GroupDashboard = () => {
         onCompanyClick={handleCompanyClick}
         onUploadClick={handleUploadClick}
         onBudgetClick={handleBudgetClick}
+        historicalData={historicalData}
       />
       {isGroupOwner && showSettings && groupId && user && (
         <div className="mt-6">
