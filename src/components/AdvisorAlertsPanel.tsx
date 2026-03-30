@@ -12,6 +12,7 @@ interface Alert {
   company_id: string;
   company_name: string;
   created_at: string;
+  seen_at: string | null;
 }
 
 const TYPE_CONFIG: Record<string, { icon: typeof TrendingDown; color: string; bg: string }> = {
