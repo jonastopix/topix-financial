@@ -463,7 +463,28 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
   const filtered = categoryFilter
     ? milestones.filter((m) => m.category === categoryFilter)
     : milestones;
-  const activeMilestones = filtered.filter((m) => m.status !== "done");
+  const activeMilestones = filtered
+    .filter((m) => m.status !== "done")
+    .sort((a, b) => {
+      const now = new Date().getTime();
+      const URGENT_MS = 7 * 24 * 60 * 60 * 1000;
+
+      const aUrgent = a.deadline && (a.deadline.getTime() - now) <= URGENT_MS && a.deadline.getTime() > now;
+      const bUrgent = b.deadline && (b.deadline.getTime() - now) <= URGENT_MS && b.deadline.getTime() > now;
+
+      if (aUrgent && bUrgent) return a.deadline!.getTime() - b.deadline!.getTime();
+      if (aUrgent) return -1;
+      if (bUrgent) return 1;
+
+      if (a.status === "in-progress" && b.status !== "in-progress") return -1;
+      if (b.status === "in-progress" && a.status !== "in-progress") return 1;
+
+      if (a.deadline && !b.deadline) return -1;
+      if (!a.deadline && b.deadline) return 1;
+      if (a.deadline && b.deadline) return a.deadline.getTime() - b.deadline.getTime();
+
+      return 0;
+    });
   const doneMilestones = filtered.filter((m) => m.status === "done");
 
   const quickUpdateProgress = async (id: string, newProgress: number) => {
