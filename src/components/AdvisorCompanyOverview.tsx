@@ -798,20 +798,25 @@ const AdvisorCompanyOverview = () => {
       {/* ── Quick Links ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {[
-          { to: primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat", icon: MessageSquare, label: "Chat" },
-          { to: "/reports", icon: FileText, label: "Rapporter" },
-          { to: "/handouts", icon: BookOpen, label: "Handouts" },
-          { to: "/milestones", icon: Target, label: "Milestones" },
-          { to: "/kpis", icon: BarChart3, label: "KPI'er" },
+          { to: primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat", icon: MessageSquare, label: "Chat", direct: true },
+          { to: "/reports", icon: FileText, label: "Rapporter", direct: false },
+          { to: "/handouts", icon: BookOpen, label: "Handouts", direct: false },
+          { to: "/milestones", icon: Target, label: "Milestones", direct: false },
+          { to: "/kpis", icon: BarChart3, label: "KPI'er", direct: false },
         ].map(link => (
-          <Link
+          <button
             key={link.label}
-            to={link.to}
+            onClick={() => {
+              if (!link.direct && companyId && companyName) {
+                setCompanyOverride(companyId, companyName);
+              }
+              navigate(link.to);
+            }}
             className="flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border border-border bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-center group"
           >
             <link.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
             <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">{link.label}</span>
-          </Link>
+          </button>
         ))}
       </div>
     </div>
