@@ -17,7 +17,9 @@ const ACTION_HINT: Record<string, string> = {
   Bankovertræk: "Tal med founder om likviditet",
   "Omsætning faldt": "Undersøg årsagen i chatten",
   Opfølgning: "Følg op nu",
-  
+  "Ingen rapport": "Send reminder til founder",
+  "Ingen pulse": "Spørg ind via chatten",
+  "Ingen milestones": "Hjælp med at sætte mål",
 };
 
 function getActionHint(label: string): string {
