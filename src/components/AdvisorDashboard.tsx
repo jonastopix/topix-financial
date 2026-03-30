@@ -766,6 +766,14 @@ const AdvisorDashboard = () => {
               ))}
             </div>
             <div className="flex items-center gap-1 ml-auto">
+              <div className="mr-2">
+                <AdvisorBroadcast
+                  companies={(investorSummaries || []).map((c) => ({
+                    id: c.company_id,
+                    name: c.company_name,
+                  }))}
+                />
+              </div>
               <button
                 onClick={() => setMemberView("table")}
                 className={`p-1.5 rounded transition-colors ${memberView === "table" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
