@@ -56,7 +56,7 @@ interface RawToken {
 }
 
 async function extractRawTokens(
-  pdf: pdfjsLib.PDFDocumentProxy
+  pdf: any
 ): Promise<RawToken[]> {
   const tokens: RawToken[] = [];
 
