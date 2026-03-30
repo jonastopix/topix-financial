@@ -203,7 +203,7 @@ export default function ReportReviewDialog({
       return;
     }
     if (editYear < 2000 || editYear > 2100) {
-      toast({ title: "Validering", description: "Ugyldigt årstal", variant: "destructive" });
+      toast.error("Validering", { description: "Ugyldigt årstal" });
       return;
     }
 
