@@ -15,6 +15,7 @@ import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import KPICard from "@/components/KPICard";
 import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
 import AdvisorBroadcast from "@/components/AdvisorBroadcast";
+import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
 
 // ── Helpers ──
 
@@ -704,7 +705,12 @@ const AdvisorDashboard = () => {
         onCompanyClick={(id, name) => setCompanyOverride(id, name)}
       />
 
-      {/* ── TOP: Portfolio KPI bar ── */}
+      {/* ── Financial Alerts ── */}
+      <AdvisorAlertsPanel
+        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+      />
+
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Rapporterer aktivt" value={`${reportedThisMonth} / ${total}`} subtitle="sendt rapport denne måned" accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"} />
         <KPICard title="Platform-engagement" value={`${fullyEngaged} / ${total}`} subtitle={`bruger 3+ funktioner · snit ${avgEngagement.toFixed(1)}/4`} accentColor={total > 0 && fullyEngaged / total >= 0.5 ? "emerald" : "blue"} />
