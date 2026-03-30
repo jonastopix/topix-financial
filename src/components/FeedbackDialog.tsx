@@ -56,7 +56,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "For stort", description: "Billedet må max fylde 5 MB.", variant: "destructive" });
+      toast.error("For stort", { description: "Billedet må max fylde 5 MB." });
       return;
     }
     setScreenshot(file);
