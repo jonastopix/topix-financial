@@ -261,6 +261,7 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
   }
   if (ext === "xlsx" || ext === "xls") {
     try {
+      const XLSX = await import("xlsx");
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
       const csvParts: string[] = [];
