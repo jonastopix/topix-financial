@@ -66,7 +66,7 @@ const founderTimeline = [
   { week: "Uge 1", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Har du et årsregnskab? Start med 'Sæt baseline med årstal' i stedet.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
   { week: "Uge 2", title: "Gennemse dine tal", desc: "Godkend dine nøgletal og se hvad AI-analysen siger om din udvikling.", icon: BarChart3, color: "bg-chart-info/10 text-chart-info", link: "/kpis" },
   { week: "Løbende", title: "Pulse check-in", desc: "Fortæl hvad der gik godt og hvad der er svært. Tager 2 minutter — bruges af rådgiverne til sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
-  { week: "Dag 5", title: "Månedlig digest", desc: "Den 5. i måneden modtager du automatisk et personligt overblik: dine seneste KPI-tal, kommende milestone-deadlines og ulæste beskeder fra rådgiverne.", icon: Mail, color: "bg-chart-positive/10 text-chart-positive", link: "/" },
+  { week: "Dag 5", title: "Månedlig digest", desc: "Den 5. i måneden modtager du automatisk et personligt overblik: dine seneste KPI-tal, kommende milestone-deadlines og ulæste beskeder fra rådgiverne.", icon: Mail, color: "bg-chart-positive/10 text-chart-positive", link: "/settings" },
 ];
 
 const founderTips = [
@@ -75,6 +75,8 @@ const founderTips = [
   "Brug chatten aktivt — Morten og Jonas læser dine tal og svarer hurtigt",
   "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret",
   "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige",
+  "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet",
+  "Park idéer i køleskabet under Milestones — de forsvinder ikke men forstyrrer ikke dit overblik",
 ];
 
 /* ── Advisor data ── */
@@ -110,7 +112,7 @@ const advisorFeatures = [
 
 const advisorShortcuts = [
   { situation: "Virksomhed afventer svar", action: "Klik virksomhed i prioriteringskø → åbner chatten direkte" },
-  { situation: "Founder mangler rapport", action: "Medlemmer → se status → send påmindelse via chat" },
+  { situation: "Founder mangler rapport", action: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 — tjek Review Queue hvis noget er stuck" },
   { situation: "Skift til en anden virksomhed", action: "Scroll ned i sidebar → 'Vis som virksomhed' → søg" },
   { situation: "Se virksomhed som founder", action: "'Vis som virksomhed' + 'Vis som medlem' i sidebar" },
   { situation: "Send månedlig digest", action: "Admin → E-mail skabeloner → 'Send digest nu'" },
