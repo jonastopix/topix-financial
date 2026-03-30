@@ -71,7 +71,7 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   ebitdaMargin: number | null;
   budgetRevenue: number | null;
   budgetVsActualPct: number | null;
-  latestPulse: { went_well: string; biggest_challenge: string; created_at: string } | null;
+  latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string } | null;
   needsAttention: boolean;
   unreadMessages: number;
   milestones: MilestoneData[];
