@@ -252,6 +252,7 @@ function MemberCard({
 
 const AdvisorDashboard = () => {
   const { user, setCompanyOverride } = useAuth();
+  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-dashboard", user?.id],
