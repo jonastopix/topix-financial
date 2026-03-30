@@ -1177,15 +1177,13 @@ const CompanyChatPane = () => {
       .from(table as any)
       .update({
         awaiting_reply_from: null,
-        acknowledged_at: new Date().toISOString(),
-        acknowledged_by_advisor_id: user.id,
         follow_up_at: null,
       })
       .eq("id", id);
     if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
     setConversations(prev => prev.map(c =>
       c.id === activeConvId
-        ? { ...c, awaiting_reply_from: null, acknowledged_at: new Date().toISOString(), follow_up_at: null }
+        ? { ...c, awaiting_reply_from: null, follow_up_at: null }
         : c
     ));
     toast.success("Fjernet fra handlingskøen");
