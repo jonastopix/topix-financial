@@ -627,6 +627,25 @@ const AdvisorDashboard = () => {
   const total = investorSummaries.length;
   const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
 
+  // Count assigned conversations per advisor
+  const allConvs = data?.convByCompany
+    ? Array.from(data.convByCompany.values()).flat()
+    : [];
+
+  const assignmentCounts = allConvs.reduce((acc, conv) => {
+    if (conv.assigned_advisor_id) {
+      acc[conv.assigned_advisor_id] = (acc[conv.assigned_advisor_id] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const myAssignments = assignmentCounts[user?.id || ""] || 0;
+  const totalAssigned = Object.values(assignmentCounts).reduce((s, n) => s + n, 0);
+  const unassignedCount = investorSummaries.filter(c => {
+    const conv = data?.convByCompany?.get(c.company_id)?.[0];
+    return !conv?.assigned_advisor_id;
+  }).length;
+
   const engagementScores = investorSummaries.map(c => {
     const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
     let score = 0;
