@@ -251,6 +251,8 @@ const Settings = () => {
   const [emailPrefs, setEmailPrefs] = useState({
     action_required: true,
     important: true,
+    report_reminders: true,
+    monthly_digest: true,
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [saving, setSaving] = useState(false);
