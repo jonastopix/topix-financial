@@ -150,7 +150,7 @@ const MilestoneCard = ({
   return (
     <>
       <div
-        className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden cursor-pointer"
+        className="group rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden cursor-pointer"
         onClick={() => setDetailOpen(true)}
       >
         <div className="p-3">
