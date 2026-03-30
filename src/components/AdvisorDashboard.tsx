@@ -736,16 +736,6 @@ const AdvisorDashboard = () => {
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-24 rounded-xl bg-muted/50 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
   const queryClient = useQueryClient();
 
   // Fetch advisor profiles for assignment dropdown
@@ -788,6 +778,16 @@ const AdvisorDashboard = () => {
       .eq("id", conv.id);
     queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-24 rounded-xl bg-muted/50 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
