@@ -36,7 +36,7 @@ export interface PriorityItem {
 }
 
 const IGNORED_STORAGE_KEY = "advisor-priority-ignored";
-const IGNORED_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const IGNORED_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
 
 function loadIgnored(): Set<string> {
   try {
@@ -325,7 +325,7 @@ export default function AdvisorPriorityQueue({
           <AlertDialogHeader>
             <AlertDialogTitle>Fjern handling?</AlertDialogTitle>
             <AlertDialogDescription>
-              Er du sikker på at du vil fjerne <span className="font-semibold">{confirmIgnore?.companyName}</span> fra handlingskøen? Den vil være skjult i 24 timer.
+              Er du sikker på at du vil fjerne <span className="font-semibold">{confirmIgnore?.companyName}</span> fra handlingskøen? Den vil være skjult i 72 timer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
