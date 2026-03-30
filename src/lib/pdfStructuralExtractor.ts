@@ -327,6 +327,12 @@ function assignColumnSlots(
 export async function extractPdfStructural(
   file: File
 ): Promise<PdfStructuralPayload> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.mjs",
+    import.meta.url
+  ).toString();
+
   const arrayBuffer = await file.arrayBuffer();
 
   // Compute SHA-256 content hash
