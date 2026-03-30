@@ -16,6 +16,7 @@ import KPICard from "@/components/KPICard";
 import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
 import AdvisorBroadcast from "@/components/AdvisorBroadcast";
 import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
+import AdvisorSparringQueue from "@/components/AdvisorSparringQueue";
 
 // ── Helpers ──
 
@@ -70,7 +71,7 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   ebitdaMargin: number | null;
   budgetRevenue: number | null;
   budgetVsActualPct: number | null;
-  latestPulse: { went_well: string; biggest_challenge: string; created_at: string } | null;
+  latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string } | null;
   needsAttention: boolean;
   unreadMessages: number;
   milestones: MilestoneData[];
@@ -266,6 +267,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
+        recentMilestonesRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -289,7 +291,7 @@ const AdvisorDashboard = () => {
           .like("period", `${currentYear}-base-%`),
         supabase
           .from("pulse_checkins")
-          .select("company_id, went_well, biggest_challenge, created_at")
+          .select("company_id, went_well, biggest_challenge, help_needed, created_at")
           .order("created_at", { ascending: false })
           .limit(100),
         (supabase
@@ -317,6 +319,13 @@ const AdvisorDashboard = () => {
           .from("company_members")
           .select("user_id, company_id") as any),
         supabase.rpc("get_all_advisor_profiles"),
+        supabase
+          .from("milestones")
+          .select("user_id, title, updated_at, status")
+          .eq("status", "completed")
+          .gte("updated_at", weekAgo)
+          .order("updated_at", { ascending: false })
+          .limit(50),
       ]);
 
       const allConversations = (convRes.data || []) as ConversationRow[];
@@ -364,14 +373,24 @@ const AdvisorDashboard = () => {
       }
 
       // Latest pulse by company
-      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; created_at: string }>();
+      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string }>();
       for (const p of (pulseRes.data || []) as any[]) {
         if (!latestPulseByCompany.has(p.company_id)) {
           latestPulseByCompany.set(p.company_id, {
             went_well: p.went_well || "",
             biggest_challenge: p.biggest_challenge || "",
+            help_needed: p.help_needed || null,
             created_at: p.created_at,
           });
+        }
+      }
+
+      // Recently completed milestones (last 7 days)
+      const recentlyCompletedMilestones = new Map<string, string>();
+      for (const m of (recentMilestonesRes.data || []) as any[]) {
+        const companyId = userToCompany.get(m.user_id);
+        if (companyId && !recentlyCompletedMilestones.has(companyId)) {
+          recentlyCompletedMilestones.set(companyId, m.title);
         }
       }
 
@@ -615,10 +634,68 @@ const AdvisorDashboard = () => {
         .sort((a, b) => b.score - a.score)
         .slice(0, 20);
 
+      // Sparring items — proactive signals for companies NOT in priority queue
+      const sparringItems = investorSummaries
+        .map(c => {
+          const signals: { label: string; hint: string }[] = [];
+
+          // T8: Rapport netop committet (inden for 7 dage)
+          const hasRecentCommit = (recentFactsRes.data || []).some((f: any) => f.company_id === c.company_id);
+          if (hasRecentCommit) {
+            signals.push({
+              label: "Ny rapport committet",
+              hint: "God tid til at gennemgå tallene og give sparring",
+            });
+          }
+
+          // T9: Positiv momentum — omsætningsvækst >10% MoM
+          if (c.revenueTrendPct != null && c.revenueTrendPct >= 10) {
+            signals.push({
+              label: `Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`,
+              hint: "Hvad driver væksten? Kan vi skalere det?",
+            });
+          }
+
+          // T10: Pulse udfyldt med help_needed
+          const pulseThisMonth = c.latestPulse != null &&
+            new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
+          if (pulseThisMonth && c.latestPulse?.help_needed) {
+            signals.push({
+              label: "Beder om hjælp",
+              hint: c.latestPulse.help_needed,
+            });
+          }
+
+          // T11: Milestone netop fuldført
+          const completedTitle = recentlyCompletedMilestones.get(c.company_id);
+          if (completedTitle) {
+            signals.push({
+              label: `Milestone nået: "${completedTitle}"`,
+              hint: "Anerkend fremgangen og sæt næste mål",
+            });
+          }
+
+          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, signals };
+        })
+        .filter(item => item.signals.length > 0)
+        .filter(item => !priorityItems.some(p => p.company.company_id === item.company.company_id))
+        .sort((a, b) => {
+          const score = (s: typeof a) => {
+            let n = 0;
+            if (s.signals.some(x => x.label === "Beder om hjælp")) n += 30;
+            if (s.signals.some(x => x.label === "Ny rapport committet")) n += 20;
+            if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 15;
+            if (s.signals.some(x => x.label.startsWith("Milestone nået"))) n += 10;
+            return n;
+          };
+          return score(b) - score(a);
+        })
+        .slice(0, 10);
+
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
-        priorityItems, advisorProfiles,
+        priorityItems, advisorProfiles, sparringItems,
       };
     },
     enabled: !!user,
@@ -634,6 +711,7 @@ const AdvisorDashboard = () => {
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
   const priorityItems = data?.priorityItems || [];
   const advisorProfiles = data?.advisorProfiles || [];
+  const sparringItems = data?.sparringItems || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
@@ -807,6 +885,12 @@ const AdvisorDashboard = () => {
           </>
         )}
       </div>
+
+      {/* ── Sparring Queue ── */}
+      <AdvisorSparringQueue
+        items={sparringItems}
+        onCompanyClick={handleAdvisorCompanyClick}
+      />
 
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
