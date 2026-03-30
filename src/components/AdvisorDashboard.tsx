@@ -13,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import KPICard from "@/components/KPICard";
+import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
 
 // ── Helpers ──
 
