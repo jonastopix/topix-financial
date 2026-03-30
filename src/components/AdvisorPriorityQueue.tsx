@@ -11,6 +11,22 @@ export interface PriorityItem {
   score: number;
 }
 
+const ACTION_HINT: Record<string, string> = {
+  besked: "Svar i chatten",
+  godkendelse: "Godkend rapporten",
+  Bankovertræk: "Tal med founder om likviditet",
+  "Omsætning faldt": "Undersøg årsagen i chatten",
+  Opfølgning: "Følg op nu",
+  "Ingen rapport": "Send reminder til founder",
+};
+
+function getActionHint(label: string): string {
+  for (const [key, hint] of Object.entries(ACTION_HINT)) {
+    if (label.includes(key)) return hint;
+  }
+  return "Se virksomhed";
+}
+
 function ReasonIcon({ label }: { label: string }) {
   if (label.includes("besked")) return <MessageSquare className="h-3 w-3" />;
   if (label.includes("godkendelse")) return <FileCheck className="h-3 w-3" />;
@@ -72,11 +88,14 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorP
               <p className="text-xs font-semibold text-foreground truncate">{item.company.company_name}</p>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                 {item.reasons.map((r, i) => (
-                  <span key={i} className={`inline-flex items-center gap-1 text-[10px] ${
-                    r.urgency === "high" ? "text-destructive" : "text-chart-warning"
-                  }`}>
-                    <ReasonIcon label={r.label} />
-                    {r.label}
+                  <span key={i} className="inline-flex flex-col">
+                    <span className={`inline-flex items-center gap-1 text-[10px] ${
+                      r.urgency === "high" ? "text-destructive" : "text-chart-warning"
+                    }`}>
+                      <ReasonIcon label={r.label} />
+                      {r.label}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground ml-4">→ {getActionHint(r.label)}</span>
                   </span>
                 ))}
               </div>
