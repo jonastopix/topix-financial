@@ -18,6 +18,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
   const [wentWell, setWentWell] = useState("");
   const [challenge, setChallenge] = useState("");
   const [milestoneProgress, setMilestoneProgress] = useState(50);
+  const [helpNeeded, setHelpNeeded] = useState("");
   const [saving, setSaving] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState(false);
 
@@ -47,6 +48,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
         period_key: periodKey,
         went_well: wentWell.trim() || null,
         biggest_challenge: challenge.trim() || null,
+        help_needed: helpNeeded.trim() || null,
         milestone_progress: milestoneProgress,
       }, { onConflict: "company_id,period_key" });
     setSaving(false);
@@ -135,6 +137,25 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
             onChange={e => setChallenge(e.target.value)}
             rows={3}
             placeholder="Skriv her..."
+            className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
+          />
+        </div>
+
+        {/* Field 2b — Help needed */}
+        <div className="rounded-xl border border-border p-4 mb-3">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <ChevronRight className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <label className="text-sm font-semibold text-foreground">
+              Hvad har du brug for hjælp til? <span className="text-muted-foreground font-normal text-xs">(valgfri)</span>
+            </label>
+          </div>
+          <textarea
+            value={helpNeeded}
+            onChange={e => setHelpNeeded(e.target.value)}
+            placeholder="Er der noget konkret du gerne vil have sparring på denne måned?"
+            rows={2}
             className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
           />
         </div>

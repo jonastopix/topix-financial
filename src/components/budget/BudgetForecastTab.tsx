@@ -333,7 +333,7 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
       <div className="glass-card rounded-xl p-6">
         <div className="flex items-center justify-between mb-1">
           <h2 className="font-display font-semibold text-foreground">
-            Scenariesimulator
+            Hvad sker der hvis...
           </h2>
           <div className="flex items-center gap-3">
             {events.length > 0 && (
@@ -352,7 +352,7 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
           </div>
         </div>
         <p className="text-xs text-muted-foreground mb-6">
-          Tilføj konkrete business-hændelser og se effekten på dit helårsresultat.
+          Tilføj en business-hændelse — ansæt en medarbejder, fordobl marketing, flyt lokaler — og se effekten på dit helårsresultat med det samme.
         </p>
 
         {/* Event list */}

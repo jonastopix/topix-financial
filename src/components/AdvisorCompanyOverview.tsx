@@ -681,6 +681,16 @@ const AdvisorCompanyOverview = () => {
                     </p>
                   </div>
                 )}
+                {(latestPulse as any).help_needed && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                      Brug for hjælp til
+                    </p>
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {(latestPulse as any).help_needed}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

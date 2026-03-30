@@ -437,7 +437,7 @@ const Budget = () => {
           <div className="mx-1 self-center text-muted-foreground/40 text-xs select-none">|</div>
           <TabsTrigger value="forecast" className="text-xs shrink-0 text-muted-foreground">
             <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-            Forecast ↗
+            Hvad-hvis? ↗
           </TabsTrigger>
           <TabsTrigger value="cashflow" className="text-xs shrink-0 text-muted-foreground">
             <Droplets className="h-3.5 w-3.5 mr-1.5" />

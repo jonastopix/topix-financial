@@ -1,0 +1,1 @@
+ALTER TABLE public.pulse_checkins ADD COLUMN IF NOT EXISTS help_needed text;
