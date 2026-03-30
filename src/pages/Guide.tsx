@@ -109,8 +109,8 @@ const advisorFeatures = [
 
 const advisorShortcuts = [
   { situation: "Virksomhed afventer svar", action: "Klik virksomhed i prioriteringskø → åbner chatten direkte" },
-  { situation: "Ny rapport uploadet", action: "Review Queue → gennemse → godkend" },
-  { situation: "Skift til en anden virksomhed", action: "Søg i 'Vis som virksomhed' i sidebar-bunden" },
+  { situation: "Ny rapport uploadet", action: "Review Queue → klik rapport → 'Godkend data' i review-dialogen" },
+  { situation: "Skift til en anden virksomhed", action: "Scroll ned i sidebar → 'Vis som virksomhed' → søg" },
   { situation: "Se virksomhed som founder", action: "'Vis som virksomhed' + 'Vis som medlem' i sidebar" },
   { situation: "Send månedlig digest", action: "Admin → E-mail skabeloner → 'Send digest nu'" },
   { situation: "Tilføj KPI-kommentar", action: "KPI'er → vælg periode i grafen → klik datapunkt" },
