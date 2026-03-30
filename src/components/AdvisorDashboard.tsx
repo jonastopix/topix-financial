@@ -751,15 +751,16 @@ const AdvisorDashboard = () => {
   // Build a map using ALL conversations (not just open) for assignment tracking
   const allConvsByCompany = useMemo(() => {
     const m = new Map<string, ConversationRow>();
-    const allConvs = data?.convByCompany || new Map<string, ConversationRow[]>();
-    for (const [companyId, convs] of allConvs) {
-      // Pick the conversation with an assigned_advisor_id if any, otherwise first
-      const assigned = convs.find(c => !!c.assigned_advisor_id);
-      if (assigned) m.set(companyId, assigned);
-      else if (convs[0]) m.set(companyId, convs[0]);
+    for (const conv of (data?.allConversations || [])) {
+      if (!conv.company_id) continue;
+      // Prefer a conversation that has an assigned_advisor_id
+      const existing = m.get(conv.company_id);
+      if (!existing || (!existing.assigned_advisor_id && conv.assigned_advisor_id)) {
+        m.set(conv.company_id, conv);
+      }
     }
     return m;
-  }, [data?.convByCompany]);
+  }, [data?.allConversations]);
 
   // Count assigned conversations per advisor
   const latestConvs = investorSummaries
