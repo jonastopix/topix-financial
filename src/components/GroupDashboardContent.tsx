@@ -7,6 +7,7 @@ import {
   Building2, TrendingUp, Loader2, DollarSign, Wallet,
   BarChart3, FileCheck, AlertTriangle, MessageSquare,
 } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { CompanyTableRow } from "@/components/GroupCompanyCard";
 import GroupCompanyCard from "@/components/GroupCompanyCard";
 import type { GroupCompanySummary, GroupAggregates } from "@/lib/groupDashboardUtils";
