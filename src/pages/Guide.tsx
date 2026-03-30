@@ -6,7 +6,7 @@ import {
   LayoutDashboard, FileText, TrendingUp, Calculator, Target,
   BookOpen, MessageCircle, Sparkles, Heart, Users, Upload,
   ChevronRight, CheckCircle2, AlertTriangle, BarChart3,
-  Send, Bell, ClipboardList, UserCog, Zap, Info
+  Send, Bell, ClipboardList, UserCog, Zap, Info, Mail
 } from "lucide-react";
 
 /* ── Founder data ── */
@@ -34,7 +34,7 @@ const founderFeatures = [
     icon: Target, title: "Milestones", path: "/milestones",
     color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Definer dine vigtigste mål og følg fremgangen. Rådgiverne kan se og kommentere dine milestones.",
-    tips: ["Sæt deadlines og opdatér fremgang løbende", "Milestones fra Handouts tilføjes automatisk", "Du får reminder når en deadline nærmer sig"],
+    tips: ["Sæt deadlines og opdatér fremgang løbende", "Park idéer i køleskabet — de forsvinder ikke men forstyrrer ikke overblikket", "Milestones fra Handouts tilføjes automatisk"],
   },
   {
     icon: BookOpen, title: "Handouts", path: "/handouts",
@@ -66,6 +66,7 @@ const founderTimeline = [
   { week: "Uge 1", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Har du et årsregnskab? Start med 'Sæt baseline med årstal' i stedet.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
   { week: "Uge 2", title: "Gennemse dine tal", desc: "Godkend dine nøgletal og se hvad AI-analysen siger om din udvikling.", icon: BarChart3, color: "bg-chart-info/10 text-chart-info", link: "/kpis" },
   { week: "Løbende", title: "Pulse check-in", desc: "Fortæl hvad der gik godt og hvad der er svært. Tager 2 minutter — bruges af rådgiverne til sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
+  { week: "Dag 5", title: "Månedlig digest", desc: "Den 5. i måneden modtager du automatisk et personligt overblik: dine seneste KPI-tal, kommende milestone-deadlines og ulæste beskeder fra rådgiverne.", icon: Mail, color: "bg-chart-positive/10 text-chart-positive", link: "/" },
 ];
 
 const founderTips = [
@@ -80,7 +81,7 @@ const founderTips = [
 
 const advisorWorkflow = [
   { step: 1, title: "Tjek prioriteringskøen", desc: "Åbn dashboardet. Øverst ser du hvilke virksomheder der kræver handling nu — ubesvarede beskeder, finansielle alerts og manglende rapporter.", link: "/", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
-  { step: 2, title: "Følg op på rapportering", desc: "Se hvilke founders der mangler at uploade eller godkende deres rapport. Send en påmindelse via chatten hvis nødvendigt.", link: "/members", icon: ClipboardList, color: "text-primary bg-primary/10" },
+  { step: 2, title: "Tjek rapporteringsrytmen", desc: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 til founders der ikke har uploadet. Tjek Review Queue hvis en rapport er stuck i pipeline.", link: "/admin/review-queue", icon: ClipboardList, color: "text-primary bg-primary/10" },
   { step: 3, title: "Svar i chatten", desc: "Virksomheder der afventer svar vises med rød markering. Klik direkte fra prioriteringskøen for at åbne den rette samtale.", link: "/chat", icon: MessageCircle, color: "text-chart-info bg-chart-info/10" },
   { step: 4, title: "Kommentér på KPI-grafer", desc: "Når du er inde på en virksomheds KPI-side, kan du pinne kommentarer direkte på graferne. Founder modtager automatisk en notifikation.", link: "/kpis", icon: TrendingUp, color: "text-chart-info bg-chart-info/10" },
   { step: 5, title: "Send broadcast ved behov", desc: "Skal alle founders have samme besked? Brug broadcast-funktionen i member-oversigten. Du kan vælge specifikke modtagere.", link: "/members", icon: Send, color: "text-chart-warning bg-chart-warning/10" },
