@@ -1,12 +1,12 @@
 /**
  * send-monthly-digest — Monthly personalised digest email to founders
  *
- * Service-role only (cron or manual admin trigger).
+ * Admin/advisor only (browser or cron trigger).
  * Sends each founder a summary: KPI movement, upcoming milestones, unread advisor messages.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SENDER_DOMAIN = "mail.topix.dk";
 const FROM = `The Boardroom <noreply@${SENDER_DOMAIN}>`;
