@@ -415,10 +415,8 @@ const FileUploadZone = ({
                 errorMessage: "Denne filtype (multi-sheet regnskabsrapport) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
               });
 
-              toast({
-                title: "Filtype ikke understøttet",
+              toast.error("Filtype ikke understøttet", {
                 description: "Multi-sheet regnskabsrapporter (DATA + P&L Top Line) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
-                variant: "destructive",
               });
               
               onPipelineComplete?.(reportRecord.id);
