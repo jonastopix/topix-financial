@@ -21,7 +21,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof TrendingDown; color: string; bg
 };
 
 interface AdvisorAlertsPanelProps {
-  onCompanyClick: (companyId: string, companyName: string) => void;
+  onCompanyClick: (companyId: string, companyName: string, reason?: string) => void;
 }
 
 export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPanelProps) {
