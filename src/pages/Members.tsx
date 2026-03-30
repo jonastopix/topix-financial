@@ -357,7 +357,24 @@ const Members = () => {
   const groupInfoMap = membersData?.groupInfoMap || new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
   const groupedCompanyIds = membersData?.groupedCompanyIds || new Set<string>();
 
-  const handleRemoveMember = async (company: CompanyData, member: CompanyMember) => {
+  const handleRenameCompany = async () => {
+    if (!renamingCompany || !renameValue.trim()) return;
+    setRenameSaving(true);
+    const { error } = await (supabase
+      .from("companies")
+      .update({ name: renameValue.trim() }) as any)
+      .eq("id", renamingCompany.id);
+    setRenameSaving(false);
+    if (error) {
+      toast.error("Kunne ikke omdøbe virksomheden.");
+      return;
+    }
+    toast.success(`Virksomheden hedder nu "${renameValue.trim()}"`);
+    setRenamingCompany(null);
+    setRenameValue("");
+    refetchMembers();
+  };
+
     if (member.role === 'owner') return;
     setRemovingMember(member.user_id);
     try {
