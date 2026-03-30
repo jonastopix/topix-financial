@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, FileText, ClipboardList, MessageCircle, AlertTriangle, FileCheck, Clock, Sparkles, CheckCircle2, TrendingDown } from "lucide-react";
+import { Bell, FileText, ClipboardList, MessageCircle, AlertTriangle, FileCheck, Clock, Sparkles, CheckCircle2, TrendingDown, MessageSquare } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
@@ -50,6 +50,8 @@ const NotificationCenter = () => {
         return { Icon: Clock, bg: "bg-primary/10", text: "text-primary" };
       case "report_committed":
         return { Icon: CheckCircle2, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
+      case "advisor_kpi_comment":
+        return { Icon: MessageCircle, bg: "bg-primary/10", text: "text-primary" };
       case "alert_revenue_drop":
         return { Icon: TrendingDown, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
       case "alert_negative_cash":

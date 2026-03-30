@@ -529,12 +529,12 @@ const KPIs = () => {
     setCommentDraft("");
     refetchComments();
 
-    supabase.functions.invoke("send-slack-report-notification", {
+    // Notify founder via in-app notification — non-blocking
+    supabase.functions.invoke("notify-kpi-comment", {
       body: {
-        event: "advisor_kpi_comment",
-        companyId,
-        periodKey: commentPopover.periodKey,
-        kpiKey: selectedKPI,
+        company_id: companyId,
+        period_label: commentPopover.periodKey,
+        kpi_key: selectedKPI,
       },
     }).catch(() => {});
   };
