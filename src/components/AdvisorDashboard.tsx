@@ -692,23 +692,15 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* ── Broadcast ── */}
-      <AdvisorBroadcast
-        companies={(investorSummaries || []).map((c) => ({
-          id: c.company_id,
-          name: c.company_name,
-        }))}
-      />
-
       {/* ── Priority Queue ── */}
       <AdvisorPriorityQueue
         items={priorityItems}
-        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+        onCompanyClick={handleAdvisorCompanyClick}
       />
 
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
-        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+        onCompanyClick={handleAdvisorCompanyClick}
       />
 
 
