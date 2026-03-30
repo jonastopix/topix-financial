@@ -1295,7 +1295,7 @@ const KPIs = () => {
         )}
 
         {/* Period comparison table */}
-        <div className="mt-6 overflow-x-auto">
+        {showAdvanced && <div className="mt-6 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
