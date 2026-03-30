@@ -68,23 +68,30 @@ function formatDKK(n: number): string {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const auth = await authenticateUser(req);
-  if (auth instanceof Response) return auth;
-  const { callerId, callerClient } = auth;
+  // Support service-role calls (cron) — bypass user auth
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const isServiceRole = authHeader === `Bearer ${serviceKey}`;
 
-  // Verify caller is admin or advisor
-  const { data: roleRow } = await callerClient
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", callerId)
-    .in("role", ["admin", "advisor"])
-    .maybeSingle();
+  if (!isServiceRole) {
+    const auth = await authenticateUser(req);
+    if (auth instanceof Response) return auth;
+    const { callerId, callerClient } = auth;
 
-  if (!roleRow) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Verify caller is admin or advisor
+    const { data: roleRow } = await callerClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId)
+      .in("role", ["admin", "advisor"])
+      .maybeSingle();
+
+    if (!roleRow) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

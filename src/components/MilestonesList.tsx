@@ -653,6 +653,20 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
           <div className="space-y-3">{renderList(doneMilestones)}</div>
         </div>
       )}
+
+      {parkedMilestones.length > 0 && (
+        <div className="glass-card rounded-xl p-5 animate-fade-in mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Archive className="h-3.5 w-3.5 text-muted-foreground/60" />
+            <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+              Køleskab · {parkedMilestones.length}
+            </p>
+          </div>
+          <div className="space-y-2 opacity-60">
+            {renderList(parkedMilestones)}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

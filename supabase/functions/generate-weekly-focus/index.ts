@@ -259,6 +259,7 @@ async function processCompany(
     .select("id, title, progress, updated_at, deadline")
     .eq("company_id", company.id)
     .lt("progress", 100)
+    .neq("status", "parked")
     .lt("updated_at", thirtyDaysAgo)
     .limit(3);
 
