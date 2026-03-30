@@ -612,10 +612,8 @@ const FileUploadZone = ({
           status: "error",
           errorMessage: userMsg,
         });
-        toast({
-          title: "Kunne ikke behandle rapporten",
+        toast.error("Kunne ikke behandle rapporten", {
           description: userMsg,
-          variant: "destructive",
         });
       }
     },
