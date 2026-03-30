@@ -75,6 +75,8 @@ const founderTips = [
   "Brug chatten aktivt — Morten og Jonas læser dine tal og svarer hurtigt",
   "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret",
   "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige",
+  "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet",
+  "Park idéer i køleskabet under Milestones — de forsvinder ikke men forstyrrer ikke dit overblik",
 ];
 
 /* ── Advisor data ── */
