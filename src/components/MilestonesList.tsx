@@ -489,7 +489,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     ? milestones.filter((m) => m.category === categoryFilter)
     : milestones;
   const activeMilestones = filtered
-    .filter((m) => m.status !== "done")
+    .filter((m) => m.status !== "done" && m.status !== "parked")
     .sort((a, b) => {
       const now = new Date().getTime();
       const URGENT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -511,6 +511,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
       return 0;
     });
   const doneMilestones = filtered.filter((m) => m.status === "done");
+  const parkedMilestones = filtered.filter((m) => m.status === "parked");
 
   const quickUpdateProgress = async (id: string, newProgress: number) => {
     const oldMs = milestones.find((m) => m.id === id);
