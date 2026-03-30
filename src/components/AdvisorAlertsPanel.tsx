@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { TrendingDown, Wallet, AlertTriangle, ChevronRight } from "lucide-react";
+import { TrendingDown, Wallet, AlertTriangle, ChevronRight, CheckCircle2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 
