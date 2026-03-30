@@ -110,7 +110,7 @@ const advisorFeatures = [
 
 const advisorShortcuts = [
   { situation: "Virksomhed afventer svar", action: "Klik virksomhed i prioriteringskø → åbner chatten direkte" },
-  { situation: "Founder mangler rapport", action: "Medlemmer → se status → send påmindelse via chat" },
+  { situation: "Founder mangler rapport", action: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 — tjek Review Queue hvis noget er stuck" },
   { situation: "Skift til en anden virksomhed", action: "Scroll ned i sidebar → 'Vis som virksomhed' → søg" },
   { situation: "Se virksomhed som founder", action: "'Vis som virksomhed' + 'Vis som medlem' i sidebar" },
   { situation: "Send månedlig digest", action: "Admin → E-mail skabeloner → 'Send digest nu'" },
