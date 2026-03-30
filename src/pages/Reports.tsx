@@ -445,7 +445,7 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       queryClient.invalidateQueries({ queryKey: ["company-commentaries"] });
       queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
-      toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
+      toast.success("Permanent slettet", { description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
       toast({ title: "Fejl", description: "Kunne ikke slette rapporten permanent.", variant: "destructive" });
