@@ -268,7 +268,7 @@ const MemberDetail = () => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({ title: "Medlem fjernet", description: "Brugeren er blevet fjernet fra virksomheden." });
+      toast.success("Medlem fjernet", { description: "Brugeren er blevet fjernet fra virksomheden." });
       navigate('/members');
     } catch (err: any) {
       toast({ title: "Fejl", description: err.message || "Kunne ikke fjerne medlem", variant: "destructive" });
