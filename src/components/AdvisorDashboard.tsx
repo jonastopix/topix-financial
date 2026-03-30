@@ -268,7 +268,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, groupConvsRes, groupsRes,
+        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -334,6 +334,7 @@ const AdvisorDashboard = () => {
         supabase
           .from("groups")
           .select("id, name"),
+        (supabase.from("group_companies" as any).select("company_id")),
       ]);
 
       // Map group conversations into the same shape as company conversations
