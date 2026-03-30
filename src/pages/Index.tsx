@@ -630,14 +630,8 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
         <DashboardMilestones />
         <DashboardHandouts />
-        <BudgetOverview />
+        <CombinedBudgetWidget />
       </div>
-
-      {rollingForecast && !isAdvisor && (
-        <div className="mb-6">
-          <RollingForecastCard {...rollingForecast} />
-        </div>
-      )}
 
       {latestCommentary && !isAdvisor && (
         <div className="mb-6">
