@@ -655,10 +655,8 @@ const FileUploadZone = ({
           (f) => f.name === file.name && (f.status === "uploading" || f.status === "processing" || f.status === "analyzing" || f.status === "done")
         );
         if (isDuplicate) {
-          toast({
-            title: "Duplikat",
+          toast.error("Duplikat", {
             description: `${file.name} er allerede uploadet.`,
-            variant: "destructive",
           });
           return;
         }
