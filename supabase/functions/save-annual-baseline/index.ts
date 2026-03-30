@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
           user_id: userId,
           file_name: sentinelFileName,
           file_path: "_sentinel",
-          report_type: "annual_baseline",
+          report_type: "andet", // valid enum value for sentinel baseline rows
           status: "processed",
           extraction_contract_version: "baseline_v1",
         })
