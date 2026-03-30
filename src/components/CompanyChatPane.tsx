@@ -2075,13 +2075,13 @@ const CompanyChatPane = () => {
                                 </>
                               )}
 
-                              {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                              {isAdvisor && activeConv && !isGroupThread && (
                                 <button
-                                  onClick={() => { handleResolve(); setMobileActionsDrawerOpen(false); }}
+                                  onClick={() => { handleNoActionNeeded(); setMobileActionsDrawerOpen(false); }}
                                   className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors border-t border-border mt-2 pt-3"
                                 >
                                   <CheckCheck className="h-4 w-4 text-muted-foreground" />
-                                  <span className="flex-1 text-left">Afslut samtale</span>
+                                  <span className="flex-1 text-left">Ingen handling nødvendig</span>
                                 </button>
                               )}
 
