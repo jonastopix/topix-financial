@@ -80,10 +80,13 @@ const DashboardHandouts = () => {
       </div>
 
       <Link
-        to="/handouts"
+        to={nextModule ? `/handouts?module=${nextModule}` : "/handouts"}
         className="flex items-center justify-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors pt-3 mt-auto"
       >
-        Se handouts <ArrowRight className="h-3 w-3" />
+        {nextModule && completed < TOTAL_MODULES
+          ? <>Fortsæt: {MODULE_LABELS[nextModule]} <ArrowRight className="h-3 w-3" /></>
+          : <>Se handouts <ArrowRight className="h-3 w-3" /></>
+        }
       </Link>
     </div>
   );
