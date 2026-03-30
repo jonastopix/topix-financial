@@ -45,7 +45,7 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
         .insert({ handout_id: handoutId, lever_index: index, milestone_id: ms.id });
       if (linkErr) throw linkErr;
 
-      toast({ title: "Milestone oprettet", description: `"${value.trim()}" er nu en aktiv milestone.` });
+      toast.success("Milestone oprettet", { description: `"${value.trim()}" er nu en aktiv milestone.` });
       onMilestoneCreated?.();
     } catch (e: any) {
       toast({ title: "Fejl", description: e.message, variant: "destructive" });
