@@ -2002,14 +2002,14 @@ const CompanyChatPane = () => {
                             </Popover>
                           )}
 
-                          {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                          {isAdvisor && activeConv && !isGroupThread && (
                             <button
-                              onClick={handleResolve}
-                              title="Markerer samtalen som afsluttet. Genåbnes automatisk ved ny besked."
+                              onClick={handleNoActionNeeded}
+                              title="Ingen handling nødvendig — fjerner samtalen fra handlingskøen"
                               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
                             >
                               <CheckCheck className="h-3.5 w-3.5" />
-                              <span className="hidden md:inline">Afslut samtale</span>
+                              <span className="hidden md:inline">Ingen handling</span>
                             </button>
                           )}
 
