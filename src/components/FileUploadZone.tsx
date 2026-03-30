@@ -449,10 +449,8 @@ const FileUploadZone = ({
                     status: "error",
                     errorMessage: "Filen er beskyttet med adgangskode. Eksportér rapporten igen uden adgangskodebeskyttelse, eller upload en Excel-version.",
                   });
-                  toast({
-                    title: "Beskyttet PDF",
+                  toast.error("Beskyttet PDF", {
                     description: "Filen kræver en adgangskode og kan ikke læses. Eksportér uden adgangskodebeskyttelse.",
-                    variant: "destructive",
                   });
                   await supabase.from("financial_reports").update({
                     status: "error",
