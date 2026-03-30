@@ -305,7 +305,7 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      toast({ title: "Data erstattet", description: `Gammel rapport arkiveret og nye data godkendt for ${preview?.period_label || ""}.` });
+      toast({ title: "✓ Tallene er opdateret", description: `Tidligere data er arkiveret og ${preview?.period_label || "den nye periode"} vises nu på dit dashboard.` });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
