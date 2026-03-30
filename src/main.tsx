@@ -1,4 +1,7 @@
+import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
+import App from "./App.tsx";
+import "./index.css";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -7,9 +10,5 @@ Sentry.init({
   tracesSampleRate: 0.1,
   integrations: [Sentry.browserTracingIntegration()],
 });
-
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
