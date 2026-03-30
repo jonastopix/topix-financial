@@ -747,9 +747,22 @@ const AdvisorDashboard = () => {
   const total = investorSummaries.length;
   const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
 
+  // Build a map using ALL conversations (not just open) for assignment tracking
+  const allConvsByCompany = useMemo(() => {
+    const m = new Map<string, ConversationRow>();
+    const allConvs = data?.convByCompany || new Map<string, ConversationRow[]>();
+    for (const [companyId, convs] of allConvs) {
+      // Pick the conversation with an assigned_advisor_id if any, otherwise first
+      const assigned = convs.find(c => !!c.assigned_advisor_id);
+      if (assigned) m.set(companyId, assigned);
+      else if (convs[0]) m.set(companyId, convs[0]);
+    }
+    return m;
+  }, [data?.convByCompany]);
+
   // Count assigned conversations per advisor
   const latestConvs = investorSummaries
-    .map((company) => data?.convByCompany?.get(company.company_id)?.[0])
+    .map((company) => allConvsByCompany.get(company.company_id))
     .filter((conv): conv is ConversationRow => !!conv);
 
   const assignmentCounts = latestConvs.reduce((acc, conv) => {
@@ -761,10 +774,9 @@ const AdvisorDashboard = () => {
 
   const myAssignments = assignmentCounts[user?.id || ""] || 0;
   const totalAssigned = Object.values(assignmentCounts).reduce((s, n) => s + n, 0);
-  const unassignedCount = investorSummaries.filter(c => {
-    const conv = data?.convByCompany?.get(c.company_id)?.[0];
-    return !conv?.assigned_advisor_id;
-  }).length;
+  const unassignedCount = investorSummaries.filter(c =>
+    !allConvsByCompany.get(c.company_id)?.assigned_advisor_id
+  ).length;
 
   const engagementScores = investorSummaries.map(c => {
     const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);

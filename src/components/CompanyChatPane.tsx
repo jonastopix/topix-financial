@@ -1170,30 +1170,25 @@ const CompanyChatPane = () => {
     ));
   };
 
-  const handleResolve = async () => {
+  const handleNoActionNeeded = async () => {
     if (!activeConvId || !user) return;
     const { table, id } = getOpsTarget();
-    const now = new Date().toISOString();
-    const updateData: any = {
-      conversation_status: 'resolved',
-      resolved_at: now,
-      resolved_by_advisor_id: user.id,
-      awaiting_reply_from: null,
-      acknowledged_at: null,
-      acknowledged_by_advisor_id: null,
-      follow_up_at: null,
-    };
     const { error } = await supabase
       .from(table as any)
-      .update(updateData)
+      .update({
+        awaiting_reply_from: null,
+        acknowledged_at: new Date().toISOString(),
+        acknowledged_by_advisor_id: user.id,
+        follow_up_at: null,
+      })
       .eq("id", id);
-    if (error) {
-      toast.error("Kunne ikke afslutte samtalen");
-      return;
-    }
+    if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
     setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, ...updateData } : c
+      c.id === activeConvId
+        ? { ...c, awaiting_reply_from: null, acknowledged_at: new Date().toISOString(), follow_up_at: null }
+        : c
     ));
+    toast.success("Fjernet fra handlingskøen");
   };
 
   // Snooze / follow-up helpers
@@ -2007,14 +2002,14 @@ const CompanyChatPane = () => {
                             </Popover>
                           )}
 
-                          {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                          {isAdvisor && activeConv && !isGroupThread && (
                             <button
-                              onClick={handleResolve}
-                              title="Markerer samtalen som afsluttet. Genåbnes automatisk ved ny besked."
+                              onClick={handleNoActionNeeded}
+                              title="Ingen handling nødvendig — fjerner samtalen fra handlingskøen"
                               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
                             >
                               <CheckCheck className="h-3.5 w-3.5" />
-                              <span className="hidden md:inline">Afslut samtale</span>
+                              <span className="hidden md:inline">Ingen handling</span>
                             </button>
                           )}
 
@@ -2080,13 +2075,13 @@ const CompanyChatPane = () => {
                                 </>
                               )}
 
-                              {(!activeConv?.conversation_status || activeConv?.conversation_status === 'open') && (
+                              {isAdvisor && activeConv && !isGroupThread && (
                                 <button
-                                  onClick={() => { handleResolve(); setMobileActionsDrawerOpen(false); }}
+                                  onClick={() => { handleNoActionNeeded(); setMobileActionsDrawerOpen(false); }}
                                   className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors border-t border-border mt-2 pt-3"
                                 >
                                   <CheckCheck className="h-4 w-4 text-muted-foreground" />
-                                  <span className="flex-1 text-left">Afslut samtale</span>
+                                  <span className="flex-1 text-left">Ingen handling nødvendig</span>
                                 </button>
                               )}
 
