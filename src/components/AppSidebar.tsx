@@ -436,21 +436,31 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
 
                     {showCompanyPicker && (
                       <div className="absolute bottom-full left-0 mb-2 w-full bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto z-[9999]">
+                        <div className="p-2 border-b border-border">
+                          <input
+                            type="text"
+                            value={companySearch}
+                            onChange={(e) => setCompanySearch(e.target.value)}
+                            placeholder="Søg virksomhed..."
+                            className="w-full px-2 py-1.5 text-xs rounded-md bg-secondary border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
+                          />
+                        </div>
                         {isCompanyOverride && (
                           <button
-                            onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
+                            onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); setCompanySearch(""); }}
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors border-b border-border"
                           >
                             <EyeOff className="h-3.5 w-3.5" />
                             Tilbage til {ownCompanyName || "min virksomhed"}
                           </button>
                         )}
-                        {allCompanies?.map((c) => (
+                        {filteredCompanies.map((c) => (
                           <button
                             key={c.id}
                             onClick={() => {
                               setCompanyOverride(c.id, c.name);
                               setShowCompanyPicker(false);
+                              setCompanySearch("");
                             }}
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
                           >
