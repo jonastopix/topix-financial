@@ -582,6 +582,13 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
       dbFields.deadline = fields.deadline ? (fields.deadline as Date).toISOString().split("T")[0] : null;
       localFields.deadline = fields.deadline || null;
     }
+    if ("status" in fields) {
+      dbFields.status = fields.status;
+      localFields.status = fields.status === "parked" ? "parked" : deriveStatus(
+        milestones.find(m => m.id === id)?.progress ?? 0, fields.status
+      );
+      localFields.dbStatus = fields.status;
+    }
     const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
     if (error) { toast.error("Kunne ikke gemme"); return; }
     setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, ...localFields } : m));
