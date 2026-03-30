@@ -261,6 +261,7 @@ const AdvisorDashboard = () => {
     queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       const currentYear = new Date().getFullYear();
 
       const [
