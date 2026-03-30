@@ -221,7 +221,7 @@ export default function ReportReviewDialog({
         status: "applied",
       });
 
-      toast({ title: "Rettelser gemt", description: "Data opdateret — preview genindlæses." });
+      toast.success("Rettelser gemt", { description: "Data opdateret — preview genindlæses." });
 
       // Refresh preview to reflect the manual override
       await loadPreview();
