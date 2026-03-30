@@ -7,7 +7,7 @@ import GroupDashboardContent from "@/components/GroupDashboardContent";
 const AdvisorGroupDashboard = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const { isAdvisor, loading, setCompanyOverride } = useAuth();
-  const { companies, aggregates, isLoading, error, groupName } = useAdvisorGroupDashboard(groupId);
+  const { companies, aggregates, historicalData, isLoading, error, groupName } = useAdvisorGroupDashboard(groupId);
   const navigate = useNavigate();
 
   if (!loading && !isAdvisor) {
