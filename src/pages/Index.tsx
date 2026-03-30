@@ -523,14 +523,15 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Attention needed — action-first, before KPI data */}
-      {companyId && <WeeklyFocusWidget companyId={companyId} />}
-      <div className="mb-6">
-        <AttentionNeeded />
-        <div id="company-actions">
-          {companyId && <CompanyActions companyId={companyId} />}
-        </div>
-      </div>
+      {/* Unified action center */}
+      {!isAdvisor && companyId && (
+        <DashboardActionCenter
+          companyId={companyId}
+          hasPulseThisMonth={hasPulseThisMonth}
+          hasReports={hasReports}
+          hasMilestoneProgressThisMonth={hasMilestoneProgressThisMonth}
+        />
+      )}
 
       {/* KPI cards – only shown when we have processed data */}
       {kpiData.period && (
