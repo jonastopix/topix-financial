@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
 interface KPICardProps {
