@@ -314,6 +314,38 @@ export default function BudgetScenariosTab({
 
   const isScenarioEmpty = rows.every(r => r.values.every(v => v === 0));
 
+  const applyQuickstart = () => {
+    const rev = Number(quickValues.revenue) || 0;
+    const costs = Number(quickValues.costs) || 0;
+    const pay = Number(quickValues.payroll) || 0;
+    if (rev === 0) return;
+
+    setApplyingQuick(true);
+    const monthlyRev = rev / 12;
+    const monthlyCosts = costs / 12;
+    const monthlyPay = pay / 12;
+
+    const updated = scenarioData[activeScenario].map(row => {
+      if (row.group === "indtaegter") return { ...row, values: Array(12).fill(Math.round(monthlyRev)) };
+      if (row.key === "loenninger" || row.key === "personale") return { ...row, values: Array(12).fill(Math.round(monthlyPay)) };
+      if (monthlyCosts > 0 && row.group !== "indtaegter" && row.key !== "loenninger" && row.key !== "personale") {
+        const nonPayrollCostRows = scenarioData[activeScenario].filter(r =>
+          r.group !== "indtaegter" && r.key !== "loenninger" && r.key !== "personale" && r.isEditable
+        );
+        const perRow = nonPayrollCostRows.length > 0 ? (monthlyCosts - monthlyPay) / nonPayrollCostRows.length : 0;
+        if (nonPayrollCostRows.some(r => r.key === row.key)) {
+          return { ...row, values: Array(12).fill(Math.round(Math.max(0, perRow))) };
+        }
+      }
+      return row;
+    });
+
+    setScenarioData(prev => prev ? { ...prev, [activeScenario]: updated } : prev);
+    setShowQuickstart(false);
+    setApplyingQuick(false);
+    toast.success("Budget-udgangspunkt sat!", { description: "Tallene er fordelt på 12 måneder. Klik Rediger for at finjustere." });
+  };
+
   return (
     <div className="space-y-6">
       {activeScenario !== "base" && isScenarioEmpty && (
