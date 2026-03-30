@@ -364,6 +364,23 @@ const AdvisorCompanyOverview = () => {
           </span>
         </div>
       </div>
+
+      {weeklyFocus && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-primary/5 border border-primary/10 rounded-xl">
+          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">
+              AI-chef denne uge
+            </p>
+            <p className="text-xs font-medium text-foreground leading-snug">{weeklyFocus.headline}</p>
+            {weeklyFocus.summary && (
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">
+                {weeklyFocus.summary}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {/* ── Header ── */}
       {isMobile ? (
         /* Mobile: stacked header */
