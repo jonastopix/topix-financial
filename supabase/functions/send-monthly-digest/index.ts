@@ -165,6 +165,7 @@ Deno.serve(async (req) => {
       .select("title, deadline, progress")
       .eq("company_id", companyId)
       .lt("progress", 100)
+      .neq("status", "parked")
       .not("deadline", "is", null)
       .lte("deadline", in30Days)
       .order("deadline", { ascending: true })
