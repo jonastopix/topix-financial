@@ -152,6 +152,7 @@ const KPIs = () => {
   const [editingBenchmarks, setEditingBenchmarks] = useState(false);
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
