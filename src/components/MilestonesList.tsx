@@ -27,22 +27,25 @@ export interface Milestone {
   id: string;
   title: string;
   deadline: Date | null;
-  status: "done" | "in-progress" | "pending";
+  status: "done" | "in-progress" | "pending" | "parked";
   description: string | null;
   source: string;
   source_report: string | null;
   progress: number;
   category: MilestoneCategory;
   baseline: string | null;
+  dbStatus?: string;
 }
 
 const statusConfig = {
   done: { icon: CheckCircle2, className: "text-primary", bg: "bg-primary/10", barColor: "bg-primary" },
   "in-progress": { icon: Clock, className: "text-chart-warning", bg: "bg-chart-warning/10", barColor: "bg-chart-warning" },
   pending: { icon: Circle, className: "text-muted-foreground", bg: "bg-muted", barColor: "bg-muted-foreground/30" },
+  parked: { icon: Archive, className: "text-muted-foreground/60", bg: "bg-muted/50", barColor: "bg-muted-foreground/20" },
 };
 
-function deriveStatus(progress: number): "done" | "in-progress" | "pending" {
+function deriveStatus(progress: number, currentStatus?: string): "done" | "in-progress" | "pending" | "parked" {
+  if (currentStatus === "parked") return "parked";
   if (progress >= 100) return "done";
   if (progress > 0) return "in-progress";
   return "pending";
