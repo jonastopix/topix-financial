@@ -95,6 +95,11 @@ const App = () => (
           <AuthProvider>
             <ViewModeProvider>
             <ScrollToTop />
+            <Suspense fallback={
+              <div className="flex h-screen items-center justify-center bg-background">
+                <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+            }>
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
