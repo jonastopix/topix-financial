@@ -99,7 +99,7 @@ const PerformanceScore = () => {
       <div className="glass-card rounded-xl p-5 animate-fade-in">
         <div className="flex items-center gap-2 mb-3">
           <Activity className="h-4 w-4 text-primary" />
-          <h3 className="font-display font-semibold text-foreground">Performance Score</h3>
+          <h3 className="font-display font-semibold text-foreground">Virksomhedens sundhed</h3>
         </div>
         <p className="text-sm text-muted-foreground text-center py-4">
           Upload mindst én rapport for at se din performance score.
