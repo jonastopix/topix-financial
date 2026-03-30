@@ -8,10 +8,10 @@ import { da } from "date-fns/locale";
 import { getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 const typeConfig = {
-  message: { icon: MessageSquare, color: "text-chart-info", bg: "bg-chart-info/10" },
-  report: { icon: FileText, color: "text-primary", bg: "bg-primary/10" },
-  milestone: { icon: Target, color: "text-chart-warning", bg: "bg-chart-warning/10" },
-  system: { icon: Sparkles, color: "text-primary", bg: "bg-primary/10" },
+  message: { icon: MessageSquare, color: "text-chart-info", bg: "bg-chart-info/10", action: "Læs besked" },
+  report: { icon: FileText, color: "text-primary", bg: "bg-primary/10", action: "Se rapport" },
+  milestone: { icon: Target, color: "text-chart-warning", bg: "bg-chart-warning/10", action: "Se milestone" },
+  system: { icon: Sparkles, color: "text-primary", bg: "bg-primary/10", action: "Se analyse" },
 };
 
 interface ActivityEvent {
