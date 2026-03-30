@@ -565,7 +565,7 @@ export default function EmailTemplates() {
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-foreground">Månedlig digest</h3>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Send et personligt overblik til alle founders — KPIs, milestones og ulæste beskeder.
+                Sendes automatisk den 5. i hver måned. Brug knappen til at sende manuelt nu.
               </p>
             </div>
             <Button
