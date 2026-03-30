@@ -267,6 +267,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
+        recentMilestonesRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -318,6 +319,13 @@ const AdvisorDashboard = () => {
           .from("company_members")
           .select("user_id, company_id") as any),
         supabase.rpc("get_all_advisor_profiles"),
+        supabase
+          .from("milestones")
+          .select("user_id, title, updated_at, status")
+          .eq("status", "completed")
+          .gte("updated_at", weekAgo)
+          .order("updated_at", { ascending: false })
+          .limit(50),
       ]);
 
       const allConversations = (convRes.data || []) as ConversationRow[];
