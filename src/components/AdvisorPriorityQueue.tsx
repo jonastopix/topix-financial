@@ -11,6 +11,22 @@ export interface PriorityItem {
   score: number;
 }
 
+const ACTION_HINT: Record<string, string> = {
+  besked: "Svar i chatten",
+  godkendelse: "Godkend rapporten",
+  Bankovertræk: "Tal med founder om likviditet",
+  "Omsætning faldt": "Undersøg årsagen i chatten",
+  Opfølgning: "Følg op nu",
+  "Ingen rapport": "Send reminder til founder",
+};
+
+function getActionHint(label: string): string {
+  for (const [key, hint] of Object.entries(ACTION_HINT)) {
+    if (label.includes(key)) return hint;
+  }
+  return "Se virksomhed";
+}
+
 function ReasonIcon({ label }: { label: string }) {
   if (label.includes("besked")) return <MessageSquare className="h-3 w-3" />;
   if (label.includes("godkendelse")) return <FileCheck className="h-3 w-3" />;
