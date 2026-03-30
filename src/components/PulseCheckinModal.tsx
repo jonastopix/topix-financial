@@ -18,6 +18,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
   const [wentWell, setWentWell] = useState("");
   const [challenge, setChallenge] = useState("");
   const [milestoneProgress, setMilestoneProgress] = useState(50);
+  const [helpNeeded, setHelpNeeded] = useState("");
   const [saving, setSaving] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState(false);
 
