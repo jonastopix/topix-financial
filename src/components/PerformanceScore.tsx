@@ -121,11 +121,11 @@ const PerformanceScore = () => {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <p className="font-semibold text-xs mb-1">Sådan beregnes scoren</p>
-              <div className="text-[11px] space-y-0.5 text-muted-foreground">
-                <p>• Vækstrate — omsætningsvækst måned/måned</p>
-                <p>• Bruttomargin — dækningsgrad i %</p>
-                <p>• Nettoresultat — overskudsgrad i %</p>
-                <p>• Likviditet — bank vs. 6 måneders løn</p>
+              <div className="text-[11px] space-y-1 text-muted-foreground">
+                <p>• <strong>Vækstrate</strong> — omsætningsvækst M/M. Over 5% = grøn</p>
+                <p>• <strong>Bruttomargin</strong> — dækningsgrad. Over 50% = grøn</p>
+                <p>• <strong>Nettoresultat</strong> — overskudsgrad. Over 10% = grøn</p>
+                <p>• <strong>Likviditet</strong> — bank dækker 6+ mdrs. løn = grøn</p>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1.5">
                 Scoren opdateres automatisk når du uploader en ny rapport.
