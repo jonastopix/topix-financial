@@ -72,7 +72,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     if (status === "applied") {
       const err = validateForApply({ month, year, reportType, metricInputs, report });
       if (err) {
-        toast({ title: "Validering", description: err, variant: "destructive" });
+        toast.error("Validering", { description: err });
         return;
       }
     }
