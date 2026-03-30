@@ -336,7 +336,7 @@ const AdminFeedback = () => {
           .limit(1)
           .maybeSingle();
         if (!companyConv) {
-          toast({ title: "Ingen samtale fundet", description: "Brugeren har ikke en aktiv samtale.", variant: "destructive" });
+          toast.error("Ingen samtale fundet", { description: "Brugeren har ikke en aktiv samtale." });
           setReplySending(false);
           return;
         }
