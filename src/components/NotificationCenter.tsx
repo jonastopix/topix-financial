@@ -52,6 +52,8 @@ const NotificationCenter = () => {
         return { Icon: CheckCircle2, bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" };
       case "advisor_kpi_comment":
         return { Icon: MessageCircle, bg: "bg-primary/10", text: "text-primary" };
+      case "advisor_broadcast":
+        return { Icon: MessageSquare, bg: "bg-primary/10", text: "text-primary" };
       case "alert_revenue_drop":
         return { Icon: TrendingDown, bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
       case "alert_negative_cash":
