@@ -14,6 +14,7 @@ import { da } from "date-fns/locale";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import KPICard from "@/components/KPICard";
 import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
+import AdvisorBroadcast from "@/components/AdvisorBroadcast";
 
 // ── Helpers ──
 
@@ -689,6 +690,14 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-8">
+      {/* ── Broadcast ── */}
+      <AdvisorBroadcast
+        companies={(investorSummaries || []).map((c) => ({
+          id: c.company_id,
+          name: c.company_name,
+        }))}
+      />
+
       {/* ── Priority Queue ── */}
       <AdvisorPriorityQueue
         items={priorityItems}
