@@ -226,56 +226,7 @@ const Dashboard = () => {
 
     const hasReports = sorted.length > 0;
 
-    // ── Rolling Forecast ──
-    let rollingForecast: {
-      forecastRevenue: number;
-      forecastResult: number;
-      budgetRevenue: number | null;
-      budgetResult: number | null;
-      actualsMonthCount: number;
-      year: string;
-    } | null = null;
-
-    if (sorted.length >= 2) {
-      const [latestYear] = sorted[sorted.length - 1].key.split("-");
-      const currentYearFacts = sorted.filter(r => r.key.startsWith(latestYear));
-      const actualsMonthCount = currentYearFacts.length;
-
-      if (actualsMonthCount >= 2) {
-        const ytdRevenue = currentYearFacts.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
-        const ytdCosts = currentYearFacts.reduce((s, r) => s + calcTotalExpenses(r.kf), 0);
-        const avgMonthlyRevenue = ytdRevenue / actualsMonthCount;
-        const avgMonthlyCosts = ytdCosts / actualsMonthCount;
-
-        const latestMonthIdx = parseInt(sorted[sorted.length - 1].key.split("-")[1], 10) - 1;
-        const remainingMonths = 11 - latestMonthIdx;
-
-        const forecastRevenue = Math.round(ytdRevenue + avgMonthlyRevenue * remainingMonths);
-        const forecastCosts = Math.round(ytdCosts + avgMonthlyCosts * remainingMonths);
-        const forecastResult = forecastRevenue - forecastCosts;
-
-        const allYearBudgetKeys = [...budgetByMonthCat.keys()].filter(k => k.startsWith(latestYear));
-        let fullYearBudgetRevenue = 0;
-        let fullYearBudgetCosts = 0;
-        let hasBudget = false;
-        for (const k of allYearBudgetKeys) {
-          const b = sumBudgetForMonth(k);
-          if (b.revenue != null) { fullYearBudgetRevenue += b.revenue; hasBudget = true; }
-          if (b.expenses != null) { fullYearBudgetCosts += b.expenses; hasBudget = true; }
-        }
-
-        rollingForecast = {
-          forecastRevenue,
-          forecastResult,
-          budgetRevenue: hasBudget ? Math.round(fullYearBudgetRevenue) : null,
-          budgetResult: hasBudget ? Math.round(fullYearBudgetRevenue - fullYearBudgetCosts) : null,
-          actualsMonthCount,
-          year: latestYear,
-        };
-      }
-    }
-
-    return { kpiData, budgetData, sparklines, hasReports, rollingForecast };
+    return { kpiData, budgetData, sparklines, hasReports };
   }, [sorted, budgetTargets]);
 
   const kpiData = dashboardData.kpiData;
