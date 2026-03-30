@@ -1884,7 +1884,7 @@ const CompanyChatPane = () => {
                       </Popover>
 
                       {/* Acknowledge button */}
-                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
+                      {isAdvisor && activeConv && !isGroupThread && activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
                         <button
                           onClick={handleAcknowledge}
                           title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
