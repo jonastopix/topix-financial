@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowLeft, ArrowRight, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye, Target, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -320,9 +320,17 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
         {config.leverCount > 0 && (
           <TabsContent value="levers" className="space-y-4 mt-4">
-            <p className="text-sm text-muted-foreground">
-              Vælg dine vigtigste løftestænger og opret dem som milestones for at tracke din fremgang.
-            </p>
+            <div className="rounded-xl bg-primary/5 border border-primary/10 p-4 flex items-start gap-3">
+              <Target className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground mb-1">
+                  Gør dine løftestænger til aktive milestones
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Skriv dine vigtigste handlingspunkter nedenfor og klik <strong>→ Milestone</strong> for at tilføje dem til din milestone-liste. Så kan du — og din rådgiver — følge fremgangen løbende.
+                </p>
+              </div>
+            </div>
             {levers.map((val, i) => (
               <HandoutLeverItem
                 key={i}
@@ -335,6 +343,15 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
                 disabled={!isOwner}
               />
             ))}
+            {/* Prompt to convert levers to milestones */}
+            {isOwner && levers.some(l => l.trim()) && Object.keys(leverMilestones).length === 0 && (
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-chart-warning/20 bg-chart-warning/5">
+                <AlertTriangle className="h-4 w-4 text-chart-warning flex-shrink-0" />
+                <p className="text-xs text-muted-foreground flex-1">
+                  Du har skrevet løftestænger men ikke oprettet milestones endnu. Klik <strong>→ Milestone</strong> ud for en løftestang for at begynde at tracke.
+                </p>
+              </div>
+            )}
           </TabsContent>
         )}
       </Tabs>
