@@ -373,7 +373,7 @@ const Reports = () => {
       toast.success("Rapport flyttet til papirkurv", { description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
     } catch (err) {
       console.error("Soft-delete error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke slette rapporten. Prøv igen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke slette rapporten. Prøv igen." });
     } finally {
       setDeleting(false);
     }
