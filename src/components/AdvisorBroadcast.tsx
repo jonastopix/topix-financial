@@ -14,6 +14,7 @@ interface AdvisorBroadcastProps {
 
 export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
   const [open, setOpen] = useState(false);
+  const [lastSent, setLastSent] = useState<{ count: number; at: string } | null>(null);
   const [message, setMessage] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
@@ -46,6 +47,7 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
         `Besked sendt til ${data.sent} virksomhed${data.sent !== 1 ? "er" : ""}`
       );
       setMessage("");
+      setLastSent({ count: data.sent, at: new Date().toLocaleString("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) });
       setOpen(false);
     } catch {
       toast.error("Beskeden kunne ikke sendes — prøv igen");
@@ -71,6 +73,11 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
               ? `${companies.length} virksomheder`
               : `${selectedIds.size} valgt`}
           </span>
+          {lastSent && (
+            <span className="text-[10px] text-muted-foreground ml-1">
+              · Sidst sendt {lastSent.at} til {lastSent.count} virksomheder
+            </span>
+          )}
         </div>
         {open ? (
           <ChevronUp className="h-4 w-4 text-muted-foreground" />
