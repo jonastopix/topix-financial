@@ -352,7 +352,28 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                 )}
               </button>
             );
-          })}
+          {/* Secondary links — shown only for non-advisor members */}
+          {!effectiveAdvisor && (
+            <div className="mt-3 pt-3 border-t border-sidebar-border/50 space-y-0.5">
+              {secondaryNavItems.map(item => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => { navigate(item.path, { state: { resetKey: Date.now() } }); if (isMobile) onClose(); }}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 group w-full text-left mb-0.5 ${
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-muted hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
+                    }`}
+                  >
+                    <item.icon className={`h-3.5 w-3.5 transition-colors ${isActive ? "text-primary" : "text-sidebar-muted group-hover:text-primary"}`} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </nav>
 
         <div className="px-4 py-3 border-t border-sidebar-border space-y-2 shrink-0">
