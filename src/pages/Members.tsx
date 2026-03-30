@@ -1087,7 +1087,7 @@ const Members = () => {
         resendingInvitation={resendingInvitation}
         onResendInvitation={handleResendInvitation}
         onResendStandaloneInvitation={handleResendStandaloneInvitation}
-        onReload={loadCompanies}
+        onReload={() => refetchMembers()}
       />
 
       {/* Merge dialog */}
