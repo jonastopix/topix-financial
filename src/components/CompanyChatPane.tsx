@@ -18,13 +18,13 @@ import InlineEditInput from "@/components/InlineEditInput";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
+  UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft, X,
   CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
@@ -138,6 +138,7 @@ const CompanyChatPane = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
@@ -1006,6 +1007,16 @@ const CompanyChatPane = () => {
       if (!error && data) {
         setNewMessage("");
         notifyChatMessage((data as any).id);
+
+        // If advisor sends — auto-update conversation to awaiting member reply
+        if (isAdvisor && activeConvId) {
+          supabase.from("conversations").update({
+            awaiting_reply_from: "company",
+            last_message_at: new Date().toISOString(),
+          } as any).eq("id", activeConvId).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+          });
+        }
       }
     }
 
@@ -1020,6 +1031,40 @@ const CompanyChatPane = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const isGroupThread = activeConv?.threadType === "group";
+
+  // Pulse context for advisor chat banner
+  const { data: latestPulse } = useQuery({
+    queryKey: ["chat-pulse-context", activeConv?.company_id],
+    queryFn: async () => {
+      if (!activeConv?.company_id) return null;
+      const { data } = await supabase
+        .from("pulse_checkins")
+        .select("help_needed, biggest_challenge, period_key")
+        .eq("company_id", activeConv.company_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!isAdvisor && !!activeConv?.company_id,
+    staleTime: 5 * 60_000,
+  });
+
+  // Advisor prev/next navigation
+  const advisorConvList = useMemo(() => {
+    if (!isAdvisor) return [];
+    return conversations
+      .filter(c => c.threadType !== "group")
+      .sort((a, b) => {
+        if (a.awaiting_reply_from === "advisor" && b.awaiting_reply_from !== "advisor") return -1;
+        if (b.awaiting_reply_from === "advisor" && a.awaiting_reply_from !== "advisor") return 1;
+        return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+      });
+  }, [conversations, isAdvisor]);
+
+  const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
+  const prevConv = currentConvIdx > 0 ? advisorConvList[currentConvIdx - 1] : null;
+  const nextConv = currentConvIdx < advisorConvList.length - 1 ? advisorConvList[currentConvIdx + 1] : null;
 
   const pinnedMessages = useMemo(() => 
     messages.filter(m => m.pinned_at).sort((a, b) => 
@@ -1750,6 +1795,31 @@ const CompanyChatPane = () => {
                       )}
                     </div>
 
+                    {/* Advisor prev/next navigation */}
+                    {isAdvisor && advisorConvList.length > 1 && (
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button
+                          onClick={() => prevConv && setActiveConvId(prevConv.id)}
+                          disabled={!prevConv}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                          title={prevConv ? `← ${prevConv.companyName}` : undefined}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          {currentConvIdx + 1} / {advisorConvList.length}
+                        </span>
+                        <button
+                          onClick={() => nextConv && setActiveConvId(nextConv.id)}
+                          disabled={!nextConv}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                          title={nextConv ? `${nextConv.companyName} →` : undefined}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Advisor action controls */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {/* Assignment popover */}
@@ -2164,6 +2234,38 @@ const CompanyChatPane = () => {
                       );
                     })}
                   </div>
+                )}
+
+                {/* Advisor context banner */}
+                {isAdvisor && activeConv && !isGroupThread && (
+                  <>
+                    <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border-b border-primary/10">
+                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {activeConv.companyLogoUrl ? (
+                          <img src={activeConv.companyLogoUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                        ) : (
+                          <span className="text-[9px] font-bold text-primary">
+                            {(activeConv.companyName || "?").slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-primary font-medium flex-1">
+                        Du svarer <span className="font-semibold">{activeConv.companyName}</span> som rådgiver
+                      </p>
+                      {activeConv.conversation_status === "open" && activeConv.awaiting_reply_from === "advisor" && (
+                        <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                          Afventer dit svar
+                        </span>
+                      )}
+                    </div>
+                    {latestPulse?.help_needed && (
+                      <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/10">
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                          <span className="font-semibold">Brug for hjælp til:</span> {latestPulse.help_needed}
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Messages list */}
