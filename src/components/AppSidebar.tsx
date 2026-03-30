@@ -139,7 +139,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
       (Array.isArray(memberRollout.company_ids) && memberRollout.company_ids.includes(companyId || "")));
 
   const useNewNotifications = useNewNotificationsAdvisor || useNewNotificationsMember;
-  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+  
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
 
@@ -159,25 +159,27 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
     : (allCompanies || []);
 
   // Fetch company logo
-  useEffect(() => {
-    if (!user) return;
-    const fetchLogo = async () => {
+  const { data: companyLogoData } = useQuery({
+    queryKey: ["sidebar-company-logo", user?.id],
+    queryFn: async () => {
       const { data: cm } = await supabase
         .from("company_members")
         .select("company_id")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .limit(1)
         .maybeSingle();
-      if (!cm?.company_id) return;
+      if (!cm?.company_id) return null;
       const { data } = await supabase
         .from("companies")
         .select("logo_url")
         .eq("id", cm.company_id)
         .single();
-      if (data?.logo_url) setCompanyLogoUrl(data.logo_url);
-    };
-    fetchLogo();
-  }, [user]);
+      return data?.logo_url || null;
+    },
+    enabled: !!user && !effectiveAdvisor,
+    staleTime: 10 * 60_000,
+  });
+  const companyLogoUrl = companyLogoData ?? null;
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
