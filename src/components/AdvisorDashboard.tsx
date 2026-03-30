@@ -804,9 +804,12 @@ const AdvisorDashboard = () => {
           }
 
           if (signals.length === 0) return null;
+          const assignedAdvisor = advisorProfiles.find(a => a.user_id === gc.assigned_advisor_id);
           return {
             company: { company_id: `group_${gc.group_id}`, company_name: groupName, logo_url: null },
             signals,
+            assigned_advisor_id: gc.assigned_advisor_id ?? null,
+            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
           };
         })
         .filter(Boolean) as typeof sparringItems;
