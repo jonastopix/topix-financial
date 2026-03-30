@@ -160,7 +160,7 @@ const PerformanceScore = () => {
               ? "Du klarer dig godt på tværs af de fire områder."
               : overallScore >= 50
               ? "Der er rum til forbedring — se hvilke områder der trækker ned."
-              : "Flere areas kræver opmærksomhed — kig på de røde indikatorer nedenfor."}
+              : "Flere områder kræver opmærksomhed — kig på de røde indikatorer nedenfor."}
           </p>
         </div>
       </div>
