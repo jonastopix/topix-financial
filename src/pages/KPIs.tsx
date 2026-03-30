@@ -620,19 +620,30 @@ const KPIs = () => {
               {exporting ? "Eksporterer..." : "Download PDF"}
             </button>
             <button
-              onClick={startEditingBenchmarks}
+              onClick={() => setShowAdvanced(v => !v)}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
             >
-              <Pencil className="h-3.5 w-3.5" />
-              Benchmarks
+              <SettingsIcon className="h-3.5 w-3.5" />
+              {showAdvanced ? "Skjul avanceret" : "Avanceret"}
             </button>
-            <button
-              onClick={startEditingTargets}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Targets
-            </button>
+            {showAdvanced && (
+              <>
+                <button
+                  onClick={startEditingBenchmarks}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Benchmarks
+                </button>
+                <button
+                  onClick={startEditingTargets}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Targets
+                </button>
+              </>
+            )}
           </div>
         ) : editingTargets ? (
           <div className="flex items-center gap-2">
