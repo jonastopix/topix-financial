@@ -600,7 +600,7 @@ const AdvisorDashboard = () => {
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 10);
+        .slice(0, 20);
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
