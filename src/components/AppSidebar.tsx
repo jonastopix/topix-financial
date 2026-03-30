@@ -352,6 +352,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                 )}
               </button>
             );
+          })}
           {/* Secondary links — shown only for non-advisor members */}
           {!effectiveAdvisor && (
             <div className="mt-3 pt-3 border-t border-sidebar-border/50 space-y-0.5">
