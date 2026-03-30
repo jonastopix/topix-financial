@@ -261,6 +261,7 @@ const AdvisorDashboard = () => {
     queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       const currentYear = new Date().getFullYear();
 
       const [
@@ -304,7 +305,7 @@ const AdvisorDashboard = () => {
         (supabase
           .from("financial_report_facts")
           .select("company_id, committed_at, period_key")
-          .gte("committed_at", weekAgo)
+          .gte("committed_at", twoWeeksAgo)
           .order("committed_at", { ascending: false })
           .limit(20) as any),
         supabase
@@ -323,7 +324,7 @@ const AdvisorDashboard = () => {
           .from("milestones")
           .select("user_id, title, updated_at, status")
           .eq("status", "completed")
-          .gte("updated_at", weekAgo)
+          .gte("updated_at", twoWeeksAgo)
           .order("updated_at", { ascending: false })
           .limit(50),
       ]);
@@ -639,40 +640,66 @@ const AdvisorDashboard = () => {
         .map(c => {
           const signals: { label: string; hint: string }[] = [];
 
-          // T8: Rapport netop committet (inden for 7 dage)
-          const hasRecentCommit = (recentFactsRes.data || []).some((f: any) => f.company_id === c.company_id);
-          if (hasRecentCommit) {
+          // T8: Rapport committet inden for 14 dage
+          const hasCommit14 = (recentFactsRes.data || []).some((f: any) =>
+            f.company_id === c.company_id && f.committed_at >= twoWeeksAgo
+          );
+          if (hasCommit14) {
             signals.push({
-              label: "Ny rapport committet",
-              hint: "God tid til at gennemgå tallene og give sparring",
+              label: "Ny rapport godkendt",
+              hint: "God tid til at gennemgå tallene og give sparring mens de er friske",
             });
           }
 
-          // T9: Positiv momentum — omsætningsvækst >10% MoM
-          if (c.revenueTrendPct != null && c.revenueTrendPct >= 10) {
+          // T9: Positiv momentum — sænket til >5%
+          if (c.revenueTrendPct != null && c.revenueTrendPct >= 5) {
             signals.push({
               label: `Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`,
               hint: "Hvad driver væksten? Kan vi skalere det?",
             });
           }
 
-          // T10: Pulse udfyldt med help_needed
+          // T10: Pulse udfyldt denne måned — med ELLER uden help_needed
           const pulseThisMonth = c.latestPulse != null &&
             new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
-          if (pulseThisMonth && c.latestPulse?.help_needed) {
-            signals.push({
-              label: "Beder om hjælp",
-              hint: c.latestPulse.help_needed,
-            });
+          if (pulseThisMonth) {
+            if (c.latestPulse?.help_needed) {
+              signals.push({
+                label: "Beder om hjælp",
+                hint: c.latestPulse.help_needed,
+              });
+            } else if (c.latestPulse?.biggest_challenge) {
+              signals.push({
+                label: "Pulse udfyldt",
+                hint: `Største udfordring: "${c.latestPulse.biggest_challenge.slice(0, 60)}${c.latestPulse.biggest_challenge.length > 60 ? "..." : ""}"`,
+              });
+            } else {
+              signals.push({
+                label: "Pulse udfyldt",
+                hint: "Founder har tjekket ind — god anledning til at følge op",
+              });
+            }
           }
 
-          // T11: Milestone netop fuldført
+          // T11: Milestone fuldført inden for 14 dage
           const completedTitle = recentlyCompletedMilestones.get(c.company_id);
           if (completedTitle) {
             signals.push({
-              label: `Milestone nået: "${completedTitle}"`,
-              hint: "Anerkend fremgangen og sæt næste mål",
+              label: `Milestone nået`,
+              hint: `"${completedTitle}" — anerkend fremgangen og sæt næste mål`,
             });
+          }
+
+          // T12: Generel sparring — fallback rotation for companies with data
+          if (signals.length === 0 && c.has_verified_metrics) {
+            const monthKey = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate() / 7)}`;
+            const hash = (c.company_id + monthKey).split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
+            if (hash % 4 === 0) {
+              signals.push({
+                label: "Proaktiv sparring",
+                hint: "Ingen akutte signaler — god anledning til at tjekke ind og give generel sparring",
+              });
+            }
           }
 
           return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, signals };
@@ -682,15 +709,16 @@ const AdvisorDashboard = () => {
         .sort((a, b) => {
           const score = (s: typeof a) => {
             let n = 0;
-            if (s.signals.some(x => x.label === "Beder om hjælp")) n += 30;
-            if (s.signals.some(x => x.label === "Ny rapport committet")) n += 20;
-            if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 15;
-            if (s.signals.some(x => x.label.startsWith("Milestone nået"))) n += 10;
+            if (s.signals.some(x => x.label === "Beder om hjælp")) n += 40;
+            if (s.signals.some(x => x.label === "Ny rapport godkendt")) n += 30;
+            if (s.signals.some(x => x.label === "Pulse udfyldt")) n += 25;
+            if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 20;
+            if (s.signals.some(x => x.label === "Milestone nået")) n += 15;
             return n;
           };
           return score(b) - score(a);
         })
-        .slice(0, 10);
+        .slice(0, 15);
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
