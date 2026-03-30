@@ -176,7 +176,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
     const { error } = await supabase.from("handouts").update(update).eq("id", handoutId);
     if (error) {
-      toast({ title: "Fejl", description: error.message, variant: "destructive" });
+      toast.error("Fejl", { description: error.message });
     } else {
       setHandoutStatus(newStatus);
       toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
