@@ -68,13 +68,17 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
         {handoutId && !linkedMilestone && value.trim() && !disabled && (
           <Button
             size="sm"
-            variant="ghost"
-            className="shrink-0 text-xs gap-1 text-primary"
+            variant="outline"
+            className="shrink-0 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
             onClick={createMilestone}
             disabled={creating}
+            title="Gør denne løftestang til en aktiv milestone så du kan tracke fremgangen"
           >
-            {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-            Milestone
+            {creating
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : <Target className="h-3 w-3" />
+            }
+            {creating ? "Opretter…" : "→ Milestone"}
           </Button>
         )}
       </div>
