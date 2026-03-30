@@ -12,7 +12,7 @@ import GroupLeaderboard from "@/components/GroupLeaderboard";
 import { MessageCircle, Calculator, Plus, Settings } from "lucide-react";
 
 const GroupDashboard = () => {
-  const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId, user } = useAuth();
+  const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId, user, setCompanyOverride } = useAuth();
   const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
   const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -22,6 +22,16 @@ const GroupDashboard = () => {
   if (!loading && !isGroupUser) {
     return <Navigate to="/" replace />;
   }
+
+  const handleCompanyClick = (companyId: string, companyName: string) => {
+    setCompanyOverride(companyId, companyName);
+    navigate("/kpis");
+  };
+
+  const handleUploadClick = (companyId: string, companyName: string) => {
+    setCompanyOverride(companyId, companyName);
+    navigate("/reports");
+  };
 
   const actions = (
     <>
@@ -71,6 +81,8 @@ const GroupDashboard = () => {
         isLoading={isLoading}
         groupName={groupName}
         actions={actions}
+        onCompanyClick={handleCompanyClick}
+        onUploadClick={handleUploadClick}
       />
       {isGroupOwner && showSettings && groupId && user && (
         <div className="mt-6">

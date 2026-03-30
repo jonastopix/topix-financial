@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { Building2, BarChart3, FileText } from "lucide-react";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import { formatDKK } from "@/lib/financialUtils";
 
@@ -6,15 +6,23 @@ interface GroupCompanyCardProps {
   company: GroupCompanySummary;
   compact?: boolean;
   onCompanyClick?: (companyId: string, companyName: string) => void;
+  onUploadClick?: (companyId: string, companyName: string) => void;
 }
 
-export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardProps) {
+function computeTrend(c: GroupCompanySummary): number | null {
+  if (c.revenue != null && c.revenue_prev != null && c.revenue_prev > 0) {
+    return ((c.revenue - c.revenue_prev) / c.revenue_prev) * 100;
+  }
+  return null;
+}
+
+export function CompanyTableRow({ company, onCompanyClick, onUploadClick }: GroupCompanyCardProps) {
   const {
     company_id, company_name, logo_url, has_verified_metrics,
     revenue, ebt, cash, missing_current_period, has_report,
   } = company;
 
-  const needsAttention = (cash != null && cash < 0);
+  const revenueTrendPct = computeTrend(company);
 
   return (
     <tr
@@ -55,6 +63,17 @@ export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardPro
         </span>
       </td>
 
+      {/* Trend */}
+      <td className="py-3 px-4 text-right hidden md:table-cell">
+        {revenueTrendPct != null ? (
+          <span className={`text-sm font-medium ${revenueTrendPct >= 0 ? "text-primary" : "text-destructive"}`}>
+            {revenueTrendPct >= 0 ? "↑" : "↓"} {Math.abs(Math.round(revenueTrendPct))}%
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </td>
+
       {/* Likviditet */}
       <td className="py-3 px-4 text-right">
         <span className={`text-sm font-medium ${(cash ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>
@@ -62,25 +81,52 @@ export function CompanyTableRow({ company, onCompanyClick }: GroupCompanyCardPro
         </span>
       </td>
 
-      {/* Status */}
+      {/* Status + Actions */}
       <td className="py-3 px-4 hidden sm:table-cell">
-        {!has_verified_metrics ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
-            Mangler data
-          </span>
-        ) : ebt === null ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
-            —
-          </span>
-        ) : ebt > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-            Overskud
-          </span>
-        ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
-            Underskud
-          </span>
-        )}
+        <div className="flex items-center gap-2 justify-end">
+          {/* Status badge */}
+          {!has_verified_metrics ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+              Mangler data
+            </span>
+          ) : ebt === null ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+              —
+            </span>
+          ) : ebt > 0 ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              Overskud
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+              Underskud
+            </span>
+          )}
+
+          {/* Quick actions — visible on hover */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onCompanyClick && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onCompanyClick(company_id, company_name); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              >
+                <BarChart3 className="h-3 w-3" />
+                KPI'er
+              </button>
+            )}
+            {missing_current_period && onUploadClick && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onUploadClick(company_id, company_name); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors"
+              >
+                <FileText className="h-3 w-3" />
+                Upload
+              </button>
+            )}
+          </div>
+        </div>
       </td>
     </tr>
   );

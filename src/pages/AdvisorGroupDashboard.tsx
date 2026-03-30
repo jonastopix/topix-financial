@@ -1,4 +1,4 @@
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdvisorGroupDashboard } from "@/hooks/useAdvisorGroupDashboard";
@@ -6,8 +6,9 @@ import GroupDashboardContent from "@/components/GroupDashboardContent";
 
 const AdvisorGroupDashboard = () => {
   const { groupId } = useParams<{ groupId: string }>();
-  const { isAdvisor, loading } = useAuth();
+  const { isAdvisor, loading, setCompanyOverride } = useAuth();
   const { companies, aggregates, isLoading, error, groupName } = useAdvisorGroupDashboard(groupId);
+  const navigate = useNavigate();
 
   if (!loading && !isAdvisor) {
     return <Navigate to="/" replace />;
@@ -18,6 +19,16 @@ const AdvisorGroupDashboard = () => {
     return <Navigate to="/" replace />;
   }
 
+  const handleCompanyClick = (companyId: string, companyName: string) => {
+    setCompanyOverride(companyId, companyName);
+    navigate("/kpis");
+  };
+
+  const handleUploadClick = (companyId: string, companyName: string) => {
+    setCompanyOverride(companyId, companyName);
+    navigate("/reports");
+  };
+
   return (
     <AppLayout>
       <GroupDashboardContent
@@ -25,6 +36,8 @@ const AdvisorGroupDashboard = () => {
         aggregates={aggregates}
         isLoading={isLoading}
         groupName={groupName}
+        onCompanyClick={handleCompanyClick}
+        onUploadClick={handleUploadClick}
       />
     </AppLayout>
   );
