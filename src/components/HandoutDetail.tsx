@@ -126,7 +126,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
     if (handoutId) {
       const { error } = await supabase.from("handouts").update(payload).eq("id", handoutId);
-      if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
+      if (error) { toast.error("Fejl ved gem", { description: error.message }); }
     } else {
       const { data, error } = await supabase.from("handouts").insert(payload as any).select("id").single();
       if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
