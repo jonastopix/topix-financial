@@ -476,6 +476,51 @@ export default function BudgetScenariosTab({
           <ScenarioKPI label="EBITDA-margin" value={totalOmsaetning > 0 ? Math.round((totalEbitda / totalOmsaetning) * 100) : 0} color={scenarioConfig.color} suffix="%" />
         </div>
 
+        {/* Quickstart banner */}
+        {showQuickstart && totalOmsaetning === 0 && !editing && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 mb-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Kom i gang på 5 minutter</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Indtast 3 årstal — vi fordeler dem automatisk på 12 måneder</p>
+              </div>
+              <button onClick={() => setShowQuickstart(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {[
+                { key: "revenue", label: "Omsætningsmål (kr/år)", placeholder: "f.eks. 3.000.000" },
+                { key: "payroll", label: "Lønbudget (kr/år)", placeholder: "f.eks. 900.000" },
+                { key: "costs", label: "Øvrige omkostninger (kr/år)", placeholder: "f.eks. 600.000" },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={quickValues[f.key as keyof typeof quickValues]}
+                    onChange={e => setQuickValues(v => ({ ...v, [f.key]: e.target.value.replace(/[^\d]/g, "") }))}
+                    placeholder={f.placeholder}
+                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={applyQuickstart}
+                disabled={!quickValues.revenue || applyingQuick}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Sæt budget-udgangspunkt
+              </button>
+              <span className="text-xs text-muted-foreground">Du kan justere alle tal bagefter</span>
+            </div>
+          </div>
+        )}
+
         {/* Budget table */}
         <TooltipProvider>
           <div className="overflow-x-auto rounded-lg border border-border/30">
