@@ -753,7 +753,7 @@ const AdvisorDashboard = () => {
     queryKey: ["advisor-profiles"],
     queryFn: async () => {
       const { data } = await (supabase
-        .from("profiles")
+        .from("profiles" as any)
         .select("user_id, full_name")
         .eq("is_advisor", true) as any);
       if (data && data.length > 0) return data as { user_id: string; full_name: string }[];
