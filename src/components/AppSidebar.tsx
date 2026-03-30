@@ -55,7 +55,7 @@ const advisorNavItems = [
 ];
 
 const adminNavItems = [
-  { icon: Layers, label: "Koncerner", path: "/admin/groups" },
+  { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
@@ -308,7 +308,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
             ] : []),
             ...(effectiveAdvisor && hasGroupAccess ? [
-              { icon: Layers, label: "Koncern", path: "/groups" },
+              { icon: Layers, label: "Koncerner", path: "/groups" },
             ] : []),
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
