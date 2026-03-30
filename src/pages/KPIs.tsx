@@ -495,8 +495,23 @@ const KPIs = () => {
         </div>
         <div className="glass-card rounded-xl p-12 text-center animate-fade-in">
           <BarChart3 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Ingen rapportdata endnu</p>
-          <p className="text-xs text-muted-foreground mt-1">Upload din første rapport under Rapportering for at se KPI'er her</p>
+          <h2 className="text-lg font-semibold text-foreground mb-2">Dine nøgletal er klar til at blive fulgt</h2>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto mb-2">
+            KPI-siden viser omsætning, margin, resultat og likviditet over tid — sammenlignet med dine mål og branchegennemsnittet.
+          </p>
+          <p className="text-xs text-muted-foreground mb-6">
+            Data hentes automatisk fra dine uploadede rapporter.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link to="/reports" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-5 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors">
+              <FileText className="h-4 w-4" />
+              Upload din første rapport
+            </Link>
+            <Link to="/annual-baseline" className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background text-foreground px-5 py-2.5 text-sm font-medium hover:bg-muted transition-colors">
+              <Target className="h-4 w-4" />
+              Sæt baseline med årstal
+            </Link>
+          </div>
         </div>
       </AppLayout>
     );
