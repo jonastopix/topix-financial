@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
-  Activity, Target, Search, List, LayoutGrid,
+  Activity, Target, Search, List, LayoutGrid, UserCheck,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
@@ -600,7 +600,7 @@ const AdvisorDashboard = () => {
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 10);
+        .slice(0, 20);
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
@@ -626,6 +626,25 @@ const AdvisorDashboard = () => {
   // KPI aggregates
   const total = investorSummaries.length;
   const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
+
+  // Count assigned conversations per advisor
+  const allConvs = data?.convByCompany
+    ? Array.from(data.convByCompany.values()).flat()
+    : [];
+
+  const assignmentCounts = allConvs.reduce((acc, conv) => {
+    if (conv.assigned_advisor_id) {
+      acc[conv.assigned_advisor_id] = (acc[conv.assigned_advisor_id] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const myAssignments = assignmentCounts[user?.id || ""] || 0;
+  const totalAssigned = Object.values(assignmentCounts).reduce((s, n) => s + n, 0);
+  const unassignedCount = investorSummaries.filter(c => {
+    const conv = data?.convByCompany?.get(c.company_id)?.[0];
+    return !conv?.assigned_advisor_id;
+  }).length;
 
   const engagementScores = investorSummaries.map(c => {
     const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
@@ -733,6 +752,22 @@ const AdvisorDashboard = () => {
         items={priorityItems}
         onCompanyClick={handleAdvisorCompanyClick}
       />
+
+      {/* ── Advisor fordeling ── */}
+      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs">
+        <div className="flex items-center gap-1.5">
+          <UserCheck className="h-3.5 w-3.5 text-primary" />
+          <span className="font-medium text-foreground">Mine: {myAssignments}</span>
+        </div>
+        <div className="h-3 w-px bg-border" />
+        <span className="text-muted-foreground">Tildelte i alt: {totalAssigned} / {total}</span>
+        {unassignedCount > 0 && (
+          <>
+            <div className="h-3 w-px bg-border" />
+            <span className="text-amber-600 font-medium">{unassignedCount} uden ejer</span>
+          </>
+        )}
+      </div>
 
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
