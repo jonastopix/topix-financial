@@ -33,6 +33,11 @@ const GroupDashboard = () => {
     navigate("/reports");
   };
 
+  const handleBudgetClick = (companyId: string, companyName: string) => {
+    setCompanyOverride(companyId, companyName);
+    navigate("/budget");
+  };
+
   const actions = (
     <>
       {isGroupOwner && (
