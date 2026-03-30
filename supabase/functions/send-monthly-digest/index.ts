@@ -218,12 +218,32 @@ Deno.serve(async (req) => {
       bodyLines.push("Log ind for at se din seneste status og hold momentum oppe.");
     }
 
+    // Add secondary action links when multiple content types are present
+    if ((milestones?.length ?? 0) > 0 && unreadCount > 0) {
+      bodyLines.push(`\nGå direkte til: <a href="${APP_URL}/chat" style="color:#16a34a">Beskeder</a> · <a href="${APP_URL}/milestones" style="color:#16a34a">Milestones</a> · <a href="${APP_URL}/kpis" style="color:#16a34a">Nøgletal</a>`);
+    }
+
+    // Choose the most relevant deep link based on what's in the digest
+    let deepLink = "/";
+    let ctaLabel = "Åbn dit boardroom";
+
+    if (unreadCount > 0) {
+      deepLink = "/chat";
+      ctaLabel = "Læs beskeder fra din rådgiver";
+    } else if (milestones?.length) {
+      deepLink = "/milestones";
+      ctaLabel = "Se dine milestones";
+    } else if (revenue != null) {
+      deepLink = "/kpis";
+      ctaLabel = "Se dine nøgletal";
+    }
+
     const subject = `Dit ${currentMonthLabel}-overblik · The Boardroom`;
     const html = buildEmailHtml(
       `Dit ${currentMonthLabel}-overblik`,
       bodyLines.join("\n"),
-      "/",
-      "Åbn dit boardroom",
+      deepLink,
+      ctaLabel,
       `${companyName} · ${currentMonthLabel}`,
       highlight || undefined,
     );
