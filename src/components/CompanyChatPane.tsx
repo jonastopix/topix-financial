@@ -1170,30 +1170,25 @@ const CompanyChatPane = () => {
     ));
   };
 
-  const handleResolve = async () => {
+  const handleNoActionNeeded = async () => {
     if (!activeConvId || !user) return;
     const { table, id } = getOpsTarget();
-    const now = new Date().toISOString();
-    const updateData: any = {
-      conversation_status: 'resolved',
-      resolved_at: now,
-      resolved_by_advisor_id: user.id,
-      awaiting_reply_from: null,
-      acknowledged_at: null,
-      acknowledged_by_advisor_id: null,
-      follow_up_at: null,
-    };
     const { error } = await supabase
       .from(table as any)
-      .update(updateData)
+      .update({
+        awaiting_reply_from: null,
+        acknowledged_at: new Date().toISOString(),
+        acknowledged_by_advisor_id: user.id,
+        follow_up_at: null,
+      })
       .eq("id", id);
-    if (error) {
-      toast.error("Kunne ikke afslutte samtalen");
-      return;
-    }
+    if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
     setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, ...updateData } : c
+      c.id === activeConvId
+        ? { ...c, awaiting_reply_from: null, acknowledged_at: new Date().toISOString(), follow_up_at: null }
+        : c
     ));
+    toast.success("Fjernet fra handlingskøen");
   };
 
   // Snooze / follow-up helpers
