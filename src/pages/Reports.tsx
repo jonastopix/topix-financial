@@ -448,7 +448,7 @@ const Reports = () => {
       toast.success("Permanent slettet", { description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke slette rapporten permanent.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke slette rapporten permanent." });
     } finally {
       setPermanentDeleting(null);
     }
