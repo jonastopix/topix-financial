@@ -199,7 +199,7 @@ export default function ReportReviewDialog({
     }
 
     if (editMonth < 1 || editMonth > 12) {
-      toast({ title: "Validering", description: "Ugyldig måned", variant: "destructive" });
+      toast.error("Validering", { description: "Ugyldig måned" });
       return;
     }
     if (editYear < 2000 || editYear > 2100) {
