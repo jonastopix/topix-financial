@@ -126,6 +126,16 @@ export function CompanyTableRow({ company, onCompanyClick, onUploadClick, onBudg
                 Upload
               </button>
             )}
+            {onBudgetClick && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onBudgetClick(company_id, company_name); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors"
+              >
+                <Calculator className="h-3 w-3" />
+                Budget
+              </button>
+            )}
           </div>
         </div>
       </td>

@@ -43,6 +43,7 @@ const AdvisorGroupDashboard = () => {
         groupName={groupName}
         onCompanyClick={handleCompanyClick}
         onUploadClick={handleUploadClick}
+        onBudgetClick={handleBudgetClick}
       />
     </AppLayout>
   );
