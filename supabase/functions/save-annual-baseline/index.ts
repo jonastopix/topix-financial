@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         period_key: periodKey,
         period_label: periodLabel,
         source_report_id: sentinelId,
-        source_type: "manual_baseline",
+        source_type: "manual",
         metrics,
         committed_by: userId,
         committed_at: new Date().toISOString(),
