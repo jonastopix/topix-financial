@@ -138,6 +138,7 @@ const CompanyChatPane = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
