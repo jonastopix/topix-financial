@@ -464,6 +464,27 @@ export default function EmailTemplates() {
           </div>
         </div>
 
+        <Card>
+          <CardContent className="flex items-center gap-4 py-4">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-foreground">Månedlig digest</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Send et personligt overblik til alle founders — KPIs, milestones og ulæste beskeder.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSendDigest}
+              disabled={sendingDigest}
+              className="gap-2 shrink-0"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {sendingDigest ? "Sender..." : "Send digest nu"}
+            </Button>
+          </CardContent>
+        </Card>
+
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
