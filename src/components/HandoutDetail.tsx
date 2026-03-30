@@ -395,15 +395,17 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
       {/* AI Feedback */}
       {handoutId && (
-        <HandoutAIFeedback
-          handoutId={handoutId}
-          module={config.module}
-          feedback={aiFeedback}
-          feedbackAt={aiFeedbackAt}
-          onFeedbackReceived={loadData}
-          companyName={companyName}
-          industry={industry}
-        />
+        <div className="mt-2 pt-4 border-t border-border/50">
+          <HandoutAIFeedback
+            handoutId={handoutId}
+            module={config.module}
+            feedback={aiFeedback}
+            feedbackAt={aiFeedbackAt}
+            onFeedbackReceived={loadData}
+            companyName={companyName}
+            industry={industry}
+          />
+        </div>
       )}
     </div>
   );
