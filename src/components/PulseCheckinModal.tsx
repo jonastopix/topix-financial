@@ -48,6 +48,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
         period_key: periodKey,
         went_well: wentWell.trim() || null,
         biggest_challenge: challenge.trim() || null,
+        help_needed: helpNeeded.trim() || null,
         milestone_progress: milestoneProgress,
       }, { onConflict: "company_id,period_key" });
     setSaving(false);

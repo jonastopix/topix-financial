@@ -55,7 +55,7 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
               Budget er ikke udfyldt
             </p>
             <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-0.5">
-              Gå til Scenarier-fanen for at indtaste dine månedlige tal, eller importér et Excel-budget under Importér.
+              Gå til Scenarier-fanen for at indtaste dine månedlige tal, eller importér et Excel-budget under Importér. Brug 'Hvad-hvis?'-fanen til at simulere effekten af at ansætte, markedsføre eller investere.
             </p>
           </div>
         </div>

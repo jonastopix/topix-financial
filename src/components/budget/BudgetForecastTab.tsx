@@ -352,7 +352,7 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
           </div>
         </div>
         <p className="text-xs text-muted-foreground mb-6">
-          Tilføj konkrete business-hændelser og se effekten på dit helårsresultat.
+          Tilføj en business-hændelse — ansæt en medarbejder, fordobl marketing, flyt lokaler — og se effekten på dit helårsresultat med det samme.
         </p>
 
         {/* Event list */}
