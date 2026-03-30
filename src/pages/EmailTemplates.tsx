@@ -322,6 +322,22 @@ export default function EmailTemplates() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [sendingDigest, setSendingDigest] = useState(false);
+
+  const handleSendDigest = async () => {
+    if (sendingDigest) return;
+    setSendingDigest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-monthly-digest", {
+        body: {},
+      });
+      if (error) throw error;
+      toast.success(`Digest sendt til ${data.sent} founders`);
+    } catch {
+      toast.error("Digest kunne ikke sendes");
+    }
+    setSendingDigest(false);
+  };
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["email-templates"],
