@@ -322,6 +322,10 @@ const AdvisorDashboard = () => {
       const conversations = (convRes.data || []) as ConversationRow[];
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
+      const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
+        user_id: advisor.user_id,
+        full_name: advisor.full_name || "Ukendt",
+      }));
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
