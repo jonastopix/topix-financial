@@ -38,7 +38,7 @@ const AdminGroupDetail = () => {
   const { data: allCompanies } = useQuery({
     queryKey: ["admin-all-companies"],
     queryFn: async () => {
-      const { data } = await (supabase.from("companies" as any).select("id, name").order("name"));
+      const { data } = await (supabase.from("companies").select("id, name").order("name") as any);
       return (data || []) as { id: string; name: string }[];
     },
     enabled: !!groupId && isAdmin,
