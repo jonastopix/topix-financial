@@ -73,6 +73,11 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
               ? `${companies.length} virksomheder`
               : `${selectedIds.size} valgt`}
           </span>
+          {lastSent && (
+            <span className="text-[10px] text-muted-foreground ml-1">
+              · Sidst sendt {lastSent.at} til {lastSent.count} virksomheder
+            </span>
+          )}
         </div>
         {open ? (
           <ChevronUp className="h-4 w-4 text-muted-foreground" />

@@ -313,8 +313,18 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),
             
-            ...(isAdmin && effectiveAdvisor ? adminNavItems : []),
-          ].map((item) => {
+            ...(isAdmin && effectiveAdvisor ? [
+              { icon: null as any, label: "Admin", path: "__admin_header__", isHeader: true },
+              ...adminNavItems,
+            ] : []),
+          ].map((item: any) => {
+            if (item.isHeader) {
+              return (
+                <div key={item.path} className="px-3 pt-3 pb-1">
+                  <p className="text-[10px] font-semibold text-sidebar-muted uppercase tracking-wider">Admin</p>
+                </div>
+              );
+            }
             const isActive = location.pathname === item.path;
             return (
               <button
