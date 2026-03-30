@@ -234,7 +234,6 @@ const CompanyChatPane = () => {
     if (convParam && conversations.length > 0) {
       const conv = conversations.find(c => c.id === convParam);
       if (conv && activeConvId !== convParam) {
-        setActiveFilter("alle");
         setActiveConvId(convParam);
         if (isMobile) setShowMessages(true);
       }
