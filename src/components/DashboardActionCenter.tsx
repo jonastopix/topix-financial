@@ -254,7 +254,9 @@ export default function DashboardActionCenter({
       {/* ── Company actions ── */}
       {actions.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Handlinger</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            {actions.some((a: any) => a.source_type === "ai_weekly") ? "Din AI-chef anbefaler" : "Handlinger"}
+          </p>
           <div className="space-y-1.5">
             {visibleActions.map((action: any) => (
               <div key={action.id} className="flex items-start gap-2 group py-1">
