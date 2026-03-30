@@ -322,6 +322,22 @@ export default function EmailTemplates() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [sendingDigest, setSendingDigest] = useState(false);
+
+  const handleSendDigest = async () => {
+    if (sendingDigest) return;
+    setSendingDigest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-monthly-digest", {
+        body: {},
+      });
+      if (error) throw error;
+      toast.success(`Digest sendt til ${data.sent} founders`);
+    } catch {
+      toast.error("Digest kunne ikke sendes");
+    }
+    setSendingDigest(false);
+  };
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["email-templates"],
@@ -447,6 +463,27 @@ export default function EmailTemplates() {
             </div>
           </div>
         </div>
+
+        <Card>
+          <CardContent className="flex items-center gap-4 py-4">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-foreground">Månedlig digest</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Send et personligt overblik til alle founders — KPIs, milestones og ulæste beskeder.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSendDigest}
+              disabled={sendingDigest}
+              className="gap-2 shrink-0"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {sendingDigest ? "Sender..." : "Send digest nu"}
+            </Button>
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
