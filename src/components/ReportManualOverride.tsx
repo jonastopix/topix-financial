@@ -91,8 +91,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         status,
       });
 
-      toast({
-        title: status === "draft" ? "Kladde gemt" : "Korrektion anvendt",
+      toast.success(status === "draft" ? "Kladde gemt" : "Korrektion anvendt", {
         description: status === "applied"
           ? `Effektiv periode: ${month}/${year}`
           : "Kladde gemt — den bruges ikke i dashboards endnu.",
