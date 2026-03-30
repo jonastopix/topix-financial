@@ -348,6 +348,16 @@ export default function ReportReviewDialog({
         console.warn("Alert detection failed (non-blocking):", alertErr);
       });
 
+      // Auto-generate AI financial analysis — non-blocking
+      supabase.functions.invoke("generate-financial-commentary", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+        },
+      }).catch((err) => {
+        console.warn("Commentary generation failed (non-blocking):", err);
+      });
+
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Fejl ved erstatning", description: err.message || "Ukendt fejl", variant: "destructive" });

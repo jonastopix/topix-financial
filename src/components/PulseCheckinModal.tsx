@@ -151,6 +151,9 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
               Hvad har du brug for hjælp til? <span className="text-muted-foreground font-normal text-xs">(valgfri)</span>
             </label>
           </div>
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Dette felt går direkte til dine rådgivere og hjælper dem med at forberede relevant sparring til dig.
+          </p>
           <textarea
             value={helpNeeded}
             onChange={e => setHelpNeeded(e.target.value)}

@@ -28,7 +28,7 @@ const founderFeatures = [
     icon: Calculator, title: "Budget", path: "/budget",
     color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Byg dit årsbudget og følg om du rammer dine mål — omsætning, EBITDA og cashflow.",
-    tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. actual for hver måned", "Kør scenarier: hvad sker der hvis omsætningen falder 20%?"],
+    tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. actual for hver måned under 'Budget vs. Realiseret'", "Brug 'Hvad-hvis?'-fanen til at simulere effekten af at ansætte eller investere"],
   },
   {
     icon: Target, title: "Milestones", path: "/milestones",
