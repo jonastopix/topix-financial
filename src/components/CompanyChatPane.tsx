@@ -1022,6 +1022,40 @@ const CompanyChatPane = () => {
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const isGroupThread = activeConv?.threadType === "group";
 
+  // Pulse context for advisor chat banner
+  const { data: latestPulse } = useQuery({
+    queryKey: ["chat-pulse-context", activeConv?.companyId],
+    queryFn: async () => {
+      if (!activeConv?.companyId) return null;
+      const { data } = await supabase
+        .from("pulse_checkins")
+        .select("help_needed, biggest_challenge, period_key")
+        .eq("company_id", activeConv.companyId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!isAdvisor && !!activeConv?.companyId,
+    staleTime: 5 * 60_000,
+  });
+
+  // Advisor prev/next navigation
+  const advisorConvList = useMemo(() => {
+    if (!isAdvisor) return [];
+    return conversations
+      .filter(c => c.threadType !== "group")
+      .sort((a, b) => {
+        if (a.awaiting_reply_from === "advisor" && b.awaiting_reply_from !== "advisor") return -1;
+        if (b.awaiting_reply_from === "advisor" && a.awaiting_reply_from !== "advisor") return 1;
+        return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+      });
+  }, [conversations, isAdvisor]);
+
+  const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
+  const prevConv = currentConvIdx > 0 ? advisorConvList[currentConvIdx - 1] : null;
+  const nextConv = currentConvIdx < advisorConvList.length - 1 ? advisorConvList[currentConvIdx + 1] : null;
+
   const pinnedMessages = useMemo(() => 
     messages.filter(m => m.pinned_at).sort((a, b) => 
       new Date(b.pinned_at!).getTime() - new Date(a.pinned_at!).getTime()
