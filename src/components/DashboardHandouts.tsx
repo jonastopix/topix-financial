@@ -35,6 +35,17 @@ const DashboardHandouts = () => {
   const completed = handouts.filter(h => h.status === "completed").length;
   const pct = Math.round((completed / TOTAL_MODULES) * 100);
 
+  const completedModules = new Set(handouts.filter(h => h.status === "completed").map(h => h.module));
+  const nextModule = moduleOrder.find(m => !completedModules.has(m));
+
+  const MODULE_LABELS: Record<string, string> = {
+    overordnet: "Målsætning",
+    bogholderi: "Bogholderi",
+    administration: "Administration",
+    salg: "Salg",
+    marketing: "Marketing",
+  };
+
   const r = 30;
   const circ = 2 * Math.PI * r;
   const offset = circ - (pct / 100) * circ;
