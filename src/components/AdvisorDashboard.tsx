@@ -1048,6 +1048,9 @@ const AdvisorDashboard = () => {
         <AdvisorSparringQueue
           items={sparringItems}
           onCompanyClick={handleAdvisorCompanyClick}
+          advisorProfiles={advisorProfiles}
+          currentUserId={user?.id}
+          onAssign={handleAssignAdvisor}
         />
       </div>
 
