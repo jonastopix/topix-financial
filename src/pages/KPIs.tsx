@@ -24,6 +24,7 @@ import {
   Info,
   MessageSquare,
   Download,
+  FileText,
   Settings as SettingsIcon,
 } from "lucide-react";
 import {
