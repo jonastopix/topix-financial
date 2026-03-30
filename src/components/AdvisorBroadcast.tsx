@@ -50,6 +50,7 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
         `Besked sendt til ${data.sent} virksomhed${data.sent !== 1 ? "er" : ""}`
       );
       setMessage("");
+      setConfirmStep(false);
       setLastSent({ count: data.sent, at: new Date().toLocaleString("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) });
       setOpen(false);
     } catch {
