@@ -139,6 +139,7 @@ async function processCompany(
     .select("id")
     .eq("company_id", company.id)
     .lt("progress", 100)
+    .neq("status", "parked")
     .limit(1);
 
   const { data: handouts } = await admin
@@ -238,6 +239,7 @@ async function processCompany(
     .select("id, title, deadline, progress")
     .eq("company_id", company.id)
     .lt("progress", 50)
+    .neq("status", "parked")
     .not("deadline", "is", null)
     .lte("deadline", fourteenDaysFromNow)
     .gte("deadline", now.toISOString().split("T")[0])
@@ -257,6 +259,7 @@ async function processCompany(
     .select("id, title, progress, updated_at, deadline")
     .eq("company_id", company.id)
     .lt("progress", 100)
+    .neq("status", "parked")
     .lt("updated_at", thirtyDaysAgo)
     .limit(3);
 

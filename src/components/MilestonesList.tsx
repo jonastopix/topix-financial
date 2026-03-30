@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
-import { CheckCircle2, Circle, Clock, Sparkles, BookOpen, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Sparkles, BookOpen, Pencil, Check, X, Trash2, CalendarIcon, Archive } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -27,22 +27,25 @@ export interface Milestone {
   id: string;
   title: string;
   deadline: Date | null;
-  status: "done" | "in-progress" | "pending";
+  status: "done" | "in-progress" | "pending" | "parked";
   description: string | null;
   source: string;
   source_report: string | null;
   progress: number;
   category: MilestoneCategory;
   baseline: string | null;
+  dbStatus?: string;
 }
 
 const statusConfig = {
   done: { icon: CheckCircle2, className: "text-primary", bg: "bg-primary/10", barColor: "bg-primary" },
   "in-progress": { icon: Clock, className: "text-chart-warning", bg: "bg-chart-warning/10", barColor: "bg-chart-warning" },
   pending: { icon: Circle, className: "text-muted-foreground", bg: "bg-muted", barColor: "bg-muted-foreground/30" },
+  parked: { icon: Archive, className: "text-muted-foreground/60", bg: "bg-muted/50", barColor: "bg-muted-foreground/20" },
 };
 
-function deriveStatus(progress: number): "done" | "in-progress" | "pending" {
+function deriveStatus(progress: number, currentStatus?: string): "done" | "in-progress" | "pending" | "parked" {
+  if (currentStatus === "parked") return "parked";
   if (progress >= 100) return "done";
   if (progress > 0) return "in-progress";
   return "pending";
@@ -147,7 +150,7 @@ const MilestoneCard = ({
   return (
     <>
       <div
-        className="rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden cursor-pointer"
+        className="group rounded-lg bg-secondary/50 hover:bg-secondary transition-colors overflow-hidden cursor-pointer"
         onClick={() => setDetailOpen(true)}
       >
         <div className="p-3">
@@ -184,7 +187,17 @@ const MilestoneCard = ({
                     <BookOpen className="h-2.5 w-2.5" /> Fra handout
                   </span>
                 )
-              )}
+               )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateField(ms.id, { status: ms.status === "parked" ? "active" : "parked" });
+                }}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-muted-foreground/60 hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                title={ms.status === "parked" ? "Genaktivér" : "Parker i køleskab"}
+              >
+                <Archive className="h-3.5 w-3.5" />
+              </button>
               <button onClick={() => setDetailOpen(true)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -438,7 +451,8 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
         id: m.id,
         title: m.title,
         deadline: m.deadline ? new Date(m.deadline) : null,
-        status: deriveStatus(m.progress),
+        dbStatus: m.status as string,
+        status: m.status === "parked" ? "parked" as const : deriveStatus(m.progress ?? 0, m.status),
         description: m.description,
         source: m.source,
         source_report: m.source_report,
@@ -485,7 +499,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     ? milestones.filter((m) => m.category === categoryFilter)
     : milestones;
   const activeMilestones = filtered
-    .filter((m) => m.status !== "done")
+    .filter((m) => m.status !== "done" && m.status !== "parked")
     .sort((a, b) => {
       const now = new Date().getTime();
       const URGENT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -507,10 +521,12 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
       return 0;
     });
   const doneMilestones = filtered.filter((m) => m.status === "done");
+  const parkedMilestones = filtered.filter((m) => m.status === "parked");
 
   const quickUpdateProgress = async (id: string, newProgress: number) => {
     const oldMs = milestones.find((m) => m.id === id);
     if (!oldMs) return;
+    if (oldMs.dbStatus === "parked") return; // Don't update progress on parked milestones
     const wasNotDone = oldMs.progress < 100;
     const newStatus = deriveStatus(newProgress);
 
@@ -576,6 +592,13 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
       dbFields.deadline = fields.deadline ? (fields.deadline as Date).toISOString().split("T")[0] : null;
       localFields.deadline = fields.deadline || null;
     }
+    if ("status" in fields) {
+      dbFields.status = fields.status;
+      localFields.status = fields.status === "parked" ? "parked" : deriveStatus(
+        milestones.find(m => m.id === id)?.progress ?? 0, fields.status
+      );
+      localFields.dbStatus = fields.status;
+    }
     const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
     if (error) { toast.error("Kunne ikke gemme"); return; }
     setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, ...localFields } : m));
@@ -628,6 +651,20 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
             <span className="text-xs text-muted-foreground ml-auto">{doneMilestones.length} milestone{doneMilestones.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="space-y-3">{renderList(doneMilestones)}</div>
+        </div>
+      )}
+
+      {parkedMilestones.length > 0 && (
+        <div className="glass-card rounded-xl p-5 animate-fade-in mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Archive className="h-3.5 w-3.5 text-muted-foreground/60" />
+            <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
+              Køleskab · {parkedMilestones.length}
+            </p>
+          </div>
+          <div className="space-y-2 opacity-60">
+            {renderList(parkedMilestones)}
+          </div>
         </div>
       )}
     </div>
