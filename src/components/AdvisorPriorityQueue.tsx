@@ -1,5 +1,15 @@
 import { useState, useEffect } from "react";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   MessageSquare,
   FileCheck,
   Wallet,
@@ -23,6 +33,31 @@ export interface PriorityItem {
   score: number;
   assigned_advisor_id?: string | null;
   assigned_advisor_name?: string | null;
+}
+
+const IGNORED_STORAGE_KEY = "advisor-priority-ignored";
+const IGNORED_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function loadIgnored(): Set<string> {
+  try {
+    const raw = localStorage.getItem(IGNORED_STORAGE_KEY);
+    if (!raw) return new Set();
+    const { ids, expiresAt } = JSON.parse(raw);
+    if (Date.now() > expiresAt) {
+      localStorage.removeItem(IGNORED_STORAGE_KEY);
+      return new Set();
+    }
+    return new Set(ids as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveIgnored(ids: Set<string>) {
+  localStorage.setItem(
+    IGNORED_STORAGE_KEY,
+    JSON.stringify({ ids: [...ids], expiresAt: Date.now() + IGNORED_TTL_MS })
+  );
 }
 
 const ACTION_HINT: Record<string, string> = {
@@ -80,9 +115,10 @@ export default function AdvisorPriorityQueue({
   onAssign,
   onIgnore,
 }: AdvisorPriorityQueueProps) {
-  const [ignored, setIgnored] = useState<Set<string>>(new Set());
+  const [ignored, setIgnored] = useState<Set<string>>(loadIgnored);
   const [showAll, setShowAll] = useState(false);
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
+  const [confirmIgnore, setConfirmIgnore] = useState<{ companyId: string; companyName: string } | null>(null);
 
   const visibleItems = items.filter((i) => !ignored.has(i.company.company_id));
   const displayItems = showAll ? visibleItems : visibleItems.slice(0, 10);
@@ -198,8 +234,7 @@ export default function AdvisorPriorityQueue({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIgnored((prev) => new Set([...prev, item.company.company_id]));
-                    onIgnore?.(item.company.company_id);
+                    setConfirmIgnore({ companyId: item.company.company_id, companyName: item.company.company_name });
                     setAssignOpen(null);
                   }}
                   className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all shrink-0"
@@ -284,6 +319,34 @@ export default function AdvisorPriorityQueue({
           Vis færre
         </button>
       )}
+
+      <AlertDialog open={!!confirmIgnore} onOpenChange={(open) => { if (!open) setConfirmIgnore(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fjern handling?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Er du sikker på at du vil fjerne <span className="font-semibold">{confirmIgnore?.companyName}</span> fra handlingskøen? Den vil være skjult i 24 timer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuller</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!confirmIgnore) return;
+                setIgnored((prev) => {
+                  const next = new Set([...prev, confirmIgnore.companyId]);
+                  saveIgnored(next);
+                  return next;
+                });
+                onIgnore?.(confirmIgnore.companyId);
+                setConfirmIgnore(null);
+              }}
+            >
+              Fjern
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
