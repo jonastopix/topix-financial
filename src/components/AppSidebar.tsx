@@ -141,10 +141,6 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
 
-  const filteredCompanies = companySearch.trim()
-    ? (allCompanies || []).filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
-    : (allCompanies || []);
-
   // Fetch all companies for advisor picker
   const { data: allCompanies } = useQuery({
     queryKey: ["all-companies-picker"],
@@ -155,6 +151,10 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
     enabled: isAdvisor,
     staleTime: 60_000,
   });
+
+  const filteredCompanies = companySearch.trim()
+    ? (allCompanies || []).filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
+    : (allCompanies || []);
 
   // Fetch company logo
   useEffect(() => {
