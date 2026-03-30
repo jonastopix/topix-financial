@@ -886,6 +886,12 @@ const AdvisorDashboard = () => {
         )}
       </div>
 
+      {/* ── Sparring Queue ── */}
+      <AdvisorSparringQueue
+        items={sparringItems}
+        onCompanyClick={handleAdvisorCompanyClick}
+      />
+
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
         onCompanyClick={handleAdvisorCompanyClick}
