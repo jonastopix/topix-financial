@@ -818,7 +818,7 @@ const FileUploadZone = ({
     } catch (err: any) {
       console.error("Overwrite error:", err);
       updateFile(pendingFileId, { status: "error", errorMessage: err.message });
-      toast({ title: "Fejl", description: err.message, variant: "destructive" });
+      toast.error("Fejl", { description: err.message });
     }
   }, [overwriteDialog, userId, title, conversationId, onExtracted, onPipelineComplete]);
 
