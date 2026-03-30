@@ -101,7 +101,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       onOpenChange(false);
     } catch (err: any) {
       console.error("Manual override save error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke gemme korrektionen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke gemme korrektionen." });
     } finally {
       setSaving(false);
     }
