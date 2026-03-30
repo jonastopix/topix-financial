@@ -182,6 +182,46 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorPro
         ))}
       </div>
 
+      {/* Assign dropdown — rendered outside the item rows to avoid clipping */}
+      {assignOpen && dropdownPos && (
+        <div
+          className="fixed z-[100] bg-popover border border-border rounded-lg shadow-xl py-1 min-w-[180px]"
+          style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(advisorProfiles || []).map(a => (
+            <button
+              key={a.user_id}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssign?.(assignOpen, a.user_id);
+                setAssignOpen(null);
+                setDropdownPos(null);
+              }}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
+            >
+              {a.full_name}
+              {a.user_id === currentUserId && (
+                <span className="text-[9px] text-primary font-medium">(mig)</span>
+              )}
+            </button>
+          ))}
+          <div className="border-t border-border mt-1 pt-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssign?.(assignOpen, null);
+                setAssignOpen(null);
+                setDropdownPos(null);
+              }}
+              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+            >
+              Fjern tildeling
+            </button>
+          </div>
+        </div>
+      )}
+
       {hiddenCount > 0 && !showAll && (
         <button
           onClick={() => setShowAll(true)}
