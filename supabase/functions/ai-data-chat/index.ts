@@ -53,7 +53,41 @@ Deno.serve(async (req) => {
     return `${f.period_label} (${f.period_key}):\n${lines}`;
   }).join("\n\n");
 
-  const systemWithData = `${SYSTEM_PROMPT}\n\nVIRKSOMHED: ${company.name}\n\nFINANSIELLE DATA:\n${factsContext || "Ingen data endnu."}`;
+  // Fetch active milestones
+  const { data: milestones } = await callerClient
+    .from("milestones")
+    .select("title, deadline, progress, status, category")
+    .eq("company_id", company_id)
+    .lt("progress", 100)
+    .order("deadline", { ascending: true, nullsFirst: false })
+    .limit(10);
+
+  // Fetch handout status
+  const { data: handouts } = await callerClient
+    .from("handouts")
+    .select("module, status")
+    .eq("company_id", company_id);
+
+  const milestonesContext = (milestones || []).length > 0
+    ? "\n\nAKTIVE MILESTONES:\n" + (milestones || []).map(m => {
+        const deadline = m.deadline
+          ? new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })
+          : "ingen deadline";
+        return `- ${m.title} (${m.progress}% fremgang, deadline: ${deadline}, kategori: ${m.category})`;
+      }).join("\n")
+    : "";
+
+  const handoutModuleLabels: Record<string, string> = {
+    overordnet: "Målsætning 12 mdr.", bogholderi: "Bogholderi",
+    administration: "Administration", salg: "Salg", marketing: "Marketing",
+  };
+  const handoutsContext = (handouts || []).length > 0
+    ? "\n\nHANDOUT-STATUS:\n" + (handouts || []).map(h =>
+        `- ${handoutModuleLabels[h.module] || h.module}: ${h.status === "completed" ? "gennemført" : h.status === "in_progress" ? "i gang" : "ikke startet"}`
+      ).join("\n")
+    : "";
+
+  const systemWithData = `${SYSTEM_PROMPT}\n\nVIRKSOMHED: ${company.name}\n\nFINANSIELLE DATA:\n${factsContext || "Ingen data endnu."}${milestonesContext}${handoutsContext}`;
 
   // Call Lovable AI Gateway with streaming
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");

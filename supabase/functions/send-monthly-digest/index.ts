@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
       ctaLabel = "Se dine nøgletal";
     }
 
-    const subject = `Dit ${currentMonthLabel}-overblik · The Boardroom`;
+    
     const html = buildEmailHtml(
       `Dit ${currentMonthLabel}-overblik`,
       bodyLines.join("\n"),
