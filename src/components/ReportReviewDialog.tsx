@@ -193,7 +193,7 @@ export default function ReportReviewDialog({
       if (trimmed === "") continue;
       const cleaned = trimmed.replace(/\./g, "").replace(",", ".");
       if (isNaN(Number(cleaned))) {
-        toast({ title: "Validering", description: `Ugyldigt tal i feltet`, variant: "destructive" });
+        toast.error("Validering", { description: `Ugyldigt tal i feltet` });
         return;
       }
     }
