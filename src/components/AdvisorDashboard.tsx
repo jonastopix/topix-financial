@@ -373,14 +373,24 @@ const AdvisorDashboard = () => {
       }
 
       // Latest pulse by company
-      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; created_at: string }>();
+      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string }>();
       for (const p of (pulseRes.data || []) as any[]) {
         if (!latestPulseByCompany.has(p.company_id)) {
           latestPulseByCompany.set(p.company_id, {
             went_well: p.went_well || "",
             biggest_challenge: p.biggest_challenge || "",
+            help_needed: p.help_needed || null,
             created_at: p.created_at,
           });
+        }
+      }
+
+      // Recently completed milestones (last 7 days)
+      const recentlyCompletedMilestones = new Map<string, string>();
+      for (const m of (recentMilestonesRes.data || []) as any[]) {
+        const companyId = userToCompany.get(m.user_id);
+        if (companyId && !recentlyCompletedMilestones.has(companyId)) {
+          recentlyCompletedMilestones.set(companyId, m.title);
         }
       }
 
