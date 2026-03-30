@@ -316,7 +316,29 @@ const AdvisorCompanyOverview = () => {
     staleTime: 5 * 60_000,
   });
 
-  if (isLoading) {
+  const { data: weeklyFocus } = useQuery({
+    queryKey: ["advisor-weekly-focus", companyId],
+    queryFn: async () => {
+      const d = new Date();
+      const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = utc.getUTCDay() || 7;
+      utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((utc.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      const weekKey = `${utc.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+      const { data } = await supabase
+        .from("weekly_focus")
+        .select("headline, summary, status, week_key")
+        .eq("company_id", companyId!)
+        .eq("week_key", weekKey)
+        .eq("status", "active")
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!companyId,
+    staleTime: 30 * 60_000,
+  });
+
     return (
       <div className="space-y-4">
         {[1, 2, 3].map(i => (
