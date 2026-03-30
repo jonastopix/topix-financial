@@ -49,10 +49,10 @@ const founderFeatures = [
     tips: ["Send billeder og filer direkte i chatten", "Brug emnefiltre: rapport, handout, budget, sparring", "Du får besked på email hvis du har ulæste beskeder"],
   },
   {
-    icon: Sparkles, title: "Finansiel AI", path: "/chat?tab=ai",
+    icon: Sparkles, title: "Finansiel AI & AI-chef", path: "/chat?tab=ai",
     color: "text-primary", bg: "bg-primary/10",
-    desc: "Stil spørgsmål om dine egne tal på dansk. AI'en kender din historik, dine milestones og dine handouts.",
-    tips: ["Prøv: 'Hvad var min bedste måned i år?'", "Prøv: 'Hvad driver mine udgifter?'", "Prøv: 'Hvad skal jeg fokusere på nu?'"],
+    desc: "Din personlige AI-chef kender dine tal, milestones og handouts. Stil spørgsmål om din forretning eller spørg hvad du skal fokusere på denne uge.",
+    tips: ["Prøv: 'Hvad skal jeg fokusere på denne uge?'", "Prøv: 'Hvad driver mine udgifter?'", "Ugens fokus på dit dashboard er genereret af AI-chefen automatisk"],
   },
   {
     icon: BarChart3, title: "Virksomhedens sundhed", path: "/",

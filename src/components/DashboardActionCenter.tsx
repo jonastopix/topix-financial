@@ -187,15 +187,37 @@ export default function DashboardActionCenter({
       {/* ── Weekly focus header ── */}
       {weeklyFocus && (
         <div className={`${visibleAttention.length > 0 || actions.length > 0 ? "mb-4 pb-4 border-b border-border/40" : ""}`}>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ugens fokus</span>
+              <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-foreground">Din AI-chef</p>
+                <p className="text-[10px] text-muted-foreground">Uge {weekNumber} · baseret på dine tal</p>
+              </div>
             </div>
-            <span className="text-[10px] text-muted-foreground">Uge {weekNumber}</span>
           </div>
-          <p className="text-sm font-semibold text-foreground">{weeklyFocus.headline}</p>
-          <p className="text-xs text-muted-foreground mt-1">{weeklyFocus.summary}</p>
+          <p className="text-sm font-semibold text-foreground leading-snug">{weeklyFocus.headline}</p>
+          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{weeklyFocus.summary}</p>
+        </div>
+      )}
+
+      {!weeklyFocus && hasReports && (
+        <div className="mb-4 pb-4 border-b border-border/40">
+          <Link
+            to="/chat?tab=ai&q=Hvad+skal+jeg+fokusere+p%C3%A5+denne+uge%3F"
+            className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-colors group"
+          >
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">Hvad skal jeg fokusere på denne uge?</p>
+              <p className="text-xs text-muted-foreground">Spørg din AI-chef om prioriteter</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+          </Link>
         </div>
       )}
 
@@ -232,7 +254,9 @@ export default function DashboardActionCenter({
       {/* ── Company actions ── */}
       {actions.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Handlinger</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            {actions.some((a: any) => a.source_type === "ai_weekly") ? "Din AI-chef anbefaler" : "Handlinger"}
+          </p>
           <div className="space-y-1.5">
             {visibleActions.map((action: any) => (
               <div key={action.id} className="flex items-start gap-2 group py-1">
@@ -240,12 +264,15 @@ export default function DashboardActionCenter({
                   <Circle className="h-4 w-4" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-foreground">
-                    {action.priority === "high" && <AlertTriangle className="h-3 w-3 text-destructive inline mr-1 -mt-0.5" />}
-                    {action.priority === "medium" && <Clock className="h-3 w-3 text-chart-warning inline mr-1 -mt-0.5" />}
+                  <p className="text-xs text-foreground flex items-center gap-1.5">
+                    {action.source_type === "ai_weekly" && (
+                      <Sparkles className="h-3 w-3 text-primary/60 shrink-0" />
+                    )}
+                    {action.priority === "high" && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+                    {action.priority === "medium" && action.source_type !== "ai_weekly" && <Clock className="h-3 w-3 text-chart-warning shrink-0" />}
                     {action.title}
                   </p>
-                  {action.context && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{action.context}</p>}
+                  {action.context && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{action.context}</p>}
                 </div>
                 <button onClick={() => updateAction.mutate({ id: action.id, updates: { status: "dismissed", dismissed_at: new Date().toISOString() } })} className="p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all" title="Afvis">
                   <X className="h-3 w-3" />
