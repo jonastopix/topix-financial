@@ -662,7 +662,7 @@ const AdvisorDashboard = () => {
   };
 
   const handleAdvisorCompanyClick = (companyId: string, companyName: string, reason?: string) => {
-    setCompanyOverride(companyId, companyName);
+    // Navigate to relevant page based on reason — NO company override
     if (reason && (reason.includes("besked") || reason.includes("alert") || reason.includes("Bankovertræk") || reason.includes("Omsætning faldt"))) {
       const convId = getCompanyConvId(companyId);
       if (convId) {
@@ -673,6 +673,11 @@ const AdvisorDashboard = () => {
     if (reason?.includes("godkendelse")) {
       navigate("/reports");
       return;
+    }
+    // Default: navigate to chat if conversation exists
+    const convId = getCompanyConvId(companyId);
+    if (convId) {
+      navigate(`/chat?conversationId=${convId}`);
     }
   };
 
