@@ -14,6 +14,7 @@ interface ReportSlim {
 
 interface DeliveryOverviewProps {
   reports: ReportSlim[];
+  onUploadClick?: () => void;
 }
 
 type MonthSlot = { key: string; month: number; year: string; report?: ReportSlim };
