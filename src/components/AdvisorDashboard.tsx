@@ -753,6 +753,22 @@ const AdvisorDashboard = () => {
         onCompanyClick={handleAdvisorCompanyClick}
       />
 
+      {/* ── Advisor fordeling ── */}
+      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs">
+        <div className="flex items-center gap-1.5">
+          <UserCheck className="h-3.5 w-3.5 text-primary" />
+          <span className="font-medium text-foreground">Mine: {myAssignments}</span>
+        </div>
+        <div className="h-3 w-px bg-border" />
+        <span className="text-muted-foreground">Tildelte i alt: {totalAssigned} / {total}</span>
+        {unassignedCount > 0 && (
+          <>
+            <div className="h-3 w-px bg-border" />
+            <span className="text-amber-600 font-medium">{unassignedCount} uden ejer</span>
+          </>
+        )}
+      </div>
+
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
         onCompanyClick={handleAdvisorCompanyClick}
