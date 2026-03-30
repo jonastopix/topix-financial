@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
+  
   const { user } = useAuth();
 
   const reset = () => {
@@ -52,11 +52,11 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast({ title: "Kun billeder", description: "Upload venligst et billede (PNG, JPG, etc.).", variant: "destructive" });
+      toast.error("Kun billeder", { description: "Upload venligst et billede (PNG, JPG, etc.)." });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "For stort", description: "Billedet må max fylde 5 MB.", variant: "destructive" });
+      toast.error("For stort", { description: "Billedet må max fylde 5 MB." });
       return;
     }
     setScreenshot(file);
@@ -84,7 +84,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
         .from("feedback-screenshots")
         .upload(path, screenshot, { contentType: screenshot.type });
       if (uploadError) {
-        toast({ title: "Upload fejlede", description: "Kunne ikke uploade billedet. Prøv igen.", variant: "destructive" });
+        toast.error("Upload fejlede", { description: "Kunne ikke uploade billedet. Prøv igen." });
         setSubmitting(false);
         return;
       }
@@ -107,14 +107,14 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     setSubmitting(false);
 
     if (error || !insertedFeedback) {
-      toast({ title: "Fejl", description: "Kunne ikke sende feedback. Prøv igen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke sende feedback. Prøv igen." });
       return;
     }
 
     // Fire-and-forget Slack + advisor notification
     notifyFeedbackSubmitted(insertedFeedback.id);
 
-    toast({ title: "Tak for din feedback!", description: "Vi har modtaget din besked og vender tilbage." });
+    toast.success("Tak for din feedback!", { description: "Vi har modtaget din besked og vender tilbage." });
     reset();
     onOpenChange(false);
   };

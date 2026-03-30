@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
@@ -61,8 +61,7 @@ const CreateGroupCompanyDialog = ({ open, onOpenChange, groupId }: CreateGroupCo
         return;
       }
 
-      toast({
-        title: "Selskab oprettet",
+      toast.success("Selskab oprettet", {
         description: `${data.company_name} er tilføjet til koncernen`,
       });
 

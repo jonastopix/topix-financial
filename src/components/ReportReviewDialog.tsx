@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -193,17 +193,17 @@ export default function ReportReviewDialog({
       if (trimmed === "") continue;
       const cleaned = trimmed.replace(/\./g, "").replace(",", ".");
       if (isNaN(Number(cleaned))) {
-        toast({ title: "Validering", description: `Ugyldigt tal i feltet`, variant: "destructive" });
+        toast.error("Validering", { description: `Ugyldigt tal i feltet` });
         return;
       }
     }
 
     if (editMonth < 1 || editMonth > 12) {
-      toast({ title: "Validering", description: "Ugyldig måned", variant: "destructive" });
+      toast.error("Validering", { description: "Ugyldig måned" });
       return;
     }
     if (editYear < 2000 || editYear > 2100) {
-      toast({ title: "Validering", description: "Ugyldigt årstal", variant: "destructive" });
+      toast.error("Validering", { description: "Ugyldigt årstal" });
       return;
     }
 
@@ -221,7 +221,7 @@ export default function ReportReviewDialog({
         status: "applied",
       });
 
-      toast({ title: "Rettelser gemt", description: "Data opdateret — preview genindlæses." });
+      toast.success("Rettelser gemt", { description: "Data opdateret — preview genindlæses." });
 
       // Refresh preview to reflect the manual override
       await loadPreview();
@@ -232,7 +232,7 @@ export default function ReportReviewDialog({
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
     } catch (err: any) {
       console.error("Inline override save error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke gemme rettelser.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke gemme rettelser." });
     } finally {
       setSaving(false);
     }
@@ -246,14 +246,12 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      toast({
-        title: "✓ Dine tal er opdateret",
+      toast.success("✓ Dine tal er opdateret", {
         description: `${preview?.period_label || "Perioden"} er nu en del af dit dashboard.`,
-        action: (
-          <a href="/kpis" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            Se KPI'er →
-          </a>
-        ),
+        action: {
+          label: "Se KPI'er →",
+          onClick: () => window.location.href = "/kpis",
+        },
       });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
@@ -299,7 +297,7 @@ export default function ReportReviewDialog({
 
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: "Fejl ved commit", description: err.message || "Ukendt fejl", variant: "destructive" });
+      toast.error("Fejl ved commit", { description: err.message || "Ukendt fejl" });
     } finally {
       setCommitting(false);
     }
@@ -323,14 +321,12 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      toast({
-        title: "✓ Tallene er opdateret",
+      toast.success("✓ Tallene er opdateret", {
         description: `${preview?.period_label || "Den nye periode"} vises nu på dit dashboard.`,
-        action: (
-          <a href="/kpis" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            Se KPI'er →
-          </a>
-        ),
+        action: {
+          label: "Se KPI'er →",
+          onClick: () => window.location.href = "/kpis",
+        },
       });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
@@ -376,7 +372,7 @@ export default function ReportReviewDialog({
 
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: "Fejl ved erstatning", description: err.message || "Ukendt fejl", variant: "destructive" });
+      toast.error("Fejl ved erstatning", { description: err.message || "Ukendt fejl" });
     } finally {
       setReplacing(false);
     }

@@ -9,7 +9,7 @@ import HandoutLeverItem from "@/components/HandoutLeverItem";
 import HandoutAIFeedback from "@/components/HandoutAIFeedback";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { moduleOrder } from "@/lib/handoutConfig";
@@ -126,10 +126,10 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
     if (handoutId) {
       const { error } = await supabase.from("handouts").update(payload).eq("id", handoutId);
-      if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
+      if (error) { toast.error("Fejl ved gem", { description: error.message }); }
     } else {
       const { data, error } = await supabase.from("handouts").insert(payload as any).select("id").single();
-      if (error) { toast({ title: "Fejl ved gem", description: error.message, variant: "destructive" }); }
+      if (error) { toast.error("Fejl ved gem", { description: error.message }); }
       else { setHandoutId(data.id); }
     }
 
@@ -176,10 +176,10 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
     const { error } = await supabase.from("handouts").update(update).eq("id", handoutId);
     if (error) {
-      toast({ title: "Fejl", description: error.message, variant: "destructive" });
+      toast.error("Fejl", { description: error.message });
     } else {
       setHandoutStatus(newStatus);
-      toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
+      toast.success(newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet");
 
       // Server-side notification (Slack + advisor_notifications) — fire-and-forget
       if (newStatus === "completed") {

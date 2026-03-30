@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface LeverMilestone {
   milestone_id: string;
@@ -45,10 +45,10 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
         .insert({ handout_id: handoutId, lever_index: index, milestone_id: ms.id });
       if (linkErr) throw linkErr;
 
-      toast({ title: "Milestone oprettet", description: `"${value.trim()}" er nu en aktiv milestone.` });
+      toast.success("Milestone oprettet", { description: `"${value.trim()}" er nu en aktiv milestone.` });
       onMilestoneCreated?.();
     } catch (e: any) {
-      toast({ title: "Fejl", description: e.message, variant: "destructive" });
+      toast.error("Fejl", { description: e.message });
     } finally {
       setCreating(false);
     }

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Pencil, Save, RotateCcw, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   type ReportData, hasManualOverride,
   getEffectiveMetrics, getEffectiveReportPeriodKey,
@@ -72,7 +72,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     if (status === "applied") {
       const err = validateForApply({ month, year, reportType, metricInputs, report });
       if (err) {
-        toast({ title: "Validering", description: err, variant: "destructive" });
+        toast.error("Validering", { description: err });
         return;
       }
     }
@@ -91,8 +91,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         status,
       });
 
-      toast({
-        title: status === "draft" ? "Kladde gemt" : "Korrektion anvendt",
+      toast.success(status === "draft" ? "Kladde gemt" : "Korrektion anvendt", {
         description: status === "applied"
           ? `Effektiv periode: ${month}/${year}`
           : "Kladde gemt — den bruges ikke i dashboards endnu.",
@@ -102,7 +101,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       onOpenChange(false);
     } catch (err: any) {
       console.error("Manual override save error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke gemme korrektionen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke gemme korrektionen." });
     } finally {
       setSaving(false);
     }
@@ -118,12 +117,12 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         overrideSource: getOverrideSource(isAdmin, isAdvisor),
       });
 
-      toast({ title: "Nulstillet", description: "Rapporten bruger nu parserens data igen." });
+      toast.success("Nulstillet", { description: "Rapporten bruger nu parserens data igen." });
       onSaved();
       onOpenChange(false);
     } catch (err: any) {
       console.error("Reset error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke nulstille.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke nulstille." });
     } finally {
       setSaving(false);
       setResetConfirm(false);

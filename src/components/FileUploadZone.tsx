@@ -2,7 +2,7 @@ import { useCallback, useState, useRef } from "react";
 import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target, Info, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
@@ -133,10 +133,8 @@ async function runPostExtractionPipeline(params: {
   onPipelineComplete?.(reportId);
 
   if (isError) {
-    toastFn({
-      title: "Dokument afvist",
+    toastFn.error("Dokument afvist", {
       description: "Filen blev ikke genkendt som en finansiel rapport.",
-      variant: "destructive",
     });
   } else if (needsManualEntry) {
     // Build a contextual description based on what we know
@@ -147,13 +145,11 @@ async function runPostExtractionPipeline(params: {
       ? " Prøv at eksportere som Excel i stedet."
       : "";
 
-    toastFn({
-      title: "Tjek tallene manuelt",
+    toastFn("Tjek tallene manuelt", {
       description: `Vi kunne ikke aflæse alle tal automatisk.${sourceHint}${actionHint} Klik på rapporten for at indtaste de vigtigste tal — det tager 1-2 minutter.`,
     });
   } else {
-    toastFn({
-      title: "Rapport behandlet ✓",
+    toastFn.success("Rapport behandlet ✓", {
       description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} — tryk "Klar til godkendelse" for at bekræfte tallene`,
     });
   }
@@ -419,10 +415,8 @@ const FileUploadZone = ({
                 errorMessage: "Denne filtype (multi-sheet regnskabsrapport) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
               });
 
-              toast({
-                title: "Filtype ikke understøttet",
+              toast.error("Filtype ikke understøttet", {
                 description: "Multi-sheet regnskabsrapporter (DATA + P&L Top Line) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse.",
-                variant: "destructive",
               });
               
               onPipelineComplete?.(reportRecord.id);
@@ -455,10 +449,8 @@ const FileUploadZone = ({
                     status: "error",
                     errorMessage: "Filen er beskyttet med adgangskode. Eksportér rapporten igen uden adgangskodebeskyttelse, eller upload en Excel-version.",
                   });
-                  toast({
-                    title: "Beskyttet PDF",
+                  toast.error("Beskyttet PDF", {
                     description: "Filen kræver en adgangskode og kan ikke læses. Eksportér uden adgangskodebeskyttelse.",
-                    variant: "destructive",
                   });
                   await supabase.from("financial_reports").update({
                     status: "error",
@@ -499,8 +491,7 @@ const FileUploadZone = ({
                 } as any).eq("id", reportRecord.id);
 
                 extractedData = { needs_manual_entry: true, status: "processed" };
-                toast({
-                  title: "Manuel indtastning påkrævet",
+                toast("Manuel indtastning påkrævet", {
                   description: "PDF-strukturen kunne ikke læses — du kan indtaste tallene manuelt",
                 });
               } else {
@@ -621,10 +612,8 @@ const FileUploadZone = ({
           status: "error",
           errorMessage: userMsg,
         });
-        toast({
-          title: "Kunne ikke behandle rapporten",
+        toast.error("Kunne ikke behandle rapporten", {
           description: userMsg,
-          variant: "destructive",
         });
       }
     },
@@ -645,10 +634,8 @@ const FileUploadZone = ({
       Array.from(files).forEach((file) => {
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
-          toast({
-            title: "Filen er for stor",
+          toast.error("Filen er for stor", {
             description: `${file.name} er ${formatFileSize(file.size)}. Maks. 25 MB.`,
-            variant: "destructive",
           });
           return;
         }
@@ -657,10 +644,8 @@ const FileUploadZone = ({
         const ext = "." + file.name.split(".").pop()?.toLowerCase();
         const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(ext);
         if (!isValidType) {
-          toast({
-            title: "Ikke-understøttet filtype",
+          toast.error("Ikke-understøttet filtype", {
             description: `${file.name} er ikke en gyldig fil. Upload Excel, CSV eller PDF.`,
-            variant: "destructive",
           });
           return;
         }
@@ -670,10 +655,8 @@ const FileUploadZone = ({
           (f) => f.name === file.name && (f.status === "uploading" || f.status === "processing" || f.status === "analyzing" || f.status === "done")
         );
         if (isDuplicate) {
-          toast({
-            title: "Duplikat",
+          toast.error("Duplikat", {
             description: `${file.name} er allerede uploadet.`,
-            variant: "destructive",
           });
           return;
         }
@@ -681,10 +664,8 @@ const FileUploadZone = ({
         const nameLower = file.name.toLowerCase();
         const looksLikeBudget = /budget|forecast|prognose|plan\b/i.test(nameLower);
         if (looksLikeBudget) {
-          toast({
-            title: "Er dette et budget?",
+          toast.error("Er dette et budget?", {
             description: `"${file.name}" ligner et budget eller en prognose. Upload kun faktiske regnskabsrapporter — ikke budgetter.`,
-            variant: "destructive",
           });
         }
 
@@ -837,7 +818,7 @@ const FileUploadZone = ({
     } catch (err: any) {
       console.error("Overwrite error:", err);
       updateFile(pendingFileId, { status: "error", errorMessage: err.message });
-      toast({ title: "Fejl", description: err.message, variant: "destructive" });
+      toast.error("Fejl", { description: err.message });
     }
   }, [overwriteDialog, userId, title, conversationId, onExtracted, onPipelineComplete]);
 
