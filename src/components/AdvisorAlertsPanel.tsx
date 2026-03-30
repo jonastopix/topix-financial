@@ -21,7 +21,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof TrendingDown; color: string; bg
 };
 
 interface AdvisorAlertsPanelProps {
-  onCompanyClick: (companyId: string, companyName: string) => void;
+  onCompanyClick: (companyId: string, companyName: string, reason?: string) => void;
 }
 
 export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPanelProps) {
@@ -62,7 +62,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
           return (
             <button
               key={alert.id}
-              onClick={() => onCompanyClick(alert.company_id, alert.company_name)}
+              onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}
               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
             >
               <div className={`shrink-0 h-8 w-8 rounded-lg ${cfg.bg} flex items-center justify-center`}>

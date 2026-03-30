@@ -22,7 +22,7 @@ function ReasonIcon({ label }: { label: string }) {
 
 interface AdvisorPriorityQueueProps {
   items: PriorityItem[];
-  onCompanyClick: (companyId: string, companyName: string) => void;
+  onCompanyClick: (companyId: string, companyName: string, reason?: string) => void;
 }
 
 export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorPriorityQueueProps) {
@@ -54,7 +54,7 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorP
         {items.map(item => (
           <button
             key={item.company.company_id}
-            onClick={() => onCompanyClick(item.company.company_id, item.company.company_name)}
+            onClick={() => onCompanyClick(item.company.company_id, item.company.company_name, item.reasons[0]?.label)}
             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
           >
             {/* Avatar */}

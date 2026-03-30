@@ -24,7 +24,7 @@ const DashboardMilestones = () => {
         .from("milestones")
         .select("id, title, progress, status, deadline") as any)
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("deadline", { ascending: true, nullsFirst: false });
       return all || [];
     },
     enabled: !!user && !!companyId,
@@ -48,7 +48,15 @@ const DashboardMilestones = () => {
   });
 
   const milestones = data || [];
-  const active = milestones.filter(m => m.status !== "completed").slice(0, 3);
+  const active = milestones
+    .filter(m => m.status !== "completed" && m.progress < 100)
+    .sort((a, b) => {
+      if (a.deadline && !b.deadline) return -1;
+      if (!a.deadline && b.deadline) return 1;
+      if (a.deadline && b.deadline) return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      return 0;
+    })
+    .slice(0, 3);
   const total = milestones.length;
   const doneCount = milestones.filter(m => m.status === "completed" || m.progress >= 100).length;
 

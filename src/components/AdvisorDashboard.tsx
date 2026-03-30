@@ -7,7 +7,7 @@ import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
@@ -252,6 +252,7 @@ function MemberCard({
 
 const AdvisorDashboard = () => {
   const { user, setCompanyOverride } = useAuth();
+  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-dashboard", user?.id],
@@ -644,6 +645,22 @@ const AdvisorDashboard = () => {
     return companyMap.get(companyId)?.name || "Ukendt";
   };
 
+  // Smart company click — navigate to chat for message/alert reasons
+  const getCompanyConvId = (companyId: string): string | null => {
+    return convByCompany.get(companyId)?.[0]?.id ?? null;
+  };
+
+  const handleAdvisorCompanyClick = (companyId: string, companyName: string, reason?: string) => {
+    setCompanyOverride(companyId, companyName);
+    if (reason && (reason.includes("besked") || reason.includes("alert") || reason.includes("Bankovertræk") || reason.includes("Omsætning faldt"))) {
+      const convId = getCompanyConvId(companyId);
+      if (convId) {
+        navigate(`/chat?conversationId=${convId}`);
+        return;
+      }
+    }
+  };
+
   // Member list state
   const [memberSearch, setMemberSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
@@ -691,23 +708,15 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* ── Broadcast ── */}
-      <AdvisorBroadcast
-        companies={(investorSummaries || []).map((c) => ({
-          id: c.company_id,
-          name: c.company_name,
-        }))}
-      />
-
       {/* ── Priority Queue ── */}
       <AdvisorPriorityQueue
         items={priorityItems}
-        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+        onCompanyClick={handleAdvisorCompanyClick}
       />
 
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
-        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+        onCompanyClick={handleAdvisorCompanyClick}
       />
 
 
@@ -757,6 +766,14 @@ const AdvisorDashboard = () => {
               ))}
             </div>
             <div className="flex items-center gap-1 ml-auto">
+              <div className="mr-2">
+                <AdvisorBroadcast
+                  companies={(investorSummaries || []).map((c) => ({
+                    id: c.company_id,
+                    name: c.company_name,
+                  }))}
+                />
+              </div>
               <button
                 onClick={() => setMemberView("table")}
                 className={`p-1.5 rounded transition-colors ${memberView === "table" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
