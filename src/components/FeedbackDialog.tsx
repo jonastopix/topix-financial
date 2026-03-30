@@ -52,7 +52,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast({ title: "Kun billeder", description: "Upload venligst et billede (PNG, JPG, etc.).", variant: "destructive" });
+      toast.error("Kun billeder", { description: "Upload venligst et billede (PNG, JPG, etc.)." });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
