@@ -19,11 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Set worker source for pdf.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url
-).toString();
+// pdfjs-dist and xlsx are lazy-loaded inside async functions to reduce initial bundle
 
 interface ExtractedData {
   report_type?: string;
