@@ -47,7 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
@@ -370,10 +370,10 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
-      toast({ title: "Rapport flyttet til papirkurv", description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
+      toast.success("Rapport flyttet til papirkurv", { description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
     } catch (err) {
       console.error("Soft-delete error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke slette rapporten. Prøv igen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke slette rapporten. Prøv igen." });
     } finally {
       setDeleting(false);
     }
@@ -405,10 +405,10 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
-      toast({ title: "Rapport gendannet", description: `${report.report_period || report.file_name} er gendannet.` });
+      toast.success("Rapport gendannet", { description: `${report.report_period || report.file_name} er gendannet.` });
     } catch (err) {
       console.error("Restore error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke gendanne rapporten.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke gendanne rapporten." });
     } finally {
       setRestoring(null);
     }
@@ -445,10 +445,10 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       queryClient.invalidateQueries({ queryKey: ["company-commentaries"] });
       queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
-      toast({ title: "Permanent slettet", description: `${report.report_period || report.file_name} er fjernet permanent.` });
+      toast.success("Permanent slettet", { description: `${report.report_period || report.file_name} er fjernet permanent.` });
     } catch (err) {
       console.error("Permanent delete error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke slette rapporten permanent.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke slette rapporten permanent." });
     } finally {
       setPermanentDeleting(null);
     }
@@ -464,9 +464,9 @@ const Reports = () => {
     const newPath = await uploadReportFile(file, companyId, report.id);
     if (newPath) {
       setDbReports(prev => prev.map(r => r.id === report.id ? { ...r, file_path: newPath } : r));
-      toast({ title: "Fil uploadet", description: "Originalfilen er nu tilknyttet rapporten." });
+      toast.success("Fil uploadet", { description: "Originalfilen er nu tilknyttet rapporten." });
     } else {
-      toast({ title: "Upload fejlede", description: "Kunne ikke uploade filen. Prøv igen.", variant: "destructive" });
+      toast.error("Upload fejlede", { description: "Kunne ikke uploade filen. Prøv igen." });
     }
   };
 

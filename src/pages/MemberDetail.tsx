@@ -50,7 +50,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { Json } from "@/integrations/supabase/types";
@@ -188,7 +188,7 @@ const MemberDetail = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { toast } = useToast();
+  
   const { isAdvisor: rawAdvisor, user, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
@@ -268,10 +268,10 @@ const MemberDetail = () => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({ title: "Medlem fjernet", description: "Brugeren er blevet fjernet fra virksomheden." });
+      toast.success("Medlem fjernet", { description: "Brugeren er blevet fjernet fra virksomheden." });
       navigate('/members');
     } catch (err: any) {
-      toast({ title: "Fejl", description: err.message || "Kunne ikke fjerne medlem", variant: "destructive" });
+      toast.error("Fejl", { description: err.message || "Kunne ikke fjerne medlem" });
     } finally {
       setRemoving(false);
     }

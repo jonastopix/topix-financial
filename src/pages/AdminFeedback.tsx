@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2, Reply } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
   bug: { label: "Bug", icon: Bug, color: "text-destructive" },
@@ -184,7 +184,7 @@ const FeedbackTable = ({
 const AdminFeedback = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [detailItem, setDetailItem] = useState<any>(null);
@@ -273,7 +273,7 @@ const AdminFeedback = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-feedback"] });
       queryClient.invalidateQueries({ queryKey: ["feedback-count"] });
-      toast({ title: "Feedback opdateret" });
+      toast.success("Feedback opdateret");
     },
   });
 
@@ -285,7 +285,7 @@ const AdminFeedback = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-feedback"] });
       queryClient.invalidateQueries({ queryKey: ["feedback-count"] });
-      toast({ title: "Feedback slettet" });
+      toast.success("Feedback slettet");
       setDetailItem(null);
       setDeleteTarget(null);
     },
@@ -336,7 +336,7 @@ const AdminFeedback = () => {
           .limit(1)
           .maybeSingle();
         if (!companyConv) {
-          toast({ title: "Ingen samtale fundet", description: "Brugeren har ikke en aktiv samtale.", variant: "destructive" });
+          toast.error("Ingen samtale fundet", { description: "Brugeren har ikke en aktiv samtale." });
           setReplySending(false);
           return;
         }
@@ -364,11 +364,11 @@ const AdminFeedback = () => {
         updateMutation.mutate({ id: detailItem.id, status: "acknowledged" });
       }
 
-      toast({ title: "Svar sendt", description: "Beskeden er sendt i brugerens samtale." });
+      toast.success("Svar sendt", { description: "Beskeden er sendt i brugerens samtale." });
       setReplyText("");
     } catch (err) {
       console.error("Reply error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke sende svaret. Prøv igen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke sende svaret. Prøv igen." });
     } finally {
       setReplySending(false);
     }
