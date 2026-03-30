@@ -688,6 +688,12 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-8">
+      {/* ── Priority Queue ── */}
+      <AdvisorPriorityQueue
+        items={priorityItems}
+        onCompanyClick={(id, name) => setCompanyOverride(id, name)}
+      />
+
       {/* ── TOP: Portfolio KPI bar ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Rapporterer aktivt" value={`${reportedThisMonth} / ${total}`} subtitle="sendt rapport denne måned" accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"} />
