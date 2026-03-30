@@ -1,3 +1,4 @@
+import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,37 +8,44 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ViewModeProvider } from "@/hooks/useViewMode";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ScrollToTop from "@/components/ScrollToTop";
-import Index from "./pages/Index";
-import Reports from "./pages/Reports";
-import Milestones from "./pages/Milestones";
-import KPIs from "./pages/KPIs";
-import Budget from "./pages/Budget";
-import Handouts from "./pages/Handouts";
 
-import Settings from "./pages/Settings";
-import ChatShell from "./pages/ChatShell";
-import Members from "./pages/Members";
-import MemberDetail from "./pages/MemberDetail";
+// Synchronous — needed on initial load
+import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
-import AdminConfig from "./pages/AdminConfig";
-import ReportDebug from "./pages/ReportDebug";
-import EmailTemplates from "./pages/EmailTemplates";
-import BulkImport from "./pages/BulkImport";
-import ReportReviewQueue from "./pages/ReportReviewQueue";
-import AdminFeedback from "./pages/AdminFeedback";
-import AdminGroups from "./pages/AdminGroups";
-import AdminGroupDetail from "./pages/AdminGroupDetail";
 import Onboarding from "./pages/Onboarding";
-import GroupDashboard from "./pages/GroupDashboard";
-import GroupBudget from "./pages/GroupBudget";
-import AdvisorGroupList from "./pages/AdvisorGroupList";
-import AdvisorGroupDashboard from "./pages/AdvisorGroupDashboard";
-import PulseCheckin from "./pages/PulseCheckin";
-import Community from "./pages/Community";
-import Guide from "./pages/Guide";
-import AnnualBaseline from "./pages/AnnualBaseline";
 import NotFound from "./pages/NotFound";
+
+// Lazy — member/advisor routes
+const Reports = lazy(() => import("./pages/Reports"));
+const Milestones = lazy(() => import("./pages/Milestones"));
+const KPIs = lazy(() => import("./pages/KPIs"));
+const Budget = lazy(() => import("./pages/Budget"));
+const Handouts = lazy(() => import("./pages/Handouts"));
+const Settings = lazy(() => import("./pages/Settings"));
+const ChatShell = lazy(() => import("./pages/ChatShell"));
+const Members = lazy(() => import("./pages/Members"));
+const MemberDetail = lazy(() => import("./pages/MemberDetail"));
+const Guide = lazy(() => import("./pages/Guide"));
+const AnnualBaseline = lazy(() => import("./pages/AnnualBaseline"));
+const Community = lazy(() => import("./pages/Community"));
+const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
+const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
+
+// Lazy — admin-only routes
+const AdminConfig = lazy(() => import("./pages/AdminConfig"));
+const ReportDebug = lazy(() => import("./pages/ReportDebug"));
+const EmailTemplates = lazy(() => import("./pages/EmailTemplates"));
+const BulkImport = lazy(() => import("./pages/BulkImport"));
+const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
+const AdminGroups = lazy(() => import("./pages/AdminGroups"));
+const AdminGroupDetail = lazy(() => import("./pages/AdminGroupDetail"));
+
+// Lazy — group routes
+const GroupDashboard = lazy(() => import("./pages/GroupDashboard"));
+const GroupBudget = lazy(() => import("./pages/GroupBudget"));
+const AdvisorGroupList = lazy(() => import("./pages/AdvisorGroupList"));
+const AdvisorGroupDashboard = lazy(() => import("./pages/AdvisorGroupDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -87,6 +95,11 @@ const App = () => (
           <AuthProvider>
             <ViewModeProvider>
             <ScrollToTop />
+            <Suspense fallback={
+              <div className="flex h-screen items-center justify-center bg-background">
+                <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+            }>
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
@@ -127,6 +140,7 @@ const App = () => (
               <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </ViewModeProvider>
           </AuthProvider>
         </BrowserRouter>
