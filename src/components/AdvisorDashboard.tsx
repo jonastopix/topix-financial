@@ -305,7 +305,7 @@ const AdvisorDashboard = () => {
         (supabase
           .from("financial_report_facts")
           .select("company_id, committed_at, period_key")
-          .gte("committed_at", weekAgo)
+          .gte("committed_at", twoWeeksAgo)
           .order("committed_at", { ascending: false })
           .limit(20) as any),
         supabase
