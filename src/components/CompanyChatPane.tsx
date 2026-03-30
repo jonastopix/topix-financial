@@ -1884,7 +1884,7 @@ const CompanyChatPane = () => {
                       </Popover>
 
                       {/* Acknowledge button */}
-                      {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
+                      {isAdvisor && activeConv && !isGroupThread && activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
                         <button
                           onClick={handleAcknowledge}
                           title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
@@ -1896,7 +1896,7 @@ const CompanyChatPane = () => {
                       )}
 
                       {/* Active snooze indicator */}
-                      {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' &&
+                      {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' &&
                         activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && !isMobile && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                           <Clock className="h-3 w-3" />
@@ -1914,7 +1914,7 @@ const CompanyChatPane = () => {
                       {/* Desktop: inline snooze + resolve controls */}
                       {!isMobile && (
                         <>
-                          {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                          {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' && (
                             <Popover open={snoozePopoverOpen} onOpenChange={(open) => { setSnoozePopoverOpen(open); if (!open) setSnoozeShowCalendar(false); }}>
                               <PopoverTrigger asChild>
                                 <button
@@ -2044,7 +2044,7 @@ const CompanyChatPane = () => {
                                 </div>
                               )}
 
-                              {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                              {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' && (
                                 <>
                                   <button
                                     onClick={() => { handleSnooze(getSnoozeDate('tomorrow')); setMobileActionsDrawerOpen(false); }}
