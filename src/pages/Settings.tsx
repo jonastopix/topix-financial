@@ -671,9 +671,11 @@ const Settings = () => {
 
   // Settings is available to all authenticated users (personal profile settings)
 
+  const [activeTab, setActiveTab] = useState<"virksomhed" | "profil" | "notifikationer">("virksomhed");
+
   return (
     <AppLayout>
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
           <SettingsIcon className="h-6 w-6 text-primary" />
           Indstillinger
@@ -683,425 +685,484 @@ const Settings = () => {
         </p>
       </div>
 
-      <div className="max-w-xl space-y-6">
-        {/* Profile section */}
-        <div className="glass-card rounded-xl p-6 animate-fade-in">
-          <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" />
-            Profil
-          </h2>
-          {/* Avatar upload */}
-          <div className="flex items-center gap-4 mb-5">
-            <div className="h-16 w-16 rounded-full bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Profilbillede" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-lg font-semibold text-muted-foreground">
-                  {getInitials(fullName || user?.email || "?")}
-                </span>
-              )}
-            </div>
-            <div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="hidden"
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={uploadingAvatar}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-                >
-                  {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {avatarUrl ? "Skift billede" : "Upload billede"}
-                </button>
-                {avatarUrl && (
-                  <button
-                    onClick={handleRemoveAvatar}
-                    disabled={uploadingAvatar}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Fjern
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                Fulde navn
-              </label>
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="Dit fulde navn"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                E-mail
-              </label>
-              <input
-                value={user?.email || ""}
-                disabled
-                className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-sm text-muted-foreground cursor-not-allowed"
-              />
-            </div>
-          </div>
+      <div className="flex gap-1 border-b border-border mb-6">
+        {([
+          { key: "virksomhed", label: "Virksomhed" },
+          { key: "profil", label: "Profil & adgangskode" },
+          { key: "notifikationer", label: "Notifikationer" },
+        ] as const).map(tab => (
           <button
-            onClick={handleSave}
-            disabled={saving}
-            className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Gem profil
+            {tab.label}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {/* Circle profile section */}
-        <CircleProfileSection userId={user?.id} />
+      <div className="max-w-xl space-y-6">
+        {/* ── Tab 1: Virksomhed ── */}
+        {activeTab === "virksomhed" && (
+          <>
+            {/* Company section */}
+            {company && (
+              <div className="glass-card rounded-xl p-6 animate-fade-in">
+                <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  Virksomhed
+                </h2>
+                {/* Logo upload */}
+                <div className="mb-5">
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Logo
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-lg bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="Virksomhedslogo" className="h-full w-full object-contain" />
+                      ) : (
+                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                      >
+                        {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {logoUrl ? "Skift logo" : "Upload logo"}
+                      </button>
+                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Virksomhedsnavn
+                    </label>
+                    <input
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                        <Hash className="inline h-3 w-3 mr-1" />CVR
+                      </label>
+                      <input
+                        value={cvrNumber}
+                        onChange={(e) => setCvrNumber(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="12345678"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                        <Globe className="inline h-3 w-3 mr-1" />Hjemmeside
+                      </label>
+                      <input
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                        <Phone className="inline h-3 w-3 mr-1" />Kontaktperson
+                      </label>
+                      <input
+                        value={contactPerson}
+                        onChange={(e) => setContactPerson(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                        <Phone className="inline h-3 w-3 mr-1" />Telefon
+                      </label>
+                      <input
+                        value={contactPhone}
+                        onChange={(e) => setContactPhone(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <Mail className="inline h-3 w-3 mr-1" />Kontakt-email
+                    </label>
+                    <input
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <Briefcase className="inline h-3 w-3 mr-1" />Branche
+                    </label>
+                    {(() => {
+                      const allSubs = INDUSTRY_OPTIONS.flatMap(g => g.sub);
+                      return (
+                        <Select value={industryCode} onValueChange={(v) => {
+                          setIndustryCode(v);
+                          const found = allSubs.find(s => s.value === v);
+                          setIndustryLabel(found?.label || "");
+                        }}>
+                          <SelectTrigger className="w-full bg-secondary border-border text-sm">
+                            <SelectValue placeholder="Vælg branche" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {INDUSTRY_OPTIONS.map(group => (
+                              <div key={group.value}>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {group.label}
+                                </div>
+                                {group.sub.map(sub => (
+                                  <SelectItem key={sub.value} value={sub.value} className="pl-4">
+                                    {sub.label}
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                  </div>
+                </div>
+                <button
+                  onClick={handleSaveCompany}
+                  disabled={savingCompany}
+                  className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {savingCompany ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Gem virksomhed
+                </button>
+              </div>
+            )}
 
-        {/* Company section */}
-        {company && (
-          <div className="glass-card rounded-xl p-6 animate-fade-in">
-            <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              Virksomhed
-            </h2>
-            {/* Logo upload */}
-            <div className="mb-5">
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Logo
-              </label>
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-lg bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Virksomhedslogo" className="h-full w-full object-contain" />
+            {/* Team invitations */}
+            <CompanyInvitations />
+
+            {/* Ugens Fokus toggle — member only */}
+            {!isAdvisor && !isAdmin && company && (
+              <div className="glass-card rounded-xl p-6 animate-fade-in">
+                <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Ugens Fokus
+                </h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Få en ugentlig AI-analyse med konkrete handlinger baseret på dine rapporter, milestones og handouts.
+                </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Aktivér Ugens Fokus</p>
+                    <p className="text-xs text-muted-foreground">
+                      Analysen kører hver mandag morgen og kræver mindst én rapport, milestone og handout.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={weeklyFocusEnabled}
+                    onCheckedChange={async (next) => {
+                      setWeeklyFocusEnabled(next);
+                      const { error } = await supabase
+                        .from("companies")
+                        .update({ weekly_focus_enabled: next } as any)
+                        .eq("id", company.id);
+                      if (error) {
+                        setWeeklyFocusEnabled(!next);
+                        toast.error("Kunne ikke ændre indstillingen");
+                        return;
+                      }
+                      toast.success(next ? "Ugens Fokus aktiveret" : "Ugens Fokus deaktiveret");
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Konto */}
+            <div className="glass-card rounded-xl p-6 animate-fade-in">
+              <h2 className="font-display font-semibold text-foreground mb-3">Konto</h2>
+              <p className="text-xs text-muted-foreground">
+                Logget ind som <span className="font-medium text-foreground">{user?.email}</span>
+              </p>
+            </div>
+
+            {/* Danger zone — members only */}
+            {!isAdvisor && !isAdmin && company && (
+              <div className="glass-card rounded-xl overflow-hidden animate-fade-in border border-destructive/20">
+                <div className="px-6 py-4 flex items-center gap-2 border-b border-destructive/20 bg-destructive/5">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  <span className="font-display font-semibold text-destructive">
+                    Farlig zone
+                  </span>
+                </div>
+                <div className="p-6">
+                  <p className="text-sm font-medium text-foreground mb-1">Forlad virksomhed</p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Du mister adgang til alle data og rapporter. 
+                    Denne handling kan ikke fortrydes.
+                  </p>
+                  <button
+                    onClick={() => { setLeaveConfirmName(""); setLeaveDialogOpen(true); }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-destructive/40 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Forlad {company.name}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Tab 2: Profil & adgangskode ── */}
+        {activeTab === "profil" && (
+          <>
+            {/* Profile section */}
+            <div className="glass-card rounded-xl p-6 animate-fade-in">
+              <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" />
+                Profil
+              </h2>
+              {/* Avatar upload */}
+              <div className="flex items-center gap-4 mb-5">
+                <div className="h-16 w-16 rounded-full bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profilbillede" className="h-full w-full object-cover" />
                   ) : (
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-lg font-semibold text-muted-foreground">
+                      {getInitials(fullName || user?.email || "?")}
+                    </span>
                   )}
                 </div>
                 <div>
                   <input
-                    ref={fileInputRef}
+                    ref={avatarInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={handleLogoUpload}
+                    onChange={handleAvatarUpload}
                     className="hidden"
                   />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingLogo}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-                  >
-                    {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    {logoUrl ? "Skift logo" : "Upload logo"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={uploadingAvatar}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                    >
+                      {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      {avatarUrl ? "Skift billede" : "Upload billede"}
+                    </button>
+                    {avatarUrl && (
+                      <button
+                        onClick={handleRemoveAvatar}
+                        disabled={uploadingAvatar}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Fjern
+                      </button>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              {companyField("Virksomhedsnavn", "name", "Virksomhedsnavn", <Building2 className="h-4 w-4" />)}
-              {(() => {
-                const name = companyForm.name;
-                const needsUpdate = name.toLowerCase().endsWith("s virksomhed") ||
-                  name.toLowerCase() === "ny bruger" ||
-                  name.trim().length < 3;
-                return needsUpdate ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 -mt-2 mb-1">
-                    Dette ser ud til at være et automatisk genereret navn — opdater
-                    det til dit rigtige virksomhedsnavn.
-                  </p>
-                ) : null;
-              })()}
-              {companyField("CVR-nummer", "cvr_number", "12345678", <Hash className="h-4 w-4" />)}
-              {companyField("Kontakt e-mail", "contact_email", "kontakt@firma.dk")}
-              {companyField("Hjemmeside", "website", "https://firma.dk", <Globe className="h-4 w-4" />)}
-              {companyField("Telefon", "contact_phone", "+45 12 34 56 78", <Phone className="h-4 w-4" />)}
-              {/* Industry two-level dropdown */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Branche
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <Select
-                    value={selectedMainCategory}
-                    onValueChange={(val) => {
-                      setSelectedMainCategory(val);
-                      // Reset subcategory when main changes
-                      const cat = INDUSTRY_OPTIONS.find(c => c.value === val);
-                      if (cat && cat.sub.length === 1) {
-                        // Auto-select if only one sub
-                        setCompanyForm(p => ({ ...p, industry_code: cat.sub[0].value, industry_label: cat.sub[0].label }));
-                      } else {
-                        setCompanyForm(p => ({ ...p, industry_code: "", industry_label: "" }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue placeholder="Vælg kategori" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60 overflow-y-auto">
-                      {INDUSTRY_OPTIONS.map(cat => (
-                        <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {selectedMainCategory && (() => {
-                    const cat = INDUSTRY_OPTIONS.find(c => c.value === selectedMainCategory);
-                    if (!cat || cat.sub.length <= 1) return null;
-                    return (
-                      <Select
-                        value={companyForm.industry_code}
-                        onValueChange={(val) => {
-                          const sub = cat.sub.find(s => s.value === val);
-                          setCompanyForm(p => ({ ...p, industry_code: val, industry_label: sub?.label || "" }));
-                        }}
-                      >
-                        <SelectTrigger className="bg-secondary border-border">
-                          <SelectValue placeholder="Vælg underkategori" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60 overflow-y-auto">
-                          {cat.sub.map(s => (
-                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })()}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Fuldt navn
+                  </label>
+                  <input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    E-mail
+                  </label>
+                  <input
+                    value={user?.email || ""}
+                    disabled
+                    className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-sm text-muted-foreground cursor-not-allowed"
+                  />
                 </div>
               </div>
-            </div>
-            <button
-              onClick={handleSaveCompany}
-              disabled={savingCompany}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {savingCompany ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Gem virksomhed
-            </button>
-          </div>
-        )}
-
-        {/* Team invitations */}
-        <CompanyInvitations />
-
-        {/* Change password */}
-        <div className="glass-card rounded-xl p-6 animate-fade-in">
-          <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Lock className="h-4 w-4 text-primary" />
-            Skift adgangskode
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                Nuværende adgangskode
-              </label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="••••••••"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                Ny adgangskode
-              </label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="••••••••"
-              />
-            </div>
-            <PasswordStrengthIndicator password={newPassword} />
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                Bekræft ny adgangskode
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="••••••••"
-              />
-              {confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-xs text-destructive mt-1">Adgangskoderne matcher ikke</p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleChangePassword}
-            disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
-            className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Opdater adgangskode
-          </button>
-        </div>
-
-        {/* Linked login methods */}
-        <LinkedLoginMethods />
-
-        {/* Email notification preferences */}
-        {!isAdvisor && !isAdmin && (
-          <div className="glass-card rounded-xl p-6 animate-fade-in">
-            <h2 className="font-display font-semibold text-foreground mb-1">
-              Email-notifikationer
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Vælg hvilke emails du vil modtage. App-notifikationer påvirkes ikke.
-            </p>
-            <div className="space-y-3">
-              {[
-                { key: "action_required", label: "Vigtige handlinger", desc: "Rapport klar til gennemgang, manuel indtastning påkrævet" },
-                { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet" },
-              ].map(({ key, label, desc }) => (
-                <div key={key} className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{label}</p>
-                    <p className="text-xs text-muted-foreground">{desc}</p>
-                  </div>
-                  <button
-                    onClick={() => setEmailPrefs(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
-                      transition-colors duration-200 focus:outline-none mt-0.5
-                      ${emailPrefs[key as keyof typeof emailPrefs] ? "bg-primary" : "bg-muted"}`}
-                    role="switch"
-                    aria-checked={emailPrefs[key as keyof typeof emailPrefs]}
-                  >
-                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
-                      transition-transform duration-200
-                      ${emailPrefs[key as keyof typeof emailPrefs] ? "translate-x-4" : "translate-x-0"}`}
-                    />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={async () => {
-                if (!user) return;
-                setSavingPrefs(true);
-                await supabase
-                  .from("profiles")
-                  .update({ notification_email_prefs: emailPrefs } as any)
-                  .eq("user_id", user.id);
-                setSavingPrefs(false);
-                toast.success("Notifikationsindstillinger gemt");
-              }}
-              disabled={savingPrefs}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg 
-                bg-primary text-primary-foreground text-sm font-medium 
-                hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {savingPrefs ? "Gemmer..." : "Gem indstillinger"}
-            </button>
-          </div>
-        )}
-
-        {/* Ugens Fokus toggle — member only */}
-        {!isAdvisor && !isAdmin && company && (
-          <div className="glass-card rounded-xl p-6 animate-fade-in">
-            <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Ugens Fokus
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Få en ugentlig AI-analyse med konkrete handlinger baseret på dine rapporter, milestones og handouts.
-            </p>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-foreground">Aktivér Ugens Fokus</p>
-                <p className="text-xs text-muted-foreground">
-                  Analysen kører hver mandag morgen og kræver mindst én rapport, milestone og handout.
-                </p>
-              </div>
-              <Switch
-                checked={weeklyFocusEnabled}
-                onCheckedChange={async (next) => {
-                  setWeeklyFocusEnabled(next);
-                  const { error } = await supabase
-                    .from("companies")
-                    .update({ weekly_focus_enabled: next } as any)
-                    .eq("id", company.id);
-                  if (error) {
-                    setWeeklyFocusEnabled(!next);
-                    toast.error("Kunne ikke ændre indstillingen");
-                    return;
-                  }
-                  toast.success(next ? "Ugens Fokus aktiveret" : "Ugens Fokus deaktiveret");
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-
-        {(isAdvisor || isAdmin) && (
-          <div className="glass-card rounded-xl p-6 animate-fade-in">
-            <h2 className="font-display font-semibold text-foreground mb-1">
-              Notifikationer
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Du modtager Slack-notifikationer for al member-aktivitet. 
-              Email-notifikationer er deaktiveret for advisors.
-            </p>
-            <div className="rounded-lg bg-muted/30 border border-border/50 p-3">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">In-app notifikationer</span>
-                {" "}— Direkte beskeder fra members vises som vigtige. 
-                Rapporter, pulse og handouts vises som aktivitet uden badge.
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="glass-card rounded-xl p-6 animate-fade-in">
-          <h2 className="font-display font-semibold text-foreground mb-3">Konto</h2>
-          <p className="text-xs text-muted-foreground">
-            Logget ind som <span className="font-medium text-foreground">{user?.email}</span>
-          </p>
-        </div>
-
-        {/* Danger zone — members only */}
-        {!isAdvisor && !isAdmin && company && (
-          <div className="glass-card rounded-xl overflow-hidden animate-fade-in border border-destructive/20">
-            <div className="px-6 py-4 flex items-center gap-2 border-b border-destructive/20 bg-destructive/5">
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-              <span className="font-display font-semibold text-destructive">
-                Farlig zone
-              </span>
-            </div>
-            <div className="p-6">
-              <p className="text-sm font-medium text-foreground mb-1">Forlad virksomhed</p>
-              <p className="text-xs text-muted-foreground mb-4">
-                Du mister adgang til alle data og rapporter. 
-                Denne handling kan ikke fortrydes.
-              </p>
               <button
-                onClick={() => { setLeaveConfirmName(""); setLeaveDialogOpen(true); }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-destructive/40 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors"
+                onClick={handleSave}
+                disabled={saving}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                <LogOut className="h-4 w-4" />
-                Forlad {company.name}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Gem profil
               </button>
             </div>
-          </div>
+
+            {/* Circle profile section */}
+            <CircleProfileSection userId={user?.id} />
+
+            {/* Change password */}
+            <div className="glass-card rounded-xl p-6 animate-fade-in">
+              <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Lock className="h-4 w-4 text-primary" />
+                Skift adgangskode
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Nuværende adgangskode
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Ny adgangskode
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <PasswordStrengthIndicator password={newPassword} />
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Bekræft ny adgangskode
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="••••••••"
+                  />
+                  {confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-xs text-destructive mt-1">Adgangskoderne matcher ikke</p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Opdater adgangskode
+              </button>
+            </div>
+
+            {/* Linked login methods */}
+            <LinkedLoginMethods />
+          </>
+        )}
+
+        {/* ── Tab 3: Notifikationer ── */}
+        {activeTab === "notifikationer" && (
+          <>
+            {!isAdvisor && !isAdmin && (
+              <div className="glass-card rounded-xl p-6 animate-fade-in">
+                <h2 className="font-display font-semibold text-foreground mb-1">
+                  Email-notifikationer
+                </h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Vælg hvilke emails du vil modtage. App-notifikationer påvirkes ikke.
+                </p>
+                <div className="space-y-3">
+                  {[
+                    { key: "action_required", label: "Vigtige handlinger", desc: "Rapport klar til gennemgang, manuel indtastning påkrævet" },
+                    { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet" },
+                  ].map(({ key, label, desc }) => (
+                    <div key={key} className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{label}</p>
+                        <p className="text-xs text-muted-foreground">{desc}</p>
+                      </div>
+                      <button
+                        onClick={() => setEmailPrefs(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
+                          transition-colors duration-200 focus:outline-none mt-0.5
+                          ${emailPrefs[key as keyof typeof emailPrefs] ? "bg-primary" : "bg-muted"}`}
+                        role="switch"
+                        aria-checked={emailPrefs[key as keyof typeof emailPrefs]}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
+                          transition-transform duration-200
+                          ${emailPrefs[key as keyof typeof emailPrefs] ? "translate-x-4" : "translate-x-0"}`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    setSavingPrefs(true);
+                    await supabase
+                      .from("profiles")
+                      .update({ notification_email_prefs: emailPrefs } as any)
+                      .eq("user_id", user.id);
+                    setSavingPrefs(false);
+                    toast.success("Notifikationsindstillinger gemt");
+                  }}
+                  disabled={savingPrefs}
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg 
+                    bg-primary text-primary-foreground text-sm font-medium 
+                    hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {savingPrefs ? "Gemmer..." : "Gem indstillinger"}
+                </button>
+              </div>
+            )}
+
+            {(isAdvisor || isAdmin) && (
+              <div className="glass-card rounded-xl p-6 animate-fade-in">
+                <h2 className="font-display font-semibold text-foreground mb-1">
+                  Notifikationer
+                </h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Du modtager Slack-notifikationer for al member-aktivitet. 
+                  Email-notifikationer er deaktiveret for advisors.
+                </p>
+                <div className="rounded-lg bg-muted/30 border border-border/50 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">In-app notifikationer</span>
+                    {" "}— Direkte beskeder fra members vises som vigtige. 
+                    Rapporter, pulse og handouts vises som aktivitet uden badge.
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
