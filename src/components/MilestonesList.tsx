@@ -187,7 +187,17 @@ const MilestoneCard = ({
                     <BookOpen className="h-2.5 w-2.5" /> Fra handout
                   </span>
                 )
-              )}
+               )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateField(ms.id, { status: ms.status === "parked" ? "active" : "parked" });
+                }}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-muted-foreground/60 hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                title={ms.status === "parked" ? "Genaktivér" : "Parker i køleskab"}
+              >
+                <Archive className="h-3.5 w-3.5" />
+              </button>
               <button onClick={() => setDetailOpen(true)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
