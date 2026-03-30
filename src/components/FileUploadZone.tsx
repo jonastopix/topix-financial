@@ -947,7 +947,9 @@ const FileUploadZone = ({
                   <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {file.status === "uploading" && "Opretter rapport..."}
-                    {file.status === "processing" && "Udtrækker nøgletal..."}
+                    {file.status === "processing" && (
+                      <span>Udtrækker nøgletal… <span className="text-muted-foreground/70">(typisk 20-40 sek.)</span></span>
+                    )}
                     {file.status === "analyzing" && (
                       <span className="flex items-center gap-1">
                         <Sparkles className="h-3 w-3 text-primary" />

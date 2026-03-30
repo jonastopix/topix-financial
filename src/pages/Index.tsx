@@ -484,7 +484,9 @@ const Dashboard = () => {
               title="Bank"
               value={kpiData.bank != null ? formatDKK(kpiData.bank) : "—"}
               sparkline={spark.bank.length >= 2 ? spark.bank : undefined}
-              subtitle={kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo"}
+              subtitle={kpiData.bank != null
+                ? (kpiData.bankPeriod ? `saldo (${kpiData.bankPeriod})` : "saldo")
+                : "ikke i rapporten — upload saldobalance"}
               icon={<Wallet className="h-4 w-4" />}
               accentColor="blue"
             />
