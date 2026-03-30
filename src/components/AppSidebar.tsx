@@ -378,21 +378,31 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                         <DrawerTitle>Vælg virksomhed</DrawerTitle>
                       </DrawerHeader>
                       <div className="px-4 pb-4 max-h-[60vh] overflow-y-auto space-y-1">
+                        <div className="mb-2">
+                          <input
+                            type="text"
+                            value={companySearch}
+                            onChange={(e) => setCompanySearch(e.target.value)}
+                            placeholder="Søg virksomhed..."
+                            className="w-full px-3 py-2 text-sm rounded-lg bg-secondary border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
+                          />
+                        </div>
                         {isCompanyOverride && (
                           <button
-                            onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); }}
+                            onClick={() => { clearCompanyOverride(); setShowCompanyPicker(false); setCompanySearch(""); }}
                             className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-colors border-b border-border mb-1"
                           >
                             <EyeOff className="h-4 w-4" />
                             Tilbage til {ownCompanyName || "min virksomhed"}
                           </button>
                         )}
-                        {allCompanies?.map((c) => (
+                        {filteredCompanies.map((c) => (
                           <button
                             key={c.id}
                             onClick={() => {
                               setCompanyOverride(c.id, c.name);
                               setShowCompanyPicker(false);
+                              setCompanySearch("");
                             }}
                             className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm hover:bg-secondary/60 transition-colors text-foreground"
                           >
