@@ -139,6 +139,7 @@ async function processCompany(
     .select("id")
     .eq("company_id", company.id)
     .lt("progress", 100)
+    .neq("status", "parked")
     .limit(1);
 
   const { data: handouts } = await admin
