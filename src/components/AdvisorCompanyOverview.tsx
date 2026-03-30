@@ -583,6 +583,7 @@ const AdvisorCompanyOverview = () => {
         const first = tl[0].value;
         const last = tl[tl.length - 1].value;
         const totalDelta = first !== 0 ? Math.round(((last - first) / Math.abs(first)) * 100) : 0;
+        if (Math.abs(totalDelta) < 5) return null;
         const isPositive = last >= first;
         const lineColor = isPositive ? "#1D9E75" : "#E24B4A";
         return (
