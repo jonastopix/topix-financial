@@ -742,14 +742,30 @@ const AdvisorDashboard = () => {
   const { data: advisorProfiles = [] } = useQuery({
     queryKey: ["advisor-profiles"],
     queryFn: async () => {
+      // Primary: use DB function
       const { data, error } = await supabase.rpc("get_all_advisor_profiles");
       if (!error && data && data.length > 0) {
         return data.map((r: any) => ({
           user_id: r.user_id,
           full_name: r.full_name || "Ukendt",
-        })) as { user_id: string; full_name: string }[];
+        }));
       }
-      return [] as { user_id: string; full_name: string }[];
+      console.warn("[advisor-profiles] RPC failed or empty, error:", error);
+      // Fallback: use user_roles + profiles directly
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["advisor", "admin"]);
+      if (!roles || roles.length === 0) return [];
+      const userIds = roles.map(r => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+      return (profiles || []).map(p => ({
+        user_id: p.user_id,
+        full_name: p.full_name || "Ukendt",
+      }));
     },
     enabled: !!user,
     staleTime: 10 * 60_000,

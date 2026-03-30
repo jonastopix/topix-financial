@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MessageSquare, FileCheck, Wallet, TrendingDown, Clock, AlertTriangle, CheckCircle2, ChevronRight, X, UserCheck } from "lucide-react";
 
 interface Reason {
