@@ -169,6 +169,11 @@ const MilestoneCard = ({
                   <Sparkles className="h-2.5 w-2.5" /> AI
                 </span>
               )}
+              {ms.source === "handout" && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <BookOpen className="h-2.5 w-2.5" /> Fra handout
+                </span>
+              )}
               <button onClick={() => setDetailOpen(true)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
