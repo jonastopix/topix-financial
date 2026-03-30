@@ -47,6 +47,8 @@ const Dashboard = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [showTour, setShowTour] = useState(false);
+  const [showPulseModal, setShowPulseModal] = useState(false);
+  const queryClient = useQueryClient();
 
   const shouldShowTour = !rawAdvisor && profile && !profile.tour_completed_at;
   const [tourTriggered, setTourTriggered] = useState(false);
