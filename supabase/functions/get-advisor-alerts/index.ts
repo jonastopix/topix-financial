@@ -7,17 +7,19 @@ Deno.serve(async (req) => {
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
   const { callerId } = auth;
+  console.log("[get-advisor-alerts] callerId:", callerId);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   // Verify caller is advisor or admin (user_roles has no user-facing SELECT RLS)
-  const { data: roleRow } = await adminClient
+  const { data: roleRow, error: roleError } = await adminClient
     .from("user_roles").select("role").eq("user_id", callerId)
     .in("role", ["advisor", "admin"]).maybeSingle();
+  console.log("[get-advisor-alerts] roleRow:", roleRow, "roleError:", roleError);
   if (!roleRow) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
   // Fetch all financial alerts from last 60 days, one per company+type (latest only)
