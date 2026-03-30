@@ -1914,7 +1914,7 @@ const CompanyChatPane = () => {
                       {/* Desktop: inline snooze + resolve controls */}
                       {!isMobile && (
                         <>
-                          {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                          {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' && (
                             <Popover open={snoozePopoverOpen} onOpenChange={(open) => { setSnoozePopoverOpen(open); if (!open) setSnoozeShowCalendar(false); }}>
                               <PopoverTrigger asChild>
                                 <button
