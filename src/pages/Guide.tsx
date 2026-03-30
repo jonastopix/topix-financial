@@ -79,8 +79,8 @@ const founderTips = [
 /* ── Advisor data ── */
 
 const advisorWorkflow = [
-  { step: 1, title: "Tjek prioriteringskøen", desc: "Åbn dashboardet. Øverst ser du hvilke virksomheder der kræver handling nu — ubesvarede beskeder, rapport klar til godkendelse, finansielle alerts.", link: "/", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
-  { step: 2, title: "Godkend rapporter", desc: "Skift til virksomheden via 'Vis som virksomhed' → åbn Rapportering → klik 'Tryk for at godkende' på en klar rapport → godkend i review-dialogen.", link: "/reports", icon: ClipboardList, color: "text-primary bg-primary/10" },
+  { step: 1, title: "Tjek prioriteringskøen", desc: "Åbn dashboardet. Øverst ser du hvilke virksomheder der kræver handling nu — ubesvarede beskeder, finansielle alerts og manglende rapporter.", link: "/", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
+  { step: 2, title: "Følg op på rapportering", desc: "Se hvilke founders der mangler at uploade eller godkende deres rapport. Send en påmindelse via chatten hvis nødvendigt.", link: "/members", icon: ClipboardList, color: "text-primary bg-primary/10" },
   { step: 3, title: "Svar i chatten", desc: "Virksomheder der afventer svar vises med rød markering. Klik direkte fra prioriteringskøen for at åbne den rette samtale.", link: "/chat", icon: MessageCircle, color: "text-chart-info bg-chart-info/10" },
   { step: 4, title: "Kommentér på KPI-grafer", desc: "Når du er inde på en virksomheds KPI-side, kan du pinne kommentarer direkte på graferne. Founder modtager automatisk en notifikation.", link: "/kpis", icon: TrendingUp, color: "text-chart-info bg-chart-info/10" },
   { step: 5, title: "Send broadcast ved behov", desc: "Skal alle founders have samme besked? Brug broadcast-funktionen i member-oversigten. Du kan vælge specifikke modtagere.", link: "/members", icon: Send, color: "text-chart-warning bg-chart-warning/10" },
@@ -95,7 +95,7 @@ const advisorFeatures = [
     tips: ["Filter på 'Ubesvaret' for hurtigt at se hvem der venter", "Udvid et medlem for at se login-aktivitet og Circle-status", "Send invitation direkte herfra til nye membres"] },
   { icon: ClipboardList, title: "Review Queue", path: "/admin/review-queue", color: "text-primary", bg: "bg-primary/10",
     desc: "Diagnostisk oversigt over rapporter med pipeline-flags (AI blocked, validation fail, osv.). Bruges til fejlfinding — ikke til godkendelse.",
-    tips: ["Klik pilen for at åbne debug-detaljer for en rapport", "Godkendelse sker via Rapportering under den konkrete virksomhed", "Filtrér på extraction method, validation status eller AI eligibility"] },
+    tips: ["Klik pilen for at åbne debug-detaljer for en rapport", "Founders uploader og godkender selv deres rapporter", "Filtrér på extraction method, validation status eller AI eligibility"] },
   { icon: Bell, title: "Finansielle alerts", path: "/", color: "text-destructive", bg: "bg-destructive/10",
     desc: "Automatisk overvågning: omsætningsfald >15%, bankovertræk og negativt resultat vises i alerts-panelet.",
     tips: ["Alerts trigges automatisk ved nye committede rapporter", "Klik en alert for at gå direkte til virksomhedens chat", "Alerts vises i 60 dage"] },
@@ -109,7 +109,7 @@ const advisorFeatures = [
 
 const advisorShortcuts = [
   { situation: "Virksomhed afventer svar", action: "Klik virksomhed i prioriteringskø → åbner chatten direkte" },
-  { situation: "Ny rapport uploadet", action: "'Vis som virksomhed' → Rapportering → klik 'Tryk for at godkende' → godkend i dialogen" },
+  { situation: "Founder mangler rapport", action: "Medlemmer → se status → send påmindelse via chat" },
   { situation: "Skift til en anden virksomhed", action: "Scroll ned i sidebar → 'Vis som virksomhed' → søg" },
   { situation: "Se virksomhed som founder", action: "'Vis som virksomhed' + 'Vis som medlem' i sidebar" },
   { situation: "Send månedlig digest", action: "Admin → E-mail skabeloner → 'Send digest nu'" },
