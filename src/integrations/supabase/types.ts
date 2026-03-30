@@ -2444,6 +2444,7 @@ export type Database = {
           logo_url: string
           missing_current_period: boolean
           revenue: number
+          revenue_prev: number
         }[]
       }
       get_my_group_budget_summary: { Args: { p_year: string }; Returns: Json }
@@ -2463,6 +2464,7 @@ export type Database = {
           logo_url: string
           missing_current_period: boolean
           revenue: number
+          revenue_prev: number
         }[]
       }
       get_report_commit_preview: {

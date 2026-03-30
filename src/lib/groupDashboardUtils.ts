@@ -17,6 +17,7 @@ export interface GroupCompanySummary {
   ebt: number | null;
   cash: number | null;
   missing_current_period: boolean;
+  revenue_prev?: number | null;
   has_pulse?: boolean;
 }
 
@@ -28,6 +29,7 @@ export interface GroupAggregates {
   companiesWithMetrics: number;
   companiesTotal: number;
   companiesMissingPeriod: number;
+  totalRevenueTrendPct: number | null;
 }
 
 /**
@@ -44,6 +46,7 @@ export function buildGroupAggregates(companies: GroupCompanySummary[]): GroupAgg
       companiesWithMetrics: 0,
       companiesTotal: 0,
       companiesMissingPeriod: 0,
+      totalRevenueTrendPct: null,
     };
   }
 
@@ -51,6 +54,7 @@ export function buildGroupAggregates(companies: GroupCompanySummary[]): GroupAgg
   let totalGrossProfit = 0;
   let totalEbt = 0;
   let totalCash = 0;
+  let totalRevenuePrev = 0;
   let companiesWithMetrics = 0;
   let companiesMissingPeriod = 0;
 
@@ -61,11 +65,16 @@ export function buildGroupAggregates(companies: GroupCompanySummary[]): GroupAgg
       totalGrossProfit += c.gross_profit ?? 0;
       totalEbt += c.ebt ?? 0;
       totalCash += c.cash ?? 0;
+      totalRevenuePrev += c.revenue_prev ?? 0;
     }
     if (c.missing_current_period) {
       companiesMissingPeriod++;
     }
   }
+
+  const totalRevenueTrendPct = totalRevenuePrev > 0
+    ? ((totalRevenue - totalRevenuePrev) / totalRevenuePrev) * 100
+    : null;
 
   return {
     totalRevenue,
@@ -75,6 +84,7 @@ export function buildGroupAggregates(companies: GroupCompanySummary[]): GroupAgg
     companiesWithMetrics,
     companiesTotal: companies.length,
     companiesMissingPeriod,
+    totalRevenueTrendPct,
   };
 }
 

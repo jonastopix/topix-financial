@@ -38,6 +38,7 @@ interface GroupDashboardContentProps {
   groupName: string | null;
   actions?: React.ReactNode;
   onCompanyClick?: (companyId: string, companyName: string) => void;
+  onUploadClick?: (companyId: string, companyName: string) => void;
 }
 
 const GroupDashboardContent = ({
@@ -47,6 +48,7 @@ const GroupDashboardContent = ({
   groupName,
   actions,
   onCompanyClick,
+  onUploadClick,
 }: GroupDashboardContentProps) => {
   const [filter, setFilter] = useState<FilterTab>("alle");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
@@ -74,7 +76,13 @@ const GroupDashboardContent = ({
       switch (sortKey) {
         case "revenue": return (b.revenue ?? 0) - (a.revenue ?? 0);
         case "ebt": return (b.ebt ?? 0) - (a.ebt ?? 0);
-        case "trend": return (b.ebt ?? 0) - (a.ebt ?? 0);
+        case "trend": {
+          const tA = a.revenue != null && a.revenue_prev != null && a.revenue_prev > 0
+            ? ((a.revenue - a.revenue_prev) / a.revenue_prev) * 100 : -Infinity;
+          const tB = b.revenue != null && b.revenue_prev != null && b.revenue_prev > 0
+            ? ((b.revenue - b.revenue_prev) / b.revenue_prev) * 100 : -Infinity;
+          return tB - tA;
+        }
         default: return 0;
       }
     });
@@ -127,6 +135,11 @@ const GroupDashboardContent = ({
               icon={<DollarSign className="h-4 w-4" />}
               label="Samlet omsætning"
               value={formatDKK(aggregates.totalRevenue)}
+              extra={aggregates.totalRevenueTrendPct != null ? (
+                <span className={`text-[11px] font-medium ${aggregates.totalRevenueTrendPct >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {aggregates.totalRevenueTrendPct >= 0 ? "↑" : "↓"} {Math.abs(Math.round(aggregates.totalRevenueTrendPct))}% MoM
+                </span>
+              ) : undefined}
             />
             <MetricCard
               icon={<TrendingUp className="h-4 w-4" />}
@@ -203,13 +216,14 @@ const GroupDashboardContent = ({
                     <th className="py-2.5 px-4 text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Virksomhed</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Omsætning</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Resultat</th>
+                    <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Trend</th>
                     <th className="py-2.5 px-4 text-right text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Likviditet</th>
-                     <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Status</th>
+                    <th className="py-2.5 px-4 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredCompanies.map(c => (
-                    <CompanyTableRow key={c.company_id} company={c} onCompanyClick={onCompanyClick} />
+                    <CompanyTableRow key={c.company_id} company={c} onCompanyClick={onCompanyClick} onUploadClick={onUploadClick} />
                   ))}
                 </tbody>
               </table>
