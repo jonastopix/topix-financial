@@ -34,7 +34,7 @@ const founderFeatures = [
     icon: Target, title: "Milestones", path: "/milestones",
     color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Definer dine vigtigste mål og følg fremgangen. Rådgiverne kan se og kommentere dine milestones.",
-    tips: ["Sæt deadlines og opdatér fremgang løbende", "Milestones fra Handouts tilføjes automatisk", "Du får reminder når en deadline nærmer sig"],
+    tips: ["Sæt deadlines og opdatér fremgang løbende", "Park idéer i køleskabet — de forsvinder ikke men forstyrrer ikke overblikket", "Milestones fra Handouts tilføjes automatisk"],
   },
   {
     icon: BookOpen, title: "Handouts", path: "/handouts",
