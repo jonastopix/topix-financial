@@ -748,40 +748,6 @@ const AdvisorDashboard = () => {
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
-  const queryClient = useQueryClient();
-
-  // Fetch advisor profiles for assignment dropdown
-  const { data: advisorProfiles = [] } = useQuery({
-    queryKey: ["advisor-profiles"],
-    queryFn: async () => {
-      // Primary: use DB function
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles");
-      if (!error && data && data.length > 0) {
-        return data.map((r: any) => ({
-          user_id: r.user_id,
-          full_name: r.full_name || "Ukendt",
-        }));
-      }
-      console.warn("[advisor-profiles] RPC failed or empty, error:", error);
-      // Fallback: use user_roles + profiles directly
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("role", ["advisor", "admin"]);
-      if (!roles || roles.length === 0) return [];
-      const userIds = roles.map(r => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
-      return (profiles || []).map(p => ({
-        user_id: p.user_id,
-        full_name: p.full_name || "Ukendt",
-      }));
-    },
-    enabled: !!user,
-    staleTime: 10 * 60_000,
-  });
 
   const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
     const conv = convByCompany.get(companyId)?.[0];
