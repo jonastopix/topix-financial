@@ -1,4 +1,4 @@
-import { Building2, BarChart3, FileText } from "lucide-react";
+import { Building2, BarChart3, FileText, Calculator } from "lucide-react";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import { formatDKK } from "@/lib/financialUtils";
 
@@ -7,6 +7,7 @@ interface GroupCompanyCardProps {
   compact?: boolean;
   onCompanyClick?: (companyId: string, companyName: string) => void;
   onUploadClick?: (companyId: string, companyName: string) => void;
+  onBudgetClick?: (companyId: string, companyName: string) => void;
 }
 
 function computeTrend(c: GroupCompanySummary): number | null {
@@ -16,7 +17,7 @@ function computeTrend(c: GroupCompanySummary): number | null {
   return null;
 }
 
-export function CompanyTableRow({ company, onCompanyClick, onUploadClick }: GroupCompanyCardProps) {
+export function CompanyTableRow({ company, onCompanyClick, onUploadClick, onBudgetClick }: GroupCompanyCardProps) {
   const {
     company_id, company_name, logo_url, has_verified_metrics,
     revenue, ebt, cash, missing_current_period, has_report,
@@ -123,6 +124,16 @@ export function CompanyTableRow({ company, onCompanyClick, onUploadClick }: Grou
               >
                 <FileText className="h-3 w-3" />
                 Upload
+              </button>
+            )}
+            {onBudgetClick && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onBudgetClick(company_id, company_name); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors"
+              >
+                <Calculator className="h-3 w-3" />
+                Budget
               </button>
             )}
           </div>

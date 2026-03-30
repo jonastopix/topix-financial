@@ -29,6 +29,11 @@ const AdvisorGroupDashboard = () => {
     navigate("/reports");
   };
 
+  const handleBudgetClick = (companyId: string, companyName: string) => {
+    setCompanyOverride(companyId, companyName);
+    navigate("/budget");
+  };
+
   return (
     <AppLayout>
       <GroupDashboardContent
@@ -38,6 +43,7 @@ const AdvisorGroupDashboard = () => {
         groupName={groupName}
         onCompanyClick={handleCompanyClick}
         onUploadClick={handleUploadClick}
+        onBudgetClick={handleBudgetClick}
       />
     </AppLayout>
   );
