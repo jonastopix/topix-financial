@@ -2236,6 +2236,38 @@ const CompanyChatPane = () => {
                   </div>
                 )}
 
+                {/* Advisor context banner */}
+                {isAdvisor && activeConv && !isGroupThread && (
+                  <>
+                    <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border-b border-primary/10">
+                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {activeConv.companyLogoUrl ? (
+                          <img src={activeConv.companyLogoUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                        ) : (
+                          <span className="text-[9px] font-bold text-primary">
+                            {(activeConv.companyName || "?").slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-primary font-medium flex-1">
+                        Du svarer <span className="font-semibold">{activeConv.companyName}</span> som rådgiver
+                      </p>
+                      {activeConv.conversation_status === "open" && activeConv.awaiting_reply_from === "advisor" && (
+                        <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                          Afventer dit svar
+                        </span>
+                      )}
+                    </div>
+                    {latestPulse?.help_needed && (
+                      <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/10">
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                          <span className="font-semibold">Brug for hjælp til:</span> {latestPulse.help_needed}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {/* Messages list */}
                 <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 md:px-5 py-4 space-y-4">
                   {filteredMessages.length === 0 && !activeConvId?.startsWith("group_") && (
