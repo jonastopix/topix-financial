@@ -103,7 +103,7 @@ const DashboardActivity = () => {
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
         <Bell className="h-4 w-4 text-primary" />
-        <h3 className="font-display font-semibold text-foreground text-sm">Seneste aktivitet</h3>
+        <h3 className="font-display font-semibold text-foreground text-sm">Hvad skete der senest</h3>
       </div>
 
       {events.length === 0 ? (
