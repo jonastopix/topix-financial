@@ -6,8 +6,6 @@ import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
-import * as pdfjsLib from "pdfjs-dist";
-import * as XLSX from "xlsx";
 import { detectTemplate, extractKJAutoTemplate, templateResultToExtractedData } from "@/lib/excelTemplates";
 import { extractPdfStructural } from "@/lib/pdfStructuralExtractor";
 import {
