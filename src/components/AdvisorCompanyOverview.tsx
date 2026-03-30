@@ -339,6 +339,7 @@ const AdvisorCompanyOverview = () => {
     staleTime: 30 * 60_000,
   });
 
+  if (isLoading) {
     return (
       <div className="space-y-4">
         {[1, 2, 3].map(i => (
