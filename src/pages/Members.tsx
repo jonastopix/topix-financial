@@ -375,6 +375,7 @@ const Members = () => {
     refetchMembers();
   };
 
+  const handleRemoveMember = async (company: CompanyData, member: CompanyMember) => {
     if (member.role === 'owner') return;
     setRemovingMember(member.user_id);
     try {
