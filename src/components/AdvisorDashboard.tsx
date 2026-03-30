@@ -254,8 +254,10 @@ const AdvisorDashboard = () => {
   const { user, setCompanyOverride } = useAuth();
   const navigate = useNavigate();
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
-    queryKey: ["advisor-dashboard", user?.id],
+    queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const currentYear = new Date().getFullYear();
@@ -263,7 +265,7 @@ const AdvisorDashboard = () => {
       const [
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
-        milestonesRes, kpiTargetsRes, companyMembersRes,
+        milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -303,25 +305,27 @@ const AdvisorDashboard = () => {
           .gte("committed_at", weekAgo)
           .order("committed_at", { ascending: false })
           .limit(20) as any),
-        // Milestones — active ones
         supabase
           .from("milestones")
           .select("user_id, title, deadline, progress, status")
           .eq("status", "active")
           .order("deadline", { ascending: true }),
-        // KPI targets per company
         (supabase
           .from("kpi_targets")
           .select("company_id, kpi_key, target_value, target_label") as any),
-        // Company members to map user_id → company_id
         (supabase
           .from("company_members")
           .select("user_id, company_id") as any),
+        supabase.rpc("get_all_advisor_profiles"),
       ]);
 
       const conversations = (convRes.data || []) as ConversationRow[];
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
+      const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
+        user_id: advisor.user_id,
+        full_name: advisor.full_name || "Ukendt",
+      }));
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
 
@@ -597,7 +601,14 @@ const AdvisorDashboard = () => {
           }
 
           const primaryConv = convByCompany.get(c.company_id)?.[0];
-          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score, assigned_advisor_id: primaryConv?.assigned_advisor_id ?? null };
+          const assignedAdvisor = advisorProfiles.find((advisor) => advisor.user_id === primaryConv?.assigned_advisor_id);
+          return {
+            company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
+            reasons,
+            score,
+            assigned_advisor_id: primaryConv?.assigned_advisor_id ?? null,
+            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
+          };
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -606,7 +617,7 @@ const AdvisorDashboard = () => {
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
-        priorityItems,
+        priorityItems, advisorProfiles,
       };
     },
     enabled: !!user,
@@ -621,6 +632,7 @@ const AdvisorDashboard = () => {
   const activityFeed = data?.activityFeed || [];
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
   const priorityItems = data?.priorityItems || [];
+  const advisorProfiles = data?.advisorProfiles || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
@@ -736,40 +748,6 @@ const AdvisorDashboard = () => {
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
-  const queryClient = useQueryClient();
-
-  // Fetch advisor profiles for assignment dropdown
-  const { data: advisorProfiles = [] } = useQuery({
-    queryKey: ["advisor-profiles"],
-    queryFn: async () => {
-      // Primary: use DB function
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles");
-      if (!error && data && data.length > 0) {
-        return data.map((r: any) => ({
-          user_id: r.user_id,
-          full_name: r.full_name || "Ukendt",
-        }));
-      }
-      console.warn("[advisor-profiles] RPC failed or empty, error:", error);
-      // Fallback: use user_roles + profiles directly
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("role", ["advisor", "admin"]);
-      if (!roles || roles.length === 0) return [];
-      const userIds = roles.map(r => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
-      return (profiles || []).map(p => ({
-        user_id: p.user_id,
-        full_name: p.full_name || "Ukendt",
-      }));
-    },
-    enabled: !!user,
-    staleTime: 10 * 60_000,
-  });
 
   const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
     const conv = convByCompany.get(companyId)?.[0];
