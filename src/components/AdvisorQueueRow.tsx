@@ -77,8 +77,8 @@ export default function AdvisorQueueRow({
   return (
     <div
       className={`group relative flex items-center gap-3 p-3 rounded-lg transition-colors overflow-visible ${
-        index % 2 === 0 ? "bg-secondary/20" : "bg-transparent"
-      } hover:bg-secondary/50`}
+        index % 2 === 0 ? "bg-secondary/50 border border-border/20" : "bg-transparent"
+      } hover:bg-secondary/70`}
     >
       <button
         type="button"
