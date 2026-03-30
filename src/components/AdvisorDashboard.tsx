@@ -634,10 +634,68 @@ const AdvisorDashboard = () => {
         .sort((a, b) => b.score - a.score)
         .slice(0, 20);
 
+      // Sparring items — proactive signals for companies NOT in priority queue
+      const sparringItems = investorSummaries
+        .map(c => {
+          const signals: { label: string; hint: string }[] = [];
+
+          // T8: Rapport netop committet (inden for 7 dage)
+          const hasRecentCommit = (recentFactsRes.data || []).some((f: any) => f.company_id === c.company_id);
+          if (hasRecentCommit) {
+            signals.push({
+              label: "Ny rapport committet",
+              hint: "God tid til at gennemgå tallene og give sparring",
+            });
+          }
+
+          // T9: Positiv momentum — omsætningsvækst >10% MoM
+          if (c.revenueTrendPct != null && c.revenueTrendPct >= 10) {
+            signals.push({
+              label: `Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`,
+              hint: "Hvad driver væksten? Kan vi skalere det?",
+            });
+          }
+
+          // T10: Pulse udfyldt med help_needed
+          const pulseThisMonth = c.latestPulse != null &&
+            new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
+          if (pulseThisMonth && c.latestPulse?.help_needed) {
+            signals.push({
+              label: "Beder om hjælp",
+              hint: c.latestPulse.help_needed,
+            });
+          }
+
+          // T11: Milestone netop fuldført
+          const completedTitle = recentlyCompletedMilestones.get(c.company_id);
+          if (completedTitle) {
+            signals.push({
+              label: `Milestone nået: "${completedTitle}"`,
+              hint: "Anerkend fremgangen og sæt næste mål",
+            });
+          }
+
+          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, signals };
+        })
+        .filter(item => item.signals.length > 0)
+        .filter(item => !priorityItems.some(p => p.company.company_id === item.company.company_id))
+        .sort((a, b) => {
+          const score = (s: typeof a) => {
+            let n = 0;
+            if (s.signals.some(x => x.label === "Beder om hjælp")) n += 30;
+            if (s.signals.some(x => x.label === "Ny rapport committet")) n += 20;
+            if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 15;
+            if (s.signals.some(x => x.label.startsWith("Milestone nået"))) n += 10;
+            return n;
+          };
+          return score(b) - score(a);
+        })
+        .slice(0, 10);
+
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
-        priorityItems, advisorProfiles,
+        priorityItems, advisorProfiles, sparringItems,
       };
     },
     enabled: !!user,
