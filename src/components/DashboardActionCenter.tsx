@@ -264,12 +264,15 @@ export default function DashboardActionCenter({
                   <Circle className="h-4 w-4" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-foreground">
-                    {action.priority === "high" && <AlertTriangle className="h-3 w-3 text-destructive inline mr-1 -mt-0.5" />}
-                    {action.priority === "medium" && <Clock className="h-3 w-3 text-chart-warning inline mr-1 -mt-0.5" />}
+                  <p className="text-xs text-foreground flex items-center gap-1.5">
+                    {action.source_type === "ai_weekly" && (
+                      <Sparkles className="h-3 w-3 text-primary/60 shrink-0" />
+                    )}
+                    {action.priority === "high" && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+                    {action.priority === "medium" && action.source_type !== "ai_weekly" && <Clock className="h-3 w-3 text-chart-warning shrink-0" />}
                     {action.title}
                   </p>
-                  {action.context && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{action.context}</p>}
+                  {action.context && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{action.context}</p>}
                 </div>
                 <button onClick={() => updateAction.mutate({ id: action.id, updates: { status: "dismissed", dismissed_at: new Date().toISOString() } })} className="p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all" title="Afvis">
                   <X className="h-3 w-3" />

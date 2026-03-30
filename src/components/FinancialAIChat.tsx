@@ -17,10 +17,14 @@ const STARTERS = [
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-data-chat`;
 
-export default function FinancialAIChat() {
+interface FinancialAIChatProps {
+  initialMessage?: string;
+}
+
+export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps) {
   const { companyId } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialMessage || "");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
