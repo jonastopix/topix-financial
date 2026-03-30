@@ -34,6 +34,18 @@ type Flag = {
   color: string; // tailwind badge class
 };
 
+const FLAG_TOOLTIPS: Record<string, string> = {
+  "Manual override": "Perioden er manuelt sat — AI-perioden er tilsidesat",
+  "Validation fail": "Tallene bestod ikke validering — check om rapporten er komplet",
+  "No canonical": "Normaliserede data mangler — rapporten kan ikke vises i dashboard",
+  "AI blocked": "AI-analyse er blokeret — mangler sandsynligvis nøgletal i rapporten",
+  "AI missing": "Rapport er AI-eligible men analyse mangler — prøv at re-committe",
+  "AI extraction": "Tallene er udtrukket via AI (ikke strukturel parsing)",
+  "Structural fail": "Strukturel parsing fejlede — filen kunne ikke læses som forventet",
+  "No match": "Ingen periodemodel matchede — rapporten har et ukendt format",
+  "Has corrections": "Manuelle korrektioner er tilføjet til denne rapport",
+};
+
 function getFlags(r: Report): Flag[] {
   const flags: Flag[] = [];
   const nd = r.normalized_data as Record<string, unknown> | null;
