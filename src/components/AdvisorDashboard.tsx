@@ -746,6 +746,70 @@ const AdvisorDashboard = () => {
         })
         .slice(0, 15);
 
+      // Group priority items — same logic as companies but from group_conversations
+      const groupPriorityItems = groupConvsMapped
+        .map((gc: any) => {
+          const reasons: { label: string; urgency: "high" | "medium" }[] = [];
+          let score = 0;
+          const groupName = groupNameMap.get(gc.group_id) || "Koncern";
+
+          if (gc.awaiting_reply_from === "advisor") {
+            reasons.push({ label: "Ulæst besked fra koncern", urgency: "high" });
+            score += 100;
+          }
+          if (gc.follow_up_at && new Date(gc.follow_up_at) <= now) {
+            const d = new Date(gc.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+            reasons.push({ label: `Opfølgning forfalden (${d})`, urgency: "medium" });
+            score += 50;
+          }
+
+          if (score === 0) return null;
+
+          const assignedAdvisor = advisorProfiles.find((a: any) => a.user_id === gc.assigned_advisor_id);
+          return {
+            company: {
+              company_id: `group_${gc.group_id}`,
+              company_name: groupName,
+              logo_url: null,
+            },
+            reasons,
+            score,
+            assigned_advisor_id: gc.assigned_advisor_id ?? null,
+            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
+          };
+        })
+        .filter(Boolean) as typeof priorityItems;
+
+      // Group sparring items
+      const groupSparringItems = groupConvsMapped
+        .filter((gc: any) => !groupPriorityItems.some(p => p.company.company_id === `group_${gc.group_id}`))
+        .map((gc: any) => {
+          const signals: { label: string; hint: string }[] = [];
+          const groupName = groupNameMap.get(gc.group_id) || "Koncern";
+
+          const monthKey = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate() / 7)}`;
+          const hash = (gc.group_id + monthKey).split("").reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0);
+          if (hash % 4 === 0) {
+            signals.push({
+              label: "Proaktiv sparring",
+              hint: "Ingen akutte signaler — god anledning til at tjekke ind med koncernen",
+            });
+          }
+
+          if (signals.length === 0) return null;
+          return {
+            company: { company_id: `group_${gc.group_id}`, company_name: groupName, logo_url: null },
+            signals,
+          };
+        })
+        .filter(Boolean) as typeof sparringItems;
+
+      const allPriorityItems = [...priorityItems, ...groupPriorityItems]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 20);
+
+      const allSparringItems = [...sparringItems, ...groupSparringItems].slice(0, 15);
+
       const groupedCompanyIds = new Set<string>(
         ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
       );
@@ -753,7 +817,7 @@ const AdvisorDashboard = () => {
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
-        priorityItems, advisorProfiles, sparringItems,
+        priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
         allConversations, groupedCompanyIds,
       };
     },
