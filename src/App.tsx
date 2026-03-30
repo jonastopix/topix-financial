@@ -140,6 +140,7 @@ const App = () => (
               <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </ViewModeProvider>
           </AuthProvider>
         </BrowserRouter>
