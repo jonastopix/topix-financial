@@ -268,7 +268,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, groupConvsRes, groupsRes,
+        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -334,6 +334,7 @@ const AdvisorDashboard = () => {
         supabase
           .from("groups")
           .select("id, name"),
+        (supabase.from("group_companies" as any).select("company_id")),
       ]);
 
       // Map group conversations into the same shape as company conversations
@@ -745,11 +746,15 @@ const AdvisorDashboard = () => {
         })
         .slice(0, 15);
 
+      const groupedCompanyIds = new Set<string>(
+        ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
+      );
+
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems, advisorProfiles, sparringItems,
-        allConversations,
+        allConversations, groupedCompanyIds,
       };
     },
     enabled: !!user,
@@ -787,12 +792,20 @@ const AdvisorDashboard = () => {
     return m;
   }, [data?.allConversations]);
 
-  // Count assigned conversations per advisor
+  const groupedCompanyIds = data?.groupedCompanyIds || new Set<string>();
+
+  // Count assigned conversations per advisor (companies + groups)
   const latestConvs = investorSummaries
     .map((company) => allConvsByCompany.get(company.company_id))
     .filter((conv): conv is ConversationRow => !!conv);
 
-  const assignmentCounts = latestConvs.reduce((acc, conv) => {
+  // Add group conversations to assignment tracking
+  const groupConvsForCounting = (data?.allConversations || [])
+    .filter(c => c.company_id?.startsWith("group_"));
+
+  const allTrackedConvs = [...latestConvs, ...groupConvsForCounting];
+
+  const assignmentCounts = allTrackedConvs.reduce((acc, conv) => {
     if (conv.assigned_advisor_id) {
       acc[conv.assigned_advisor_id] = (acc[conv.assigned_advisor_id] || 0) + 1;
     }
@@ -801,9 +814,18 @@ const AdvisorDashboard = () => {
 
   const myAssignments = assignmentCounts[user?.id || ""] || 0;
   const totalAssigned = Object.values(assignmentCounts).reduce((s, n) => s + n, 0);
-  const unassignedCount = investorSummaries.filter(c =>
+
+  // Unassigned: company convs without advisor (excluding grouped companies) + group convs without advisor
+  const unassignedCompanies = investorSummaries.filter(c =>
+    !groupedCompanyIds.has(c.company_id) &&
     !allConvsByCompany.get(c.company_id)?.assigned_advisor_id
   ).length;
+
+  const unassignedGroups = groupConvsForCounting.filter(
+    c => !c.assigned_advisor_id
+  ).length;
+
+  const unassignedCount = unassignedCompanies + unassignedGroups;
 
   const engagementScores = investorSummaries.map(c => {
     const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
