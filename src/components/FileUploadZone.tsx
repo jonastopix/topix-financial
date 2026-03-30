@@ -634,10 +634,8 @@ const FileUploadZone = ({
       Array.from(files).forEach((file) => {
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
-          toast({
-            title: "Filen er for stor",
+          toast.error("Filen er for stor", {
             description: `${file.name} er ${formatFileSize(file.size)}. Maks. 25 MB.`,
-            variant: "destructive",
           });
           return;
         }
