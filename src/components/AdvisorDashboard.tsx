@@ -270,7 +270,7 @@ const AdvisorDashboard = () => {
         supabase
           .from("conversations")
           .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
-          .eq("conversation_status", "open"),
+          .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
           .select("id, name, logo_url")
@@ -319,7 +319,8 @@ const AdvisorDashboard = () => {
         supabase.rpc("get_all_advisor_profiles"),
       ]);
 
-      const conversations = (convRes.data || []) as ConversationRow[];
+      const allConversations = (convRes.data || []) as ConversationRow[];
+      const conversations = allConversations.filter((conversation) => conversation.conversation_status === "open");
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
       const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
@@ -547,7 +548,7 @@ const AdvisorDashboard = () => {
 
       // Conversations grouped by company
       const convByCompany = new Map<string, ConversationRow[]>();
-      for (const c of conversations) {
+      for (const c of allConversations) {
         if (c.company_id) {
           if (!convByCompany.has(c.company_id)) convByCompany.set(c.company_id, []);
           convByCompany.get(c.company_id)!.push(c);
@@ -641,11 +642,11 @@ const AdvisorDashboard = () => {
   const reportedThisMonth = investorSummaries.filter(c => c.has_verified_metrics && !c.missing_current_period).length;
 
   // Count assigned conversations per advisor
-  const allConvs = data?.convByCompany
-    ? Array.from(data.convByCompany.values()).flat()
-    : [];
+  const latestConvs = investorSummaries
+    .map((company) => data?.convByCompany?.get(company.company_id)?.[0])
+    .filter((conv): conv is ConversationRow => !!conv);
 
-  const assignmentCounts = allConvs.reduce((acc, conv) => {
+  const assignmentCounts = latestConvs.reduce((acc, conv) => {
     if (conv.assigned_advisor_id) {
       acc[conv.assigned_advisor_id] = (acc[conv.assigned_advisor_id] || 0) + 1;
     }
