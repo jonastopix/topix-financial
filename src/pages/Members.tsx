@@ -38,8 +38,6 @@ const Members = () => {
   const { user, isAdvisor: rawAdvisor, isAdmin, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
-  const [companies, setCompanies] = useState<CompanyData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -58,10 +56,8 @@ const Members = () => {
   const [deleteTarget, setDeleteTarget] = useState<CompanyData | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [reloadTrigger, setReloadTrigger] = useState(0);
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
-  const [standalonePendingInvitations, setStandalonePendingInvitations] = useState<any[]>([]);
 
   // Rename state
   const [renamingCompany, setRenamingCompany] = useState<{ id: string; currentName: string } | null>(null);
@@ -69,8 +65,6 @@ const Members = () => {
   const [renameSaving, setRenameSaving] = useState(false);
 
   // Group/Koncern state (admin-only)
-  const [groupInfoMap, setGroupInfoMap] = useState<Map<string, { groupName: string; groupId: string; isAnchor: boolean }>>(new Map());
-  const [groupedCompanyIds, setGroupedCompanyIds] = useState<Set<string>>(new Set());
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardAnchor, setWizardAnchor] = useState<{ id: string; name: string } | null>(null);
 
@@ -84,291 +78,284 @@ const Members = () => {
   const [standaloneSending, setStandaloneSending] = useState(false);
   const [standaloneCompanyId, setStandaloneCompanyId] = useState<string>("");
 
-  const handleRenameCompany = async () => {
-    if (!renamingCompany || !renameValue.trim()) return;
-    setRenameSaving(true);
-    const { error } = await (supabase
-      .from("companies")
-      .update({ name: renameValue.trim() }) as any)
-      .eq("id", renamingCompany.id);
-    setRenameSaving(false);
-    if (error) {
-      toast.error("Kunne ikke omdøbe virksomheden.");
-      return;
-    }
-    toast.success(`Virksomheden hedder nu "${renameValue.trim()}"`);
-    setRenamingCompany(null);
-    setRenameValue("");
-    loadCompanies();
-  };
+  const { data: membersData, isLoading: loading, refetch: refetchMembers } = useQuery({
+    queryKey: ["members-data", user?.id],
+    queryFn: async () => {
+      if (!user || !isAdvisor) return null;
 
-  const loadCompanies = useCallback(async () => {
-    if (!user || !isAdvisor) return;
-    setLoading(true);
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
+        supabase.from("companies" as any).select("*").limit(500),
+        supabase.from("company_members" as any).select("company_id, user_id, role").limit(2000),
+        supabase.from("profiles").select("user_id, full_name, avatar_url"),
+        supabase.from("conversations").select("id, company_id, last_message_at"),
+        (supabase.from("financial_reports").select("company_id, id, extracted_data, report_period") as any).is("deleted_at", null).limit(1000),
+        supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
+        supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
+        supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
+        supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
+        supabase.from("financial_report_facts" as any).select("company_id, period_key"),
+        supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
+      ]);
 
-    const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
-      supabase.from("companies" as any).select("*"),
-      supabase.from("company_members" as any).select("company_id, user_id, role"),
-      supabase.from("profiles").select("user_id, full_name, avatar_url"),
-      supabase.from("conversations").select("id, company_id, last_message_at"),
-      (supabase.from("financial_reports").select("company_id, id, extracted_data, report_period") as any).is("deleted_at", null),
-      supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
-      supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
-      supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
-      supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
-      supabase.from("financial_report_facts" as any).select("company_id, period_key"),
-      supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
-    ]);
+      const allCompanies = (companiesRes.data || []) as any[];
+      const allMembers = (membersRes.data || []) as any[];
+      const allProfiles = (profilesRes.data || []) as any[];
+      const allConvs = (convsRes.data || []) as any[];
+      const allReports = (reportsRes.data || []) as any[];
+      const allCircleMembers = (circleMembersRes.data || []) as any[];
+      const allCircleActivity = (circleActivityRes.data || []) as any[];
+      const allInvitations = (invitationsRes.data || []) as any[];
+      const allLoginLogs = (loginLogsRes.data || []) as any[];
+      const allFacts = (factsRes.data || []) as any[];
+      const pulseThisMonthSet = new Set(
+        (pulseRes.data || []).map((p: any) => p.company_id)
+      );
 
-    const allCompanies = (companiesRes.data || []) as any[];
-    const allMembers = (membersRes.data || []) as any[];
-    const allProfiles = (profilesRes.data || []) as any[];
-    const allConvs = (convsRes.data || []) as any[];
-    const allReports = (reportsRes.data || []) as any[];
-    const allCircleMembers = (circleMembersRes.data || []) as any[];
-    const allCircleActivity = (circleActivityRes.data || []) as any[];
-    const allInvitations = (invitationsRes.data || []) as any[];
-    const allLoginLogs = (loginLogsRes.data || []) as any[];
-    const allFacts = (factsRes.data || []) as any[];
-    const pulseThisMonthSet = new Set(
-      (pulseRes.data || []).map((p: any) => p.company_id)
-    );
-
-    const committedByCompany = new Map<string, number>();
-    for (const fact of allFacts) {
-      const id = fact.company_id;
-      committedByCompany.set(id, (committedByCompany.get(id) || 0) + 1);
-    }
-
-    const pendingEmails = allInvitations
-      .filter((inv: any) => inv.status === 'pending')
-      .map((inv: any) => inv.email);
-    const lastSentMap = new Map<string, string>();
-    if (pendingEmails.length > 0) {
-      const { data: sendLogs } = await supabase
-        .from("email_send_log" as any)
-        .select("recipient_email, sent_at")
-        .in("recipient_email", pendingEmails)
-        .order("sent_at", { ascending: false });
-      (sendLogs || []).forEach((log: any) => {
-        if (!lastSentMap.has(log.recipient_email)) {
-          lastSentMap.set(log.recipient_email, log.sent_at);
-        }
-      });
-    }
-
-    const loginInfoMap = new Map<string, LoginInfo>();
-    allLoginLogs.forEach((log: any) => {
-      const existing = loginInfoMap.get(log.user_id);
-      if (!existing) {
-        loginInfoMap.set(log.user_id, { lastLogin: log.logged_in_at, loginCount: 1 });
-      } else {
-        existing.loginCount++;
-        if (log.logged_in_at > (existing.lastLogin || "")) {
-          existing.lastLogin = log.logged_in_at;
-        }
+      const committedByCompany = new Map<string, number>();
+      for (const fact of allFacts) {
+        const id = fact.company_id;
+        committedByCompany.set(id, (committedByCompany.get(id) || 0) + 1);
       }
-    });
 
-    const pendingInvitationByCompany = new Map<string, string>();
-    const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
-    const pendingInvsByCompany = new Map<string, any[]>();
-    const sortedInvitations = [...allInvitations].sort((a: any, b: any) => 
-      new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
-    );
-    sortedInvitations.forEach((inv: any) => {
-      invitationInfoByCompany.set(inv.company_id, { 
-        status: inv.status, email: inv.email, accepted_at: inv.accepted_at 
-      });
-      if (inv.status === 'pending') {
-        pendingInvitationByCompany.set(inv.company_id, inv.email);
-        const arr = pendingInvsByCompany.get(inv.company_id) || [];
-        arr.push({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null });
-        pendingInvsByCompany.set(inv.company_id, arr);
+      const pendingEmails = allInvitations
+        .filter((inv: any) => inv.status === 'pending')
+        .map((inv: any) => inv.email);
+      const lastSentMap = new Map<string, string>();
+      if (pendingEmails.length > 0) {
+        const { data: sendLogs } = await supabase
+          .from("email_send_log" as any)
+          .select("recipient_email, sent_at")
+          .in("recipient_email", pendingEmails)
+          .order("sent_at", { ascending: false });
+        (sendLogs || []).forEach((log: any) => {
+          if (!lastSentMap.has(log.recipient_email)) {
+            lastSentMap.set(log.recipient_email, log.sent_at);
+          }
+        });
       }
-    });
 
-    const profileMap = new Map(allProfiles.map((p: any) => [p.user_id, p]));
-    const membersByCompany = new Map<string, CompanyMember[]>();
-    allMembers.forEach((cm: any) => {
-      const profile = profileMap.get(cm.user_id);
-      const arr = membersByCompany.get(cm.company_id) || [];
-      arr.push({
-        user_id: cm.user_id,
-        full_name: profile?.full_name || "Ukendt",
-        role: cm.role,
-        avatar_url: profile?.avatar_url || null,
-      });
-      membersByCompany.set(cm.company_id, arr);
-    });
-
-    const reportsByCompany = new Map<string, number>();
-    const reportedRevenueByCompany = new Map<string, number>();
-    const periodsByCompany = new Map<string, Set<string>>();
-    allReports.forEach((r: any) => {
-      if (r.company_id) {
-        if (r.report_period) {
-          const periods = periodsByCompany.get(r.company_id) || new Set<string>();
-          periods.add(r.report_period);
-          periodsByCompany.set(r.company_id, periods);
-        }
-        const data = r.extracted_data as any;
-        if (data?.revenue || data?.omsætning || data?.nettoomsætning) {
-          const rev = Number(data.revenue || data.omsætning || data.nettoomsætning || 0);
-          if (rev > 0) {
-            const existing = reportedRevenueByCompany.get(r.company_id) || 0;
-            if (rev > existing) reportedRevenueByCompany.set(r.company_id, rev);
+      const loginInfoMap = new Map<string, LoginInfo>();
+      allLoginLogs.forEach((log: any) => {
+        const existing = loginInfoMap.get(log.user_id);
+        if (!existing) {
+          loginInfoMap.set(log.user_id, { lastLogin: log.logged_in_at, loginCount: 1 });
+        } else {
+          existing.loginCount++;
+          if (log.logged_in_at > (existing.lastLogin || "")) {
+            existing.lastLogin = log.logged_in_at;
           }
         }
-      }
-    });
+      });
 
-    const latestPeriodByCompany = new Map<string, { period: string; uploadedAt: string }>();
-    periodsByCompany.forEach((periods, companyId) => {
-      reportsByCompany.set(companyId, periods.size);
-    });
-    allReports.forEach((r: any) => {
-      if (r.company_id && r.report_period) {
-        const existing = latestPeriodByCompany.get(r.company_id);
-        if (!existing || r.uploaded_at > existing.uploadedAt) {
-          latestPeriodByCompany.set(r.company_id, { period: r.report_period, uploadedAt: r.uploaded_at });
+      const pendingInvitationByCompany = new Map<string, string>();
+      const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
+      const pendingInvsByCompany = new Map<string, any[]>();
+      const sortedInvitations = [...allInvitations].sort((a: any, b: any) => 
+        new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      );
+      sortedInvitations.forEach((inv: any) => {
+        invitationInfoByCompany.set(inv.company_id, { 
+          status: inv.status, email: inv.email, accepted_at: inv.accepted_at 
+        });
+        if (inv.status === 'pending') {
+          pendingInvitationByCompany.set(inv.company_id, inv.email);
+          const arr = pendingInvsByCompany.get(inv.company_id) || [];
+          arr.push({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null });
+          pendingInvsByCompany.set(inv.company_id, arr);
         }
-      }
-    });
+      });
 
-    const convByCompany = new Map<string, any>();
-    allConvs.forEach((c: any) => {
-      if (c.company_id) convByCompany.set(c.company_id, c);
-    });
-
-    const convIds = allConvs.map((c: any) => c.id);
-    const { data: unreadMessages } = convIds.length > 0
-      ? await supabase
-          .from("messages")
-          .select("conversation_id")
-          .in("conversation_id", convIds)
-          .neq("sender_id", user.id)
-          .is("read_at", null)
-      : { data: [] };
-
-    const unreadByConv = new Map<string, number>();
-    (unreadMessages || []).forEach((m) => {
-      unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
-    });
-
-    const circleByUserId = new Map<string, any>();
-    allCircleMembers.forEach((cm: any) => {
-      if (cm.user_id) circleByUserId.set(cm.user_id, cm);
-    });
-    const activityByCircleMember = new Map<number, number>();
-    allCircleActivity.forEach((a: any) => {
-      activityByCircleMember.set(a.circle_member_id, (activityByCircleMember.get(a.circle_member_id) || 0) + 1);
-    });
-    const circleInfoByCompany = new Map<string, CircleInfo[]>();
-    allMembers.forEach((cm: any) => {
-      const circleMember = circleByUserId.get(cm.user_id);
-      if (circleMember) {
-        const activityCount = activityByCircleMember.get(circleMember.circle_id) || 0;
-        const arr = circleInfoByCompany.get(cm.company_id) || [];
+      const profileMap = new Map(allProfiles.map((p: any) => [p.user_id, p]));
+      const membersByCompany = new Map<string, CompanyMember[]>();
+      allMembers.forEach((cm: any) => {
+        const profile = profileMap.get(cm.user_id);
+        const arr = membersByCompany.get(cm.company_id) || [];
         arr.push({
-          circle_member_id: circleMember.circle_id,
-          name: circleMember.name,
-          last_seen_at: circleMember.last_seen_at,
-          recent_activity_count: activityCount,
+          user_id: cm.user_id,
+          full_name: profile?.full_name || "Ukendt",
+          role: cm.role,
+          avatar_url: profile?.avatar_url || null,
         });
-        circleInfoByCompany.set(cm.company_id, arr);
+        membersByCompany.set(cm.company_id, arr);
+      });
+
+      const reportsByCompany = new Map<string, number>();
+      const reportedRevenueByCompany = new Map<string, number>();
+      const periodsByCompany = new Map<string, Set<string>>();
+      allReports.forEach((r: any) => {
+        if (r.company_id) {
+          if (r.report_period) {
+            const periods = periodsByCompany.get(r.company_id) || new Set<string>();
+            periods.add(r.report_period);
+            periodsByCompany.set(r.company_id, periods);
+          }
+          const data = r.extracted_data as any;
+          if (data?.revenue || data?.omsætning || data?.nettoomsætning) {
+            const rev = Number(data.revenue || data.omsætning || data.nettoomsætning || 0);
+            if (rev > 0) {
+              const existing = reportedRevenueByCompany.get(r.company_id) || 0;
+              if (rev > existing) reportedRevenueByCompany.set(r.company_id, rev);
+            }
+          }
+        }
+      });
+
+      const latestPeriodByCompany = new Map<string, { period: string; uploadedAt: string }>();
+      periodsByCompany.forEach((periods, companyId) => {
+        reportsByCompany.set(companyId, periods.size);
+      });
+      allReports.forEach((r: any) => {
+        if (r.company_id && r.report_period) {
+          const existing = latestPeriodByCompany.get(r.company_id);
+          if (!existing || r.uploaded_at > existing.uploadedAt) {
+            latestPeriodByCompany.set(r.company_id, { period: r.report_period, uploadedAt: r.uploaded_at });
+          }
+        }
+      });
+
+      const convByCompany = new Map<string, any>();
+      allConvs.forEach((c: any) => {
+        if (c.company_id) convByCompany.set(c.company_id, c);
+      });
+
+      const convIds = allConvs.map((c: any) => c.id);
+      const { data: unreadMessages } = convIds.length > 0
+        ? await supabase
+            .from("messages")
+            .select("conversation_id")
+            .in("conversation_id", convIds)
+            .neq("sender_id", user.id)
+            .is("read_at", null)
+        : { data: [] };
+
+      const unreadByConv = new Map<string, number>();
+      (unreadMessages || []).forEach((m) => {
+        unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
+      });
+
+      const circleByUserId = new Map<string, any>();
+      allCircleMembers.forEach((cm: any) => {
+        if (cm.user_id) circleByUserId.set(cm.user_id, cm);
+      });
+      const activityByCircleMember = new Map<number, number>();
+      allCircleActivity.forEach((a: any) => {
+        activityByCircleMember.set(a.circle_member_id, (activityByCircleMember.get(a.circle_member_id) || 0) + 1);
+      });
+      const circleInfoByCompany = new Map<string, CircleInfo[]>();
+      allMembers.forEach((cm: any) => {
+        const circleMember = circleByUserId.get(cm.user_id);
+        if (circleMember) {
+          const activityCount = activityByCircleMember.get(circleMember.circle_id) || 0;
+          const arr = circleInfoByCompany.get(cm.company_id) || [];
+          arr.push({
+            circle_member_id: circleMember.circle_id,
+            name: circleMember.name,
+            last_seen_at: circleMember.last_seen_at,
+            recent_activity_count: activityCount,
+          });
+          circleInfoByCompany.set(cm.company_id, arr);
+        }
+      });
+
+      const enriched: CompanyData[] = allCompanies
+        .filter((c: any) => c.status === "active" || !c.status)
+        .map((c: any) => {
+          const conv = convByCompany.get(c.id);
+          const reportedRev = reportedRevenueByCompany.get(c.id) || null;
+          return {
+            id: c.id,
+            name: c.name || "",
+            cvr_number: c.cvr_number,
+            industry_label: c.industry_label || "",
+            contact_person: c.contact_person || "",
+            contact_email: c.contact_email || "",
+            contact_phone: c.contact_phone || "",
+            website: c.website || "",
+            address: c.address || "",
+            postal_code: c.postal_code || "",
+            city: c.city || "",
+            annual_revenue: Number(c.annual_revenue) || 0,
+            reported_revenue: reportedRev,
+            start_date: c.start_date,
+            end_date: c.end_date,
+            status: c.status || "active",
+            slack_channel: c.slack_channel || "",
+            created_at: c.created_at,
+            members: membersByCompany.get(c.id) || [],
+            reportCount: reportsByCompany.get(c.id) || 0,
+            latestReportPeriod: latestPeriodByCompany.get(c.id)?.period || null,
+            committedCount: committedByCompany.get(c.id) || 0,
+            unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
+            conversationId: conv?.id || null,
+            circleInfo: circleInfoByCompany.get(c.id) || [],
+            logo_url: c.logo_url || null,
+            pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
+            invitationStatus: (() => {
+              const companyMembers = membersByCompany.get(c.id) || [];
+              const hasActiveMembers = companyMembers.length > 0;
+              const invInfo = invitationInfoByCompany.get(c.id);
+              if (!invInfo) return null;
+              if (hasActiveMembers) return 'accepted' as const;
+              return invInfo.status as 'pending' | 'accepted';
+            })(),
+            invitationAcceptedAt: invitationInfoByCompany.get(c.id)?.accepted_at || null,
+            invitationEmail: invitationInfoByCompany.get(c.id)?.email || null,
+            loginInfo: (() => {
+              const companyLoginInfo = new Map<string, LoginInfo>();
+              const companyMembers = membersByCompany.get(c.id) || [];
+              companyMembers.forEach((m) => {
+                const info = loginInfoMap.get(m.user_id);
+                if (info) companyLoginInfo.set(m.user_id, info);
+              });
+              return companyLoginInfo;
+            })(),
+            __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
+            hasPulseThisMonth: pulseThisMonthSet.has(c.id),
+          } as any;
+        });
+
+      const standalonePending = allInvitations
+        .filter((inv: any) => inv.company_id === null && inv.status === 'pending')
+        .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
+
+      let groupInfoMapResult = new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
+      let groupedCompanyIdsResult = new Set<string>();
+
+      if (isAdmin) {
+        const { data: gcData } = await supabase
+          .from("group_companies" as any)
+          .select("company_id, group_id, groups:group_id(id, name, anchor_company_id)" as any);
+        (gcData || []).forEach((gc: any) => {
+          groupedCompanyIdsResult.add(gc.company_id);
+          groupInfoMapResult.set(gc.company_id, {
+            groupName: gc.groups?.name || "Koncern",
+            groupId: gc.group_id,
+            isAnchor: gc.groups?.anchor_company_id === gc.company_id,
+          });
+        });
       }
-    });
 
-    const enriched: CompanyData[] = allCompanies
-      .filter((c: any) => c.status === "active" || !c.status)
-      .map((c: any) => {
-        const conv = convByCompany.get(c.id);
-        const reportedRev = reportedRevenueByCompany.get(c.id) || null;
-        return {
-          id: c.id,
-          name: c.name || "",
-          cvr_number: c.cvr_number,
-          industry_label: c.industry_label || "",
-          contact_person: c.contact_person || "",
-          contact_email: c.contact_email || "",
-          contact_phone: c.contact_phone || "",
-          website: c.website || "",
-          address: c.address || "",
-          postal_code: c.postal_code || "",
-          city: c.city || "",
-          annual_revenue: Number(c.annual_revenue) || 0,
-          reported_revenue: reportedRev,
-          start_date: c.start_date,
-          end_date: c.end_date,
-          status: c.status || "active",
-          slack_channel: c.slack_channel || "",
-          created_at: c.created_at,
-          members: membersByCompany.get(c.id) || [],
-          reportCount: reportsByCompany.get(c.id) || 0,
-          latestReportPeriod: latestPeriodByCompany.get(c.id)?.period || null,
-          committedCount: committedByCompany.get(c.id) || 0,
-          unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
-          conversationId: conv?.id || null,
-          circleInfo: circleInfoByCompany.get(c.id) || [],
-          logo_url: c.logo_url || null,
-          pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
-          invitationStatus: (() => {
-            const companyMembers = membersByCompany.get(c.id) || [];
-            const hasActiveMembers = companyMembers.length > 0;
-            const invInfo = invitationInfoByCompany.get(c.id);
-            if (!invInfo) return null;
-            if (hasActiveMembers) return 'accepted' as const;
-            return invInfo.status as 'pending' | 'accepted';
-          })(),
-          invitationAcceptedAt: invitationInfoByCompany.get(c.id)?.accepted_at || null,
-          invitationEmail: invitationInfoByCompany.get(c.id)?.email || null,
-          loginInfo: (() => {
-            const companyLoginInfo = new Map<string, LoginInfo>();
-            const companyMembers = membersByCompany.get(c.id) || [];
-            companyMembers.forEach((m) => {
-              const info = loginInfoMap.get(m.user_id);
-              if (info) companyLoginInfo.set(m.user_id, info);
-            });
-            return companyLoginInfo;
-          })(),
-          __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
-          hasPulseThisMonth: pulseThisMonthSet.has(c.id),
-        } as any;
-      });
+      // Sort
+      const sortedCompanies = [...enriched].sort((a, b) => a.name.localeCompare(b.name, "da"));
 
-    const standalonePending = allInvitations
-      .filter((inv: any) => inv.company_id === null && inv.status === 'pending')
-      .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
-    setStandalonePendingInvitations(standalonePending);
+      return {
+        companies: sortedCompanies,
+        standalonePendingInvitations: standalonePending,
+        groupInfoMap: groupInfoMapResult,
+        groupedCompanyIds: groupedCompanyIdsResult,
+      };
+    },
+    enabled: !!user && !!isAdvisor,
+    staleTime: 2 * 60_000,
+  });
 
-    if (isAdmin) {
-      const { data: gcData } = await supabase
-        .from("group_companies" as any)
-        .select("company_id, group_id, groups:group_id(id, name, anchor_company_id)" as any);
-      const gMap = new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
-      const gSet = new Set<string>();
-      (gcData || []).forEach((gc: any) => {
-        gSet.add(gc.company_id);
-        gMap.set(gc.company_id, {
-          groupName: gc.groups?.name || "Koncern",
-          groupId: gc.group_id,
-          isAnchor: gc.groups?.anchor_company_id === gc.company_id,
-        });
-      });
-      setGroupInfoMap(gMap);
-      setGroupedCompanyIds(gSet);
-    }
-
-    setCompanies(enriched);
-    setLoading(false);
-  }, [user, isAdvisor, isAdmin]);
-
-  useEffect(() => {
-    loadCompanies();
-  }, [loadCompanies, reloadTrigger]);
+  // Destructure from query data
+  const companies = membersData?.companies || [];
+  const standalonePendingInvitations = membersData?.standalonePendingInvitations || [];
+  const groupInfoMap = membersData?.groupInfoMap || new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
+  const groupedCompanyIds = membersData?.groupedCompanyIds || new Set<string>();
 
   const handleRemoveMember = async (company: CompanyData, member: CompanyMember) => {
     if (member.role === 'owner') return;
