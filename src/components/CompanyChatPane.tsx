@@ -1054,7 +1054,7 @@ const CompanyChatPane = () => {
   // Advisor prev/next navigation — mirrors the left panel filter
   const advisorConvList = useMemo(() => {
     if (!isAdvisor) return [];
-    return filteredConversations.filter(c => c.threadType !== "group");
+    return filteredConversations;
   }, [filteredConversations, isAdvisor]);
 
   const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
