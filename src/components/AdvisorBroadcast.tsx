@@ -14,6 +14,7 @@ interface AdvisorBroadcastProps {
 
 export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
   const [open, setOpen] = useState(false);
+  const [lastSent, setLastSent] = useState<{ count: number; at: string } | null>(null);
   const [message, setMessage] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
