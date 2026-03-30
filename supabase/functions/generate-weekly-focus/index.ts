@@ -239,6 +239,7 @@ async function processCompany(
     .select("id, title, deadline, progress")
     .eq("company_id", company.id)
     .lt("progress", 50)
+    .neq("status", "parked")
     .not("deadline", "is", null)
     .lte("deadline", fourteenDaysFromNow)
     .gte("deadline", now.toISOString().split("T")[0])
