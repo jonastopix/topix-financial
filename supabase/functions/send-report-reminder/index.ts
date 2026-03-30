@@ -113,43 +113,6 @@ Deno.serve(async (req) => {
 
     console.log(`[send-report-reminder] Period: ${expectedPeriod} | Day: ${dayOfMonth}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
 
-    // --- Fetch template from DB (by name), fallback to hardcoded ---
-    let subjectTpl = FALLBACK_SUBJECT;
-    let bodyTpl = FALLBACK_HTML;
-    let senderFrom = SENDER;
-
-    const { data: tpl } = await supabase
-      .from('email_templates')
-      .select('id, subject, body_html, sender_name, sender_email, enabled')
-      .eq('name', 'Rapport-påmindelse')
-      .maybeSingle();
-
-    if (tpl && tpl.enabled) {
-      subjectTpl = tpl.subject;
-      bodyTpl = tpl.body_html;
-      senderFrom = resolveSenderFromTemplate(tpl.sender_name, tpl.sender_email);
-      console.log('[send-report-reminder] Using DB template');
-    } else {
-      console.log('[send-report-reminder] Using fallback template');
-    }
-
-    // Ensure we have a templateId for logging
-    if (!tpl) {
-      await supabase
-        .from('email_templates')
-        .insert({
-          name: 'Rapport-påmindelse',
-          subject: FALLBACK_SUBJECT,
-          body_html: FALLBACK_HTML,
-          sender_name: 'The Boardroom',
-          sender_email: VERIFIED_FROM_EMAIL,
-          trigger_type: 'cron',
-          enabled: false,
-        })
-        .select('id')
-        .single();
-    }
-
     const reportUrl = "https://topix.lovable.app/reports";
 
     // Urgency-specific subjects and intros
@@ -170,8 +133,51 @@ Deno.serve(async (req) => {
       critical: `Vigtigt: {{period}}-rapport er nu forsinket`,
     };
 
+    // Template names per urgency level
+    const TEMPLATE_NAMES: Record<Urgency, string> = {
+      gentle:   "Rapport-påmindelse (venlig)",
+      urgent:   "Rapport-påmindelse (presserende)",
+      critical: "Rapport-påmindelse (kritisk)",
+    };
+
+    // Fetch all three templates in one query
+    const { data: tpls } = await supabase
+      .from('email_templates')
+      .select('name, subject, body_html, sender_name, sender_email, enabled')
+      .in('name', Object.values(TEMPLATE_NAMES));
+
+    const tplMap = new Map((tpls || []).map((t: any) => [t.name, t]));
+
+    // Ensure missing templates are auto-created (disabled by default)
+    for (const [urgency, tplName] of Object.entries(TEMPLATE_NAMES) as [Urgency, string][]) {
+      if (!tplMap.has(tplName)) {
+        await supabase.from('email_templates').insert({
+          name: tplName,
+          subject: emailSubjects[urgency as Urgency],
+          body_html: FALLBACK_HTML,
+          sender_name: 'The Boardroom',
+          sender_email: VERIFIED_FROM_EMAIL,
+          trigger_type: 'cron',
+          trigger_config: {
+            schedule: urgency === 'gentle' ? '0 9 7 * *' : urgency === 'urgent' ? '0 9 15 * *' : '0 9 20 * *',
+            description: urgency === 'gentle' ? 'Dag 7 i måneden' : urgency === 'urgent' ? 'Dag 15 i måneden' : 'Dag 20 i måneden',
+          },
+          enabled: false,
+        });
+        console.log(`[send-report-reminder] Auto-created template: ${tplName}`);
+      }
+    }
+
     // Helper to build email for a specific company
     function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
+      const tplName = TEMPLATE_NAMES[urgency];
+      const tpl = tplMap.get(tplName);
+      const activeSubjectTpl = (tpl?.enabled && tpl.subject) ? tpl.subject : emailSubjects[urgency];
+      const activeBodyTpl = (tpl?.enabled && tpl.body_html) ? tpl.body_html : FALLBACK_HTML;
+      const activeSender = (tpl?.enabled && tpl.sender_name)
+        ? resolveSenderFromTemplate(tpl.sender_name, tpl.sender_email)
+        : SENDER;
+
       const vars: Record<string, string> = {
         period,
         company_name: companyName,
@@ -180,14 +186,14 @@ Deno.serve(async (req) => {
         subject_line: subjectLines[urgency],
         intro: replaceVars(intros[urgency], { period }),
       };
-      const subject = (isTest ? '[TEST] ' : '') + replaceVars(emailSubjects[urgency], { period });
-      const html = replaceVars(bodyTpl, vars);
-      return { subject, html };
+      const subject = (isTest ? '[TEST] ' : '') + replaceVars(activeSubjectTpl, vars);
+      const html = replaceVars(activeBodyTpl, vars);
+      return { subject, html, sender: activeSender };
     }
 
     // Helper to enqueue a reminder email
     async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
-      const { subject, html } = buildEmail(companyName, period, isTest, firstName, urgency);
+      const { subject, html, sender } = buildEmail(companyName, period, isTest, firstName, urgency);
       const messageId = crypto.randomUUID();
 
       await supabase.from('email_send_log').insert({
@@ -204,7 +210,7 @@ Deno.serve(async (req) => {
         payload: {
           message_id: messageId,
           to: recipientEmail,
-          from: senderFrom,
+          from: sender,
           sender_domain: SENDER_DOMAIN,
           subject,
           html,
