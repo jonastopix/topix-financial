@@ -926,6 +926,12 @@ const AdvisorDashboard = () => {
   };
 
   const handleAdvisorCompanyClick = (companyId: string, companyName: string, reason?: string) => {
+    // Group conversations — navigate directly to group chat
+    if (companyId.startsWith("group_")) {
+      const groupConvId = data?.allConversations?.find(c => c.company_id === companyId)?.id;
+      if (groupConvId) navigate(`/chat?conversationId=${groupConvId}`);
+      return;
+    }
     // Navigate to relevant page based on reason — NO company override
     if (reason && (reason.includes("besked") || reason.includes("alert") || reason.includes("Bankovertræk") || reason.includes("Omsætning faldt"))) {
       const convId = getCompanyConvId(companyId);
