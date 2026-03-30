@@ -308,7 +308,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
             ] : []),
             ...(effectiveAdvisor && hasGroupAccess ? [
-              { icon: Layers, label: "Koncernoverblik", path: "/groups" },
+              { icon: Layers, label: "Koncern", path: "/groups" },
             ] : []),
             { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
             ...(effectiveAdvisor ? advisorNavItems : []),

@@ -535,6 +535,28 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* AI-chat teaser — only shown when founder has data */}
+      {kpiData.period && !isAdvisor && (
+        <div className="mb-6">
+          <Link to="/chat?tab=ai" className="block group">
+            <div className="rounded-lg border bg-card p-4 flex items-center justify-between hover:shadow-sm transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Stil AI et spørgsmål om dine tal</p>
+                  <p className="text-xs text-muted-foreground">
+                    Hvad var min bedste måned? Hvad driver mine udgifter?
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </Link>
+        </div>
+      )}
+
       <div className="mb-6">
         <DashboardActivity />
       </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import CompanyChatPane from "@/components/CompanyChatPane";
@@ -14,7 +15,10 @@ import FinancialAIChat from "@/components/FinancialAIChat";
  */
 const ChatShell = () => {
   const { isAdvisor, isGroupUser, loading } = useAuth();
-  const [chatTab, setChatTab] = useState<"advisor" | "ai">("advisor");
+  const [searchParams] = useSearchParams();
+  const [chatTab, setChatTab] = useState<"advisor" | "ai">(
+    searchParams.get("tab") === "ai" ? "ai" : "advisor"
+  );
 
   if (loading) {
     return (
