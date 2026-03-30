@@ -1,14 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { createPortal } from "react-dom";
 import {
   MessageSquare,
   FileCheck,
@@ -118,7 +109,8 @@ export default function AdvisorPriorityQueue({
   const [ignored, setIgnored] = useState<Set<string>>(loadIgnored);
   const [showAll, setShowAll] = useState(false);
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
-  const [confirmIgnore, setConfirmIgnore] = useState<{ companyId: string; companyName: string } | null>(null);
+  const [pendingIgnore, setPendingIgnore] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
   const visibleItems = items.filter((i) => !ignored.has(i.company.company_id));
   const displayItems = showAll ? visibleItems : visibleItems.slice(0, 10);
@@ -165,6 +157,20 @@ export default function AdvisorPriorityQueue({
             null;
           const isAssignOpen = assignOpen === item.company.company_id;
 
+          const handleOpenAssign = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (isAssignOpen) {
+              setAssignOpen(null);
+            } else {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setDropdownPos({
+                top: rect.bottom + 4,
+                right: window.innerWidth - rect.right,
+              });
+              setAssignOpen(item.company.company_id);
+            }
+          };
+
           return (
             <div
               key={item.company.company_id}
@@ -205,43 +211,61 @@ export default function AdvisorPriorityQueue({
                 </div>
               </button>
 
-              {item.assigned_advisor_id && (
-                <div
-                  className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-[9px] font-bold text-primary"
-                  title={assignedName || "Tildelt"}
-                >
-                  {getAdvisorInitials(assignedName)}
-                </div>
-              )}
-
-              <div className="relative shrink-0 flex items-center gap-1 overflow-visible">
+              <div className="shrink-0 flex items-center gap-1">
+                {/* Assign badge — always visible when assigned, hover otherwise */}
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAssignOpen(isAssignOpen ? null : item.company.company_id);
-                  }}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md border border-border text-[10px] hover:bg-secondary hover:text-foreground transition-all ${
-                    isAssignOpen ? "text-foreground opacity-100" : "text-muted-foreground opacity-0 group-hover:opacity-100"
+                  onClick={handleOpenAssign}
+                  className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold transition-colors ${
+                    item.assigned_advisor_id
+                      ? "bg-primary/10 text-primary hover:bg-primary/20"
+                      : "bg-secondary text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary/80"
                   }`}
-                  title="Tildel rådgiver"
+                  title={item.assigned_advisor_id ? `${assignedName || "Tildelt"} — klik for at ændre` : "Tildel rådgiver"}
                 >
-                  <UserCheck className="h-3 w-3" />
-                  Tildel
+                  {item.assigned_advisor_id
+                    ? getAdvisorInitials(assignedName)
+                    : <UserCheck className="h-3 w-3" />
+                  }
                 </button>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmIgnore({ companyId: item.company.company_id, companyName: item.company.company_name });
-                    setAssignOpen(null);
-                  }}
-                  className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all shrink-0"
-                  title="Ignorer — fjern fra listen"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {/* Inline ignore confirm */}
+                {pendingIgnore === item.company.company_id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIgnored(prev => {
+                          const next = new Set([...prev, item.company.company_id]);
+                          saveIgnored(next);
+                          return next;
+                        });
+                        onIgnore?.(item.company.company_id);
+                        setPendingIgnore(null);
+                      }}
+                      className="px-2 py-0.5 rounded text-[10px] font-medium bg-secondary text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                      Ja
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPendingIgnore(null); }}
+                      className="px-2 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Nej
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPendingIgnore(item.company.company_id); setAssignOpen(null); }}
+                    className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all shrink-0"
+                    title="Ignorer — fjern fra listen"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -252,9 +276,11 @@ export default function AdvisorPriorityQueue({
                   <ChevronRight className="h-4 w-4" />
                 </button>
 
-                {isAssignOpen && (
+                {/* Portal-based assign dropdown */}
+                {isAssignOpen && dropdownPos && createPortal(
                   <div
-                    className="absolute right-0 top-full mt-2 z-[60] min-w-[220px] rounded-lg border border-border bg-popover shadow-xl overflow-hidden"
+                    style={{ position: "fixed", top: dropdownPos.top, right: dropdownPos.right, zIndex: 9999 }}
+                    className="min-w-[220px] rounded-lg border border-border bg-popover shadow-xl overflow-hidden"
                     onPointerDown={(e) => e.stopPropagation()}
                   >
                     {advisorProfiles.map((advisor) => (
@@ -292,7 +318,8 @@ export default function AdvisorPriorityQueue({
                         Fjern tildeling
                       </button>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             </div>
@@ -320,33 +347,6 @@ export default function AdvisorPriorityQueue({
         </button>
       )}
 
-      <AlertDialog open={!!confirmIgnore} onOpenChange={(open) => { if (!open) setConfirmIgnore(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Fjern handling?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Er du sikker på at du vil fjerne <span className="font-semibold">{confirmIgnore?.companyName}</span> fra handlingskøen? Den vil være skjult i 72 timer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuller</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!confirmIgnore) return;
-                setIgnored((prev) => {
-                  const next = new Set([...prev, confirmIgnore.companyId]);
-                  saveIgnored(next);
-                  return next;
-                });
-                onIgnore?.(confirmIgnore.companyId);
-                setConfirmIgnore(null);
-              }}
-            >
-              Fjern
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
