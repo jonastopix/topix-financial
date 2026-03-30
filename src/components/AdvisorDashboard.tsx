@@ -724,6 +724,7 @@ const AdvisorDashboard = () => {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems, advisorProfiles, sparringItems,
+        allConversations,
       };
     },
     enabled: !!user,
