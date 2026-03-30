@@ -37,7 +37,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
+  
   const { user } = useAuth();
 
   const reset = () => {
