@@ -48,6 +48,7 @@ const baseNavItems = [
 
 const advisorNavItems = [
   { icon: UserCog, label: "Medlemmer", path: "/members" },
+  { icon: ClipboardList, label: "Review Queue", path: "/admin/review-queue" },
 ];
 
 const adminNavItems = [
