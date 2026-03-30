@@ -8,9 +8,7 @@ import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
 import BudgetOverview from "@/components/BudgetOverview";
 import PerformanceScore from "@/components/PerformanceScore";
-import AttentionNeeded from "@/components/AttentionNeeded";
-import CompanyActions from "@/components/CompanyActions";
-import WeeklyFocusWidget from "@/components/WeeklyFocusWidget";
+import DashboardActionCenter from "@/components/DashboardActionCenter";
 import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import DashboardActivity from "@/components/DashboardActivity";
@@ -525,14 +523,15 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Attention needed — action-first, before KPI data */}
-      {companyId && <WeeklyFocusWidget companyId={companyId} />}
-      <div className="mb-6">
-        <AttentionNeeded />
-        <div id="company-actions">
-          {companyId && <CompanyActions companyId={companyId} />}
-        </div>
-      </div>
+      {/* Unified action center */}
+      {!isAdvisor && companyId && (
+        <DashboardActionCenter
+          companyId={companyId}
+          hasPulseThisMonth={hasPulseThisMonth}
+          hasReports={hasReports}
+          hasMilestoneProgressThisMonth={hasMilestoneProgressThisMonth}
+        />
+      )}
 
       {/* KPI cards – only shown when we have processed data */}
       {kpiData.period && (
