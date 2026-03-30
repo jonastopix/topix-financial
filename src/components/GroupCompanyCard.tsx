@@ -17,7 +17,7 @@ function computeTrend(c: GroupCompanySummary): number | null {
   return null;
 }
 
-export function CompanyTableRow({ company, onCompanyClick, onUploadClick }: GroupCompanyCardProps) {
+export function CompanyTableRow({ company, onCompanyClick, onUploadClick, onBudgetClick }: GroupCompanyCardProps) {
   const {
     company_id, company_name, logo_url, has_verified_metrics,
     revenue, ebt, cash, missing_current_period, has_report,
