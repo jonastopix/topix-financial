@@ -1809,7 +1809,7 @@ const CompanyChatPane = () => {
                           onClick={() => nextConv && setActiveConvId(nextConv.id)}
                           disabled={!nextConv}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
-                          title={nextConv ? `${nextConv.companyName} →` : undefined}
+                          title={nextConv ? `${nextConv.companyName} →` : "Ingen næste"}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </button>
