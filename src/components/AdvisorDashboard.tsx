@@ -746,11 +746,15 @@ const AdvisorDashboard = () => {
         })
         .slice(0, 15);
 
+      const groupedCompanyIds = new Set<string>(
+        ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
+      );
+
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems, advisorProfiles, sparringItems,
-        allConversations,
+        allConversations, groupedCompanyIds,
       };
     },
     enabled: !!user,
