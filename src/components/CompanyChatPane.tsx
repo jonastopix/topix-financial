@@ -1054,7 +1054,7 @@ const CompanyChatPane = () => {
   // Advisor prev/next navigation — mirrors the left panel filter
   const advisorConvList = useMemo(() => {
     if (!isAdvisor) return [];
-    return filteredConversations.filter(c => c.threadType !== "group");
+    return filteredConversations;
   }, [filteredConversations, isAdvisor]);
 
   const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
@@ -1525,10 +1525,6 @@ const CompanyChatPane = () => {
             {/* Conversation list */}
             <div className="flex-1 overflow-y-auto">
               {(() => {
-                const companyConvs = filteredConversations.filter(c => c.threadType !== "group");
-                const groupConvs = filteredConversations.filter(c => c.threadType === "group");
-                const showGroups = (activeFilter === "alle" || activeFilter === "action") && groupConvs.length > 0;
-
                 const renderConvCard = (conv: ConversationWithProfile) => {
                   const isActive = activeConvId === conv.id;
                   const isResolved = conv.conversation_status === 'resolved';
@@ -1658,7 +1654,7 @@ const CompanyChatPane = () => {
                   );
                 };
 
-                if (companyConvs.length === 0 && groupConvs.length === 0) {
+                if (filteredConversations.length === 0) {
                   return (
                     <div className="p-6 text-center">
                       <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
@@ -1683,19 +1679,7 @@ const CompanyChatPane = () => {
 
                 return (
                   <>
-                    {companyConvs.map(renderConvCard)}
-
-                    {showGroups && (
-                      <>
-                        <div className="px-4 py-2 border-t border-border">
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                            <Layers className="h-3 w-3" />
-                            Koncerner ({groupConvs.length})
-                          </p>
-                        </div>
-                        {groupConvs.map(renderConvCard)}
-                      </>
-                    )}
+                    {filteredConversations.map(renderConvCard)}
                   </>
                 );
               })()}
