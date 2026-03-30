@@ -664,10 +664,8 @@ const FileUploadZone = ({
         const nameLower = file.name.toLowerCase();
         const looksLikeBudget = /budget|forecast|prognose|plan\b/i.test(nameLower);
         if (looksLikeBudget) {
-          toast({
-            title: "Er dette et budget?",
+          toast.error("Er dette et budget?", {
             description: `"${file.name}" ligner et budget eller en prognose. Upload kun faktiske regnskabsrapporter — ikke budgetter.`,
-            variant: "destructive",
           });
         }
 
