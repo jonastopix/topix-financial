@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
   const { callerId } = auth;
-  console.log("[get-advisor-alerts] callerId:", callerId);
+  
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
