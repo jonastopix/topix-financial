@@ -145,8 +145,7 @@ async function runPostExtractionPipeline(params: {
       ? " Prøv at eksportere som Excel i stedet."
       : "";
 
-    toastFn({
-      title: "Tjek tallene manuelt",
+    toastFn("Tjek tallene manuelt", {
       description: `Vi kunne ikke aflæse alle tal automatisk.${sourceHint}${actionHint} Klik på rapporten for at indtaste de vigtigste tal — det tager 1-2 minutter.`,
     });
   } else {
