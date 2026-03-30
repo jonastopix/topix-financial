@@ -1,4 +1,4 @@
-import { Building2, BarChart3, FileText } from "lucide-react";
+import { Building2, BarChart3, FileText, Calculator } from "lucide-react";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import { formatDKK } from "@/lib/financialUtils";
 
