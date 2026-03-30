@@ -117,7 +117,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         overrideSource: getOverrideSource(isAdmin, isAdvisor),
       });
 
-      toast({ title: "Nulstillet", description: "Rapporten bruger nu parserens data igen." });
+      toast.success("Nulstillet", { description: "Rapporten bruger nu parserens data igen." });
       onSaved();
       onOpenChange(false);
     } catch (err: any) {
