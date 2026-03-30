@@ -645,6 +645,22 @@ const AdvisorDashboard = () => {
     return companyMap.get(companyId)?.name || "Ukendt";
   };
 
+  // Smart company click — navigate to chat for message/alert reasons
+  const getCompanyConvId = (companyId: string): string | null => {
+    return convByCompany.get(companyId)?.[0]?.id ?? null;
+  };
+
+  const handleAdvisorCompanyClick = (companyId: string, companyName: string, reason?: string) => {
+    setCompanyOverride(companyId, companyName);
+    if (reason && (reason.includes("besked") || reason.includes("alert") || reason.includes("Bankovertræk") || reason.includes("Omsætning faldt"))) {
+      const convId = getCompanyConvId(companyId);
+      if (convId) {
+        navigate(`/chat?conversationId=${convId}`);
+        return;
+      }
+    }
+  };
+
   // Member list state
   const [memberSearch, setMemberSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
