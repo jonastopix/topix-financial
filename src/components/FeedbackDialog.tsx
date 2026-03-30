@@ -84,7 +84,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
         .from("feedback-screenshots")
         .upload(path, screenshot, { contentType: screenshot.type });
       if (uploadError) {
-        toast({ title: "Upload fejlede", description: "Kunne ikke uploade billedet. Prøv igen.", variant: "destructive" });
+        toast.error("Upload fejlede", { description: "Kunne ikke uploade billedet. Prøv igen." });
         setSubmitting(false);
         return;
       }
