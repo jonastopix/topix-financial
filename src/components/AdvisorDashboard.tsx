@@ -324,7 +324,7 @@ const AdvisorDashboard = () => {
           .from("milestones")
           .select("user_id, title, updated_at, status")
           .eq("status", "completed")
-          .gte("updated_at", weekAgo)
+          .gte("updated_at", twoWeeksAgo)
           .order("updated_at", { ascending: false })
           .limit(50),
       ]);
