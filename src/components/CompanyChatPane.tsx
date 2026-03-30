@@ -2044,7 +2044,7 @@ const CompanyChatPane = () => {
                                 </div>
                               )}
 
-                              {activeConv?.awaiting_reply_from === "advisor" && activeConv?.conversation_status !== 'resolved' && (
+                              {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' && (
                                 <>
                                   <button
                                     onClick={() => { handleSnooze(getSnoozeDate('tomorrow')); setMobileActionsDrawerOpen(false); }}
