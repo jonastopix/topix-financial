@@ -80,7 +80,7 @@ const HandoutAIFeedback = ({ handoutId, module, feedback, feedbackAt, onFeedback
                 </div>
               ))
             ) : (
-              <p className="whitespace-pre-wrap">{JSON.stringify(feedback, null, 2)}</p>
+              <p className="text-xs text-muted-foreground italic">Feedback-format ikke genkendt.</p>
             )}
           </div>
         </div>
