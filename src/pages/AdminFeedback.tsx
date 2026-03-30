@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Bug, Lightbulb, MessageSquare, CheckCircle2, Clock, AlertCircle, ImageIcon, Trash2, ChevronDown, ChevronRight, Send, Loader2, Reply } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const categoryConfig: Record<string, { label: string; icon: typeof Bug; color: string }> = {
   bug: { label: "Bug", icon: Bug, color: "text-destructive" },
