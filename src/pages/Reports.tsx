@@ -937,10 +937,17 @@ const Reports = () => {
                           {msgs.length}
                         </span>
                       )}
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${config.bg} ${config.className}`}>
-                        <Icon className="h-3.5 w-3.5" />
-                        {config.label}
-                      </span>
+                      <div className="text-right">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${config.bg} ${config.className}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                          {config.label}
+                        </span>
+                        {report.status === "processing" && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            AI analyserer rapporten — klar om ca. 30 sekunder
+                          </p>
+                        )}
+                      </div>
                       {isAdmin && (
                         <a
                           href={`/admin/report-debug/${report.id}`}
