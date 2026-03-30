@@ -109,7 +109,19 @@ const KPICard = ({ title, value, change, trend = "neutral", secondaryChange, sec
 
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-3">
-          <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
+          <div className="flex items-center gap-1">
+            <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{title}</p>
+            {tooltip && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3 w-3 text-muted-foreground/50 cursor-help shrink-0" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  {tooltip}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
           {icon && (
             <div className={`p-2 rounded-lg ${accent.iconBg}`}>
               <div className={accent.iconText}>{icon}</div>

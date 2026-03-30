@@ -222,7 +222,11 @@ export default function ReportReviewQueue() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {flags.map((f, i) => (
-                          <span key={i} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${f.color}`}>
+                          <span
+                            key={i}
+                            title={FLAG_TOOLTIPS[f.label] || f.label}
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium cursor-help ${f.color}`}
+                          >
                             {f.label}
                           </span>
                         ))}
