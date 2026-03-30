@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Pencil, Save, RotateCcw, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   type ReportData, hasManualOverride,
   getEffectiveMetrics, getEffectiveReportPeriodKey,

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface HandoutAIFeedbackProps {
   handoutId: string;

@@ -17,7 +17,7 @@ import {
   getEffectiveReportPeriodKey, getEffectiveKeyFigures,
   formatDKK, type ReportData,
 } from "@/lib/financialUtils";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 
 /** Format "2026-02" → "Februar 2026" */

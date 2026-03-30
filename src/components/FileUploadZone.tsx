@@ -2,7 +2,7 @@ import { useCallback, useState, useRef } from "react";
 import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target, Info, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";

@@ -9,7 +9,7 @@ import HandoutLeverItem from "@/components/HandoutLeverItem";
 import HandoutAIFeedback from "@/components/HandoutAIFeedback";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { moduleOrder } from "@/lib/handoutConfig";
