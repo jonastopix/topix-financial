@@ -290,7 +290,7 @@ const AdvisorDashboard = () => {
           .like("period", `${currentYear}-base-%`),
         supabase
           .from("pulse_checkins")
-          .select("company_id, went_well, biggest_challenge, created_at")
+          .select("company_id, went_well, biggest_challenge, help_needed, created_at")
           .order("created_at", { ascending: false })
           .limit(100),
         (supabase
