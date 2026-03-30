@@ -24,7 +24,7 @@ const DashboardMilestones = () => {
         .from("milestones")
         .select("id, title, progress, status, deadline") as any)
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("deadline", { ascending: true, nullsFirst: false });
       return all || [];
     },
     enabled: !!user && !!companyId,
