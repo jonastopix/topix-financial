@@ -139,6 +139,11 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const useNewNotifications = useNewNotificationsAdvisor || useNewNotificationsMember;
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+
+  const filteredCompanies = companySearch.trim()
+    ? (allCompanies || []).filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
+    : (allCompanies || []);
 
   // Fetch all companies for advisor picker
   const { data: allCompanies } = useQuery({
