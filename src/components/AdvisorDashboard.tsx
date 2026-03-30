@@ -752,10 +752,10 @@ const AdvisorDashboard = () => {
   const { data: advisorProfiles = [] } = useQuery({
     queryKey: ["advisor-profiles"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase
         .from("profiles")
         .select("user_id, full_name")
-        .eq("is_advisor" as any, true);
+        .eq("is_advisor", true) as any);
       if (data && data.length > 0) return data as { user_id: string; full_name: string }[];
 
       // Fallback: get unique advisors from company_members
