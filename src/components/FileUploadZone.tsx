@@ -149,8 +149,7 @@ async function runPostExtractionPipeline(params: {
       description: `Vi kunne ikke aflæse alle tal automatisk.${sourceHint}${actionHint} Klik på rapporten for at indtaste de vigtigste tal — det tager 1-2 minutter.`,
     });
   } else {
-    toastFn({
-      title: "Rapport behandlet ✓",
+    toastFn.success("Rapport behandlet ✓", {
       description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} — tryk "Klar til godkendelse" for at bekræfte tallene`,
     });
   }
