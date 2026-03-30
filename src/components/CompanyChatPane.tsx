@@ -1034,19 +1034,19 @@ const CompanyChatPane = () => {
 
   // Pulse context for advisor chat banner
   const { data: latestPulse } = useQuery({
-    queryKey: ["chat-pulse-context", activeConv?.companyId],
+    queryKey: ["chat-pulse-context", activeConv?.company_id],
     queryFn: async () => {
-      if (!activeConv?.companyId) return null;
+      if (!activeConv?.company_id) return null;
       const { data } = await supabase
         .from("pulse_checkins")
         .select("help_needed, biggest_challenge, period_key")
-        .eq("company_id", activeConv.companyId)
+        .eq("company_id", activeConv.company_id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       return data;
     },
-    enabled: !!isAdvisor && !!activeConv?.companyId,
+    enabled: !!isAdvisor && !!activeConv?.company_id,
     staleTime: 5 * 60_000,
   });
 
