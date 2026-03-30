@@ -386,7 +386,7 @@ const Members = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success(`${member.full_name} fjernet fra ${company.name}`);
-      setReloadTrigger((t) => t + 1);
+      refetchMembers();
     } catch (err: any) {
       console.error("Remove member error:", err);
       toast.error("Kunne ikke fjerne medlem: " + (err.message || "Ukendt fejl"));
@@ -427,7 +427,7 @@ const Members = () => {
       });
       if (error) throw error;
       toast.success(`Invitation ${company.invitationStatus === 'accepted' ? 'nulstillet og ' : ''}gensendt til ${company.invitationEmail}`);
-      setReloadTrigger((t) => t + 1);
+      refetchMembers();
     } catch (err: any) {
       console.error("Resend invitation error:", err);
       toast.error("Kunne ikke gensende invitation: " + (err.message || "Ukendt fejl"));
@@ -448,7 +448,7 @@ const Members = () => {
       });
       if (error) throw error;
       toast.success(`Invitation gensendt til ${inv.email}`);
-      setReloadTrigger((t) => t + 1);
+      refetchMembers();
     } catch (err: any) {
       console.error("Resend standalone invitation error:", err);
       toast.error("Kunne ikke gensende invitation: " + (err.message || "Ukendt fejl"));
@@ -516,7 +516,7 @@ const Members = () => {
       }
       toast.success(`${targetUser.full_name} tilknyttet ${mergeTargetCompany.name}`);
       setMergeDialogOpen(false);
-      setReloadTrigger((t) => t + 1);
+      refetchMembers();
     } catch (err: any) {
       console.error("Merge error:", err);
       toast.error("Kunne ikke flytte brugeren: " + (err.message || "Ukendt fejl"));
@@ -566,7 +566,7 @@ const Members = () => {
       toast.success(`${deleteTarget.name} slettet`);
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
-      setReloadTrigger((t) => t + 1);
+      refetchMembers();
     } catch (err: any) {
       console.error("Delete error:", err);
       toast.error("Kunne ikke slette: " + (err.message || "Ukendt fejl"));
@@ -706,7 +706,7 @@ const Members = () => {
       setStandaloneEmail("");
       setStandaloneName("");
       setStandaloneCompanyId("");
-      setReloadTrigger((t) => t + 1);
+      refetchMembers();
     } catch (err: any) {
       console.error("Standalone invite error:", err);
       toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));
@@ -1240,7 +1240,7 @@ const Members = () => {
           anchorCompany={wizardAnchor}
           allCompanies={companies.map((c) => ({ id: c.id, name: c.name }))}
           groupedCompanyIds={groupedCompanyIds}
-          onCreated={() => setReloadTrigger((t) => t + 1)}
+          onCreated={() => refetchMembers()}
         />
       )}
 
@@ -1255,7 +1255,7 @@ const Members = () => {
             members: c.members.map((m) => ({ user_id: m.user_id, full_name: m.full_name, role: m.role })),
           }))}
           groupedCompanyIds={groupedCompanyIds}
-          onSuccess={() => setReloadTrigger((t) => t + 1)}
+          onSuccess={() => refetchMembers()}
         />
       )}
 
