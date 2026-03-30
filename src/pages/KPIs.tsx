@@ -1355,7 +1355,7 @@ const KPIs = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
       </div>
       </div>
       <p className="text-[10px] text-muted-foreground text-center mt-8 mb-2">
