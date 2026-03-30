@@ -13,7 +13,7 @@ import { MessageCircle, Calculator, Plus, Settings } from "lucide-react";
 
 const GroupDashboard = () => {
   const { isGroupUser, isGroupOwner, isAdvisor, loading, groupId, user, setCompanyOverride } = useAuth();
-  const { companies, aggregates, isLoading, groupName } = useGroupDashboard();
+  const { companies, aggregates, historicalData, isLoading, groupName } = useGroupDashboard();
   const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -89,6 +89,7 @@ const GroupDashboard = () => {
         onCompanyClick={handleCompanyClick}
         onUploadClick={handleUploadClick}
         onBudgetClick={handleBudgetClick}
+        historicalData={historicalData}
       />
       {isGroupOwner && showSettings && groupId && user && (
         <div className="mt-6">

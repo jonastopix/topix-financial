@@ -7,6 +7,7 @@ import {
   Building2, TrendingUp, Loader2, DollarSign, Wallet,
   BarChart3, FileCheck, AlertTriangle, MessageSquare,
 } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { CompanyTableRow } from "@/components/GroupCompanyCard";
 import GroupCompanyCard from "@/components/GroupCompanyCard";
 import type { GroupCompanySummary, GroupAggregates } from "@/lib/groupDashboardUtils";
@@ -31,6 +32,14 @@ function isTopPerformer(c: GroupCompanySummary): boolean {
   return c.has_verified_metrics && (c.ebt ?? 0) > 0 && (c.revenue ?? 0) > 0;
 }
 
+export interface HistoricalPoint {
+  period_key: string;
+  label: string;
+  revenue: number;
+  ebt: number;
+  cash: number;
+}
+
 interface GroupDashboardContentProps {
   companies: GroupCompanySummary[];
   aggregates: GroupAggregates;
@@ -40,6 +49,7 @@ interface GroupDashboardContentProps {
   onCompanyClick?: (companyId: string, companyName: string) => void;
   onUploadClick?: (companyId: string, companyName: string) => void;
   onBudgetClick?: (companyId: string, companyName: string) => void;
+  historicalData?: HistoricalPoint[];
 }
 
 const GroupDashboardContent = ({
@@ -51,9 +61,11 @@ const GroupDashboardContent = ({
   onCompanyClick,
   onUploadClick,
   onBudgetClick,
+  historicalData,
 }: GroupDashboardContentProps) => {
   const [filter, setFilter] = useState<FilterTab>("alle");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
+  const [chartMetric, setChartMetric] = useState<"revenue" | "ebt" | "cash">("revenue");
   const isMobile = useIsMobile();
 
   const compliancePct = aggregates.companiesTotal > 0
@@ -168,6 +180,58 @@ const GroupDashboardContent = ({
               }
             />
           </div>
+
+          {/* ── Historical Chart ── */}
+          {historicalData && historicalData.length >= 2 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Udvikling over tid</p>
+                  <p className="text-xs text-muted-foreground">Aggregeret på tværs af alle selskaber</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {(["revenue", "ebt", "cash"] as const).map(metric => (
+                    <button
+                      key={metric}
+                      onClick={() => setChartMetric(metric)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                        chartMetric === metric ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {metric === "revenue" ? "Omsætning" : metric === "ebt" ? "Resultat" : "Likviditet"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={historicalData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="groupGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false} tickLine={false}
+                    tickFormatter={(v) => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v/1_000).toFixed(0)}k` : String(v)}
+                    width={48}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [
+                      new Intl.NumberFormat("da-DK", { style: "currency", currency: "DKK", maximumFractionDigits: 0 }).format(value),
+                      chartMetric === "revenue" ? "Omsætning" : chartMetric === "ebt" ? "Resultat" : "Likviditet",
+                    ]}
+                    labelStyle={{ fontSize: 11 }}
+                    contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                  />
+                  <Area type="monotone" dataKey={chartMetric} stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#groupGrad)" dot={false} activeDot={{ r: 4 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* ── Filter + Sort Controls ── */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
