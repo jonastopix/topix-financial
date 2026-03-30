@@ -14,6 +14,7 @@ import { da } from "date-fns/locale";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import KPICard from "@/components/KPICard";
 import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
+import AdvisorBroadcast from "@/components/AdvisorBroadcast";
 
 // ── Helpers ──
 
