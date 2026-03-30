@@ -26,7 +26,7 @@ interface YearGroup {
   total: number;
 }
 
-const DeliveryOverview = ({ reports }: DeliveryOverviewProps) => {
+const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => {
   const reportsByMonth = useMemo(() => {
     const map: Record<string, ReportSlim> = {};
     [...reports]
