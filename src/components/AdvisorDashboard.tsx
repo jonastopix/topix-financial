@@ -601,7 +601,14 @@ const AdvisorDashboard = () => {
           }
 
           const primaryConv = convByCompany.get(c.company_id)?.[0];
-          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score, assigned_advisor_id: primaryConv?.assigned_advisor_id ?? null };
+          const assignedAdvisor = advisorProfiles.find((advisor) => advisor.user_id === primaryConv?.assigned_advisor_id);
+          return {
+            company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
+            reasons,
+            score,
+            assigned_advisor_id: primaryConv?.assigned_advisor_id ?? null,
+            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
+          };
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -610,7 +617,7 @@ const AdvisorDashboard = () => {
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
-        priorityItems,
+        priorityItems, advisorProfiles,
       };
     },
     enabled: !!user,
