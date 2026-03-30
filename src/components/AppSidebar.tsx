@@ -358,7 +358,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               {!viewingAsMember && (
               <div className="relative">
                 {isMobile ? (
-                  <Drawer open={showCompanyPicker} onOpenChange={setShowCompanyPicker}>
+                  <Drawer open={showCompanyPicker} onOpenChange={(open) => { setShowCompanyPicker(open); if (!open) setCompanySearch(""); }}>
                     <button
                       onClick={() => setShowCompanyPicker(true)}
                       className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
