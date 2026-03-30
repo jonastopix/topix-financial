@@ -24,7 +24,7 @@ import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, Check, ArrowRightLeft, X,
+  UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft, X,
   CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
