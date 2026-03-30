@@ -40,7 +40,7 @@ const founderFeatures = [
     icon: BookOpen, title: "Handouts", path: "/handouts",
     color: "text-chart-positive", bg: "bg-chart-positive/10",
     desc: "5 strategiske moduler der hjælper dig med at strukturere din forretning — fra målsætning til salg og marketing.",
-    tips: ["Start med 'Målsætning 12 mdr.' for at sætte retningen", "Hvert modul tager 30-60 minutter at gennemføre", "Lever du actionpoints skabes der automatisk milestones"],
+    tips: ["Start med 'Målsætning 12 mdr.' for at sætte retningen", "Hvert modul tager 30-60 minutter at gennemføre", "Når du har udfyldt et modul, kan du få AI-sparring på dine svar"],
   },
   {
     icon: MessageCircle, title: "Chat med rådgiver", path: "/chat",

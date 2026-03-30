@@ -80,16 +80,18 @@ const HandoutAIFeedback = ({ handoutId, module, feedback, feedbackAt, onFeedback
                 </div>
               ))
             ) : (
-              <p className="whitespace-pre-wrap">{JSON.stringify(feedback, null, 2)}</p>
+              <p className="text-xs text-muted-foreground italic">Feedback-format ikke genkendt.</p>
             )}
           </div>
         </div>
       )}
 
       {!feedback && !loading && (
-        <p className="text-xs text-muted-foreground">
-          Klik "Få AI-sparring" for at modtage personlig feedback og forslag baseret på dine svar.
-        </p>
+        <div className="rounded-lg bg-secondary/50 p-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Få personlig AI-sparring baseret på dine svar i dette modul. AI-chefen læser dine besvarelser og giver konkrete anbefalinger til din situation.
+          </p>
+        </div>
       )}
     </div>
   );
