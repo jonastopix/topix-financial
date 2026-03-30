@@ -8,10 +8,10 @@ import { da } from "date-fns/locale";
 import { getEffectiveReportPeriod, type ReportData } from "@/lib/financialUtils";
 
 const typeConfig = {
-  message: { icon: MessageSquare, color: "text-chart-info", bg: "bg-chart-info/10" },
-  report: { icon: FileText, color: "text-primary", bg: "bg-primary/10" },
-  milestone: { icon: Target, color: "text-chart-warning", bg: "bg-chart-warning/10" },
-  system: { icon: Sparkles, color: "text-primary", bg: "bg-primary/10" },
+  message: { icon: MessageSquare, color: "text-chart-info", bg: "bg-chart-info/10", action: "Læs besked" },
+  report: { icon: FileText, color: "text-primary", bg: "bg-primary/10", action: "Se rapport" },
+  milestone: { icon: Target, color: "text-chart-warning", bg: "bg-chart-warning/10", action: "Se milestone" },
+  system: { icon: Sparkles, color: "text-primary", bg: "bg-primary/10", action: "Se analyse" },
 };
 
 interface ActivityEvent {
@@ -103,7 +103,7 @@ const DashboardActivity = () => {
     <div className="glass-card rounded-xl p-5 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
         <Bell className="h-4 w-4 text-primary" />
-        <h3 className="font-display font-semibold text-foreground text-sm">Seneste aktivitet</h3>
+        <h3 className="font-display font-semibold text-foreground text-sm">Hvad skete der senest</h3>
       </div>
 
       {events.length === 0 ? (
@@ -117,7 +117,7 @@ const DashboardActivity = () => {
             const card = (
               <div
                 key={event.id}
-                className="flex-shrink-0 w-44 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors border border-border/30"
+                className="flex-shrink-0 w-44 p-3 rounded-lg bg-secondary/50 hover:bg-secondary hover:ring-1 hover:ring-primary/20 transition-all border border-border/30"
               >
                 <div className={`h-7 w-7 rounded-full ${cfg.bg} flex items-center justify-center mb-2`}>
                   <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
@@ -126,6 +126,9 @@ const DashboardActivity = () => {
                 <p className="text-[10px] text-muted-foreground">
                   {format(new Date(event.timestamp), "d. MMM · HH:mm", { locale: da })}
                 </p>
+                {event.link && (
+                  <p className="text-[10px] text-primary mt-1.5 font-medium">{cfg.action} →</p>
+                )}
               </div>
             );
 
