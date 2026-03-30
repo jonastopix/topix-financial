@@ -1008,15 +1008,6 @@ const AdvisorDashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* ── Priority Queue ── */}
-      <AdvisorPriorityQueue
-        items={priorityItems}
-        onCompanyClick={handleAdvisorCompanyClick}
-        advisorProfiles={advisorProfiles}
-        currentUserId={user?.id}
-        onAssign={handleAssignAdvisor}
-      />
-
       {/* ── Advisor fordeling ── */}
       <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs flex-wrap">
         <UserCheck className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -1045,11 +1036,20 @@ const AdvisorDashboard = () => {
         )}
       </div>
 
-      {/* ── Sparring Queue ── */}
-      <AdvisorSparringQueue
-        items={sparringItems}
-        onCompanyClick={handleAdvisorCompanyClick}
-      />
+      {/* ── Priority + Sparring side by side ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <AdvisorPriorityQueue
+          items={priorityItems}
+          onCompanyClick={handleAdvisorCompanyClick}
+          advisorProfiles={advisorProfiles}
+          currentUserId={user?.id}
+          onAssign={handleAssignAdvisor}
+        />
+        <AdvisorSparringQueue
+          items={sparringItems}
+          onCompanyClick={handleAdvisorCompanyClick}
+        />
+      </div>
 
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
