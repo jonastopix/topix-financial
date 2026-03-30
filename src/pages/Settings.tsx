@@ -292,6 +292,8 @@ const Settings = () => {
         setEmailPrefs({
           action_required: prefs.action_required !== false,
           important: prefs.important !== false,
+          report_reminders: prefs.report_reminders !== false,
+          monthly_digest: prefs.monthly_digest !== false,
         });
       }
     }
