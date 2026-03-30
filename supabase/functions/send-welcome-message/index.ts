@@ -7,6 +7,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const VERIFIED_FROM_EMAIL = "noreply@mail.topix.dk";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -110,7 +112,32 @@ serve(async (req) => {
   const advisorId = advisorRole.user_id;
   const firstName = memberName?.split(" ")[0] || "der";
 
-  const message = `Hej ${firstName}! Velkommen til The Boardroom 🎉 Vi glæder os til at følge din rejse og give dig sparring undervejs. Det bedste du kan gøre nu er at uploade din seneste regnskabsrapport — så har vi et fælles udgangspunkt at arbejde ud fra. Spørg endelig hvis der er noget.`;
+  // Try to load welcome message template from DB
+  const { data: welcomeTpl } = await admin
+    .from("email_templates")
+    .select("body_html, enabled")
+    .eq("name", "Velkomstbesked")
+    .maybeSingle();
+
+  // Auto-create if missing so it appears in admin panel
+  if (!welcomeTpl) {
+    await admin.from("email_templates").insert({
+      name: "Velkomstbesked",
+      subject: "Velkomstbesked",
+      body_html: `Hej {{first_name}}! Velkommen til The Boardroom 🎉 Vi glæder os til at følge din rejse og give dig sparring undervejs. Det bedste du kan gøre nu er at uploade din seneste regnskabsrapport — så har vi et fælles udgangspunkt at arbejde ud fra. Spørg endelig hvis der er noget.`,
+      sender_name: "The Boardroom",
+      sender_email: VERIFIED_FROM_EMAIL,
+      trigger_type: "event",
+      trigger_config: { event: "user_onboarded" },
+      enabled: false,
+    });
+  }
+
+  const FALLBACK_WELCOME = `Hej ${firstName}! Velkommen til The Boardroom 🎉 Vi glæder os til at følge din rejse og give dig sparring undervejs. Det bedste du kan gøre nu er at uploade din seneste regnskabsrapport — så har vi et fælles udgangspunkt at arbejde ud fra. Spørg endelig hvis der er noget.`;
+
+  const message = (welcomeTpl?.enabled && welcomeTpl.body_html)
+    ? welcomeTpl.body_html.replace(/\{\{first_name\}\}/g, firstName || "dig")
+    : FALLBACK_WELCOME;
 
   const now = new Date().toISOString();
 

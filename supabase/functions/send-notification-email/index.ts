@@ -45,6 +45,16 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   weekly_focus_ready: "Ugens fokus er klar",
 };
 
+const NOTIFICATION_TEMPLATE_NAMES: Record<string, string> = {
+  advisor_replied:        "Notifikation: Ny besked fra rådgiver",
+  report_review_ready:    "Notifikation: Rapport klar til gennemsyn",
+  report_error:           "Notifikation: Rapport fejl",
+  report_committed:       "Notifikation: Rapport godkendt",
+  milestone_completed:    "Notifikation: Milestone fuldført",
+  pulse_checkin_received: "Notifikation: Pulse check-in modtaget",
+  weekly_focus_ready:     "Notifikation: Ugens fokus klar",
+};
+
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
   const logoMark = `<div style="width:28px;height:28px;background:#16a34a;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:10px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="5" height="5" rx="1" fill="white"/><rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity=".3"/></svg></div>`;
@@ -128,6 +138,43 @@ Deno.serve(async (req) => {
       return json({ processed: 0 });
     }
 
+    // Load notification email templates (one query for all types)
+    const { data: notifTemplates } = await admin
+      .from("email_templates")
+      .select("name, subject, body_html, sender_name, sender_email, enabled")
+      .in("name", Object.values(NOTIFICATION_TEMPLATE_NAMES));
+
+    const notifTemplateMap = new Map(
+      (notifTemplates || [])
+        .filter((t: any) => t.enabled)
+        .map((t: any) => [t.name, t])
+    );
+
+    // Auto-create missing templates (disabled by default) so they appear in admin panel
+    for (const [type, tplName] of Object.entries(NOTIFICATION_TEMPLATE_NAMES)) {
+      const exists = (notifTemplates || []).some((t: any) => t.name === tplName);
+      if (!exists) {
+        const defaultSubject = EMAIL_SUBJECTS[type] || tplName;
+        await admin.from("email_templates").insert({
+          name: tplName,
+          subject: defaultSubject,
+          body_html: buildEmailHtml(
+            defaultSubject,
+            "{{body}}",
+            "{{deep_link}}",
+            "{{cta_label}}",
+            "{{eyebrow}}",
+            "{{highlight}}"
+          ),
+          sender_name: "The Boardroom",
+          sender_email: VERIFIED_FROM_EMAIL,
+          trigger_type: "event",
+          trigger_config: { event: type },
+          enabled: false,
+        });
+      }
+    }
+
     let sent = 0;
     let skipped = 0;
 
@@ -171,6 +218,24 @@ Deno.serve(async (req) => {
       countMap[row.user_id] = (countMap[row.user_id] || 0) + 1;
     }
 
+    const ctaLabels: Record<string, string> = {
+      report_review_ready: "Gennemgå mine tal →",
+      report_error: "Prøv igen →",
+      advisor_replied: "Læs beskeden →",
+      report_committed: "Se virksomhedens tal →",
+      weekly_focus_ready: "Se ugens fokus",
+    };
+    const eyebrows: Record<string, string> = {
+      report_review_ready: "Dine tal er klar",
+      report_error: "Rapport fejl",
+      advisor_replied: "Ny besked",
+      weekly_focus_ready: "Ugens fokus",
+    };
+    const highlights: Record<string, string> = {
+      report_review_ready: "Omsætning, dækningsbidrag og resultat er klar til verifikation.",
+      report_error: "Prøv at eksportere filen direkte fra dit regnskabsprogram og upload igen.",
+    };
+
     for (const notif of pending) {
       const userDailyCount = countMap[notif.user_id] || 0;
       if (userDailyCount >= MAX_EMAILS_PER_DAY) {
@@ -213,33 +278,41 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const subject = EMAIL_SUBJECTS[notif.type] || notif.title;
+      // Template-aware subject and body rendering
+      const tplName = NOTIFICATION_TEMPLATE_NAMES[notif.type];
+      const tpl = tplName ? notifTemplateMap.get(tplName) : undefined;
+
+      // Subject: use DB template if available, else hardcoded fallback
+      const subject = tpl?.subject
+        ? tpl.subject
+            .replace("{{title}}", notif.title)
+            .replace("{{type}}", notif.type)
+        : (EMAIL_SUBJECTS[notif.type] || notif.title);
+
+      // Body: use DB template if available, else buildEmailHtml with hardcoded content
       const deepLink = notif.deep_link || "/";
-      const ctaLabels: Record<string, string> = {
-        report_review_ready: "Gennemgå mine tal →",
-        report_error: "Prøv igen →",
-        advisor_replied: "Læs beskeden →",
-        report_committed: "Se virksomhedens tal →",
-        weekly_focus_ready: "Se ugens fokus",
-      };
-      const eyebrows: Record<string, string> = {
-        report_review_ready: "Dine tal er klar",
-        report_error: "Rapport fejl",
-        advisor_replied: "Ny besked",
-        weekly_focus_ready: "Ugens fokus",
-      };
-      const highlights: Record<string, string> = {
-        report_review_ready: "Omsætning, dækningsbidrag og resultat er klar til verifikation.",
-        report_error: "Prøv at eksportere filen direkte fra dit regnskabsprogram og upload igen.",
-      };
-      const html = buildEmailHtml(
-        notif.title,
-        notif.body || "",
-        deepLink,
-        ctaLabels[notif.type],
-        eyebrows[notif.type],
-        highlights[notif.type]
-      );
+      const html = tpl?.body_html
+        ? tpl.body_html
+            .replace(/\{\{body\}\}/g, notif.body || "")
+            .replace(/\{\{deep_link\}\}/g, notif.deep_link || "/")
+            .replace(/\{\{cta_label\}\}/g, ctaLabels[notif.type] || "Åbn i The Boardroom →")
+            .replace(/\{\{eyebrow\}\}/g, eyebrows[notif.type] || "")
+            .replace(/\{\{highlight\}\}/g, highlights[notif.type] || "")
+            .replace(/\{\{title\}\}/g, notif.title)
+            .replace(/\{\{first_name\}\}/g, "")
+        : buildEmailHtml(
+            notif.title,
+            notif.body || "",
+            deepLink,
+            ctaLabels[notif.type],
+            eyebrows[notif.type],
+            highlights[notif.type]
+          );
+
+      const senderFrom = tpl?.sender_name
+        ? `${tpl.sender_name} <${VERIFIED_FROM_EMAIL}>`
+        : SENDER_FROM;
+
       const messageId = crypto.randomUUID();
 
       // Log pending
@@ -247,9 +320,7 @@ Deno.serve(async (req) => {
         message_id: messageId,
         template_name: `notification-${notif.type}`,
         recipient_email: userData.user.email,
-        subject: subject,
         status: "pending",
-        is_test: false,
       });
 
       // Enqueue via existing email queue
@@ -258,7 +329,7 @@ Deno.serve(async (req) => {
         payload: {
           message_id: messageId,
           to: userData.user.email,
-          from: SENDER_FROM,
+          from: senderFrom,
           sender_domain: SENDER_DOMAIN,
           subject,
           html,
