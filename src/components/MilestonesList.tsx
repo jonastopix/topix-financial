@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
-import { CheckCircle2, Circle, Clock, Sparkles, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Sparkles, BookOpen, Pencil, Check, X, Trash2, CalendarIcon } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -169,6 +169,11 @@ const MilestoneCard = ({
                   <Sparkles className="h-2.5 w-2.5" /> AI
                 </span>
               )}
+              {ms.source === "handout" && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <BookOpen className="h-2.5 w-2.5" /> Fra handout
+                </span>
+              )}
               <button onClick={() => setDetailOpen(true)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Rediger">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -272,6 +277,11 @@ const MilestoneCard = ({
               {ms.source === "ai" && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   <Sparkles className="h-2.5 w-2.5" /> AI
+                </span>
+              )}
+              {ms.source === "handout" && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <BookOpen className="h-2.5 w-2.5" /> Fra handout
                 </span>
               )}
               {/* Editable deadline */}
@@ -453,7 +463,28 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
   const filtered = categoryFilter
     ? milestones.filter((m) => m.category === categoryFilter)
     : milestones;
-  const activeMilestones = filtered.filter((m) => m.status !== "done");
+  const activeMilestones = filtered
+    .filter((m) => m.status !== "done")
+    .sort((a, b) => {
+      const now = new Date().getTime();
+      const URGENT_MS = 7 * 24 * 60 * 60 * 1000;
+
+      const aUrgent = a.deadline && (a.deadline.getTime() - now) <= URGENT_MS && a.deadline.getTime() > now;
+      const bUrgent = b.deadline && (b.deadline.getTime() - now) <= URGENT_MS && b.deadline.getTime() > now;
+
+      if (aUrgent && bUrgent) return a.deadline!.getTime() - b.deadline!.getTime();
+      if (aUrgent) return -1;
+      if (bUrgent) return 1;
+
+      if (a.status === "in-progress" && b.status !== "in-progress") return -1;
+      if (b.status === "in-progress" && a.status !== "in-progress") return 1;
+
+      if (a.deadline && !b.deadline) return -1;
+      if (!a.deadline && b.deadline) return 1;
+      if (a.deadline && b.deadline) return a.deadline.getTime() - b.deadline.getTime();
+
+      return 0;
+    });
   const doneMilestones = filtered.filter((m) => m.status === "done");
 
   const quickUpdateProgress = async (id: string, newProgress: number) => {
