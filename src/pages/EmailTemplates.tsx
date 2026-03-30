@@ -351,6 +351,102 @@ export default function EmailTemplates() {
     },
   });
 
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    const REQUIRED_TEMPLATES = [
+      {
+        name: "Rapport-påmindelse (venlig)",
+        subject: "Husk: Upload din rapport for {{period}}",
+        body_html: "Hej {{first_name}} — vi har endnu ikke modtaget din rapport for {{period}}. Det tager under 2 minutter, og vi trækker tallene ud automatisk.\n\nUpload rapport →",
+        trigger_type: "cron",
+        trigger_config: { schedule: "0 9 7 * *", description: "Dag 7 i måneden" },
+        enabled: false,
+      },
+      {
+        name: "Rapport-påmindelse (presserende)",
+        subject: "Din rapport for {{period}} mangler stadig",
+        body_html: "Hej {{first_name}} — din rapport for {{period}} er stadig ikke modtaget. Upload den snarest så vi kan følge med i udviklingen og give dig den bedste sparring.\n\nUpload rapport →",
+        trigger_type: "cron",
+        trigger_config: { schedule: "0 9 15 * *", description: "Dag 15 i måneden" },
+        enabled: false,
+      },
+      {
+        name: "Rapport-påmindelse (kritisk)",
+        subject: "Vigtigt: {{period}}-rapport er nu forsinket",
+        body_html: "Hej {{first_name}} — vi mangler fortsat din rapport for {{period}}. Upload den hurtigst muligt.\n\nUpload rapport →",
+        trigger_type: "cron",
+        trigger_config: { schedule: "0 9 20 * *", description: "Dag 20 i måneden" },
+        enabled: false,
+      },
+      {
+        name: "Velkomstbesked",
+        subject: "Velkomstbesked",
+        body_html: "Hej {{first_name}}! Velkommen til The Boardroom 🎉 Vi glæder os til at følge din rejse og give dig sparring undervejs. Det bedste du kan gøre nu er at uploade din seneste regnskabsrapport — så har vi et fælles udgangspunkt at arbejde ud fra. Spørg endelig hvis der er noget.",
+        trigger_type: "event",
+        trigger_config: { event: "user_onboarded" },
+        enabled: false,
+      },
+      {
+        name: "Notifikation: Ny besked fra rådgiver",
+        subject: "Ny besked fra din rådgiver",
+        body_html: "{{body}}",
+        trigger_type: "event",
+        trigger_config: { event: "advisor_replied" },
+        enabled: false,
+      },
+      {
+        name: "Notifikation: Rapport klar til gennemsyn",
+        subject: "Dine tal er klar til gennemsyn",
+        body_html: "{{body}}",
+        trigger_type: "event",
+        trigger_config: { event: "report_review_ready" },
+        enabled: false,
+      },
+      {
+        name: "Notifikation: Rapport fejl",
+        subject: "Din rapport kunne ikke behandles",
+        body_html: "{{body}}",
+        trigger_type: "event",
+        trigger_config: { event: "report_error" },
+        enabled: false,
+      },
+      {
+        name: "Notifikation: Rapport godkendt",
+        subject: "Nyt commit fra dit boardroom-medlem",
+        body_html: "{{body}}",
+        trigger_type: "event",
+        trigger_config: { event: "report_committed" },
+        enabled: false,
+      },
+      {
+        name: "Notifikation: Milestone fuldført",
+        subject: "Milestone fuldført",
+        body_html: "{{body}}",
+        trigger_type: "event",
+        trigger_config: { event: "milestone_completed" },
+        enabled: false,
+      },
+    ];
+
+    const existingNames = new Set(templates.map((t: any) => t.name));
+    const missing = REQUIRED_TEMPLATES.filter(t => !existingNames.has(t.name));
+
+    if (missing.length === 0) return;
+
+    Promise.all(
+      missing.map(tpl =>
+        (supabase.from("email_templates" as any).insert({
+          ...tpl,
+          sender_name: "The Boardroom",
+          sender_email: "noreply@mail.topix.dk",
+        } as any))
+      )
+    ).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["email-templates"] });
+    });
+  }, [templates, isLoading, user, queryClient]);
+
   const { data: sendLog = [], isLoading: logLoading } = useQuery({
     queryKey: ["email-send-log"],
     queryFn: async () => {
