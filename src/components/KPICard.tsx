@@ -19,6 +19,7 @@ interface KPICardProps {
   subtitle?: string;
   icon?: ReactNode;
   accentColor?: "emerald" | "amber" | "blue" | "rose";
+  tooltip?: string;
 }
 
 const accentMap = {
