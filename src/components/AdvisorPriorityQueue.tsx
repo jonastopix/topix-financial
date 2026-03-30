@@ -1,5 +1,16 @@
-import { useState, useEffect, useRef } from "react";
-import { MessageSquare, FileCheck, Wallet, TrendingDown, Clock, AlertTriangle, CheckCircle2, ChevronRight, X, UserCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  MessageSquare,
+  FileCheck,
+  Wallet,
+  TrendingDown,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  X,
+  UserCheck,
+} from "lucide-react";
 
 interface Reason {
   label: string;
@@ -11,6 +22,7 @@ export interface PriorityItem {
   reasons: Reason[];
   score: number;
   assigned_advisor_id?: string | null;
+  assigned_advisor_name?: string | null;
 }
 
 const ACTION_HINT: Record<string, string> = {
@@ -31,6 +43,17 @@ function getActionHint(label: string): string {
   return "Se virksomhed";
 }
 
+function getAdvisorInitials(name?: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 function ReasonIcon({ label }: { label: string }) {
   if (label.includes("besked")) return <MessageSquare className="h-3 w-3" />;
   if (label.includes("godkendelse")) return <FileCheck className="h-3 w-3" />;
@@ -49,39 +72,45 @@ interface AdvisorPriorityQueueProps {
   onIgnore?: (companyId: string) => void;
 }
 
-export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorProfiles, currentUserId, onAssign, onIgnore }: AdvisorPriorityQueueProps) {
+export default function AdvisorPriorityQueue({
+  items,
+  onCompanyClick,
+  advisorProfiles = [],
+  currentUserId,
+  onAssign,
+  onIgnore,
+}: AdvisorPriorityQueueProps) {
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
-  const assignBtnRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
-  const visibleItems = items.filter(i => !ignored.has(i.company.company_id));
+  const visibleItems = items.filter((i) => !ignored.has(i.company.company_id));
   const displayItems = showAll ? visibleItems : visibleItems.slice(0, 10);
   const hiddenCount = visibleItems.length - displayItems.length;
 
-  // Close assign dropdown on outside click
   useEffect(() => {
     if (!assignOpen) return;
-    const handler = () => setAssignOpen(null);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    const handlePointerDown = () => setAssignOpen(null);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [assignOpen]);
 
-  if (visibleItems.length === 0) return (
-    <div className="glass-card rounded-xl p-6 flex items-center gap-4">
-      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-        <CheckCircle2 className="h-5 w-5 text-primary" />
+  if (visibleItems.length === 0) {
+    return (
+      <div className="glass-card rounded-xl p-6 flex items-center gap-4">
+        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <CheckCircle2 className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Alle virksomheder er på sporet</p>
+          <p className="text-xs text-muted-foreground">Ingen kræver handling lige nu — god tid til proaktiv sparring</p>
+        </div>
       </div>
-      <div>
-        <p className="text-sm font-semibold text-foreground">Alle virksomheder er på sporet</p>
-        <p className="text-xs text-muted-foreground">Ingen kræver handling lige nu — god tid til proaktiv sparring</p>
-      </div>
-    </div>
-  );
+    );
+  }
 
   return (
-    <div className="glass-card rounded-xl p-5">
+    <div className="glass-card rounded-xl p-5 overflow-visible">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-chart-warning" />
@@ -92,146 +121,163 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorPro
         </span>
       </div>
 
-      <div className="space-y-1">
-        {displayItems.map(item => (
-          <button
-            key={item.company.company_id}
-            onClick={() => onCompanyClick(item.company.company_id, item.company.company_name, item.reasons[0]?.label)}
-            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
-          >
-            {/* Avatar */}
-            <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-              {item.company.logo_url
-                ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
-                : <span className="text-[10px] font-bold text-muted-foreground">
-                    {item.company.company_name.slice(0, 2).toUpperCase()}
-                  </span>
-              }
-            </div>
+      <div className="space-y-1 overflow-visible">
+        {displayItems.map((item) => {
+          const assignedName =
+            item.assigned_advisor_name ||
+            advisorProfiles.find((a) => a.user_id === item.assigned_advisor_id)?.full_name ||
+            null;
+          const isAssignOpen = assignOpen === item.company.company_id;
 
-            {/* Name + reasons */}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-foreground truncate">{item.company.company_name}</p>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                {item.reasons.map((r, i) => (
-                  <span key={i} className="inline-flex flex-col">
-                    <span className={`inline-flex items-center gap-1 text-[10px] ${
-                      r.urgency === "high" ? "text-destructive" : "text-chart-warning"
-                    }`}>
-                      <ReasonIcon label={r.label} />
-                      {r.label}
+          return (
+            <div
+              key={item.company.company_id}
+              className="group relative flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors overflow-visible"
+            >
+              <button
+                type="button"
+                onClick={() => onCompanyClick(item.company.company_id, item.company.company_name, item.reasons[0]?.label)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                  {item.company.logo_url ? (
+                    <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-[10px] font-bold text-muted-foreground">
+                      {item.company.company_name.slice(0, 2).toUpperCase()}
                     </span>
-                    <span className="text-[9px] text-muted-foreground ml-4">→ {getActionHint(r.label)}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
+                  )}
+                </div>
 
-            {/* Assigned advisor initials */}
-            {item.assigned_advisor_id && (() => {
-              const profile = advisorProfiles?.find(a => a.user_id === item.assigned_advisor_id);
-              const name = profile?.full_name || "";
-              const initials = name ? name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() : "?";
-              return (
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">{item.company.company_name}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {item.reasons.map((r, i) => (
+                      <span key={i} className="inline-flex flex-col">
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] ${
+                            r.urgency === "high" ? "text-destructive" : "text-chart-warning"
+                          }`}
+                        >
+                          <ReasonIcon label={r.label} />
+                          {r.label}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground ml-4">→ {getActionHint(r.label)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </button>
+
+              {item.assigned_advisor_id && (
                 <div
                   className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-[9px] font-bold text-primary"
-                  title={name || "Tildelt"}
+                  title={assignedName || "Tildelt"}
                 >
-                  {initials}
+                  {getAdvisorInitials(assignedName)}
                 </div>
-              );
-            })()}
-
-            {/* Assign button */}
-            <button
-              ref={(el) => { if (el) assignBtnRefs.current.set(item.company.company_id, el); }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (assignOpen === item.company.company_id) {
-                  setAssignOpen(null);
-                  setDropdownPos(null);
-                } else {
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  setDropdownPos({ top: rect.bottom + 4, left: rect.left });
-                  setAssignOpen(item.company.company_id);
-                }
-              }}
-              className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary hover:text-foreground transition-all shrink-0"
-              title="Tildel rådgiver"
-            >
-              <UserCheck className="h-3 w-3" />
-              Tildel
-            </button>
-
-            {/* Ignore button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIgnored(prev => new Set([...prev, item.company.company_id]));
-                onIgnore?.(item.company.company_id);
-                setAssignOpen(null);
-              }}
-              className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-muted-foreground hover:bg-secondary transition-all shrink-0"
-              title="Ignorer — fjern fra listen"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-
-            <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-          </button>
-        ))}
-      </div>
-
-      {/* Assign dropdown — rendered outside the item rows to avoid clipping */}
-      {assignOpen && dropdownPos && (
-        <div
-          className="fixed z-[100] bg-popover border border-border rounded-lg shadow-xl py-1 min-w-[180px]"
-          style={{ top: dropdownPos.top, left: dropdownPos.left }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {(advisorProfiles || []).map(a => (
-            <button
-              key={a.user_id}
-              onClick={(e) => {
-                e.stopPropagation();
-                onAssign?.(assignOpen, a.user_id);
-                setAssignOpen(null);
-                setDropdownPos(null);
-              }}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
-            >
-              {a.full_name}
-              {a.user_id === currentUserId && (
-                <span className="text-[9px] text-primary font-medium">(mig)</span>
               )}
-            </button>
-          ))}
-          <div className="border-t border-border mt-1 pt-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAssign?.(assignOpen, null);
-                setAssignOpen(null);
-                setDropdownPos(null);
-              }}
-              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
-            >
-              Fjern tildeling
-            </button>
-          </div>
-        </div>
-      )}
+
+              <div className="relative shrink-0 flex items-center gap-1 overflow-visible">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAssignOpen(isAssignOpen ? null : item.company.company_id);
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md border border-border text-[10px] hover:bg-secondary hover:text-foreground transition-all ${
+                    isAssignOpen ? "text-foreground opacity-100" : "text-muted-foreground opacity-0 group-hover:opacity-100"
+                  }`}
+                  title="Tildel rådgiver"
+                >
+                  <UserCheck className="h-3 w-3" />
+                  Tildel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIgnored((prev) => new Set([...prev, item.company.company_id]));
+                    onIgnore?.(item.company.company_id);
+                    setAssignOpen(null);
+                  }}
+                  className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all shrink-0"
+                  title="Ignorer — fjern fra listen"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onCompanyClick(item.company.company_id, item.company.company_name, item.reasons[0]?.label)}
+                  className="p-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all shrink-0"
+                  title="Åbn virksomhed"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+
+                {isAssignOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-2 z-[60] min-w-[220px] rounded-lg border border-border bg-popover shadow-xl overflow-hidden"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    {advisorProfiles.map((advisor) => (
+                      <button
+                        key={advisor.user_id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAssign?.(item.company.company_id, advisor.user_id);
+                          setAssignOpen(null);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-secondary transition-colors flex items-center justify-between gap-3"
+                      >
+                        <span>{advisor.full_name}</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          {advisor.user_id === item.assigned_advisor_id && (
+                            <span className="text-[9px] text-primary font-medium">Tildelt</span>
+                          )}
+                          {advisor.user_id === currentUserId && (
+                            <span className="text-[9px] text-primary font-medium">(mig)</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                    <div className="border-t border-border">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAssign?.(item.company.company_id, null);
+                          setAssignOpen(null);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                      >
+                        Fjern tildeling
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {hiddenCount > 0 && !showAll && (
         <button
+          type="button"
           onClick={() => setShowAll(true)}
           className="w-full mt-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           + {hiddenCount} flere virksomheder
         </button>
       )}
+
       {showAll && visibleItems.length > 10 && (
         <button
+          type="button"
           onClick={() => setShowAll(false)}
           className="w-full mt-1 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >

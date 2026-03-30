@@ -254,8 +254,10 @@ const AdvisorDashboard = () => {
   const { user, setCompanyOverride } = useAuth();
   const navigate = useNavigate();
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
-    queryKey: ["advisor-dashboard", user?.id],
+    queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const currentYear = new Date().getFullYear();
@@ -263,7 +265,7 @@ const AdvisorDashboard = () => {
       const [
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
-        milestonesRes, kpiTargetsRes, companyMembersRes,
+        milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -303,20 +305,18 @@ const AdvisorDashboard = () => {
           .gte("committed_at", weekAgo)
           .order("committed_at", { ascending: false })
           .limit(20) as any),
-        // Milestones — active ones
         supabase
           .from("milestones")
           .select("user_id, title, deadline, progress, status")
           .eq("status", "active")
           .order("deadline", { ascending: true }),
-        // KPI targets per company
         (supabase
           .from("kpi_targets")
           .select("company_id, kpi_key, target_value, target_label") as any),
-        // Company members to map user_id → company_id
         (supabase
           .from("company_members")
           .select("user_id, company_id") as any),
+        supabase.rpc("get_all_advisor_profiles"),
       ]);
 
       const conversations = (convRes.data || []) as ConversationRow[];
