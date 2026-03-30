@@ -742,29 +742,14 @@ const AdvisorDashboard = () => {
   const { data: advisorProfiles = [] } = useQuery({
     queryKey: ["advisor-profiles"],
     queryFn: async () => {
-      const { data } = await (supabase
-        .from("profiles" as any)
-        .select("user_id, full_name")
-        .eq("is_advisor", true) as any);
-      if (data && data.length > 0) return data as { user_id: string; full_name: string }[];
-
-      // Fallback: get unique advisors from company_members
-      const { data: members } = await supabase
-        .from("company_members")
-        .select("user_id, profiles:user_id(full_name)")
-        .in("role", ["advisor", "admin"]);
-
-      const seen = new Set<string>();
-      return (members || [])
-        .filter((r: any) => {
-          if (seen.has(r.user_id)) return false;
-          seen.add(r.user_id);
-          return true;
-        })
-        .map((r: any) => ({
+      const { data, error } = await supabase.rpc("get_all_advisor_profiles");
+      if (!error && data && data.length > 0) {
+        return data.map((r: any) => ({
           user_id: r.user_id,
-          full_name: r.profiles?.full_name || "Ukendt",
+          full_name: r.full_name || "Ukendt",
         })) as { user_id: string; full_name: string }[];
+      }
+      return [] as { user_id: string; full_name: string }[];
     },
     enabled: !!user,
     staleTime: 10 * 60_000,

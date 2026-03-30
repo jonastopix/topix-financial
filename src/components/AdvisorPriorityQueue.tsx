@@ -137,20 +137,35 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorPro
             )}
 
             {/* Assign dropdown */}
-            <div className="relative">
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setAssignOpen(assignOpen === item.company.company_id ? null : item.company.company_id);
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary hover:text-foreground transition-all shrink-0"
+                className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary hover:text-foreground transition-all shrink-0"
                 title="Tildel rådgiver"
               >
                 <UserCheck className="h-3 w-3" />
                 Tildel
               </button>
               {assignOpen === item.company.company_id && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[160px]">
+                <div className="fixed z-[100] bg-popover border border-border rounded-lg shadow-xl py-1 min-w-[180px]"
+                  style={{
+                    top: "auto",
+                    right: "auto",
+                  }}
+                  ref={(el) => {
+                    if (el) {
+                      const btn = el.parentElement?.querySelector("button");
+                      if (btn) {
+                        const rect = btn.getBoundingClientRect();
+                        el.style.top = `${rect.bottom + 4}px`;
+                        el.style.left = `${Math.max(8, rect.right - el.offsetWidth)}px`;
+                      }
+                    }
+                  }}
+                >
                   {(advisorProfiles || []).map(a => (
                     <button
                       key={a.user_id}
@@ -161,10 +176,10 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorPro
                       }}
                       className="w-full text-left px-3 py-2 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
                     >
+                      {a.full_name}
                       {a.user_id === currentUserId && (
                         <span className="text-[9px] text-primary font-medium">(mig)</span>
                       )}
-                      {a.full_name}
                     </button>
                   ))}
                   <div className="border-t border-border mt-1 pt-1">
