@@ -32,6 +32,14 @@ function isTopPerformer(c: GroupCompanySummary): boolean {
   return c.has_verified_metrics && (c.ebt ?? 0) > 0 && (c.revenue ?? 0) > 0;
 }
 
+export interface HistoricalPoint {
+  period_key: string;
+  label: string;
+  revenue: number;
+  ebt: number;
+  cash: number;
+}
+
 interface GroupDashboardContentProps {
   companies: GroupCompanySummary[];
   aggregates: GroupAggregates;
@@ -41,6 +49,7 @@ interface GroupDashboardContentProps {
   onCompanyClick?: (companyId: string, companyName: string) => void;
   onUploadClick?: (companyId: string, companyName: string) => void;
   onBudgetClick?: (companyId: string, companyName: string) => void;
+  historicalData?: HistoricalPoint[];
 }
 
 const GroupDashboardContent = ({
@@ -52,9 +61,11 @@ const GroupDashboardContent = ({
   onCompanyClick,
   onUploadClick,
   onBudgetClick,
+  historicalData,
 }: GroupDashboardContentProps) => {
   const [filter, setFilter] = useState<FilterTab>("alle");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
+  const [chartMetric, setChartMetric] = useState<"revenue" | "ebt" | "cash">("revenue");
   const isMobile = useIsMobile();
 
   const compliancePct = aggregates.companiesTotal > 0
