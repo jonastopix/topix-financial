@@ -236,6 +236,8 @@ const CompanyChatPane = () => {
       if (conv && activeConvId !== convParam) {
         setActiveConvId(convParam);
         if (isMobile) setShowMessages(true);
+        // Clear URL param immediately after applying — prevents re-locking
+        setSearchParams({}, { replace: true });
       }
       if (msgParam && messages.length > 0 && activeConvId === convParam) {
         setTimeout(() => {
