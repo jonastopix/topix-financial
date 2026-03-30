@@ -1090,7 +1090,9 @@ const Settings = () => {
                 <div className="space-y-3">
                   {[
                     { key: "action_required", label: "Vigtige handlinger", desc: "Rapport klar til gennemgang, manuel indtastning påkrævet" },
-                    { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet" },
+                    { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet, ny AI-analyse klar" },
+                    { key: "report_reminders", label: "Rapport-påmindelser", desc: "Automatisk reminder hvis du ikke har uploadet inden dag 7, 15 og 20 i måneden" },
+                    { key: "monthly_digest", label: "Månedlig digest", desc: "Personligt overblik den 5. i måneden med dine KPI-tal, milestones og beskeder" },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-start justify-between gap-4">
                       <div>
