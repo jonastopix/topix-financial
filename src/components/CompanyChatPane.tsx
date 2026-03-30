@@ -1050,17 +1050,11 @@ const CompanyChatPane = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Advisor prev/next navigation
+  // Advisor prev/next navigation — mirrors the left panel filter
   const advisorConvList = useMemo(() => {
     if (!isAdvisor) return [];
-    return conversations
-      .filter(c => c.threadType !== "group")
-      .sort((a, b) => {
-        if (a.awaiting_reply_from === "advisor" && b.awaiting_reply_from !== "advisor") return -1;
-        if (b.awaiting_reply_from === "advisor" && a.awaiting_reply_from !== "advisor") return 1;
-        return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
-      });
-  }, [conversations, isAdvisor]);
+    return filteredConversations.filter(c => c.threadType !== "group");
+  }, [filteredConversations, isAdvisor]);
 
   const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
   const prevConv = currentConvIdx > 0 ? advisorConvList[currentConvIdx - 1] : null;
