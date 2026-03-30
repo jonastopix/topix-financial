@@ -246,7 +246,7 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      toast({ title: "Data godkendt", description: `Periode ${preview?.period_label || ""} er nu committed.` });
+      toast({ title: "✓ Dine tal er opdateret", description: `${preview?.period_label || "Perioden"} er nu en del af dit dashboard. Se dine nye nøgletal.` });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
@@ -305,7 +305,7 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      toast({ title: "Data erstattet", description: `Gammel rapport arkiveret og nye data godkendt for ${preview?.period_label || ""}.` });
+      toast({ title: "✓ Tallene er opdateret", description: `Tidligere data er arkiveret og ${preview?.period_label || "den nye periode"} vises nu på dit dashboard.` });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
       queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
