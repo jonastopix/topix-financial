@@ -1795,6 +1795,31 @@ const CompanyChatPane = () => {
                       )}
                     </div>
 
+                    {/* Advisor prev/next navigation */}
+                    {isAdvisor && advisorConvList.length > 1 && (
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button
+                          onClick={() => prevConv && setActiveConvId(prevConv.id)}
+                          disabled={!prevConv}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                          title={prevConv ? `← ${prevConv.companyName}` : undefined}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          {currentConvIdx + 1} / {advisorConvList.length}
+                        </span>
+                        <button
+                          onClick={() => nextConv && setActiveConvId(nextConv.id)}
+                          disabled={!nextConv}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                          title={nextConv ? `${nextConv.companyName} →` : undefined}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Advisor action controls */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {/* Assignment popover */}
