@@ -1007,6 +1007,16 @@ const CompanyChatPane = () => {
       if (!error && data) {
         setNewMessage("");
         notifyChatMessage((data as any).id);
+
+        // If advisor sends — auto-update conversation to awaiting member reply
+        if (isAdvisor && activeConvId) {
+          supabase.from("conversations").update({
+            awaiting_reply_from: "company",
+            last_message_at: new Date().toISOString(),
+          } as any).eq("id", activeConvId).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+          });
+        }
       }
     }
 
