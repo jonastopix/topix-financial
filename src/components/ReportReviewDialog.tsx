@@ -297,7 +297,7 @@ export default function ReportReviewDialog({
 
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: "Fejl ved commit", description: err.message || "Ukendt fejl", variant: "destructive" });
+      toast.error("Fejl ved commit", { description: err.message || "Ukendt fejl" });
     } finally {
       setCommitting(false);
     }
