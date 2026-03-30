@@ -365,6 +365,12 @@ const Dashboard = () => {
               <FileText className="h-4 w-4" />
               Gå til rapportering
             </Link>
+            <Link
+              to="/annual-baseline"
+              className="block mt-3 text-sm text-primary hover:underline transition-colors"
+            >
+              Eller sæt baseline med årstal →
+            </Link>
           </div>
         </div>
       )}

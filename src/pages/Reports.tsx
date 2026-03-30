@@ -564,9 +564,16 @@ const Reports = () => {
             companyId={companyId || null}
             onPipelineComplete={handlePipelineComplete}
           />
-          <p className="text-center text-xs text-muted-foreground mt-3">
+           <p className="text-center text-xs text-muted-foreground mt-3">
             Understøtter PDF og Excel fra e-conomic, Dinero, Billy og de fleste andre regnskabssystemer
           </p>
+          <div className="text-center mt-4">
+            <p className="text-xs text-muted-foreground mb-1.5">Har du et årsregnskab? Sæt en baseline med 5 nøgletal i stedet.</p>
+            <a href="/annual-baseline" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Hurtigstart med årstal →
+            </a>
+          </div>
         </div>
       ) : (
         <div data-tour="upload-zone">
