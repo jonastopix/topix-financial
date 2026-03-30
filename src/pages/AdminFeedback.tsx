@@ -273,7 +273,7 @@ const AdminFeedback = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-feedback"] });
       queryClient.invalidateQueries({ queryKey: ["feedback-count"] });
-      toast({ title: "Feedback opdateret" });
+      toast.success("Feedback opdateret");
     },
   });
 
