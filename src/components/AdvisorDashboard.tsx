@@ -16,6 +16,7 @@ import KPICard from "@/components/KPICard";
 import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
 import AdvisorBroadcast from "@/components/AdvisorBroadcast";
 import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
+import AdvisorSparringQueue from "@/components/AdvisorSparringQueue";
 
 // ── Helpers ──
 
