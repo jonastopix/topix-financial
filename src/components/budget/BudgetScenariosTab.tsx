@@ -40,6 +40,9 @@ export default function BudgetScenariosTab({
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [editLabelValue, setEditLabelValue] = useState("");
   const [generatingScenario, setGeneratingScenario] = useState<ScenarioKey | null>(null);
+  const [showQuickstart, setShowQuickstart] = useState(true);
+  const [quickValues, setQuickValues] = useState({ revenue: "", costs: "", payroll: "" });
+  const [applyingQuick, setApplyingQuick] = useState(false);
 
   const rows = scenarioData[activeScenario];
   const scenarioConfig = SCENARIOS.find(s => s.key === activeScenario)!;
