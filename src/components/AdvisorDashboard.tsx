@@ -728,7 +728,14 @@ const AdvisorDashboard = () => {
             }
           }
 
-          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, signals };
+          const conv = convByCompany[c.company_id];
+          const assignedAdvisor = advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id);
+          return {
+            company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
+            signals,
+            assigned_advisor_id: conv?.assigned_advisor_id ?? null,
+            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
+          };
         })
         .filter(item => item.signals.length > 0)
         .filter(item => !priorityItems.some(p => p.company.company_id === item.company.company_id))
