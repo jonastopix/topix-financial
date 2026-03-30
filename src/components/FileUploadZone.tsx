@@ -6,8 +6,6 @@ import { toast } from "@/hooks/use-toast";
 import { postActivityMessage } from "@/lib/chatActivity";
 import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
-import * as pdfjsLib from "pdfjs-dist";
-import * as XLSX from "xlsx";
 import { detectTemplate, extractKJAutoTemplate, templateResultToExtractedData } from "@/lib/excelTemplates";
 import { extractPdfStructural } from "@/lib/pdfStructuralExtractor";
 import {
@@ -21,11 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Set worker source for pdf.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url
-).toString();
+// pdfjs-dist and xlsx are lazy-loaded inside async functions to reduce initial bundle
 
 interface ExtractedData {
   report_type?: string;
@@ -204,6 +198,11 @@ async function fileToBase64(file: File): Promise<string> {
 }
 
 async function extractPdfPageImages(file: File): Promise<string[]> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.mjs",
+    import.meta.url
+  ).toString();
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const images: string[] = [];
@@ -228,6 +227,11 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
   if (file.type === "application/pdf" || ext === "pdf") {
     try {
       const pageImages = await extractPdfPageImages(file);
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.mjs",
+        import.meta.url
+      ).toString();
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const textParts: string[] = [];
@@ -257,6 +261,7 @@ async function extractTextFromFile(file: File): Promise<{ text: string; pageImag
   }
   if (ext === "xlsx" || ext === "xls") {
     try {
+      const XLSX = await import("xlsx");
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
       const csvParts: string[] = [];
@@ -392,6 +397,7 @@ const FileUploadZone = ({
 
         if (ext === "xlsx" || ext === "xls") {
           try {
+            const XLSX = await import("xlsx");
             const arrayBuffer = await file.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: "array" });
             

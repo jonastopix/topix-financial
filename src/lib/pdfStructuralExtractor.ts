@@ -9,7 +9,7 @@
  * resulting JSON payload, not the raw PDF binary.
  */
 
-import * as pdfjsLib from "pdfjs-dist";
+// pdfjs-dist is lazy-loaded inside extractPdfStructural to reduce initial bundle
 import type {
   PdfStructuralPayload,
   PdfStructuralToken,
@@ -56,7 +56,7 @@ interface RawToken {
 }
 
 async function extractRawTokens(
-  pdf: pdfjsLib.PDFDocumentProxy
+  pdf: any
 ): Promise<RawToken[]> {
   const tokens: RawToken[] = [];
 
@@ -327,6 +327,12 @@ function assignColumnSlots(
 export async function extractPdfStructural(
   file: File
 ): Promise<PdfStructuralPayload> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.mjs",
+    import.meta.url
+  ).toString();
+
   const arrayBuffer = await file.arrayBuffer();
 
   // Compute SHA-256 content hash
