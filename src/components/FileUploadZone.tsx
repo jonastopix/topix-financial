@@ -491,8 +491,7 @@ const FileUploadZone = ({
                 } as any).eq("id", reportRecord.id);
 
                 extractedData = { needs_manual_entry: true, status: "processed" };
-                toast({
-                  title: "Manuel indtastning påkrævet",
+                toast("Manuel indtastning påkrævet", {
                   description: "PDF-strukturen kunne ikke læses — du kan indtaste tallene manuelt",
                 });
               } else {
