@@ -580,10 +580,6 @@ const AdvisorDashboard = () => {
             reasons.push({ label: `Opfølgning forfalden (${d})`, urgency: "medium" });
             score += 50;
           }
-          if (c.missing_current_period && !c.has_report) {
-            reasons.push({ label: "Ingen rapport endnu", urgency: "medium" });
-            score += 30;
-          }
 
           return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score };
         })
