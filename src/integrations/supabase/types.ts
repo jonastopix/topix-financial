@@ -1978,6 +1978,7 @@ export type Database = {
           biggest_challenge: string | null
           company_id: string
           created_at: string
+          help_needed: string | null
           id: string
           milestone_progress: number | null
           period_key: string
@@ -1988,6 +1989,7 @@ export type Database = {
           biggest_challenge?: string | null
           company_id: string
           created_at?: string
+          help_needed?: string | null
           id?: string
           milestone_progress?: number | null
           period_key: string
@@ -1998,6 +2000,7 @@ export type Database = {
           biggest_challenge?: string | null
           company_id?: string
           created_at?: string
+          help_needed?: string | null
           id?: string
           milestone_progress?: number | null
           period_key?: string
