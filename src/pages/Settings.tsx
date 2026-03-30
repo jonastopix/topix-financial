@@ -755,8 +755,8 @@ const Settings = () => {
                       Virksomhedsnavn
                     </label>
                     <input
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
+                      value={companyForm.name}
+                      onChange={(e) => setCompanyForm(f => ({ ...f, name: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                   </div>
@@ -766,8 +766,8 @@ const Settings = () => {
                         <Hash className="inline h-3 w-3 mr-1" />CVR
                       </label>
                       <input
-                        value={cvrNumber}
-                        onChange={(e) => setCvrNumber(e.target.value)}
+                        value={companyForm.cvr_number}
+                        onChange={(e) => setCompanyForm(f => ({ ...f, cvr_number: e.target.value }))}
                         className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                         placeholder="12345678"
                       />
@@ -777,42 +777,30 @@ const Settings = () => {
                         <Globe className="inline h-3 w-3 mr-1" />Hjemmeside
                       </label>
                       <input
-                        value={website}
-                        onChange={(e) => setWebsite(e.target.value)}
+                        value={companyForm.website}
+                        onChange={(e) => setCompanyForm(f => ({ ...f, website: e.target.value }))}
                         className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                         placeholder="https://..."
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                        <Phone className="inline h-3 w-3 mr-1" />Kontaktperson
-                      </label>
-                      <input
-                        value={contactPerson}
-                        onChange={(e) => setContactPerson(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                        <Phone className="inline h-3 w-3 mr-1" />Telefon
-                      </label>
-                      <input
-                        value={contactPhone}
-                        onChange={(e) => setContactPhone(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                      <Phone className="inline h-3 w-3 mr-1" />Telefon
+                    </label>
+                    <input
+                      value={companyForm.contact_phone}
+                      onChange={(e) => setCompanyForm(f => ({ ...f, contact_phone: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                       <Mail className="inline h-3 w-3 mr-1" />Kontakt-email
                     </label>
                     <input
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
+                      value={companyForm.contact_email}
+                      onChange={(e) => setCompanyForm(f => ({ ...f, contact_email: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                   </div>
@@ -823,10 +811,9 @@ const Settings = () => {
                     {(() => {
                       const allSubs = INDUSTRY_OPTIONS.flatMap(g => g.sub);
                       return (
-                        <Select value={industryCode} onValueChange={(v) => {
-                          setIndustryCode(v);
+                        <Select value={companyForm.industry_code} onValueChange={(v) => {
                           const found = allSubs.find(s => s.value === v);
-                          setIndustryLabel(found?.label || "");
+                          setCompanyForm(f => ({ ...f, industry_code: v, industry_label: found?.label || "" }));
                         }}>
                           <SelectTrigger className="w-full bg-secondary border-border text-sm">
                             <SelectValue placeholder="Vælg branche" />
