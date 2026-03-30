@@ -364,7 +364,7 @@ const AdminFeedback = () => {
         updateMutation.mutate({ id: detailItem.id, status: "acknowledged" });
       }
 
-      toast({ title: "Svar sendt", description: "Beskeden er sendt i brugerens samtale." });
+      toast.success("Svar sendt", { description: "Beskeden er sendt i brugerens samtale." });
       setReplyText("");
     } catch (err) {
       console.error("Reply error:", err);
