@@ -9,7 +9,7 @@
  * resulting JSON payload, not the raw PDF binary.
  */
 
-import * as pdfjsLib from "pdfjs-dist";
+// pdfjs-dist is lazy-loaded inside extractPdfStructural to reduce initial bundle
 import type {
   PdfStructuralPayload,
   PdfStructuralToken,
