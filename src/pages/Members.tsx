@@ -7,121 +7,30 @@ import { supabase } from "@/integrations/supabase/client";
 import CreateGroupWizard from "@/components/CreateGroupWizard";
 import AddCompanyToGroupDialog from "@/components/AddCompanyToGroupDialog";
 import {
-  Building2,
-  Search,
-  MessageCircle,
-  MessageSquare,
-  FileText,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
-  Users,
-  Globe,
-  MapPin,
-  User,
-  Mail,
-  Phone,
-  Wallet,
-  ExternalLink,
-  Hash,
-  Trash2,
-  UserPlus,
-  X,
-  Activity,
-  Send,
-  AlertTriangle,
-  RotateCcw,
-  CheckCircle2,
-  Loader2,
-  Layers,
-  Pencil,
+  Building2, Search, ChevronDown, ArrowUpDown, UserPlus,
+  AlertTriangle, Loader2, Layers, Pencil, Users, FileText,
+  Activity, Send,
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-interface LoginInfo {
-  lastLogin: string | null;
-  loginCount: number;
-}
-
-interface CompanyMember {
-  user_id: string;
-  full_name: string;
-  role: string;
-  avatar_url: string | null;
-}
+import type { CompanyData, CompanyMember, LoginInfo, UnassignedUser, SortKey, SortDir } from "@/components/members/types";
+import MembersStatsBar from "@/components/members/MembersStatsBar";
+import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
+import MemberCompanyRow from "@/components/members/MemberCompanyRow";
+import MembersAdminSection from "@/components/members/MembersAdminSection";
 
 interface CircleInfo {
   circle_member_id: number;
   name: string;
   last_seen_at: string | null;
   recent_activity_count: number;
-}
-
-interface CompanyData {
-  id: string;
-  name: string;
-  cvr_number: string | null;
-  industry_label: string;
-  contact_person: string;
-  contact_email: string;
-  contact_phone: string;
-  website: string;
-  address: string;
-  postal_code: string;
-  city: string;
-  annual_revenue: number;
-  reported_revenue: number | null;
-  start_date: string | null;
-  end_date: string | null;
-  status: string;
-  slack_channel: string;
-  created_at: string;
-  members: CompanyMember[];
-  reportCount: number;
-  latestReportPeriod: string | null;
-  committedCount: number;
-  unreadCount: number;
-  conversationId: string | null;
-  circleInfo: CircleInfo[];
-  logo_url: string | null;
-  pendingInvitationEmail: string | null;
-  invitationStatus: 'pending' | 'accepted' | null;
-  invitationAcceptedAt: string | null;
-  invitationEmail: string | null;
-  loginInfo: Map<string, LoginInfo>;
-  hasPulseThisMonth: boolean;
-}
-
-type SortKey = "name" | "reportCount" | "latest_report";
-type SortDir = "asc" | "desc";
-
-interface UnassignedUser {
-  user_id: string;
-  full_name: string;
-  company_id: string;
-  company_name: string;
 }
 
 const Members = () => {
@@ -226,14 +135,12 @@ const Members = () => {
       (pulseRes.data || []).map((p: any) => p.company_id)
     );
 
-    // Build committedByCompany map
     const committedByCompany = new Map<string, number>();
     for (const fact of allFacts) {
       const id = fact.company_id;
       committedByCompany.set(id, (committedByCompany.get(id) || 0) + 1);
     }
 
-    // Fetch latest sent_at from email_send_log for pending invitation emails
     const pendingEmails = allInvitations
       .filter((inv: any) => inv.status === 'pending')
       .map((inv: any) => inv.email);
@@ -251,7 +158,6 @@ const Members = () => {
       });
     }
 
-    // Build login info map: user_id -> { lastLogin, loginCount }
     const loginInfoMap = new Map<string, LoginInfo>();
     allLoginLogs.forEach((log: any) => {
       const existing = loginInfoMap.get(log.user_id);
@@ -265,7 +171,6 @@ const Members = () => {
       }
     });
 
-    // Invitation info by company (most recent invitation per company)
     const pendingInvitationByCompany = new Map<string, string>();
     const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
     const pendingInvsByCompany = new Map<string, any[]>();
@@ -274,9 +179,7 @@ const Members = () => {
     );
     sortedInvitations.forEach((inv: any) => {
       invitationInfoByCompany.set(inv.company_id, { 
-        status: inv.status, 
-        email: inv.email, 
-        accepted_at: inv.accepted_at 
+        status: inv.status, email: inv.email, accepted_at: inv.accepted_at 
       });
       if (inv.status === 'pending') {
         pendingInvitationByCompany.set(inv.company_id, inv.email);
@@ -286,10 +189,7 @@ const Members = () => {
       }
     });
 
-    // Build profile map
     const profileMap = new Map(allProfiles.map((p: any) => [p.user_id, p]));
-
-    // Group members by company
     const membersByCompany = new Map<string, CompanyMember[]>();
     allMembers.forEach((cm: any) => {
       const profile = profileMap.get(cm.user_id);
@@ -303,7 +203,6 @@ const Members = () => {
       membersByCompany.set(cm.company_id, arr);
     });
 
-    // Reports by company: count unique periods (not individual files)
     const reportsByCompany = new Map<string, number>();
     const reportedRevenueByCompany = new Map<string, number>();
     const periodsByCompany = new Map<string, Set<string>>();
@@ -338,13 +237,11 @@ const Members = () => {
       }
     });
 
-    // Conversations by company
     const convByCompany = new Map<string, any>();
     allConvs.forEach((c: any) => {
       if (c.company_id) convByCompany.set(c.company_id, c);
     });
 
-    // Batch unread messages
     const convIds = allConvs.map((c: any) => c.id);
     const { data: unreadMessages } = convIds.length > 0
       ? await supabase
@@ -360,17 +257,14 @@ const Members = () => {
       unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
     });
 
-    // Circle.so matching
     const circleByUserId = new Map<string, any>();
     allCircleMembers.forEach((cm: any) => {
       if (cm.user_id) circleByUserId.set(cm.user_id, cm);
     });
-
     const activityByCircleMember = new Map<number, number>();
     allCircleActivity.forEach((a: any) => {
       activityByCircleMember.set(a.circle_member_id, (activityByCircleMember.get(a.circle_member_id) || 0) + 1);
     });
-
     const circleInfoByCompany = new Map<string, CircleInfo[]>();
     allMembers.forEach((cm: any) => {
       const circleMember = circleByUserId.get(cm.user_id);
@@ -444,13 +338,11 @@ const Members = () => {
         } as any;
       });
 
-    // Collect standalone pending invitations (no company_id)
     const standalonePending = allInvitations
       .filter((inv: any) => inv.company_id === null && inv.status === 'pending')
       .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
     setStandalonePendingInvitations(standalonePending);
 
-    // Fetch group data (admin-only)
     if (isAdmin) {
       const { data: gcData } = await supabase
         .from("group_companies" as any)
@@ -488,7 +380,6 @@ const Members = () => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
       toast.success(`${member.full_name} fjernet fra ${company.name}`);
       setReloadTrigger((t) => t + 1);
     } catch (err: any) {
@@ -512,7 +403,6 @@ const Members = () => {
           .eq("status", "accepted");
         if (updateErr) throw updateErr;
       }
-
       const { data: invData } = await supabase
         .from("company_invitations")
         .select("token")
@@ -522,7 +412,6 @@ const Members = () => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-
       const tokenParam = invData?.token ? `&invite=${invData.token}` : "";
       const { error } = await supabase.functions.invoke("send-invitation-email", {
         body: {
@@ -567,7 +456,6 @@ const Members = () => {
     setMergeTargetCompany(company);
     setMergeSearch("");
     setMergeDialogOpen(true);
-
     const { data: allMemberships } = await supabase
       .from("company_members" as any)
       .select("user_id, company_id") as any;
@@ -577,41 +465,34 @@ const Members = () => {
     const { data: allCompanies } = await supabase
       .from("companies" as any)
       .select("id, name") as any;
-
     const companyNameMap = new Map((allCompanies || []).map((c: any) => [c.id, c.name]));
-    const profileMap = new Map((allProfiles || []).map((p: any) => [p.user_id, p.full_name]));
-
+    const profileMapLocal = new Map((allProfiles || []).map((p: any) => [p.user_id, p.full_name]));
     const users: UnassignedUser[] = (allMemberships || [])
       .filter((m: any) => m.company_id !== company.id)
       .map((m: any) => ({
         user_id: m.user_id,
-        full_name: profileMap.get(m.user_id) || "Ukendt",
+        full_name: profileMapLocal.get(m.user_id) || "Ukendt",
         company_id: m.company_id,
         company_name: companyNameMap.get(m.company_id) || "Ukendt",
       }));
-
     setUnassignedUsers(users);
   };
 
   const handleMergeUser = async (targetUser: UnassignedUser) => {
     if (!mergeTargetCompany || !user) return;
     setMerging(true);
-
     try {
       const { error: updateErr } = await supabase
         .from("company_members" as any)
         .update({ company_id: mergeTargetCompany.id } as any)
         .eq("user_id", targetUser.user_id)
         .eq("company_id", targetUser.company_id) as any;
-
       if (updateErr) throw updateErr;
-
       await supabase
         .from("conversations")
         .update({ company_id: mergeTargetCompany.id })
         .eq("member_id", targetUser.user_id)
         .eq("company_id", targetUser.company_id);
-
       await Promise.all([
         supabase.from("financial_reports").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("handouts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
@@ -620,17 +501,14 @@ const Members = () => {
         supabase.from("kpi_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("kpi_benchmarks").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
       ]);
-
       const { data: remaining } = await supabase
         .from("company_members" as any)
         .select("id")
         .eq("company_id", targetUser.company_id) as any;
-
       if (!remaining || remaining.length === 0) {
         await supabase.from("conversations").delete().eq("company_id", targetUser.company_id);
         await supabase.from("companies" as any).delete().eq("id", targetUser.company_id) as any;
       }
-
       toast.success(`${targetUser.full_name} tilknyttet ${mergeTargetCompany.name}`);
       setMergeDialogOpen(false);
       setReloadTrigger((t) => t + 1);
@@ -646,7 +524,6 @@ const Members = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      // Phase 1: delete rows that reference financial_reports (facts, commentaries)
       await Promise.all([
         supabase.from("financial_commentaries").delete().eq("company_id", deleteTarget.id),
         supabase.from("financial_report_facts").delete().eq("company_id", deleteTarget.id),
@@ -657,11 +534,7 @@ const Members = () => {
         supabase.from("slack_report_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
         supabase.from("group_companies" as any).delete().eq("company_id", deleteTarget.id) as any,
       ]);
-
-      // Phase 2: hard-delete financial_reports (now safe, no FK children)
       await supabase.from("financial_reports").delete().eq("company_id", deleteTarget.id);
-
-      // Phase 3: remaining entity cleanup
       await Promise.all([
         supabase.from("handouts").delete().eq("company_id", deleteTarget.id),
         supabase.from("milestones").delete().eq("company_id", deleteTarget.id),
@@ -673,7 +546,6 @@ const Members = () => {
         supabase.from("advisor_session_notes").delete().eq("company_id", deleteTarget.id),
         supabase.from("pulse_checkins").delete().eq("company_id", deleteTarget.id),
       ]);
-
       const { data: convs } = await supabase
         .from("conversations")
         .select("id")
@@ -684,10 +556,8 @@ const Members = () => {
       }
       await supabase.from("conversations").delete().eq("company_id", deleteTarget.id);
       await (supabase.from("company_members" as any).delete().eq("company_id", deleteTarget.id) as any);
-
       const { error } = await supabase.from("companies" as any).delete().eq("id", deleteTarget.id) as any;
       if (error) throw error;
-
       toast.success(`${deleteTarget.name} slettet`);
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
@@ -764,7 +634,6 @@ const Members = () => {
             invToken = newInv?.token || null;
           }
         }
-
         if (invToken) tokenParam = `&invite=${invToken}`;
       } else {
         const trimmedEmail = standaloneEmail.trim().toLowerCase();
@@ -812,7 +681,6 @@ const Members = () => {
             invToken = newInv?.token || null;
           }
         }
-
         if (invToken) tokenParam = `&invite=${invToken}`;
       }
 
@@ -844,11 +712,9 @@ const Members = () => {
 
   const filtered = useMemo(() => {
     let result = companies;
-
     if (filterIndustry !== "all") {
       result = result.filter((c) => c.industry_label === filterIndustry);
     }
-
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -860,74 +726,42 @@ const Members = () => {
           c.slack_channel.toLowerCase().includes(q)
       );
     }
-
     result.sort((a, b) => {
       let cmp = 0;
-      if (sortKey === "name") {
-        cmp = (a.name || "").localeCompare(b.name || "", "da");
-      } else if (sortKey === "reportCount") {
-        cmp = a.reportCount - b.reportCount;
-      } else if (sortKey === "latest_report") {
-        cmp = (a.latestReportPeriod || "").localeCompare(b.latestReportPeriod || "");
-      }
+      if (sortKey === "name") cmp = (a.name || "").localeCompare(b.name || "", "da");
+      else if (sortKey === "reportCount") cmp = a.reportCount - b.reportCount;
+      else if (sortKey === "latest_report") cmp = (a.latestReportPeriod || "").localeCompare(b.latestReportPeriod || "");
       return sortDir === "asc" ? cmp : -cmp;
     });
-
     return result;
   }, [companies, search, sortKey, sortDir, filterIndustry]);
 
-  // Split filtered companies into standalone and group-consolidated views
   const groupedView = useMemo(() => {
     const standaloneCompanies = filtered.filter(c => !groupInfoMap.has(c.id));
-
     const groupMap = new Map<string, {
-      groupId: string;
-      groupName: string;
-      anchorCompany: CompanyData | null;
-      subCompanies: CompanyData[];
+      groupId: string; groupName: string;
+      anchorCompany: CompanyData | null; subCompanies: CompanyData[];
     }>();
-
     for (const c of filtered) {
       const info = groupInfoMap.get(c.id);
       if (!info) continue;
-
       if (!groupMap.has(info.groupId)) {
-        groupMap.set(info.groupId, {
-          groupId: info.groupId,
-          groupName: info.groupName,
-          anchorCompany: null,
-          subCompanies: [],
-        });
+        groupMap.set(info.groupId, { groupId: info.groupId, groupName: info.groupName, anchorCompany: null, subCompanies: [] });
       }
-
       const group = groupMap.get(info.groupId)!;
-      if (info.isAnchor) {
-        group.anchorCompany = c;
-      } else {
-        group.subCompanies.push(c);
-      }
+      if (info.isAnchor) group.anchorCompany = c;
+      else group.subCompanies.push(c);
     }
-
     return { standaloneCompanies, groups: [...groupMap.values()] };
   }, [filtered, groupInfoMap]);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
   };
 
   const getInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-
-  const formatDKK = (n: number) => {
-    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(".", ",") + " mio";
-    if (n >= 1000) return Math.round(n / 1000) + "k";
-    return n.toLocaleString("da-DK");
-  };
 
   const getDisplayRevenue = (c: CompanyData) => {
     if (c.reported_revenue && c.reported_revenue > 0) return { value: c.reported_revenue, source: "rapport" };
@@ -946,20 +780,13 @@ const Members = () => {
   const loginStats = useMemo(() => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    let active = 0;
-    let inactive = 0;
-    let never = 0;
+    let active = 0, inactive = 0, never = 0;
     companies.forEach((c) => {
-      const members = c.members || [];
-      members.forEach((m) => {
+      (c.members || []).forEach((m) => {
         const info = c.loginInfo.get(m.user_id);
-        if (!info || !info.lastLogin) {
-          never++;
-        } else if (new Date(info.lastLogin) >= sevenDaysAgo) {
-          active++;
-        } else {
-          inactive++;
-        }
+        if (!info || !info.lastLogin) never++;
+        else if (new Date(info.lastLogin) >= sevenDaysAgo) active++;
+        else inactive++;
       });
     });
     return { active, inactive, never };
@@ -971,29 +798,16 @@ const Members = () => {
     const activatedNoReport: CompanyData[] = [];
     const reportedNotCommitted: CompanyData[] = [];
     const fullyOnboarded: CompanyData[] = [];
-
     companies.forEach(c => {
       const hasMembers = c.members.length > 0;
       const hasReport = c.reportCount > 0;
       const hasCommitted = c.committedCount > 0;
-      const hasLoggedIn = c.members.some(m => {
-        const info = c.loginInfo.get(m.user_id);
-        return info && info.lastLogin;
-      });
-
-      if (!hasMembers && c.invitationStatus === null) {
-        notInvited.push(c);
-      } else if (!hasMembers && c.invitationStatus === 'pending') {
-        invitedPending.push(c);
-      } else if (hasMembers && !hasReport) {
-        activatedNoReport.push(c);
-      } else if (hasReport && !hasCommitted) {
-        reportedNotCommitted.push(c);
-      } else if (hasCommitted) {
-        fullyOnboarded.push(c);
-      }
+      if (!hasMembers && c.invitationStatus === null) notInvited.push(c);
+      else if (!hasMembers && c.invitationStatus === 'pending') invitedPending.push(c);
+      else if (hasMembers && !hasReport) activatedNoReport.push(c);
+      else if (hasReport && !hasCommitted) reportedNotCommitted.push(c);
+      else if (hasCommitted) fullyOnboarded.push(c);
     });
-
     return { notInvited, invitedPending, activatedNoReport, reportedNotCommitted, fullyOnboarded };
   }, [companies, standalonePendingInvitations]);
 
@@ -1019,11 +833,7 @@ const Members = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            onClick={() => setStandaloneInviteOpen(true)}
-            className="gap-2"
-            size="sm"
-          >
+          <Button onClick={() => setStandaloneInviteOpen(true)} className="gap-2" size="sm">
             <UserPlus className="h-4 w-4" />
             <span className="hidden sm:inline">Inviter ny bruger</span>
             <span className="sm:hidden">Inviter</span>
@@ -1031,144 +841,20 @@ const Members = () => {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-display font-bold text-foreground">{totalCompanies}</p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Virksomheder</p>
-        </div>
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-display font-bold text-foreground">{totalMembers}</p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Teammedlemmer</p>
-        </div>
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className={`text-2xl font-display font-bold ${totalUnread > 0 ? "text-chart-warning" : "text-foreground"}`}>{totalUnread}</p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Ubesvarede</p>
-        </div>
-        <div className="glass-card rounded-xl p-4 text-center">
-          <p className="text-2xl font-display font-bold text-foreground">{companiesWithReports}</p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Har rapporteret</p>
-        </div>
-      </div>
+      <MembersStatsBar
+        totalCompanies={totalCompanies}
+        totalMembers={totalMembers}
+        totalUnread={totalUnread}
+        companiesWithReports={companiesWithReports}
+        loginStats={loginStats}
+      />
 
-      {/* Login activity stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center">
-            <Activity className="h-4 w-4 text-green-600 dark:text-green-400" />
-          </div>
-          <div>
-            <p className="text-lg font-display font-bold text-foreground">{loginStats.active}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Aktive (7d)</p>
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-chart-warning/15 flex items-center justify-center">
-            <Activity className="h-4 w-4 text-chart-warning" />
-          </div>
-          <div>
-            <p className="text-lg font-display font-bold text-foreground">{loginStats.inactive}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Inaktive</p>
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-            <User className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-lg font-display font-bold text-foreground">{loginStats.never}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Aldrig logget ind</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Onboarding funnel */}
-      <div className="glass-card rounded-xl p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Onboarding-tragt
-          </h3>
-          <span className="text-[10px] text-muted-foreground">
-            {onboardingFunnel.fullyOnboarded.length}/{companies.length} fuldt onboardet
-          </span>
-        </div>
-        <div className="grid grid-cols-5 gap-1.5">
-          {[
-            {
-              label: "Ikke inviteret",
-              count: onboardingFunnel.notInvited.length,
-              companies: onboardingFunnel.notInvited,
-              color: "bg-muted text-muted-foreground",
-              dot: "bg-muted-foreground",
-              action: "Send invitation",
-            },
-            {
-              label: "Inviteret",
-              count: onboardingFunnel.invitedPending.length + standalonePendingInvitations.length,
-              companies: onboardingFunnel.invitedPending,
-              color: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-              dot: "bg-amber-400",
-              action: standalonePendingInvitations.length > 0
-                ? `Afventer accept · ${standalonePendingInvitations.length} uden virksomhed`
-                : "Afventer accept",
-            },
-            {
-              label: "Aktiveret",
-              count: onboardingFunnel.activatedNoReport.length,
-              companies: onboardingFunnel.activatedNoReport,
-              color: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-              dot: "bg-blue-400",
-              action: "Ingen rapport endnu",
-            },
-            {
-              label: "Rapporteret",
-              count: onboardingFunnel.reportedNotCommitted.length,
-              companies: onboardingFunnel.reportedNotCommitted,
-              color: "bg-primary/10 text-primary",
-              dot: "bg-primary",
-              action: "Ikke committed",
-            },
-            {
-              label: "Klar",
-              count: onboardingFunnel.fullyOnboarded.length,
-              companies: onboardingFunnel.fullyOnboarded,
-              color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-              dot: "bg-emerald-500",
-              action: "Fuldt onboardet",
-            },
-          ].map((stage) => (
-            <div key={stage.label} className={`rounded-lg p-2.5 ${stage.count > 0 ? stage.color : "bg-muted/30 text-muted-foreground"}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <div className={`h-2 w-2 rounded-full flex-shrink-0 ${stage.count > 0 ? stage.dot : "bg-muted-foreground/30"}`} />
-                <span className="text-[10px] font-semibold uppercase tracking-wider truncate">
-                  {stage.label}
-                </span>
-              </div>
-              <p className="text-xl font-display font-bold leading-none mb-1">
-                {stage.count}
-              </p>
-              <p className="text-[10px] opacity-70 leading-tight">
-                {stage.action}
-              </p>
-              {stage.count > 0 && stage.companies.slice(0, 3).map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setSearch(c.name)}
-                  className="mt-1 block w-full text-left text-[10px] truncate underline-offset-2 hover:underline opacity-80"
-                  title={c.name}
-                >
-                  {c.name}
-                </button>
-              ))}
-              {stage.count > 3 && (
-                <p className="text-[10px] opacity-50 mt-0.5">
-                  +{stage.count - 3} flere
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      <MembersOnboardingFunnel
+        onboardingFunnel={onboardingFunnel}
+        totalCompanies={totalCompanies}
+        standalonePendingCount={standalonePendingInvitations.length}
+        onSearchCompany={(name) => setSearch(name)}
+      />
 
       {/* Search + filter bar */}
       <div className="glass-card rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3">
@@ -1250,468 +936,29 @@ const Members = () => {
           </div>
         ) : (
           <div className="divide-y divide-border/50">
-            {groupedView.standaloneCompanies.map((c) => {
-              const isExpanded = expandedId === c.id;
-              const rev = getDisplayRevenue(c);
-              return (
-                <div key={c.id}>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                    className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
-                  >
-                    {/* Desktop row */}
-                    <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          {c.logo_url ? (
-                            <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
-                          ) : (
-                            <span className="text-xs font-semibold text-primary">{getInitials(c.name)}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 group/name">
-                            <span className="text-sm font-medium text-foreground truncate">{c.name}</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRenamingCompany({ id: c.id, currentName: c.name });
-                                setRenameValue(c.name);
-                              }}
-                              className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0"
-                              title="Omdøb virksomhed"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                            {(c.name.toLowerCase().endsWith("s virksomhed") || c.name.toLowerCase() === "ny bruger") && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium shrink-0">
-                                Ret navn
-                              </span>
-                            )}
-                            {c.invitationStatus === 'pending' && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
-                                <Send className="h-2.5 w-2.5" /> Afventer
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            {c.members.length} {c.members.length === 1 ? "bruger" : "brugere"}
-                            {c.slack_channel && (
-                              <span className="ml-2 text-primary"><Hash className="h-2.5 w-2.5 inline" />{c.slack_channel}</span>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs text-foreground">
-                          {c.latestReportPeriod || "—"}
-                        </span>
-                        {c.committedCount > 0 && (
-                          <span className="text-[10px] text-primary">
-                            {c.committedCount} committed
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-2 w-2 rounded-full ${
-                          c.hasPulseThisMonth ? "bg-emerald-500" : "bg-muted-foreground/30"
-                        }`} />
-                        <span className="text-xs text-muted-foreground">
-                          {c.hasPulseThisMonth ? "Udfyldt" : "Mangler"}
-                        </span>
-                      </div>
-                      <div>
-                        {c.unreadCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-chart-warning">
-                            <MessageSquare className="h-3 w-3" />
-                            {c.unreadCount}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-2 w-2 rounded-full ${
-                          c.committedCount > 0 && c.hasPulseThisMonth ? "bg-emerald-500" :
-                          c.reportCount === 0 ? "bg-muted-foreground/30" :
-                          "bg-amber-400"
-                        }`} title={
-                          c.committedCount > 0 && c.hasPulseThisMonth ? "Klar til session" :
-                          c.reportCount === 0 ? "Ingen rapport" :
-                          "Delvist klar"
-                        } />
-                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                      </div>
-                    </div>
-
-                    {/* Mobile row */}
-                    <div className="sm:hidden flex items-center gap-3 px-5 py-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {c.logo_url ? (
-                          <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
-                        ) : (
-                          <span className="text-xs font-semibold text-primary">{getInitials(c.name)}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 group/name">
-                          <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRenamingCompany({ id: c.id, currentName: c.name });
-                              setRenameValue(c.name);
-                            }}
-                            className="opacity-0 group-hover/name:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0"
-                            title="Omdøb virksomhed"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          {(c.name.toLowerCase().endsWith("s virksomhed") || c.name.toLowerCase() === "ny bruger") && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium shrink-0">
-                              Ret navn
-                            </span>
-                          )}
-                          {c.invitationStatus === 'pending' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning text-[10px] font-semibold whitespace-nowrap">
-                              <Send className="h-2.5 w-2.5" /> Afventer
-                            </span>
-                          )}
-                          {c.unreadCount > 0 && (
-                            <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
-                              {c.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <p className="text-xs text-muted-foreground truncate">{c.industry_label || "–"}</p>
-                          <span className="text-[10px] text-muted-foreground">{c.city}</span>
-                          {c.slack_channel && (
-                            <span className="text-[10px] text-primary flex items-center gap-0.5">
-                              <Hash className="h-2.5 w-2.5" />{c.slack_channel}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-
-                  {/* Expanded details */}
-                  {isExpanded && (
-                    <div className="px-5 pb-4 pt-1 bg-secondary/20 border-t border-border/30 animate-fade-in">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                        {/* Contact info */}
-                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <User className="h-4 w-4 text-primary" />
-                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Kontakt</span>
-                          </div>
-                          <p className="text-sm font-medium text-foreground">{c.contact_person || "–"}</p>
-                          {c.contact_email && (
-                            <a href={`mailto:${c.contact_email}`} className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
-                              <Mail className="h-3 w-3" /> {c.contact_email}
-                            </a>
-                          )}
-                          {c.contact_phone && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                              <Phone className="h-3 w-3" /> {c.contact_phone}
-                            </p>
-                          )}
-                          {c.website && (
-                            <a href={c.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
-                              <Globe className="h-3 w-3" /> Hjemmeside
-                              <ExternalLink className="h-2.5 w-2.5" />
-                            </a>
-                          )}
-                          {c.slack_channel && (
-                            <p className="text-xs text-primary flex items-center gap-1 mt-2 font-medium">
-                              <Hash className="h-3 w-3" /> {c.slack_channel}
-                            </p>
-                          )}
-                          {/* Invitation status — admin only */}
-                          {isAdmin && c.invitationStatus && (
-                            <div className="mt-3 pt-2 border-t border-border/30">
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                                <Send className="h-3 w-3" /> Invitation
-                              </p>
-                              {c.invitationStatus === 'pending' ? (
-                                <>
-                                  <p className="text-xs text-muted-foreground">
-                                    {c.invitationEmail}
-                                  </p>
-                                  <p className="text-xs text-chart-warning mt-0.5">
-                                    Afventer svar
-                                  </p>
-                                </>
-                              ) : c.invitationStatus === 'accepted' ? (
-                                <>
-                                  {c.members.length > 0 ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      Accepteret af {c.members[0].full_name}
-                                    </p>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">Accepteret</p>
-                                  )}
-                                  {c.invitationAcceptedAt && (
-                                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                                      {format(new Date(c.invitationAcceptedAt), "d. MMM yyyy", { locale: da })}
-                                    </p>
-                                  )}
-                                </>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Team members */}
-                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4 text-primary" />
-                              <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                                Team ({c.members.length})
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setStandaloneCompanyId(c.id); setStandaloneEmail(c.contact_email || ""); setStandaloneName(""); setStandaloneInviteOpen(true); }}
-                                className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                                title="Inviter ny bruger"
-                              >
-                                <Send className="h-3 w-3" /> Inviter
-                              </button>
-                              {isAdmin && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); openMergeDialog(c); }}
-                                  className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                                  title="Tilknyt eksisterende bruger"
-                                >
-                                  <UserPlus className="h-3 w-3" /> Tilknyt
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {c.members.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">Ingen tilknyttede brugere</p>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {c.members.map((m) => (
-                                <div key={m.user_id} className="flex items-center gap-2 group">
-                                  <Link
-                                    to={`/members/${m.user_id}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-2 hover:bg-secondary/50 rounded-md p-1 -ml-1 transition-colors flex-1 min-w-0"
-                                  >
-                                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                      <span className="text-[8px] font-semibold text-primary">{getInitials(m.full_name)}</span>
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <span className="text-xs text-foreground truncate block">{m.full_name}</span>
-                                      {(() => {
-                                        const login = c.loginInfo.get(m.user_id);
-                                        if (!login) return (
-                                          <span className="text-[10px] text-muted-foreground">Aldrig logget ind</span>
-                                        );
-                                        return (
-                                          <span className="text-[10px] text-muted-foreground">
-                                            Sidst aktiv {format(new Date(login.lastLogin!), "d. MMM", { locale: da })} · {login.loginCount} logins
-                                          </span>
-                                        );
-                                      })()}
-                                    </div>
-                                    <span className="text-[10px] text-muted-foreground">{m.role}</span>
-                                  </Link>
-                                  {isAdmin && m.role !== 'owner' && (
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <button
-                                          onClick={(e) => e.stopPropagation()}
-                                          disabled={removingMember === m.user_id}
-                                          className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
-                                          title={`Fjern ${m.full_name}`}
-                                        >
-                                          {removingMember === m.user_id ? (
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                          ) : (
-                                            <X className="h-3 w-3" />
-                                          )}
-                                        </button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Fjern teammedlem?</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Er du sikker på, at du vil fjerne <strong>{m.full_name}</strong> fra {c.name}? Denne handling kan ikke fortrydes.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Annuller</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={() => handleRemoveMember(c, m)}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                          >
-                                            Fjern
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Info + Circle activity */}
-                        <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Building2 className="h-4 w-4 text-primary" />
-                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Detaljer</span>
-                          </div>
-                          {c.cvr_number && (
-                            <p className="text-xs text-muted-foreground">CVR: {c.cvr_number}</p>
-                          )}
-                          {c.address && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                              <MapPin className="h-3 w-3" /> {c.address}, {c.postal_code} {c.city}
-                            </p>
-                          )}
-                          {(() => {
-                            const rev = getDisplayRevenue(c);
-                            if (!rev) return null;
-                            return (
-                              <p className="text-xs text-foreground font-medium flex items-center gap-1 mt-1">
-                                <Wallet className="h-3 w-3 text-primary" /> {rev.value.toLocaleString("da-DK")} DKK
-                                <span className="text-[9px] text-muted-foreground font-normal">({rev.source})</span>
-                              </p>
-                            );
-                          })()}
-                          {c.start_date && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Forløb: {format(new Date(c.start_date), "d. MMM yyyy", { locale: da })}
-                              {c.end_date && ` – ${format(new Date(c.end_date), "d. MMM yyyy", { locale: da })}`}
-                            </p>
-                          )}
-
-                          {/* Circle.so activity */}
-                          {c.circleInfo.length > 0 && (
-                            <div className="mt-3 pt-2 border-t border-border/30">
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                                <Activity className="h-3 w-3" /> Community
-                              </p>
-                              {c.circleInfo.map((ci) => (
-                                <div key={ci.circle_member_id} className="text-xs text-muted-foreground mt-1.5 space-y-0.5">
-                                  {ci.last_seen_at && (
-                                    <p className="text-[10px]">
-                                      Sidst aktiv: {format(new Date(ci.last_seen_at), "d. MMM yyyy", { locale: da })}
-                                    </p>
-                                  )}
-                                  {ci.recent_activity_count > 0 && (
-                                    <p>{ci.recent_activity_count} community-indlæg</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <FileText className="h-4 w-4 text-primary" />
-                              <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-foreground">
-                                {c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret
-                                {c.latestReportPeriod && (
-                                  <span className="text-muted-foreground font-normal ml-1.5">
-                                    · seneste: {c.latestReportPeriod}
-                                  </span>
-                                )}
-                              </p>
-                              {c.committedCount > 0 && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                  <CheckCircle2 className="h-2.5 w-2.5" />
-                                  {c.committedCount} godkendt
-                                </span>
-                              )}
-                            </div>
-                              {c.committedCount > 0 && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                  <CheckCircle2 className="h-2.5 w-2.5" />
-                                  {c.committedCount} godkendt
-                                </span>
-                              )}
-                            </div>
-                            {c.unreadCount > 0 && (
-                              <p className="text-xs text-chart-warning font-semibold mt-1">{c.unreadCount} ubesvarede beskeder</p>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {c.members.length > 0 && (
-                              <Link
-                                to={`/members/${c.members[0].user_id}`}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <FileText className="h-3 w-3" /> Se data
-                              </Link>
-                            )}
-                            {c.conversationId && (
-                              <Link
-                                to="/chat"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MessageCircle className="h-3 w-3" /> Åbn chat
-                              </Link>
-                            )}
-                            {isAdmin && c.invitationEmail && c.invitationStatus === 'pending' && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
-                                disabled={resendingInvitation === c.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
-                              >
-                                {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Gensend invitation
-                              </button>
-                            )}
-                            {isAdmin && c.invitationEmail && c.invitationStatus === 'accepted' && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleResendInvitation(c); }}
-                                disabled={resendingInvitation === c.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-chart-warning/10 text-chart-warning text-xs font-medium hover:bg-chart-warning/20 transition-colors border border-chart-warning/30 disabled:opacity-50"
-                              >
-                                {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
-                              </button>
-                            )}
-                            {isAdmin && !groupedCompanyIds.has(c.id) && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setWizardAnchor({ id: c.id, name: c.name }); setWizardOpen(true); }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors border border-primary/30"
-                              >
-                                <Layers className="h-3 w-3" /> Gør til koncern
-                              </button>
-                            )}
-                            {isAdmin && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); setDeleteDialogOpen(true); }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
-                              >
-                                <Trash2 className="h-3 w-3" /> Slet
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {groupedView.standaloneCompanies.map((c) => (
+              <MemberCompanyRow
+                key={c.id}
+                company={c}
+                isExpanded={expandedId === c.id}
+                onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                isAdmin={!!isAdmin}
+                isAdvisor={!!isAdvisor}
+                groupInfoMap={groupInfoMap}
+                groupedCompanyIds={groupedCompanyIds}
+                resendingInvitation={resendingInvitation}
+                removingMember={removingMember}
+                onRename={(id, name) => { setRenamingCompany({ id, currentName: name }); setRenameValue(name); }}
+                onInvite={(companyId, email) => { setStandaloneCompanyId(companyId); setStandaloneEmail(email); setStandaloneName(""); setStandaloneInviteOpen(true); }}
+                onOpenMerge={openMergeDialog}
+                onResendInvitation={handleResendInvitation}
+                onRemoveMember={handleRemoveMember}
+                onDelete={(c) => { setDeleteTarget(c); setDeleteDialogOpen(true); }}
+                onCreateGroup={(id, name) => { setWizardAnchor({ id, name }); setWizardOpen(true); }}
+                getDisplayRevenue={getDisplayRevenue}
+                getInitials={getInitials}
+              />
+            ))}
 
             {/* Group / Koncern consolidated rows */}
             {groupedView.groups.map(group => {
@@ -1719,14 +966,13 @@ const Members = () => {
               const isGroupExpanded = expandedId === groupExpandKey;
               const allCompanies = [group.anchorCompany, ...group.subCompanies].filter(Boolean) as CompanyData[];
               const totalReports = allCompanies.reduce((s, c) => s + c.reportCount, 0);
-              const totalMembers = allCompanies.reduce((s, c) => s + c.members.length, 0);
+              const groupTotalMembers = allCompanies.reduce((s, c) => s + c.members.length, 0);
               return (
                 <div key={group.groupId} className="border-b border-border/50">
                   <button
                     onClick={() => setExpandedId(isGroupExpanded ? null : groupExpandKey)}
                     className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
                   >
-                    {/* Desktop row */}
                     <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -1735,15 +981,10 @@ const Members = () => {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-foreground truncate">{group.groupName}</span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold shrink-0">
-                              Koncern
-                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold shrink-0">Koncern</span>
                             {isAdmin && (
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAddToGroupTarget({ groupId: group.groupId, groupName: group.groupName });
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setAddToGroupTarget({ groupId: group.groupId, groupName: group.groupName }); }}
                                 className="text-[10px] px-1.5 py-0.5 rounded border border-primary/20 text-primary hover:bg-primary/10 transition-colors shrink-0"
                               >
                                 + Tilføj
@@ -1751,7 +992,7 @@ const Members = () => {
                             )}
                           </div>
                           <span className="text-[10px] text-muted-foreground">
-                            {allCompanies.length} selskaber · {totalMembers} brugere
+                            {allCompanies.length} selskaber · {groupTotalMembers} brugere
                           </span>
                         </div>
                       </div>
@@ -1762,7 +1003,6 @@ const Members = () => {
                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
                       </div>
                     </div>
-                    {/* Mobile row */}
                     <div className="sm:hidden flex items-center gap-3 px-5 py-3">
                       <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                         <Layers className="h-4 w-4 text-primary" />
@@ -1778,7 +1018,6 @@ const Members = () => {
                     </div>
                   </button>
 
-                  {/* Expanded: show sub-companies */}
                   {isGroupExpanded && (
                     <div className="bg-secondary/10 divide-y divide-border/30">
                       {allCompanies.map(c => (
@@ -1797,11 +1036,7 @@ const Members = () => {
                                 <span className="text-[8px] px-1 py-0.5 rounded bg-primary/10 text-primary font-semibold">Anchor</span>
                               )}
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRenamingCompany({ id: c.id, currentName: c.name });
-                                  setRenameValue(c.name);
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setRenamingCompany({ id: c.id, currentName: c.name }); setRenameValue(c.name); }}
                                 className="opacity-0 group-hover/subrow:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0"
                                 title="Omdøb virksomhed"
                               >
@@ -1832,144 +1067,23 @@ const Members = () => {
           </div>
         )}
 
-        {/* Footer */}
         <div className="px-5 py-3 bg-secondary/30 border-t border-border text-xs text-muted-foreground">
           Viser {groupedView.standaloneCompanies.length} virksomheder + {groupedView.groups.length} koncerner af {companies.length} total
         </div>
       </div>
 
-      {/* Admin-only sections */}
-      {isAdmin && (
-        <>
-          {/* Invitation stats */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center">
-                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-lg font-display font-bold text-foreground">{acceptedCount}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accepteret</p>
-              </div>
-            </div>
-            <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-chart-warning/15 flex items-center justify-center">
-                <Send className="h-4 w-4 text-chart-warning" />
-              </div>
-              <div>
-                <p className="text-lg font-display font-bold text-foreground">{pendingCount}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Afventer svar</p>
-              </div>
-            </div>
-            <div className="glass-card rounded-xl p-3 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-lg font-display font-bold text-foreground">{notInvitedCount}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ikke inviteret</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Pending invitations overview */}
-          {(() => {
-            const companyPendingInvitations = companies
-              .flatMap(c => {
-                const companyInvs = (c as any).__pendingInvitations || [];
-                return companyInvs.map((inv: any) => ({ ...inv, companyName: c.name, companyId: c.id }));
-              });
-            const standaloneInvs = standalonePendingInvitations.map((inv: any) => ({
-              ...inv,
-              companyName: "Ingen virksomhed",
-              companyId: null,
-            }));
-            const pendingInvitations = [...companyPendingInvitations, ...standaloneInvs];
-            return (
-              <div className="mb-6 glass-card rounded-xl overflow-hidden">
-                <div className="px-4 py-3 flex items-center gap-2 border-b border-border">
-                  <Send className="h-4 w-4 text-chart-warning" />
-                  <span className="text-sm font-semibold text-foreground">Afventende invitationer</span>
-                  <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning/15 text-chart-warning text-xs font-bold">
-                    {pendingInvitations.length}
-                  </span>
-                </div>
-                {pendingInvitations.length > 0 ? (
-                  <div className="divide-y divide-border">
-                    {pendingInvitations.map((inv: any) => (
-                      <div key={inv.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
-                            <p className="text-xs text-muted-foreground">{inv.companyName} · Sendt {format(new Date(inv.lastSentAt || inv.created_at), "d. MMM yyyy", { locale: da })}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => {
-                              if (inv.companyId) {
-                                const company = companies.find(c => c.id === inv.companyId);
-                                if (company) handleResendInvitation(company);
-                              } else {
-                                handleResendStandaloneInvitation({ id: inv.id, email: inv.email, token: inv.token });
-                              }
-                            }}
-                            disabled={resendingInvitation === (inv.companyId || inv.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50"
-                          >
-                            {resendingInvitation === (inv.companyId || inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                            Gensend
-                          </button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Slet invitation?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Er du sikker på, at du vil slette invitationen til <strong>{inv.email}</strong>? Dette kan ikke fortrydes.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Annuller</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  onClick={async () => {
-                                    const { error } = await supabase
-                                      .from("company_invitations")
-                                      .delete()
-                                      .eq("id", inv.id);
-                                    if (error) {
-                                      toast.error("Kunne ikke slette invitationen: " + error.message);
-                                    } else {
-                                      toast.success(`Invitation til ${inv.email} er slettet`);
-                                      loadCompanies();
-                                    }
-                                  }}
-                                >
-                                  Slet
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="px-4 py-6 text-center">
-                    <p className="text-sm text-muted-foreground">Ingen afventende invitationer</p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </>
-      )}
+      <MembersAdminSection
+        isAdmin={!!isAdmin}
+        acceptedCount={acceptedCount}
+        pendingCount={pendingCount}
+        notInvitedCount={notInvitedCount}
+        companies={companies}
+        standalonePendingInvitations={standalonePendingInvitations}
+        resendingInvitation={resendingInvitation}
+        onResendInvitation={handleResendInvitation}
+        onResendStandaloneInvitation={handleResendStandaloneInvitation}
+        onReload={loadCompanies}
+      />
 
       {/* Merge dialog */}
       <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
@@ -2064,9 +1178,7 @@ const Members = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Annullér
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Annullér</Button>
             <Button variant="destructive" onClick={handleDeleteCompany} disabled={deleting}>
               {deleting ? "Sletter..." : "Slet virksomhed"}
             </Button>
@@ -2086,57 +1198,29 @@ const Members = () => {
           <div className="space-y-4 py-2">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Navn (valgfrit)</label>
-              <input
-                type="text"
-                value={standaloneName}
-                onChange={(e) => setStandaloneName(e.target.value)}
-                placeholder="F.eks. Jeppe Chris"
-                className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+              <input type="text" value={standaloneName} onChange={(e) => setStandaloneName(e.target.value)} placeholder="F.eks. Jeppe Chris" className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">E-mail *</label>
-              <input
-                type="email"
-                value={standaloneEmail}
-                onChange={(e) => setStandaloneEmail(e.target.value)}
-                placeholder="email@virksomhed.dk"
-                required
-                className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+              <input type="email" value={standaloneEmail} onChange={(e) => setStandaloneEmail(e.target.value)} placeholder="email@virksomhed.dk" required className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tilknyt virksomhed (valgfrit)</label>
-              <select
-                value={standaloneCompanyId}
-                onChange={(e) => setStandaloneCompanyId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
+              <select value={standaloneCompanyId} onChange={(e) => setStandaloneCompanyId(e.target.value)} className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
                 <option value="">Ingen — opretter selv virksomhed</option>
-                {companies
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name, "da"))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                {companies.slice().sort((a, b) => a.name.localeCompare(b.name, "da")).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
               </select>
             </div>
             <p className="text-xs text-muted-foreground">
-              {standaloneCompanyId
-                ? "Personen tilknyttes automatisk den valgte virksomhed ved tilmelding."
-                : "Personen opretter selv en ny virksomhed ved tilmelding."}
+              {standaloneCompanyId ? "Personen tilknyttes automatisk den valgte virksomhed ved tilmelding." : "Personen opretter selv en ny virksomhed ved tilmelding."}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStandaloneInviteOpen(false)} disabled={standaloneSending}>
-              Annuller
-            </Button>
+            <Button variant="outline" onClick={() => setStandaloneInviteOpen(false)} disabled={standaloneSending}>Annuller</Button>
             <Button onClick={handleStandaloneInvite} disabled={standaloneSending || !standaloneEmail.trim()}>
-              {standaloneSending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Send className="h-4 w-4 mr-2" />
-              )}
+              {standaloneSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
               Send invitation
             </Button>
           </DialogFooter>
@@ -2155,7 +1239,6 @@ const Members = () => {
         />
       )}
 
-      {/* Add company to existing group dialog */}
       {addToGroupTarget && (
         <AddCompanyToGroupDialog
           open={!!addToGroupTarget}
@@ -2163,8 +1246,7 @@ const Members = () => {
           groupId={addToGroupTarget.groupId}
           groupName={addToGroupTarget.groupName}
           allCompanies={companies.map((c) => ({
-            id: c.id,
-            name: c.name,
+            id: c.id, name: c.name,
             members: c.members.map((m) => ({ user_id: m.user_id, full_name: m.full_name, role: m.role })),
           }))}
           groupedCompanyIds={groupedCompanyIds}
@@ -2173,16 +1255,11 @@ const Members = () => {
       )}
 
       {/* Rename company dialog */}
-      <Dialog
-        open={!!renamingCompany}
-        onOpenChange={(open) => { if (!open) setRenamingCompany(null); }}
-      >
+      <Dialog open={!!renamingCompany} onOpenChange={(open) => { if (!open) setRenamingCompany(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Omdøb virksomhed</DialogTitle>
-            <DialogDescription>
-              Nuværende navn: {renamingCompany?.currentName}
-            </DialogDescription>
+            <DialogDescription>Nuværende navn: {renamingCompany?.currentName}</DialogDescription>
           </DialogHeader>
           <input
             value={renameValue}
@@ -2193,13 +1270,8 @@ const Members = () => {
             autoFocus
           />
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setRenamingCompany(null)}>
-              Annuller
-            </Button>
-            <Button
-              onClick={handleRenameCompany}
-              disabled={renameSaving || !renameValue.trim()}
-            >
+            <Button variant="outline" onClick={() => setRenamingCompany(null)}>Annuller</Button>
+            <Button onClick={handleRenameCompany} disabled={renameSaving || !renameValue.trim()}>
               {renameSaving ? "Gemmer..." : "Gem navn"}
             </Button>
           </DialogFooter>
