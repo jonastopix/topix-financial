@@ -7,6 +7,7 @@ interface GroupCompanyCardProps {
   compact?: boolean;
   onCompanyClick?: (companyId: string, companyName: string) => void;
   onUploadClick?: (companyId: string, companyName: string) => void;
+  onBudgetClick?: (companyId: string, companyName: string) => void;
 }
 
 function computeTrend(c: GroupCompanySummary): number | null {
