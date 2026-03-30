@@ -597,6 +597,11 @@ const Reports = () => {
               />
             </div>
           )}
+          <div className="flex items-center gap-1.5 mt-3">
+            <Link to="/annual-baseline" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+              Hurtigstart med årstal →
+            </Link>
+          </div>
         </div>
       )}
 
