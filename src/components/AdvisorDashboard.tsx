@@ -632,6 +632,7 @@ const AdvisorDashboard = () => {
   const activityFeed = data?.activityFeed || [];
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
   const priorityItems = data?.priorityItems || [];
+  const advisorProfiles = data?.advisorProfiles || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
