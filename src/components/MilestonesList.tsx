@@ -516,6 +516,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
   const quickUpdateProgress = async (id: string, newProgress: number) => {
     const oldMs = milestones.find((m) => m.id === id);
     if (!oldMs) return;
+    if (oldMs.dbStatus === "parked") return; // Don't update progress on parked milestones
     const wasNotDone = oldMs.progress < 100;
     const newStatus = deriveStatus(newProgress);
 
