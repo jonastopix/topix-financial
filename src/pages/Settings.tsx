@@ -11,6 +11,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { da } from "date-fns/locale";
+import CompanyInvitations from "@/components/CompanyInvitations";
 
 const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; value: string }[] }[] = [
   { label: "Detailhandel", value: "retail", sub: [
