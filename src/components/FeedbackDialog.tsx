@@ -114,7 +114,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     // Fire-and-forget Slack + advisor notification
     notifyFeedbackSubmitted(insertedFeedback.id);
 
-    toast({ title: "Tak for din feedback!", description: "Vi har modtaget din besked og vender tilbage." });
+    toast.success("Tak for din feedback!", { description: "Vi har modtaget din besked og vender tilbage." });
     reset();
     onOpenChange(false);
   };

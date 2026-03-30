@@ -179,7 +179,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
       toast.error("Fejl", { description: error.message });
     } else {
       setHandoutStatus(newStatus);
-      toast({ title: newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet" });
+      toast.success(newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet");
 
       // Server-side notification (Slack + advisor_notifications) — fire-and-forget
       if (newStatus === "completed") {

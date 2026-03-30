@@ -122,7 +122,7 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
       onOpenChange(false);
     } catch (err: any) {
       console.error("Reset error:", err);
-      toast({ title: "Fejl", description: "Kunne ikke nulstille.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke nulstille." });
     } finally {
       setSaving(false);
       setResetConfirm(false);

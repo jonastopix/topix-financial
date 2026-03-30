@@ -27,7 +27,7 @@ const HandoutAIFeedback = ({ handoutId, module, feedback, feedbackAt, onFeedback
       onFeedbackReceived();
       toast.success("AI-sparring modtaget", { description: "Din feedback er klar nedenfor." });
     } catch (e: any) {
-      toast({ title: "Fejl", description: e.message || "Kunne ikke hente AI-feedback", variant: "destructive" });
+      toast.error("Fejl", { description: e.message || "Kunne ikke hente AI-feedback" });
     } finally {
       setLoading(false);
     }

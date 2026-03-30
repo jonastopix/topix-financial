@@ -61,8 +61,7 @@ const CreateGroupCompanyDialog = ({ open, onOpenChange, groupId }: CreateGroupCo
         return;
       }
 
-      toast({
-        title: "Selskab oprettet",
+      toast.success("Selskab oprettet", {
         description: `${data.company_name} er tilføjet til koncernen`,
       });
 
