@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceKey);
+  const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const adminClient = createClient(supabaseUrl, svcKey);
   const resendKey = Deno.env.get("RESEND_API_KEY");
   if (!resendKey) {
     return json({ error: "RESEND_API_KEY not configured" }, 500);
@@ -150,8 +150,15 @@ Deno.serve(async (req) => {
     if (!email) continue;
 
     const { data: profile } = await adminClient
-      .from("profiles").select("full_name").eq("user_id", userId).maybeSingle();
+      .from("profiles").select("full_name, notification_email_prefs").eq("user_id", userId).maybeSingle();
     const firstName = profile?.full_name?.split(" ")[0] || "dig";
+
+    // Respect user opt-out preference
+    const digestPrefs = (profile?.notification_email_prefs as any) || {};
+    if (digestPrefs.monthly_digest === false) {
+      console.log(`[digest] User ${userId} opted out of monthly digest`);
+      continue;
+    }
 
     const { data: company } = await adminClient
       .from("companies").select("name").eq("id", companyId).maybeSingle();
