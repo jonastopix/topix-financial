@@ -103,12 +103,6 @@ function findMainCategoryBySubValue(subValue: string): string {
   }
   return "";
 }
-import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
-import { toast } from "sonner";
-import { format } from "date-fns";
-import { da } from "date-fns/locale";
-import CompanyInvitations from "@/components/CompanyInvitations";
-
 interface CompanyData {
   id: string;
   name: string;
