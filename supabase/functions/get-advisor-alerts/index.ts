@@ -14,11 +14,10 @@ Deno.serve(async (req) => {
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   // Verify caller is advisor or admin (user_roles has no user-facing SELECT RLS)
-  const { data: roleRow, error: roleError } = await adminClient
+  const { data: roleRows } = await adminClient
     .from("user_roles").select("role").eq("user_id", callerId)
-    .in("role", ["advisor", "admin"]).maybeSingle();
-  console.log("[get-advisor-alerts] roleRow:", roleRow, "roleError:", roleError);
-  if (!roleRow) {
+    .in("role", ["advisor", "admin"]).limit(1);
+  if (!roleRows || roleRows.length === 0) {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
