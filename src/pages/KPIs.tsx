@@ -851,7 +851,7 @@ const KPIs = () => {
       )}
 
       {/* Benchmark editing panel */}
-      {editingBenchmarks && (
+      {showAdvanced && editingBenchmarks && (
         <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-accent/30">
           <h3 className="font-display font-semibold text-foreground text-sm mb-4 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-accent-foreground" />
