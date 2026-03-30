@@ -596,7 +596,8 @@ const AdvisorDashboard = () => {
             score += 20;
           }
 
-          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score };
+          const conv = convByCompany.get(c.company_id)?.[0];
+          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score, assigned_advisor_id: conv?.assigned_advisor_id ?? null };
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
