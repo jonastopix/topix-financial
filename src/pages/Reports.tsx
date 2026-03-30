@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useReportCommitStates } from "@/hooks/useReportCommitStates";
 import ReportReviewDialog from "@/components/ReportReviewDialog";
@@ -564,9 +564,16 @@ const Reports = () => {
             companyId={companyId || null}
             onPipelineComplete={handlePipelineComplete}
           />
-          <p className="text-center text-xs text-muted-foreground mt-3">
+           <p className="text-center text-xs text-muted-foreground mt-3">
             Understøtter PDF og Excel fra e-conomic, Dinero, Billy og de fleste andre regnskabssystemer
           </p>
+          <div className="text-center mt-4">
+            <p className="text-xs text-muted-foreground mb-1.5">Har du et årsregnskab? Sæt en baseline med 5 nøgletal i stedet.</p>
+            <Link to="/annual-baseline" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Hurtigstart med årstal →
+            </Link>
+          </div>
         </div>
       ) : (
         <div data-tour="upload-zone">
