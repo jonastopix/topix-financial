@@ -40,6 +40,9 @@ export default function BudgetScenariosTab({
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [editLabelValue, setEditLabelValue] = useState("");
   const [generatingScenario, setGeneratingScenario] = useState<ScenarioKey | null>(null);
+  const [showQuickstart, setShowQuickstart] = useState(true);
+  const [quickValues, setQuickValues] = useState({ revenue: "", costs: "", payroll: "" });
+  const [applyingQuick, setApplyingQuick] = useState(false);
 
   const rows = scenarioData[activeScenario];
   const scenarioConfig = SCENARIOS.find(s => s.key === activeScenario)!;
@@ -311,6 +314,38 @@ export default function BudgetScenariosTab({
 
   const isScenarioEmpty = rows.every(r => r.values.every(v => v === 0));
 
+  const applyQuickstart = () => {
+    const rev = Number(quickValues.revenue) || 0;
+    const costs = Number(quickValues.costs) || 0;
+    const pay = Number(quickValues.payroll) || 0;
+    if (rev === 0) return;
+
+    setApplyingQuick(true);
+    const monthlyRev = rev / 12;
+    const monthlyCosts = costs / 12;
+    const monthlyPay = pay / 12;
+
+    const updated = scenarioData[activeScenario].map(row => {
+      if (row.group === "indtaegter") return { ...row, values: Array(12).fill(Math.round(monthlyRev)) };
+      if (row.key === "loenninger" || row.key === "personale") return { ...row, values: Array(12).fill(Math.round(monthlyPay)) };
+      if (monthlyCosts > 0 && row.group !== "indtaegter" && row.key !== "loenninger" && row.key !== "personale") {
+        const nonPayrollCostRows = scenarioData[activeScenario].filter(r =>
+          r.group !== "indtaegter" && r.key !== "loenninger" && r.key !== "personale" && r.isEditable
+        );
+        const perRow = nonPayrollCostRows.length > 0 ? (monthlyCosts - monthlyPay) / nonPayrollCostRows.length : 0;
+        if (nonPayrollCostRows.some(r => r.key === row.key)) {
+          return { ...row, values: Array(12).fill(Math.round(Math.max(0, perRow))) };
+        }
+      }
+      return row;
+    });
+
+    setScenarioData(prev => prev ? { ...prev, [activeScenario]: updated } : prev);
+    setShowQuickstart(false);
+    setApplyingQuick(false);
+    toast.success("Budget-udgangspunkt sat!", { description: "Tallene er fordelt på 12 måneder. Klik Rediger for at finjustere." });
+  };
+
   return (
     <div className="space-y-6">
       {activeScenario !== "base" && isScenarioEmpty && (
@@ -440,6 +475,51 @@ export default function BudgetScenariosTab({
           <ScenarioKPI label="EBITDA" value={totalEbitda} color={scenarioConfig.color} diff={activeScenario !== "base" ? ebitdaDiffFromBase : undefined} />
           <ScenarioKPI label="EBITDA-margin" value={totalOmsaetning > 0 ? Math.round((totalEbitda / totalOmsaetning) * 100) : 0} color={scenarioConfig.color} suffix="%" />
         </div>
+
+        {/* Quickstart banner */}
+        {showQuickstart && totalOmsaetning === 0 && !editing && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 mb-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Kom i gang på 5 minutter</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Indtast 3 årstal — vi fordeler dem automatisk på 12 måneder</p>
+              </div>
+              <button onClick={() => setShowQuickstart(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {[
+                { key: "revenue", label: "Omsætningsmål (kr/år)", placeholder: "f.eks. 3.000.000" },
+                { key: "payroll", label: "Lønbudget (kr/år)", placeholder: "f.eks. 900.000" },
+                { key: "costs", label: "Øvrige omkostninger (kr/år)", placeholder: "f.eks. 600.000" },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={quickValues[f.key as keyof typeof quickValues]}
+                    onChange={e => setQuickValues(v => ({ ...v, [f.key]: e.target.value.replace(/[^\d]/g, "") }))}
+                    placeholder={f.placeholder}
+                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={applyQuickstart}
+                disabled={!quickValues.revenue || applyingQuick}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Sæt budget-udgangspunkt
+              </button>
+              <span className="text-xs text-muted-foreground">Du kan justere alle tal bagefter</span>
+            </div>
+          </div>
+        )}
 
         {/* Budget table */}
         <TooltipProvider>
