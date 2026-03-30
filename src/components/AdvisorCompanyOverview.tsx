@@ -501,6 +501,47 @@ const AdvisorCompanyOverview = () => {
         )}
       </div>
 
+      {/* ── Primary action hint ── */}
+      {(() => {
+        if (primaryConv?.awaiting_reply_from === "advisor") {
+          return (
+            <Link
+              to={`/chat?conversationId=${primaryConv.id}`}
+              className="flex items-center gap-3 p-3 rounded-xl bg-destructive/5 border border-destructive/20 hover:bg-destructive/10 transition-colors"
+            >
+              <MessageSquare className="h-4 w-4 text-destructive flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-destructive">Afventer dit svar</p>
+                <p className="text-xs text-destructive/70">Åbn chatten og svar founder</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-destructive/50 flex-shrink-0" />
+            </Link>
+          );
+        }
+        if (overdueMilestones.length > 0) {
+          return (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-chart-warning/5 border border-chart-warning/20">
+              <Target className="h-4 w-4 text-chart-warning flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-chart-warning">
+                  {overdueMilestones.length} milestone{overdueMilestones.length > 1 ? "s" : ""} overskredet deadline
+                </p>
+                <p className="text-xs text-chart-warning/70 truncate">{overdueMilestones[0].title}</p>
+              </div>
+            </div>
+          );
+        }
+        if (!data?.latest) {
+          return (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
+              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">Ingen rapport uploadet endnu</p>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* ── Financial Snapshot ── */}
       {latest && (
         <div className="rounded-xl border border-border bg-card p-4">

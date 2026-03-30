@@ -155,7 +155,13 @@ const PerformanceScore = () => {
           <p className="text-xs text-muted-foreground leading-relaxed">
             Din samlede forretningssundhed baseret på vækst, marginer, resultat og likviditet.
           </p>
-          <p className="text-[10px] text-foreground/50">Baseret på uploadede rapporter</p>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            {overallScore >= 75
+              ? "Du klarer dig godt på tværs af de fire områder."
+              : overallScore >= 50
+              ? "Der er rum til forbedring — se hvilke områder der trækker ned."
+              : "Flere areas kræver opmærksomhed — kig på de røde indikatorer nedenfor."}
+          </p>
         </div>
       </div>
 
