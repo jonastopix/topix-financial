@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight, BarChart3 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -358,19 +358,22 @@ const Dashboard = () => {
             <p className="text-sm text-muted-foreground mb-6">
               Når du uploader en resultatopgørelse eller saldobalance, udfylder vi automatisk dit dashboard med nøgletal, trends og AI-analyse.
             </p>
-            <Link
-              to="/reports"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <FileText className="h-4 w-4" />
-              Gå til rapportering
-            </Link>
-            <Link
-              to="/annual-baseline"
-              className="block mt-3 text-sm text-primary hover:underline transition-colors"
-            >
-              Eller sæt baseline med årstal →
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                to="/reports"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <FileText className="h-4 w-4" />
+                Gå til rapportering
+              </Link>
+              <Link
+                to="/annual-baseline"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground hover:bg-accent/50 transition-colors"
+              >
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                Sæt baseline med årstal
+              </Link>
+            </div>
           </div>
         </div>
       )}

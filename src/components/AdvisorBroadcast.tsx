@@ -14,6 +14,7 @@ interface AdvisorBroadcastProps {
 
 export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
   const [open, setOpen] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(false);
   const [lastSent, setLastSent] = useState<{ count: number; at: string } | null>(null);
   const [message, setMessage] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -28,6 +29,8 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
     });
     setSelectAll(false);
   };
+
+  const recipientCount = selectAll ? companies.length : selectedIds.size;
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
@@ -47,6 +50,7 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
         `Besked sendt til ${data.sent} virksomhed${data.sent !== 1 ? "er" : ""}`
       );
       setMessage("");
+      setConfirmStep(false);
       setLastSent({ count: data.sent, at: new Date().toLocaleString("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) });
       setOpen(false);
     } catch {
@@ -136,14 +140,30 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
             <span className="text-[10px] text-muted-foreground">
               {message.length}/2000
             </span>
-            <button
-              onClick={handleSend}
-              disabled={!message.trim() || sending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {sending ? "Sender..." : "Send besked"}
-            </button>
+            {!confirmStep ? (
+              <button
+                onClick={() => setConfirmStep(true)}
+                disabled={!message.trim() || sending}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Send besked
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Sender til {recipientCount} virksomheder —
+                </span>
+                <button onClick={handleSend} disabled={sending}
+                  className="text-xs font-medium text-primary hover:underline">
+                  {sending ? "Sender..." : "Bekræft"}
+                </button>
+                <button onClick={() => setConfirmStep(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground">
+                  Annuller
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
