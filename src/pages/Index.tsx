@@ -475,55 +475,65 @@ const Dashboard = () => {
                 done: hasReports,
                 action: "/reports",
                 actionLabel: "Upload",
+                onClick: undefined as (() => void) | undefined,
               },
               {
                 label: "Pulse check-in",
                 done: hasPulseThisMonth,
-                action: "/pulse",
+                action: "#",
                 actionLabel: "Udfyld",
+                onClick: () => setShowPulseModal(true),
               },
               {
                 label: "Milestones",
                 done: hasMilestoneProgressThisMonth,
                 action: "/milestones",
                 actionLabel: "Se status",
+                onClick: undefined as (() => void) | undefined,
               },
             ].map(item => (
-              <Link key={item.label} to={item.action}
-                className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
-                  item.done
-                    ? "border-primary/20 bg-primary/5"
-                    : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
-                }`}
-              >
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                  item.done ? "bg-primary/20" : "bg-muted"
-                }`}>
-                  {item.done
-                    ? <CheckCircle2 className="h-4 w-4 text-primary" />
-                    : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  }
-                </div>
-                <p className={`text-xs font-medium ${
-                  item.done ? "text-primary" : "text-foreground"
-                }`}>
-                  {item.label}
-                </p>
-                {!item.done && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {item.actionLabel} →
-                  </span>
-                )}
-                {item.done && (
-                  <span className="text-[10px] text-primary">
-                    ✓ Gjort
-                  </span>
-                )}
-              </Link>
+              item.onClick ? (
+                <button key={item.label} onClick={item.onClick}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
+                    item.done
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
+                  }`}
+                >
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.done ? "bg-primary/20" : "bg-muted"}`}>
+                    {item.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                  <p className={`text-xs font-medium ${item.done ? "text-primary" : "text-foreground"}`}>{item.label}</p>
+                  {!item.done && <span className="text-[10px] text-muted-foreground">{item.actionLabel} →</span>}
+                  {item.done && <span className="text-[10px] text-primary">✓ Gjort</span>}
+                </button>
+              ) : (
+                <Link key={item.label} to={item.action}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
+                    item.done
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
+                  }`}
+                >
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.done ? "bg-primary/20" : "bg-muted"}`}>
+                    {item.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                  <p className={`text-xs font-medium ${item.done ? "text-primary" : "text-foreground"}`}>{item.label}</p>
+                  {!item.done && <span className="text-[10px] text-muted-foreground">{item.actionLabel} →</span>}
+                  {item.done && <span className="text-[10px] text-primary">✓ Gjort</span>}
+                </Link>
+              )
             ))}
           </div>
         </div>
       )}
+
+      {/* Pulse modal */}
+      <PulseCheckinModal
+        open={showPulseModal}
+        onOpenChange={setShowPulseModal}
+        onComplete={() => queryClient.invalidateQueries({ queryKey: ["pulse-this-month", companyId] })}
+      />
 
       {/* Unified action center */}
       {!isAdvisor && companyId && (
