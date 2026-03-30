@@ -268,7 +268,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes,
+        recentMilestonesRes, groupConvsRes, groupsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -327,9 +327,30 @@ const AdvisorDashboard = () => {
           .gte("updated_at", twoWeeksAgo)
           .order("updated_at", { ascending: false })
           .limit(50),
+        (supabase
+          .from("group_conversations" as any)
+          .select("id, group_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
+          .order("last_message_at", { ascending: false })),
+        supabase
+          .from("groups")
+          .select("id, name"),
       ]);
 
-      const allConversations = (convRes.data || []) as ConversationRow[];
+      // Map group conversations into the same shape as company conversations
+      const groupNameMap = new Map<string, string>();
+      for (const g of ((groupsRes.data || []) as any[])) {
+        groupNameMap.set(g.id, g.name);
+      }
+      const groupConvsMapped = ((groupConvsRes as any)?.data || []).map((gc: any) => ({
+        ...gc,
+        company_id: `group_${gc.group_id}`,
+        id: `group_${gc.id}`,
+      })) as ConversationRow[];
+
+      const allConversations = [
+        ...(convRes.data || []) as ConversationRow[],
+        ...groupConvsMapped,
+      ];
       const conversations = allConversations.filter((conversation) => conversation.conversation_status === "open");
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
