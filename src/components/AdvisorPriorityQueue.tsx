@@ -1,0 +1,91 @@
+import { MessageSquare, FileCheck, Wallet, TrendingDown, Clock, AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react";
+
+interface Reason {
+  label: string;
+  urgency: "high" | "medium";
+}
+
+export interface PriorityItem {
+  company: { company_id: string; company_name: string; logo_url: string | null };
+  reasons: Reason[];
+  score: number;
+}
+
+function ReasonIcon({ label }: { label: string }) {
+  if (label.includes("besked")) return <MessageSquare className="h-3 w-3" />;
+  if (label.includes("godkendelse")) return <FileCheck className="h-3 w-3" />;
+  if (label.includes("Bankovertræk")) return <Wallet className="h-3 w-3" />;
+  if (label.includes("Omsætning faldt")) return <TrendingDown className="h-3 w-3" />;
+  if (label.includes("Opfølgning")) return <Clock className="h-3 w-3" />;
+  return <AlertTriangle className="h-3 w-3" />;
+}
+
+interface AdvisorPriorityQueueProps {
+  items: PriorityItem[];
+  onCompanyClick: (companyId: string, companyName: string) => void;
+}
+
+export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorPriorityQueueProps) {
+  if (items.length === 0) return (
+    <div className="glass-card rounded-xl p-6 flex items-center gap-4">
+      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <CheckCircle2 className="h-5 w-5 text-primary" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-foreground">Alt er i orden</p>
+        <p className="text-xs text-muted-foreground">Ingen virksomheder kræver handling lige nu</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="glass-card rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-chart-warning" />
+          <h3 className="text-sm font-semibold text-foreground">Kræver handling</h3>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-medium">
+          {items.length} {items.length === 1 ? "virksomhed" : "virksomheder"}
+        </span>
+      </div>
+
+      <div className="space-y-1">
+        {items.map(item => (
+          <button
+            key={item.company.company_id}
+            onClick={() => onCompanyClick(item.company.company_id, item.company.company_name)}
+            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
+          >
+            {/* Avatar */}
+            <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+              {item.company.logo_url
+                ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
+                : <span className="text-[10px] font-bold text-muted-foreground">
+                    {item.company.company_name.slice(0, 2).toUpperCase()}
+                  </span>
+              }
+            </div>
+
+            {/* Name + reasons */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-foreground truncate">{item.company.company_name}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                {item.reasons.map((r, i) => (
+                  <span key={i} className={`inline-flex items-center gap-1 text-[10px] ${
+                    r.urgency === "high" ? "text-destructive" : "text-chart-warning"
+                  }`}>
+                    <ReasonIcon label={r.label} />
+                    {r.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
