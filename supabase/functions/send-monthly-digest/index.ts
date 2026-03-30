@@ -65,39 +65,26 @@ function formatDKK(n: number): string {
   return `${n < 0 ? "-" : ""}${formatted} kr.`;
 }
 
-function parseJwtClaims(token: string): Record<string, unknown> | null {
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
-  try {
-    const payload = parts[1]
-      .replaceAll("-", "+")
-      .replaceAll("_", "/")
-      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
-    return JSON.parse(atob(payload)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function json(data: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Service-role only — called by cron or manually by admin
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return json({ error: "Unauthorized" }, 401);
-  }
-  const token = authHeader.slice("Bearer ".length).trim();
-  const claims = parseJwtClaims(token);
-  if (claims?.role !== "service_role") {
-    return json({ error: "Forbidden" }, 403);
+  const auth = await authenticateUser(req);
+  if (auth instanceof Response) return auth;
+  const { callerId, callerClient } = auth;
+
+  // Verify caller is admin or advisor
+  const { data: roleRow } = await callerClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", callerId)
+    .in("role", ["admin", "advisor"])
+    .maybeSingle();
+
+  if (!roleRow) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
