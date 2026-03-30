@@ -23,6 +23,7 @@ import {
   ChevronDown,
   Check,
   Upload,
+  BookMarked,
 } from "lucide-react";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -45,6 +46,7 @@ const baseNavItems = [
 ];
 
 const secondaryNavItems = [
+  { icon: BookMarked, label: "Guide", path: "/guide" },
   { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: Users, label: "Community", path: "/community" },
 ];
@@ -55,7 +57,6 @@ const advisorNavItems = [
 ];
 
 const adminNavItems = [
-  { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Upload, label: "Import rapporter", path: "/admin/import" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
