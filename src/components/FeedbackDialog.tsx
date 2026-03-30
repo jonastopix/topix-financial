@@ -107,7 +107,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
     setSubmitting(false);
 
     if (error || !insertedFeedback) {
-      toast({ title: "Fejl", description: "Kunne ikke sende feedback. Prøv igen.", variant: "destructive" });
+      toast.error("Fejl", { description: "Kunne ikke sende feedback. Prøv igen." });
       return;
     }
 
