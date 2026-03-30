@@ -234,7 +234,6 @@ const CompanyChatPane = () => {
     if (convParam && conversations.length > 0) {
       const conv = conversations.find(c => c.id === convParam);
       if (conv && activeConvId !== convParam) {
-        setActiveFilter("alle");
         setActiveConvId(convParam);
         if (isMobile) setShowMessages(true);
       }
@@ -1050,17 +1049,11 @@ const CompanyChatPane = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Advisor prev/next navigation
+  // Advisor prev/next navigation — mirrors the left panel filter
   const advisorConvList = useMemo(() => {
     if (!isAdvisor) return [];
-    return conversations
-      .filter(c => c.threadType !== "group")
-      .sort((a, b) => {
-        if (a.awaiting_reply_from === "advisor" && b.awaiting_reply_from !== "advisor") return -1;
-        if (b.awaiting_reply_from === "advisor" && a.awaiting_reply_from !== "advisor") return 1;
-        return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
-      });
-  }, [conversations, isAdvisor]);
+    return filteredConversations.filter(c => c.threadType !== "group");
+  }, [filteredConversations, isAdvisor]);
 
   const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
   const prevConv = currentConvIdx > 0 ? advisorConvList[currentConvIdx - 1] : null;
@@ -1802,18 +1795,21 @@ const CompanyChatPane = () => {
                           onClick={() => prevConv && setActiveConvId(prevConv.id)}
                           disabled={!prevConv}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
-                          title={prevConv ? `← ${prevConv.companyName}` : undefined}
+                          title={prevConv ? `← ${prevConv.companyName}` : "Ingen tidligere"}
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </button>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                           {currentConvIdx + 1} / {advisorConvList.length}
+                          {activeFilter === "action" && (
+                            <span className="ml-1 text-amber-500">kræver svar</span>
+                          )}
                         </span>
                         <button
                           onClick={() => nextConv && setActiveConvId(nextConv.id)}
                           disabled={!nextConv}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
-                          title={nextConv ? `${nextConv.companyName} →` : undefined}
+                          title={nextConv ? `${nextConv.companyName} →` : "Ingen næste"}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </button>
