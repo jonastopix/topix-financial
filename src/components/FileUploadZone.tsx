@@ -133,10 +133,8 @@ async function runPostExtractionPipeline(params: {
   onPipelineComplete?.(reportId);
 
   if (isError) {
-    toastFn({
-      title: "Dokument afvist",
+    toastFn.error("Dokument afvist", {
       description: "Filen blev ikke genkendt som en finansiel rapport.",
-      variant: "destructive",
     });
   } else if (needsManualEntry) {
     // Build a contextual description based on what we know
