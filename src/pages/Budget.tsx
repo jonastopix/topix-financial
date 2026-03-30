@@ -428,19 +428,20 @@ const Budget = () => {
           </TabsTrigger>
           <TabsTrigger value="maaned" className="text-xs shrink-0">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-            Månedsoversigt
-          </TabsTrigger>
-          <TabsTrigger value="forecast" className="text-xs shrink-0">
-            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-            Forecast & Simulator
-          </TabsTrigger>
-          <TabsTrigger value="cashflow" className="text-xs shrink-0">
-            <Droplets className="h-3.5 w-3.5 mr-1.5" />
-            Cashflow
+            Måned vs. budget
           </TabsTrigger>
           <TabsTrigger value="import" className="text-xs shrink-0">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Importér
+          </TabsTrigger>
+          <div className="mx-1 self-center text-muted-foreground/40 text-xs select-none">|</div>
+          <TabsTrigger value="forecast" className="text-xs shrink-0 text-muted-foreground">
+            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+            Forecast ↗
+          </TabsTrigger>
+          <TabsTrigger value="cashflow" className="text-xs shrink-0 text-muted-foreground">
+            <Droplets className="h-3.5 w-3.5 mr-1.5" />
+            Cashflow ↗
           </TabsTrigger>
         </TabsList>
 

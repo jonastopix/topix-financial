@@ -40,9 +40,12 @@ const baseNavItems = [
   { icon: FileText, label: "Rapportering", path: "/reports" },
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
-  { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
+];
+
+const secondaryNavItems = [
+  { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: Users, label: "Community", path: "/community" },
 ];
 
@@ -54,7 +57,6 @@ const advisorNavItems = [
 const adminNavItems = [
   { icon: Layers, label: "Koncerner", path: "/admin/groups" },
   { icon: Upload, label: "Import rapporter", path: "/admin/import" },
-  { icon: ClipboardList, label: "Review Queue", path: "/admin/review-queue" },
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
   { icon: MessageCircle, label: "Feedback", path: "/admin/feedback" },
@@ -350,6 +352,28 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               </button>
             );
           })}
+          {/* Secondary links — shown only for non-advisor members */}
+          {!effectiveAdvisor && (
+            <div className="mt-3 pt-3 border-t border-sidebar-border/50 space-y-0.5">
+              {secondaryNavItems.map(item => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => { navigate(item.path, { state: { resetKey: Date.now() } }); if (isMobile) onClose(); }}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 group w-full text-left mb-0.5 ${
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-muted hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
+                    }`}
+                  >
+                    <item.icon className={`h-3.5 w-3.5 transition-colors ${isActive ? "text-primary" : "text-sidebar-muted group-hover:text-primary"}`} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </nav>
 
         <div className="px-4 py-3 border-t border-sidebar-border space-y-2 shrink-0">

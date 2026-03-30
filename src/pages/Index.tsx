@@ -2,22 +2,22 @@ import { useState, useMemo, useEffect } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
-import BudgetOverview from "@/components/BudgetOverview";
+import CombinedBudgetWidget from "@/components/CombinedBudgetWidget";
 import PerformanceScore from "@/components/PerformanceScore";
 import DashboardActionCenter from "@/components/DashboardActionCenter";
 import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import DashboardActivity from "@/components/DashboardActivity";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import PulseCheckinModal from "@/components/PulseCheckinModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 
-import RollingForecastCard from "@/components/RollingForecastCard";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 import GuidedTour from "@/components/GuidedTour";
@@ -47,6 +47,8 @@ const Dashboard = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [showTour, setShowTour] = useState(false);
+  const [showPulseModal, setShowPulseModal] = useState(false);
+  const queryClient = useQueryClient();
 
   const shouldShowTour = !rawAdvisor && profile && !profile.tour_completed_at;
   const [tourTriggered, setTourTriggered] = useState(false);
@@ -473,55 +475,65 @@ const Dashboard = () => {
                 done: hasReports,
                 action: "/reports",
                 actionLabel: "Upload",
+                onClick: undefined as (() => void) | undefined,
               },
               {
                 label: "Pulse check-in",
                 done: hasPulseThisMonth,
-                action: "/pulse",
+                action: "#",
                 actionLabel: "Udfyld",
+                onClick: () => setShowPulseModal(true),
               },
               {
                 label: "Milestones",
                 done: hasMilestoneProgressThisMonth,
                 action: "/milestones",
                 actionLabel: "Se status",
+                onClick: undefined as (() => void) | undefined,
               },
             ].map(item => (
-              <Link key={item.label} to={item.action}
-                className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
-                  item.done
-                    ? "border-primary/20 bg-primary/5"
-                    : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
-                }`}
-              >
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                  item.done ? "bg-primary/20" : "bg-muted"
-                }`}>
-                  {item.done
-                    ? <CheckCircle2 className="h-4 w-4 text-primary" />
-                    : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  }
-                </div>
-                <p className={`text-xs font-medium ${
-                  item.done ? "text-primary" : "text-foreground"
-                }`}>
-                  {item.label}
-                </p>
-                {!item.done && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {item.actionLabel} →
-                  </span>
-                )}
-                {item.done && (
-                  <span className="text-[10px] text-primary">
-                    ✓ Gjort
-                  </span>
-                )}
-              </Link>
+              item.onClick ? (
+                <button key={item.label} onClick={item.onClick}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
+                    item.done
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
+                  }`}
+                >
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.done ? "bg-primary/20" : "bg-muted"}`}>
+                    {item.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                  <p className={`text-xs font-medium ${item.done ? "text-primary" : "text-foreground"}`}>{item.label}</p>
+                  {!item.done && <span className="text-[10px] text-muted-foreground">{item.actionLabel} →</span>}
+                  {item.done && <span className="text-[10px] text-primary">✓ Gjort</span>}
+                </button>
+              ) : (
+                <Link key={item.label} to={item.action}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-center ${
+                    item.done
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border/30 bg-secondary/20 hover:bg-secondary/40"
+                  }`}
+                >
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.done ? "bg-primary/20" : "bg-muted"}`}>
+                    {item.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                  <p className={`text-xs font-medium ${item.done ? "text-primary" : "text-foreground"}`}>{item.label}</p>
+                  {!item.done && <span className="text-[10px] text-muted-foreground">{item.actionLabel} →</span>}
+                  {item.done && <span className="text-[10px] text-primary">✓ Gjort</span>}
+                </Link>
+              )
             ))}
           </div>
         </div>
       )}
+
+      {/* Pulse modal */}
+      <PulseCheckinModal
+        open={showPulseModal}
+        onOpenChange={setShowPulseModal}
+        onComplete={() => queryClient.invalidateQueries({ queryKey: ["pulse-this-month", companyId] })}
+      />
 
       {/* Unified action center */}
       {!isAdvisor && companyId && (
@@ -618,14 +630,8 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
         <DashboardMilestones />
         <DashboardHandouts />
-        <BudgetOverview />
+        <CombinedBudgetWidget />
       </div>
-
-      {rollingForecast && !isAdvisor && (
-        <div className="mb-6">
-          <RollingForecastCard {...rollingForecast} />
-        </div>
-      )}
 
       {latestCommentary && !isAdvisor && (
         <div className="mb-6">

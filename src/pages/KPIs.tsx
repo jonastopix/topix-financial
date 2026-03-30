@@ -23,6 +23,7 @@ import {
   Info,
   MessageSquare,
   Download,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import {
   Tooltip as UITooltip,
@@ -151,6 +152,7 @@ const KPIs = () => {
   const [editingBenchmarks, setEditingBenchmarks] = useState(false);
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
@@ -620,19 +622,30 @@ const KPIs = () => {
               {exporting ? "Eksporterer..." : "Download PDF"}
             </button>
             <button
-              onClick={startEditingBenchmarks}
+              onClick={() => setShowAdvanced(v => !v)}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
             >
-              <Pencil className="h-3.5 w-3.5" />
-              Benchmarks
+              <SettingsIcon className="h-3.5 w-3.5" />
+              {showAdvanced ? "Skjul avanceret" : "Avanceret"}
             </button>
-            <button
-              onClick={startEditingTargets}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Targets
-            </button>
+            {showAdvanced && (
+              <>
+                <button
+                  onClick={startEditingBenchmarks}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Benchmarks
+                </button>
+                <button
+                  onClick={startEditingTargets}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Targets
+                </button>
+              </>
+            )}
           </div>
         ) : editingTargets ? (
           <div className="flex items-center gap-2">
@@ -760,7 +773,7 @@ const KPIs = () => {
       )}
 
       {/* Target editing panel */}
-      {editingTargets && (
+      {showAdvanced && editingTargets && (
         <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-primary/30">
           <h3 className="font-display font-semibold text-foreground text-sm mb-4 flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
@@ -838,7 +851,7 @@ const KPIs = () => {
       )}
 
       {/* Benchmark editing panel */}
-      {editingBenchmarks && (
+      {showAdvanced && editingBenchmarks && (
         <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-accent/30">
           <h3 className="font-display font-semibold text-foreground text-sm mb-4 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-accent-foreground" />
@@ -1282,7 +1295,7 @@ const KPIs = () => {
         )}
 
         {/* Period comparison table */}
-        <div className="mt-6 overflow-x-auto">
+        {showAdvanced && <div className="mt-6 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -1342,7 +1355,7 @@ const KPIs = () => {
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
       </div>
       </div>
       <p className="text-[10px] text-muted-foreground text-center mt-8 mb-2">
