@@ -246,14 +246,12 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      toast({
-        title: "✓ Dine tal er opdateret",
+      toast.success("✓ Dine tal er opdateret", {
         description: `${preview?.period_label || "Perioden"} er nu en del af dit dashboard.`,
-        action: (
-          <a href="/kpis" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            Se KPI'er →
-          </a>
-        ),
+        action: {
+          label: "Se KPI'er →",
+          onClick: () => window.location.href = "/kpis",
+        },
       });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["report-commit-states"] });
