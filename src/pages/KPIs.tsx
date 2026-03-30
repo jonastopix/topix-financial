@@ -773,7 +773,7 @@ const KPIs = () => {
       )}
 
       {/* Target editing panel */}
-      {editingTargets && (
+      {showAdvanced && editingTargets && (
         <div className="glass-card rounded-xl p-5 mb-6 animate-fade-in border-primary/30">
           <h3 className="font-display font-semibold text-foreground text-sm mb-4 flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
