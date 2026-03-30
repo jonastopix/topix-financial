@@ -53,6 +53,8 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick, advisorPro
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const assignBtnRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   const visibleItems = items.filter(i => !ignored.has(i.company.company_id));
   const displayItems = showAll ? visibleItems : visibleItems.slice(0, 10);
