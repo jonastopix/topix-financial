@@ -23,6 +23,7 @@ import {
   Info,
   MessageSquare,
   Download,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import {
   Tooltip as UITooltip,
