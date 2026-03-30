@@ -644,10 +644,8 @@ const FileUploadZone = ({
         const ext = "." + file.name.split(".").pop()?.toLowerCase();
         const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(ext);
         if (!isValidType) {
-          toast({
-            title: "Ikke-understøttet filtype",
+          toast.error("Ikke-understøttet filtype", {
             description: `${file.name} er ikke en gyldig fil. Upload Excel, CSV eller PDF.`,
-            variant: "destructive",
           });
           return;
         }
