@@ -77,7 +77,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete }: Pu
             </p>
             <button
               onClick={() => setAlreadyDone(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline"
+              className="text-xs px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               Opdatér alligevel
             </button>

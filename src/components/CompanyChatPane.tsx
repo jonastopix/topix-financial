@@ -2168,6 +2168,19 @@ const CompanyChatPane = () => {
 
                 {/* Messages list */}
                 <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 md:px-5 py-4 space-y-4">
+                  {filteredMessages.length === 0 && !activeConvId?.startsWith("group_") && (
+                    <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                        <MessageSquare className="h-6 w-6 text-primary" />
+                      </div>
+                      <p className="text-sm font-semibold text-foreground mb-1">
+                        Din direkte linje til rådgiverne
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+                        Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Morten og Jonas læser dine tal og svarer hurtigt.
+                      </p>
+                    </div>
+                  )}
                   {(() => {
                     let lastDateKey = "";
                     let unreadDividerShown = false;

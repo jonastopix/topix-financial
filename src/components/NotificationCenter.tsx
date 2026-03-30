@@ -133,12 +133,23 @@ const NotificationCenter = () => {
 
         <div className="flex-1 overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="py-8 text-center">
+            <div className="py-8 text-center px-4">
               <Bell className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">Ingen notifikationer endnu</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                Vi giver dig besked når der sker noget vigtigt
-              </p>
+              <p className="text-sm font-medium text-muted-foreground mb-3">Ingen notifikationer endnu</p>
+              <div className="space-y-2 text-left max-w-xs mx-auto">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0" />
+                  Din rapport er klar til gennemgang
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0" />
+                  Din rådgiver har svaret i chatten
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0" />
+                  En finansiel alert er detekteret
+                </div>
+              </div>
             </div>
           ) : (
             (() => {

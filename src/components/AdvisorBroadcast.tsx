@@ -140,14 +140,30 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
             <span className="text-[10px] text-muted-foreground">
               {message.length}/2000
             </span>
-            <button
-              onClick={handleSend}
-              disabled={!message.trim() || sending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {sending ? "Sender..." : "Send besked"}
-            </button>
+            {!confirmStep ? (
+              <button
+                onClick={() => setConfirmStep(true)}
+                disabled={!message.trim() || sending}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Send besked
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Sender til {recipientCount} virksomheder —
+                </span>
+                <button onClick={handleSend} disabled={sending}
+                  className="text-xs font-medium text-primary hover:underline">
+                  {sending ? "Sender..." : "Bekræft"}
+                </button>
+                <button onClick={() => setConfirmStep(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground">
+                  Annuller
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

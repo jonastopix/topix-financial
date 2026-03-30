@@ -50,8 +50,8 @@ export default function AdvisorPriorityQueue({ items, onCompanyClick }: AdvisorP
         <CheckCircle2 className="h-5 w-5 text-primary" />
       </div>
       <div>
-        <p className="text-sm font-semibold text-foreground">Alt er i orden</p>
-        <p className="text-xs text-muted-foreground">Ingen virksomheder kræver handling lige nu</p>
+        <p className="text-sm font-semibold text-foreground">Alle virksomheder er på sporet</p>
+        <p className="text-xs text-muted-foreground">Ingen kræver handling lige nu — god tid til proaktiv sparring</p>
       </div>
     </div>
   );

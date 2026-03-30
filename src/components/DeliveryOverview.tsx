@@ -104,8 +104,11 @@ const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => 
                 return (
                   <div
                     key={key}
-                    title={`${DANISH_MONTHS[month]} ${year}${report ? ` — ${reportStatusConfig[status || "processing"]?.label}` : ""}`}
-                    className={`flex flex-col items-center justify-center rounded-lg p-2 border transition-all cursor-default ${
+                    title={!report && isPast && onUploadClick ? `Klik for at uploade rapport for ${DANISH_MONTHS[month]} ${year}` : `${DANISH_MONTHS[month]} ${year}${report ? ` — ${reportStatusConfig[status || "processing"]?.label}` : ""}`}
+                    onClick={!report && isPast && onUploadClick ? onUploadClick : undefined}
+                    className={`flex flex-col items-center justify-center rounded-lg p-2 border transition-all ${
+                      !report && isPast && onUploadClick ? "cursor-pointer hover:bg-primary/5 hover:border-primary/20" : "cursor-default"
+                    } ${
                       status === "processed"
                         ? "bg-primary/10 border-primary/30"
                         : status === "processing"

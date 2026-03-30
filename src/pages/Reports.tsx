@@ -524,7 +524,10 @@ const Reports = () => {
       {/* ── Member-Centric Delivery Overview ── */}
       {reportCount >= 1 && (
         <div className="mb-6">
-          <DeliveryOverview reports={dbReports} />
+          <DeliveryOverview reports={dbReports} onUploadClick={() => {
+            const uploadZone = document.getElementById("file-upload-zone");
+            if (uploadZone) uploadZone.scrollIntoView({ behavior: "smooth", block: "center" });
+          }} />
         </div>
       )}
 
