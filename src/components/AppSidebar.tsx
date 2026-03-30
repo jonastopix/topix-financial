@@ -139,7 +139,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
       (Array.isArray(memberRollout.company_ids) && memberRollout.company_ids.includes(companyId || "")));
 
   const useNewNotifications = useNewNotificationsAdvisor || useNewNotificationsMember;
-  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+  const _companyLogoPlaceholder = null; // replaced by useQuery below
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
 
