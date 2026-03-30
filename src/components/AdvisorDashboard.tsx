@@ -546,9 +546,51 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Priority queue — score each company
+      const priorityItems = investorSummaries
+        .map(c => {
+          const reasons: { label: string; urgency: "high" | "medium" }[] = [];
+          let score = 0;
+
+          if (c.unreadMessages > 0) {
+            reasons.push({ label: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, urgency: "high" });
+            score += 100;
+          }
+          if (c.cash != null && c.cash < 0) {
+            reasons.push({ label: "Bankovertræk", urgency: "high" });
+            score += 90;
+          }
+          if (c.revenueTrendPct != null && c.revenueTrendPct <= -15) {
+            reasons.push({ label: `Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`, urgency: "high" });
+            score += 80;
+          }
+          const hasRecentUpload = (recentReportsRes.data || []).some((r: any) => r.company_id === c.company_id);
+          const alreadyCommitted = !c.missing_current_period && c.has_verified_metrics;
+          if (hasRecentUpload && !alreadyCommitted) {
+            reasons.push({ label: "Rapport klar til godkendelse", urgency: "high" });
+            score += 70;
+          }
+          const conv = convByCompany.get(c.company_id)?.[0];
+          if (conv?.follow_up_at && new Date(conv.follow_up_at) <= now) {
+            const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+            reasons.push({ label: `Opfølgning forfalden (${d})`, urgency: "medium" });
+            score += 50;
+          }
+          if (c.missing_current_period && !c.has_report) {
+            reasons.push({ label: "Ingen rapport endnu", urgency: "medium" });
+            score += 30;
+          }
+
+          return { company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url }, reasons, score };
+        })
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8);
+
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
+        priorityItems,
       };
     },
     enabled: !!user,
