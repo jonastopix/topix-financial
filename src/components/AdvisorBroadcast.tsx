@@ -30,6 +30,8 @@ export default function AdvisorBroadcast({ companies }: AdvisorBroadcastProps) {
     setSelectAll(false);
   };
 
+  const recipientCount = selectAll ? companies.length : selectedIds.size;
+
   const handleSend = async () => {
     if (!message.trim() || sending) return;
     const targetIds = selectAll ? [] : [...selectedIds];
