@@ -619,6 +619,41 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     }
   };
 
+  const updateCurrentValue = async (id: string, newCurrentValue: number) => {
+    const ms = milestones.find(m => m.id === id);
+    if (!ms || !ms.target_value) return;
+
+    const newProgress = Math.min(100, Math.round((newCurrentValue / ms.target_value) * 100));
+    const newStatus = deriveStatus(newProgress);
+    const wasNotDone = ms.progress < 100;
+
+    setMilestones(prev => prev.map(m =>
+      m.id === id ? { ...m, current_value: newCurrentValue, progress: newProgress, status: newStatus } : m
+    ));
+
+    const { error } = await supabase.from("milestones").update({
+      current_value: newCurrentValue,
+      progress: newProgress,
+      status: newStatus === "done" ? "completed" : "active",
+    } as any).eq("id", id);
+
+    if (error) { toast.error("Kunne ikke opdatere fremgang"); return; }
+
+    if (wasNotDone && newProgress >= 100) {
+      if (conversationId && userId) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+        postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${ms.title}**`, contextType: "milestone", contextMeta: { title: ms.title } });
+      }
+      toast.success("Milestone fuldført! 🎉", { description: "Godt gået — du er et skridt tættere på dit mål.", duration: 5000 });
+
+      if (companyId) {
+        supabase.functions.invoke("send-slack-report-notification", {
+          body: { event: "milestone_completed", companyId, milestoneTitle: ms.title },
+        }).catch((err) => console.error("[Milestones] Completion notification failed:", err));
+      }
+    }
+  };
+
   const toggleComplete = async (id: string) => {
     const ms = milestones.find((m) => m.id === id);
     if (!ms) return;
