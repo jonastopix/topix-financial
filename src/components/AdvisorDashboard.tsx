@@ -310,7 +310,7 @@ const AdvisorDashboard = () => {
           .limit(20) as any),
         supabase
           .from("milestones")
-          .select("user_id, title, deadline, progress, status")
+          .select("company_id, title, deadline, progress, status")
           .eq("status", "active")
           .order("deadline", { ascending: true }),
         (supabase
@@ -322,7 +322,7 @@ const AdvisorDashboard = () => {
         supabase.rpc("get_all_advisor_profiles"),
         supabase
           .from("milestones")
-          .select("user_id, title, updated_at, status")
+          .select("company_id, title, updated_at, status")
           .eq("status", "completed")
           .gte("updated_at", twoWeeksAgo)
           .order("updated_at", { ascending: false })
@@ -375,7 +375,7 @@ const AdvisorDashboard = () => {
       // company_id → active milestones[]
       const milestonesByCompany = new Map<string, MilestoneData[]>();
       for (const m of (milestonesRes.data || []) as any[]) {
-        const cid = userToCompany.get(m.user_id);
+        const cid = m.company_id;
         if (!cid) continue;
         if (!milestonesByCompany.has(cid)) milestonesByCompany.set(cid, []);
         milestonesByCompany.get(cid)!.push({ title: m.title, deadline: m.deadline, progress: m.progress });
@@ -415,7 +415,7 @@ const AdvisorDashboard = () => {
       // Recently completed milestones (last 7 days)
       const recentlyCompletedMilestones = new Map<string, string>();
       for (const m of (recentMilestonesRes.data || []) as any[]) {
-        const companyId = userToCompany.get(m.user_id);
+        const companyId = m.company_id;
         if (companyId && !recentlyCompletedMilestones.has(companyId)) {
           recentlyCompletedMilestones.set(companyId, m.title);
         }
