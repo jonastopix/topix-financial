@@ -712,7 +712,23 @@ const AdvisorDashboard = () => {
             });
           }
 
-          // T12: Generel sparring — fallback rotation for companies with data
+          // Ingen milestones sat
+          if (c.milestones.length === 0 && c.has_verified_metrics) {
+            signals.push({
+              label: "Ingen milestones",
+              hint: "Founder har data men ingen mål — hjælp med at sætte den første milestone",
+            });
+          }
+
+          // Pulse ikke udfyldt efter den 15.
+          if (!pulseThisMonth && now.getDate() > 15 && c.has_verified_metrics) {
+            signals.push({
+              label: "Pulse ikke udfyldt endnu",
+              hint: "Vi er efter den 15. — god anledning til at rykke for check-in",
+            });
+          }
+
+           // T12: Generel sparring — fallback rotation for companies with data
           if (signals.length === 0 && c.has_verified_metrics) {
             const monthKey = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate() / 7)}`;
             const hash = (c.company_id + monthKey).split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
