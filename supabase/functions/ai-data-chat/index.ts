@@ -88,7 +88,18 @@ Deno.serve(async (req) => {
       ).join("\n")
     : "";
 
-  const systemWithData = `${SYSTEM_PROMPT}\n\nVIRKSOMHED: ${company.name}\n\nFINANSIELLE DATA:\n${factsContext || "Ingen data endnu."}${milestonesContext}${handoutsContext}`;
+  const { data: kpiTargets } = await callerClient
+    .from("kpi_targets")
+    .select("kpi_key, target_value, target_label")
+    .eq("company_id", company_id);
+
+  const kpiTargetsContext = (kpiTargets || []).length > 0
+    ? "\n\nKPI-MÅL:\n" + kpiTargets!.map(k =>
+        `- ${k.target_label || k.kpi_key}: mål ${k.target_value}`
+      ).join("\n")
+    : "";
+
+  const systemWithData = `${SYSTEM_PROMPT}\n\nVIRKSOMHED: ${company.name}\n\nFINANSIELLE DATA:\n${factsContext || "Ingen data endnu."}${milestonesContext}${handoutsContext}${kpiTargetsContext}`;
 
   // Call Lovable AI Gateway with streaming
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
