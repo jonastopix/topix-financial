@@ -1003,21 +1003,6 @@ const AdvisorDashboard = () => {
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
-          // Ingen milestones sat
-          if (c.milestones.length === 0 && c.has_verified_metrics) {
-            signals.push({
-              label: "Ingen milestones",
-              hint: "Founder har data men ingen mål — hjælp med at sætte den første milestone",
-            });
-          }
-
-          // Pulse ikke udfyldt efter den 15.
-          if (!pulseThisMonth && now.getDate() > 15 && c.has_verified_metrics) {
-            signals.push({
-              label: "Pulse ikke udfyldt endnu",
-              hint: "Vi er efter den 15. — god anledning til at rykke for check-in",
-            });
-          }
 
   const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
     const conv = convByCompany.get(companyId)?.[0];
