@@ -707,6 +707,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
           onQuickProgress={(p) => quickUpdateProgress(ms.id, p)}
           onToggleComplete={() => toggleComplete(ms.id)}
           onUpdateField={updateField}
+          onUpdateCurrentValue={updateCurrentValue}
         />
       );
     });
