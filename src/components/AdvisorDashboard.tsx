@@ -310,7 +310,7 @@ const AdvisorDashboard = () => {
           .limit(20) as any),
         supabase
           .from("milestones")
-          .select("user_id, title, deadline, progress, status")
+          .select("company_id, title, deadline, progress, status")
           .eq("status", "active")
           .order("deadline", { ascending: true }),
         (supabase
