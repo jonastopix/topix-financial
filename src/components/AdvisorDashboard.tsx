@@ -1033,9 +1033,6 @@ const AdvisorDashboard = () => {
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
-      const weeklyFocusCompanies = new Set<string>(
-        ((weeklyFocusRes as any)?.data || []).map((r: any) => r.company_id)
-      );
 
   const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
     const conv = convByCompany.get(companyId)?.[0];
