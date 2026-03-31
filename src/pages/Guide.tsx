@@ -77,6 +77,8 @@ const founderTips = [
   "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige",
   "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet",
   "Park idéer i køleskabet under Milestones — de forsvinder ikke men forstyrrer ikke dit overblik",
+  "Brug 'Ingen handling nødvendig' i chatten når rådgiveren har svaret og der ikke kræves yderligere opfølgning",
+  "Klikker du på en virksomhed i koncernoverblikket, skifter hele platformen til at vise data for netop det selskab",
 ];
 
 /* ── Advisor data ── */
