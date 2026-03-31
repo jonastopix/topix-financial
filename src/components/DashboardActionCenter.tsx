@@ -132,8 +132,12 @@ export default function DashboardActionCenter({
         }
       }
 
-      if (now.getDate() >= 10 && !hasPulseThisMonth) {
+      if (!hasPulseThisMonth) {
         items.push({ id: "pulse-checkin", type: "pulse", title: "Månedlig pulse — 2 minutter", description: "Fortæl os hvad der gik godt og hvad der er din største udfordring", urgency: "low", link: "/pulse" });
+      }
+
+      if (hasPulseThisMonth) {
+        items.push({ id: "pulse-done", type: "pulse", title: "Pulse check-in er sendt ✓", description: "Vil du opdatere dit check-in for denne måned?", urgency: "low", link: "/pulse" });
       }
 
       return items;
