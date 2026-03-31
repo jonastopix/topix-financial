@@ -1397,6 +1397,7 @@ const AdvisorDashboard = () => {
                                 { active: hasChat, color: "bg-purple-500", label: "C", title: "Chat" },
                                 { active: hasMilestones, color: "bg-chart-warning", label: "M", title: "Milestones" },
                                 { active: hasKpiTargets, color: "bg-teal-500", label: "K", title: "KPI" },
+                                { active: c.hasWeeklyFocus, color: "bg-primary/50", label: "W", title: "Ugens fokus aktiv" },
                               ].map((dot, i) => (
                                 <span
                                   key={i}
