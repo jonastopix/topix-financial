@@ -322,7 +322,7 @@ const AdvisorDashboard = () => {
         supabase.rpc("get_all_advisor_profiles"),
         supabase
           .from("milestones")
-          .select("user_id, title, updated_at, status")
+          .select("company_id, title, updated_at, status")
           .eq("status", "completed")
           .gte("updated_at", twoWeeksAgo)
           .order("updated_at", { ascending: false })
