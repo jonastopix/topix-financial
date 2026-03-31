@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
     const in30Days = new Date(now.getTime() + 30 * 86400000).toISOString().split("T")[0];
     const { data: milestones } = await adminClient
       .from("milestones")
-      .select("title, deadline, progress")
+      .select("title, deadline, progress, target_value, current_value, unit")
       .eq("company_id", companyId)
       .lt("progress", 100)
       .neq("status", "parked")
