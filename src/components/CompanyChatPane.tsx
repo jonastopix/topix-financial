@@ -987,7 +987,29 @@ const CompanyChatPane = () => {
       const { error } = await supabase
         .from("group_messages" as any)
         .insert(insertData);
-      if (error) console.error("Failed to send group message:", error);
+      if (error) {
+        toast.error("Beskeden kunne ikke sendes");
+      } else {
+        setNewMessage(""); // Fix 1: ryd inputfeltet
+
+        // Fix 2: opdatér group_conversations awaiting_reply_from
+        if (isAdvisor) {
+          supabase.from("group_conversations" as any).update({
+            awaiting_reply_from: "company",
+            last_message_at: new Date().toISOString(),
+          }).eq("id", gcId).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+          });
+
+          // Fix 3: notifikation til koncern-members
+          supabase.functions.invoke("notify-chat-reply", {
+            body: {
+              group_conversation_id: gcId,
+              message_id: gcId + "_" + Date.now(),
+            },
+          }).catch(() => {});
+        }
+      }
     } else {
       const insertData: any = {
         conversation_id: activeConvId,
