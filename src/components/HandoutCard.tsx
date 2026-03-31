@@ -19,10 +19,10 @@ interface HandoutCardProps {
   onClick: () => void;
 }
 
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
-  not_started: { label: "Ikke startet", variant: "outline" },
-  in_progress: { label: "I gang", variant: "secondary" },
-  completed: { label: "Udfyldt", variant: "default" },
+const statusLabels: Record<string, { variant: "default" | "secondary" | "outline" }> = {
+  not_started: { variant: "outline" },
+  in_progress: { variant: "secondary" },
+  completed: { variant: "default" },
 };
 
 const HandoutCard = ({ config, status, progress, completedAt, onClick }: HandoutCardProps) => {
@@ -39,7 +39,9 @@ const HandoutCard = ({ config, status, progress, completedAt, onClick }: Handout
           <Icon className="h-5 w-5 text-primary" />
         </div>
         <Badge variant={statusInfo.variant} className="text-[10px]">
-          {statusInfo.label}
+          {status === "in_progress" ? `I gang · ${Math.round(progress)}%`
+           : status === "completed" ? "Gennemført ✓"
+           : "Ikke startet"}
         </Badge>
       </div>
       <h3 className="font-display font-semibold text-foreground text-sm mb-1">{config.title}</h3>

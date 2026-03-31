@@ -20,6 +20,7 @@ interface HandoutSummary {
   progress: number;
   completedAt: string | null;
   levers: string[];
+  checklist: Record<string, boolean>;
 }
 
 const Handouts = () => {
@@ -28,7 +29,7 @@ const Handouts = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
-    moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [] }))
+    moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [], checklist: {} }))
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,7 +99,7 @@ const Handouts = () => {
 
       setSummaries(moduleOrder.map(m => {
         const d = map.get(m);
-        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [] };
+        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [], checklist: {} };
         const config = handoutConfigs[m];
         const levers = (d.levers as string[]) || [];
         const progress = calcHandoutProgress(
@@ -107,7 +108,8 @@ const Handouts = () => {
           (d.checklist as Record<string, boolean>) || {},
           levers
         );
-        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null, levers };
+        const checklist = (d.checklist as Record<string, boolean>) || {};
+        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null, levers, checklist };
       }));
       setIsLoading(false);
     };
@@ -247,26 +249,14 @@ const Handouts = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {summaries.map(s => (
-            <div key={s.module} className="relative">
-              <HandoutCard
-                config={handoutConfigs[s.module]}
-                status={s.status}
-                progress={s.progress}
-                completedAt={s.completedAt}
-                onClick={() => setActiveModule(s.module)}
-              />
-              <span className={`absolute top-3 right-3 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                s.status === "completed"
-                  ? "bg-primary/10 text-primary"
-                  : s.status === "in_progress"
-                  ? "bg-chart-info/10 text-chart-info"
-                  : "bg-muted text-muted-foreground"
-              }`}>
-                {s.status === "completed" ? "Gennemført ✓"
-                  : s.status === "in_progress" ? `I gang · ${s.progress}%`
-                  : "Ikke startet"}
-              </span>
-            </div>
+            <HandoutCard
+              key={s.module}
+              config={handoutConfigs[s.module]}
+              status={s.status}
+              progress={s.progress}
+              completedAt={s.completedAt}
+              onClick={() => setActiveModule(s.module)}
+            />
           ))}
         </div>
       )}
@@ -335,6 +325,89 @@ const Handouts = () => {
               </div>
             )}
           </>
+        );
+      })()}
+
+      {!isAdvisor && !isLoading && (() => {
+        const allChecklistModules = summaries
+          .map(s => {
+            const config = handoutConfigs[s.module];
+            const checklistItems = config.sections
+              .flatMap(sec => sec.checklist || []);
+            if (checklistItems.length === 0) return null;
+            const checkedCount = checklistItems.filter(item => s.checklist?.[item.key]).length;
+            return {
+              module: s.module,
+              title: config.title,
+              items: checklistItems,
+              checklist: s.checklist || {},
+              checkedCount,
+              total: checklistItems.length,
+            };
+          })
+          .filter(Boolean);
+
+        if (allChecklistModules.length === 0) return null;
+
+        const totalItems = allChecklistModules.reduce((sum, m) => sum + m!.total, 0);
+        const totalChecked = allChecklistModules.reduce((sum, m) => sum + m!.checkedCount, 0);
+        const pct = totalItems > 0 ? Math.round((totalChecked / totalItems) * 100) : 0;
+
+        return (
+          <div className="glass-card rounded-xl p-6 mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Din rejse mod en professionelt drevet virksomhed</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{totalChecked} af {totalItems} milepæle nået</p>
+              </div>
+              <span className="text-2xl font-display font-bold text-foreground">{pct}%</span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-2 mb-6">
+              <div className="bg-primary h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="space-y-6">
+              {allChecklistModules.map(m => m && (
+                <div key={m.module}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{m.title}</p>
+                    <span className="text-[11px] text-muted-foreground">{m.checkedCount}/{m.total}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {m.items.map(item => (
+                      <div key={item.key} className="flex items-start gap-3">
+                        <div className={`h-4 w-4 rounded mt-0.5 shrink-0 flex items-center justify-center border transition-colors ${
+                          m.checklist[item.key]
+                            ? "bg-primary border-primary"
+                            : "border-border bg-transparent"
+                        }`}>
+                          {m.checklist[item.key] && (
+                            <svg className="h-2.5 w-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className={`text-xs leading-relaxed ${
+                          m.checklist[item.key] ? "text-foreground" : "text-muted-foreground"
+                        }`}>
+                          {item.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {pct < 100 && (
+              <p className="text-[11px] text-muted-foreground mt-6 text-center">
+                Udfyld handout-modulerne for at markere milepæle som nået
+              </p>
+            )}
+            {pct === 100 && (
+              <p className="text-[11px] text-primary font-medium mt-6 text-center">
+                🎉 Du driver en professionelt struktureret virksomhed
+              </p>
+            )}
+          </div>
         );
       })()}
     </AppLayout>
