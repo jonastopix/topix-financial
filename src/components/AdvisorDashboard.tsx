@@ -1239,7 +1239,7 @@ const AdvisorDashboard = () => {
                     <tr className="border-b border-border bg-secondary/30">
                       <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Omsætning MoM</th>
+                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
                       {showKpiColumn && <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">KPI mål</th>}
                       <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
                       <th className="py-2 px-3 w-16"></th>
@@ -1435,7 +1435,7 @@ const AdvisorDashboard = () => {
                   </div>
                 ))}
                 <span className="text-[9px] text-muted-foreground ml-2">
-                  · MoM = måned-over-måned omsætningsvækst
+                  · Trend = omsætningsvækst seneste to rapporter
                 </span>
               </div>
             </>
