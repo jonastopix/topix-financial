@@ -339,6 +339,33 @@ const AdvisorCompanyOverview = () => {
     staleTime: 30 * 60_000,
   });
 
+  const [sessionBullets, setSessionBullets] = useState<string[]>([]);
+  const [loadingSession, setLoadingSession] = useState(false);
+
+  const handleLoadSessionPrep = async () => {
+    if (!companyId || sessionBullets.length > 0) return;
+    setLoadingSession(true);
+    try {
+      const { data: respData, error } = await supabase.functions.invoke("ai-financial-feedback", {
+        body: {
+          request_type: "session_prep",
+          companyId,
+          companyContext: { name: company?.name },
+          historicalCanonical: null,
+        },
+      });
+      if (!error && respData?.session_prep) {
+        setSessionBullets(respData.session_prep);
+      } else {
+        toast.error("Kunne ikke generere session-noter");
+      }
+    } catch {
+      toast.error("Kunne ikke generere session-noter");
+    } finally {
+      setLoadingSession(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -404,6 +431,30 @@ const AdvisorCompanyOverview = () => {
           </div>
         </div>
       )}
+
+      <div className="flex items-start gap-3 px-4 py-3 bg-secondary/30 border border-border/30 rounded-xl">
+        <Sparkles className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            Forbered sessionen
+          </p>
+          {sessionBullets.length > 0 ? (
+            <ul className="space-y-1">
+              {sessionBullets.map((b, i) => (
+                <li key={i} className="text-xs text-foreground">· {b}</li>
+              ))}
+            </ul>
+          ) : (
+            <button
+              onClick={handleLoadSessionPrep}
+              disabled={loadingSession}
+              className="text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+            >
+              {loadingSession ? "Genererer..." : "Generer session-noter →"}
+            </button>
+          )}
+        </div>
+      </div>
       {/* ── Header ── */}
       {isMobile ? (
         /* Mobile: stacked header */
