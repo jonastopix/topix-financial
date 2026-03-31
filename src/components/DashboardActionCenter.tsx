@@ -74,7 +74,7 @@ export default function DashboardActionCenter({
         .select("*")
         .eq("company_id", companyId)
         .eq("week_key", weekKey)
-        .eq("status", "active")
+        .in("status", ["active", "quiet", "no_data"])
         .maybeSingle();
       if (error) throw error;
       return data;
