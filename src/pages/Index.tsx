@@ -46,7 +46,7 @@ const Dashboard = () => {
   const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
-  const [showTour, setShowTour] = useState(false);
+  const [tourDismissed, setTourDismissed] = useState(false);
   const [showPulseModal, setShowPulseModal] = useState(false);
   const queryClient = useQueryClient();
 
