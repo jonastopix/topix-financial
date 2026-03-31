@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
     const in30Days = new Date(now.getTime() + 30 * 86400000).toISOString().split("T")[0];
     const { data: milestones } = await adminClient
       .from("milestones")
-      .select("title, deadline, progress")
+      .select("title, deadline, progress, target_value, current_value, unit")
       .eq("company_id", companyId)
       .lt("progress", 100)
       .neq("status", "parked")
@@ -218,11 +218,14 @@ Deno.serve(async (req) => {
     // Build body
     const bodyLines = [`Her er dit overblik for ${currentMonthLabel}, ${firstName}.`];
     if (milestones?.length) {
-      const msLines = milestones.map((m: { title: string; deadline: string | null }) => {
+      const msLines = milestones.map((m: { title: string; deadline: string | null; progress: number; target_value: number | null; current_value: number | null; unit: string | null }) => {
         const d = m.deadline
           ? new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short" })
           : "";
-        return `• ${m.title}${d ? ` (${d})` : ""}`;
+        const målInfo = m.target_value && m.unit
+          ? ` — ${m.current_value ?? 0}/${m.target_value} ${m.unit}`
+          : ` (${m.progress}%)`;
+        return `• ${m.title}${målInfo}${d ? `, deadline ${d}` : ""}`;
       });
       bodyLines.push(`\nMilestones med deadline snart:\n${msLines.join("\n")}`);
     }
