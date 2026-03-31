@@ -188,9 +188,9 @@ export default function DashboardActionCenter({
   const visibleActions = showAllActions ? actions : actions.slice(0, 3);
   const weekNumber = weekKey.split("-W")[1]?.replace(/^0/, "") || "";
 
-  const typeIcon: Record<string, typeof FileText> = { report: FileText, milestone: Target, chat: MessageSquare, pulse: Sparkles };
-  const typeColor: Record<string, string> = { report: "text-destructive", milestone: "text-chart-warning", chat: "text-chart-info", pulse: "text-primary" };
-  const typeBg: Record<string, string> = { report: "bg-destructive/10", milestone: "bg-chart-warning/10", chat: "bg-chart-info/10", pulse: "bg-primary/10" };
+  const typeIcon: Record<string, typeof FileText> = { report: FileText, milestone: Target, chat: MessageSquare, pulse: Sparkles, info: Info };
+  const typeColor: Record<string, string> = { report: "text-destructive", milestone: "text-chart-warning", chat: "text-chart-info", pulse: "text-primary", info: "text-chart-info" };
+  const typeBg: Record<string, string> = { report: "bg-destructive/10", milestone: "bg-chart-warning/10", chat: "bg-chart-info/10", pulse: "bg-primary/10", info: "bg-chart-info/10" };
   const urgencyBorder: Record<string, string> = { high: "border-l-destructive", medium: "border-l-chart-warning", low: "border-l-muted" };
 
   const hasAnything = weeklyFocus || visibleAttention.length > 0 || actions.length > 0;
