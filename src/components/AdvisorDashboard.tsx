@@ -76,6 +76,7 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   unreadMessages: number;
   milestones: MilestoneData[];
   kpiTargets: KpiTargetData[];
+  hasWeeklyFocus: boolean;
 }
 
 // ── MemberCard ──
