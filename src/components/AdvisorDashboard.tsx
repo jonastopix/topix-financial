@@ -740,8 +740,8 @@ const AdvisorDashboard = () => {
             });
           }
 
-          // T12: Ingen kontakt i over 21 dage
-          if (signals.length === 0) {
+          // T12: Ingen kontakt i over 21 dage — fires uafhængigt af andre signals
+          {
             const sparConv = convByCompany.get(c.company_id)?.[0];
             const lastContact = sparConv?.last_message_at;
             const daysSinceContact = lastContact
