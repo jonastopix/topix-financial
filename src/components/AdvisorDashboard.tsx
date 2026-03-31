@@ -1468,7 +1468,9 @@ const AdvisorDashboard = () => {
               const myQueue = investorSummaries
                 .filter(c => {
                   const conv = allConvsByCompany.get(c.company_id);
-                  return conv?.assigned_advisor_id === user?.id && (
+                  const isAssignedToMe = conv?.assigned_advisor_id === user?.id;
+                  const isUnassignedWithMessages = !conv?.assigned_advisor_id && c.unreadMessages > 0;
+                  return (isAssignedToMe || isUnassignedWithMessages) && (
                     c.unreadMessages > 0 ||
                     c.needsAttention ||
                     (c.revenueTrendPct != null && c.revenueTrendPct < -15)
