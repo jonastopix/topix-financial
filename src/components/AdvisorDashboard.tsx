@@ -1435,7 +1435,7 @@ const AdvisorDashboard = () => {
                   </div>
                 ))}
                 <span className="text-[9px] text-muted-foreground ml-2">
-                  · MoM = måned-over-måned omsætningsvækst
+                  · Trend = omsætningsvækst seneste to rapporter
                 </span>
               </div>
             </>
