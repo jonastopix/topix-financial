@@ -102,7 +102,17 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     <div className="h-20 rounded-xl bg-secondary/30 animate-pulse" />
   );
 
-  if (allAlerts.length === 0) return null;
+  if (allAlerts.length === 0) return (
+    <div className="rounded-xl border bg-card p-5 flex items-center gap-3">
+      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+        <CheckCircle2 className="h-4 w-4 text-primary" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-foreground">Ingen finansielle alerts</p>
+        <p className="text-xs text-muted-foreground">Ingen omsætningsfald, negativt cash eller underskud registreret de seneste 60 dage.</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="rounded-xl border bg-card p-5 space-y-3">
