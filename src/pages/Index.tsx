@@ -98,12 +98,12 @@ const Dashboard = () => {
 
   const isLoading = factsLoading || budgetLoading;
 
-  // Trigger tour after data loads (must be before early returns)
+  // Mark tour as completed on first dashboard load for new users
   useEffect(() => {
     if (shouldShowTour && !tourTriggered && !isLoading) {
-      const timer = setTimeout(() => setShowTour(true), 800);
       setTourTriggered(true);
-      return () => clearTimeout(timer);
+      // Silently mark tour_completed_at so the banner is one-time
+      supabase.from("profiles").update({ tour_completed_at: new Date().toISOString() } as any).eq("user_id", user!.id).then(() => refreshProfile());
     }
   }, [shouldShowTour, tourTriggered, isLoading]);
 
