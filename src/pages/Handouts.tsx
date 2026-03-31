@@ -179,6 +179,31 @@ const Handouts = () => {
         </div>
       </div>
 
+      {!isAdvisor && !isLoading && summaries.length > 0 && (
+        <div className="glass-card rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Din fremgang</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {completedCount} af {summaries.length} moduler gennemført
+              </p>
+            </div>
+            <span className="text-2xl font-display font-bold text-foreground">{totalProgress}%</span>
+          </div>
+          <div className="w-full bg-secondary rounded-full h-2">
+            <div
+              className="bg-primary h-2 rounded-full transition-all duration-500"
+              style={{ width: `${totalProgress}%` }}
+            />
+          </div>
+          {totalProgress === 100 && (
+            <p className="text-xs text-primary font-medium mt-2">
+              🎉 Alle moduler gennemført — du har lagt et stærkt fundament
+            </p>
+          )}
+        </div>
+      )}
+
       {!isAdvisor && !isLoading && summaries.every(s => s.status === "not_started" && s.progress === 0) && (
         <div className="glass-card rounded-xl p-5 mb-6 flex items-start gap-4">
           <div className="p-2 rounded-lg bg-accent/50 shrink-0 mt-0.5">
