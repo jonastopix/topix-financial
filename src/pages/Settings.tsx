@@ -769,6 +769,16 @@ const Settings = () => {
                         {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                         {logoUrl ? "Skift logo" : "Upload logo"}
                       </button>
+                      {logoUrl && (
+                        <button
+                          onClick={handleRemoveLogo}
+                          disabled={uploadingLogo}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Fjern
+                        </button>
+                      )}
                       <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
                     </div>
                   </div>
