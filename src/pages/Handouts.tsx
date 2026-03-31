@@ -108,7 +108,8 @@ const Handouts = () => {
           (d.checklist as Record<string, boolean>) || {},
           levers
         );
-        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null, levers };
+        const checklist = (d.checklist as Record<string, boolean>) || {};
+        return { module: m, status: d.status as HandoutSummary["status"], progress, completedAt: (d as any).completed_at || null, levers, checklist };
       }));
       setIsLoading(false);
     };
