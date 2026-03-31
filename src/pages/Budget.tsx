@@ -37,7 +37,9 @@ const Budget = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [activeTab, setActiveTab] = useState("oversigt");
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>("base");
+  const { data: factsForBudget = [] } = useCompanyFacts();
   const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
   const [scenarioData, setScenarioData] = useState<Record<ScenarioKey, BudgetRow[]> | null>(null);
   const [dbLoaded, setDbLoaded] = useState(false);
