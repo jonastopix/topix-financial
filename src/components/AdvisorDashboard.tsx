@@ -269,7 +269,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes,
+        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
