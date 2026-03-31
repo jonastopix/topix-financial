@@ -564,6 +564,7 @@ const AdvisorDashboard = () => {
           unreadMessages: unreadByCompany.get(c.id) || 0,
           milestones: milestonesByCompany.get(c.id) || [],
           kpiTargets: kpiByCompany.get(c.id) || [],
+          hasWeeklyFocus: weeklyFocusCompanies.has(c.id),
         };
       });
 
