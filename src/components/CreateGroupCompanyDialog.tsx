@@ -22,6 +22,8 @@ const CreateGroupCompanyDialog = ({ open, onOpenChange, groupId }: CreateGroupCo
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { setCompanyOverride } = useAuth();
 
   const cvrDigits = cvr.replace(/[^0-9]/g, "");
   const cvrValid = cvr.trim() === "" || cvrDigits.length === 8;
