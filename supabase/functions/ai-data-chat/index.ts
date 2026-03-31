@@ -72,8 +72,8 @@ Deno.serve(async (req) => {
     ? "\n\nAKTIVE MILESTONES:\n" + (milestones || []).map(m => {
         const deadline = m.deadline
           ? new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })
-          : "ingen deadline";
-        return `- ${m.title} (${m.progress}% fremgang, deadline: ${deadline}, kategori: ${m.category})`;
+          : "ingen";
+        return `- ${m.title}: ${m.progress}% fremgang${(m as any).target_value && (m as any).unit ? ` (${(m as any).current_value ?? 0}/${(m as any).target_value} ${(m as any).unit})` : ""}, deadline: ${deadline}`;
       }).join("\n")
     : "";
 
