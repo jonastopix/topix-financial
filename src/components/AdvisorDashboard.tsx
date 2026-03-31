@@ -988,7 +988,17 @@ const AdvisorDashboard = () => {
       );
     }
     return list.sort((a, b) => {
-      if (b.unreadMessages !== a.unreadMessages) return b.unreadMessages - a.unreadMessages;
+      const scoreA =
+        (a.unreadMessages > 0 ? 100 : 0) +
+        (a.needsAttention ? 50 : 0) +
+        (a.missing_current_period ? 20 : 0) +
+        (a.revenueTrendPct != null && a.revenueTrendPct < -15 ? 30 : 0);
+      const scoreB =
+        (b.unreadMessages > 0 ? 100 : 0) +
+        (b.needsAttention ? 50 : 0) +
+        (b.missing_current_period ? 20 : 0) +
+        (b.revenueTrendPct != null && b.revenueTrendPct < -15 ? 30 : 0);
+      if (scoreB !== scoreA) return scoreB - scoreA;
       return a.company_name.localeCompare(b.company_name, "da");
     });
   }, [investorSummaries, memberSearch, memberFilter]);
