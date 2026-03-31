@@ -45,7 +45,7 @@ const founderFeatures = [
   {
     icon: MessageCircle, title: "Chat med rådgiver", path: "/chat",
     color: "text-chart-info", bg: "bg-chart-info/10",
-    desc: "Din direkte linje til Morten og Jonas. De læser dine tal og er klar til sparring.",
+    desc: "Din direkte linje til dine rådgivere. De læser dine tal og er klar til sparring.",
     tips: ["Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder", "Brug emnefiltre: rapport, handout, milestone, budget, sparring", "Klik 'Følg op senere' hvis du vil have en reminder fra rådgiveren"],
   },
   {
