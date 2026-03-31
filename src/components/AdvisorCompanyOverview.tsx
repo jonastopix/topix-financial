@@ -770,6 +770,11 @@ const AdvisorCompanyOverview = () => {
                       <span className="text-xs text-foreground flex-1 truncate">
                         {m.title}
                       </span>
+                      {(m as any).target_value && (m as any).unit && (
+                        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                          {(m as any).current_value ?? 0}/{(m as any).target_value} {(m as any).unit}
+                        </span>
+                      )}
                       {m.deadline && (
                         <span className={`text-[10px] shrink-0 ${
                           isOverdue ? "text-destructive" : "text-muted-foreground"
