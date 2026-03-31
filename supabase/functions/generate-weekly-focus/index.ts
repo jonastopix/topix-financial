@@ -463,6 +463,7 @@ async function processCompany(
     ? `\nSENESTE PULSE CHECK-IN (${new Date(latestPulse.created_at).toLocaleDateString("da-DK", { month: "long" })}):\nGik godt: ${latestPulse.went_well || "—"}\nStørste udfordring: ${latestPulse.biggest_challenge || "—"}${latestPulse.help_needed ? `\nBeder om hjælp til: ${latestPulse.help_needed}` : ""}\n`
     : "";
 
+  const industryContext = company.industry_label
     ? `Branche: ${company.industry_label}\n`
     : "";
 
