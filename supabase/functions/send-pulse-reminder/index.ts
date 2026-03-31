@@ -5,7 +5,8 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") || "";
-  if (!authHeader.includes(serviceKey)) {
+  const expectedToken = `Bearer ${serviceKey}`;
+  if (authHeader !== expectedToken) {
     return new Response("Unauthorized", { status: 401 });
   }
 

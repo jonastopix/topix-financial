@@ -201,17 +201,40 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
       ).length;
       setUnreadChat(count);
     } else {
+      let totalUnread = 0;
+
+      // Regular conversations
       const { data: convs } = await supabase.from("conversations").select("id");
-      if (!convs || convs.length === 0) { setUnreadChat(0); return; }
-      const convIds = convs.map((c) => c.id);
-      const { count } = await supabase
-        .from("messages")
-        .select("id", { count: "exact", head: true })
-        .in("conversation_id", convIds)
-        .neq("sender_id", user.id)
-        .is("read_at", null)
-        .eq("message_type", "user");
-      setUnreadChat(count || 0);
+      if (convs && convs.length > 0) {
+        const convIds = convs.map((c) => c.id);
+        const { count } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .in("conversation_id", convIds)
+          .neq("sender_id", user.id)
+          .is("read_at", null)
+          .eq("message_type", "user");
+        totalUnread += count || 0;
+      }
+
+      // Group conversations (for group users)
+      if (isGroupUser) {
+        const { data: groupConvs } = await supabase
+          .from("group_conversations" as any)
+          .select("id");
+        if (groupConvs && (groupConvs as any[]).length > 0) {
+          const gcIds = (groupConvs as any[]).map((c: any) => c.id);
+          const { count: groupCount } = await supabase
+            .from("group_messages" as any)
+            .select("id", { count: "exact", head: true })
+            .in("conversation_id", gcIds)
+            .neq("sender_id", user.id)
+            .is("read_at", null);
+          totalUnread += (groupCount as number) || 0;
+        }
+      }
+
+      setUnreadChat(totalUnread);
     }
   }, [user, effectiveAdvisor]);
 
