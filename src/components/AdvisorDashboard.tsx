@@ -1459,8 +1459,10 @@ const AdvisorDashboard = () => {
                         <p className="text-xs font-medium text-foreground truncate">{c.company_name}</p>
                         <p className="text-[10px] text-muted-foreground truncate">
                           {c.unreadMessages > 0 ? `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""}`
-                            : c.needsAttention ? "Kræver handling"
-                            : "Omsætning faldende"}
+                            : (c.cash != null && c.cash < 0) ? "Bankovertræk"
+                            : (c.revenueTrendPct != null && c.revenueTrendPct < -15) ? `Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`
+                            : c.missing_current_period ? "Mangler rapport"
+                            : "Kræver opfølgning"}
                         </p>
                       </div>
                       {c.unreadMessages > 0 && (
