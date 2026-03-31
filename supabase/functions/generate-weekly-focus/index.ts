@@ -451,7 +451,18 @@ async function processCompany(
     ? `\nSENESTE AI-ANALYSE (${commentary.period_key}):\nOverblik: ${(commentary.analysis as any)?.overview || ""}\nUdfordringer: ${((commentary.analysis as any)?.challenges || []).map((c: any) => c.title).join(", ") || "ingen"}\nNæste skridt: ${((commentary.analysis as any)?.next_steps || []).slice(0, 3).join("; ") || "ingen"}\n`
     : "";
 
-  const industryContext = company.industry_label
+  const { data: latestPulse } = await admin
+    .from("pulse_checkins")
+    .select("went_well, biggest_challenge, help_needed, created_at")
+    .eq("company_id", company.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const pulseContext = latestPulse
+    ? `\nSENESTE PULSE CHECK-IN (${new Date(latestPulse.created_at).toLocaleDateString("da-DK", { month: "long" })}):\nGik godt: ${latestPulse.went_well || "—"}\nStørste udfordring: ${latestPulse.biggest_challenge || "—"}${latestPulse.help_needed ? `\nBeder om hjælp til: ${latestPulse.help_needed}` : ""}\n`
+    : "";
+
     ? `Branche: ${company.industry_label}\n`
     : "";
 
