@@ -35,6 +35,9 @@ export interface Milestone {
   category: MilestoneCategory;
   baseline: string | null;
   dbStatus?: string;
+  target_value: number | null;
+  current_value: number | null;
+  unit: string | null;
 }
 
 const statusConfig = {
