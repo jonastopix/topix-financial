@@ -107,7 +107,10 @@ const Milestones = () => {
       source: "manual",
       progress: 0,
       status: "active",
-    });
+      target_value: targetValue ? Number(targetValue) : null,
+      current_value: targetValue ? 0 : null,
+      unit: unit.trim() || null,
+    } as any);
     setSaving(false);
     if (error) {
       toast.error("Kunne ikke oprette milestone");
