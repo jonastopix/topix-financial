@@ -121,6 +121,22 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
       >
         Opdatér alligevel
       </button>
+      {history && history.length > 1 && (
+        <div className="mt-6 text-left space-y-3">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Tidligere check-ins
+          </p>
+          {history.slice(1, 4).map((h) => (
+            <div key={h.period_key} className="rounded-lg bg-secondary/50 p-3 space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground">
+                {new Date(h.created_at).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}
+              </p>
+              {h.went_well && <p className="text-xs text-foreground">✅ {h.went_well}</p>}
+              {h.biggest_challenge && <p className="text-xs text-foreground">⚠️ {h.biggest_challenge}</p>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
