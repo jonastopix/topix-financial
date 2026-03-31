@@ -6,8 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Rocket, FileText, ClipboardList, LayoutDashboard, TrendingUp, Target, Users } from "lucide-react";
 import { toast } from "sonner";
+
+const ONBOARDING_INDUSTRIES = [
+  { label: "Detailhandel", value: "retail_other" },
+  { label: "Engroshandel og import/eksport", value: "wholesale_general" },
+  { label: "Produktion og fremstilling", value: "production_industrial" },
+  { label: "Bygge og anlæg", value: "construction_contractor" },
+  { label: "Transport og logistik", value: "transport_freight" },
+  { label: "IT og teknologi", value: "tech_software" },
+  { label: "Rådgivning og konsulentydelser", value: "consulting_management" },
+  { label: "Sundhed og velvære", value: "health_clinic" },
+  { label: "Fødevarer og restauration", value: "food_restaurant" },
+  { label: "Håndværk og serviceerhverv", value: "trades_other" },
+  { label: "Ejendom og bolig", value: "realestate_agency" },
+  { label: "Medier, kultur og kreative erhverv", value: "creative_advertising" },
+  { label: "Uddannelse og undervisning", value: "education_general" },
+  { label: "Finans og forsikring", value: "finance_general" },
+  { label: "Andet", value: "other_general" },
+];
 
 const Onboarding = () => {
   const { user, profile, companyName, setOnboardingComplete, companyId } = useAuth();
