@@ -1415,75 +1415,86 @@ const AdvisorDashboard = () => {
           )}
         </div>
 
-        {/* RIGHT: Sidebar (1/3) */}
-        <div className="lg:w-[340px] shrink-0 space-y-5 lg:sticky lg:top-4 lg:self-start">
-          {/* Action queue */}
+        {/* RIGHT: Min kø */}
+        <div className="lg:w-80 shrink-0 space-y-4">
+          {/* Mine tildelinger der venter */}
           <div className="glass-card rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-                Afventer svar
-              </p>
-              {actionQueue.length > 0 && (
-                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning text-white text-[10px] font-bold flex items-center justify-center">
-                  {actionQueue.length}
-                </span>
-              )}
+            <div className="flex items-center gap-2 mb-3">
+              <UserCheck className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Min kø</h3>
+              <span className="ml-auto text-[10px] text-muted-foreground">{myAssignments} tildelt</span>
             </div>
-            {actionQueue.length > 0 ? (
-              <div className="space-y-1">
-                {actionQueue.map(conv => (
-                  <Link
-                    key={conv.id}
-                    to={`/chat?conversationId=${conv.id}`}
-                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-accent/50 transition-colors group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">
-                        {getCompanyName(conv.company_id)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {conv.last_member_message_at ? timeAgo(conv.last_member_message_at) : "Afventer"}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs text-foreground">Alle er besvaret ✓</span>
-              </div>
-            )}
+            {(() => {
+              const myQueue = investorSummaries
+                .filter(c => {
+                  const conv = allConvsByCompany.get(c.company_id);
+                  return conv?.assigned_advisor_id === user?.id && (
+                    c.unreadMessages > 0 ||
+                    c.needsAttention ||
+                    (c.revenueTrendPct != null && c.revenueTrendPct < -15)
+                  );
+                })
+                .sort((a, b) => b.unreadMessages - a.unreadMessages)
+                .slice(0, 8);
+              if (myQueue.length === 0) return (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  Ingen åbne handlinger i din kø ✓
+                </p>
+              );
+              return (
+                <div className="space-y-1">
+                  {myQueue.map(c => (
+                    <button
+                      key={c.company_id}
+                      onClick={() => handleAdvisorCompanyClick(c.company_id, c.company_name)}
+                      className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-secondary/60 transition-colors text-left"
+                    >
+                      <div className="h-6 w-6 rounded bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                        {c.logo_url
+                          ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
+                          : <span className="text-[8px] font-bold text-muted-foreground">{c.company_name.slice(0,2).toUpperCase()}</span>
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{c.company_name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {c.unreadMessages > 0 ? `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""}`
+                            : c.needsAttention ? "Kræver handling"
+                            : "Omsætning faldende"}
+                        </p>
+                      </div>
+                      {c.unreadMessages > 0 && (
+                        <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                          {c.unreadMessages}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Pulse */}
-          {pulseCompanies.length > 0 && (
+          {/* Follow-ups */}
+          {hasFollowUps && (
             <div className="glass-card rounded-xl p-4">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                <Target className="h-3.5 w-3.5 text-muted-foreground" />
-                Seneste pulse
-              </p>
-              <div className="space-y-3">
-                {pulseCompanies.slice(0, 4).map(c => (
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="h-4 w-4 text-chart-warning" />
+                <h3 className="text-sm font-semibold text-foreground">Follow-ups</h3>
+              </div>
+              <div className="space-y-1">
+                {[...overdueFollowUps, ...upcomingFollowUps].slice(0, 5).map(conv => (
                   <button
-                    key={c.company_id}
-                    className="w-full text-left group"
-                    onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                    key={conv.id}
+                    onClick={() => navigate(`/chat?conversationId=${conv.id}`)}
+                    className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-secondary/60 transition-colors text-left"
                   >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className="text-xs font-medium text-foreground truncate">
-                        {c.company_name}
-                      </p>
-                      <span className="text-[9px] text-muted-foreground shrink-0">
-                        {formatDistanceToNow(new Date(c.latestPulse!.created_at), { locale: da, addSuffix: true })}
+                    <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${overdueFollowUps.includes(conv) ? "bg-destructive" : "bg-chart-warning"}`} />
+                    <p className="text-xs text-foreground truncate flex-1">{getCompanyName(conv.company_id)}</p>
+                    {conv.follow_up_at && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
                       </span>
-                    </div>
-                    {c.latestPulse?.biggest_challenge && (
-                      <p className="text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
-                        "{c.latestPulse.biggest_challenge}"
-                      </p>
                     )}
                   </button>
                 ))}
@@ -1491,91 +1502,28 @@ const AdvisorDashboard = () => {
             </div>
           )}
 
-          {/* Follow-ups */}
-          {hasFollowUps && (
+          {/* Seneste pulse fra founders */}
+          {pulseCompanies.length > 0 && (
             <div className="glass-card rounded-xl p-4">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                Opfølgninger
-              </p>
-              <div className="space-y-1">
-                {overdueFollowUps.length > 0 && (
-                  <>
-                    <p className="text-[10px] font-medium text-destructive uppercase tracking-wider mb-1">Forfalden</p>
-                    {overdueFollowUps.map(conv => (
-                      <Link
-                        key={conv.id}
-                        to={`/chat?conversationId=${conv.id}`}
-                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-accent/50 transition-colors group"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">
-                            {getCompanyName(conv.company_id)}
-                          </p>
-                        </div>
-                        <span className="text-[10px] text-destructive font-medium shrink-0">
-                          {conv.follow_up_at ? new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" }) : ""}
-                        </span>
-                      </Link>
-                    ))}
-                  </>
-                )}
-                {upcomingFollowUps.length > 0 && (
-                  <>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 mt-2">Kommende</p>
-                    {upcomingFollowUps.map(conv => (
-                      <Link
-                        key={conv.id}
-                        to={`/chat?conversationId=${conv.id}`}
-                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-accent/50 transition-colors group"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">
-                            {getCompanyName(conv.company_id)}
-                          </p>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground font-medium shrink-0">
-                          {conv.follow_up_at ? new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" }) : ""}
-                        </span>
-                      </Link>
-                    ))}
-                  </>
-                )}
+              <div className="flex items-center gap-2 mb-3">
+                <Activity className="h-4 w-4 text-chart-info" />
+                <h3 className="text-sm font-semibold text-foreground">Seneste pulse</h3>
               </div>
-            </div>
-          )}
-
-          {/* Activity feed */}
-          {activityFeed.length > 0 && (
-            <div className="glass-card rounded-xl p-4">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-                Seneste 7 dage
-              </p>
-              <div className="space-y-0.5">
-                {activityFeed.map((event: any) => {
-                  const iconConfig = {
-                    report_uploaded: { color: "text-chart-info", bg: "bg-chart-info/10", label: "Rapport" },
-                    report_committed: { color: "text-primary", bg: "bg-primary/10", label: "Godkendt" },
-                  }[event.type as string] as { color: string; bg: string; label: string };
-                  return (
-                    <button
-                      key={event.id}
-                      onClick={() => setCompanyOverride(event.companyId, event.companyName)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary/30 transition-colors text-left"
-                    >
-                      <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
-                        {iconConfig.label}
-                      </span>
-                      <span className="text-[11px] font-medium text-foreground truncate flex-1">
-                        {event.companyName}
-                      </span>
-                      <span className="text-[9px] text-muted-foreground shrink-0">
-                        {formatDistanceToNow(new Date(event.timestamp), { locale: da, addSuffix: true })}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="space-y-2">
+                {pulseCompanies.slice(0, 3).map(c => (
+                  <button
+                    key={c.company_id}
+                    onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                    className="w-full text-left p-2 rounded-lg hover:bg-secondary/60 transition-colors"
+                  >
+                    <p className="text-[10px] font-medium text-foreground truncate">{c.company_name}</p>
+                    {c.latestPulse?.biggest_challenge && (
+                      <p className="text-[10px] text-muted-foreground/70 italic line-clamp-1 mt-0.5">
+                        "{c.latestPulse.biggest_challenge}"
+                      </p>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
           )}
