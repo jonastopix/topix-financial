@@ -1250,7 +1250,7 @@ const AdvisorDashboard = () => {
                             </td>
                           </tr>
                         )}
-                          key={c.company_id}
+                        <tr
                           className="hover:bg-accent/20 transition-colors group cursor-pointer"
                           onClick={() => setCompanyOverride(c.company_id, c.company_name)}
                         >
