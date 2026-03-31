@@ -965,6 +965,7 @@ const AdvisorDashboard = () => {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
   const [memberView, setMemberView] = useState<"table" | "cards">("table");
+  const [showAllQueue, setShowAllQueue] = useState(false);
 
   const filteredMembers = useMemo(() => {
     let list = [...investorSummaries];
@@ -1454,8 +1455,8 @@ const AdvisorDashboard = () => {
                     (c.revenueTrendPct != null && c.revenueTrendPct < -15)
                   );
                 })
-                .sort((a, b) => b.unreadMessages - a.unreadMessages)
-                .slice(0, 8);
+                .sort((a, b) => b.unreadMessages - a.unreadMessages);
+              const visibleQueue = showAllQueue ? myQueue : myQueue.slice(0, 8);
               if (myQueue.length === 0) return (
                 <p className="text-xs text-muted-foreground text-center py-4">
                   Ingen åbne handlinger i din kø ✓
@@ -1463,7 +1464,7 @@ const AdvisorDashboard = () => {
               );
               return (
                 <div className="space-y-1">
-                  {myQueue.map(c => (
+                  {visibleQueue.map(c => (
                     <button
                       key={c.company_id}
                       onClick={() => handleAdvisorCompanyClick(c.company_id, c.company_name)}
@@ -1492,6 +1493,14 @@ const AdvisorDashboard = () => {
                       )}
                     </button>
                   ))}
+                  {myQueue.length > 8 && (
+                    <button
+                      onClick={() => setShowAllQueue(v => !v)}
+                      className="w-full text-center text-[11px] text-primary hover:text-primary/80 transition-colors pt-2"
+                    >
+                      {showAllQueue ? "Vis færre ↑" : `Se alle ${myQueue.length} →`}
+                    </button>
+                  )}
                 </div>
               );
             })()}
