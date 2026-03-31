@@ -400,6 +400,33 @@ const MilestoneCard = ({
                     />
                     <span className="text-xs text-muted-foreground">{ms.unit}</span>
                   </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs text-muted-foreground shrink-0">Mål:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      defaultValue={ms.target_value ?? 0}
+                      onBlur={async (e) => {
+                        const val = Number(e.target.value);
+                        if (!isNaN(val) && val > 0 && val !== ms.target_value) {
+                          await onUpdateField(ms.id, { target_value: val });
+                        }
+                      }}
+                      className="w-24 px-2 py-1 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <input
+                      type="text"
+                      defaultValue={ms.unit ?? ""}
+                      placeholder="enhed"
+                      onBlur={async (e) => {
+                        const val = e.target.value.trim();
+                        if (val !== ms.unit) {
+                          await onUpdateField(ms.id, { unit: val });
+                        }
+                      }}
+                      className="w-24 px-2 py-1 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
                 </>
               ) : (
                 <>
@@ -680,6 +707,14 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     const localFields: Record<string, any> = {};
     for (const key of ["title", "category", "baseline"] as const) {
       if (key in fields) { dbFields[key] = fields[key] || null; localFields[key] = fields[key] || null; }
+    }
+    if ("target_value" in fields) {
+      dbFields.target_value = fields.target_value;
+      localFields.target_value = fields.target_value;
+    }
+    if ("unit" in fields) {
+      dbFields.unit = fields.unit || null;
+      localFields.unit = fields.unit || null;
     }
     if ("description" in fields) {
       dbFields.description = fields.description || null;
