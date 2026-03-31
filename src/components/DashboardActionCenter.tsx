@@ -140,6 +140,7 @@ export default function DashboardActionCenter({
         items.push({ id: "pulse-done", type: "pulse", title: "Pulse check-in er sendt ✓", description: "Vil du opdatere dit check-in for denne måned?", urgency: "low", link: "/pulse" });
       }
 
+      // ⚠️ HUSK: Opdatér også AppLayout.tsx når du skifter announcement
       // Platform update announcement
       items.push({
         id: "v2026-04-platform-update",
