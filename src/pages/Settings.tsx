@@ -422,17 +422,18 @@ const Settings = () => {
       .from("avatars")
       .getPublicUrl(filePath);
 
-    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+    const cleanUrl = urlData.publicUrl;
+    const bustUrl = `${cleanUrl}?t=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ avatar_url: publicUrl })
+      .update({ avatar_url: cleanUrl })
       .eq("user_id", user.id);
 
     if (updateError) {
       toast.error("Kunne ikke gemme billede-URL");
     } else {
-      setAvatarUrl(publicUrl);
+      setAvatarUrl(bustUrl);
       await refreshProfile();
       toast.success("Profilbillede opdateret");
     }
