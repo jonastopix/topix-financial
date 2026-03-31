@@ -1088,7 +1088,7 @@ const AdvisorDashboard = () => {
       {/* ── Two-column layout ── */}
       <div className="flex flex-col lg:flex-row gap-6">
         {/* LEFT: Members */}
-        <div className="flex-1 min-w-0 lg:w-2/3">
+        <div id="member-list" className="flex-1 min-w-0 lg:w-2/3">
           {/* Toolbar: search + filter + view toggle */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-xs">
