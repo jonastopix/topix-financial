@@ -132,6 +132,9 @@ const Onboarding = () => {
                 >
                   Upload min første rapport
                 </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Eksporter din saldobalance fra e-conomic, Dinero eller Billy som PDF
+                </p>
                 <Button
                   variant="ghost"
                   className="w-full"
