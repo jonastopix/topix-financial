@@ -76,6 +76,7 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   unreadMessages: number;
   milestones: MilestoneData[];
   kpiTargets: KpiTargetData[];
+  hasWeeklyFocus: boolean;
 }
 
 // ── MemberCard ──
@@ -268,7 +269,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes,
+        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -335,6 +336,11 @@ const AdvisorDashboard = () => {
           .from("groups")
           .select("id, name"),
         (supabase.from("group_companies" as any).select("company_id")),
+        (supabase
+          .from("weekly_focus")
+          .select("company_id")
+          .eq("status", "active")
+          .gte("generated_at", new Date(Date.now() - 14 * 86400000).toISOString()) as any),
       ]);
 
       // Map group conversations into the same shape as company conversations
@@ -558,6 +564,7 @@ const AdvisorDashboard = () => {
           unreadMessages: unreadByCompany.get(c.id) || 0,
           milestones: milestonesByCompany.get(c.id) || [],
           kpiTargets: kpiByCompany.get(c.id) || [],
+          hasWeeklyFocus: weeklyFocusCompanies.has(c.id),
         };
       });
 
@@ -837,6 +844,10 @@ const AdvisorDashboard = () => {
 
       const groupedCompanyIds = new Set<string>(
         ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
+      );
+
+      const weeklyFocusCompanies = new Set<string>(
+        ((weeklyFocusRes as any)?.data || []).map((r: any) => r.company_id)
       );
 
       return {
@@ -1387,6 +1398,7 @@ const AdvisorDashboard = () => {
                                 { active: hasChat, color: "bg-purple-500", label: "C", title: "Chat" },
                                 { active: hasMilestones, color: "bg-chart-warning", label: "M", title: "Milestones" },
                                 { active: hasKpiTargets, color: "bg-teal-500", label: "K", title: "KPI" },
+                                { active: c.hasWeeklyFocus, color: "bg-primary/50", label: "W", title: "Ugens fokus aktiv" },
                               ].map((dot, i) => (
                                 <span
                                   key={i}
@@ -1435,7 +1447,7 @@ const AdvisorDashboard = () => {
                   </div>
                 ))}
                 <span className="text-[9px] text-muted-foreground ml-2">
-                  · Trend = omsætningsvækst seneste to rapporter
+                  · Trend = omsætningsvækst seneste to rapporter · W = Ugens AI-fokus aktivt
                 </span>
               </div>
             </>
