@@ -45,7 +45,7 @@ const founderFeatures = [
   {
     icon: MessageCircle, title: "Chat med rådgiver", path: "/chat",
     color: "text-chart-info", bg: "bg-chart-info/10",
-    desc: "Din direkte linje til Morten og Jonas. De læser dine tal og er klar til sparring.",
+    desc: "Din direkte linje til dine rådgivere. De læser dine tal og er klar til sparring.",
     tips: ["Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder", "Brug emnefiltre: rapport, handout, milestone, budget, sparring", "Klik 'Følg op senere' hvis du vil have en reminder fra rådgiveren"],
   },
   {
@@ -72,7 +72,7 @@ const founderTimeline = [
 const founderTips = [
   "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt",
   "Udfyld Pulse check-in hver måned — det er den hurtigste måde at give rådgiverne kontekst på",
-  "Brug chatten aktivt — Morten og Jonas læser dine tal og svarer hurtigt",
+  "Brug chatten aktivt — dine rådgivere læser dine tal og svarer hurtigt",
   "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret",
   "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige",
   "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet",
@@ -84,7 +84,7 @@ const founderTips = [
 /* ── Advisor data ── */
 
 const advisorWorkflow = [
-  { step: 1, title: "Tjek prioriteringskøen", desc: "Øverst på dashboardet ser du 'Kræver handling' og 'Klar til sparring'. Klik direkte på en virksomhed for at åbne chatten. Brug tildelingsknappen (initialer-badgen) til at fordele virksomheder mellem Morten og Jonas.", link: "/", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
+  { step: 1, title: "Tjek prioriteringskøen", desc: "Øverst på dashboardet ser du 'Kræver handling' og 'Klar til sparring'. Klik direkte på en virksomhed for at åbne chatten. Brug tildelingsknappen (initialer-badgen) til at fordele virksomheder mellem rådgiverne.", link: "/", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
   { step: 2, title: "Tjek rapporteringsrytmen", desc: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 til founders der ikke har uploadet. Tjek Review Queue hvis en rapport er stuck i pipeline.", link: "/admin/review-queue", icon: ClipboardList, color: "text-primary bg-primary/10" },
   { step: 3, title: "Svar i chatten", desc: "Virksomheder der afventer svar vises med rød markering. Klik direkte fra prioriteringskøen for at åbne den rette samtale.", link: "/chat", icon: MessageCircle, color: "text-chart-info bg-chart-info/10" },
   { step: 4, title: "Kommentér på KPI-grafer", desc: "Når du er inde på en virksomheds KPI-side, kan du pinne kommentarer direkte på graferne. Founder modtager automatisk en notifikation.", link: "/kpis", icon: TrendingUp, color: "text-chart-info bg-chart-info/10" },
