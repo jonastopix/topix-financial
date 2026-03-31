@@ -636,10 +636,7 @@ const AdvisorDashboard = () => {
           const dayOfMonth = now.getDate();
           const hasPulseThisMonth = c.latestPulse != null &&
             new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
-          if (!hasPulseThisMonth && dayOfMonth > 15 && c.has_verified_metrics) {
-            reasons.push({ label: "Ingen pulse check-in denne måned", urgency: "medium" });
-            score += 25;
-          }
+           // Pulse-signal moved to sparring queue
 
           // Signal: No milestones set at all (first time signal only — company has data)
           if (c.milestones.length === 0 && c.has_verified_metrics) {
@@ -713,6 +710,14 @@ const AdvisorDashboard = () => {
             signals.push({
               label: `Milestone nået`,
               hint: `"${completedTitle}" — anerkend fremgangen og sæt næste mål`,
+            });
+          }
+
+          // Pulse ikke udfyldt efter den 15.
+          if (!pulseThisMonth && now.getDate() > 15 && c.has_verified_metrics) {
+            signals.push({
+              label: "Pulse ikke udfyldt endnu",
+              hint: "Vi er efter den 15. — god anledning til at rykke for check-in",
             });
           }
 
@@ -1006,6 +1011,7 @@ const AdvisorDashboard = () => {
 
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
+
 
 
   const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
