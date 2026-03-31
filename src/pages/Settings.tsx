@@ -527,7 +527,7 @@ const Settings = () => {
       password: currentPassword,
     });
     if (signInError) {
-      toast.error("Nuværende adgangskode er forkert");
+      toast.error(signInError.message.includes("Invalid") ? "Nuværende adgangskode er forkert" : "Kunne ikke verificere adgangskode — prøv igen");
       setSavingPassword(false);
       return;
     }
