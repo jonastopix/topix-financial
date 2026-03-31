@@ -19,10 +19,10 @@ interface HandoutCardProps {
   onClick: () => void;
 }
 
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
-  not_started: { label: "Ikke startet", variant: "outline" },
-  in_progress: { label: "I gang", variant: "secondary" },
-  completed: { label: "Udfyldt", variant: "default" },
+const statusLabels: Record<string, { variant: "default" | "secondary" | "outline" }> = {
+  not_started: { variant: "outline" },
+  in_progress: { variant: "secondary" },
+  completed: { variant: "default" },
 };
 
 const HandoutCard = ({ config, status, progress, completedAt, onClick }: HandoutCardProps) => {
