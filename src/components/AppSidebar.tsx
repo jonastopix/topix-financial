@@ -236,7 +236,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
 
       setUnreadChat(totalUnread);
     }
-  }, [user, effectiveAdvisor]);
+  }, [user, effectiveAdvisor, isGroupUser]);
 
   useEffect(() => {
     if (!user) return;
