@@ -400,6 +400,33 @@ const MilestoneCard = ({
                     />
                     <span className="text-xs text-muted-foreground">{ms.unit}</span>
                   </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs text-muted-foreground shrink-0">Mål:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      defaultValue={ms.target_value ?? 0}
+                      onBlur={async (e) => {
+                        const val = Number(e.target.value);
+                        if (!isNaN(val) && val > 0 && val !== ms.target_value) {
+                          await onUpdateField(ms.id, { target_value: val });
+                        }
+                      }}
+                      className="w-24 px-2 py-1 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <input
+                      type="text"
+                      defaultValue={ms.unit ?? ""}
+                      placeholder="enhed"
+                      onBlur={async (e) => {
+                        const val = e.target.value.trim();
+                        if (val !== ms.unit) {
+                          await onUpdateField(ms.id, { unit: val });
+                        }
+                      }}
+                      className="w-24 px-2 py-1 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
                 </>
               ) : (
                 <>
