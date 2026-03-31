@@ -32,6 +32,7 @@ const Onboarding = () => {
   const { user, profile, companyName, setOnboardingComplete, companyId } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState(profile?.full_name || "");
+  const [industryCode, setIndustryCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
 
