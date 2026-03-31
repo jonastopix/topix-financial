@@ -501,7 +501,7 @@ ${industryContext}Uge: ${weekKey}
 
 AKTIVE TRIGGERS DENNE UGE:
 ${triggersText}
-${commentaryContext}
+${commentaryContext}${pulseContext}
 Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
 {
   "headline": "kort headline max 8 ord",
