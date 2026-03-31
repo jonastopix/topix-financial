@@ -1364,8 +1364,10 @@ const AdvisorDashboard = () => {
                             <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary transition-colors">Se data →</span>
                           </td>
                         </tr>
+                        </React.Fragment>
                       );
-                    })}
+                    });
+                    })()}
                   </tbody>
                 </table>
                 {filteredMembers.length === 0 && (
