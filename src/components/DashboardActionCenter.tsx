@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import {
   Sparkles, AlertTriangle, FileText, Target, MessageSquare,
-  Clock, CheckCircle2, Circle, X, Plus, ChevronRight, ChevronDown,
+  Clock, CheckCircle2, Circle, X, Plus, ChevronRight, ChevronDown, Info,
 } from "lucide-react";
 import { DANISH_MONTHS, getEffectiveReportPeriodKey, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 
@@ -99,7 +99,7 @@ export default function DashboardActionCenter({
   const { data: attentionItems = [] } = useQuery({
     queryKey: ["attention-needed", companyId, user?.id],
     queryFn: async () => {
-      const items: { id: string; type: "report" | "milestone" | "chat" | "pulse"; title: string; description: string; urgency: "high" | "medium" | "low"; link: string; daysLeft?: number }[] = [];
+      const items: { id: string; type: "report" | "milestone" | "chat" | "pulse" | "info"; title: string; description: string; urgency: "high" | "medium" | "low"; link: string; daysLeft?: number }[] = [];
       const now = new Date();
       const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
@@ -140,6 +140,16 @@ export default function DashboardActionCenter({
         items.push({ id: "pulse-done", type: "pulse", title: "Pulse check-in er sendt ✓", description: "Vil du opdatere dit check-in for denne måned?", urgency: "low", link: "/pulse" });
       }
 
+      // Platform update announcement
+      items.push({
+        id: "v2026-04-platform-update",
+        type: "info",
+        title: "Platform opdateret — hvad er nyt",
+        description: "Pulse check-in viser nu automatisk dine milestone-fremskridt. Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data. AI-chefen genererer nyt ugesfokus hver mandag.",
+        urgency: "low",
+        link: "/guide",
+      });
+
       return items;
     },
     enabled: !!user && !!companyId,
@@ -178,9 +188,9 @@ export default function DashboardActionCenter({
   const visibleActions = showAllActions ? actions : actions.slice(0, 3);
   const weekNumber = weekKey.split("-W")[1]?.replace(/^0/, "") || "";
 
-  const typeIcon: Record<string, typeof FileText> = { report: FileText, milestone: Target, chat: MessageSquare, pulse: Sparkles };
-  const typeColor: Record<string, string> = { report: "text-destructive", milestone: "text-chart-warning", chat: "text-chart-info", pulse: "text-primary" };
-  const typeBg: Record<string, string> = { report: "bg-destructive/10", milestone: "bg-chart-warning/10", chat: "bg-chart-info/10", pulse: "bg-primary/10" };
+  const typeIcon: Record<string, typeof FileText> = { report: FileText, milestone: Target, chat: MessageSquare, pulse: Sparkles, info: Info };
+  const typeColor: Record<string, string> = { report: "text-destructive", milestone: "text-chart-warning", chat: "text-chart-info", pulse: "text-primary", info: "text-chart-info" };
+  const typeBg: Record<string, string> = { report: "bg-destructive/10", milestone: "bg-chart-warning/10", chat: "bg-chart-info/10", pulse: "bg-primary/10", info: "bg-chart-info/10" };
   const urgencyBorder: Record<string, string> = { high: "border-l-destructive", medium: "border-l-chart-warning", low: "border-l-muted" };
 
   const hasAnything = weeklyFocus || visibleAttention.length > 0 || actions.length > 0;

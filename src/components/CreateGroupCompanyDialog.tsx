@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
 interface CreateGroupCompanyDialogProps {
@@ -20,6 +22,8 @@ const CreateGroupCompanyDialog = ({ open, onOpenChange, groupId }: CreateGroupCo
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { setCompanyOverride } = useAuth();
 
   const cvrDigits = cvr.replace(/[^0-9]/g, "");
   const cvrValid = cvr.trim() === "" || cvrDigits.length === 8;
@@ -62,7 +66,15 @@ const CreateGroupCompanyDialog = ({ open, onOpenChange, groupId }: CreateGroupCo
       }
 
       toast.success("Selskab oprettet", {
-        description: `${data.company_name} er tilføjet til koncernen`,
+        description: `${data.company_name} er klar — upload den første rapport for at aktivere KPI-data.`,
+        action: {
+          label: "Gå til rapportering →",
+          onClick: () => {
+            setCompanyOverride(data.company_id, data.company_name);
+            navigate("/reports");
+          },
+        },
+        duration: 8000,
       });
 
       // Reset and close
