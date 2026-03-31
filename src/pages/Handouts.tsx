@@ -327,6 +327,89 @@ const Handouts = () => {
           </>
         );
       })()}
+
+      {!isAdvisor && !isLoading && (() => {
+        const allChecklistModules = summaries
+          .map(s => {
+            const config = handoutConfigs[s.module];
+            const checklistItems = config.sections
+              .flatMap(sec => sec.checklist || []);
+            if (checklistItems.length === 0) return null;
+            const checkedCount = checklistItems.filter(item => s.checklist?.[item.key]).length;
+            return {
+              module: s.module,
+              title: config.title,
+              items: checklistItems,
+              checklist: s.checklist || {},
+              checkedCount,
+              total: checklistItems.length,
+            };
+          })
+          .filter(Boolean);
+
+        if (allChecklistModules.length === 0) return null;
+
+        const totalItems = allChecklistModules.reduce((sum, m) => sum + m!.total, 0);
+        const totalChecked = allChecklistModules.reduce((sum, m) => sum + m!.checkedCount, 0);
+        const pct = totalItems > 0 ? Math.round((totalChecked / totalItems) * 100) : 0;
+
+        return (
+          <div className="glass-card rounded-xl p-6 mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Din rejse mod en professionelt drevet virksomhed</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{totalChecked} af {totalItems} milepæle nået</p>
+              </div>
+              <span className="text-2xl font-display font-bold text-foreground">{pct}%</span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-2 mb-6">
+              <div className="bg-primary h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="space-y-6">
+              {allChecklistModules.map(m => m && (
+                <div key={m.module}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{m.title}</p>
+                    <span className="text-[11px] text-muted-foreground">{m.checkedCount}/{m.total}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {m.items.map(item => (
+                      <div key={item.key} className="flex items-start gap-3">
+                        <div className={`h-4 w-4 rounded mt-0.5 shrink-0 flex items-center justify-center border transition-colors ${
+                          m.checklist[item.key]
+                            ? "bg-primary border-primary"
+                            : "border-border bg-transparent"
+                        }`}>
+                          {m.checklist[item.key] && (
+                            <svg className="h-2.5 w-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className={`text-xs leading-relaxed ${
+                          m.checklist[item.key] ? "text-foreground" : "text-muted-foreground"
+                        }`}>
+                          {item.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {pct < 100 && (
+              <p className="text-[11px] text-muted-foreground mt-6 text-center">
+                Udfyld handout-modulerne for at markere milepæle som nået
+              </p>
+            )}
+            {pct === 100 && (
+              <p className="text-[11px] text-primary font-medium mt-6 text-center">
+                🎉 Du driver en professionelt struktureret virksomhed
+              </p>
+            )}
+          </div>
+        );
+      })()}
     </AppLayout>
   );
 };
