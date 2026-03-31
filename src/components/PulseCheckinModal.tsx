@@ -19,8 +19,26 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
   const { viewingAsMember } = useViewMode();
   const [wentWell, setWentWell] = useState("");
   const [challenge, setChallenge] = useState("");
-  const [milestoneProgress, setMilestoneProgress] = useState(50);
   const [helpNeeded, setHelpNeeded] = useState("");
+
+  const { data: milestoneData } = useQuery({
+    queryKey: ["pulse-milestones", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("milestones")
+        .select("progress, title, status")
+        .eq("company_id", companyId)
+        .eq("status", "active");
+      return data || [];
+    },
+    enabled: !!companyId && open,
+    staleTime: 60_000,
+  });
+
+  const autoProgress = milestoneData && milestoneData.length > 0
+    ? Math.round(milestoneData.reduce((s, m) => s + (m.progress || 0), 0) / milestoneData.length)
+    : null;
   const [saving, setSaving] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState(false);
 
