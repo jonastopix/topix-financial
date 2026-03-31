@@ -415,7 +415,7 @@ const AdvisorDashboard = () => {
       // Recently completed milestones (last 7 days)
       const recentlyCompletedMilestones = new Map<string, string>();
       for (const m of (recentMilestonesRes.data || []) as any[]) {
-        const companyId = userToCompany.get(m.user_id);
+        const companyId = m.company_id;
         if (companyId && !recentlyCompletedMilestones.has(companyId)) {
           recentlyCompletedMilestones.set(companyId, m.title);
         }
