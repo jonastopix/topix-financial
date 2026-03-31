@@ -1093,16 +1093,36 @@ const AdvisorDashboard = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <button onClick={() => { setMemberFilter("alle"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard title="Rapporterer aktivt" value={`${reportedThisMonth} / ${total}`} subtitle="sendt rapport denne måned — klik for at se listen" accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"} />
+          <KPICard
+            title="Rapporterer aktivt"
+            value={`${reportedThisMonth} / ${total}`}
+            subtitle={`${total - reportedThisMonth} mangler rapport denne måned`}
+            accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"}
+          />
         </button>
-        <button onClick={() => { setMemberFilter("aktive"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard title="Platform-engagement" value={`${fullyEngaged} / ${total}`} subtitle={`bruger 3+ funktioner · snit ${avgEngagement.toFixed(1)}/4`} accentColor={total > 0 && fullyEngaged / total >= 0.5 ? "emerald" : "blue"} />
-        </button>
-        <button onClick={() => { setMemberFilter("passive"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard title="Fundament på plads" value={`${withFoundation} / ${total}`} subtitle="KPI-mål + milestones sat" accentColor={total > 0 && withFoundation / total >= 0.6 ? "emerald" : "amber"} tooltip="En virksomhed tæller med når den har sat mindst ét KPI-mål OG oprettet mindst én milestone." />
+        <button onClick={() => { setMemberFilter("ubesvaret"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
+          <KPICard
+            title="Ulæste beskeder"
+            value={String(unbesvaredCount)}
+            subtitle={unbesvaredCount > 0 ? "founders afventer svar" : "Alle beskeder besvaret ✓"}
+            accentColor={unbesvaredCount > 3 ? "rose" : unbesvaredCount > 0 ? "amber" : "emerald"}
+          />
         </button>
         <button onClick={() => { setMemberFilter("alle"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard title="Omsætningstrend" value={withTrendData > 0 ? `${withPositiveTrend} ↑ · ${withNegativeTrend} ↓` : "Ingen data"} subtitle={withTrendData > 0 ? `af ${withTrendData} med sammenlignbare tal` : "kræver 2+ måneders rapporter"} accentColor={withNegativeTrend > withPositiveTrend ? "rose" : "emerald"} />
+          <KPICard
+            title="Afventende follow-ups"
+            value={String(overdueFollowUps.length + upcomingFollowUps.length)}
+            subtitle={overdueFollowUps.length > 0 ? `${overdueFollowUps.length} forfaldne` : "ingen forfaldne"}
+            accentColor={overdueFollowUps.length > 0 ? "rose" : upcomingFollowUps.length > 0 ? "amber" : "emerald"}
+          />
+        </button>
+        <button onClick={() => { setMemberFilter("passive"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
+          <KPICard
+            title="Uden milestones"
+            value={String(investorSummaries.filter(c => c.milestones.length === 0 && c.has_verified_metrics).length)}
+            subtitle="har data men ingen mål sat"
+            accentColor="amber"
+          />
         </button>
       </div>
 
