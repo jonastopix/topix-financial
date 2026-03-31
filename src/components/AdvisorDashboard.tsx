@@ -1019,31 +1019,42 @@ const AdvisorDashboard = () => {
   return (
     <div className="space-y-8">
       {/* ── Advisor fordeling ── */}
-      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs flex-wrap">
-        <UserCheck className="h-3.5 w-3.5 text-primary shrink-0" />
-        {advisorProfiles
-          .map(a => ({
-            ...a,
-            count: assignmentCounts[a.user_id] || 0,
-            isMe: a.user_id === user?.id,
-          }))
-          .sort((a, b) => b.count - a.count)
-          .map(a => (
-            <div key={a.user_id} className="flex items-center gap-1.5">
-              <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary">
-                {a.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+      <div className="flex items-center gap-3 px-4 py-3 bg-secondary/30 rounded-xl flex-wrap">
+        <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Fordeling</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {advisorProfiles
+            .map(a => ({
+              ...a,
+              count: assignmentCounts[a.user_id] || 0,
+              isMe: a.user_id === user?.id,
+            }))
+            .sort((a, b) => b.count - a.count)
+            .map(a => (
+              <div key={a.user_id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                a.isMe
+                  ? "bg-primary/15 text-primary"
+                  : "bg-secondary text-muted-foreground"
+              }`}>
+                <div className={`h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold ${
+                  a.isMe ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
+                }`}>
+                  {a.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <span>{a.full_name.split(" ")[0]}</span>
+                <span className={`font-bold ${a.isMe ? "text-primary" : "text-foreground"}`}>{a.count}</span>
               </div>
-              <span className={a.isMe ? "font-medium text-foreground" : "text-muted-foreground"}>
-                {a.full_name.split(" ")[0]}: {a.count}
-              </span>
+            ))}
+          {unassignedCount > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{unassignedCount} uden ejer</span>
             </div>
-          ))}
-        {unassignedCount > 0 && (
-          <>
-            <div className="h-3 w-px bg-border" />
-            <span className="text-amber-600 font-medium">{unassignedCount} uden ejer</span>
-          </>
-        )}
+          )}
+        </div>
+        <div className="ml-auto text-[10px] text-muted-foreground">
+          {totalAssigned} tildelt · {total} i alt
+        </div>
       </div>
 
       {/* ── Priority + Sparring side by side ── */}
