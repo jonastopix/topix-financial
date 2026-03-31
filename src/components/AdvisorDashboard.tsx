@@ -641,11 +641,7 @@ const AdvisorDashboard = () => {
             score += 25;
           }
 
-          // Signal: No milestones set at all (first time signal only — company has data)
-          if (c.milestones.length === 0 && c.has_verified_metrics) {
-            reasons.push({ label: "Ingen milestones sat endnu", urgency: "medium" });
-            score += 20;
-          }
+           // Milestone-signal moved to sparring queue
 
           const primaryConv = convByCompany.get(c.company_id)?.[0];
           const assignedAdvisor = advisorProfiles.find((advisor) => advisor.user_id === primaryConv?.assigned_advisor_id);
