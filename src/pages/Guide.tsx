@@ -72,7 +72,7 @@ const founderTimeline = [
 const founderTips = [
   "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt",
   "Udfyld Pulse check-in hver måned — det er den hurtigste måde at give rådgiverne kontekst på",
-  "Brug chatten aktivt — Morten og Jonas læser dine tal og svarer hurtigt",
+  "Brug chatten aktivt — dine rådgivere læser dine tal og svarer hurtigt",
   "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret",
   "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige",
   "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet",
