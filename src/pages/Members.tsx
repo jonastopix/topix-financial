@@ -541,6 +541,9 @@ const Members = () => {
         supabase.from("slack_handout_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
         supabase.from("slack_report_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
         supabase.from("group_companies" as any).delete().eq("company_id", deleteTarget.id) as any,
+        supabase.from("company_actions").delete().eq("company_id", deleteTarget.id),
+        supabase.from("notifications").delete().eq("company_id", deleteTarget.id),
+        supabase.from("weekly_focus").delete().eq("company_id", deleteTarget.id),
       ]);
       await supabase.from("financial_reports").delete().eq("company_id", deleteTarget.id);
       await Promise.all([
