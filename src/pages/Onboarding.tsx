@@ -56,6 +56,19 @@ const Onboarding = () => {
     }
 
     setSaving(false);
+
+    // Save industry on company if selected
+    if (companyId && industryCode) {
+      const selectedOption = ONBOARDING_INDUSTRIES.find(o => o.value === industryCode);
+      await supabase
+        .from("companies")
+        .update({
+          industry_code: industryCode,
+          industry_label: selectedOption?.label || null,
+        })
+        .eq("id", companyId);
+    }
+
     // Send welcome message right after onboarded_at is persisted (fire and forget)
     if (companyId) {
       supabase.functions.invoke("send-welcome-message", {
