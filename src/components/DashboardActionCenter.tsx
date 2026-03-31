@@ -115,7 +115,7 @@ export default function DashboardActionCenter({
       }
 
       const { data: milestones } = await (supabase.from("milestones").select("id, title, deadline, progress") as any)
-        .eq("company_id", companyId).lt("progress", 100).not("deadline", "is", null);
+        .eq("company_id", companyId).lt("progress", 100).not("deadline", "is", null).neq("status", "parked");
       (milestones || []).forEach((ms: any) => {
         const daysLeft = Math.ceil((new Date(ms.deadline).getTime() - now.getTime()) / 86400000);
         if (daysLeft <= 14 && daysLeft > 0) {
