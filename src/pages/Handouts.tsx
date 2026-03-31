@@ -20,6 +20,7 @@ interface HandoutSummary {
   progress: number;
   completedAt: string | null;
   levers: string[];
+  checklist: Record<string, boolean>;
 }
 
 const Handouts = () => {
