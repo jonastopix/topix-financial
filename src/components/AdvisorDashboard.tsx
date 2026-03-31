@@ -1225,6 +1225,11 @@ const AdvisorDashboard = () => {
                                   {c.unreadMessages}
                                 </span>
                               )}
+                              {hasPulse30 && (
+                                <span title="Pulse check-in sendt denne måned" className="text-primary/60 shrink-0">
+                                  <Heart className="h-3 w-3 fill-current" />
+                                </span>
+                              )}
                             </div>
                           </td>
                           {/* Rapport denne måned */}
