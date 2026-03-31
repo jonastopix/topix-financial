@@ -462,6 +462,9 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
         progress: m.progress,
         category: (m.category || "other") as MilestoneCategory,
         baseline: m.baseline || null,
+        target_value: m.target_value ?? null,
+        current_value: m.current_value ?? null,
+        unit: m.unit ?? null,
       }));
       setMilestones(mapped);
       setLoading(false);
