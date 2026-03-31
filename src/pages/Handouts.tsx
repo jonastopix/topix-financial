@@ -99,7 +99,7 @@ const Handouts = () => {
 
       setSummaries(moduleOrder.map(m => {
         const d = map.get(m);
-        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [] };
+        if (!d) return { module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [], checklist: {} };
         const config = handoutConfigs[m];
         const levers = (d.levers as string[]) || [];
         const progress = calcHandoutProgress(
