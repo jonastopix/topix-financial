@@ -275,7 +275,7 @@ const Milestones = () => {
 
       {/* Create Dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Opret ny milestone</DialogTitle>
             <DialogDescription>Definer dit mål og vælg en kategori.</DialogDescription>
