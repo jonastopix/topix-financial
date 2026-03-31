@@ -39,6 +39,8 @@ const Milestones = () => {
   const [category, setCategory] = useState<MilestoneCategory>("other");
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
   const [baseline, setBaseline] = useState("");
+  const [targetValue, setTargetValue] = useState<string>("");
+  const [unit, setUnit] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
 
