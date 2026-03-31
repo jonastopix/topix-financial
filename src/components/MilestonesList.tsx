@@ -708,6 +708,14 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     for (const key of ["title", "category", "baseline"] as const) {
       if (key in fields) { dbFields[key] = fields[key] || null; localFields[key] = fields[key] || null; }
     }
+    if ("target_value" in fields) {
+      dbFields.target_value = fields.target_value;
+      localFields.target_value = fields.target_value;
+    }
+    if ("unit" in fields) {
+      dbFields.unit = fields.unit || null;
+      localFields.unit = fields.unit || null;
+    }
     if ("description" in fields) {
       dbFields.description = fields.description || null;
       localFields.description = fields.description || null;
