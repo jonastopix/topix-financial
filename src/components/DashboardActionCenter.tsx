@@ -74,7 +74,7 @@ export default function DashboardActionCenter({
         .select("*")
         .eq("company_id", companyId)
         .eq("week_key", weekKey)
-        .eq("status", "active")
+        .in("status", ["active", "quiet", "no_data"])
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -199,7 +199,7 @@ export default function DashboardActionCenter({
   return (
     <div className="glass-card rounded-xl p-5 mb-6">
       {/* ── Weekly focus header ── */}
-      {weeklyFocus && (
+      {weeklyFocus?.status === "active" && (
         <div className={`${visibleAttention.length > 0 || actions.length > 0 ? "mb-4 pb-4 border-b border-border/40" : ""}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -214,6 +214,18 @@ export default function DashboardActionCenter({
           </div>
           <p className="text-sm font-semibold text-foreground leading-snug">{weeklyFocus.headline}</p>
           <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{weeklyFocus.summary}</p>
+        </div>
+      )}
+
+      {weeklyFocus && weeklyFocus.status !== "active" && (
+        <div className={`flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 ${visibleAttention.length > 0 || actions.length > 0 ? "mb-4" : ""}`}>
+          <Sparkles className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Ingen ugesfokus denne uge</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+              AI-chefen genererer analyse når der er nye rapporter og aktive milestones.
+            </p>
+          </div>
         </div>
       )}
 
