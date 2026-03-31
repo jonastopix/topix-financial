@@ -262,7 +262,7 @@ const AdvisorCompanyOverview = () => {
 
       const { data } = await supabase
         .from("milestones")
-        .select("id, title, deadline, progress, status")
+        .select("id, title, deadline, progress, status, target_value, current_value, unit")
         .in("user_id", userIds)
         .eq("status", "active")
         .order("deadline", { ascending: true });
@@ -770,6 +770,11 @@ const AdvisorCompanyOverview = () => {
                       <span className="text-xs text-foreground flex-1 truncate">
                         {m.title}
                       </span>
+                      {(m as any).target_value && (m as any).unit && (
+                        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                          {(m as any).current_value ?? 0}/{(m as any).target_value} {(m as any).unit}
+                        </span>
+                      )}
                       {m.deadline && (
                         <span className={`text-[10px] shrink-0 ${
                           isOverdue ? "text-destructive" : "text-muted-foreground"
