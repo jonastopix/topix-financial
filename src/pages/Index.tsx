@@ -333,8 +333,20 @@ const Dashboard = () => {
 
   return (
     <AppLayout>
-      {showTour && (
-        <GuidedTour onComplete={() => { setShowTour(false); refreshProfile(); }} />
+      {shouldShowTour && !tourDismissed && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20 mb-4 animate-fade-in">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Kom godt i gang</p>
+            <p className="text-xs text-muted-foreground">Upload din første rapport for at aktivere AI-analyse, KPI-overblik og rådgiversparring.</p>
+          </div>
+          <Link to="/reports" className="shrink-0 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+            Upload rapport →
+          </Link>
+          <button onClick={() => setTourDismissed(true)} className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
       {/* Group welcome (compact) — shown only for non-advisor group members */}
       <GroupWelcomeBanner variant="compact" />
