@@ -11,7 +11,12 @@ export async function exportKPIReport(
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
-    backgroundColor: "#ffffff",
+    backgroundColor: getComputedStyle(document.documentElement)
+      .getPropertyValue("--background").trim() || "#ffffff",
+    onclone: (cloned) => {
+      cloned.documentElement.classList.remove("dark");
+      cloned.documentElement.style.colorScheme = "light";
+    },
     logging: false,
   });
 
