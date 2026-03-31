@@ -257,7 +257,7 @@ async function processCompany(
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: stalledMilestones } = await admin
     .from("milestones")
-    .select("id, title, progress, updated_at, deadline")
+    .select("id, title, progress, updated_at, deadline, target_value, current_value, unit")
     .eq("company_id", company.id)
     .lt("progress", 100)
     .neq("status", "parked")
