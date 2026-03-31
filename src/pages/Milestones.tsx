@@ -39,6 +39,8 @@ const Milestones = () => {
   const [category, setCategory] = useState<MilestoneCategory>("other");
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
   const [baseline, setBaseline] = useState("");
+  const [targetValue, setTargetValue] = useState<string>("");
+  const [unit, setUnit] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
 
@@ -70,6 +72,8 @@ const Milestones = () => {
     setBaseline("");
     setCategory("other");
     setDeadline(undefined);
+    setTargetValue("");
+    setUnit("");
   };
 
   const STARTER_PICKS: { title: string; cat: MilestoneCategory }[] = [
@@ -103,7 +107,10 @@ const Milestones = () => {
       source: "manual",
       progress: 0,
       status: "active",
-    });
+      target_value: targetValue ? Number(targetValue) : null,
+      current_value: targetValue ? 0 : null,
+      unit: unit.trim() || null,
+    } as any);
     setSaving(false);
     if (error) {
       toast.error("Kunne ikke oprette milestone");
@@ -335,6 +342,45 @@ const Milestones = () => {
                 }
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
+            </div>
+            {/* Målbar milestone — valgfrit */}
+            <div className="rounded-xl border border-border p-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Gør den målbar <span className="text-muted-foreground/50 normal-case font-normal">(valgfri)</span>
+                </label>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  F.eks. &quot;10 salgskald&quot; eller &quot;500.000 kr.&quot; i stedet for en procent-slider.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">Mål</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={targetValue}
+                    onChange={(e) => setTargetValue(e.target.value)}
+                    placeholder="10"
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">Enhed</label>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="salgskald, timer, kr., kunder..."
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              {targetValue && unit && (
+                <p className="text-[11px] text-primary">
+                  Milestone viser: 0 / {targetValue} {unit}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Deadline</label>

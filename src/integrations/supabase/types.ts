@@ -1818,6 +1818,7 @@ export type Database = {
           category: string
           company_id: string
           created_at: string
+          current_value: number | null
           deadline: string | null
           description: string | null
           id: string
@@ -1825,7 +1826,9 @@ export type Database = {
           source: string
           source_report: string | null
           status: string
+          target_value: number | null
           title: string
+          unit: string | null
           updated_at: string
           user_id: string
         }
@@ -1834,6 +1837,7 @@ export type Database = {
           category?: string
           company_id: string
           created_at?: string
+          current_value?: number | null
           deadline?: string | null
           description?: string | null
           id?: string
@@ -1841,7 +1845,9 @@ export type Database = {
           source?: string
           source_report?: string | null
           status?: string
+          target_value?: number | null
           title: string
+          unit?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1850,6 +1856,7 @@ export type Database = {
           category?: string
           company_id?: string
           created_at?: string
+          current_value?: number | null
           deadline?: string | null
           description?: string | null
           id?: string
@@ -1857,7 +1864,9 @@ export type Database = {
           source?: string
           source_report?: string | null
           status?: string
+          target_value?: number | null
           title?: string
+          unit?: string | null
           updated_at?: string
           user_id?: string
         }

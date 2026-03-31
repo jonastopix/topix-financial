@@ -35,6 +35,9 @@ export interface Milestone {
   category: MilestoneCategory;
   baseline: string | null;
   dbStatus?: string;
+  target_value: number | null;
+  current_value: number | null;
+  unit: string | null;
 }
 
 const statusConfig = {
@@ -111,7 +114,7 @@ const ClickableProgressBar = ({
 const MilestoneCard = ({
   ms, config,
   onDelete, onQuickProgress, onToggleComplete,
-  onUpdateField,
+  onUpdateField, onUpdateCurrentValue,
 }: {
   ms: Milestone;
   config: (typeof statusConfig)["done"];
@@ -119,6 +122,7 @@ const MilestoneCard = ({
   onQuickProgress: (p: number) => void;
   onToggleComplete: () => void;
   onUpdateField: (id: string, fields: Record<string, any>) => Promise<void>;
+  onUpdateCurrentValue: (id: string, newValue: number) => Promise<void>;
 }) => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
@@ -230,8 +234,21 @@ const MilestoneCard = ({
               </div>
             )}
             <div className="flex items-center gap-2.5">
-              <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
-              <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
+            {ms.target_value && ms.unit ? (
+              <div className="flex items-center gap-1.5 min-w-[80px]">
+                <div className="flex-1 bg-muted rounded-full h-1.5">
+                  <div className={`h-1.5 rounded-full ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+                </div>
+                <span className={`text-[10px] font-semibold shrink-0 ${config.className}`}>
+                  {ms.current_value ?? 0}/{ms.target_value}
+                </span>
+              </div>
+            ) : (
+              <>
+                <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
+                <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
+              </>
+            )}
             </div>
           </div>
         </div>
@@ -344,21 +361,56 @@ const MilestoneCard = ({
               </Popover>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-muted-foreground">Fremgang</span>
-                <span className={`text-sm font-semibold ${config.className}`}>{ms.progress}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={ms.progress}
-                onChange={(e) => onQuickProgress(Number(e.target.value))}
-                className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
-              </div>
+              {ms.target_value && ms.unit ? (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground">Fremgang</span>
+                    <span className={`text-sm font-semibold ${config.className}`}>
+                      {ms.current_value ?? 0} / {ms.target_value} {ms.unit}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 mb-3">
+                    <div
+                      className={`h-2 rounded-full transition-all ${config.barColor}`}
+                      style={{ width: `${ms.progress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0">Nuværende:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={ms.target_value * 2}
+                      step={ms.target_value >= 100 ? 10 : 1}
+                      defaultValue={ms.current_value ?? 0}
+                      onBlur={async (e) => {
+                        const val = Number(e.target.value);
+                        if (!isNaN(val) && val !== ms.current_value) {
+                          await onUpdateCurrentValue(ms.id, val);
+                        }
+                      }}
+                      className="w-24 px-2 py-1 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <span className="text-xs text-muted-foreground">{ms.unit}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-muted-foreground">Fremgang</span>
+                    <span className={`text-sm font-semibold ${config.className}`}>{ms.progress}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={100}
+                    value={ms.progress}
+                    onChange={(e) => onQuickProgress(Number(e.target.value))}
+                    className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
+                  </div>
+                </>
+              )}
             </div>
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Udgangspunkt / baseline</p>
@@ -459,6 +511,9 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
         progress: m.progress,
         category: (m.category || "other") as MilestoneCategory,
         baseline: m.baseline || null,
+        target_value: m.target_value ?? null,
+        current_value: m.current_value ?? null,
+        unit: m.unit ?? null,
       }));
       setMilestones(mapped);
       setLoading(false);
@@ -564,6 +619,41 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
     }
   };
 
+  const updateCurrentValue = async (id: string, newCurrentValue: number) => {
+    const ms = milestones.find(m => m.id === id);
+    if (!ms || !ms.target_value) return;
+
+    const newProgress = Math.min(100, Math.round((newCurrentValue / ms.target_value) * 100));
+    const newStatus = deriveStatus(newProgress);
+    const wasNotDone = ms.progress < 100;
+
+    setMilestones(prev => prev.map(m =>
+      m.id === id ? { ...m, current_value: newCurrentValue, progress: newProgress, status: newStatus } : m
+    ));
+
+    const { error } = await supabase.from("milestones").update({
+      current_value: newCurrentValue,
+      progress: newProgress,
+      status: newStatus === "done" ? "completed" : "active",
+    } as any).eq("id", id);
+
+    if (error) { toast.error("Kunne ikke opdatere fremgang"); return; }
+
+    if (wasNotDone && newProgress >= 100) {
+      if (conversationId && userId) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+        postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${ms.title}**`, contextType: "milestone", contextMeta: { title: ms.title } });
+      }
+      toast.success("Milestone fuldført! 🎉", { description: "Godt gået — du er et skridt tættere på dit mål.", duration: 5000 });
+
+      if (companyId) {
+        supabase.functions.invoke("send-slack-report-notification", {
+          body: { event: "milestone_completed", companyId, milestoneTitle: ms.title },
+        }).catch((err) => console.error("[Milestones] Completion notification failed:", err));
+      }
+    }
+  };
+
   const toggleComplete = async (id: string) => {
     const ms = milestones.find((m) => m.id === id);
     if (!ms) return;
@@ -617,6 +707,7 @@ const MilestonesList = ({ userId, companyId, conversationId, refreshKey = 0, cat
           onQuickProgress={(p) => quickUpdateProgress(ms.id, p)}
           onToggleComplete={() => toggleComplete(ms.id)}
           onUpdateField={updateField}
+          onUpdateCurrentValue={updateCurrentValue}
         />
       );
     });
