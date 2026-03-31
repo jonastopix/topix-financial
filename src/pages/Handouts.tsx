@@ -151,6 +151,7 @@ const Handouts = () => {
   const totalProgress = summaries.length > 0
     ? Math.round(summaries.reduce((s, h) => s + h.progress, 0) / summaries.length)
     : 0;
+  const completedCount = summaries.filter(s => s.status === "completed").length;
 
   if (isAdvisor && !companyId) {
     return (
@@ -177,6 +178,31 @@ const Handouts = () => {
           </div>
         </div>
       </div>
+
+      {!isAdvisor && !isLoading && summaries.length > 0 && (
+        <div className="glass-card rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Din fremgang</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {completedCount} af {summaries.length} moduler gennemført
+              </p>
+            </div>
+            <span className="text-2xl font-display font-bold text-foreground">{totalProgress}%</span>
+          </div>
+          <div className="w-full bg-secondary rounded-full h-2">
+            <div
+              className="bg-primary h-2 rounded-full transition-all duration-500"
+              style={{ width: `${totalProgress}%` }}
+            />
+          </div>
+          {totalProgress === 100 && (
+            <p className="text-xs text-primary font-medium mt-2">
+              🎉 Alle moduler gennemført — du har lagt et stærkt fundament
+            </p>
+          )}
+        </div>
+      )}
 
       {!isAdvisor && !isLoading && summaries.every(s => s.status === "not_started" && s.progress === 0) && (
         <div className="glass-card rounded-xl p-5 mb-6 flex items-start gap-4">
@@ -221,14 +247,26 @@ const Handouts = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {summaries.map(s => (
-            <HandoutCard
-              key={s.module}
-              config={handoutConfigs[s.module]}
-              status={s.status}
-              progress={s.progress}
-              completedAt={s.completedAt}
-              onClick={() => setActiveModule(s.module)}
-            />
+            <div key={s.module} className="relative">
+              <HandoutCard
+                config={handoutConfigs[s.module]}
+                status={s.status}
+                progress={s.progress}
+                completedAt={s.completedAt}
+                onClick={() => setActiveModule(s.module)}
+              />
+              <span className={`absolute top-3 right-3 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                s.status === "completed"
+                  ? "bg-primary/10 text-primary"
+                  : s.status === "in_progress"
+                  ? "bg-chart-info/10 text-chart-info"
+                  : "bg-muted text-muted-foreground"
+              }`}>
+                {s.status === "completed" ? "Gennemført ✓"
+                  : s.status === "in_progress" ? `I gang · ${s.progress}%`
+                  : "Ikke startet"}
+              </span>
+            </div>
           ))}
         </div>
       )}

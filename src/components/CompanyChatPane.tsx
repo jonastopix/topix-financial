@@ -1017,6 +1017,14 @@ const CompanyChatPane = () => {
           } as any).eq("id", activeConvId).then(() => {
             queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
           });
+
+          // Notify founder via in-app notification
+          supabase.functions.invoke("notify-chat-reply", {
+            body: {
+              conversation_id: activeConvId,
+              message_id: (data as any).id,
+            },
+          }).catch(() => {}); // fire-and-forget
         }
       }
     }
