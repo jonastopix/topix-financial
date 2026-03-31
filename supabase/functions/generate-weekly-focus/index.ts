@@ -236,7 +236,7 @@ async function processCompany(
   const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const { data: dueSoonMilestones } = await admin
     .from("milestones")
-    .select("id, title, deadline, progress")
+    .select("id, title, deadline, progress, target_value, current_value, unit")
     .eq("company_id", company.id)
     .lt("progress", 50)
     .neq("status", "parked")
