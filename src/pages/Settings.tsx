@@ -370,18 +370,18 @@ const Settings = () => {
       .from("company-logos")
       .getPublicUrl(filePath);
 
-    // Add cache-busting param so browser fetches the new image
-    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+    const cleanUrl = urlData.publicUrl;
+    const bustUrl = `${cleanUrl}?t=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from("companies")
-      .update({ logo_url: publicUrl })
+      .update({ logo_url: cleanUrl })
       .eq("id", company.id);
 
     if (updateError) {
       toast.error("Kunne ikke gemme logo-URL");
     } else {
-      setLogoUrl(publicUrl);
+      setLogoUrl(bustUrl);
       toast.success("Logo uploadet");
     }
     setUploadingLogo(false);
