@@ -361,21 +361,56 @@ const MilestoneCard = ({
               </Popover>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-muted-foreground">Fremgang</span>
-                <span className={`text-sm font-semibold ${config.className}`}>{ms.progress}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={ms.progress}
-                onChange={(e) => onQuickProgress(Number(e.target.value))}
-                className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
-              </div>
+              {ms.target_value && ms.unit ? (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground">Fremgang</span>
+                    <span className={`text-sm font-semibold ${config.className}`}>
+                      {ms.current_value ?? 0} / {ms.target_value} {ms.unit}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 mb-3">
+                    <div
+                      className={`h-2 rounded-full transition-all ${config.barColor}`}
+                      style={{ width: `${ms.progress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0">Nuværende:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={ms.target_value * 2}
+                      step={ms.target_value >= 100 ? 10 : 1}
+                      defaultValue={ms.current_value ?? 0}
+                      onBlur={async (e) => {
+                        const val = Number(e.target.value);
+                        if (!isNaN(val) && val !== ms.current_value) {
+                          await onUpdateCurrentValue(ms.id, val);
+                        }
+                      }}
+                      className="w-24 px-2 py-1 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <span className="text-xs text-muted-foreground">{ms.unit}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-muted-foreground">Fremgang</span>
+                    <span className={`text-sm font-semibold ${config.className}`}>{ms.progress}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={100}
+                    value={ms.progress}
+                    onChange={(e) => onQuickProgress(Number(e.target.value))}
+                    className="w-full h-2 rounded-full appearance-none bg-muted cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>Ikke startet</span><span>I gang</span><span>Færdig</span>
+                  </div>
+                </>
+              )}
             </div>
             <div className="rounded-lg bg-secondary/50 p-3">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Udgangspunkt / baseline</p>
