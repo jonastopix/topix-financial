@@ -1210,7 +1210,23 @@ const AdvisorDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {filteredMembers.map(c => {
+                    {(() => {
+                      let lastGroup = "";
+                      const GROUP_LABELS: Record<string, { label: string; color: string }> = {
+                        attention: { label: "Kræver opmærksomhed", color: "text-destructive/70" },
+                        active: { label: "Aktive", color: "text-primary/70" },
+                        passive: { label: "Passive", color: "text-muted-foreground/50" },
+                      };
+                      const getRowGroup = (c: typeof filteredMembers[0]) => {
+                        if (c.unreadMessages > 0 || c.needsAttention || (c.revenueTrendPct != null && c.revenueTrendPct < -15)) return "attention";
+                        if (c.has_verified_metrics || c.milestones.length > 0) return "active";
+                        return "passive";
+                      };
+                      return filteredMembers.map(c => {
+                      const group = getRowGroup(c);
+                      const showSeparator = group !== lastGroup;
+                      lastGroup = group;
+                      const cfg = GROUP_LABELS[group];
                       const currentPeriodKey = getMissingReportKey();
                       const hasCurrentReport = c.effective_period_key === currentPeriodKey
                         || (c.effective_period_key != null && !c.missing_current_period);
@@ -1224,7 +1240,16 @@ const AdvisorDashboard = () => {
                         : null;
 
                       return (
-                        <tr
+                        <React.Fragment key={c.company_id}>
+                        {showSeparator && (
+                          <tr>
+                            <td colSpan={6} className="pt-4 pb-1 px-4">
+                              <p className={`text-[9px] font-bold uppercase tracking-widest ${cfg.color}`}>
+                                {cfg.label}
+                              </p>
+                            </td>
+                          </tr>
+                        )}
                           key={c.company_id}
                           className="hover:bg-accent/20 transition-colors group cursor-pointer"
                           onClick={() => setCompanyOverride(c.company_id, c.company_name)}
