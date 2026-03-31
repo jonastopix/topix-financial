@@ -72,6 +72,8 @@ const Milestones = () => {
     setBaseline("");
     setCategory("other");
     setDeadline(undefined);
+    setTargetValue("");
+    setUnit("");
   };
 
   const STARTER_PICKS: { title: string; cat: MilestoneCategory }[] = [
