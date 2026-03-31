@@ -1100,19 +1100,11 @@ const Settings = () => {
                         <p className="text-sm font-medium text-foreground">{label}</p>
                         <p className="text-xs text-muted-foreground">{desc}</p>
                       </div>
-                      <button
-                        onClick={() => setEmailPrefs(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent 
-                          transition-colors duration-200 focus:outline-none mt-0.5
-                          ${emailPrefs[key as keyof typeof emailPrefs] ? "bg-primary" : "bg-muted"}`}
-                        role="switch"
-                        aria-checked={emailPrefs[key as keyof typeof emailPrefs]}
-                      >
-                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform 
-                          transition-transform duration-200
-                          ${emailPrefs[key as keyof typeof emailPrefs] ? "translate-x-4" : "translate-x-0"}`}
-                        />
-                      </button>
+                      <Switch
+                        checked={emailPrefs[key as keyof typeof emailPrefs]}
+                        onCheckedChange={(checked) => setEmailPrefs(prev => ({ ...prev, [key]: checked }))}
+                        className="mt-0.5"
+                      />
                     </div>
                   ))}
                 </div>
