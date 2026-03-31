@@ -68,7 +68,7 @@ serve(async (req) => {
   // Find the conversation for this company
   const { data: conv } = await admin
     .from("conversations")
-    .select("id")
+    .select("id, assigned_advisor_id")
     .eq("company_id", companyId)
     .maybeSingle();
 
