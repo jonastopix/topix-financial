@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { TrendingDown, Wallet, AlertTriangle, ChevronRight, CheckCircle2, Clock, PauseCircle } from "lucide-react";
+import { TrendingDown, Wallet, AlertTriangle, ChevronRight, CheckCircle2, Clock, PauseCircle, Target } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -96,70 +96,106 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     });
   }
 
-  const allAlerts = [...alerts, ...milestoneItems];
-
   if (isLoading) return (
     <div className="h-20 rounded-xl bg-secondary/30 animate-pulse" />
   );
 
-  if (allAlerts.length === 0) return (
-    <div className="rounded-xl border bg-card p-5 flex items-center gap-3">
-      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-        <CheckCircle2 className="h-4 w-4 text-primary" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-foreground">Ingen finansielle alerts</p>
-        <p className="text-xs text-muted-foreground">Ingen omsætningsfald, negativt cash eller underskud registreret de seneste 60 dage.</p>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="rounded-xl border bg-card p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-destructive" />
-          <h2 className="text-sm font-semibold text-foreground">Finansielle alerts</h2>
+    <>
+      {/* Finansielle alerts */}
+      {alerts.length === 0 ? (
+        <div className="rounded-xl border bg-card p-5 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Ingen finansielle alerts</p>
+            <p className="text-xs text-muted-foreground">
+              Ingen omsætningsfald ≥15%, negativt cash eller negativt resultat de seneste 60 dage.
+            </p>
+          </div>
         </div>
-        <span className="text-xs text-muted-foreground">Seneste 60 dage</span>
-      </div>
+      ) : (
+        <div className="rounded-xl border bg-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <h2 className="text-sm font-semibold text-foreground">Finansielle alerts</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">Seneste 60 dage</span>
+          </div>
 
-      <div className="space-y-1">
-        {allAlerts.map(alert => {
-          const cfg = TYPE_CONFIG[alert.type] || TYPE_CONFIG.alert_result_negative;
-          const Icon = cfg.icon;
-          const timeAgo = formatDistanceToNow(new Date(alert.created_at), { locale: da, addSuffix: true });
+          <div className="space-y-1">
+            {alerts.map(alert => {
+              const cfg = TYPE_CONFIG[alert.type] || TYPE_CONFIG.alert_result_negative;
+              const Icon = cfg.icon;
+              return (
+                <button
+                  key={alert.id}
+                  onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
+                >
+                  <div className={`shrink-0 h-8 w-8 rounded-lg ${cfg.bg} flex items-center justify-center`}>
+                    <Icon className={`h-4 w-4 ${cfg.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{alert.company_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{alert.title}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(alert.created_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
+                      </span>
+                      {alert.seen_at ? (
+                        <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
+                          <CheckCircle2 className="h-3 w-3" /> Set
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-500 font-medium">Ikke set</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-          return (
-            <button
-              key={alert.id}
-              onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}
-              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
-            >
-              <div className={`shrink-0 h-8 w-8 rounded-lg ${cfg.bg} flex items-center justify-center`}>
-                <Icon className={`h-4 w-4 ${cfg.color}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{alert.company_name}</p>
-                <p className="text-xs text-muted-foreground truncate">{alert.title}</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-[10px] text-muted-foreground">
-                    {new Date(alert.created_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
-                  </span>
-                  {alert.seen_at ? (
-                    <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
-                      <CheckCircle2 className="h-3 w-3" /> Set
+      {/* Milestone-alerts */}
+      {milestoneItems.length > 0 && (
+        <div className="rounded-xl border bg-card p-5 space-y-3 mt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-chart-warning" />
+              <h2 className="text-sm font-semibold text-foreground">Milestone-alerts</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">{milestoneItems.length} aktive</span>
+          </div>
+          <div className="space-y-1">
+            {milestoneItems.map(alert => {
+              const cfg = TYPE_CONFIG[alert.type];
+              const Icon = cfg.icon;
+              return (
+                <button key={alert.id} onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group">
+                  <div className={`shrink-0 h-8 w-8 rounded-lg ${cfg.bg} flex items-center justify-center`}>
+                    <Icon className={`h-4 w-4 ${cfg.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{alert.company_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{alert.title}</p>
+                    <span className="text-[10px] text-muted-foreground mt-1 block">
+                      {new Date(alert.created_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
                     </span>
-                  ) : (
-                    <span className="text-[10px] text-amber-500 font-medium">Ikke set</span>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-            </button>
-          );
-        })}
-      </div>
-    </div>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
