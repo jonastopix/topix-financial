@@ -728,14 +728,17 @@ const AdvisorDashboard = () => {
             });
           }
 
-           // T12: Generel sparring — fallback rotation for companies with data
-          if (signals.length === 0 && c.has_verified_metrics) {
-            const monthKey = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate() / 7)}`;
-            const hash = (c.company_id + monthKey).split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
-            if (hash % 4 === 0) {
+          // T12: Ingen kontakt i over 21 dage
+          if (signals.length === 0) {
+            const sparConv = convByCompany.get(c.company_id)?.[0];
+            const lastContact = sparConv?.last_message_at;
+            const daysSinceContact = lastContact
+              ? Math.floor((now.getTime() - new Date(lastContact).getTime()) / 86400000)
+              : 999;
+            if (daysSinceContact > 21 && c.has_verified_metrics) {
               signals.push({
-                label: "Proaktiv sparring",
-                hint: "Ingen akutte signaler — god anledning til at tjekke ind og give generel sparring",
+                label: `Ingen kontakt i ${daysSinceContact} dage`,
+                hint: "God anledning til at tjekke ind — upload din seneste tanke om tallene",
               });
             }
           }
