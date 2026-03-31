@@ -636,13 +636,12 @@ const AdvisorDashboard = () => {
           const dayOfMonth = now.getDate();
           const hasPulseThisMonth = c.latestPulse != null &&
             new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
-           // Pulse-signal moved to sparring queue
-
-          // Signal: No milestones set at all (first time signal only — company has data)
-          if (c.milestones.length === 0 && c.has_verified_metrics) {
-            reasons.push({ label: "Ingen milestones sat endnu", urgency: "medium" });
-            score += 20;
+          if (!hasPulseThisMonth && dayOfMonth > 15 && c.has_verified_metrics) {
+            reasons.push({ label: "Ingen pulse check-in denne måned", urgency: "medium" });
+            score += 25;
           }
+
+           // Milestone-signal moved to sparring queue
 
           const primaryConv = convByCompany.get(c.company_id)?.[0];
           const assignedAdvisor = advisorProfiles.find((advisor) => advisor.user_id === primaryConv?.assigned_advisor_id);
@@ -713,6 +712,14 @@ const AdvisorDashboard = () => {
             });
           }
 
+          // Ingen milestones sat
+          if (c.milestones.length === 0 && c.has_verified_metrics) {
+            signals.push({
+              label: "Ingen milestones",
+              hint: "Founder har data men ingen mål — hjælp med at sætte den første milestone",
+            });
+          }
+
           // Pulse ikke udfyldt efter den 15.
           if (!pulseThisMonth && now.getDate() > 15 && c.has_verified_metrics) {
             signals.push({
@@ -721,7 +728,7 @@ const AdvisorDashboard = () => {
             });
           }
 
-          // T12: Generel sparring — fallback rotation for companies with data
+           // T12: Generel sparring — fallback rotation for companies with data
           if (signals.length === 0 && c.has_verified_metrics) {
             const monthKey = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate() / 7)}`;
             const hash = (c.company_id + monthKey).split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
@@ -1011,7 +1018,6 @@ const AdvisorDashboard = () => {
 
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
-
 
 
   const handleAssignAdvisor = async (companyId: string, advisorUserId: string | null) => {
