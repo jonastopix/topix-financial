@@ -336,6 +336,11 @@ const AdvisorDashboard = () => {
           .from("groups")
           .select("id, name"),
         (supabase.from("group_companies" as any).select("company_id")),
+        (supabase
+          .from("weekly_focus")
+          .select("company_id")
+          .eq("status", "active")
+          .gte("generated_at", new Date(Date.now() - 14 * 86400000).toISOString()) as any),
       ]);
 
       // Map group conversations into the same shape as company conversations
