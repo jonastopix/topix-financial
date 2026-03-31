@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight, BarChart3 } from "lucide-react";
+import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight, BarChart3, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
-import GuidedTour from "@/components/GuidedTour";
+
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -46,7 +46,7 @@ const Dashboard = () => {
   const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
-  const [showTour, setShowTour] = useState(false);
+  const [tourDismissed, setTourDismissed] = useState(false);
   const [showPulseModal, setShowPulseModal] = useState(false);
   const queryClient = useQueryClient();
 
@@ -98,12 +98,12 @@ const Dashboard = () => {
 
   const isLoading = factsLoading || budgetLoading;
 
-  // Trigger tour after data loads (must be before early returns)
+  // Mark tour as completed on first dashboard load for new users
   useEffect(() => {
     if (shouldShowTour && !tourTriggered && !isLoading) {
-      const timer = setTimeout(() => setShowTour(true), 800);
       setTourTriggered(true);
-      return () => clearTimeout(timer);
+      // Silently mark tour_completed_at so the banner is one-time
+      supabase.from("profiles").update({ tour_completed_at: new Date().toISOString() } as any).eq("user_id", user!.id).then(() => refreshProfile());
     }
   }, [shouldShowTour, tourTriggered, isLoading]);
 
@@ -333,8 +333,20 @@ const Dashboard = () => {
 
   return (
     <AppLayout>
-      {showTour && (
-        <GuidedTour onComplete={() => { setShowTour(false); refreshProfile(); }} />
+      {shouldShowTour && !tourDismissed && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20 mb-4 animate-fade-in">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Kom godt i gang</p>
+            <p className="text-xs text-muted-foreground">Upload din første rapport for at aktivere AI-analyse, KPI-overblik og rådgiversparring.</p>
+          </div>
+          <Link to="/reports" className="shrink-0 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+            Upload rapport →
+          </Link>
+          <button onClick={() => setTourDismissed(true)} className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
       {/* Group welcome (compact) — shown only for non-advisor group members */}
       <GroupWelcomeBanner variant="compact" />
