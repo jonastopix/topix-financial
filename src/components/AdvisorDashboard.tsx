@@ -1238,10 +1238,11 @@ const AdvisorDashboard = () => {
                         active: { label: "Aktive", color: "text-primary/70" },
                         passive: { label: "Passive", color: "text-muted-foreground/50" },
                       };
-                      const getRowGroup = (c: typeof filteredMembers[0]) => {
-                        if (c.unreadMessages > 0 || c.needsAttention || (c.revenueTrendPct != null && c.revenueTrendPct < -15)) return "attention";
-                        if (c.has_verified_metrics || c.milestones.length > 0) return "active";
-                        return "passive";
+                       const getRowGroup = (c: typeof filteredMembers[0]) => {
+                         const inPriorityQueue = priorityItems.some(p => p.company.company_id === c.company_id);
+                         if (!inPriorityQueue && (c.unreadMessages > 0 || c.needsAttention || (c.revenueTrendPct != null && c.revenueTrendPct < -15))) return "attention";
+                         if (c.has_verified_metrics || c.milestones.length > 0) return "active";
+                         return "passive";
                       };
                       return filteredMembers.map(c => {
                       const group = getRowGroup(c);
