@@ -886,7 +886,13 @@ const MemberDetail = () => {
                                 style={{ width: `${m.progress}%` }}
                               />
                             </div>
-                            <span className="text-[10px] text-muted-foreground font-medium w-8 text-right">{m.progress}%</span>
+                            {(m as any).target_value && (m as any).unit ? (
+                              <span className="text-[10px] text-muted-foreground font-medium text-right shrink-0">
+                                {(m as any).current_value ?? 0}/{(m as any).target_value} {(m as any).unit}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-medium w-8 text-right">{m.progress}%</span>
+                            )}
                           </div>
                         </div>
                       </div>
