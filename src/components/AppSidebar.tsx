@@ -49,7 +49,6 @@ const baseNavItems = [
 
 const secondaryNavItems = [
   { icon: BookMarked, label: "Guide", path: "/guide" },
-  { icon: ClipboardList, label: "Handouts", path: "/handouts" },
   { icon: Users, label: "Community", path: "/community" },
 ];
 
