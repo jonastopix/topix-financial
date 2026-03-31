@@ -459,6 +459,11 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Weekly focus companies (active in last 14 days)
+      const weeklyFocusCompanies = new Set<string>(
+        ((weeklyFocusRes as any)?.data || []).map((r: any) => r.company_id)
+      );
+
       // Latest report key per company
       const latestReportKey = new Map<string, string>();
       for (const [compId, keys] of reportKeysByCompany) {
