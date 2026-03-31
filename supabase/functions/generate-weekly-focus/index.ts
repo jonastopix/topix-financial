@@ -269,6 +269,7 @@ async function processCompany(
     triggerData.MILESTONE_STALLED = stalledMilestones!.map(m => ({
       id: m.id, title: m.title, progress: m.progress,
       days_stalled: Math.floor((now.getTime() - new Date(m.updated_at).getTime()) / (1000 * 60 * 60 * 24)),
+      target_value: (m as any).target_value ?? null, current_value: (m as any).current_value ?? null, unit: (m as any).unit ?? null,
     }));
   }
 
