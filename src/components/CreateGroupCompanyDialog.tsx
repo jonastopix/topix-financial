@@ -66,7 +66,15 @@ const CreateGroupCompanyDialog = ({ open, onOpenChange, groupId }: CreateGroupCo
       }
 
       toast.success("Selskab oprettet", {
-        description: `${data.company_name} er tilføjet til koncernen`,
+        description: `${data.company_name} er klar — upload den første rapport for at aktivere KPI-data.`,
+        action: {
+          label: "Gå til rapportering →",
+          onClick: () => {
+            setCompanyOverride(data.company_id, data.company_name);
+            navigate("/reports");
+          },
+        },
+        duration: 8000,
       });
 
       // Reset and close

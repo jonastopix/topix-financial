@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import {
   Sparkles, AlertTriangle, FileText, Target, MessageSquare,
-  Clock, CheckCircle2, Circle, X, Plus, ChevronRight, ChevronDown,
+  Clock, CheckCircle2, Circle, X, Plus, ChevronRight, ChevronDown, Info,
 } from "lucide-react";
 import { DANISH_MONTHS, getEffectiveReportPeriodKey, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 
