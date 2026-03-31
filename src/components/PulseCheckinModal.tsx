@@ -69,7 +69,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
         went_well: wentWell.trim() || null,
         biggest_challenge: challenge.trim() || null,
         help_needed: helpNeeded.trim() || null,
-        milestone_progress: milestoneProgress,
+        milestone_progress: autoProgress ?? null,
       }, { onConflict: "company_id,period_key" });
     setSaving(false);
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
