@@ -126,6 +126,20 @@ const Onboarding = () => {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label>Din branche</Label>
+                <Select value={industryCode} onValueChange={setIndustryCode}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Vælg branche (valgfrit)" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {ONBOARDING_INDUSTRIES.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2.5">
                 <p className="text-xs font-medium text-muted-foreground">Hvad sker der nu?</p>
                 {[
