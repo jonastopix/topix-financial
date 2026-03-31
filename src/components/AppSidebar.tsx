@@ -24,6 +24,7 @@ import {
   Check,
   Upload,
   BookMarked,
+  Heart,
 } from "lucide-react";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -41,6 +42,7 @@ const baseNavItems = [
   { icon: FileText, label: "Rapportering", path: "/reports" },
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
+  { icon: Heart, label: "Pulse", path: "/pulse" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
 ];

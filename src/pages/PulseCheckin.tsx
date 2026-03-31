@@ -6,10 +6,13 @@ const PulseCheckin = () => {
   const navigate = useNavigate();
   return (
     <AppLayout>
-      <PulseCheckinModal
-        open={true}
-        onOpenChange={(open) => { if (!open) navigate("/"); }}
-      />
+      <div className="max-w-lg mx-auto py-8 px-4">
+        <PulseCheckinModal
+          open={true}
+          onOpenChange={(open) => { if (!open) navigate("/"); }}
+          inline={true}
+        />
+      </div>
     </AppLayout>
   );
 };
