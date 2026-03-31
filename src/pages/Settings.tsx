@@ -597,8 +597,9 @@ const Settings = () => {
     } else {
       toast.success("Virksomhed opdateret");
 
-      // Auto-sync KPI benchmarks from industry_benchmarks when industry changes
-      if (industryCode) {
+      // Auto-sync KPI benchmarks from industry_benchmarks only when industry actually changes
+      const industryChanged = industryCode !== (company.industry_code || "");
+      if (industryCode && industryChanged) {
         const KPI_KEY_MAP: Record<string, string> = {
           gross_margin_pct: "db_margin",
           ebitda_margin_pct: "ebitda_margin",
