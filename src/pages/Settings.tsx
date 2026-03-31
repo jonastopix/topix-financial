@@ -481,6 +481,7 @@ const Settings = () => {
     if (error) {
       toast.error("Kunne ikke gemme ændringer");
     } else {
+      await refreshProfile();
       toast.success("Profil opdateret");
     }
     setSaving(false);
