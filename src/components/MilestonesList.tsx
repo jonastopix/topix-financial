@@ -114,7 +114,7 @@ const ClickableProgressBar = ({
 const MilestoneCard = ({
   ms, config,
   onDelete, onQuickProgress, onToggleComplete,
-  onUpdateField,
+  onUpdateField, onUpdateCurrentValue,
 }: {
   ms: Milestone;
   config: (typeof statusConfig)["done"];
@@ -122,6 +122,7 @@ const MilestoneCard = ({
   onQuickProgress: (p: number) => void;
   onToggleComplete: () => void;
   onUpdateField: (id: string, fields: Record<string, any>) => Promise<void>;
+  onUpdateCurrentValue: (id: string, newValue: number) => Promise<void>;
 }) => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
