@@ -731,10 +731,10 @@ const Members = () => {
       result = result.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          c.industry_label.toLowerCase().includes(q) ||
-          c.contact_person.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q) ||
-          c.slack_channel.toLowerCase().includes(q)
+          c.industry_label?.toLowerCase().includes(q) ||
+          c.cvr_number?.toLowerCase().includes(q) ||
+          c.contact_email?.toLowerCase().includes(q) ||
+          c.members?.some((m: any) => m.full_name?.toLowerCase().includes(q))
       );
     }
     result.sort((a, b) => {
