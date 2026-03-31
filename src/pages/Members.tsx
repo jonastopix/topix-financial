@@ -506,6 +506,8 @@ const Members = () => {
         supabase.from("budget_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("kpi_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
         supabase.from("kpi_benchmarks").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
+        supabase.from("financial_report_facts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id),
+        supabase.from("pulse_checkins").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
       ]);
       const { data: remaining } = await supabase
         .from("company_members" as any)
