@@ -8,7 +8,7 @@ import {
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, RotateCcw, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
+import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
@@ -1258,91 +1258,5 @@ const LinkedLoginMethods = () => {
   );
 };
 
-// Pending invitations widget for Settings page
-const PendingInvitationsSection = ({ companyId, companyName }: { companyId: string | null; companyName: string | null }) => {
-  const [pendingInvs, setPendingInvs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resending, setResending] = useState<string | null>(null);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (!companyId) { setLoading(false); return; }
-    const fetch = async () => {
-      const { data } = await supabase
-        .from("company_invitations")
-        .select("id, email, status, created_at, token")
-        .eq("company_id", companyId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      setPendingInvs(data || []);
-      setLoading(false);
-    };
-    fetch();
-  }, [companyId]);
-
-  const handleResend = async (inv: any) => {
-    setResending(inv.id);
-    try {
-      const tokenParam = inv.token ? `&invite=${inv.token}` : "";
-      await supabase.functions.invoke("send-invitation-email", {
-        body: {
-          email: inv.email,
-          company_name: companyName || "Din virksomhed",
-          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
-        },
-      });
-      toast.success(`Invitation gensendt til ${inv.email}`);
-    } catch (err: any) {
-      toast.error("Kunne ikke gensende: " + (err.message || "Ukendt fejl"));
-    } finally {
-      setResending(null);
-    }
-  };
-
-  if (!companyId) return null;
-
-  return (
-    <div className="glass-card rounded-xl overflow-hidden animate-fade-in">
-      <div className="px-6 py-4 flex items-center gap-2 border-b border-border">
-        <Send className="h-4 w-4 text-chart-warning" />
-        <span className="font-display font-semibold text-foreground">Afventende invitationer</span>
-        <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-chart-warning/15 text-chart-warning text-xs font-bold">
-          {pendingInvs.length}
-        </span>
-      </div>
-      {loading ? (
-        <div className="px-6 py-4 flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" /> Indlæser...
-        </div>
-      ) : pendingInvs.length > 0 ? (
-        <div className="divide-y divide-border">
-          {pendingInvs.map((inv) => (
-            <div key={inv.id} className="px-6 py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
-                  <p className="text-xs text-muted-foreground">Sendt {format(new Date(inv.created_at), "d. MMM yyyy", { locale: da })}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleResend(inv)}
-                disabled={resending === inv.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border disabled:opacity-50 shrink-0"
-              >
-                {resending === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                Gensend
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="px-6 py-6 text-center">
-          <p className="text-sm text-muted-foreground">Ingen afventende invitationer</p>
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default Settings;
