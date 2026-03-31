@@ -774,11 +774,14 @@ const AdvisorDashboard = () => {
             if (s.signals.some(x => x.label === "Pulse udfyldt")) n += 25;
             if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 20;
             if (s.signals.some(x => x.label === "Milestone nået")) n += 15;
+            if (s.signals.some(x => x.label.startsWith("Ingen kontakt i"))) n += 10;
+            if (s.signals.some(x => x.label === "Pulse ikke udfyldt endnu")) n += 5;
+            // "Ingen milestones" gets 0 — always shown last
             return n;
           };
           return score(b) - score(a);
         })
-        .slice(0, 15);
+        .slice(0, 10);
 
       // Group priority items — same logic as companies but from group_conversations
       const groupPriorityItems = groupConvsMapped
