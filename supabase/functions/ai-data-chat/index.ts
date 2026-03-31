@@ -6,7 +6,8 @@ Du har også adgang til virksomhedens aktive milestones og handout-status, som d
 Svar altid på dansk. Vær konkret og referer til de faktiske tal.
 Brug danske talformater (punktum som tusindtalsseparator, komma som decimaltegn).
 Hold svar kortfattede — max 4-6 sætninger medmindre brugeren beder om mere.
-Du må ikke opfinde tal der ikke er i dataen.`;
+Du må ikke opfinde tal der ikke er i dataen.
+Hvis der ingen finansielle data er endnu, skal du forklare det venligt og opfordre brugeren til at uploade en rapport under Rapportering. Giv IKKE generiske finansielle råd uden data.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
