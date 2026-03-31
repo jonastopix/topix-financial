@@ -50,11 +50,18 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     if (!user || !companyId || !open) return;
     supabase
       .from("pulse_checkins")
-      .select("id")
+      .select("id, went_well, biggest_challenge, help_needed")
       .eq("company_id", companyId)
       .eq("period_key", periodKey)
       .maybeSingle()
-      .then(({ data }) => { if (data) setAlreadyDone(true); });
+      .then(({ data }) => {
+        if (data) {
+          setAlreadyDone(true);
+          setWentWell(data.went_well || "");
+          setChallenge(data.biggest_challenge || "");
+          setHelpNeeded(data.help_needed || "");
+        }
+      });
   }, [user, companyId, periodKey, open]);
 
   const handleSubmit = async () => {
