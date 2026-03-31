@@ -249,6 +249,7 @@ async function processCompany(
     triggers.push("MILESTONE_DUE_SOON");
     triggerData.MILESTONE_DUE_SOON = dueSoonMilestones!.map(m => ({
       id: m.id, title: m.title, deadline: m.deadline, progress: m.progress,
+      target_value: (m as any).target_value ?? null, current_value: (m as any).current_value ?? null, unit: (m as any).unit ?? null,
     }));
   }
 
