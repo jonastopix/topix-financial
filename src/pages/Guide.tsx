@@ -65,7 +65,7 @@ const founderFeatures = [
 const founderTimeline = [
   { week: "Uge 1", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Har du et årsregnskab? Start med 'Sæt baseline med årstal' i stedet.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
   { week: "Uge 2", title: "Gennemse dine tal", desc: "Godkend dine nøgletal og se hvad AI-analysen siger om din udvikling.", icon: BarChart3, color: "bg-chart-info/10 text-chart-info", link: "/kpis" },
-  { week: "Løbende", title: "Pulse check-in", desc: "Fortæl hvad der gik godt og hvad der er svært. Tager 2 minutter — bruges af rådgiverne til sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
+  { week: "Løbende", title: "Pulse check-in", desc: "Brug 2 minutter på at fortælle os hvad der gik godt og hvad der er svært. Det er den hurtigste måde at give rådgiverne kontekst til god sparring. Dine milestone-fremskridt beregnes automatisk.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
   { week: "Dag 5", title: "Månedlig digest", desc: "Den 5. i måneden modtager du automatisk et personligt overblik: dine seneste KPI-tal, kommende milestone-deadlines og ulæste beskeder fra rådgiverne.", icon: Mail, color: "bg-chart-positive/10 text-chart-positive", link: "/settings" },
 ];
 
