@@ -68,7 +68,7 @@ serve(async (req) => {
   // Find the conversation for this company
   const { data: conv } = await admin
     .from("conversations")
-    .select("id")
+    .select("id, assigned_advisor_id")
     .eq("company_id", companyId)
     .maybeSingle();
 
@@ -94,22 +94,25 @@ serve(async (req) => {
     );
   }
 
-  // Get advisor user_id (first advisor/admin in system)
-  const { data: advisorRole } = await admin
-    .from("user_roles")
-    .select("user_id")
-    .in("role", ["advisor", "admin"])
-    .limit(1)
-    .single();
+  // Prefer the assigned advisor on the conversation; fall back to first advisor in system
+  let advisorId: string | undefined = conv.assigned_advisor_id ?? undefined;
 
-  if (!advisorRole?.user_id) {
-    return new Response(JSON.stringify({ error: "no advisor found" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!advisorId) {
+    const { data: advisorRole } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["advisor", "admin"])
+      .limit(1)
+      .single();
+
+    if (!advisorRole?.user_id) {
+      return new Response(JSON.stringify({ error: "no advisor found" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    advisorId = advisorRole.user_id;
   }
-
-  const advisorId = advisorRole.user_id;
   const firstName = memberName?.split(" ")[0] || "der";
 
   // Try to load welcome message template from DB
