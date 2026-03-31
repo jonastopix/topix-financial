@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { TrendingDown, Wallet, AlertTriangle, ChevronRight, CheckCircle2 } from "lucide-react";
+import { TrendingDown, Wallet, AlertTriangle, ChevronRight, CheckCircle2, Clock, PauseCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -19,6 +19,8 @@ const TYPE_CONFIG: Record<string, { icon: typeof TrendingDown; color: string; bg
   alert_revenue_drop:    { icon: TrendingDown,  color: "text-amber-600 dark:text-amber-400",       bg: "bg-amber-500/10" },
   alert_negative_cash:   { icon: Wallet,        color: "text-destructive",                          bg: "bg-destructive/10" },
   alert_result_negative: { icon: AlertTriangle, color: "text-destructive",                          bg: "bg-destructive/10" },
+  milestone_overdue:     { icon: Clock,         color: "text-destructive",                          bg: "bg-destructive/10" },
+  milestone_stalled:     { icon: PauseCircle,   color: "text-amber-600 dark:text-amber-400",       bg: "bg-amber-500/10" },
 };
 
 interface AdvisorAlertsPanelProps {
@@ -38,11 +40,69 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
 
   const alerts = data || [];
 
+  const { data: milestoneAlerts } = useQuery({
+    queryKey: ["advisor-milestone-alerts"],
+    queryFn: async () => {
+      const now = new Date().toISOString().split("T")[0];
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+      const [overdueRes, stalledRes] = await Promise.all([
+        (supabase.from("milestones")
+          .select("id, title, deadline, company_id, companies(name)") as any)
+          .lt("deadline", now).lt("progress", 100).neq("status", "parked").neq("status", "completed")
+          .order("deadline", { ascending: true }).limit(5),
+        (supabase.from("milestones")
+          .select("id, title, updated_at, company_id, companies(name)") as any)
+          .lt("updated_at", thirtyDaysAgo).lt("progress", 100).neq("status", "parked").neq("status", "completed")
+          .order("updated_at", { ascending: true }).limit(5),
+      ]);
+      return {
+        overdue: (overdueRes.data || []) as any[],
+        stalled: (stalledRes.data || []) as any[],
+      };
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const milestoneItems: Alert[] = [];
+  const seenIds = new Set<string>();
+
+  for (const m of milestoneAlerts?.overdue || []) {
+    if (seenIds.has(m.id)) continue;
+    seenIds.add(m.id);
+    milestoneItems.push({
+      id: `ms-${m.id}`,
+      type: "milestone_overdue",
+      title: `Overskredet deadline: ${m.title}`,
+      body: null,
+      company_id: m.company_id,
+      company_name: m.companies?.name || "Ukendt",
+      created_at: m.deadline,
+      seen_at: null,
+    });
+  }
+
+  for (const m of milestoneAlerts?.stalled || []) {
+    if (seenIds.has(m.id)) continue;
+    seenIds.add(m.id);
+    milestoneItems.push({
+      id: `ms-${m.id}`,
+      type: "milestone_stalled",
+      title: `Ingen aktivitet i 30+ dage: ${m.title}`,
+      body: null,
+      company_id: m.company_id,
+      company_name: m.companies?.name || "Ukendt",
+      created_at: m.updated_at,
+      seen_at: null,
+    });
+  }
+
+  const allAlerts = [...alerts, ...milestoneItems];
+
   if (isLoading) return (
     <div className="h-20 rounded-xl bg-secondary/30 animate-pulse" />
   );
 
-  if (alerts.length === 0) return null;
+  if (allAlerts.length === 0) return null;
 
   return (
     <div className="rounded-xl border bg-card p-5 space-y-3">
@@ -55,7 +115,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       </div>
 
       <div className="space-y-1">
-        {alerts.map(alert => {
+        {allAlerts.map(alert => {
           const cfg = TYPE_CONFIG[alert.type] || TYPE_CONFIG.alert_result_negative;
           const Icon = cfg.icon;
           const timeAgo = formatDistanceToNow(new Date(alert.created_at), { locale: da, addSuffix: true });
