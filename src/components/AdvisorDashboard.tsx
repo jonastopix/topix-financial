@@ -375,7 +375,7 @@ const AdvisorDashboard = () => {
       // company_id → active milestones[]
       const milestonesByCompany = new Map<string, MilestoneData[]>();
       for (const m of (milestonesRes.data || []) as any[]) {
-        const cid = userToCompany.get(m.user_id);
+        const cid = m.company_id;
         if (!cid) continue;
         if (!milestonesByCompany.has(cid)) milestonesByCompany.set(cid, []);
         milestonesByCompany.get(cid)!.push({ title: m.title, deadline: m.deadline, progress: m.progress });
