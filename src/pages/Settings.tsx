@@ -370,18 +370,18 @@ const Settings = () => {
       .from("company-logos")
       .getPublicUrl(filePath);
 
-    // Add cache-busting param so browser fetches the new image
-    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+    const cleanUrl = urlData.publicUrl;
+    const bustUrl = `${cleanUrl}?t=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from("companies")
-      .update({ logo_url: publicUrl })
+      .update({ logo_url: cleanUrl })
       .eq("id", company.id);
 
     if (updateError) {
       toast.error("Kunne ikke gemme logo-URL");
     } else {
-      setLogoUrl(publicUrl);
+      setLogoUrl(bustUrl);
       toast.success("Logo uploadet");
     }
     setUploadingLogo(false);
@@ -422,17 +422,18 @@ const Settings = () => {
       .from("avatars")
       .getPublicUrl(filePath);
 
-    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+    const cleanUrl = urlData.publicUrl;
+    const bustUrl = `${cleanUrl}?t=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ avatar_url: publicUrl })
+      .update({ avatar_url: cleanUrl })
       .eq("user_id", user.id);
 
     if (updateError) {
       toast.error("Kunne ikke gemme billede-URL");
     } else {
-      setAvatarUrl(publicUrl);
+      setAvatarUrl(bustUrl);
       await refreshProfile();
       toast.success("Profilbillede opdateret");
     }
