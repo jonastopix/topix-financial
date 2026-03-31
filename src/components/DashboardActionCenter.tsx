@@ -99,7 +99,7 @@ export default function DashboardActionCenter({
   const { data: attentionItems = [] } = useQuery({
     queryKey: ["attention-needed", companyId, user?.id],
     queryFn: async () => {
-      const items: { id: string; type: "report" | "milestone" | "chat" | "pulse"; title: string; description: string; urgency: "high" | "medium" | "low"; link: string; daysLeft?: number }[] = [];
+      const items: { id: string; type: "report" | "milestone" | "chat" | "pulse" | "info"; title: string; description: string; urgency: "high" | "medium" | "low"; link: string; daysLeft?: number }[] = [];
       const now = new Date();
       const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
