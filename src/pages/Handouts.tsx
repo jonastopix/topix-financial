@@ -249,26 +249,14 @@ const Handouts = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {summaries.map(s => (
-            <div key={s.module} className="relative">
-              <HandoutCard
-                config={handoutConfigs[s.module]}
-                status={s.status}
-                progress={s.progress}
-                completedAt={s.completedAt}
-                onClick={() => setActiveModule(s.module)}
-              />
-              <span className={`absolute top-3 right-3 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                s.status === "completed"
-                  ? "bg-primary/10 text-primary"
-                  : s.status === "in_progress"
-                  ? "bg-chart-info/10 text-chart-info"
-                  : "bg-muted text-muted-foreground"
-              }`}>
-                {s.status === "completed" ? "Gennemført ✓"
-                  : s.status === "in_progress" ? `I gang · ${s.progress}%`
-                  : "Ikke startet"}
-              </span>
-            </div>
+            <HandoutCard
+              key={s.module}
+              config={handoutConfigs[s.module]}
+              status={s.status}
+              progress={s.progress}
+              completedAt={s.completedAt}
+              onClick={() => setActiveModule(s.module)}
+            />
           ))}
         </div>
       )}
