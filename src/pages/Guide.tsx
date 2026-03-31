@@ -16,7 +16,7 @@ const founderFeatures = [
     icon: FileText, title: "Rapportering", path: "/reports",
     color: "text-primary", bg: "bg-primary/10",
     desc: "Upload din månedlige saldobalance eller resultatopgørelse. AI trækker tallene ud automatisk.",
-    tips: ["Understøtter PDF og Excel fra de fleste danske regnskabssystemer", "Godkend tallene med ét klik når AI har behandlet rapporten", "Se historik og trend over alle tidligere perioder"],
+    tips: ["Understøtter PDF og Excel fra de fleste danske regnskabssystemer", "Godkend tallene med ét klik når AI har behandlet rapporten", "Klik 'Ingen rapport endnu' på koncernoverblikket for at uploade direkte til et selskab"],
   },
   {
     icon: TrendingUp, title: "KPI'er", path: "/kpis",
@@ -28,7 +28,7 @@ const founderFeatures = [
     icon: Calculator, title: "Budget", path: "/budget",
     color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Byg dit årsbudget og følg om du rammer dine mål — omsætning, EBITDA og cashflow.",
-    tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. actual for hver måned under 'Budget vs. Realiseret'", "Brug 'Hvad-hvis?'-fanen til at simulere effekten af at ansætte eller investere"],
+    tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. realiseret for hver måned under 'Budget vs. Realiseret'", "Brug 'Hvad-hvis?'-fanen til at simulere effekten af at ansætte eller investere"],
   },
   {
     icon: Target, title: "Milestones", path: "/milestones",
@@ -46,13 +46,13 @@ const founderFeatures = [
     icon: MessageCircle, title: "Chat med rådgiver", path: "/chat",
     color: "text-chart-info", bg: "bg-chart-info/10",
     desc: "Din direkte linje til Morten og Jonas. De læser dine tal og er klar til sparring.",
-    tips: ["Send billeder og filer direkte i chatten", "Brug emnefiltre: rapport, handout, budget, sparring", "Du får besked på email hvis du har ulæste beskeder"],
+    tips: ["Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder", "Brug emnefiltre: rapport, handout, milestone, budget, sparring", "Klik 'Følg op senere' hvis du vil have en reminder fra rådgiveren"],
   },
   {
     icon: Sparkles, title: "Finansiel AI & AI-chef", path: "/chat?tab=ai",
     color: "text-primary", bg: "bg-primary/10",
     desc: "Din personlige AI-chef kender dine tal, milestones og handouts. Stil spørgsmål om din forretning eller spørg hvad du skal fokusere på denne uge.",
-    tips: ["Prøv: 'Hvad skal jeg fokusere på denne uge?'", "Prøv: 'Hvad driver mine udgifter?'", "Ugens fokus på dit dashboard er genereret af AI-chefen automatisk"],
+    tips: ["Prøv: 'Hvad skal jeg fokusere på denne uge?'", "Prøv: 'Hvad driver mine udgifter?'", "Ugens fokus på dit dashboard er genereret af AI-chefen automatisk hver mandag"],
   },
   {
     icon: BarChart3, title: "Virksomhedens sundhed", path: "/",
