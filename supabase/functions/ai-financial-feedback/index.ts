@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════
     if (request_type === "session_prep") {
       const companyName = companyContext?.name || "Ukendt";
-      const sessionSystemPrompt = `Du er rådgiver for ${companyName} i The Boardroom. Forbered Morten Larsen eller Jonas Herlev til en kort advisory-session. Skriv præcis 3 bullet points på dansk — konkrete ting rådgiveren bør spørge ind til eller tage op, baseret på de seneste finansielle data. Vær direkte. Maks 15 ord per bullet. Ingen introduktion, ingen opsummering — kun de 3 bullets. Returner KUN en JSON-array med 3 strings, fx: ["bullet 1","bullet 2","bullet 3"]`;
+      const sessionSystemPrompt = `Du er rådgiver for ${companyName} i The Boardroom. Forbered rådgiveren til en kort advisory-session med ${companyName}. Skriv præcis 3 bullet points på dansk — konkrete ting rådgiveren bør spørge ind til eller tage op, baseret på de seneste finansielle data. Vær direkte. Maks 15 ord per bullet. Ingen introduktion, ingen opsummering — kun de 3 bullets. Returner KUN en JSON-array med 3 strings, fx: ["bullet 1","bullet 2","bullet 3"]`;
 
       const sessionUserMessage = `SENESTE FINANSIELLE DATA:
 ${JSON.stringify(historicalCanonical || financialData || canonicalPayload?.metrics || {}, null, 2)}
