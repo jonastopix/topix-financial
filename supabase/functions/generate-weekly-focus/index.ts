@@ -312,8 +312,8 @@ async function processCompany(
     for (const bm of (benchmarks || [])) {
       let actual: number | null = null;
       if (bm.kpi_key === "gross_margin_pct") actual = metrics.gross_margin_pct ?? null;
-      if (bm.kpi_key === "ebitda_margin_pct" && revenue && revenue > 0 && ebitda !== null) {
-        actual = (ebitda / revenue) * 100;
+      if (bm.kpi_key === "ebitda_margin_pct") {
+        actual = metrics.ebitda_margin_pct ?? null;
       }
       if (actual === null) continue;
       if (actual < bm.benchmark_min) {
