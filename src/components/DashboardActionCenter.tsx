@@ -140,6 +140,16 @@ export default function DashboardActionCenter({
         items.push({ id: "pulse-done", type: "pulse", title: "Pulse check-in er sendt ✓", description: "Vil du opdatere dit check-in for denne måned?", urgency: "low", link: "/pulse" });
       }
 
+      // Platform update announcement
+      items.push({
+        id: "v2026-04-platform-update",
+        type: "info",
+        title: "Platform opdateret — hvad er nyt",
+        description: "Pulse check-in viser nu automatisk dine milestone-fremskridt. Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data. AI-chefen genererer nyt ugesfokus hver mandag.",
+        urgency: "low",
+        link: "/guide",
+      });
+
       return items;
     },
     enabled: !!user && !!companyId,
