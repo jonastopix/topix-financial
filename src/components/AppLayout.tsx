@@ -10,6 +10,7 @@ import { Eye, Building2, Menu, X } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
 
+// ⚠️ HUSK: Opdatér også DashboardActionCenter.tsx når du skifter announcement
 const CURRENT_ANNOUNCEMENT = {
   id: "v2026-04-platform-update",
   title: "Nyheder i The Boardroom",
