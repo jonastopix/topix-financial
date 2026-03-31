@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
-  Activity, Target, Search, List, LayoutGrid, UserCheck,
+  Activity, Target, Search, List, LayoutGrid, UserCheck, Heart,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
@@ -1223,6 +1223,11 @@ const AdvisorDashboard = () => {
                               {c.unreadMessages > 0 && (
                                 <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
                                   {c.unreadMessages}
+                                </span>
+                              )}
+                              {hasPulse30 && (
+                                <span title="Pulse check-in sendt denne måned" className="text-primary/60 shrink-0">
+                                  <Heart className="h-3 w-3 fill-current" />
                                 </span>
                               )}
                             </div>
