@@ -93,7 +93,7 @@ const FinancialOverview = () => {
       loenninger: k.loenninger ?? 0,
       direkte_omkostninger: k.direkte_omkostninger ?? 0,
       aktiver_i_alt: k.aktiver_i_alt ?? 0,
-      passiver_i_alt: 0, // Not in facts layer — future addition
+      
       egenkapital: k.egenkapital ?? 0,
       bank_balance: k.bank_balance ?? 0,
     };
