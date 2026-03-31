@@ -2284,7 +2284,7 @@ const CompanyChatPane = () => {
                         Din direkte linje til rådgiverne
                       </p>
                       <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
-                        Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Morten og Jonas læser dine tal og svarer hurtigt.
+                        Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og svarer hurtigt.
                       </p>
                     </div>
                   )}

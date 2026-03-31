@@ -59,7 +59,7 @@ const Onboarding = () => {
     {
       icon: Users,
       title: "Du er ikke alene",
-      description: "Morten og Jonas læser dine tal og er klar til at sparre.",
+      description: "Dine rådgivere læser dine tal og er klar til at sparre.",
     },
   ];
 

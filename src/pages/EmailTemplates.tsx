@@ -430,7 +430,7 @@ export default function EmailTemplates() {
       {
         name: "Pulse påmindelse",
         subject: "2 minutter — fortæl os hvordan det går {{first_name}}",
-        body_html: "Hej {{first_name}},\n\nDet er midt på måneden og vi vil gerne høre hvordan det går hos {{company_name}}.\n\nBrug 2 minutter på at udfylde dit månedlige check-in — det hjælper Morten og Jonas med at give dig den mest relevante sparring.\n\nUdfyld check-in nu →\n\nHilsen\nThe Boardroom",
+        body_html: "Hej {{first_name}},\n\nDet er midt på måneden og vi vil gerne høre hvordan det går hos {{company_name}}.\n\nBrug 2 minutter på at udfylde dit månedlige check-in — det hjælper dine rådgivere med at give dig den mest relevante sparring.\n\nUdfyld check-in nu →\n\nHilsen\nThe Boardroom",
         trigger_type: "cron",
         trigger_config: { schedule: "0 8 10 * *", description: "Dag 10 i måneden kl. 08:00" },
         enabled: false,
