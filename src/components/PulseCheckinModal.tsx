@@ -195,38 +195,38 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
         />
       </div>
 
-      {/* Field 3 */}
+      {/* Field 3 — Milestone fremgang */}
       <div className="rounded-xl border border-border p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
           <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
             <Target className="h-3.5 w-3.5 text-blue-500" />
           </div>
           <label className="text-sm font-semibold text-foreground">
-            Hvor langt er du med dine milestones?
+            Dine milestones
           </label>
         </div>
-        <p className="text-[11px] text-muted-foreground mb-4">
-          Samlet vurdering af din fremgang mod de mål du har sat.
-        </p>
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-muted-foreground w-16">Ikke startet</span>
-          <div className="flex-1">
-            <input
-              type="range" min={0} max={100} step={5}
-              value={milestoneProgress}
-              onChange={e => setMilestoneProgress(Number(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-              <span>0%</span><span>50%</span><span>100%</span>
+        {autoProgress !== null ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground">{milestoneData?.length} aktive milestones</span>
+              <span className="text-2xl font-display font-bold text-foreground">{autoProgress}%</span>
             </div>
-          </div>
-          <span className="text-xs text-muted-foreground w-16 text-right">Fuldt nået</span>
-        </div>
-        <div className="mt-3 text-center">
-          <span className="text-2xl font-display font-bold text-foreground">{milestoneProgress}%</span>
-          <span className="text-xs text-muted-foreground ml-1">fremgang</span>
-        </div>
+            <div className="w-full bg-secondary rounded-full h-2">
+              <div
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: `${autoProgress}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Beregnet automatisk fra dine aktive milestones. Opdatér fremgang under Milestones.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Du har ingen aktive milestones endnu.{" "}
+            <a href="/milestones" className="text-primary hover:underline">Opret dine første mål →</a>
+          </p>
+        )}
       </div>
 
       <button
