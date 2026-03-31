@@ -234,8 +234,21 @@ const MilestoneCard = ({
               </div>
             )}
             <div className="flex items-center gap-2.5">
-              <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
-              <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
+            {ms.target_value && ms.unit ? (
+              <div className="flex items-center gap-1.5 min-w-[80px]">
+                <div className="flex-1 bg-muted rounded-full h-1.5">
+                  <div className={`h-1.5 rounded-full ${config.barColor}`} style={{ width: `${ms.progress}%` }} />
+                </div>
+                <span className={`text-[10px] font-semibold shrink-0 ${config.className}`}>
+                  {ms.current_value ?? 0}/{ms.target_value}
+                </span>
+              </div>
+            ) : (
+              <>
+                <ClickableProgressBar progress={ms.progress} barColor={config.barColor} onProgressChange={onQuickProgress} />
+                <span className={`text-[10px] font-semibold min-w-[28px] text-right ${config.className}`}>{ms.progress}%</span>
+              </>
+            )}
             </div>
           </div>
         </div>
