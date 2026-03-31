@@ -172,6 +172,11 @@ const MilestoneCard = ({
             </div>
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <CategoryBadge category={ms.category} />
+              {ms.target_value && ms.unit && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                  🎯 {ms.target_value} {ms.unit}
+                </span>
+              )}
               {ms.source === "ai" && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   <Sparkles className="h-2.5 w-2.5" /> AI
