@@ -392,21 +392,28 @@ async function processCompany(
 
   // T9: POSITIVE_MOMENTUM — revenue >10% above budget 2 months in a row
   if (recentFacts && recentFacts.length >= 2) {
+    const t9Facts = recentFacts.slice(0, 2).filter(f => f.period_key);
+    const t9PeriodKeys = t9Facts.map(f => {
+      const pp = f.period_key.split("-");
+      return `${pp[0]}-base-${parseInt(pp[1]) - 1}`;
+    });
+    const { data: t9BudgetRows } = await admin
+      .from("budget_targets")
+      .select("category, budget_amount, period")
+      .eq("company_id", company.id)
+      .in("period", t9PeriodKeys)
+      .eq("category", "omsaetning");
+
     let positiveMonths = 0;
-    for (const fact of recentFacts.slice(0, 2)) {
+    for (const fact of t9Facts) {
       const fMetrics: any = fact.metrics || {};
       const fRevenue = fMetrics.revenue ?? null;
-      if (!fRevenue || !fact.period_key) continue;
+      if (!fRevenue) continue;
       const pp = fact.period_key.split("-");
-      const py = parseInt(pp[0]);
-      const pm = parseInt(pp[1]) - 1;
-      const { data: bRows } = await admin
-        .from("budget_targets")
-        .select("category, budget_amount")
-        .eq("company_id", company.id)
-        .eq("period", `${py}-base-${pm}`)
-        .eq("category", "omsaetning");
-      const bRev = (bRows || []).reduce((s: number, b: any) => s + b.budget_amount, 0);
+      const periodKey = `${pp[0]}-base-${parseInt(pp[1]) - 1}`;
+      const bRev = (t9BudgetRows || [])
+        .filter((b: any) => b.period === periodKey)
+        .reduce((s: number, b: any) => s + b.budget_amount, 0);
       if (bRev > 0 && fRevenue > bRev * 1.10) positiveMonths++;
     }
     if (positiveMonths >= 2) {
