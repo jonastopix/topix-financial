@@ -389,6 +389,24 @@ const Settings = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleRemoveLogo = async () => {
+    if (!company) return;
+    setUploadingLogo(true);
+    const filePath = `${company.id}/logo`;
+    await supabase.storage.from("company-logos").remove([filePath]);
+    const { error } = await supabase
+      .from("companies")
+      .update({ logo_url: null })
+      .eq("id", company.id);
+    if (error) {
+      toast.error("Kunne ikke fjerne logo");
+    } else {
+      setLogoUrl(null);
+      toast.success("Logo fjernet");
+    }
+    setUploadingLogo(false);
+  };
+
   const getInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
