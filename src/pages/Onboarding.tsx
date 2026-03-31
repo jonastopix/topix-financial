@@ -36,6 +36,12 @@ const Onboarding = () => {
     }
 
     setSaving(false);
+    // Send welcome message right after onboarded_at is persisted (fire and forget)
+    if (companyId) {
+      supabase.functions.invoke("send-welcome-message", {
+        body: { companyId, memberName: fullName.trim() },
+      }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
+    }
     setStep(2);
   };
 
@@ -121,12 +127,6 @@ const Onboarding = () => {
                 <Button
                   className="w-full"
                   onClick={() => {
-                    // Send welcome message from advisor (fire and forget)
-                    if (companyId) {
-                      supabase.functions.invoke("send-welcome-message", {
-                        body: { companyId, memberName: fullName.trim() },
-                      }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
-                    }
                     setOnboardingComplete(); navigate("/reports", { replace: true });
                   }}
                 >
@@ -136,12 +136,6 @@ const Onboarding = () => {
                   variant="ghost"
                   className="w-full"
                   onClick={() => {
-                    // Send welcome message from advisor (fire and forget)
-                    if (companyId) {
-                      supabase.functions.invoke("send-welcome-message", {
-                        body: { companyId, memberName: fullName.trim() },
-                      }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
-                    }
                     setOnboardingComplete(); navigate("/", { replace: true });
                   }}
                 >
