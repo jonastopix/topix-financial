@@ -134,25 +134,9 @@ async function processCompany(
     .order("committed_at", { ascending: false })
     .limit(6);
 
-  const { data: activeMilestones } = await admin
-    .from("milestones")
-    .select("id")
-    .eq("company_id", company.id)
-    .lt("progress", 100)
-    .neq("status", "parked")
-    .limit(1);
-
-  const { data: handouts } = await admin
-    .from("handouts")
-    .select("id")
-    .eq("company_id", company.id)
-    .limit(1);
-
   const hasRecentReport = (recentFacts || []).length > 0;
-  const hasMilestone = (activeMilestones || []).length > 0;
-  const hasHandout = (handouts || []).length > 0;
 
-  if (!hasRecentReport || !hasMilestone || !hasHandout) {
+  if (!hasRecentReport) {
     await admin.from("weekly_focus").upsert({
       company_id: company.id,
       week_key: weekKey,
