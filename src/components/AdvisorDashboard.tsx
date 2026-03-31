@@ -1274,7 +1274,13 @@ const AdvisorDashboard = () => {
                         )}
                         <tr
                           className="hover:bg-accent/20 transition-colors group cursor-pointer"
-                          onClick={() => setCompanyOverride(c.company_id, c.company_name)}
+                           onClick={() => {
+                             if (c.unreadMessages > 0) {
+                               handleAdvisorCompanyClick(c.company_id, c.company_name, "besked");
+                             } else {
+                               setCompanyOverride(c.company_id, c.company_name);
+                             }
+                           }}
                         >
                           {/* Virksomhed */}
                           <td className="py-2.5 px-4">
