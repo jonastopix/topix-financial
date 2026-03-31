@@ -846,9 +846,6 @@ const AdvisorDashboard = () => {
         ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
       );
 
-      const weeklyFocusCompanies = new Set<string>(
-        ((weeklyFocusRes as any)?.data || []).map((r: any) => r.company_id)
-      );
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
