@@ -1446,7 +1446,7 @@ const AdvisorDashboard = () => {
                   </div>
                 ))}
                 <span className="text-[9px] text-muted-foreground ml-2">
-                  · Trend = omsætningsvækst seneste to rapporter
+                  · Trend = omsætningsvækst seneste to rapporter · W = Ugens AI-fokus aktivt
                 </span>
               </div>
             </>
