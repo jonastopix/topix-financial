@@ -236,7 +236,7 @@ async function processCompany(
   const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const { data: dueSoonMilestones } = await admin
     .from("milestones")
-    .select("id, title, deadline, progress")
+    .select("id, title, deadline, progress, target_value, current_value, unit")
     .eq("company_id", company.id)
     .lt("progress", 50)
     .neq("status", "parked")
@@ -249,6 +249,7 @@ async function processCompany(
     triggers.push("MILESTONE_DUE_SOON");
     triggerData.MILESTONE_DUE_SOON = dueSoonMilestones!.map(m => ({
       id: m.id, title: m.title, deadline: m.deadline, progress: m.progress,
+      target_value: (m as any).target_value ?? null, current_value: (m as any).current_value ?? null, unit: (m as any).unit ?? null,
     }));
   }
 
@@ -256,7 +257,7 @@ async function processCompany(
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: stalledMilestones } = await admin
     .from("milestones")
-    .select("id, title, progress, updated_at, deadline")
+    .select("id, title, progress, updated_at, deadline, target_value, current_value, unit")
     .eq("company_id", company.id)
     .lt("progress", 100)
     .neq("status", "parked")
@@ -268,6 +269,7 @@ async function processCompany(
     triggerData.MILESTONE_STALLED = stalledMilestones!.map(m => ({
       id: m.id, title: m.title, progress: m.progress,
       days_stalled: Math.floor((now.getTime() - new Date(m.updated_at).getTime()) / (1000 * 60 * 60 * 24)),
+      target_value: (m as any).target_value ?? null, current_value: (m as any).current_value ?? null, unit: (m as any).unit ?? null,
     }));
   }
 
