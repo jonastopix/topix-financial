@@ -1039,10 +1039,27 @@ const KPIs = () => {
             <button
               key={metric.key}
               onClick={() => setSelectedKPI(metric.key)}
-              className={`glass-card rounded-xl p-4 text-left transition-all animate-fade-in ${
+              className={`glass-card rounded-xl p-4 text-left transition-all animate-fade-in relative overflow-hidden ${
                 isSelected ? "border-primary/40 ring-1 ring-primary/20" : "hover:border-primary/20"
               }`}
             >
+              {/* Sparkline background */}
+              {metric.history.length >= 2 && (
+                <div className="absolute inset-0 opacity-[0.15] pointer-events-none">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={metric.history.map(h => ({ v: h.value }))} margin={{ top: 20, right: 0, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id={`spark-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <Area type="monotone" dataKey="v" stroke="hsl(var(--primary))" strokeWidth={1.5} fill={`url(#spark-${metric.key})`} dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="relative z-10">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <Icon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1124,6 +1141,7 @@ const KPIs = () => {
                   })()}
                 </div>
               )}
+              </div>
             </button>
           );
         })}

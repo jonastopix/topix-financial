@@ -419,7 +419,7 @@ const Budget = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="oversigt" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-secondary border border-border w-full overflow-x-auto justify-start">
           <TabsTrigger value="oversigt" className="text-xs shrink-0">
             <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
@@ -429,9 +429,12 @@ const Budget = () => {
             <Layers className="h-3.5 w-3.5 mr-1.5" />
             Scenarier
           </TabsTrigger>
-          <TabsTrigger value="maaned" className="text-xs shrink-0">
+          <TabsTrigger value="maaned" className="text-xs shrink-0 relative">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-            Måned vs. budget
+            Budget vs. Realiseret
+            {factsForBudget.length > 0 && (
+              <span className="ml-1.5 h-2 w-2 rounded-full bg-primary inline-block" />
+            )}
           </TabsTrigger>
           <TabsTrigger value="import" className="text-xs shrink-0">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
@@ -449,6 +452,22 @@ const Budget = () => {
         </TabsList>
 
         <TabsContent value="oversigt">
+          {factsForBudget.length > 0 && scenarioData && (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-5">
+              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                <BarChart3 className="h-4 w-4 text-primary" />
+              </div>
+              <p className="text-sm text-foreground flex-1">
+                Du har rapport-data for denne periode — se hvordan du klarer dig mod budget.
+              </p>
+              <button
+                onClick={() => setActiveTab("maaned")}
+                className="text-xs font-medium text-primary hover:underline shrink-0 inline-flex items-center gap-1"
+              >
+                Se sammenligning <ArrowRight className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <BudgetOverviewTab rows={rows} year={year} />
         </TabsContent>
 
