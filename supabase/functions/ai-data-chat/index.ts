@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   // Fetch active milestones
   const { data: milestones } = await callerClient
     .from("milestones")
-    .select("title, deadline, progress, status, category")
+    .select("title, deadline, progress, status, category, target_value, current_value, unit")
     .eq("company_id", company_id)
     .lt("progress", 100)
     .order("deadline", { ascending: true, nullsFirst: false })
