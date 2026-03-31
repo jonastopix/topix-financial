@@ -228,9 +228,8 @@ const MilestoneCard = ({
           </div>
           <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
             {ms.baseline && (
-              <div className="flex items-center justify-between mb-1">
+              <div className="mb-1">
                 <span className="text-[10px] text-muted-foreground">{ms.baseline}</span>
-                <span className="text-[10px] font-medium text-foreground truncate ml-2">{ms.title}</span>
               </div>
             )}
             <div className="flex items-center gap-2.5">
