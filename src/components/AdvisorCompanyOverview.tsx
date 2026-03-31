@@ -262,7 +262,7 @@ const AdvisorCompanyOverview = () => {
 
       const { data } = await supabase
         .from("milestones")
-        .select("id, title, deadline, progress, status")
+        .select("id, title, deadline, progress, status, target_value, current_value, unit")
         .in("user_id", userIds)
         .eq("status", "active")
         .order("deadline", { ascending: true });
