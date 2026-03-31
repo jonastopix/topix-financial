@@ -42,6 +42,22 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
   const [saving, setSaving] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState(false);
 
+  const { data: history } = useQuery({
+    queryKey: ["pulse-history", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("pulse_checkins")
+        .select("period_key, went_well, biggest_challenge, help_needed, created_at")
+        .eq("company_id", companyId)
+        .order("period_key", { ascending: false })
+        .limit(6);
+      return data || [];
+    },
+    enabled: !!companyId && open,
+    staleTime: 5 * 60_000,
+  });
+
   const now = new Date();
   const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const periodLabel = now.toLocaleDateString("da-DK", { month: "long", year: "numeric" });
