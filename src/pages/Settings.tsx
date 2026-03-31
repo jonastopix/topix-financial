@@ -870,7 +870,7 @@ const Settings = () => {
                   <div>
                     <p className="text-sm font-medium text-foreground">Aktivér Ugens Fokus</p>
                     <p className="text-xs text-muted-foreground">
-                      Analysen kører hver mandag morgen og kræver mindst én rapport, milestone og handout.
+                      Analysen kører hver mandag morgen og kræver mindst én uploadet rapport.
                     </p>
                   </div>
                   <Switch
