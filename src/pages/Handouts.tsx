@@ -151,6 +151,7 @@ const Handouts = () => {
   const totalProgress = summaries.length > 0
     ? Math.round(summaries.reduce((s, h) => s + h.progress, 0) / summaries.length)
     : 0;
+  const completedCount = summaries.filter(s => s.status === "completed").length;
 
   if (isAdvisor && !companyId) {
     return (
