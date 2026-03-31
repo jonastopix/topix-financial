@@ -6,7 +6,7 @@ import {
   LayoutDashboard, FileText, TrendingUp, Calculator, Target,
   BookOpen, MessageCircle, Sparkles, Heart, Users, Upload,
   ChevronRight, CheckCircle2, AlertTriangle, BarChart3,
-  Send, Bell, ClipboardList, UserCog, Zap, Info, Mail
+  Send, Bell, ClipboardList, UserCog, Zap, Info, Mail, CheckCheck
 } from "lucide-react";
 
 /* ── Founder data ── */
