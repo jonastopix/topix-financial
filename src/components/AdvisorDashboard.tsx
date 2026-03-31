@@ -965,6 +965,7 @@ const AdvisorDashboard = () => {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
   const [memberView, setMemberView] = useState<"table" | "cards">("table");
+  const [showAllQueue, setShowAllQueue] = useState(false);
 
   const filteredMembers = useMemo(() => {
     let list = [...investorSummaries];
