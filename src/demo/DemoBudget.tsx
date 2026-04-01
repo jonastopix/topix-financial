@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DEMO_BUDGET } from "./demoData";
 import { formatDKK } from "@/lib/financialUtils";
@@ -14,19 +13,31 @@ function DiffCell({ actual, budget }: { actual: number; budget: number }) {
 }
 
 export default function DemoBudget() {
+  const totals = DEMO_BUDGET.reduce(
+    (acc, r) => ({
+      revBudget: acc.revBudget + r.revBudget,
+      revActual: acc.revActual + r.revActual,
+      costBudget: acc.costBudget + r.costBudget,
+      costActual: acc.costActual + r.costActual,
+      ebitdaBudget: acc.ebitdaBudget + r.ebitdaBudget,
+      ebitdaActual: acc.ebitdaActual + r.ebitdaActual,
+    }),
+    { revBudget: 0, revActual: 0, costBudget: 0, costActual: 0, ebitdaBudget: 0, ebitdaActual: 0 }
+  );
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-foreground">Budget vs. Realiseret</h1>
+      <h1 className="text-2xl font-display font-bold text-foreground">Budget vs. Realiseret</h1>
 
-      <Card className="bg-card border-border overflow-x-auto">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Q4 2025</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      <div className="glass-card rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-border">
+          <p className="text-sm font-medium text-muted-foreground">Q4 2025</p>
+        </div>
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-32">Måned</TableHead>
+                <TableHead className="w-28">Måned</TableHead>
                 <TableHead className="text-right">Oms. budget</TableHead>
                 <TableHead className="text-right">Oms. realiseret</TableHead>
                 <TableHead className="text-right">Afv.</TableHead>
@@ -53,10 +64,23 @@ export default function DemoBudget() {
                   <DiffCell actual={r.ebitdaActual} budget={r.ebitdaBudget} />
                 </TableRow>
               ))}
+              {/* Totals row */}
+              <TableRow className="border-t-2 border-border font-semibold">
+                <TableCell className="text-foreground">Total</TableCell>
+                <TableCell className="text-right text-sm">{formatDKK(totals.revBudget)}</TableCell>
+                <TableCell className="text-right text-sm">{formatDKK(totals.revActual)}</TableCell>
+                <DiffCell actual={totals.revActual} budget={totals.revBudget} />
+                <TableCell className="text-right text-sm">{formatDKK(totals.costBudget)}</TableCell>
+                <TableCell className="text-right text-sm">{formatDKK(totals.costActual)}</TableCell>
+                <DiffCell actual={totals.costBudget} budget={totals.costActual} />
+                <TableCell className="text-right text-sm">{formatDKK(totals.ebitdaBudget)}</TableCell>
+                <TableCell className="text-right text-sm">{formatDKK(totals.ebitdaActual)}</TableCell>
+                <DiffCell actual={totals.ebitdaActual} budget={totals.ebitdaBudget} />
+              </TableRow>
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
