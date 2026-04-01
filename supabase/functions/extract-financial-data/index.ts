@@ -1185,7 +1185,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                         admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
                         afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
                         tech_software: { type: "number", description: "IT, software, hosting" },
-resultat_foer_afskrivninger: { type: "number", description: "Linjen 'Resultat før afskrivninger' — EBITDA. Saldobalance: negativt tal = overskud, vend fortegnet. Returnér positivt = overskud." },
+                        resultat_foer_afskrivninger: { type: "number", description: "Linjen 'Resultat før afskrivninger' — EBITDA. Saldobalance: negativt tal = overskud, vend fortegnet. Returnér positivt = overskud." },
                         resultat_foer_afskrivninger_aar: { type: "number" },
                         resultat_foer_skat: { type: "number" },
                         resultat_foer_skat_aar: { type: "number" },
