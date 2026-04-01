@@ -156,7 +156,7 @@ const Onboarding = () => {
                 ))}
               </div>
 
-              <Button type="submit" className="w-full" disabled={saving || !fullName.trim()}>
+              <Button type="submit" className="w-full" disabled={saving}>
                 {saving ? "Gemmer..." : "Fortsæt"}
               </Button>
               <div className="text-center pt-2">
