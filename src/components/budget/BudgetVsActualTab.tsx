@@ -127,7 +127,17 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
     + (actualsMap[i]?.["lokaleomkostninger"] ?? 0)
     + (actualsMap[i]?.["administrationsomkostninger"] ?? 0), 0
   );
-  const totalActualEbitda = totalActualRevenue - totalActualCosts;
+  const totalActualEbitda = MONTHS.reduce((s, _, i) => {
+    if (!actualsMap[i]) return s;
+    if (actualsMap[i]["ebitda"] != null) return s + actualsMap[i]["ebitda"];
+    return s
+      + (actualsMap[i]["omsaetning"] ?? 0)
+      - (actualsMap[i]["direkte_omkostninger"] ?? 0)
+      - (actualsMap[i]["loenninger"] ?? 0)
+      - (actualsMap[i]["salgsomkostninger"] ?? 0)
+      - (actualsMap[i]["lokaleomkostninger"] ?? 0)
+      - (actualsMap[i]["administrationsomkostninger"] ?? 0);
+  }, 0);
 
   const chartData = MONTHS.map((month, i) => ({
     month,
