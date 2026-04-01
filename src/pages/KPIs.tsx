@@ -127,7 +127,7 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
     <g>
       <circle
         cx={cx} cy={cy} r={hasComment ? 6 : 4}
-        fill={hasComment ? "hsl(var(--primary))" : "hsl(160, 84%, 39%)"}
+        fill={hasComment ? "hsl(var(--primary))" : "hsl(var(--chart-positive))"}
         stroke={hasComment ? "hsl(var(--background))" : "none"}
         strokeWidth={2}
         style={{ cursor: isAdvisor ? "pointer" : "default" }}
