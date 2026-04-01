@@ -82,7 +82,7 @@ export default function DemoChat() {
             <div className="flex items-center gap-3 mb-1">
               <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">JH</div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground truncate">Jonas Herlev</p>
+                <p className="text-sm font-semibold text-foreground truncate">Morten & Jonas</p>
                 <p className="text-[10px] text-muted-foreground">Advisory Board</p>
               </div>
               <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
