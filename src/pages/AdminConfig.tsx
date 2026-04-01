@@ -758,6 +758,9 @@ const AdminConfig = () => {
             )}
           </div>
         </section>
+
+        {/* ─── Demo Setup ────────────────────────────── */}
+        <DemoSetupSection />
       </div>
     </AppLayout>
   );
