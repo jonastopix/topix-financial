@@ -4,13 +4,14 @@
   "description": "Dit finansielle overblik — rapportér, budgettér og følg dine milestones.",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#1a3a2a",
-  "background_color": "#fafaf8",
+  "theme_color": "#09090b",
+  "background_color": "#09090b",
   "icons": [
     {
       "src": "/favicon.png",
       "sizes": "200x200",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
