@@ -490,6 +490,7 @@ const Settings = () => {
   };
 
   const handleSave = async () => {
+    if (blockIfDemo(isDemoMode, "Ændring af indstillinger")) return;
     if (!user) return;
     setSaving(true);
 
