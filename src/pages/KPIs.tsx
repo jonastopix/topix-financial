@@ -138,11 +138,13 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
         stroke={hovered && isAdvisor ? "hsl(var(--background))" : hasComment ? "hsl(var(--background))" : "none"}
         strokeWidth={2}
         style={{ transition: "r 0.15s ease" }}
+        pointerEvents="none"
       />
       {/* Invisible large hit area for easy clicking */}
       <circle
         cx={cx} cy={cy} r={16}
         fill="transparent"
+        pointerEvents="all"
         onMouseEnter={() => isAdvisor && setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => isAdvisor && onClick(payload.periodKey, payload.month, cx, cy)}
