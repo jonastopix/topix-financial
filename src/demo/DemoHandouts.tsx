@@ -249,8 +249,8 @@ function ModuleDetail({ mod, onBack }: { mod: ModuleMeta; onBack: () => void }) 
       {mod.tips && mod.tips.length > 0 && (
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-start gap-3">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-              <Lightbulb className="h-4 w-4 text-amber-500" />
+            <div className="h-8 w-8 rounded-lg bg-chart-warning/10 flex items-center justify-center shrink-0 mt-0.5">
+              <Lightbulb className="h-4 w-4 text-chart-warning" />
             </div>
             <div className="space-y-1.5">
               {mod.tips.map((t) => (
