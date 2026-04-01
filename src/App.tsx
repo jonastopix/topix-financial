@@ -104,6 +104,7 @@ const App = () => (
               </div>
             }>
             <Routes>
+              <Route path="/demo" element={<Demo />} />
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
