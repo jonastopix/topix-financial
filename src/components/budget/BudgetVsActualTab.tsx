@@ -56,6 +56,7 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
       const kf = factsToDanishMetrics(fact.metrics);
       if (!map[monthIdx]) map[monthIdx] = {};
 
+      if (kf.ebitda != null) map[monthIdx]["ebitda"] = kf.ebitda;
       if (kf.omsaetning != null) map[monthIdx]["omsaetning"] = Math.abs(kf.omsaetning);
       if (kf.direkte_omkostninger != null) map[monthIdx]["direkte_omkostninger"] = Math.abs(kf.direkte_omkostninger);
       if (kf.loenninger != null) map[monthIdx]["loenninger"] = Math.abs(kf.loenninger);
