@@ -3,7 +3,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const DEMO_EMAIL = "demo@theboardroom.dk";
 const DEMO_COMPANY_ID = "a0de0000-0000-4000-8000-000000000001";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -14,8 +25,7 @@ Deno.serve(async (req) => {
   const callerId = claimsData?.claims?.sub as string | undefined;
   if (!callerId) {
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
+      status: 401, headers: jsonHeaders,
     });
   }
 
@@ -25,8 +35,7 @@ Deno.serve(async (req) => {
   const isAdmin = roleData?.some((r: any) => r.role === "admin");
   if (!isAdmin) {
     return new Response(JSON.stringify({ ok: false, error: "Admin role required" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
+      status: 403, headers: jsonHeaders,
     });
   }
 
@@ -34,8 +43,7 @@ Deno.serve(async (req) => {
   const demoPassword = Deno.env.get("DEMO_PASSWORD");
   if (!demoPassword) {
     return new Response(JSON.stringify({ ok: false, error: "DEMO_PASSWORD env var not set" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+      status: 500, headers: jsonHeaders,
     });
   }
 
@@ -44,8 +52,7 @@ Deno.serve(async (req) => {
   const existing = users?.find((u: any) => u.email === DEMO_EMAIL);
   if (existing) {
     return new Response(JSON.stringify({ ok: false, error: "already exists", user_id: existing.id }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
+      status: 200, headers: jsonHeaders,
     });
   }
 
@@ -59,8 +66,7 @@ Deno.serve(async (req) => {
 
   if (createError) {
     return new Response(JSON.stringify({ ok: false, error: createError.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+      status: 500, headers: jsonHeaders,
     });
   }
 
@@ -111,7 +117,6 @@ Deno.serve(async (req) => {
   ]);
 
   return new Response(JSON.stringify({ ok: true, user_id: userId }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
+    status: 200, headers: jsonHeaders,
   });
 });
