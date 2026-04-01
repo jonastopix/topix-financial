@@ -86,8 +86,24 @@ export function useInactivityLogout(enabled: boolean, timeoutMinutes?: number) {
       }
     }, CHECK_INTERVAL_MS);
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const elapsed = Date.now() - getLastActivity();
+        if (elapsed > timeoutMs) {
+          console.info("[inactivity] Session expired while in background — signing out");
+          stampActivity();
+          supabase.auth.signOut();
+        } else {
+          stampActivity();
+          setShowWarning(false);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       events.forEach((e) => window.removeEventListener(e, throttledStamp));
+      document.removeEventListener("visibilitychange", handleVisibility);
       clearInterval(interval);
     };
   }, [enabled, timeoutMinutes]);
