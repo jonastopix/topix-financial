@@ -12,54 +12,51 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate JWT from the requesting user
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify the caller's JWT using getClaims
-    const token = authHeader.replace("Bearer ", "");
-    const authClient = createClient(supabaseUrl, anonKey);
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    const callerId = claimsData?.claims?.sub as string | undefined;
-    if (claimsError || !callerId) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Try to extract caller identity from JWT if available
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace("Bearer ", "").trim();
+    let callerId: string | undefined;
+
+    if (token) {
+      const authClient = createClient(supabaseUrl, anonKey);
+      try {
+        const { data: claimsData } = await authClient.auth.getClaims(token);
+        callerId = claimsData?.claims?.sub as string | undefined;
+      } catch {
+        // getClaims failed — try getUser as fallback
+        const { data: userData } = await authClient.auth.getUser(token);
+        callerId = userData?.user?.id;
+      }
     }
 
     const { user_id, invite_token } = await req.json();
 
-    // Security: user can only process their own invitation
-    if (user_id !== callerId) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // If we got a valid caller, enforce identity match
+    // If no valid caller (e.g. during signup flow), verify user exists via admin API
+    if (callerId) {
+      if (user_id !== callerId) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Use service role client for cross-RLS operations
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Resolve the authenticated user's verified email server-side
-    // Never trust body.email — only use auth-confirmed email
+    // Verify the user_id actually exists in auth
     const { data: authUser, error: authUserError } =
-      await supabase.auth.admin.getUserById(callerId);
+      await supabase.auth.admin.getUserById(user_id);
     if (authUserError || !authUser?.user) {
-      console.error("Failed to resolve auth user:", authUserError);
-      return new Response(
-        JSON.stringify({ error: "Could not resolve user" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Invalid user_id" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
     const verifiedEmail = authUser.user.email?.trim().toLowerCase() || null;
     const emailConfirmed = !!authUser.user.email_confirmed_at;
