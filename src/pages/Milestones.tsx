@@ -23,7 +23,7 @@ import { MILESTONE_SUGGESTIONS, type MilestoneSuggestion } from "@/lib/milestone
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 
 const Milestones = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isDemoMode } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -94,6 +94,7 @@ const Milestones = () => {
   };
 
   const handleCreate = async () => {
+    if (isDemoMode) { const { blockIfDemo } = await import("@/lib/demoGuard"); blockIfDemo(true, "Oprettelse af milestones"); return; }
     if (!title.trim() || !user || !companyId) return;
     setSaving(true);
     const { error } = await supabase.from("milestones").insert({

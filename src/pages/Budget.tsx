@@ -33,7 +33,7 @@ import BudgetForecastTab from "@/components/budget/BudgetForecastTab";
 import BudgetCashflowTab from "@/components/budget/BudgetCashflowTab";
 
 const Budget = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isDemoMode } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -175,6 +175,7 @@ const Budget = () => {
   }, [user, companyId, year]);
 
   const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
+    if (isDemoMode) { const { blockIfDemo } = await import("@/lib/demoGuard"); blockIfDemo(true, "Ændring af budget"); return; }
     setSelectedTemplate(tmpl);
     const data: Record<ScenarioKey, BudgetRow[]> = {
       base: tmpl.categories.map(catToRow),

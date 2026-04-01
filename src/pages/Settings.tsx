@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { blockIfDemo } from "@/lib/demoGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
@@ -241,7 +242,7 @@ const CircleProfileSection = ({ userId }: { userId?: string }) => {
 };
 
 const Settings = () => {
-  const { user, profile, isAdvisor, isAdmin, refreshProfile } = useAuth();
+  const { user, profile, isAdvisor, isAdmin, refreshProfile, isDemoMode } = useAuth();
   const navigate = useNavigate();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leaveConfirmName, setLeaveConfirmName] = useState("");
@@ -489,6 +490,7 @@ const Settings = () => {
   };
 
   const handleSave = async () => {
+    if (blockIfDemo(isDemoMode, "Ændring af indstillinger")) return;
     if (!user) return;
     setSaving(true);
 
@@ -565,6 +567,7 @@ const Settings = () => {
   };
 
   const handleSaveCompany = async () => {
+    if (blockIfDemo(isDemoMode, "Ændring af virksomhedsindstillinger")) return;
     if (!company) return;
 
     // Validate inputs
