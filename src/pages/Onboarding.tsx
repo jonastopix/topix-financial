@@ -134,7 +134,7 @@ const Onboarding = () => {
                   <SelectTrigger>
                     <SelectValue placeholder="Vælg branche (valgfrit)" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-60">
+                  <SelectContent className="max-h-60" position="popper" sideOffset={4}>
                     {ONBOARDING_INDUSTRIES.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
