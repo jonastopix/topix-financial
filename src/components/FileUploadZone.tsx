@@ -1,4 +1,5 @@
 import { useCallback, useState, useRef } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target, Info, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
