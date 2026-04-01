@@ -41,10 +41,11 @@ const Onboarding = () => {
     if (!user) return;
 
     setSaving(true);
+    const nameToSave = fullName.trim() || (user?.email?.split("@")[0] || "Bruger");
     const { error } = await supabase
       .from("profiles")
       .update({
-        full_name: fullName.trim() || undefined,
+        full_name: nameToSave,
         onboarded_at: new Date().toISOString(),
       } as any)
       .eq("user_id", user.id);
@@ -72,9 +73,10 @@ const Onboarding = () => {
     // Send welcome message right after onboarded_at is persisted (fire and forget)
     if (companyId) {
       supabase.functions.invoke("send-welcome-message", {
-        body: { companyId, memberName: fullName.trim() },
+        body: { companyId, memberName: nameToSave },
       }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
     }
+    setFullName(nameToSave);
     setStep(2);
   };
 
@@ -154,7 +156,7 @@ const Onboarding = () => {
                 ))}
               </div>
 
-              <Button type="submit" className="w-full" disabled={saving || !fullName.trim()}>
+              <Button type="submit" className="w-full" disabled={saving}>
                 {saving ? "Gemmer..." : "Fortsæt"}
               </Button>
               <div className="text-center pt-2">
