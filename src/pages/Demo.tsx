@@ -11,7 +11,7 @@ export default function Demo() {
   useEffect(() => {
     supabase.auth.signInWithPassword({
       email: "demo@theboardroom.dk",
-      password: import.meta.env.VITE_DEMO_PASSWORD || "demo-boardroom-2026",
+      password: "DemoBoard2026!",
     }).then(({ error }) => {
       if (error) {
         setError("Demo kunne ikke startes. Prøv igen om lidt.");

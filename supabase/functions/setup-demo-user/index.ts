@@ -40,12 +40,7 @@ Deno.serve(async (req) => {
   }
 
   const supabase = adminClient;
-  const demoPassword = Deno.env.get("DEMO_PASSWORD");
-  if (!demoPassword) {
-    return new Response(JSON.stringify({ ok: false, error: "DEMO_PASSWORD env var not set" }), {
-      status: 500, headers: jsonHeaders,
-    });
-  }
+  const demoPassword = Deno.env.get("DEMO_PASSWORD") || "DemoBoard2026!";
 
   // Find or create user
   const { data: { users } } = await supabase.auth.admin.listUsers();
