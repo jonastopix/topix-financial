@@ -479,15 +479,39 @@ export function runExtendedValidation(
 
   // 4. ebitda_calculation
   if (metrics.gross_profit != null) {
-    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) + (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
+    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) +
+      (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
     if (opex > 0) {
-      const expectedEbitda = metrics.gross_profit - opex;
-      checks.push({ name: "ebitda_calculation", result: "PASS", details: `Computed EBITDA: ${expectedEbitda.toFixed(2)}` });
+      const computedEbitda = metrics.gross_profit - opex;
+      if (metrics.ebitda != null) {
+        // Direct source available — validate against it
+        const diff = Math.abs(computedEbitda - metrics.ebitda);
+        const pct = metrics.ebitda !== 0
+          ? Math.abs(diff / Math.abs(metrics.ebitda)) * 100
+          : diff;
+        if (diff <= TOLERANCE) {
+          checks.push({ name: "ebitda_calculation", result: "PASS",
+            details: `Direct EBITDA(${metrics.ebitda}) matches computed(${computedEbitda.toFixed(2)})` });
+        } else if (pct <= 15) {
+          checks.push({ name: "ebitda_calculation", result: "PASS",
+            details: `Direct EBITDA(${metrics.ebitda}) used — computed(${computedEbitda.toFixed(2)}) differs ${pct.toFixed(1)}% (likely missing opex component, direct source preferred)` });
+        } else {
+          checks.push({ name: "ebitda_calculation", result: "FAIL",
+            details: `EBITDA mismatch: direct source=${metrics.ebitda}, computed=${computedEbitda.toFixed(2)}, diff=${diff.toFixed(2)} (${pct.toFixed(1)}%) — check opex components` });
+        }
+      } else {
+        // No direct source — use computed value and set it
+        metrics.ebitda = computedEbitda;
+        checks.push({ name: "ebitda_calculation", result: "PASS",
+          details: `Computed EBITDA: ${computedEbitda.toFixed(2)}` });
+      }
     } else {
-      checks.push({ name: "ebitda_calculation", result: "SKIP", details: "No opex data" });
+      checks.push({ name: "ebitda_calculation", result: "SKIP",
+        details: "No opex data" });
     }
   } else {
-    checks.push({ name: "ebitda_calculation", result: "SKIP", details: "Missing gross_profit" });
+    checks.push({ name: "ebitda_calculation", result: "SKIP",
+      details: "Missing gross_profit" });
   }
 
   // 5. ebit_calculation
