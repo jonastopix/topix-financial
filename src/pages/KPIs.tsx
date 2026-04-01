@@ -135,18 +135,21 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
   };
 
   return (
-    <g
-      style={{ cursor: isAdvisor ? "pointer" : "default" }}
-      onMouseEnter={() => isAdvisor && setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={handleClick}
-      onTouchEnd={(e) => {
-        if (!isAdvisor) return;
-        e.preventDefault();
-        handleClick();
-      }}
-    >
-      <circle cx={cx} cy={cy} r={16} fill="rgba(0,0,0,0)" />
+    <g style={{ cursor: isAdvisor ? "pointer" : "default" }}>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={16}
+        fill="hsl(var(--foreground) / 0.001)"
+        onMouseEnter={() => isAdvisor && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={handleClick}
+        onTouchEnd={(e) => {
+          if (!isAdvisor) return;
+          e.preventDefault();
+          handleClick();
+        }}
+      />
       <circle
         cx={cx}
         cy={cy}
@@ -155,9 +158,16 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
         stroke={hovered && isAdvisor ? "hsl(var(--background))" : hasComment ? "hsl(var(--background))" : "none"}
         strokeWidth={2}
         style={{ transition: "r 0.15s ease" }}
+        pointerEvents="none"
       />
       {hasComment && (
-        <circle cx={cx + 5} cy={cy - 5} r={3} fill="hsl(var(--primary))" />
+        <circle
+          cx={cx + 5}
+          cy={cy - 5}
+          r={3}
+          fill="hsl(var(--primary))"
+          pointerEvents="none"
+        />
       )}
     </g>
   );
@@ -1277,7 +1287,7 @@ const KPIs = () => {
                     }}
                   />
                 )}
-                activeDot={{ r: 6, fill: "hsl(var(--chart-positive))", strokeWidth: 2, stroke: "hsl(var(--background))" }}
+                activeDot={false}
               />
             </AreaChart>
           </ResponsiveContainer>
