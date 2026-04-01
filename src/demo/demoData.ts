@@ -2,18 +2,18 @@ export const DEMO_COMPANY = "The Boardroom ApS";
 export const DEMO_USER = "Morten Larsen";
 
 export const DEMO_FACTS = [
-  { period: "Jan 2025", key: "2025-01", revenue: 182000, ebitda: 13320, cash: 85000, gross_profit: 167440, payroll: 85000 },
-  { period: "Feb 2025", key: "2025-02", revenue: 195000, ebitda: 23200, cash: 72000, gross_profit: 179400, payroll: 85000 },
-  { period: "Mar 2025", key: "2025-03", revenue: 210000, ebitda: 24600, cash: 95000, gross_profit: 193200, payroll: 92000 },
-  { period: "Apr 2025", key: "2025-04", revenue: 198000, ebitda: 17480, cash: 88000, gross_profit: 182160, payroll: 92000 },
-  { period: "Maj 2025", key: "2025-05", revenue: 225000, ebitda: 36000, cash: 120000, gross_profit: 207000, payroll: 92000 },
-  { period: "Jun 2025", key: "2025-06", revenue: 248000, ebitda: 38480, cash: 145000, gross_profit: 228160, payroll: 105000 },
-  { period: "Jul 2025", key: "2025-07", revenue: 232000, ebitda: 29320, cash: 132000, gross_profit: 213440, payroll: 105000 },
-  { period: "Aug 2025", key: "2025-08", revenue: 267000, ebitda: 43920, cash: 168000, gross_profit: 245640, payroll: 115000 },
-  { period: "Sep 2025", key: "2025-09", revenue: 285000, ebitda: 55600, cash: 195000, gross_profit: 262200, payroll: 115000 },
-  { period: "Okt 2025", key: "2025-10", revenue: 310000, ebitda: 58600, cash: 220000, gross_profit: 285200, payroll: 130000 },
-  { period: "Nov 2025", key: "2025-11", revenue: 298000, ebitda: 48480, cash: 205000, gross_profit: 274160, payroll: 130000 },
-  { period: "Dec 2025", key: "2025-12", revenue: 342000, ebitda: 69920, cash: 248000, gross_profit: 314640, payroll: 140000 },
+  { period: "Jan 2025", key: "2025-01", revenue: 182000, ebitda: 13320, cash: 85000, gross_profit: 167440, payroll: 85000, expenses: 168680 },
+  { period: "Feb 2025", key: "2025-02", revenue: 195000, ebitda: 23200, cash: 72000, gross_profit: 179400, payroll: 85000, expenses: 171800 },
+  { period: "Mar 2025", key: "2025-03", revenue: 210000, ebitda: 24600, cash: 95000, gross_profit: 193200, payroll: 92000, expenses: 185400 },
+  { period: "Apr 2025", key: "2025-04", revenue: 198000, ebitda: 17480, cash: 88000, gross_profit: 182160, payroll: 92000, expenses: 180520 },
+  { period: "Maj 2025", key: "2025-05", revenue: 225000, ebitda: 36000, cash: 120000, gross_profit: 207000, payroll: 92000, expenses: 189000 },
+  { period: "Jun 2025", key: "2025-06", revenue: 248000, ebitda: 38480, cash: 145000, gross_profit: 228160, payroll: 105000, expenses: 209520 },
+  { period: "Jul 2025", key: "2025-07", revenue: 232000, ebitda: 29320, cash: 132000, gross_profit: 213440, payroll: 105000, expenses: 202680 },
+  { period: "Aug 2025", key: "2025-08", revenue: 267000, ebitda: 43920, cash: 168000, gross_profit: 245640, payroll: 115000, expenses: 223080 },
+  { period: "Sep 2025", key: "2025-09", revenue: 285000, ebitda: 55600, cash: 195000, gross_profit: 262200, payroll: 115000, expenses: 229400 },
+  { period: "Okt 2025", key: "2025-10", revenue: 310000, ebitda: 58600, cash: 220000, gross_profit: 285200, payroll: 130000, expenses: 251400 },
+  { period: "Nov 2025", key: "2025-11", revenue: 298000, ebitda: 48480, cash: 205000, gross_profit: 274160, payroll: 130000, expenses: 249520 },
+  { period: "Dec 2025", key: "2025-12", revenue: 342000, ebitda: 69920, cash: 248000, gross_profit: 314640, payroll: 140000, expenses: 272080 },
 ];
 
 export const DEMO_MILESTONES = [
