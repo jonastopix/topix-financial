@@ -271,7 +271,7 @@ const BudgetCashflowTab = ({ rows, year, companyId }: Props) => {
               <span className="flex items-center gap-1.5">
                 <span
                   className="inline-block w-3 h-3 rounded-sm"
-                  style={{ background: "rgba(128,128,128,0.3)" }}
+                  style={{ background: "hsl(var(--muted-foreground))" }}
                 />
                 Budget
               </span>
