@@ -175,7 +175,7 @@ const Auth = () => {
 
   if (signupResult) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-start justify-center p-4 pt-8 pb-safe overflow-y-auto">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             {inviteCompany ? (
