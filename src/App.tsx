@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import Demo from "./pages/Demo";
 
 // Lazy — member/advisor routes
 const Reports = lazy(() => import("./pages/Reports"));
