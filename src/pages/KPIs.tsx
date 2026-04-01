@@ -132,6 +132,11 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
         strokeWidth={2}
         style={{ cursor: isAdvisor ? "pointer" : "default" }}
         onClick={() => isAdvisor && onClick(payload.periodKey, payload.month, cx, cy)}
+        onTouchEnd={(e) => {
+          if (!isAdvisor) return;
+          e.preventDefault();
+          onClick(payload.periodKey, payload.month, cx, cy);
+        }}
       />
       {hasComment && (
         <circle cx={cx + 5} cy={cy - 5} r={3} fill="hsl(var(--primary))" />
