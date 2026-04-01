@@ -339,7 +339,7 @@ const BudgetComparison = () => {
                 {visibleData.map((entry) => {
                   const isRev = entry.category === "Omsætning";
                   const fav = isRev ? entry.actual >= entry.budget : entry.actual <= entry.budget;
-                  return <Cell key={entry.category} fill={fav ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 51%)"} />;
+                  return <Cell key={entry.category} fill={fav ? "hsl(var(--chart-positive))" : "hsl(var(--chart-negative))"} />;
                 })}
               </Bar>
             </BarChart>
