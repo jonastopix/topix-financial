@@ -143,8 +143,8 @@ export default function DemoChat() {
                 const isUser = msg.role === "user";
                 return (
                   <div key={i} className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isUser ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary"}`}>
-                      {msg.initials}
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isUser ? "bg-primary text-primary-foreground" : msg.initials === "ML2" ? "bg-chart-info/20 text-chart-info" : "bg-primary/20 text-primary"}`}>
+                      {msg.initials === "ML2" ? "ML" : msg.initials}
                     </div>
                     <div className={`max-w-[75%] flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                       <div className={`flex items-baseline gap-2 mb-1 ${isUser ? "flex-row-reverse" : ""}`}>
