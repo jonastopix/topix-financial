@@ -47,6 +47,15 @@ const GroupBudget = lazy(() => import("./pages/GroupBudget"));
 const AdvisorGroupList = lazy(() => import("./pages/AdvisorGroupList"));
 const AdvisorGroupDashboard = lazy(() => import("./pages/AdvisorGroupDashboard"));
 
+// Lazy — demo routes (no auth)
+const DemoLayout = lazy(() => import("./demo/DemoLayout"));
+const DemoDashboard = lazy(() => import("./demo/DemoDashboard"));
+const DemoRapportering = lazy(() => import("./demo/DemoRapportering"));
+const DemoBudget = lazy(() => import("./demo/DemoBudget"));
+const DemoMilestones = lazy(() => import("./demo/DemoMilestones"));
+const DemoKPIs = lazy(() => import("./demo/DemoKPIs"));
+const DemoChat = lazy(() => import("./demo/DemoChat"));
+
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
