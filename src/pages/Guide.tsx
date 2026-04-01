@@ -110,7 +110,7 @@ const advisorFeatures = [
     tips: ["Fold broadcast ud øverst i member-listen", "Vælg 'Specifikke' for at målrette mod bestemte virksomheder", "Founder modtager in-app notifikation"] },
   { icon: Sparkles, title: "KPI-kommentarer", path: "/kpis", color: "text-primary", bg: "bg-primary/10",
     desc: "Pin kommentarer direkte på founders' KPI-grafer. Vises som markering på grafen og notificerer founder.",
-    tips: ["Klik på et datapunkt i grafen for at tilføje kommentar", "Kommentarer er synlige for founder og alle advisors", "Founder modtager in-app notifikation ved ny kommentar"] },
+    tips: ["Vælg virksomhed i sidebjælken → gå til KPI'er → hold musen over grafen og klik på en grøn cirkel", "Kommentarer er synlige for founder og alle advisors", "Founder modtager in-app notifikation ved ny kommentar"] },
 ];
 
 const advisorShortcuts = [
