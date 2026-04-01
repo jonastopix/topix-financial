@@ -4,11 +4,28 @@ const DEMO_EMAIL = "demo@theboardroom.dk";
 const DEMO_COMPANY_ID = "a0de0000-0000-4000-8000-000000000001";
 
 Deno.serve(async (req) => {
-  const authHeader = req.headers.get("Authorization") || "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (authHeader !== `Bearer ${serviceKey}`) {
+
+  const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
+  const authClient = createClient(url, anonKey);
+  const { data: claimsData } = await authClient.auth.getClaims(token);
+  const callerId = claimsData?.claims?.sub as string | undefined;
+  if (!callerId) {
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
       status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Check admin role
+  const adminClient = createClient(url, serviceKey);
+  const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", callerId);
+  const isAdmin = roleData?.some((r: any) => r.role === "admin");
+  if (!isAdmin) {
+    return new Response(JSON.stringify({ ok: false, error: "Admin role required" }), {
+      status: 403,
       headers: { "Content-Type": "application/json" },
     });
   }
