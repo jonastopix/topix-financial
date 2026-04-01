@@ -1022,6 +1022,12 @@ A) OMSÆTNING/INDTÆGTER:
 B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger):
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
+   LOKALER (lokaler):
+   - Inkludér ALT under "Lokaleomkostninger": husleje, el, vand, varme, rengøring
+   - Selv hvis der kun er én linje under gruppen — medtag summen
+   - Brug gruppesum-linjen "Lokaleomkostninger i alt" hvis den findes
+   - Returnér 0 eksplicit hvis gruppen er tom — returnér ALDRIG null for denne post
+
 C) DÆKNINGSBIDRAG:
    - I resultatopgørelser: POSITIVT = overskud, NEGATIVT = underskud
    - I saldobalancer: fortegnet er OMVENDT! NEGATIVT = overskud (kredit > debet), POSITIVT = underskud
