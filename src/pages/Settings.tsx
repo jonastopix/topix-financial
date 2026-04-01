@@ -567,6 +567,7 @@ const Settings = () => {
   };
 
   const handleSaveCompany = async () => {
+    if (blockIfDemo(isDemoMode, "Ændring af virksomhedsindstillinger")) return;
     if (!company) return;
 
     // Validate inputs
