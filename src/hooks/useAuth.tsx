@@ -11,6 +11,7 @@ interface AuthContext {
   loading: boolean;
   isAdvisor: boolean;
   isAdmin: boolean;
+  isDemoMode: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string; tour_completed_at: string | null } | null;
   companyId: string | null;
   companyName: string | null;
