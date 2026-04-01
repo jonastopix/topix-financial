@@ -11,7 +11,6 @@ interface AuthContext {
   loading: boolean;
   isAdvisor: boolean;
   isAdmin: boolean;
-  isDemoMode: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string; tour_completed_at: string | null } | null;
   companyId: string | null;
   companyName: string | null;
@@ -43,7 +42,6 @@ const AuthContext = createContext<AuthContext>({
   loading: true,
   isAdvisor: false,
   isAdmin: false,
-  isDemoMode: false,
   profile: null,
   companyId: null,
   companyName: null,
@@ -194,18 +192,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setOwnCompanyName(cm.companies?.name || null);
     } else {
       // No company membership — check for pending invitation
-      const { data: { session: freshSession } } = await supabase.auth.getSession();
-      const authUser = freshSession?.user;
+      const authUser = (await supabase.auth.getUser()).data.user;
       const userEmail = authUser?.email;
       const inviteTokenMeta = authUser?.user_metadata?.invite_token;
-      if (userEmail && freshSession?.access_token) {
+      if (userEmail) {
         try {
           const { data: invResult } = await supabase.functions.invoke(
             "process-pending-invitation",
-            {
-              body: { user_id: userId, invite_token: inviteTokenMeta || null },
-              headers: { Authorization: `Bearer ${freshSession.access_token}` },
-            }
+            { body: { user_id: userId, invite_token: inviteTokenMeta || null } }
           );
           if (invResult?.success) {
             setOwnCompanyId(invResult.company_id);
@@ -286,9 +280,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, isAdmin,
-      isDemoMode: user?.email === "demo@theboardroom.dk",
-      profile,
+      user, session, loading, isAdvisor, isAdmin, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,

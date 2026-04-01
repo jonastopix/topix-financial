@@ -1034,11 +1034,6 @@ C) DÆKNINGSBIDRAG:
    - → RETURNÉR I "NORMAL" KONVENTION: positivt = overskud, negativt = underskud
    - Dvs. for saldobalancer: VEND fortegnet (gang med -1)
 
-   RESULTAT FØR AFSKRIVNINGER (resultat_foer_afskrivninger):
-   - Find linjen "Resultat før afskrivninger" — dette er EBITDA
-   - Saldobalance: negativt tal = overskud → vend fortegnet → returnér positivt
-   - Dette er den mest præcise EBITDA-kilde — prioritér altid over beregnet værdi
-
 D) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
    - ⚠️ VIGTIGT: Fortegnskonventionen AFHÆNGER AF RAPPORTTYPEN ⚠️
    - I RESULTATOPGØRELSER: Aflæs DIREKTE — negativt = tab, positivt = overskud
@@ -1185,8 +1180,6 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                         admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
                         afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
                         tech_software: { type: "number", description: "IT, software, hosting" },
-                        resultat_foer_afskrivninger: { type: "number", description: "Linjen 'Resultat før afskrivninger' — EBITDA. Saldobalance: negativt tal = overskud, vend fortegnet. Returnér positivt = overskud." },
-                        resultat_foer_afskrivninger_aar: { type: "number" },
                         resultat_foer_skat: { type: "number" },
                         resultat_foer_skat_aar: { type: "number" },
                         resultat_efter_skat: { type: "number" },

@@ -47,55 +47,6 @@ interface AdvisorEntry {
   created_at?: string;
 }
 
-const DemoSetupSection = () => {
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; user_id?: string; error?: string } | null>(null);
-
-  const handleSetup = async () => {
-    setRunning(true);
-    setResult(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("setup-demo-user");
-      if (error) throw error;
-      setResult(data);
-      if (data?.ok) {
-        toast.success(`Demo-bruger oprettet: ${data.user_id}`);
-      } else {
-        toast.info(data?.error || "Ukendt fejl");
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Kunne ikke oprette demo-bruger");
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  return (
-    <section className="glass-card rounded-xl p-6 animate-fade-in">
-      <div className="flex items-center gap-2 mb-1">
-        <UserPlus className="h-4 w-4 text-primary" />
-        <h2 className="font-display font-semibold text-foreground">Demo-opsætning</h2>
-      </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        Opret demo-brugeren (demo@theboardroom.dk) og link til Nordly ApS seed-data.
-      </p>
-      <button
-        onClick={handleSetup}
-        disabled={running}
-        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-      >
-        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-        {running ? "Opretter..." : "Opret demo-bruger"}
-      </button>
-      {result && (
-        <div className={`mt-3 p-3 rounded-lg text-xs font-mono ${result.ok ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"}`}>
-          {JSON.stringify(result, null, 2)}
-        </div>
-      )}
-    </section>
-  );
-};
-
 const AdminConfig = () => {
   const { isAdvisor, isAdmin } = useAuth();
   const { branding, performanceScore, gamification, meetings, updateConfig } = useAppConfig();
@@ -807,9 +758,6 @@ const AdminConfig = () => {
             )}
           </div>
         </section>
-
-        {/* ─── Demo Setup ────────────────────────────── */}
-        <DemoSetupSection />
       </div>
     </AppLayout>
   );

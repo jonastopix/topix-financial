@@ -87,7 +87,7 @@ const advisorWorkflow = [
   { step: 1, title: "Tjek prioriteringskøen", desc: "Øverst på dashboardet ser du 'Kræver handling' og 'Klar til sparring'. Klik direkte på en virksomhed for at åbne chatten. Brug tildelingsknappen (initialer-badgen) til at fordele virksomheder mellem rådgiverne.", link: "/", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
   { step: 2, title: "Tjek rapporteringsrytmen", desc: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 til founders der ikke har uploadet. Tjek Review Queue hvis en rapport er stuck i pipeline.", link: "/admin/review-queue", icon: ClipboardList, color: "text-primary bg-primary/10" },
   { step: 3, title: "Svar i chatten", desc: "Virksomheder der afventer svar vises med rød markering. Klik direkte fra prioriteringskøen for at åbne den rette samtale.", link: "/chat", icon: MessageCircle, color: "text-chart-info bg-chart-info/10" },
-  { step: 4, title: "Kommentér på KPI-grafer", desc: "Vælg en virksomhed i sidebjælken, gå til KPI'er og hold musen over et datapunkt i grafen — klik på den grønne cirkel for at tilføje en kommentar. Founder modtager automatisk en in-app notifikation.", link: "/kpis", icon: TrendingUp, color: "text-chart-info bg-chart-info/10" },
+  { step: 4, title: "Kommentér på KPI-grafer", desc: "Når du er inde på en virksomheds KPI-side, kan du pinne kommentarer direkte på graferne. Founder modtager automatisk en notifikation.", link: "/kpis", icon: TrendingUp, color: "text-chart-info bg-chart-info/10" },
   { step: 5, title: "Send broadcast ved behov", desc: "Skal alle founders have samme besked? Brug broadcast-funktionen i member-oversigten. Du kan vælge specifikke modtagere.", link: "/members", icon: Send, color: "text-chart-warning bg-chart-warning/10" },
   { step: 6, title: "Brug 'Ingen handling nødvendig'", desc: "Når en founder skriver 'tak' eller afslutter et emne, klik 'Ingen handling' i chat-headeren. Det fjerner samtalen fra handlingskøen uden at afbryde relationen.", link: "/chat", icon: CheckCheck, color: "text-primary bg-primary/10" },
 ];
@@ -110,7 +110,7 @@ const advisorFeatures = [
     tips: ["Fold broadcast ud øverst i member-listen", "Vælg 'Specifikke' for at målrette mod bestemte virksomheder", "Founder modtager in-app notifikation"] },
   { icon: Sparkles, title: "KPI-kommentarer", path: "/kpis", color: "text-primary", bg: "bg-primary/10",
     desc: "Pin kommentarer direkte på founders' KPI-grafer. Vises som markering på grafen og notificerer founder.",
-    tips: ["Vælg virksomhed i sidebjælken → gå til KPI'er → hold musen over grafen og klik på en grøn cirkel", "Kommentarer er synlige for founder og alle advisors", "Founder modtager in-app notifikation ved ny kommentar"] },
+    tips: ["Klik på et datapunkt i grafen for at tilføje kommentar", "Kommentarer er synlige for founder og alle advisors", "Founder modtager in-app notifikation ved ny kommentar"] },
 ];
 
 const advisorShortcuts = [

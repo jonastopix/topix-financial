@@ -136,30 +136,17 @@ Deno.serve(async (req) => {
     // 6. Compute basis hash using the same function as the DB trigger
     const basisMetricsHash = await computeMetricsHash(metrics);
 
-    // 7. Re-fetch current facts row to guard against race conditions
-    //    (a re-commit during the AI call may have replaced the facts row)
-    const { data: currentFacts, error: refetchErr } = await adminClient
-      .from("financial_report_facts")
-      .select("id, committed_at, source_type")
-      .eq("company_id", company_id)
-      .eq("period_key", period_key)
-      .maybeSingle();
+    // 7. Persist commentary via service-role (adminClient already created above)
 
-    if (refetchErr || !currentFacts) {
-      console.error("[generate-financial-commentary] Facts row vanished after AI call:", refetchErr);
-      return jsonRes({ error: "Facts row no longer exists for this period" }, 409);
-    }
-
-    // 8. Persist commentary via service-role (adminClient already created above)
     const { data: commentary, error: insertErr } = await adminClient
       .from("financial_commentaries")
       .insert({
         company_id,
         period_key,
-        facts_id: currentFacts.id,
+        facts_id: facts.id,
         basis_metrics_hash: basisMetricsHash,
-        basis_committed_at: currentFacts.committed_at,
-        basis_source_type: currentFacts.source_type,
+        basis_committed_at: facts.committed_at,
+        basis_source_type: facts.source_type,
         analysis,
         is_stale: false,
         generated_by: callerId,

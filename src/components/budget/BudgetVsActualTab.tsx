@@ -56,7 +56,6 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
       const kf = factsToDanishMetrics(fact.metrics);
       if (!map[monthIdx]) map[monthIdx] = {};
 
-      if (kf.ebitda != null) map[monthIdx]["ebitda"] = kf.ebitda;
       if (kf.omsaetning != null) map[monthIdx]["omsaetning"] = Math.abs(kf.omsaetning);
       if (kf.direkte_omkostninger != null) map[monthIdx]["direkte_omkostninger"] = Math.abs(kf.direkte_omkostninger);
       if (kf.loenninger != null) map[monthIdx]["loenninger"] = Math.abs(kf.loenninger);
@@ -102,8 +101,6 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
 
   const actualEbitda = MONTHS.map((_, i) => {
     if (!actualsMap[i]) return null;
-    // Prefer directly committed EBITDA over computed value
-    if (actualsMap[i]["ebitda"] != null) return actualsMap[i]["ebitda"];
     const rev = actualsMap[i]["omsaetning"] ?? 0;
     const costs = (actualsMap[i]["direkte_omkostninger"] ?? 0)
       + (actualsMap[i]["loenninger"] ?? 0)
@@ -127,17 +124,7 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
     + (actualsMap[i]?.["lokaleomkostninger"] ?? 0)
     + (actualsMap[i]?.["administrationsomkostninger"] ?? 0), 0
   );
-  const totalActualEbitda = MONTHS.reduce((s, _, i) => {
-    if (!actualsMap[i]) return s;
-    if (actualsMap[i]["ebitda"] != null) return s + actualsMap[i]["ebitda"];
-    return s
-      + (actualsMap[i]["omsaetning"] ?? 0)
-      - (actualsMap[i]["direkte_omkostninger"] ?? 0)
-      - (actualsMap[i]["loenninger"] ?? 0)
-      - (actualsMap[i]["salgsomkostninger"] ?? 0)
-      - (actualsMap[i]["lokaleomkostninger"] ?? 0)
-      - (actualsMap[i]["administrationsomkostninger"] ?? 0);
-  }, 0);
+  const totalActualEbitda = totalActualRevenue - totalActualCosts;
 
   const chartData = MONTHS.map((month, i) => ({
     month,

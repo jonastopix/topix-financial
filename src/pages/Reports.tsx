@@ -107,7 +107,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 };
 
 const Reports = () => {
-  const { user, companyId, isAdvisor: rawAdvisor, isAdmin, isDemoMode } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isAdmin } = useAuth();
   const { viewingAsMember } = useViewMode();
   const queryClient = useQueryClient();
   const isAdvisor = rawAdvisor && !viewingAsMember;
@@ -314,11 +314,6 @@ const Reports = () => {
   const pendingScrollRef = useRef<string | null>(null);
 
   const handlePipelineComplete = async (reportId?: string) => {
-    if (isDemoMode) {
-      const { blockIfDemo } = await import("@/lib/demoGuard");
-      blockIfDemo(true, "Upload af rapporter");
-      return;
-    }
     if (reportId) {
       pendingScrollRef.current = reportId;
       setExpandedReport(reportId);

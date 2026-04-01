@@ -443,7 +443,6 @@ export type Database = {
           industry: string | null
           industry_code: string | null
           industry_label: string | null
-          is_demo: boolean | null
           logo_url: string | null
           name: string
           postal_code: string | null
@@ -467,7 +466,6 @@ export type Database = {
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
-          is_demo?: boolean | null
           logo_url?: string | null
           name?: string
           postal_code?: string | null
@@ -491,7 +489,6 @@ export type Database = {
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
-          is_demo?: boolean | null
           logo_url?: string | null
           name?: string
           postal_code?: string | null

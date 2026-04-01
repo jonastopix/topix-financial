@@ -96,9 +96,7 @@ export function canonicalPreviewToDanishInputs(
   for (const [enKey, value] of Object.entries(metricsPreview)) {
     const daKey = CANONICAL_TO_DANISH[enKey];
     if (daKey && ALL_FIELDS.includes(daKey) && value != null) {
-      inputs[daKey] = value % 1 === 0
-        ? String(Math.round(value))
-        : String(value).replace(".", ",");
+      inputs[daKey] = String(value);
     }
   }
   return inputs;
@@ -238,9 +236,6 @@ export async function saveManualOverride(params: SaveManualOverrideParams): Prom
       manual_override_at: new Date().toISOString(),
       manual_override_source: overrideSource,
       manual_override_status: status,
-      quality_signals: status === "applied"
-        ? { needs_manual_entry: false }
-        : undefined,
     } as any)
     .eq("id", reportId) as any);
 

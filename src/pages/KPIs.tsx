@@ -1,4 +1,4 @@
-import { forwardRef, useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -125,73 +125,29 @@ interface CustomDotProps {
   onClick: (periodKey: string, periodLabel: string, x: number, y: number) => void;
 }
 
-const CustomDot = forwardRef<SVGGElement, CustomDotProps>(
-  ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }, ref) => {
-    const [hovered, setHovered] = useState(false);
-    if (!payload) return null;
-
-    const handleClick = () => {
-      if (!isAdvisor) return;
-      onClick(payload.periodKey, payload.month, cx, cy);
-    };
-
-    const handlePointerEnter = () => {
-      if (!isAdvisor) return;
-      setHovered(true);
-    };
-
-    const handlePointerLeave = () => {
-      setHovered(false);
-    };
-
-    return (
-      <g ref={ref} style={{ cursor: isAdvisor ? "pointer" : "default" }}>
-        <circle
-          cx={cx}
-          cy={cy}
-          r={16}
-          fill="rgba(0,0,0,0.001)"
-          onMouseEnter={handlePointerEnter}
-          onMouseLeave={handlePointerLeave}
-          onClick={handleClick}
-          onTouchEnd={(e) => {
-            if (!isAdvisor) return;
-            e.preventDefault();
-            handleClick();
-          }}
-        />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={hasComment ? 6 : hovered ? 6 : 4}
-          fill={hasComment ? "hsl(var(--primary))" : "hsl(var(--chart-positive))"}
-          stroke={hovered && isAdvisor ? "hsl(var(--background))" : hasComment ? "hsl(var(--background))" : "none"}
-          strokeWidth={2}
-          style={{ transition: "r 0.15s ease" }}
-          onMouseEnter={handlePointerEnter}
-          onMouseLeave={handlePointerLeave}
-          onClick={handleClick}
-          onTouchEnd={(e) => {
-            if (!isAdvisor) return;
-            e.preventDefault();
-            handleClick();
-          }}
-        />
-        {hasComment && (
-          <circle
-            cx={cx + 5}
-            cy={cy - 5}
-            r={3}
-            fill="hsl(var(--primary))"
-            pointerEvents="none"
-          />
-        )}
-      </g>
-    );
-  }
-);
-
-CustomDot.displayName = "CustomDot";
+const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: CustomDotProps) => {
+  if (!payload) return null;
+  return (
+    <g>
+      <circle
+        cx={cx} cy={cy} r={hasComment ? 6 : 4}
+        fill={hasComment ? "hsl(var(--primary))" : "hsl(var(--chart-positive))"}
+        stroke={hasComment ? "hsl(var(--background))" : "none"}
+        strokeWidth={2}
+        style={{ cursor: isAdvisor ? "pointer" : "default" }}
+        onClick={() => isAdvisor && onClick(payload.periodKey, payload.month, cx, cy)}
+        onTouchEnd={(e) => {
+          if (!isAdvisor) return;
+          e.preventDefault();
+          onClick(payload.periodKey, payload.month, cx, cy);
+        }}
+      />
+      {hasComment && (
+        <circle cx={cx + 5} cy={cy - 5} r={3} fill="hsl(var(--primary))" />
+      )}
+    </g>
+  );
+};
 
 const KPIs = () => {
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
@@ -1307,7 +1263,7 @@ const KPIs = () => {
                     }}
                   />
                 )}
-                activeDot={false}
+                activeDot={{ r: 6, fill: "hsl(var(--chart-positive))", strokeWidth: 2, stroke: "hsl(var(--background))" }}
               />
             </AreaChart>
           </ResponsiveContainer>
