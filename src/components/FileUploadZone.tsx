@@ -870,10 +870,10 @@ const FileUploadZone = ({
           />
         </div>
         <p className="text-sm font-medium text-foreground mb-1">
-          {isDragging ? "Slip filen her..." : "Træk og slip filer her"}
+          {isDragging ? "Slip filen her..." : isMobile ? "Tryk for at vælge fil" : "Træk og slip filer her"}
         </p>
         <p className="text-xs text-muted-foreground">
-          eller <span className="text-primary font-medium">klik for at vælge</span>
+          {isMobile ? "PDF eller Excel fra dit regnskabsprogram" : <>eller <span className="text-primary font-medium">klik for at vælge</span></>}
         </p>
         <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-wider">
           Excel, CSV eller PDF
