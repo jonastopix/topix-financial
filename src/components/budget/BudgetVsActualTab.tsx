@@ -157,11 +157,11 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
             </h3>
             <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded-sm opacity-40" style={{ background: "#639922" }} />
+                <span className="inline-block w-3 h-3 rounded-sm opacity-50" style={{ background: "hsl(var(--chart-neutral))" }} />
                 Budget
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#378ADD" }} />
+                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-info))" }} />
                 Realiseret
               </span>
             </div>
