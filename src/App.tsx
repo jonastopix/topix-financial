@@ -149,6 +149,16 @@ const App = () => (
               <Route path="/group/chat" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
+              {/* Demo routes — no auth required */}
+              <Route path="/demo" element={<DemoLayout />}>
+                <Route index element={<Navigate to="/demo/dashboard" replace />} />
+                <Route path="dashboard" element={<DemoDashboard />} />
+                <Route path="rapportering" element={<DemoRapportering />} />
+                <Route path="budget" element={<DemoBudget />} />
+                <Route path="milestones" element={<DemoMilestones />} />
+                <Route path="kpis" element={<DemoKPIs />} />
+                <Route path="chat" element={<DemoChat />} />
+              </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
