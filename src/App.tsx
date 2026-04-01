@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import Demo from "./pages/Demo";
 
 // Lazy — member/advisor routes
 const Reports = lazy(() => import("./pages/Reports"));
@@ -103,6 +104,7 @@ const App = () => (
               </div>
             }>
             <Routes>
+              <Route path="/demo" element={<Demo />} />
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
