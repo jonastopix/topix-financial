@@ -96,7 +96,9 @@ export function canonicalPreviewToDanishInputs(
   for (const [enKey, value] of Object.entries(metricsPreview)) {
     const daKey = CANONICAL_TO_DANISH[enKey];
     if (daKey && ALL_FIELDS.includes(daKey) && value != null) {
-      inputs[daKey] = String(value);
+      inputs[daKey] = value % 1 === 0
+        ? String(Math.round(value))
+        : String(value).replace(".", ",");
     }
   }
   return inputs;
