@@ -709,7 +709,7 @@ const Settings = () => {
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-border mb-6">
+      <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
         {([
           { key: "virksomhed", label: "Virksomhed" },
           { key: "profil", label: "Profil & adgangskode" },
