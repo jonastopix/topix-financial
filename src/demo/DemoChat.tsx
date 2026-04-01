@@ -4,11 +4,13 @@ import { DEMO_CHAT } from "./demoData";
 import { toast } from "sonner";
 
 const DEMO_CHAT_EXTENDED = [
-  { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Man 13. jan 14:32", text: "Imponerende december, Morten! Omsætningsvæksten på 88% YoY er stærk. Har du set nærmere på, hvilke kanaler der driver den vækst?" },
+  { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Man 13. jan 14:32", text: "Imponerende december! Omsætningsvæksten på 88% YoY er stærk. Har du set nærmere på, hvilke kanaler der driver den vækst?" },
   { role: "user", name: "Dig", initials: "ML", time: "Man 13. jan 15:18", text: "Tak Jonas! Det er primært vores inbound-kanal der kører nu — SEO begynder at virke. Vi får ca. 3-4 kvalificerede leads om ugen organisk." },
-  { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Man 13. jan 16:05", text: "Det er guld. Organisk vækst med de marginer I har nu er præcis det vi har arbejdet hen imod. Lad os tage det op på mødet 30. april." },
+  { role: "advisor", name: "Morten Larsen", initials: "ML2", time: "Man 13. jan 15:45", text: "Stærkt! Jeg vil anbefale at I tracker CAC pr. kanal allerede nu — det bliver afgørende når I skalerer til Q2." },
+  { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Man 13. jan 16:05", text: "Enig med Morten. Organisk vækst med de marginer I har nu er præcis det vi har arbejdet hen imod. Lad os tage det op på mødet 30. april." },
   { role: "user", name: "Dig", initials: "ML", time: "Man 13. jan 16:22", text: "Perfekt. Jeg er lidt bekymret for om vi ansætter CSM for tidligt ift. likviditeten. Hvad tænker du?" },
-  { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Tir 14. jan 09:11", text: "Rigtig god bekymring at have. Med 248k i bank og stigende MRR vurderer jeg at I kan absorbere en CSM fra maj. Churn-reduktionen betaler lønnen tilbage inden for 6 måneder. Jeg sender dig et regnestykke." },
+  { role: "advisor", name: "Morten Larsen", initials: "ML2", time: "Tir 14. jan 08:50", text: "Min erfaring er at en CSM betaler sig selv hjem hvis I har 30+ kunder. Hvor mange har I nu?" },
+  { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Tir 14. jan 09:11", text: "Med 248k i bank og stigende MRR vurderer jeg at I kan absorbere en CSM fra maj. Churn-reduktionen betaler lønnen tilbage inden for 6 måneder." },
   { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Tir 14. jan 09:14", text: "Husk vi har møde tirsdag 30. april kl. 10. Agenda: Q1-status, CSM-beslutning og ny salgsstrategi. Bekræft gerne." },
   { role: "user", name: "Dig", initials: "ML", time: "Tir 14. jan 09:45", text: "Bekræftet! Glæder mig. Jeg forbereder Q1-tallene inden da." },
 ];
