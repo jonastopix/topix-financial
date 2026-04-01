@@ -237,3 +237,7 @@
 [class*="overflow-x-auto"]::-webkit-scrollbar {
   display: none;
 }
+
+.pb-safe {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
