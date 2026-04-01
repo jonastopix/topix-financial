@@ -1022,6 +1022,12 @@ A) OMSÆTNING/INDTÆGTER:
 B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger):
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
+   LOKALER (lokaler):
+   - Inkludér ALT under "Lokaleomkostninger": husleje, el, vand, varme, rengøring
+   - Selv hvis der kun er én linje under gruppen — medtag summen
+   - Brug gruppesum-linjen "Lokaleomkostninger i alt" hvis den findes
+   - Returnér 0 eksplicit hvis gruppen er tom — returnér ALDRIG null for denne post
+
 C) DÆKNINGSBIDRAG:
    - I resultatopgørelser: POSITIVT = overskud, NEGATIVT = underskud
    - I saldobalancer: fortegnet er OMVENDT! NEGATIVT = overskud (kredit > debet), POSITIVT = underskud
@@ -1170,7 +1176,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                         daekningsbidrag_aar: { type: "number" },
                         loenninger: { type: "number" },
                         marketing: { type: "number", description: "Salgs- og marketingomkostninger samlet" },
-                        lokaler: { type: "number", description: "Lokaleomkostninger samlet (husleje, el, vand, etc.)" },
+                        lokaler: { type: "number", description: "Lokaleomkostninger i alt — summér ALLE poster under gruppen (husleje, el, vand, varme, rengøring). Returnér 0 hvis gruppen er tom, ALDRIG null." },
                         admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
                         afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
                         tech_software: { type: "number", description: "IT, software, hosting" },
