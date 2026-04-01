@@ -28,7 +28,7 @@ interface AppLayoutProps {
 
 const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const isMobile = useIsMobile();
-  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor } = useAuth();
+  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor, isDemoMode } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const navigate = useNavigate();
   const { branding } = useAppConfig();
