@@ -43,6 +43,7 @@ const AuthContext = createContext<AuthContext>({
   loading: true,
   isAdvisor: false,
   isAdmin: false,
+  isDemoMode: false,
   profile: null,
   companyId: null,
   companyName: null,
