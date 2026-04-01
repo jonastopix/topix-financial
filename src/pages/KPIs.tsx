@@ -1215,8 +1215,8 @@ const KPIs = () => {
             <AreaChart data={activeMetric.history} margin={{ top: 10, right: 10, bottom: 5, left: 5 }}>
               <defs>
                 <linearGradient id="kpiGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(var(--chart-positive))" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-positive))" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
