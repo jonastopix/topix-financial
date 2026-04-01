@@ -1176,7 +1176,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                         daekningsbidrag_aar: { type: "number" },
                         loenninger: { type: "number" },
                         marketing: { type: "number", description: "Salgs- og marketingomkostninger samlet" },
-                        lokaler: { type: "number", description: "Lokaleomkostninger samlet (husleje, el, vand, etc.)" },
+                        lokaler: { type: "number", description: "Lokaleomkostninger i alt — summér ALLE poster under gruppen (husleje, el, vand, varme, rengøring). Returnér 0 hvis gruppen er tom, ALDRIG null." },
                         admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
                         afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
                         tech_software: { type: "number", description: "IT, software, hosting" },
