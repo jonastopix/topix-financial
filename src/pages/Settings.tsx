@@ -242,7 +242,7 @@ const CircleProfileSection = ({ userId }: { userId?: string }) => {
 };
 
 const Settings = () => {
-  const { user, profile, isAdvisor, isAdmin, refreshProfile } = useAuth();
+  const { user, profile, isAdvisor, isAdmin, refreshProfile, isDemoMode } = useAuth();
   const navigate = useNavigate();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leaveConfirmName, setLeaveConfirmName] = useState("");
