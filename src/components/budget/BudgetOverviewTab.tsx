@@ -103,15 +103,15 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
           </h3>
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-primary/60" />
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-info))" }} />
               Omsætning
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-positive))" }} />
               EBITDA positiv
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-destructive" />
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-negative))" }} />
               EBITDA negativ
             </span>
           </div>
@@ -138,14 +138,18 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
                 name === "omsaetning" ? "Omsætning" : "EBITDA",
               ]}
               contentStyle={{
-                background: "hsl(var(--card))",
+                background: "hsl(var(--popover))",
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
                 fontSize: "12px",
+                color: "hsl(var(--popover-foreground))",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               }}
+              labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 600 }}
+              itemStyle={{ color: "hsl(var(--muted-foreground))" }}
             />
             <ReferenceLine y={0} stroke="hsl(var(--border))" />
-            <Bar dataKey="omsaetning" fill="hsl(var(--chart-neutral))" opacity={0.6} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="omsaetning" fill="hsl(var(--chart-info))" opacity={0.75} radius={[3, 3, 0, 0]} />
             <Bar dataKey="ebitda" radius={[3, 3, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell

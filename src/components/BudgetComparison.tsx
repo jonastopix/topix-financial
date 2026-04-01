@@ -67,12 +67,16 @@ function danishPeriodToBudgetKey(period: string): string | null {
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
 const tooltipStyle = {
-  background: "hsl(var(--card))",
+  background: "hsl(var(--popover))",
   border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "hsl(var(--foreground))",
+  color: "hsl(var(--popover-foreground))",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
 };
+
+const tooltipLabelStyle = { color: "hsl(var(--popover-foreground))", fontWeight: 600 };
+const tooltipItemStyle = { color: "hsl(var(--muted-foreground))" };
 
 function variance(budget: number, actual: number, isRevenue: boolean) {
   const diff = isRevenue ? actual - budget : budget - actual;
@@ -332,7 +336,7 @@ const BudgetComparison = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               <Bar dataKey="budget" name="Budget" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="actual" name="Actual" radius={[4, 4, 0, 0]}>
@@ -539,7 +543,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+                <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 <Area type="monotone" dataKey="budgetRevenue" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
                 <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(var(--chart-positive))" strokeWidth={2.5} dot={{ fill: "hsl(var(--chart-positive))", r: 4 }} activeDot={{ r: 6 }} />
@@ -557,7 +561,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+                <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="budgetResult" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
@@ -581,7 +585,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [`${value.toLocaleString("da-DK")} DKK`, name]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={(value: number, name: string) => [`${value.toLocaleString("da-DK")} DKK`, name]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
               <Legend wrapperStyle={{ fontSize: "11px" }} />
               {COST_CATEGORIES.map((cat) => (
                 <Area
