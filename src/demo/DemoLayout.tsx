@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { LayoutDashboard, FileText, Wallet, Target, BarChart3, MessageCircle, ExternalLink } from "lucide-react";
+import { LayoutDashboard, FileText, Wallet, Target, BarChart3, BookOpen, MessageCircle, ExternalLink } from "lucide-react";
 import { DEMO_COMPANY, DEMO_USER } from "./demoData";
 
 const NAV = [
