@@ -336,7 +336,7 @@ const BudgetComparison = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               <Bar dataKey="budget" name="Budget" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="actual" name="Actual" radius={[4, 4, 0, 0]}>
