@@ -97,7 +97,7 @@ const Onboarding = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-start justify-center p-4 pt-8 pb-safe overflow-y-auto">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto bg-primary/10 rounded-full p-3 w-fit">
