@@ -929,7 +929,7 @@ const Settings = () => {
                 Logget ind som <span className="font-medium text-foreground">{user?.email}</span>
               </p>
               <button
-                onClick={async () => { await supabase.auth.signOut(); navigate("/auth", { replace: true }); }}
+                onClick={async () => { await supabase.auth.signOut(); navigate("/auth?force=true", { replace: true }); }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-secondary transition-colors"
               >
                 <LogOut className="h-4 w-4" />
