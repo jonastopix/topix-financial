@@ -709,7 +709,7 @@ const Settings = () => {
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-border mb-6">
+      <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
         {([
           { key: "virksomhed", label: "Virksomhed" },
           { key: "profil", label: "Profil & adgangskode" },
@@ -718,7 +718,7 @@ const Settings = () => {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ${
               activeTab === tab.key
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
