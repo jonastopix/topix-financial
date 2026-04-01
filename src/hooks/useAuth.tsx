@@ -11,6 +11,7 @@ interface AuthContext {
   loading: boolean;
   isAdvisor: boolean;
   isAdmin: boolean;
+  isDemoMode: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string; tour_completed_at: string | null } | null;
   companyId: string | null;
   companyName: string | null;
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContext>({
   loading: true,
   isAdvisor: false,
   isAdmin: false,
+  isDemoMode: false,
   profile: null,
   companyId: null,
   companyName: null,
@@ -280,7 +282,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, isAdmin, profile,
+      user, session, loading, isAdvisor, isAdmin,
+      isDemoMode: user?.email === "demo@theboardroom.dk",
+      profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,

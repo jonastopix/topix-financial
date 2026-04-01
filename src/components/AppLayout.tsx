@@ -1,4 +1,5 @@
 import { ReactNode, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -28,7 +29,7 @@ interface AppLayoutProps {
 
 const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const isMobile = useIsMobile();
-  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor } = useAuth();
+  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor, isDemoMode } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const navigate = useNavigate();
   const { branding } = useAppConfig();
@@ -56,6 +57,19 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   /** Sticky mobile shell: safe-area + topbar + banners as one unit */
   const mobileShell = isMobile ? (
     <div className={`sticky top-0 z-40 bg-background border-b border-border ${isStandalone ? "safe-top-pad" : ""}`}>
+      {isDemoMode && (
+        <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-xs font-medium text-amber-800">
+          <span>🎯</span>
+          <span>Du er i demovisning — Nordly ApS · Fiktive data ·{" "}
+            <button
+              onClick={async () => { await supabase.auth.signOut(); window.location.href = "https://theboardroom.dk"; }}
+              className="underline hover:no-underline font-semibold"
+            >
+              Afslut demo →
+            </button>
+          </span>
+        </div>
+      )}
       {/* Mobile topbar */}
       <div className="flex items-center gap-3 px-4 h-12">
         <button
@@ -130,6 +144,19 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   /** Desktop banners (no topbar needed — sidebar is always visible) */
   const desktopBanners = !isMobile ? (
     <>
+      {isDemoMode && (
+        <div className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-xs font-medium text-amber-800">
+          <span>🎯</span>
+          <span>Du er i demovisning — Nordly ApS · Fiktive data ·{" "}
+            <button
+              onClick={async () => { await supabase.auth.signOut(); window.location.href = "https://theboardroom.dk"; }}
+              className="underline hover:no-underline font-semibold"
+            >
+              Afslut demo →
+            </button>
+          </span>
+        </div>
+      )}
       {showAnnouncement && !isAdvisor && (
         <div className="sticky top-0 z-30 flex items-start justify-between gap-3 px-6 py-3 bg-primary/5 border-b border-primary/20">
           <div className="flex-1 min-w-0">
