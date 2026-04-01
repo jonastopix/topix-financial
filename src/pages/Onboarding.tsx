@@ -73,9 +73,10 @@ const Onboarding = () => {
     // Send welcome message right after onboarded_at is persisted (fire and forget)
     if (companyId) {
       supabase.functions.invoke("send-welcome-message", {
-        body: { companyId, memberName: fullName.trim() },
+        body: { companyId, memberName: nameToSave },
       }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
     }
+    setFullName(nameToSave);
     setStep(2);
   };
 
