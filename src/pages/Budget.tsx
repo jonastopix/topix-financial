@@ -33,7 +33,7 @@ import BudgetForecastTab from "@/components/budget/BudgetForecastTab";
 import BudgetCashflowTab from "@/components/budget/BudgetCashflowTab";
 
 const Budget = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isDemoMode } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [year, setYear] = useState(String(new Date().getFullYear()));
