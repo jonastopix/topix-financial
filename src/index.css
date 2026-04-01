@@ -241,3 +241,7 @@
 .pb-safe {
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
+
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
