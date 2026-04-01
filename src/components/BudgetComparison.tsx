@@ -542,7 +542,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                 <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 <Area type="monotone" dataKey="budgetRevenue" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
-                <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={{ fill: "hsl(160, 84%, 39%)", r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(var(--chart-positive))" strokeWidth={2.5} dot={{ fill: "hsl(var(--chart-positive))", r: 4 }} activeDot={{ r: 6 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
