@@ -1224,8 +1224,8 @@ const KPIs = () => {
               <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
               {activeMetric.targetNum > 0 && (
-                <ReferenceLine y={activeMetric.targetNum} stroke="hsl(160, 84%, 39%)" strokeDasharray="4 2"
-                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }} />
+                <ReferenceLine y={activeMetric.targetNum} stroke="hsl(var(--chart-positive))" strokeDasharray="4 2"
+                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(var(--chart-positive))", fontSize: 10 }} />
               )}
               {activeMetric.benchmark.value > 0 && (
                 <ReferenceLine y={activeMetric.benchmark.value} stroke="hsl(var(--primary))" strokeDasharray="6 3"
