@@ -41,10 +41,11 @@ const Onboarding = () => {
     if (!user) return;
 
     setSaving(true);
+    const nameToSave = fullName.trim() || (user?.email?.split("@")[0] || "Bruger");
     const { error } = await supabase
       .from("profiles")
       .update({
-        full_name: fullName.trim() || undefined,
+        full_name: nameToSave,
         onboarded_at: new Date().toISOString(),
       } as any)
       .eq("user_id", user.id);
