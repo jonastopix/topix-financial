@@ -147,7 +147,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
       {isDemoMode && (
         <div className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-xs font-medium text-amber-800">
           <span>🎯</span>
-          <span>Du er i demovisning — Nordly ApS · Fiktive data ·{" "}
+          <span>Du er i demovisning — The Boardroom ApS · Fiktive data ·{" "}
             <button
               onClick={async () => { await supabase.auth.signOut(); window.location.href = "https://theboardroom.dk"; }}
               className="underline hover:no-underline font-semibold"
