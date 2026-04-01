@@ -107,12 +107,16 @@ const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number | 
 };
 
 const tooltipStyle = {
-  background: "hsl(var(--background))",
+  background: "hsl(var(--popover))",
   border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "hsl(var(--foreground))",
+  color: "hsl(var(--popover-foreground))",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
 };
+
+const tooltipLabelStyle = { color: "hsl(var(--popover-foreground))", fontWeight: 600 };
+const tooltipItemStyle = { color: "hsl(var(--muted-foreground))" };
 
 interface CustomDotProps {
   cx?: number; cy?: number; payload?: { periodKey: string; month: string };

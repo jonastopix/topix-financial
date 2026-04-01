@@ -67,12 +67,16 @@ function danishPeriodToBudgetKey(period: string): string | null {
 const formatDKK = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
 const tooltipStyle = {
-  background: "hsl(var(--card))",
+  background: "hsl(var(--popover))",
   border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "hsl(var(--foreground))",
+  color: "hsl(var(--popover-foreground))",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
 };
+
+const tooltipLabelStyle = { color: "hsl(var(--popover-foreground))", fontWeight: 600 };
+const tooltipItemStyle = { color: "hsl(var(--muted-foreground))" };
 
 function variance(budget: number, actual: number, isRevenue: boolean) {
   const diff = isRevenue ? actual - budget : budget - actual;

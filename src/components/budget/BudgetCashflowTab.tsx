@@ -307,11 +307,15 @@ const BudgetCashflowTab = ({ rows, year, companyId }: Props) => {
                   return [`${Math.round(value / 1000)}k kr.`, labels[name] || name];
                 }}
                 contentStyle={{
-                  background: "hsl(var(--card))",
+                  background: "hsl(var(--popover))",
                   border: "1px solid hsl(var(--border))",
                   borderRadius: "8px",
                   fontSize: "12px",
+                  color: "hsl(var(--popover-foreground))",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
                 }}
+                labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 600 }}
+                itemStyle={{ color: "hsl(var(--muted-foreground))" }}
               />
               <ReferenceLine y={0} stroke="hsl(var(--border))" strokeDasharray="3 3" />
               <Area type="monotone" dataKey="actual" stroke="hsl(var(--primary))" fill="url(#cashActual)" strokeWidth={2} connectNulls={false} dot={false} />

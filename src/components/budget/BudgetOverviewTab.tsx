@@ -149,7 +149,7 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
               itemStyle={{ color: "hsl(var(--muted-foreground))" }}
             />
             <ReferenceLine y={0} stroke="hsl(var(--border))" />
-            <Bar dataKey="omsaetning" fill="hsl(var(--chart-neutral))" opacity={0.6} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="omsaetning" fill="hsl(var(--chart-info))" opacity={0.75} radius={[3, 3, 0, 0]} />
             <Bar dataKey="ebitda" radius={[3, 3, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell
