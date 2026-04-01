@@ -126,8 +126,8 @@ interface CustomDotProps {
 }
 
 const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: CustomDotProps) => {
-  if (!payload) return null;
   const [hovered, setHovered] = useState(false);
+  if (!payload) return null;
   return (
     <g style={{ cursor: isAdvisor ? "pointer" : "default" }}>
       {/* Visible dot */}
