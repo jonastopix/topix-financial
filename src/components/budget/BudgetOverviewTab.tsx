@@ -138,11 +138,15 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
                 name === "omsaetning" ? "Omsætning" : "EBITDA",
               ]}
               contentStyle={{
-                background: "hsl(var(--card))",
+                background: "hsl(var(--popover))",
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
                 fontSize: "12px",
+                color: "hsl(var(--popover-foreground))",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               }}
+              labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 600 }}
+              itemStyle={{ color: "hsl(var(--muted-foreground))" }}
             />
             <ReferenceLine y={0} stroke="hsl(var(--border))" />
             <Bar dataKey="omsaetning" fill="hsl(var(--chart-neutral))" opacity={0.6} radius={[3, 3, 0, 0]} />
