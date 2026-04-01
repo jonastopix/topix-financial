@@ -55,7 +55,11 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         const manualVal = manualMetrics?.[f];
         const existingVal = existingMetrics[f];
         const val = manualVal ?? existingVal;
-        initMetrics[f] = val != null ? String(val) : "";
+        initMetrics[f] = val != null
+          ? (typeof val === "number"
+              ? (val % 1 === 0 ? String(Math.round(val)) : String(val).replace(".", ","))
+              : String(val).replace(".", ","))
+          : "";
       }
       setMetricInputs(initMetrics);
       setReportType(report.manual_report_type || report.report_type || "andet");
