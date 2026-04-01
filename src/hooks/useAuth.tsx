@@ -282,7 +282,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, isAdmin, profile,
+      user, session, loading, isAdvisor, isAdmin,
+      isDemoMode: user?.email === "demo@theboardroom.dk",
+      profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,
