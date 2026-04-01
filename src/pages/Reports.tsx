@@ -699,7 +699,9 @@ const Reports = () => {
                 <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
                 <Tooltip
                   formatter={(value: number, name: string) => [formatDKK(value), SERIES.find(s => s.key === name)?.label || name]}
-                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
+                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
+                  labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 600 }}
+                  itemStyle={{ color: "hsl(var(--muted-foreground))" }}
                 />
                 {SERIES.map(s => {
                   const props = getLineProps(s.key, s.color);
