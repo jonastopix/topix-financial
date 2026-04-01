@@ -313,10 +313,10 @@ const BudgetCashflowTab = ({ rows, year, companyId }: Props) => {
                   fontSize: "12px",
                 }}
               />
-              <ReferenceLine y={0} stroke="rgba(128,128,128,0.3)" strokeDasharray="3 3" />
+              <ReferenceLine y={0} stroke="hsl(var(--border))" strokeDasharray="3 3" />
               <Area type="monotone" dataKey="actual" stroke="hsl(var(--primary))" fill="url(#cashActual)" strokeWidth={2} connectNulls={false} dot={false} />
               <Area type="monotone" dataKey="forecast" stroke="hsl(var(--primary))" fill="url(#cashForecast)" strokeWidth={2} strokeDasharray="6 3" connectNulls={false} dot={false} />
-              <Area type="monotone" dataKey="budget" stroke="rgba(128,128,128,0.4)" fill="none" strokeWidth={1.5} strokeDasharray="3 3" connectNulls dot={false} />
+              <Area type="monotone" dataKey="budget" stroke="hsl(var(--muted-foreground))" fill="none" strokeWidth={1.5} strokeDasharray="3 3" connectNulls dot={false} opacity={0.4} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

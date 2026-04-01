@@ -168,15 +168,15 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} barGap={2} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis
                 dataKey="month"
-                tick={{ fontSize: 11, fill: "#888" }}
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "#888" }}
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `${Math.round(v / 1000)}k`}
@@ -195,9 +195,9 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
                   fontSize: "12px",
                 }}
               />
-              <ReferenceLine y={0} stroke="rgba(128,128,128,0.3)" />
-              <Bar dataKey="budget" fill="#639922" opacity={0.4} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="actual" fill="#378ADD" radius={[3, 3, 0, 0]} />
+              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+              <Bar dataKey="budget" fill="hsl(var(--chart-neutral))" opacity={0.5} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="actual" fill="hsl(var(--chart-info))" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

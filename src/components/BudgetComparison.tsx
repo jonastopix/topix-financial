@@ -561,9 +561,9 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="budgetResult" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
-                <Line type="monotone" dataKey="actualResult" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={(props: any) => {
+                <Line type="monotone" dataKey="actualResult" name="Actual" stroke="hsl(var(--chart-positive))" strokeWidth={2.5} dot={(props: any) => {
                   const { cx, cy, value } = props;
-                  const color = value >= 0 ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 51%)";
+                  const color = value >= 0 ? "hsl(var(--chart-positive))" : "hsl(var(--chart-negative))";
                   return <circle cx={cx} cy={cy} r={4} fill={color} stroke={color} />;
                 }} activeDot={{ r: 6 }} />
               </ComposedChart>

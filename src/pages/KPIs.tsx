@@ -1259,7 +1259,7 @@ const KPIs = () => {
                     }}
                   />
                 )}
-                activeDot={{ r: 6, fill: "hsl(160, 84%, 39%)", strokeWidth: 2, stroke: "hsl(var(--background))" }}
+                activeDot={{ r: 6, fill: "hsl(var(--chart-positive))", strokeWidth: 2, stroke: "hsl(var(--background))" }}
               />
             </AreaChart>
           </ResponsiveContainer>
