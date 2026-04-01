@@ -158,6 +158,7 @@ const App = () => (
                 <Route path="budget" element={<DemoBudget />} />
                 <Route path="milestones" element={<DemoMilestones />} />
                 <Route path="kpis" element={<DemoKPIs />} />
+                <Route path="handouts" element={<DemoHandouts />} />
                 <Route path="chat" element={<DemoChat />} />
               </Route>
               <Route path="*" element={<NotFound />} />
