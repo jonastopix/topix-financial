@@ -157,6 +157,18 @@ const Onboarding = () => {
               <Button type="submit" className="w-full" disabled={saving || !fullName.trim()}>
                 {saving ? "Gemmer..." : "Fortsæt"}
               </Button>
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    navigate("/auth?force=true", { replace: true });
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                >
+                  Forkert konto? Log ud
+                </button>
+              </div>
             </form>
           ) : (
             <div className="space-y-4">
