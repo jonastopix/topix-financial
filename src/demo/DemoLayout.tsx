@@ -17,7 +17,7 @@ export default function DemoLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Demo banner */}
-      <div className="bg-amber-500/90 text-amber-950 text-center text-sm font-medium py-2 px-4 flex items-center justify-center gap-2 shrink-0">
+      <div className="bg-[hsl(var(--chart-warning))] text-foreground text-center text-sm font-medium py-2 px-4 flex items-center justify-center gap-2 shrink-0">
         <span>🎯 Demovisning — fiktive data</span>
         <span className="mx-1">·</span>
         <a
