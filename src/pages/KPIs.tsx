@@ -1243,7 +1243,7 @@ const KPIs = () => {
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke="hsl(160, 84%, 39%)"
+                stroke="hsl(var(--chart-positive))"
                 strokeWidth={2.5}
                 fill="url(#kpiGradient)"
                 name={activeMetric.label}
