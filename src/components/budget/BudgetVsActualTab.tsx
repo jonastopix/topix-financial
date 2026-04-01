@@ -102,6 +102,8 @@ export default function BudgetVsActualTab({ scenarioData, year, companyId }: Pro
 
   const actualEbitda = MONTHS.map((_, i) => {
     if (!actualsMap[i]) return null;
+    // Prefer directly committed EBITDA over computed value
+    if (actualsMap[i]["ebitda"] != null) return actualsMap[i]["ebitda"];
     const rev = actualsMap[i]["omsaetning"] ?? 0;
     const costs = (actualsMap[i]["direkte_omkostninger"] ?? 0)
       + (actualsMap[i]["loenninger"] ?? 0)
