@@ -925,9 +925,16 @@ const Settings = () => {
             {/* Konto */}
             <div className="glass-card rounded-xl p-6 animate-fade-in">
               <h2 className="font-display font-semibold text-foreground mb-3">Konto</h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mb-4">
                 Logget ind som <span className="font-medium text-foreground">{user?.email}</span>
               </p>
+              <button
+                onClick={async () => { await supabase.auth.signOut(); navigate("/auth", { replace: true }); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Log ud
+              </button>
             </div>
 
             {/* Danger zone — members only */}
