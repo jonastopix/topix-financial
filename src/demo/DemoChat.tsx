@@ -10,7 +10,7 @@ const DEMO_CHAT_EXTENDED = [
   { role: "user", name: "Dig", initials: "ML", time: "Man 13. jan 16:22", text: "Perfekt. Jeg er lidt bekymret for om vi ansætter CSM for tidligt ift. likviditeten. Hvad tænker du?" },
   { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Tir 14. jan 09:11", text: "Rigtig god bekymring at have. Med 248k i bank og stigende MRR vurderer jeg at I kan absorbere en CSM fra maj. Churn-reduktionen betaler lønnen tilbage inden for 6 måneder. Jeg sender dig et regnestykke." },
   { role: "advisor", name: "Jonas Herlev", initials: "JH", time: "Tir 14. jan 09:14", text: "Husk vi har møde tirsdag 30. april kl. 10. Agenda: Q1-status, CSM-beslutning og ny salgsstrategi. Bekræft gerne." },
-  { role: "user", name: "Morten Larsen", initials: "ML", time: "Tir 14. jan 09:45", text: "Bekræftet! Glæder mig. Jeg forbereder Q1-tallene inden da." },
+  { role: "user", name: "Dig", initials: "ML", time: "Tir 14. jan 09:45", text: "Bekræftet! Glæder mig. Jeg forbereder Q1-tallene inden da." },
 ];
 
 const AI_MESSAGES = [
