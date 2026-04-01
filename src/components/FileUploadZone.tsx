@@ -317,6 +317,7 @@ const FileUploadZone = ({
   onPipelineComplete,
 }: FileUploadZoneProps) => {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
