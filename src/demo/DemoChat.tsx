@@ -53,7 +53,7 @@ export default function DemoChat() {
   const handleSend = () => {
     if (!input.trim()) return;
     toast.info("I den rigtige platform går din besked direkte til dine rådgivere.", {
-      action: { label: "Opret konto →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
+      action: { label: "Ansøg til The Boardroom →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
     });
     setInput("");
   };
@@ -61,7 +61,7 @@ export default function DemoChat() {
   const handleAiSend = () => {
     if (!aiInput.trim()) return;
     toast.info("I den rigtige platform svarer AI'en live på baggrund af dine egne tal.", {
-      action: { label: "Opret konto →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
+      action: { label: "Ansøg til The Boardroom →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
     });
     setAiInput("");
   };
