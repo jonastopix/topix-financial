@@ -55,6 +55,7 @@ const DemoBudget = lazy(() => import("./demo/DemoBudget"));
 const DemoMilestones = lazy(() => import("./demo/DemoMilestones"));
 const DemoKPIs = lazy(() => import("./demo/DemoKPIs"));
 const DemoChat = lazy(() => import("./demo/DemoChat"));
+const DemoHandouts = lazy(() => import("./demo/DemoHandouts"));
 
 const queryClient = new QueryClient();
 
@@ -157,6 +158,7 @@ const App = () => (
                 <Route path="budget" element={<DemoBudget />} />
                 <Route path="milestones" element={<DemoMilestones />} />
                 <Route path="kpis" element={<DemoKPIs />} />
+                <Route path="handouts" element={<DemoHandouts />} />
                 <Route path="chat" element={<DemoChat />} />
               </Route>
               <Route path="*" element={<NotFound />} />

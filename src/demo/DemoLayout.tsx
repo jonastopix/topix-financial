@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { LayoutDashboard, FileText, Wallet, Target, BarChart3, MessageCircle, ExternalLink } from "lucide-react";
+import { LayoutDashboard, FileText, Wallet, Target, BarChart3, BookOpen, MessageCircle, ExternalLink } from "lucide-react";
 import { DEMO_COMPANY, DEMO_USER } from "./demoData";
 
 const NAV = [
@@ -8,6 +8,7 @@ const NAV = [
   { to: "/demo/budget", label: "Budget", icon: Wallet },
   { to: "/demo/milestones", label: "Milestones", icon: Target },
   { to: "/demo/kpis", label: "KPIs", icon: BarChart3 },
+  { to: "/demo/handouts", label: "Handouts", icon: BookOpen },
   { to: "/demo/chat", label: "Chat", icon: MessageCircle },
 ];
 
