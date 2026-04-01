@@ -139,20 +139,6 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
       <circle
         cx={cx}
         cy={cy}
-        r={16}
-        fill="hsl(var(--foreground) / 0.001)"
-        onMouseEnter={() => isAdvisor && setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onClick={handleClick}
-        onTouchEnd={(e) => {
-          if (!isAdvisor) return;
-          e.preventDefault();
-          handleClick();
-        }}
-      />
-      <circle
-        cx={cx}
-        cy={cy}
         r={hasComment ? 6 : hovered ? 6 : 4}
         fill={hasComment ? "hsl(var(--primary))" : "hsl(var(--chart-positive))"}
         stroke={hovered && isAdvisor ? "hsl(var(--background))" : hasComment ? "hsl(var(--background))" : "none"}
@@ -169,6 +155,20 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
           pointerEvents="none"
         />
       )}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={16}
+        fill="rgba(0,0,0,0.001)"
+        onMouseEnter={() => isAdvisor && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={handleClick}
+        onTouchEnd={(e) => {
+          if (!isAdvisor) return;
+          e.preventDefault();
+          handleClick();
+        }}
+      />
     </g>
   );
 };
