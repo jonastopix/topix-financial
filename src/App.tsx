@@ -55,6 +55,7 @@ const DemoBudget = lazy(() => import("./demo/DemoBudget"));
 const DemoMilestones = lazy(() => import("./demo/DemoMilestones"));
 const DemoKPIs = lazy(() => import("./demo/DemoKPIs"));
 const DemoChat = lazy(() => import("./demo/DemoChat"));
+const DemoHandouts = lazy(() => import("./demo/DemoHandouts"));
 
 const queryClient = new QueryClient();
 
