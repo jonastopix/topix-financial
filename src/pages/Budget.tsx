@@ -175,6 +175,7 @@ const Budget = () => {
   }, [user, companyId, year]);
 
   const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
+    if (isDemoMode) { const { blockIfDemo } = await import("@/lib/demoGuard"); blockIfDemo(true, "Ændring af budget"); return; }
     setSelectedTemplate(tmpl);
     const data: Record<ScenarioKey, BudgetRow[]> = {
       base: tmpl.categories.map(catToRow),

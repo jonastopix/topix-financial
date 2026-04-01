@@ -314,6 +314,11 @@ const Reports = () => {
   const pendingScrollRef = useRef<string | null>(null);
 
   const handlePipelineComplete = async (reportId?: string) => {
+    if (isDemoMode) {
+      const { blockIfDemo } = await import("@/lib/demoGuard");
+      blockIfDemo(true, "Upload af rapporter");
+      return;
+    }
     if (reportId) {
       pendingScrollRef.current = reportId;
       setExpandedReport(reportId);

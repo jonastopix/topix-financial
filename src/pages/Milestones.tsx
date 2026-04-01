@@ -94,6 +94,7 @@ const Milestones = () => {
   };
 
   const handleCreate = async () => {
+    if (isDemoMode) { const { blockIfDemo } = await import("@/lib/demoGuard"); blockIfDemo(true, "Oprettelse af milestones"); return; }
     if (!title.trim() || !user || !companyId) return;
     setSaving(true);
     const { error } = await supabase.from("milestones").insert({

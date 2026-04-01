@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { blockIfDemo } from "@/lib/demoGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
