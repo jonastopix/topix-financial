@@ -27,7 +27,7 @@ export default function DemoLayout() {
           rel="noopener noreferrer"
           className="underline underline-offset-2 font-semibold inline-flex items-center gap-1 hover:opacity-80"
         >
-          Opret gratis konto <ExternalLink className="h-3 w-3" />
+          Ansøg til The Boardroom <ExternalLink className="h-3 w-3" />
         </a>
       </div>
 

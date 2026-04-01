@@ -61,7 +61,7 @@ export default function DemoChat() {
   const handleAiSend = () => {
     if (!aiInput.trim()) return;
     toast.info("I den rigtige platform svarer AI'en live på baggrund af dine egne tal.", {
-      action: { label: "Opret konto →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
+      action: { label: "Ansøg til The Boardroom →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
     });
     setAiInput("");
   };

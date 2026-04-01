@@ -93,8 +93,8 @@ export default function DemoRapportering() {
 
       {/* Upload zone */}
       <button
-        onClick={() => toast.info("Dette er en demooplevelse — opret en konto for at uploade rigtige rapporter", {
-          action: { label: "Opret konto →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
+        onClick={() => toast.info("Dette er en demooplevelse — ansøg til The Boardroom for at uploade rigtige rapporter", {
+          action: { label: "Ansøg til The Boardroom →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
         })}
         className="w-full glass-card rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-8 flex flex-col items-center gap-3 cursor-pointer group"
       >

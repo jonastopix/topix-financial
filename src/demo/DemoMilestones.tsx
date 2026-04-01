@@ -86,8 +86,8 @@ export default function DemoMilestones() {
           <p className="text-sm text-muted-foreground mt-1">{done} af {ALL_MILESTONES.length} gennemført · Gns. fremgang {avgProgress}%</p>
         </div>
         <Button
-          onClick={() => toast.info("Opret en konto for at tilføje og tracke dine egne milestones", {
-            action: { label: "Opret konto →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
+          onClick={() => toast.info("Ansøg til The Boardroom for at tilføje og tracke dine egne milestones", {
+            action: { label: "Ansøg til The Boardroom →", onClick: () => window.open("https://theboardroom.dk", "_blank") },
           })}
         >
           <Plus className="h-4 w-4 mr-1" /> Ny milestone
