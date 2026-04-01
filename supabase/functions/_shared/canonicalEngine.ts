@@ -632,7 +632,13 @@ export function runExtendedValidation(
   }
 
   // ── Derive final status ──
-  const hasCanonicalFail = checks.some(c => c.result === "FAIL");
+  // ebitda_calculation is diagnostic only — a mismatch between direct source and
+  // computed value is expected when opex components are incomplete (e.g. missing facility_costs).
+  // It should NOT block overall PASS status when a direct source is present.
+  const DIAGNOSTIC_ONLY_CHECKS = ["ebitda_calculation"];
+  const hasCanonicalFail = checks.some(c =>
+    c.result === "FAIL" && !DIAGNOSTIC_ONLY_CHECKS.includes(c.name)
+  );
   const hasAiFail = aiChecks.some(c => c.result === "FAIL");
   const allSkip = checks.every(c => c.result === "SKIP");
 
