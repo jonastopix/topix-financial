@@ -126,15 +126,25 @@ interface CustomDotProps {
 }
 
 const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: CustomDotProps) => {
+  const [hovered, setHovered] = useState(false);
   if (!payload) return null;
   return (
-    <g>
+    <g style={{ cursor: isAdvisor ? "pointer" : "default" }}>
+      {/* Visible dot */}
       <circle
-        cx={cx} cy={cy} r={hasComment ? 6 : 4}
+        cx={cx} cy={cy}
+        r={hasComment ? 6 : hovered ? 6 : 4}
         fill={hasComment ? "hsl(var(--primary))" : "hsl(var(--chart-positive))"}
-        stroke={hasComment ? "hsl(var(--background))" : "none"}
+        stroke={hovered && isAdvisor ? "hsl(var(--background))" : hasComment ? "hsl(var(--background))" : "none"}
         strokeWidth={2}
-        style={{ cursor: isAdvisor ? "pointer" : "default" }}
+        style={{ transition: "r 0.15s ease" }}
+      />
+      {/* Invisible large hit area for easy clicking */}
+      <circle
+        cx={cx} cy={cy} r={16}
+        fill="transparent"
+        onMouseEnter={() => isAdvisor && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         onClick={() => isAdvisor && onClick(payload.periodKey, payload.month, cx, cy)}
         onTouchEnd={(e) => {
           if (!isAdvisor) return;
