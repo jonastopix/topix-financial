@@ -56,12 +56,30 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Create user
+  // Insert a dummy invitation so the handle_new_user trigger doesn't block signup
+  const { data: inviteData } = await supabase
+    .from("company_invitations")
+    .insert({
+      email: DEMO_EMAIL,
+      company_id: DEMO_COMPANY_ID,
+      invited_by: callerId,
+      status: "pending",
+    })
+    .select("token")
+    .single();
+
+  const inviteToken = inviteData?.token;
+
+  // Create user with invite_token in metadata so handle_new_user finds the invitation
   const { data: createData, error: createError } = await supabase.auth.admin.createUser({
     email: DEMO_EMAIL,
     password: demoPassword,
     email_confirm: true,
-    user_metadata: { full_name: "Sofie Lindqvist", company_name: "Nordly ApS" },
+    user_metadata: {
+      full_name: "Sofie Lindqvist",
+      company_name: "Nordly ApS",
+      ...(inviteToken ? { invite_token: inviteToken } : {}),
+    },
   });
 
   if (createError) {
