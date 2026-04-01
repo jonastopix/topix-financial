@@ -271,7 +271,7 @@ const BudgetCashflowTab = ({ rows, year, companyId }: Props) => {
               <span className="flex items-center gap-1.5">
                 <span
                   className="inline-block w-3 h-3 rounded-sm"
-                  style={{ background: "rgba(128,128,128,0.3)" }}
+                  style={{ background: "hsl(var(--muted-foreground))" }}
                 />
                 Budget
               </span>
@@ -293,9 +293,9 @@ const BudgetCashflowTab = ({ rows, year, companyId }: Props) => {
                   <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={48} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={48} />
               <Tooltip
                 formatter={(value: number | null, name: string) => {
                   if (value === null) return ["—", ""];
@@ -313,10 +313,10 @@ const BudgetCashflowTab = ({ rows, year, companyId }: Props) => {
                   fontSize: "12px",
                 }}
               />
-              <ReferenceLine y={0} stroke="rgba(128,128,128,0.3)" strokeDasharray="3 3" />
+              <ReferenceLine y={0} stroke="hsl(var(--border))" strokeDasharray="3 3" />
               <Area type="monotone" dataKey="actual" stroke="hsl(var(--primary))" fill="url(#cashActual)" strokeWidth={2} connectNulls={false} dot={false} />
               <Area type="monotone" dataKey="forecast" stroke="hsl(var(--primary))" fill="url(#cashForecast)" strokeWidth={2} strokeDasharray="6 3" connectNulls={false} dot={false} />
-              <Area type="monotone" dataKey="budget" stroke="rgba(128,128,128,0.4)" fill="none" strokeWidth={1.5} strokeDasharray="3 3" connectNulls dot={false} />
+              <Area type="monotone" dataKey="budget" stroke="hsl(var(--muted-foreground))" fill="none" strokeWidth={1.5} strokeDasharray="3 3" connectNulls dot={false} opacity={0.4} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

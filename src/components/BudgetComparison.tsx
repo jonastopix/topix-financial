@@ -339,7 +339,7 @@ const BudgetComparison = () => {
                 {visibleData.map((entry) => {
                   const isRev = entry.category === "Omsætning";
                   const fav = isRev ? entry.actual >= entry.budget : entry.actual <= entry.budget;
-                  return <Cell key={entry.category} fill={fav ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 51%)"} />;
+                  return <Cell key={entry.category} fill={fav ? "hsl(var(--chart-positive))" : "hsl(var(--chart-negative))"} />;
                 })}
               </Bar>
             </BarChart>
@@ -542,7 +542,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                 <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value.toLocaleString("da-DK")} DKK`, ""]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 <Area type="monotone" dataKey="budgetRevenue" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
-                <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={{ fill: "hsl(160, 84%, 39%)", r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="actualRevenue" name="Actual" stroke="hsl(var(--chart-positive))" strokeWidth={2.5} dot={{ fill: "hsl(var(--chart-positive))", r: 4 }} activeDot={{ r: 6 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -561,9 +561,9 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="budgetResult" name="Budget" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))" fillOpacity={0.3} strokeDasharray="5 5" />
-                <Line type="monotone" dataKey="actualResult" name="Actual" stroke="hsl(160, 84%, 39%)" strokeWidth={2.5} dot={(props: any) => {
+                <Line type="monotone" dataKey="actualResult" name="Actual" stroke="hsl(var(--chart-positive))" strokeWidth={2.5} dot={(props: any) => {
                   const { cx, cy, value } = props;
-                  const color = value >= 0 ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 51%)";
+                  const color = value >= 0 ? "hsl(var(--chart-positive))" : "hsl(var(--chart-negative))";
                   return <circle cx={cx} cy={cy} r={4} fill={color} stroke={color} />;
                 }} activeDot={{ r: 6 }} />
               </ComposedChart>

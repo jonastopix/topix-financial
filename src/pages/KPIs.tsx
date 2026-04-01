@@ -127,7 +127,7 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
     <g>
       <circle
         cx={cx} cy={cy} r={hasComment ? 6 : 4}
-        fill={hasComment ? "hsl(var(--primary))" : "hsl(160, 84%, 39%)"}
+        fill={hasComment ? "hsl(var(--primary))" : "hsl(var(--chart-positive))"}
         stroke={hasComment ? "hsl(var(--background))" : "none"}
         strokeWidth={2}
         style={{ cursor: isAdvisor ? "pointer" : "default" }}
@@ -1215,8 +1215,8 @@ const KPIs = () => {
             <AreaChart data={activeMetric.history} margin={{ top: 10, right: 10, bottom: 5, left: 5 }}>
               <defs>
                 <linearGradient id="kpiGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(var(--chart-positive))" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-positive))" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -1224,8 +1224,8 @@ const KPIs = () => {
               <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
               {activeMetric.targetNum > 0 && (
-                <ReferenceLine y={activeMetric.targetNum} stroke="hsl(160, 84%, 39%)" strokeDasharray="4 2"
-                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(160, 84%, 39%)", fontSize: 10 }} />
+                <ReferenceLine y={activeMetric.targetNum} stroke="hsl(var(--chart-positive))" strokeDasharray="4 2"
+                  label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(var(--chart-positive))", fontSize: 10 }} />
               )}
               {activeMetric.benchmark.value > 0 && (
                 <ReferenceLine y={activeMetric.benchmark.value} stroke="hsl(var(--primary))" strokeDasharray="6 3"
@@ -1243,7 +1243,7 @@ const KPIs = () => {
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke="hsl(160, 84%, 39%)"
+                stroke="hsl(var(--chart-positive))"
                 strokeWidth={2.5}
                 fill="url(#kpiGradient)"
                 name={activeMetric.label}
@@ -1259,7 +1259,7 @@ const KPIs = () => {
                     }}
                   />
                 )}
-                activeDot={{ r: 6, fill: "hsl(160, 84%, 39%)", strokeWidth: 2, stroke: "hsl(var(--background))" }}
+                activeDot={{ r: 6, fill: "hsl(var(--chart-positive))", strokeWidth: 2, stroke: "hsl(var(--background))" }}
               />
             </AreaChart>
           </ResponsiveContainer>
