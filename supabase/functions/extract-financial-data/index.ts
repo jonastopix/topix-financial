@@ -1034,6 +1034,11 @@ C) DÆKNINGSBIDRAG:
    - → RETURNÉR I "NORMAL" KONVENTION: positivt = overskud, negativt = underskud
    - Dvs. for saldobalancer: VEND fortegnet (gang med -1)
 
+   RESULTAT FØR AFSKRIVNINGER (resultat_foer_afskrivninger):
+   - Find linjen "Resultat før afskrivninger" — dette er EBITDA
+   - Saldobalance: negativt tal = overskud → vend fortegnet → returnér positivt
+   - Dette er den mest præcise EBITDA-kilde — prioritér altid over beregnet værdi
+
 D) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
    - ⚠️ VIGTIGT: Fortegnskonventionen AFHÆNGER AF RAPPORTTYPEN ⚠️
    - I RESULTATOPGØRELSER: Aflæs DIREKTE — negativt = tab, positivt = overskud
