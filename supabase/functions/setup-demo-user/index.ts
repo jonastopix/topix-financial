@@ -47,94 +47,65 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Check if user already exists
+  // Find or create user
   const { data: { users } } = await supabase.auth.admin.listUsers();
   const existing = users?.find((u: any) => u.email === DEMO_EMAIL);
+
+  let finalUserId: string;
   if (existing) {
-    return new Response(JSON.stringify({ ok: false, error: "already exists", user_id: existing.id }), {
-      status: 200, headers: jsonHeaders,
-    });
-  }
+    finalUserId = existing.id;
+  } else {
+    // Insert a dummy invitation so the handle_new_user trigger doesn't block signup
+    const { data: inviteData } = await supabase
+      .from("company_invitations")
+      .insert({
+        email: DEMO_EMAIL,
+        company_id: DEMO_COMPANY_ID,
+        invited_by: callerId,
+        status: "pending",
+      })
+      .select("token")
+      .single();
 
-  // Insert a dummy invitation so the handle_new_user trigger doesn't block signup
-  const { data: inviteData } = await supabase
-    .from("company_invitations")
-    .insert({
+    const inviteToken = inviteData?.token;
+
+    const { data: createData, error: createError } = await supabase.auth.admin.createUser({
       email: DEMO_EMAIL,
-      company_id: DEMO_COMPANY_ID,
-      invited_by: callerId,
-      status: "pending",
-    })
-    .select("token")
-    .single();
-
-  const inviteToken = inviteData?.token;
-
-  // Create user with invite_token in metadata so handle_new_user finds the invitation
-  const { data: createData, error: createError } = await supabase.auth.admin.createUser({
-    email: DEMO_EMAIL,
-    password: demoPassword,
-    email_confirm: true,
-    user_metadata: {
-      full_name: "Sofie Lindqvist",
-      company_name: "Nordly ApS",
-      ...(inviteToken ? { invite_token: inviteToken } : {}),
-    },
-  });
-
-  if (createError) {
-    return new Response(JSON.stringify({ ok: false, error: createError.message }), {
-      status: 500, headers: jsonHeaders,
+      password: demoPassword,
+      email_confirm: true,
+      user_metadata: {
+        full_name: "Sofie Lindqvist",
+        company_name: "Nordly ApS",
+        ...(inviteToken ? { invite_token: inviteToken } : {}),
+      },
     });
+
+    if (createError || !createData?.user?.id) {
+      return new Response(JSON.stringify({ ok: false, error: createError?.message ?? "Failed to create user" }), {
+        status: 500, headers: jsonHeaders,
+      });
+    }
+    finalUserId = createData.user.id;
   }
 
-  const userId = createData.user.id;
+  // Always run linking — idempotent
+  await supabase.from("company_members").upsert(
+    { company_id: DEMO_COMPANY_ID, user_id: finalUserId, role: "owner" },
+    { onConflict: "company_id,user_id" }
+  );
+  await supabase.from("profiles").upsert(
+    { user_id: finalUserId, full_name: "Sofie Lindqvist", company_name: "Nordly ApS", onboarded_at: new Date().toISOString() },
+    { onConflict: "user_id" }
+  );
 
-  // Insert company_members
-  await supabase.from("company_members").upsert({
-    company_id: DEMO_COMPANY_ID,
-    user_id: userId,
-    role: "owner",
-  }, { onConflict: "company_id,user_id" });
-
-  // Insert profile
-  await supabase.from("profiles").upsert({
-    user_id: userId,
-    full_name: "Sofie Lindqvist",
-    company_name: "Nordly ApS",
-    onboarded_at: new Date().toISOString(),
-  }, { onConflict: "user_id" });
-
-  // Update orphaned rows that reference this company but have null user_id/committed_by
   await Promise.all([
-    supabase
-      .from("financial_report_facts")
-      .update({ committed_by: userId })
-      .eq("company_id", DEMO_COMPANY_ID)
-      .is("committed_by", null),
-    supabase
-      .from("milestones")
-      .update({ user_id: userId })
-      .eq("company_id", DEMO_COMPANY_ID)
-      .is("user_id", null),
-    supabase
-      .from("kpi_targets")
-      .update({ user_id: userId })
-      .eq("company_id", DEMO_COMPANY_ID)
-      .is("user_id", null),
-    supabase
-      .from("weekly_focus")
-      .update({ user_id: userId })
-      .eq("company_id", DEMO_COMPANY_ID)
-      .is("user_id", null),
-    supabase
-      .from("pulse_checkins")
-      .update({ user_id: userId })
-      .eq("company_id", DEMO_COMPANY_ID)
-      .is("user_id", null),
+    supabase.from("financial_report_facts").update({ committed_by: finalUserId }).eq("company_id", DEMO_COMPANY_ID).is("committed_by", null),
+    supabase.from("milestones").update({ user_id: finalUserId }).eq("company_id", DEMO_COMPANY_ID).is("user_id", null),
+    supabase.from("kpi_targets").update({ user_id: finalUserId }).eq("company_id", DEMO_COMPANY_ID).is("user_id", null),
+    supabase.from("pulse_checkins").update({ user_id: finalUserId }).eq("company_id", DEMO_COMPANY_ID).is("user_id", null),
   ]);
 
-  return new Response(JSON.stringify({ ok: true, user_id: userId }), {
+  return new Response(JSON.stringify({ ok: true, user_id: finalUserId, was_existing: !!existing }), {
     status: 200, headers: jsonHeaders,
   });
 });
