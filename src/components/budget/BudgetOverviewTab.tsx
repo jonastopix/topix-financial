@@ -103,15 +103,15 @@ export default function BudgetOverviewTab({ rows, year }: Props) {
           </h3>
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-primary/60" />
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-info))" }} />
               Omsætning
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-positive))" }} />
               EBITDA positiv
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-destructive" />
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "hsl(var(--chart-negative))" }} />
               EBITDA negativ
             </span>
           </div>
