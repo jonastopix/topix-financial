@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
+  const supabase = adminClient;
   const demoPassword = Deno.env.get("DEMO_PASSWORD");
   if (!demoPassword) {
     return new Response(JSON.stringify({ ok: false, error: "DEMO_PASSWORD env var not set" }), {
