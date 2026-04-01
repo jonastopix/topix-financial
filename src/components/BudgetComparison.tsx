@@ -585,7 +585,7 @@ function TrendingChart({ periods, reportActuals, allBudgetTargets }: {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="period" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={formatDKK} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [`${value.toLocaleString("da-DK")} DKK`, name]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} formatter={(value: number, name: string) => [`${value.toLocaleString("da-DK")} DKK`, name]} labelFormatter={(label) => data.find(d => d.period === label)?.fullPeriod || label} />
               <Legend wrapperStyle={{ fontSize: "11px" }} />
               {COST_CATEGORIES.map((cat) => (
                 <Area

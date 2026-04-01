@@ -1226,7 +1226,7 @@ const KPIs = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
               {activeMetric.targetNum > 0 && (
                 <ReferenceLine y={activeMetric.targetNum} stroke="hsl(var(--chart-positive))" strokeDasharray="4 2"
                   label={{ value: `Target: ${activeMetric.target}`, position: "insideBottomRight", fill: "hsl(var(--chart-positive))", fontSize: 10 }} />
