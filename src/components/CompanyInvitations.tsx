@@ -337,11 +337,11 @@ const CompanyInvitations = () => {
                   <span
                     className="text-xs font-mono text-foreground select-all cursor-pointer hover:underline truncate"
                     onClick={() => {
-                      navigator.clipboard.writeText(`https://topix.lovable.app/auth?mode=signup&invite=${inv.token}`);
+                      navigator.clipboard.writeText(`https://app.theboardroom.dk/auth?mode=signup&invite=${inv.token}`);
                       toast.success("Link kopieret");
                     }}
                   >
-                    https://topix.lovable.app/auth?mode=signup&invite={inv.token}
+                    https://app.theboardroom.dk/auth?mode=signup&invite={inv.token}
                   </span>
                 </div>
               ))}

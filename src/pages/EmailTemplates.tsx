@@ -67,11 +67,11 @@ const EVENT_OPTIONS = [
 ];
 
 const PLATFORM_URLS: { label: string; url: string; variable: string; description: string }[] = [
-  { label: "Signup / Accept invitation", url: "https://topix.lovable.app/auth", variable: "signup_url", description: "Link til login/signup – bruges i invitationer" },
-  { label: "Rapportering", url: "https://topix.lovable.app/reports", variable: "report_url", description: "Link til rapport-upload – bruges i påmindelser" },
-  { label: "Dashboard", url: "https://topix.lovable.app/", variable: "dashboard_url", description: "Link til forsiden / dashboard" },
-  { label: "Milepæle", url: "https://topix.lovable.app/milestones", variable: "milestones_url", description: "Link til milepæle-oversigt" },
-  { label: "Budget", url: "https://topix.lovable.app/budget", variable: "budget_url", description: "Link til budget-oversigt" },
+  { label: "Signup / Accept invitation", url: "https://app.theboardroom.dk/auth", variable: "signup_url", description: "Link til login/signup – bruges i invitationer" },
+  { label: "Rapportering", url: "https://app.theboardroom.dk/reports", variable: "report_url", description: "Link til rapport-upload – bruges i påmindelser" },
+  { label: "Dashboard", url: "https://app.theboardroom.dk/", variable: "dashboard_url", description: "Link til forsiden / dashboard" },
+  { label: "Milepæle", url: "https://app.theboardroom.dk/milestones", variable: "milestones_url", description: "Link til milepæle-oversigt" },
+  { label: "Budget", url: "https://app.theboardroom.dk/budget", variable: "budget_url", description: "Link til budget-oversigt" },
 ];
 
 function replaceVariables(html: string, variables: EmailTemplate["variables"]) {
