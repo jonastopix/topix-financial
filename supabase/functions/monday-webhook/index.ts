@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           email: contactEmail,
           company_name: pulseName,
-          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
+          signup_url: `https://app.theboardroom.dk/auth?mode=signup${tokenParam}`,
         }),
       });
       const emailData = await emailRes.json();

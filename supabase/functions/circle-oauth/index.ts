@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       + "&response_type=code"
       + (params.get("state") ? "&state=" + encodeURIComponent(params.get("state")!) : "")
       + (params.get("access_token") ? "&access_token=" + encodeURIComponent(params.get("access_token")!) : "");
-    const LOGIN_URL = "https://topix.lovable.app/auth?returnUrl=" + encodeURIComponent(callbackUrl);
+    const LOGIN_URL = "https://app.theboardroom.dk/auth?returnUrl=" + encodeURIComponent(callbackUrl);
 
     if (!accessToken) return redirect(LOGIN_URL);
 

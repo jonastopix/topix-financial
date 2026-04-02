@@ -11,7 +11,7 @@ async function listAllUsers(adminSupabase: any) {
 }
 
 function getSignupUrl() {
-  const appUrl = Deno.env.get('PUBLIC_APP_URL') || Deno.env.get('APP_URL') || 'https://topix.lovable.app';
+  const appUrl = Deno.env.get('PUBLIC_APP_URL') || Deno.env.get('APP_URL') || 'https://app.theboardroom.dk';
   return `${appUrl.replace(/\/$/, '')}/auth?mode=signup`;
 }
 
