@@ -112,16 +112,12 @@ Deno.serve(async (req) => {
 
     const messageId = crypto.randomUUID();
 
-    const logPayload: Record<string, unknown> = {
+    await adminSupabase.from('email_send_log').insert({
       message_id: messageId,
+      template_name: 'invitation',
       recipient_email: email,
-      subject,
       status: 'pending',
-      is_test: false,
-    };
-    if (templateId) logPayload.template_id = templateId;
-
-    await adminSupabase.from('email_send_log').insert(logPayload);
+    });
 
     const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
       queue_name: 'transactional_emails',
