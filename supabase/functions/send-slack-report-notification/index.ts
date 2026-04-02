@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
     const appUrl =
       Deno.env.get("PUBLIC_APP_URL") ||
       Deno.env.get("APP_URL") ||
-      "https://topix.lovable.app";
+      "https://app.theboardroom.dk";
 
     const reportLink = `${appUrl}/reports?reportId=${report.id}`;
     const uploadTime = new Date(report.uploaded_at).toLocaleString("da-DK", { timeZone: "Europe/Copenhagen" });

@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     const appUrl =
       Deno.env.get("PUBLIC_APP_URL") ||
       Deno.env.get("APP_URL") ||
-      "https://topix.lovable.app";
+      "https://app.theboardroom.dk";
 
     // Deep link: opens advisor member detail with handout context
     const handoutLink = `${appUrl}/members/${handout.user_id}?handout=${handout.module}`;
