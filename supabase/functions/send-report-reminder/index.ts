@@ -200,9 +200,7 @@ Deno.serve(async (req) => {
         message_id: messageId,
         template_name: 'report-reminder',
         recipient_email: recipientEmail,
-        subject: subject,
         status: 'pending',
-        is_test: isTest ?? false,
       });
 
       const { error: enqueueError } = await supabase.rpc('enqueue_email', {
