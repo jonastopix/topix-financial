@@ -38,7 +38,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 // Configuration
 const SITE_NAME = "The Boardroom"
 const SENDER_DOMAIN = "boardroom.topix.dk"
-const ROOT_DOMAIN = "topix.dk"
+const ROOT_DOMAIN = "theboardroom.dk"
 const FROM_DOMAIN = "boardroom.topix.dk" // Domain shown in From address (may be root or sender subdomain)
 
 // Sample data for preview mode ONLY (not used in actual email sending).
