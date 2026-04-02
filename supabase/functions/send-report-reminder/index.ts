@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const emailEnabled = Deno.env.get("EMAIL_SENDING_ENABLED")?.trim().toLowerCase() === "true";
+    const emailEnabled = true;
 
     let sent = 0, skipped = 0;
 
