@@ -17,6 +17,15 @@ function isRateLimited(error: unknown): boolean {
   return error instanceof Error && error.message.includes('429')
 }
 
+// Check if an error is a forbidden (403) response, which means emails are
+// disabled for this project. Retrying won't help — move straight to DLQ.
+function isForbidden(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'status' in error) {
+    return (error as { status: number }).status === 403
+  }
+  return error instanceof Error && error.message.includes('403')
+}
+
 // Extract Retry-After seconds from a structured EmailAPIError, or default to 60s.
 function getRetryAfterSeconds(error: unknown): number {
   if (error && typeof error === 'object' && 'retryAfterSeconds' in error) {
@@ -40,6 +49,32 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
     return JSON.parse(atob(payload)) as Record<string, unknown>
   } catch {
     return null
+  }
+}
+
+// Move a message to the dead letter queue and log the reason.
+async function moveToDlq(
+  supabase: ReturnType<typeof createClient>,
+  queue: string,
+  msg: { msg_id: number; message: Record<string, unknown> },
+  reason: string
+): Promise<void> {
+  const payload = msg.message
+  await supabase.from('email_send_log').insert({
+    message_id: payload.message_id,
+    template_name: (payload.label || queue) as string,
+    recipient_email: payload.to,
+    status: 'dlq',
+    error_message: reason,
+  })
+  const { error } = await supabase.rpc('move_to_dlq', {
+    source_queue: queue,
+    dlq_name: `${queue}_dlq`,
+    message_id: msg.msg_id,
+    payload,
+  })
+  if (error) {
+    console.error('Failed to move message to DLQ', { queue, msg_id: msg.msg_id, reason, error })
   }
 }
 
@@ -102,7 +137,6 @@ Deno.serve(async (req) => {
 
   // 2. Process auth_emails first (priority), then transactional_emails
   for (const queue of ['auth_emails', 'transactional_emails']) {
-    const dlq = `${queue}_dlq`
     const { data: messages, error: readError } = await supabase.rpc('read_email_batch', {
       queue_name: queue,
       batch_size: batchSize,
@@ -174,44 +208,14 @@ Deno.serve(async (req) => {
             queued_at: payload.queued_at,
             ttl_minutes: ttlMinutes[queue],
           })
-          await supabase.from('email_send_log').insert({
-            message_id: payload.message_id,
-            template_name: payload.label || queue,
-            recipient_email: payload.to,
-            status: 'dlq',
-            error_message: `TTL exceeded (${ttlMinutes[queue]} minutes)`,
-          })
-          const { error: ttlDlqError } = await supabase.rpc('move_to_dlq', {
-            source_queue: queue,
-            dlq_name: dlq,
-            message_id: msg.msg_id,
-            payload,
-          })
-          if (ttlDlqError) {
-            console.error('Failed to move expired message to DLQ', { queue, msg_id: msg.msg_id, error: ttlDlqError })
-          }
+          await moveToDlq(supabase, queue, msg, `TTL exceeded (${ttlMinutes[queue]} minutes)`)
           continue
         }
       }
 
       // Move to DLQ if max failed send attempts reached.
       if (failedAttempts >= MAX_RETRIES) {
-        await supabase.from('email_send_log').insert({
-          message_id: payload.message_id,
-          template_name: payload.label || queue,
-          recipient_email: payload.to,
-          status: 'dlq',
-          error_message: `Max retries (${MAX_RETRIES}) exceeded (attempted ${failedAttempts} times)`,
-        })
-        const { error: retryDlqError } = await supabase.rpc('move_to_dlq', {
-          source_queue: queue,
-          dlq_name: dlq,
-          message_id: msg.msg_id,
-          payload,
-        })
-        if (retryDlqError) {
-          console.error('Failed to move max-retry message to DLQ', { queue, msg_id: msg.msg_id, error: retryDlqError })
-        }
+        await moveToDlq(supabase, queue, msg, `Max retries (${MAX_RETRIES}) exceeded (attempted ${failedAttempts} times)`)
         continue
       }
 
@@ -242,65 +246,26 @@ Deno.serve(async (req) => {
       }
 
       try {
-        // Route based on whether this is an auth email (has run_id from webhook)
-        // or a transactional email (no run_id — sent via Resend).
-        if (payload.run_id) {
-          // Auth emails: use Lovable Email API (requires valid webhook run_id)
-          await sendLovableEmail(
-            {
-              run_id: payload.run_id,
-              to: payload.to,
-              from: payload.from,
-              sender_domain: payload.sender_domain,
-              subject: payload.subject,
-              html: payload.html,
-              text: payload.text,
-              purpose: payload.purpose,
-              label: payload.label,
-              idempotency_key: payload.idempotency_key,
-              unsubscribe_token: payload.unsubscribe_token,
-              message_id: payload.message_id,
-            },
-            { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
-          )
-        } else {
-          // Transactional emails: send via Resend API
-          const resendApiKey = Deno.env.get('RESEND_API_KEY')
-          if (!resendApiKey) {
-            throw new Error('RESEND_API_KEY not configured — required for transactional emails')
-          }
-
-          const resendPayload: Record<string, unknown> = {
-            from: payload.from,
+        await sendLovableEmail(
+          {
+            run_id: payload.run_id,
             to: payload.to,
+            from: payload.from,
+            sender_domain: payload.sender_domain,
             subject: payload.subject,
             html: payload.html,
-          }
-          if (payload.text) resendPayload.text = payload.text
-          if (payload.reply_to) resendPayload.reply_to = payload.reply_to
-
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(resendPayload),
-          })
-
-          if (!resendResponse.ok) {
-            const errBody = await resendResponse.text()
-            // Map Resend 429 to our rate-limit handling
-            if (resendResponse.status === 429) {
-              const err = new Error(`Resend rate limited: ${errBody}`)
-              ;(err as any).status = 429
-              throw err
-            }
-            throw new Error(`Resend API error: ${resendResponse.status} ${errBody}`)
-          } else {
-            await resendResponse.text() // consume body
-          }
-        }
+            text: payload.text,
+            purpose: payload.purpose,
+            label: payload.label,
+            idempotency_key: payload.idempotency_key,
+            unsubscribe_token: payload.unsubscribe_token,
+            message_id: payload.message_id,
+          },
+          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
+          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
+          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
+          { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+        )
 
         // Log success
         await supabase.from('email_send_log').insert({
@@ -352,6 +317,16 @@ Deno.serve(async (req) => {
           // Stop processing — remaining messages stay in queue (VT expires, retried next cycle)
           return new Response(
             JSON.stringify({ processed: totalProcessed, stopped: 'rate_limited' }),
+            { headers: { 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // 403 means emails are disabled for this project — retrying won't help.
+        // Move straight to DLQ and stop processing the rest of the batch.
+        if (isForbidden(error)) {
+          await moveToDlq(supabase, queue, msg, 'Emails disabled for this project')
+          return new Response(
+            JSON.stringify({ processed: totalProcessed, stopped: 'emails_disabled' }),
             { headers: { 'Content-Type': 'application/json' } }
           )
         }
