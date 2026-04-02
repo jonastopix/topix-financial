@@ -295,6 +295,7 @@ const Settings = () => {
           important: prefs.important !== false,
           report_reminders: prefs.report_reminders !== false,
           monthly_digest: prefs.monthly_digest !== false,
+          pulse_reminders: prefs.pulse_reminders !== false,
         });
       }
     }
