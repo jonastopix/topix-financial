@@ -56,7 +56,7 @@ const FALLBACK_HTML = `<!DOCTYPE html>
     <div style="height:0.5px;background:#e5e7eb"></div>
     <div style="padding:16px 0;display:flex;justify-content:space-between">
       <span style="font-size:12px;color:#9ca3af">The Boardroom · topix.dk</span>
-      <a href="{{report_url}}" style="font-size:12px;color:#9ca3af;text-decoration:underline">Afmeld påmindelser</a>
+      <a href="https://topix.lovable.app/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a>
     </div>
   </div>
 </div>
