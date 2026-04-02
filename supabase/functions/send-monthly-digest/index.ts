@@ -145,6 +145,21 @@ Deno.serve(async (req) => {
     const email = userData?.user?.email;
     if (!email) continue;
 
+    // Dedup: skip if we already sent a digest to this email today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { data: alreadySent } = await adminClient
+      .from("email_send_log")
+      .select("id")
+      .eq("recipient_email", email)
+      .eq("template_name", "monthly-digest")
+      .gte("created_at", todayStart.toISOString())
+      .maybeSingle();
+    if (alreadySent) {
+      console.log(`[digest] Already sent to ${email} today, skipping`);
+      continue;
+    }
+
     const { data: profile } = await adminClient
       .from("profiles").select("full_name, notification_email_prefs").eq("user_id", userId).maybeSingle();
     const firstName = profile?.full_name?.split(" ")[0] || "dig";
