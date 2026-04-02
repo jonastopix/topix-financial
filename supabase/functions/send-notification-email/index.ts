@@ -39,9 +39,9 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   advisor_replied: "Ny besked fra din rådgiver",
   report_review_ready: "Dine tal er klar til gennemsyn",
   report_error: "Din rapport kunne ikke behandles",
-  report_committed: "Nyt commit fra dit boardroom-medlem",
+  report_committed: "Ny rapport godkendt",
   milestone_completed: "Milestone fuldført",
-  pulse_checkin_received: "Nyt pulse check-in fra dit member",
+  pulse_checkin_received: "Nyt pulse check-in modtaget",
   weekly_focus_ready: "Ugens fokus er klar",
 };
 
