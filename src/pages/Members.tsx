@@ -423,7 +423,7 @@ const Members = () => {
         body: {
           email: company.invitationEmail,
           company_name: company.name,
-          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
+          signup_url: `https://app.theboardroom.dk/auth?mode=signup${tokenParam}`,
         },
       });
       if (error) throw error;
@@ -444,7 +444,7 @@ const Members = () => {
         body: {
           email: inv.email,
           company_name: "The Boardroom",
-          signup_url: `https://topix.lovable.app/auth?mode=signup&invite=${inv.token}`,
+          signup_url: `https://app.theboardroom.dk/auth?mode=signup&invite=${inv.token}`,
         },
       });
       if (error) throw error;
@@ -699,7 +699,7 @@ const Members = () => {
         body: {
           email: standaloneEmail.trim().toLowerCase(),
           company_name: standaloneCompanyId ? companies.find(c => c.id === standaloneCompanyId)?.name || "The Boardroom" : "The Boardroom",
-          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
+          signup_url: `https://app.theboardroom.dk/auth?mode=signup${tokenParam}`,
         },
       });
       if (error) throw error;
