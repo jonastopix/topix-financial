@@ -34,6 +34,7 @@ async function sendAdvisorInvitationEmail(normalizedEmail: string, adminSupabase
     queue_name: 'transactional_emails',
     payload: {
       message_id: messageId,
+      idempotency_key: messageId,
       to: normalizedEmail,
       from: 'The Boardroom <noreply@mail.topix.dk>',
       sender_domain: 'mail.topix.dk',

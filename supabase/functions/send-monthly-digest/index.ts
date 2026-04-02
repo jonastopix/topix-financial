@@ -293,6 +293,7 @@ Deno.serve(async (req) => {
       queue_name: "transactional_emails",
       payload: {
         message_id: messageId,
+        idempotency_key: messageId,
         to: email,
         from: FROM,
         sender_domain: SENDER_DOMAIN,
