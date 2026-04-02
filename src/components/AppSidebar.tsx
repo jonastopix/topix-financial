@@ -60,6 +60,7 @@ const advisorNavItems = [
 
 const adminNavItems = [
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
+  { icon: History, label: "Email-log", path: "/admin/email-log" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
   { icon: MessageCircle, label: "Feedback", path: "/admin/feedback" },
 ];
