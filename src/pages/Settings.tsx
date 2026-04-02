@@ -253,6 +253,7 @@ const Settings = () => {
     important: true,
     report_reminders: true,
     monthly_digest: true,
+    pulse_reminders: true,
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -294,6 +295,7 @@ const Settings = () => {
           important: prefs.important !== false,
           report_reminders: prefs.report_reminders !== false,
           monthly_digest: prefs.monthly_digest !== false,
+          pulse_reminders: prefs.pulse_reminders !== false,
         });
       }
     }
@@ -1131,6 +1133,7 @@ const Settings = () => {
                     { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet, ny AI-analyse klar" },
                     { key: "report_reminders", label: "Rapport-påmindelser", desc: "Automatisk reminder hvis du ikke har uploadet inden dag 7, 15 og 20 i måneden" },
                     { key: "monthly_digest", label: "Månedlig digest", desc: "Personligt overblik den 5. i måneden med dine KPI-tal, milestones og beskeder" },
+                    { key: "pulse_reminders", label: "Pulse-påmindelser", desc: "Månedlig reminder den 10. i måneden om at udfylde dit pulse check-in" },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-start justify-between gap-4">
                       <div>
