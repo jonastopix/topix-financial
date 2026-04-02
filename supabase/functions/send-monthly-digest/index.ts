@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
 
     // Enqueue via email queue for retry safety
     const messageId = crypto.randomUUID();
+    const subject = `Dit ${currentMonthLabel}-overblik`;
 
     await adminClient.from("email_send_log").insert({
       message_id: messageId,
