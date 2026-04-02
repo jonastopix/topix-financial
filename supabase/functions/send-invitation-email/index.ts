@@ -8,7 +8,7 @@ const SENDER = 'The Boardroom <noreply@mail.topix.dk>';
 const SENDER_DOMAIN = 'mail.topix.dk';
 const VERIFIED_FROM_EMAIL = 'noreply@mail.topix.dk';
 
-const FALLBACK_SUBJECT = 'Du er inviteret til {{company_name}} på The Boardroom';
+const FALLBACK_SUBJECT = 'Du er inviteret til The Boardroom';
 const FALLBACK_HTML = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
