@@ -229,7 +229,8 @@ Deno.serve(async (req) => {
       bodyLines.push(`\nDu har ${unreadCount} ulæst${unreadCount > 1 ? "e" : ""} besked${unreadCount > 1 ? "er" : ""} fra din rådgiver.`);
     }
     if (!milestones?.length && unreadCount === 0 && !highlight) {
-      bodyLines.push("Log ind for at se din seneste status og hold momentum oppe.");
+      console.log(`[digest] Skipping ${email} — no relevant content this month`);
+      continue;
     }
 
     // Add secondary action links when multiple content types are present
