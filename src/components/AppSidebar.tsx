@@ -26,6 +26,7 @@ import {
   BookMarked,
   Heart,
   BookOpen,
+  History,
 } from "lucide-react";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -60,6 +61,7 @@ const advisorNavItems = [
 
 const adminNavItems = [
   { icon: Mail, label: "E-mail skabeloner", path: "/admin/emails" },
+  { icon: History, label: "Email-log", path: "/admin/email-log" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
   { icon: MessageCircle, label: "Feedback", path: "/admin/feedback" },
 ];

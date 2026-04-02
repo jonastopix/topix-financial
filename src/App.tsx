@@ -36,6 +36,7 @@ const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
 const ReportDebug = lazy(() => import("./pages/ReportDebug"));
 const EmailTemplates = lazy(() => import("./pages/EmailTemplates"));
+const AdminEmailLog = lazy(() => import("./pages/AdminEmailLog"));
 const BulkImport = lazy(() => import("./pages/BulkImport"));
 const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
 const AdminGroups = lazy(() => import("./pages/AdminGroups"));
@@ -134,6 +135,7 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
+              <Route path="/admin/email-log" element={<AdminRoute><AdminEmailLog /></AdminRoute>} />
               <Route path="/admin/import" element={<AdminRoute><BulkImport /></AdminRoute>} />
               <Route path="/admin/review-queue" element={<AdvisorRoute><ReportReviewQueue /></AdvisorRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
