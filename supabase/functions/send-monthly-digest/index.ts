@@ -10,7 +10,7 @@ import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SENDER_DOMAIN = "mail.topix.dk";
 const FROM = `The Boardroom <noreply@${SENDER_DOMAIN}>`;
-const APP_URL = "https://topix.lovable.app";
+const APP_URL = "https://app.theboardroom.dk";
 
 const DANISH_MONTHS = [
   "Januar","Februar","Marts","April","Maj","Juni",
