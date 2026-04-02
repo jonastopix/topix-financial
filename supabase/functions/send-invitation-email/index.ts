@@ -32,7 +32,7 @@ const FALLBACK_HTML = `<!DOCTYPE html>
     </div>
     <div style="height:0.5px;background:#e5e7eb"></div>
     <div style="padding:16px 0">
-      <span style="font-size:12px;color:#9ca3af">The Boardroom · topix.dk &nbsp;·&nbsp; Ignorer denne besked hvis du ikke forventer den.</span>
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; Ignorer denne besked hvis du ikke forventer den.</span>
     </div>
   </div>
 </div>

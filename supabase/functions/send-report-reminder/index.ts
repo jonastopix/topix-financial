@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
 
     console.log(`[send-report-reminder] Period: ${expectedPeriod} | Day: ${dayOfMonth}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
 
-    const reportUrl = "https://topix.lovable.app/reports";
+    const reportUrl = "https://app.theboardroom.dk/reports";
 
     // Urgency-specific subjects and intros
     type Urgency = "gentle" | "urgent" | "critical";
