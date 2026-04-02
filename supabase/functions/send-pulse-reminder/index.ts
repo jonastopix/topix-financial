@@ -5,7 +5,7 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const SENDER_DOMAIN = "mail.topix.dk";
 const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
 const SENDER = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
-const APP_URL = "https://topix.lovable.app";
+const APP_URL = "https://app.theboardroom.dk";
 
 function buildPulseHtml(firstName: string, companyName: string, pulseUrl: string): string {
   const logoMark = `<div style="width:28px;height:28px;background:#16a34a;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:10px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="5" height="5" rx="1" fill="white"/><rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity=".3"/></svg></div>`;
@@ -31,7 +31,7 @@ function buildPulseHtml(firstName: string, companyName: string, pulseUrl: string
     </div>
     <div style="height:0.5px;background:#e5e7eb;margin:0"></div>
     <div style="padding:16px 0;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:#9ca3af">The Boardroom · topix.dk</span>
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk</span>
       <a href="${APP_URL}/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a>
     </div>
   </div>

@@ -55,8 +55,8 @@ const FALLBACK_HTML = `<!DOCTYPE html>
     </div>
     <div style="height:0.5px;background:#e5e7eb"></div>
     <div style="padding:16px 0;display:flex;justify-content:space-between">
-      <span style="font-size:12px;color:#9ca3af">The Boardroom · topix.dk</span>
-      <a href="https://topix.lovable.app/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a>
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk</span>
+      <a href="https://app.theboardroom.dk/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a>
     </div>
   </div>
 </div>
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
 
     console.log(`[send-report-reminder] Period: ${expectedPeriod} | Day: ${dayOfMonth}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
 
-    const reportUrl = "https://topix.lovable.app/reports";
+    const reportUrl = "https://app.theboardroom.dk/reports";
 
     // Urgency-specific subjects and intros
     type Urgency = "gentle" | "urgent" | "critical";
