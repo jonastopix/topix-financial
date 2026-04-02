@@ -444,7 +444,7 @@ const Members = () => {
         body: {
           email: inv.email,
           company_name: "The Boardroom",
-          signup_url: `https://topix.lovable.app/auth?mode=signup&invite=${inv.token}`,
+          signup_url: `https://app.theboardroom.dk/auth?mode=signup&invite=${inv.token}`,
         },
       });
       if (error) throw error;
