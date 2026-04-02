@@ -191,7 +191,7 @@ const CompanyInvitations = () => {
         body: {
           email: pendingEmail,
           company_name: companyName || "Din virksomhed",
-          signup_url: `https://topix.lovable.app/auth?mode=signup${tokenParam}`,
+          signup_url: `https://app.theboardroom.dk/auth?mode=signup${tokenParam}`,
         },
       });
     } catch (err: any) {
