@@ -138,7 +138,13 @@ Deno.serve(async (req) => {
 
     if (enqueueError) {
       console.error('[send-invitation-email] Enqueue failed:', enqueueError);
-      await adminSupabase.from('email_send_log').insert({ ...logPayload, status: 'failed', error_message: 'Failed to enqueue email' });
+      await adminSupabase.from('email_send_log').insert({
+        message_id: messageId,
+        template_name: 'invitation',
+        recipient_email: email,
+        status: 'failed',
+        error_message: 'Failed to enqueue email',
+      });
       throw new Error(`Failed to enqueue email: ${JSON.stringify(enqueueError)}`);
     }
 
