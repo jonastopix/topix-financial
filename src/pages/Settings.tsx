@@ -253,6 +253,7 @@ const Settings = () => {
     important: true,
     report_reminders: true,
     monthly_digest: true,
+    pulse_reminders: true,
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [saving, setSaving] = useState(false);
