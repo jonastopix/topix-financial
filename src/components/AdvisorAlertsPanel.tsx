@@ -133,10 +133,31 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["advisor-milestone-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["advisor-milestone-actions", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["advisor-milestone-alerts"] });
       setActioningId(null);
       setNote("");
       setSnoozeDays(14);
+    },
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: async ({ milestoneId }: { milestoneId: string }) => {
+      const { error } = await (supabase as any)
+        .from("advisor_milestone_actions")
+        .upsert({
+          milestone_id: milestoneId,
+          advisor_id: user!.id,
+          actioned_by_advisor_id: user!.id,
+          actioned_at: new Date().toISOString(),
+          snoozed_until: new Date(Date.now() + 365 * 86400000).toISOString(),
+          note: "Afvist — ingen handling nødvendig",
+        }, { onConflict: "milestone_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advisor-milestone-actions", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["advisor-milestone-alerts"] });
     },
   });
 
@@ -345,10 +366,18 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
                         className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors ${isActioning ? "bg-primary/10 text-primary" : "hover:bg-secondary/60 text-muted-foreground"}`}
                         title="Kvittér og snooze"
                       >
-                        {isActioning ? <X className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-                  </div>
+                         {isActioning ? <X className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                       </button>
+                       <button
+                         onClick={() => dismissMutation.mutate({ milestoneId: alert.milestoneId })}
+                         className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                         title="Fjern — ingen handling nødvendig"
+                         disabled={dismissMutation.isPending}
+                       >
+                         <X className="h-3.5 w-3.5" />
+                       </button>
+                     </div>
+                   </div>
 
                   {snoozedIds.has(alert.milestoneId) && (() => {
                     const info = snoozedIds.get(alert.milestoneId);
