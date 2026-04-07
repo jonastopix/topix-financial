@@ -2064,6 +2064,56 @@ export type Database = {
           },
         ]
       }
+      session_bookings: {
+        Row: {
+          amount_dkk: number
+          calendly_booking_url: string | null
+          calendly_event_uri: string | null
+          company_id: string | null
+          created_at: string
+          id: string
+          status: string
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_dkk: number
+          calendly_booking_url?: string | null
+          calendly_event_uri?: string | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_session_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_dkk?: number
+          calendly_booking_url?: string | null
+          calendly_event_uri?: string | null
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_bookings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_conversation_threads: {
         Row: {
           company_id: string
