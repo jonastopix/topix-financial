@@ -77,6 +77,41 @@ export type Database = {
         }
         Relationships: []
       }
+      advisor_milestone_actions: {
+        Row: {
+          actioned_at: string
+          advisor_id: string
+          id: string
+          milestone_id: string
+          note: string | null
+          snoozed_until: string
+        }
+        Insert: {
+          actioned_at?: string
+          advisor_id: string
+          id?: string
+          milestone_id: string
+          note?: string | null
+          snoozed_until: string
+        }
+        Update: {
+          actioned_at?: string
+          advisor_id?: string
+          id?: string
+          milestone_id?: string
+          note?: string | null
+          snoozed_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_milestone_actions_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       advisor_notifications: {
         Row: {
           body: string | null
