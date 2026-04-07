@@ -59,15 +59,23 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     staleTime: 5 * 60_000,
   });
 
-  const { data: snoozedIds = new Set<string>() } = useQuery({
+  const { data: snoozedIds = new Map() } = useQuery({
     queryKey: ["advisor-milestone-actions", user?.id],
     queryFn: async () => {
       const now = new Date().toISOString();
       const { data } = await (supabase as any)
         .from("advisor_milestone_actions")
-        .select("milestone_id")
+        .select("milestone_id, snoozed_until, note, actioned_by_advisor_id, profiles:actioned_by_advisor_id(full_name)")
         .gt("snoozed_until", now);
-      return new Set<string>((data || []).map((r: any) => r.milestone_id));
+      const map = new Map<string, { snoozed_until: string; note: string | null; advisor_name: string | null }>();
+      for (const r of data || []) {
+        map.set(r.milestone_id, {
+          snoozed_until: r.snoozed_until,
+          note: r.note,
+          advisor_name: (r.profiles as any)?.full_name || null,
+        });
+      }
+      return map;
     },
     enabled: !!user,
     staleTime: 60_000,
@@ -89,8 +97,8 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
           .order("deadline", { ascending: true })
           .limit(20),
         (supabase.from("milestones")
-          .select("id, title, updated_at, company_id, companies(name)") as any)
-          .lt("updated_at", thirtyDaysAgo)
+          .select("id, title, updated_at, progress_updated_at, company_id, companies(name)") as any)
+          .or(`progress_updated_at.lt.${thirtyDaysAgo},and(progress_updated_at.is.null,updated_at.lt.${thirtyDaysAgo})`)
           .lt("progress", 100)
           .neq("status", "parked")
           .neq("status", "completed")
@@ -275,6 +283,21 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
                       </button>
                     </div>
                   </div>
+
+                  {snoozedIds.has(alert.milestoneId) && (() => {
+                    const info = snoozedIds.get(alert.milestoneId);
+                    return (
+                      <div className="px-3 pb-2 flex items-start gap-2 bg-secondary/20 rounded-b-lg">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{info?.advisor_name || "En advisor"}</span>
+                          {" kvitterede · snoozer til "}
+                          {info?.snoozed_until ? new Date(info.snoozed_until).toLocaleDateString("da-DK", { day: "numeric", month: "short" }) : ""}
+                          {info?.note && <span className="block mt-0.5 italic">"{info.note}"</span>}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {isActioning && (
                     <div className="px-3 pb-3 space-y-2">
