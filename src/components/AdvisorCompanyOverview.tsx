@@ -341,32 +341,8 @@ const AdvisorCompanyOverview = () => {
     staleTime: 30 * 60_000,
   });
 
-  const [sessionBullets, setSessionBullets] = useState<string[]>([]);
-  const [loadingSession, setLoadingSession] = useState(false);
 
-  const handleLoadSessionPrep = async () => {
-    if (!companyId || sessionBullets.length > 0) return;
-    setLoadingSession(true);
-    try {
-      const { data: respData, error } = await supabase.functions.invoke("ai-financial-feedback", {
-        body: {
-          request_type: "session_prep",
-          companyId,
-          companyContext: { name: company?.name },
-          historicalCanonical: null,
-        },
-      });
-      if (!error && respData?.session_prep) {
-        setSessionBullets(respData.session_prep);
-      } else {
-        toast.error("Kunne ikke generere session-noter");
-      }
-    } catch {
-      toast.error("Kunne ikke generere session-noter");
-    } finally {
-      setLoadingSession(false);
-    }
-  };
+
 
   if (isLoading) {
     return (
