@@ -24,6 +24,7 @@ const Budget = lazy(() => import("./pages/Budget"));
 const Handouts = lazy(() => import("./pages/Handouts"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
+const BookSession = lazy(() => import("./pages/BookSession"));
 const Members = lazy(() => import("./pages/Members"));
 const MemberDetail = lazy(() => import("./pages/MemberDetail"));
 const Guide = lazy(() => import("./pages/Guide"));
@@ -125,6 +126,7 @@ const App = () => (
               <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
               <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><ChatShell /></ProtectedRoute>} />
+              <Route path="/book-session" element={<ProtectedRoute><BookSession /></ProtectedRoute>} />
               <Route path="/pulse" element={<ProtectedRoute><PulseCheckin /></ProtectedRoute>} />
               <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
               <Route path="/guide" element={<ProtectedRoute><Guide /></ProtectedRoute>} />

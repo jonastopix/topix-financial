@@ -27,6 +27,7 @@ import {
   Heart,
   BookOpen,
   History,
+  Calendar,
 } from "lucide-react";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -47,6 +48,7 @@ const baseNavItems = [
   { icon: BookOpen, label: "Handouts", path: "/handouts" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
+  { icon: Calendar, label: "Book session", path: "/book-session", memberOnly: true },
 ];
 
 const secondaryNavItems = [
