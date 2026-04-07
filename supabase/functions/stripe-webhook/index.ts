@@ -101,6 +101,20 @@ Deno.serve(async (req) => {
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   try {
+    // Idempotency: check if we already processed this session
+    const { data: existingBooking } = await adminClient
+      .from("session_bookings")
+      .select("status, calendly_booking_url")
+      .eq("stripe_session_id", stripeSessionId)
+      .maybeSingle();
+
+    if (existingBooking?.calendly_booking_url) {
+      console.log(`[stripe-webhook] Already processed session ${stripeSessionId}, skipping`);
+      return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // Generate Calendly single-use link
     const eventTypeUri = await getCalendlyEventTypeUri(calendlyApiKey, "1to1-session-45");
     const bookingUrl = await createCalendlySingleUseLink(calendlyApiKey, eventTypeUri);
