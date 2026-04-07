@@ -56,12 +56,22 @@ Deno.serve(async (req) => {
     .eq("period_key", prevPeriodKey)
     .maybeSingle();
 
-  // 3. Get all company member user_ids to notify
+  // Get all company members (founders)
   const { data: members } = await adminClient
     .from("company_members")
     .select("user_id")
     .eq("company_id", company_id);
-  const userIds = (members || []).map((m: { user_id: string }) => m.user_id);
+  const memberUserIds = (members || []).map((m: { user_id: string }) => m.user_id);
+
+  // Also get all advisors and admins so alerts appear in their dashboard
+  const { data: advisorRoles } = await adminClient
+    .from("user_roles")
+    .select("user_id")
+    .in("role", ["advisor", "admin"]);
+  const advisorUserIds = (advisorRoles || []).map((r: { user_id: string }) => r.user_id);
+
+  // Combine and deduplicate
+  const userIds = [...new Set([...memberUserIds, ...advisorUserIds])];
 
   if (userIds.length === 0) {
     return new Response(
