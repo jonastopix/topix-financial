@@ -30,6 +30,7 @@ import {
   Trash2,
   Pencil,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -275,7 +276,8 @@ const MemberDetail = () => {
       if (!error && respData?.session_prep) {
         setSessionBullets(respData.session_prep);
       } else {
-        toast.error("Kunne ikke generere session-noter");
+        console.error("Session prep error:", error, respData);
+        toast.error(`Kunne ikke generere session-noter${error?.message ? ": " + error.message : ""}`);
       }
     } catch {
       toast.error("Kunne ikke generere session-noter");
@@ -628,10 +630,16 @@ const MemberDetail = () => {
               variant="outline"
               size="sm"
               onClick={handleLoadSessionPrep}
+              disabled={loadingSession || sessionBullets.length > 0}
               className="gap-2 shrink-0"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              Forbered session
+              {loadingSession ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Genererer...</>
+              ) : sessionBullets.length > 0 ? (
+                <><Sparkles className="h-3.5 w-3.5" />Session klar</>
+              ) : (
+                <><Sparkles className="h-3.5 w-3.5" />Forbered session</>
+              )}
             </Button>
             {/* Remove member button */}
             <AlertDialog>
