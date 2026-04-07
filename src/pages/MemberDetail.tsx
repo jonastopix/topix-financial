@@ -213,6 +213,8 @@ const MemberDetail = () => {
   });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [sessionBullets, setSessionBullets] = useState<string[]>([]);
+  const [loadingSession, setLoadingSession] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
