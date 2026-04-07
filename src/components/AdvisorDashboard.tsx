@@ -378,6 +378,11 @@ const AdvisorDashboard = () => {
         userToCompany.set(m.user_id, m.company_id);
       }
 
+      const companyToUser = new Map<string, string>();
+      for (const m of (companyMembersRes.data || []) as any[]) {
+        companyToUser.set(m.company_id, m.user_id);
+      }
+
       // company_id → active milestones[]
       const milestonesByCompany = new Map<string, MilestoneData[]>();
       for (const m of (milestonesRes.data || []) as any[]) {
@@ -860,7 +865,7 @@ const AdvisorDashboard = () => {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
-        allConversations, groupedCompanyIds,
+        allConversations, groupedCompanyIds, companyToUser,
       };
     },
     enabled: !!user,
@@ -974,23 +979,37 @@ const AdvisorDashboard = () => {
       if (groupConvId) navigate(`/chat?conversationId=${groupConvId}`);
       return;
     }
-    // Navigate to relevant page based on reason — NO company override
-    if (reason && (reason.includes("besked") || reason.includes("alert") || reason.includes("Bankovertræk") || reason.includes("Omsætning faldt"))) {
+
+    // Chat-specific reasons — navigate directly to chat
+    const isChatReason = reason && (
+      reason.includes("besked") ||
+      reason.includes("advisor_replied") ||
+      reason.includes("chat")
+    );
+    if (isChatReason) {
       const convId = getCompanyConvId(companyId);
       if (convId) {
         navigate(`/chat?conversationId=${convId}`);
         return;
       }
     }
+
+    // Report review reason — navigate to reports
     if (reason?.includes("godkendelse")) {
       navigate("/reports");
       return;
     }
-    // Default: navigate to chat if conversation exists
-    const convId = getCompanyConvId(companyId);
-    if (convId) {
-      navigate(`/chat?conversationId=${convId}`);
+
+    // Default: navigate to MemberDetail for full company overview
+    const userId = data?.companyToUser?.get(companyId);
+    if (userId) {
+      navigate(`/members/${userId}`);
+      return;
     }
+
+    // Fallback to chat if no user found
+    const convId = getCompanyConvId(companyId);
+    if (convId) navigate(`/chat?conversationId=${convId}`);
   };
 
   // Member list state
