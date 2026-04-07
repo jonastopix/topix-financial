@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
-  ChevronRight, ChevronDown, Sparkles,
+  ChevronRight, ChevronDown, Sparkles, ExternalLink,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -17,7 +17,7 @@ import {
   getEffectiveReportPeriodKey, getEffectiveKeyFigures,
   formatDKK, type ReportData,
 } from "@/lib/financialUtils";
-import { toast } from "sonner";
+
 
 
 /** Format "2026-02" → "Februar 2026" */
@@ -259,6 +259,7 @@ const AdvisorCompanyOverview = () => {
       if (!members?.length) return [];
 
       const userIds = members.map((m: any) => m.user_id);
+      const primaryMemberUserId = members[0]?.user_id ?? null;
 
       const { data } = await supabase
         .from("milestones")
@@ -267,18 +268,19 @@ const AdvisorCompanyOverview = () => {
         .eq("status", "active")
         .order("deadline", { ascending: true });
 
-      return (data || []) as {
+      return { milestones: (data || []) as {
         id: string;
         title: string;
         deadline: string | null;
         progress: number;
         status: string;
-      }[];
+      }[], primaryMemberUserId };
     },
     enabled: !!companyId,
     staleTime: 5 * 60_000,
   });
-  const milestones = milestonesData || [];
+  const milestones = (milestonesData as any)?.milestones || milestonesData || [];
+  const primaryMemberUserId = (milestonesData as any)?.primaryMemberUserId ?? null;
   const overdueMilestones = milestones.filter(m =>
     m.deadline && new Date(m.deadline) < new Date()
   );
@@ -339,32 +341,8 @@ const AdvisorCompanyOverview = () => {
     staleTime: 30 * 60_000,
   });
 
-  const [sessionBullets, setSessionBullets] = useState<string[]>([]);
-  const [loadingSession, setLoadingSession] = useState(false);
 
-  const handleLoadSessionPrep = async () => {
-    if (!companyId || sessionBullets.length > 0) return;
-    setLoadingSession(true);
-    try {
-      const { data: respData, error } = await supabase.functions.invoke("ai-financial-feedback", {
-        body: {
-          request_type: "session_prep",
-          companyId,
-          companyContext: { name: company?.name },
-          historicalCanonical: null,
-        },
-      });
-      if (!error && respData?.session_prep) {
-        setSessionBullets(respData.session_prep);
-      } else {
-        toast.error("Kunne ikke generere session-noter");
-      }
-    } catch {
-      toast.error("Kunne ikke generere session-noter");
-    } finally {
-      setLoadingSession(false);
-    }
-  };
+
 
   if (isLoading) {
     return (
@@ -392,72 +370,10 @@ const AdvisorCompanyOverview = () => {
   const handoutsTotal = handoutData?.total ?? 5;
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* ── Engagement Status Bar ── */}
-      <div className="flex items-center gap-4 px-4 py-3 bg-secondary/30 rounded-xl mb-4 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${hasReport ? "bg-primary" : "bg-muted-foreground/30"}`} />
-          <span className="text-muted-foreground">
-            {hasReport ? `Rapport: ${latestPeriodLabel}` : "Ingen rapport endnu"}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${hasPulse ? "bg-blue-500" : "bg-muted-foreground/30"}`} />
-          <span className="text-muted-foreground">
-            {hasPulse ? "Pulse udfyldt" : "Ingen pulse endnu"}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${handoutsCompleted > 0 ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
-          <span className="text-muted-foreground">
-            {handoutsCompleted}/{handoutsTotal} handouts
-          </span>
-        </div>
-      </div>
+    <div className="space-y-4 max-w-3xl">
 
-      {weeklyFocus && (
-        <div className="flex items-start gap-3 px-4 py-3 bg-primary/5 border border-primary/10 rounded-xl">
-          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">
-              AI-chef denne uge
-            </p>
-            <p className="text-xs font-medium text-foreground leading-snug">{weeklyFocus.headline}</p>
-            {weeklyFocus.summary && (
-              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">
-                {weeklyFocus.summary}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-start gap-3 px-4 py-3 bg-secondary/30 border border-border/30 rounded-xl">
-        <Sparkles className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            Forbered sessionen
-          </p>
-          {sessionBullets.length > 0 ? (
-            <ul className="space-y-1">
-              {sessionBullets.map((b, i) => (
-                <li key={i} className="text-xs text-foreground">· {b}</li>
-              ))}
-            </ul>
-          ) : (
-            <button
-              onClick={handleLoadSessionPrep}
-              disabled={loadingSession}
-              className="text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
-            >
-              {loadingSession ? "Genererer..." : "Generer session-noter →"}
-            </button>
-          )}
-        </div>
-      </div>
-      {/* ── Header ── */}
+      {/* ── Header: virksomhedsnavn + handlinger ── */}
       {isMobile ? (
-        /* Mobile: stacked header */
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <button
@@ -473,31 +389,21 @@ const AdvisorCompanyOverview = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pl-9 min-w-0">
             {company?.industry_label && <span>{company.industry_label}</span>}
-            {company?.cvr_number && (
-              <>
-                {company?.industry_label && <span>·</span>}
-                <span>CVR {company.cvr_number}</span>
-              </>
-            )}
-            {data?.assignedName && (
-              <>
-                <span>·</span>
-                <span>{data.assignedName}</span>
-              </>
+            {company?.cvr_number && <><span>·</span><span>CVR {company.cvr_number}</span></>}
+            {data?.assignedName && <><span>·</span><span>{data.assignedName}</span></>}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={toggleViewMode} className="flex-1 gap-1.5">
+              <Eye className="h-3.5 w-3.5" />Vis som virksomhed
+            </Button>
+            {primaryMemberUserId && (
+              <Button variant="outline" size="sm" onClick={() => { clearCompanyOverride(); navigate(`/members/${primaryMemberUserId}`); }} className="flex-1 gap-1.5">
+                <ExternalLink className="h-3.5 w-3.5" />Se fuldt overblik
+              </Button>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleViewMode}
-            className="w-full gap-1.5"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Vis som virksomhed
-          </Button>
         </div>
       ) : (
-        /* Desktop: original horizontal header */
         <div className="flex items-start gap-4">
           <button
             onClick={() => { clearCompanyOverride(); navigate("/"); }}
@@ -506,37 +412,56 @@ const AdvisorCompanyOverview = () => {
           >
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </button>
-
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-display font-bold text-foreground tracking-tight truncate">
               {company?.name || companyName || "Virksomhed"}
             </h1>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
               {company?.industry_label && <span>{company.industry_label}</span>}
-              {company?.cvr_number && (
-                <>
-                  {company?.industry_label && <span>·</span>}
-                  <span>CVR {company.cvr_number}</span>
-                </>
-              )}
-              {data?.assignedName && (
-                <>
-                  <span>·</span>
-                  <span>{data.assignedName}</span>
-                </>
-              )}
+              {company?.cvr_number && <><span>·</span><span>CVR {company.cvr_number}</span></>}
+              {data?.assignedName && <><span>·</span><span>{data.assignedName}</span></>}
             </div>
           </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {primaryMemberUserId && (
+              <Button variant="ghost" size="sm" onClick={() => { clearCompanyOverride(); navigate(`/members/${primaryMemberUserId}`); }} className="gap-1.5 text-muted-foreground">
+                <ExternalLink className="h-3.5 w-3.5" />Se fuldt overblik
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={toggleViewMode} className="gap-1.5">
+              <Eye className="h-3.5 w-3.5" />Vis som virksomhed
+            </Button>
+          </div>
+        </div>
+      )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleViewMode}
-            className="shrink-0 gap-1.5"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Vis som virksomhed
-          </Button>
+      {/* ── Engagement status ── */}
+      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${hasReport ? "bg-primary" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">{hasReport ? `Rapport: ${latestPeriodLabel}` : "Ingen rapport endnu"}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${hasPulse ? "bg-blue-500" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">{hasPulse ? "Pulse udfyldt" : "Ingen pulse endnu"}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full ${handoutsCompleted > 0 ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
+          <span className="text-muted-foreground">{handoutsCompleted}/{handoutsTotal} handouts</span>
+        </div>
+      </div>
+
+      {/* ── AI ugens fokus ── */}
+      {weeklyFocus && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-primary/5 border border-primary/10 rounded-xl">
+          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">AI-fokus denne uge</p>
+            <p className="text-xs font-medium text-foreground leading-snug">{weeklyFocus.headline}</p>
+            {weeklyFocus.summary && (
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">{weeklyFocus.summary}</p>
+            )}
+          </div>
         </div>
       )}
 
