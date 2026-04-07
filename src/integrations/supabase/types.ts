@@ -80,6 +80,7 @@ export type Database = {
       advisor_milestone_actions: {
         Row: {
           actioned_at: string
+          actioned_by_advisor_id: string | null
           advisor_id: string
           id: string
           milestone_id: string
@@ -88,6 +89,7 @@ export type Database = {
         }
         Insert: {
           actioned_at?: string
+          actioned_by_advisor_id?: string | null
           advisor_id: string
           id?: string
           milestone_id: string
@@ -96,6 +98,7 @@ export type Database = {
         }
         Update: {
           actioned_at?: string
+          actioned_by_advisor_id?: string | null
           advisor_id?: string
           id?: string
           milestone_id?: string
@@ -106,7 +109,7 @@ export type Database = {
           {
             foreignKeyName: "advisor_milestone_actions_milestone_id_fkey"
             columns: ["milestone_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "milestones"
             referencedColumns: ["id"]
           },
