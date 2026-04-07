@@ -48,6 +48,9 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [snoozeDays, setSnoozeDays] = useState(14);
+  const [financialActioningId, setFinancialActioningId] = useState<string | null>(null);
+  const [financialNote, setFinancialNote] = useState("");
+  const [financialSnoozeDays, setFinancialSnoozeDays] = useState(14);
 
   const { data: financialAlerts = [], isLoading } = useQuery({
     queryKey: ["advisor-alerts"],
@@ -137,6 +140,28 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     },
   });
 
+  const financialActionMutation = useMutation({
+    mutationFn: async ({ notificationId }: { notificationId: string }) => {
+      const snoozedUntil = new Date(Date.now() + financialSnoozeDays * 86400000).toISOString();
+      const { error } = await (supabase as any)
+        .from("advisor_financial_actions")
+        .upsert({
+          notification_id: notificationId,
+          actioned_by_advisor_id: user!.id,
+          actioned_at: new Date().toISOString(),
+          snoozed_until: snoozedUntil,
+          note: financialNote.trim() || null,
+        }, { onConflict: "notification_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advisor-alerts"] });
+      setFinancialActioningId(null);
+      setFinancialNote("");
+      setFinancialSnoozeDays(14);
+    },
+  });
+
   const milestoneItems: MilestoneItem[] = [];
   const seenIds = new Set<string>();
 
@@ -200,32 +225,73 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
               const cfg = TYPE_CONFIG[alert.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.alert_result_negative;
               const Icon = cfg.icon;
               return (
-                <button
-                  key={alert.id}
-                  onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/60 transition-colors text-left group"
-                >
-                  <div className={`shrink-0 h-8 w-8 rounded-lg ${cfg.bg} flex items-center justify-center`}>
-                    <Icon className={`h-4 w-4 ${cfg.color}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{alert.company_name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{alert.title}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(alert.created_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
-                      </span>
-                      {alert.seen_at ? (
-                        <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
-                          <CheckCircle2 className="h-3 w-3" /> Set
+                <div key={alert.id} className="rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-3 p-3 hover:bg-secondary/60 transition-colors">
+                    <div className={`shrink-0 h-8 w-8 rounded-lg ${cfg.bg} flex items-center justify-center`}>
+                      <Icon className={`h-4 w-4 ${cfg.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}>
+                      <p className="text-sm font-medium text-foreground truncate">{alert.company_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{alert.title}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(alert.created_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
                         </span>
-                      ) : (
-                        <span className="text-[10px] text-amber-500 font-medium">Ikke set</span>
-                      )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => onCompanyClick(alert.company_id, alert.company_name, alert.type)}
+                        className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-secondary/60 transition-colors"
+                        title="Åbn virksomhed"
+                      >
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFinancialActioningId(financialActioningId === alert.id ? null : alert.id);
+                          setFinancialNote("");
+                          setFinancialSnoozeDays(14);
+                        }}
+                        className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors ${financialActioningId === alert.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/60 text-muted-foreground"}`}
+                        title="Kvittér og snooze"
+                      >
+                        {financialActioningId === alert.id ? <X className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      </button>
                     </div>
                   </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                </button>
+                  {financialActioningId === alert.id && (
+                    <div className="px-3 pb-3 space-y-2 bg-secondary/20">
+                      <Textarea
+                        placeholder="Tilføj en note (valgfrit)..."
+                        value={financialNote}
+                        onChange={(e) => setFinancialNote(e.target.value)}
+                        className="text-xs min-h-[60px] resize-none"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground shrink-0">Snooze i</span>
+                        {[7, 14, 30].map(d => (
+                          <button
+                            key={d}
+                            onClick={() => setFinancialSnoozeDays(d)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${financialSnoozeDays === d ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}
+                          >
+                            {d} dage
+                          </button>
+                        ))}
+                        <p className="text-[10px] text-muted-foreground">Gælder for alle advisors</p>
+                        <Button
+                          size="sm"
+                          className="ml-auto h-7 text-xs"
+                          onClick={() => financialActionMutation.mutate({ notificationId: alert.id })}
+                          disabled={financialActionMutation.isPending}
+                        >
+                          {financialActionMutation.isPending ? "Gemmer..." : "Kvittér"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
