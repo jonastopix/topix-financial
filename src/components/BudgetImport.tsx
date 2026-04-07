@@ -185,7 +185,7 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
       );
 
       const { error } = await supabase.from("budget_targets").upsert(inserts, {
-        onConflict: "company_id,category,period",
+        onConflict: "company_id,user_id,category,period",
         ignoreDuplicates: false,
       });
       if (error) throw error;
