@@ -1748,6 +1748,27 @@ const CompanyChatPane = () => {
                       <p className="text-sm font-semibold text-foreground truncate">
                         {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                       </p>
+                      {activeConv?.companyName && isAdvisor && (() => {
+                        const memberId = activeConv.member_id;
+                        return memberId ? (
+                          <div className="flex items-center gap-1 mt-1">
+                            {[
+                              { label: "Overblik", path: `/members/${memberId}` },
+                              { label: "KPI'er", path: `/members/${memberId}?tab=kpis` },
+                              { label: "Milestones", path: `/members/${memberId}?tab=milestones` },
+                              { label: "Rapporter", path: `/members/${memberId}?tab=reports` },
+                            ].map(({ label, path }) => (
+                              <button
+                                key={label}
+                                onClick={() => navigate(path)}
+                                className="text-[10px] px-2 py-0.5 rounded-full bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors border border-border/30"
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null;
+                      })()}
                       {!isAdvisor && (
                        <p className="text-[10px] text-muted-foreground">
                           {advisorNamesLabel}
