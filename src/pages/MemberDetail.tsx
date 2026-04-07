@@ -29,6 +29,7 @@ import {
   Mail,
   Trash2,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -212,6 +213,8 @@ const MemberDetail = () => {
   });
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [sessionBullets, setSessionBullets] = useState<string[]>([]);
+  const [loadingSession, setLoadingSession] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
@@ -256,6 +259,30 @@ const MemberDetail = () => {
     }, 150);
     return () => clearTimeout(timer);
   }, [loading, reports]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLoadSessionPrep = async () => {
+    const cid = memberCompanyId;
+    if (!cid || sessionBullets.length > 0) return;
+    setLoadingSession(true);
+    try {
+      const { data: respData, error } = await supabase.functions.invoke("ai-financial-feedback", {
+        body: {
+          request_type: "session_prep",
+          companyId: cid,
+          companyContext: { name: companyCtx?.name },
+        },
+      });
+      if (!error && respData?.session_prep) {
+        setSessionBullets(respData.session_prep);
+      } else {
+        toast.error("Kunne ikke generere session-noter");
+      }
+    } catch {
+      toast.error("Kunne ikke generere session-noter");
+    } finally {
+      setLoadingSession(false);
+    }
+  };
 
   const handleRemoveMember = async () => {
     if (!userId) return;
@@ -597,6 +624,15 @@ const MemberDetail = () => {
                 <p className="text-[10px] text-muted-foreground uppercase">Milestones</p>
             </div>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLoadSessionPrep}
+              className="gap-2 shrink-0"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Forbered session
+            </Button>
             {/* Remove member button */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
