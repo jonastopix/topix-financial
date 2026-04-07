@@ -29,10 +29,12 @@ async function getCalendlyEventTypeUri(apiKey: string, slug: string): Promise<st
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
   });
   const data = await response.json();
+  console.log("[stripe-webhook] Calendly response status:", response.status);
+  console.log("[stripe-webhook] Calendly event types:", JSON.stringify(data?.collection?.map((e: any) => ({ slug: e.slug, uri: e.uri, name: e.name })) || data));
   const eventType = (data.collection || []).find((e: any) =>
     e.slug === slug || e.scheduling_url?.includes(slug)
   );
-  if (!eventType) throw new Error(`Calendly event type not found for slug: ${slug}`);
+  if (!eventType) throw new Error(`Calendly event type not found for slug: ${slug}. Available: ${JSON.stringify(data?.collection?.map((e: any) => e.slug))}`);
   return eventType.uri;
 }
 
