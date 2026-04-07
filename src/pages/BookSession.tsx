@@ -100,7 +100,9 @@ export default function BookSession() {
 
           {/* Jonas profil */}
           <div className="flex items-center gap-4">
-            <img src="/jonas-herlev.png" alt="Jonas Herlev" className="h-16 w-16 rounded-full object-cover" />
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xl font-bold text-primary">
+              JH
+            </div>
             <div>
               <h2 className="font-semibold text-foreground">Jonas Herlev</h2>
               <p className="text-sm text-muted-foreground">Partner & Advisor, The Boardroom</p>
