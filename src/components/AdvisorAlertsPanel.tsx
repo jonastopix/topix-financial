@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface Alert {
   id: string;
@@ -139,6 +140,10 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       setNote("");
       setSnoozeDays(14);
     },
+    onError: (error: any) => {
+      console.error("actionMutation error:", error);
+      toast.error(`Kunne ikke kvittere: ${error?.message || JSON.stringify(error)}`);
+    },
   });
 
   const dismissMutation = useMutation({
@@ -158,6 +163,10 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["advisor-milestone-actions", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["advisor-milestone-alerts"] });
+    },
+    onError: (error: any) => {
+      console.error("dismissMutation error:", error);
+      toast.error(`Kunne ikke fjerne: ${error?.message || JSON.stringify(error)}`);
     },
   });
 
