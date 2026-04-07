@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
   TrendingDown, Wallet, AlertTriangle, ChevronRight, CheckCircle2,
-  Clock, PauseCircle, Target, MessageSquare, X,
+  Clock, PauseCircle, Target, MessageSquare, X, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -142,7 +142,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     },
     onError: (error: any) => {
       console.error("actionMutation error:", error);
-      toast.error(`Kunne ikke kvittere: ${error?.message || JSON.stringify(error)}`);
+      toast.error(`Fejl: ${error?.message || JSON.stringify(error)}`);
     },
   });
 
@@ -166,7 +166,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
     },
     onError: (error: any) => {
       console.error("dismissMutation error:", error);
-      toast.error(`Kunne ikke fjerne: ${error?.message || JSON.stringify(error)}`);
+      toast.error(`Fejl: ${error?.message || JSON.stringify(error)}`);
     },
   });
 
@@ -383,7 +383,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
                          title="Fjern — ingen handling nødvendig"
                          disabled={dismissMutation.isPending}
                        >
-                         <X className="h-3.5 w-3.5" />
+                         <Trash2 className="h-3.5 w-3.5" />
                        </button>
                      </div>
                    </div>
