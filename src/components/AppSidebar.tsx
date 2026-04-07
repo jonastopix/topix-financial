@@ -333,7 +333,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
           {[
-            ...baseNavItems,
+            ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
             ...(isGroupUser && !effectiveAdvisor ? [
               { icon: Layers, label: "Koncern", path: "/group" },
               { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
