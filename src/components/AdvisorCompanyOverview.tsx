@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
-  ChevronRight, ChevronDown, Sparkles,
+  ChevronRight, ChevronDown, Sparkles, ExternalLink,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -259,6 +259,7 @@ const AdvisorCompanyOverview = () => {
       if (!members?.length) return [];
 
       const userIds = members.map((m: any) => m.user_id);
+      const primaryMemberUserId = members[0]?.user_id ?? null;
 
       const { data } = await supabase
         .from("milestones")
@@ -267,13 +268,13 @@ const AdvisorCompanyOverview = () => {
         .eq("status", "active")
         .order("deadline", { ascending: true });
 
-      return (data || []) as {
+      return { milestones: (data || []) as {
         id: string;
         title: string;
         deadline: string | null;
         progress: number;
         status: string;
-      }[];
+      }[], primaryMemberUserId };
     },
     enabled: !!companyId,
     staleTime: 5 * 60_000,
