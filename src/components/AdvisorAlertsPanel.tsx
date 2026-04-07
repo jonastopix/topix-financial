@@ -66,7 +66,6 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       const { data } = await (supabase as any)
         .from("advisor_milestone_actions")
         .select("milestone_id")
-        .eq("advisor_id", user!.id)
         .gt("snoozed_until", now);
       return new Set<string>((data || []).map((r: any) => r.milestone_id));
     },
@@ -115,10 +114,11 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
         .upsert({
           milestone_id: milestoneId,
           advisor_id: user!.id,
+          actioned_by_advisor_id: user!.id,
           actioned_at: new Date().toISOString(),
           snoozed_until: snoozedUntil,
           note: note.trim() || null,
-        }, { onConflict: "milestone_id,advisor_id" });
+        }, { onConflict: "milestone_id" });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -295,6 +295,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
                             {d} dage
                           </button>
                         ))}
+                        <p className="text-[10px] text-muted-foreground">Gælder for alle advisors</p>
                         <Button
                           size="sm"
                           className="ml-auto h-7 text-xs"
