@@ -164,6 +164,10 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       queryClient.invalidateQueries({ queryKey: ["advisor-milestone-actions", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["advisor-milestone-alerts"] });
     },
+    onError: (error: any) => {
+      console.error("dismissMutation error:", error);
+      toast.error(`Kunne ikke fjerne: ${error?.message || JSON.stringify(error)}`);
+    },
   });
 
   const financialActionMutation = useMutation({
