@@ -69,14 +69,27 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       const now = new Date().toISOString();
       const { data } = await (supabase as any)
         .from("advisor_milestone_actions")
-        .select("milestone_id, snoozed_until, note, actioned_by_advisor_id, profiles:actioned_by_advisor_id(full_name)")
+        .select("milestone_id, snoozed_until, note, actioned_by_advisor_id")
         .gt("snoozed_until", now);
+      const rows = data || [];
+      // Fetch advisor names separately since there's no FK
+      const advisorIds = [...new Set(rows.map((r: any) => r.actioned_by_advisor_id).filter(Boolean))];
+      let profileMap = new Map<string, string>();
+      if (advisorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", advisorIds as string[]);
+        for (const p of profiles || []) {
+          profileMap.set(p.user_id, p.full_name);
+        }
+      }
       const map = new Map<string, { snoozed_until: string; note: string | null; advisor_name: string | null }>();
-      for (const r of data || []) {
+      for (const r of rows) {
         map.set(r.milestone_id, {
           snoozed_until: r.snoozed_until,
           note: r.note,
-          advisor_name: (r.profiles as any)?.full_name || null,
+          advisor_name: profileMap.get(r.actioned_by_advisor_id) || null,
         });
       }
       return map;
