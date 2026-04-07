@@ -5,8 +5,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Calendar, Clock, Video, CheckCircle2, Loader2, Star } from "lucide-react";
+import { Calendar, Clock, Video, CheckCircle2, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+
+const TOPICS = [
+  { title: "Procesoptimering", desc: "Find flaskehalsene i din forretning og fjern dem" },
+  { title: "Automatisering", desc: "Hvilke opgaver kan du automatisere, og hvad skal du starte med" },
+  { title: "Fokus & prioritering", desc: "Få hjælp til at skære fra og fokusere energien der hvor det rykker mest" },
+  { title: "Fra tal til beslutning", desc: "Forstå hvad dine nøgletal faktisk fortæller dig, og hvad du skal gøre ved det" },
+];
 
 export default function BookSession() {
   const { user } = useAuth();
@@ -15,7 +22,7 @@ export default function BookSession() {
   const success = searchParams.get("success") === "true";
   const sessionId = searchParams.get("session_id");
 
-  const { data: booking, isLoading: bookingLoading } = useQuery({
+  const { data: booking } = useQuery({
     queryKey: ["session-booking", sessionId],
     queryFn: async () => {
       if (!sessionId) return null;
@@ -27,11 +34,7 @@ export default function BookSession() {
       return data;
     },
     enabled: !!sessionId && success,
-    refetchInterval: (query: any) => {
-      const d = query?.state?.data;
-      return !d?.calendly_booking_url ? 2000 : false;
-    },
-    refetchIntervalInBackground: true,
+    refetchInterval: (query) => (!query.state.data?.calendly_booking_url ? 2000 : false),
   });
 
   const handleBook = async () => {
@@ -43,7 +46,6 @@ export default function BookSession() {
       if (data?.url) window.location.href = data.url;
     } catch (err: any) {
       toast.error("Noget gik galt — prøv igen");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -61,7 +63,7 @@ export default function BookSession() {
             <p className="text-muted-foreground mb-8">
               Vi genererer dit personlige booking-link — det tager et øjeblik.
             </p>
-            {bookingLoading || !booking?.calendly_booking_url ? (
+            {!booking?.calendly_booking_url ? (
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Henter dit booking-link...
@@ -70,7 +72,7 @@ export default function BookSession() {
               <div className="space-y-4">
                 <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-4">
                   <p className="text-sm font-medium text-green-700 dark:text-green-400">Dit personlige booking-link er klar</p>
-                  <p className="text-xs text-muted-foreground mt-1">Linket kan kun bruges én gang og er sendt til din email.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Linket kan kun bruges én gang og er også sendt til din email.</p>
                 </div>
                 <a href={booking.calendly_booking_url} target="_blank" rel="noopener noreferrer">
                   <Button size="lg" className="w-full">
@@ -95,21 +97,18 @@ export default function BookSession() {
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-8">
+
+          {/* Jonas profil */}
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-              JH
-            </div>
+            <img src="/jonas-herlev.png" alt="Jonas Herlev" className="h-16 w-16 rounded-full object-cover" />
             <div>
               <h2 className="font-semibold text-foreground">Jonas Herlev</h2>
               <p className="text-sm text-muted-foreground">Partner & Advisor, The Boardroom</p>
-              <div className="flex gap-0.5 mt-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                ))}
-              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Investor · Iværksætter · Rådgiver</p>
             </div>
           </div>
 
+          {/* Session detaljer */}
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-4 rounded-xl bg-secondary/50">
               <Clock className="h-5 w-5 mx-auto mb-2 text-primary" />
@@ -128,37 +127,39 @@ export default function BookSession() {
             </div>
           </div>
 
+          {/* Sparringstemaer */}
           <div>
-            <h3 className="font-semibold text-foreground mb-3">Hvad får du?</h3>
-            {[
-              "Dybdegående gennemgang af dine tal og nøgletal",
-              "Konkrete handlingsanvisninger til din situation",
-              "Sparring på strategi, prissætning eller vækst",
-              "Opfølgning via platformen efter sessionen",
-            ].map((item) => (
-              <div key={item} className="flex items-start gap-2 mb-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-muted-foreground">{item}</p>
-              </div>
-            ))}
+            <h3 className="font-semibold text-foreground mb-3">Det kan du få sparring på</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {TOPICS.map((topic) => (
+                <div key={topic.title} className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30">
+                  <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{topic.title}</p>
+                    <p className="text-xs text-muted-foreground">{topic.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
+          {/* Pris og CTA */}
           <div className="border-t border-border pt-6">
             <div className="flex items-baseline justify-between mb-4">
               <div>
-                <p className="text-sm text-muted-foreground line-through">1.000 kr.</p>
-                <p className="text-2xl font-bold text-foreground">500 kr. <span className="text-sm font-normal text-muted-foreground">member-pris</span></p>
+                <p className="text-sm text-muted-foreground line-through">1.000 kr. ex. moms</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold text-foreground">500 kr.</p>
+                  <p className="text-sm text-muted-foreground">ex. moms · member-pris</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">Inkl. moms</p>
-                <p className="text-xs text-muted-foreground">Sikker betaling via Stripe</p>
-              </div>
+              <p className="text-xs text-muted-foreground text-right">Sikker betaling<br />via Stripe</p>
             </div>
             <Button size="lg" className="w-full" onClick={handleBook} disabled={loading}>
               {loading ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Henter betalingsside...</>
               ) : (
-                <>Book og betal — 500 kr.</>
+                <>Book og betal — 500 kr. ex. moms</>
               )}
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-3">
