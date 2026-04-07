@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface Alert {
   id: string;
@@ -138,6 +139,10 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       setActioningId(null);
       setNote("");
       setSnoozeDays(14);
+    },
+    onError: (error: any) => {
+      console.error("actionMutation error:", error);
+      toast.error(`Kunne ikke kvittere: ${error?.message || JSON.stringify(error)}`);
     },
   });
 
