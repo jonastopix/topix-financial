@@ -79,7 +79,7 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
-          .in("user_id", advisorIds);
+          .in("user_id", advisorIds as string[]);
         for (const p of profiles || []) {
           profileMap.set(p.user_id, p.full_name);
         }
