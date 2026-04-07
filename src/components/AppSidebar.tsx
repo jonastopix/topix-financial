@@ -27,6 +27,7 @@ import {
   Heart,
   BookOpen,
   History,
+  Calendar,
 } from "lucide-react";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -47,6 +48,7 @@ const baseNavItems = [
   { icon: BookOpen, label: "Handouts", path: "/handouts" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
+  { icon: Calendar, label: "Book session", path: "/book-session", memberOnly: true },
 ];
 
 const secondaryNavItems = [
@@ -331,7 +333,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
           {[
-            ...baseNavItems,
+            ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
             ...(isGroupUser && !effectiveAdvisor ? [
               { icon: Layers, label: "Koncern", path: "/group" },
               { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
