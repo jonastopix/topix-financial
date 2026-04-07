@@ -279,7 +279,8 @@ const AdvisorCompanyOverview = () => {
     enabled: !!companyId,
     staleTime: 5 * 60_000,
   });
-  const milestones = milestonesData || [];
+  const milestones = milestonesData?.milestones || milestonesData as any[] || [];
+  const primaryMemberUserId = (milestonesData as any)?.primaryMemberUserId ?? null;
   const overdueMilestones = milestones.filter(m =>
     m.deadline && new Date(m.deadline) < new Date()
   );
