@@ -641,6 +641,26 @@ const MemberDetail = () => {
                 <><Sparkles className="h-3.5 w-3.5" />Forbered session</>
               )}
             </Button>
+            {sessionBullets.length > 0 && (
+              <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">Sessionsforberedelse</p>
+                  <button
+                    onClick={() => setSessionBullets([])}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Ryd
+                  </button>
+                </div>
+                {sessionBullets.map((bullet, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0 mt-2" />
+                    <p className="text-sm text-foreground">{bullet}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             {/* Remove member button */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
