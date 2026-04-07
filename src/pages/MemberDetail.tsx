@@ -29,6 +29,7 @@ import {
   Mail,
   Trash2,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -597,6 +598,15 @@ const MemberDetail = () => {
                 <p className="text-[10px] text-muted-foreground uppercase">Milestones</p>
             </div>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLoadSessionPrep}
+              className="gap-2 shrink-0"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Forbered session
+            </Button>
             {/* Remove member button */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
