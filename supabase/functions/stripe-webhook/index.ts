@@ -25,16 +25,29 @@ async function verifyStripeSignature(payload: string, signature: string, secret:
 }
 
 async function getCalendlyEventTypeUri(apiKey: string, slug: string): Promise<string> {
-  const response = await fetch("https://api.calendly.com/event_types?count=100", {
+  // First get the current user's URI
+  const meResponse = await fetch("https://api.calendly.com/users/me", {
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+  });
+  const meData = await meResponse.json();
+  const userUri = meData?.resource?.uri;
+  const orgUri = meData?.resource?.current_organization;
+  if (!userUri) throw new Error(`Could not get Calendly user URI: ${JSON.stringify(meData)}`);
+  console.log("[stripe-webhook] Calendly user URI:", userUri);
+  console.log("[stripe-webhook] Calendly org URI:", orgUri);
+
+  // Fetch event types for this user
+  const url = `https://api.calendly.com/event_types?count=100&user=${encodeURIComponent(userUri)}`;
+  const response = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
   });
   const data = await response.json();
-  console.log("[stripe-webhook] Calendly response status:", response.status);
-  console.log("[stripe-webhook] Calendly event types:", JSON.stringify(data?.collection?.map((e: any) => ({ slug: e.slug, uri: e.uri, name: e.name })) || data));
+  console.log("[stripe-webhook] Event types:", JSON.stringify(data?.collection?.map((e: any) => ({ slug: e.slug, name: e.name }))));
+
   const eventType = (data.collection || []).find((e: any) =>
     e.slug === slug || e.scheduling_url?.includes(slug)
   );
-  if (!eventType) throw new Error(`Calendly event type not found for slug: ${slug}. Available: ${JSON.stringify(data?.collection?.map((e: any) => e.slug))}`);
+  if (!eventType) throw new Error(`Event type not found for slug: ${slug}. Available: ${JSON.stringify(data?.collection?.map((e: any) => e.slug))}`);
   return eventType.uri;
 }
 
