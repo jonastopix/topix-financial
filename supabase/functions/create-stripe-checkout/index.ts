@@ -52,6 +52,8 @@ Deno.serve(async (req) => {
       "success_url": `${APP_URL}/book-session?success=true&session_id={CHECKOUT_SESSION_ID}`,
       "cancel_url": `${APP_URL}/book-session?cancelled=true`,
       "customer_email": user.email!,
+      "automatic_tax[enabled]": "true",
+      "tax_id_collection[enabled]": "true",
       "metadata[user_id]": user.id,
       "metadata[company_id]": member?.company_id || "",
       "payment_intent_data[metadata][user_id]": user.id,
