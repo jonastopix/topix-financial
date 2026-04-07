@@ -194,7 +194,8 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
       onImportComplete(preview);
     } catch (err: any) {
       console.error("Save error:", err);
-      toast.error("Kunne ikke gemme budgettet");
+      const msg = err?.message || err?.details || err?.hint || JSON.stringify(err);
+      toast.error(`Kunne ikke gemme budgettet: ${msg}`);
     } finally {
       setSaving(false);
     }
