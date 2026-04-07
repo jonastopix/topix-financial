@@ -184,7 +184,21 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
         )
       );
 
-      const { error } = await supabase.from("budget_targets").upsert(inserts, {
+      // Deduplicate inserts: if same company_id+user_id+category+period appears multiple times,
+      // keep only the last occurrence (sum amounts for duplicate keys)
+      const insertMap = new Map<string, typeof inserts[0]>();
+      for (const row of inserts) {
+        const key = `${row.company_id}:${row.user_id}:${row.category}:${row.period}`;
+        if (insertMap.has(key)) {
+          const existing = insertMap.get(key)!;
+          insertMap.set(key, { ...existing, budget_amount: existing.budget_amount + row.budget_amount });
+        } else {
+          insertMap.set(key, row);
+        }
+      }
+      const dedupedInserts = Array.from(insertMap.values());
+
+      const { error } = await supabase.from("budget_targets").upsert(dedupedInserts, {
         onConflict: "company_id,user_id,category,period",
         ignoreDuplicates: false,
       });
