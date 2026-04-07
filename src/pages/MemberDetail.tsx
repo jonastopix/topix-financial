@@ -242,6 +242,14 @@ const MemberDetail = () => {
     if (searchParams.has("handout") || searchParams.has("reportId")) {
       setSearchParams({}, { replace: true });
     }
+
+    const section = searchParams.get("section");
+    if (section) {
+      setTimeout(() => {
+        const el = document.getElementById(`section-${section}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 400);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to and highlight deep-linked report after data loads
@@ -641,6 +649,7 @@ const MemberDetail = () => {
                 <><Sparkles className="h-3.5 w-3.5" />Forbered session</>
               )}
             </Button>
+            <div id="section-session">
             {sessionBullets.length > 0 && (
               <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
                 <div className="flex items-center gap-2 mb-3">
@@ -661,6 +670,7 @@ const MemberDetail = () => {
                 ))}
               </div>
             )}
+            </div>
             {/* Remove member button */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -897,7 +907,7 @@ const MemberDetail = () => {
           )}
 
           {/* Milestones section */}
-          <div className="mb-8">
+          <div className="mb-8" id="section-milestones">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               Milestones
@@ -979,7 +989,7 @@ const MemberDetail = () => {
           </div>
 
           {/* Budget section */}
-          <div className="mb-8">
+          <div className="mb-8" id="section-budget">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <Wallet className="h-5 w-5 text-primary" />
               Budget
@@ -1043,7 +1053,7 @@ const MemberDetail = () => {
           </div>
 
           {/* Handouts section */}
-          <div className="mb-8">
+          <div className="mb-8" id="section-handouts">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <ClipboardList className="h-5 w-5 text-primary" />
               Handouts
@@ -1076,7 +1086,7 @@ const MemberDetail = () => {
           </div>
 
           {/* Reports section */}
-          <div className="mb-8">
+          <div className="mb-8" id="section-reports">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Rapporter
