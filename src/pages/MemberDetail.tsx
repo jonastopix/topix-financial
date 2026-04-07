@@ -443,8 +443,6 @@ const MemberDetail = () => {
 
   const renderExtractedData = (report: Report) => {
     const isOverridden = hasManualOverride(report as unknown as ReportData);
-
-    // Prefer committed facts over raw report data
     const matchingFact = memberFacts.find(f => f.source_report_id === report.id)
       || memberFacts.find(f => f.period_label === report.report_period);
 
@@ -459,34 +457,47 @@ const MemberDetail = () => {
       return <p className="text-sm text-muted-foreground">Ingen nøgletal fundet</p>;
     }
 
+    // Find previous period fact for trend
+    const currentIdx = memberFacts.findIndex(f => f.source_report_id === report.id || f.period_label === report.report_period);
+    const prevFact = currentIdx > 0 ? memberFacts[currentIdx - 1] : null;
+    const prevKf = prevFact ? factsToDanishMetrics(prevFact.metrics) : null;
+
     const formatVal = (n?: number) =>
       n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
 
-    const stats = [
-      { label: "Omsætning", value: formatVal(kf.omsaetning) },
-      { label: "Dækningsbidrag", value: formatVal(kf.daekningsbidrag) },
-      { label: "Lønninger", value: formatVal(kf.loenninger) },
-      { label: "Resultat f. skat", value: formatVal(kf.resultat_foer_skat) },
-      kf.aktiver_i_alt != null ? { label: "Aktiver", value: formatVal(kf.aktiver_i_alt) } : null,
-      kf.egenkapital != null ? { label: "Egenkapital", value: formatVal(kf.egenkapital) } : null,
-      kf.bank_balance != null ? { label: "Bank", value: formatVal(kf.bank_balance) } : null,
-      kf.debitorer != null ? { label: "Debitorer", value: formatVal(kf.debitorer) } : null,
-      kf.kreditorer != null ? { label: "Kreditorer", value: formatVal(kf.kreditorer) } : null,
-    ].filter(Boolean) as { label: string; value: string }[];
+    const trend = (current?: number, previous?: number) => {
+      if (current == null || previous == null || previous === 0) return null;
+      const pct = ((current - previous) / Math.abs(previous)) * 100;
+      const up = pct >= 0;
+      return (
+        <span className={`text-[10px] font-medium ${up ? "text-[hsl(var(--chart-positive))]" : "text-destructive"}`}>
+          {up ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}%
+        </span>
+      );
+    };
+
+    const kpiCards = [
+      { label: "Omsætning", value: kf.omsaetning, prev: prevKf?.omsaetning },
+      { label: "Dækningsbidrag", value: kf.daekningsbidrag, prev: prevKf?.daekningsbidrag },
+      { label: "Lønninger", value: kf.loenninger, prev: prevKf?.loenninger },
+      { label: "Resultat f. skat", value: kf.resultat_foer_skat, prev: prevKf?.resultat_foer_skat },
+      kf.bank_balance != null ? { label: "Bank", value: kf.bank_balance, prev: prevKf?.bank_balance } : null,
+      kf.egenkapital != null ? { label: "Egenkapital", value: kf.egenkapital, prev: prevKf?.egenkapital } : null,
+    ].filter(Boolean) as { label: string; value?: number; prev?: number }[];
 
     return (
       <div>
         {isOverridden && (
           <div className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-accent text-accent-foreground mb-3">
-            <Pencil className="h-3 w-3" />
-            Manuelt rettet
+            Manuelt korrigeret
           </div>
         )}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-lg border border-border/50 bg-background/50 p-3">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
-              <p className="text-sm font-medium text-foreground mt-0.5">{s.value}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {kpiCards.map(card => (
+            <div key={card.label} className="rounded-xl bg-secondary/30 border border-border/30 p-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{card.label}</p>
+              <p className="text-sm font-bold text-foreground">{formatVal(card.value)}</p>
+              {prevKf && <div className="mt-0.5">{trend(card.value, card.prev)}</div>}
             </div>
           ))}
         </div>
