@@ -50,6 +50,41 @@ export type Database = {
         }
         Relationships: []
       }
+      advisor_financial_actions: {
+        Row: {
+          actioned_at: string
+          actioned_by_advisor_id: string
+          id: string
+          note: string | null
+          notification_id: string
+          snoozed_until: string
+        }
+        Insert: {
+          actioned_at?: string
+          actioned_by_advisor_id: string
+          id?: string
+          note?: string | null
+          notification_id: string
+          snoozed_until: string
+        }
+        Update: {
+          actioned_at?: string
+          actioned_by_advisor_id?: string
+          id?: string
+          note?: string | null
+          notification_id?: string
+          snoozed_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_financial_actions_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: true
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       advisor_invitations: {
         Row: {
           accepted_at: string | null
@@ -1864,6 +1899,7 @@ export type Database = {
           description: string | null
           id: string
           progress: number
+          progress_updated_at: string | null
           source: string
           source_report: string | null
           status: string
@@ -1883,6 +1919,7 @@ export type Database = {
           description?: string | null
           id?: string
           progress?: number
+          progress_updated_at?: string | null
           source?: string
           source_report?: string | null
           status?: string
@@ -1902,6 +1939,7 @@ export type Database = {
           description?: string | null
           id?: string
           progress?: number
+          progress_updated_at?: string | null
           source?: string
           source_report?: string | null
           status?: string
