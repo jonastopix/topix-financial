@@ -79,17 +79,18 @@ serve(async (req) => {
     });
   }
 
-  // Idempotency: check if welcome already sent to this conversation
-  const { data: welcomeExists } = await admin
+  // Idempotency: skip if welcome already sent OR if conversation already has
+  // non-system user messages (meaning the company has been active for a while)
+  const { data: existingMsgs } = await admin
     .from("messages")
-    .select("id")
+    .select("id, message_type")
     .eq("conversation_id", conv.id)
-    .eq("message_type", "welcome")
-    .maybeSingle();
+    .in("message_type", ["welcome", "user"])
+    .limit(1);
 
-  if (welcomeExists) {
+  if (existingMsgs && existingMsgs.length > 0) {
     return new Response(
-      JSON.stringify({ skipped: "welcome already sent" }),
+      JSON.stringify({ skipped: "welcome already sent or conversation active" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
