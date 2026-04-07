@@ -260,6 +260,30 @@ const MemberDetail = () => {
     return () => clearTimeout(timer);
   }, [loading, reports]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleLoadSessionPrep = async () => {
+    const cid = memberCompanyId;
+    if (!cid || sessionBullets.length > 0) return;
+    setLoadingSession(true);
+    try {
+      const { data: respData, error } = await supabase.functions.invoke("ai-financial-feedback", {
+        body: {
+          request_type: "session_prep",
+          companyId: cid,
+          companyContext: { name: companyCtx?.name },
+        },
+      });
+      if (!error && respData?.session_prep) {
+        setSessionBullets(respData.session_prep);
+      } else {
+        toast.error("Kunne ikke generere session-noter");
+      }
+    } catch {
+      toast.error("Kunne ikke generere session-noter");
+    } finally {
+      setLoadingSession(false);
+    }
+  };
+
   const handleRemoveMember = async () => {
     if (!userId) return;
     setRemoving(true);
