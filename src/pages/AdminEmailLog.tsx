@@ -142,7 +142,7 @@ export default function AdminEmailLog() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Email-log</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {total.toLocaleString("da-DK")} afsendelser registreret
+              {dedupedTotal.toLocaleString("da-DK")} afsendelser registreret
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-2">
@@ -291,14 +291,14 @@ export default function AdminEmailLog() {
         </div>
 
         {/* Pagination */}
-        {total > PAGE_SIZE && (
+        {dedupedTotal > PAGE_SIZE && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Side {page + 1} af {Math.ceil(total / PAGE_SIZE)}</span>
+            <span>Side {page + 1} af {Math.ceil(dedupedTotal / PAGE_SIZE)}</span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
                 Forrige
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={(page + 1) * PAGE_SIZE >= total}>
+              <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={(page + 1) * PAGE_SIZE >= dedupedTotal}>
                 Næste
               </Button>
             </div>
