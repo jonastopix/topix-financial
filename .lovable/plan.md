@@ -1,55 +1,47 @@
 
 
-## Hvorfor rnl@larsen.dk fik 5 e-mails kl. 02:00
+## Problem
 
-### Årsag: Dobbelt-notifikationer + cron-batch ved midnat
+`send-report-reminder` er aldrig blevet kaldt. Der er nul edge function logs og nul rækker i `email_send_log` med `template_name = 'report-reminder'`.
 
-Der er **to separate problemer** der tilsammen skaber e-mail-spam:
+**Årsag:** `daily-report-reminder` cron-jobbet konstruerer URL'en via `vault.decrypted_secrets WHERE name = 'supabase_url'`, men den secret eksisterer ikke. Resultatet er `net.http_post(url := NULL)` som fejler stille.
 
-### Problem 1: Dobbelt-notifikation per advisor-besked
+Derudover er der to gamle cron-jobs (`report-reminder-10th` og `report-reminder-20th`) med forkert dag-mapping og muligvis også manglende auth-setting.
 
-Når en advisor sender en chat-besked, oprettes **to notifikationer** for samme bruger:
+## Løsning
 
-1. `chat_reply` — via `notify-chat-reply` edge function (kaldt fra CompanyChatPane)
-2. `advisor_replied` — via `send-slack-chat-notification` edge function (som også skriver en in-app notifikation)
+### 1. Fix `daily-report-reminder` cron-jobbet
 
-Begge resulterer i separate e-mails. Så **én advisor-besked = 2 e-mails**.
+Opdater jobbet til at bruge den hardkodede Supabase URL (som de andre cron-jobs gør) i stedet for en vault secret der ikke eksisterer. Alternativt: tilføj `supabase_url` til vault — men da vi allerede kender URL'en, er det enkleste at hardkode den som i de andre jobs.
 
-### Problem 2: Alle akkumulerede notifikationer sendes i én batch
-
-`send-notification-email` kører som cron-job og sender e-mail for alle usete notifikationer ældre end 15 minutter. Alle notifikationer fra hele dagen (kl. 10:58, 11:05, 13:26, 18:41) samles op og sendes i midnats-kørslen — fordi anti-spam tælleren nulstilles ved midnat (den tæller "i dag").
-
-For rnl@larsen.dk var der 3 advisor-beskeder → 6 notifikationer (3× `chat_reply` + 3× `advisor_replied`), men `MAX_EMAILS_PER_DAY = 5` stoppede den 6. e-mail.
-
-### Data der bekræfter dette
-
-```text
-Notifikation             Oprettet           Email sendt
-advisor_replied          07/04 10:58        08/04 00:00:10
-advisor_replied          07/04 11:05        08/04 00:00:12
-chat_reply               07/04 11:05        08/04 00:00:14
-advisor_replied          07/04 13:26        08/04 00:00:16
-chat_reply               07/04 13:26        08/04 00:00:16
-chat_reply (18:41)       — stoppet af MAX_EMAILS_PER_DAY=5
+**Nyt cron-job SQL:**
+```sql
+SELECT cron.alter_job(
+  (SELECT jobid FROM cron.job WHERE jobname = 'daily-report-reminder'),
+  schedule := '0 9 * * *',
+  command := $$
+    SELECT net.http_post(
+      url := 'https://loiavmastgeieqyiwyyr.supabase.co/functions/v1/send-report-reminder',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'email_queue_service_role_key' LIMIT 1)
+      ),
+      body := '{}'::jsonb
+    ) AS request_id;
+  $$
+);
 ```
 
-### Løsning
+### 2. Fjern de to gamle, overflødige cron-jobs
 
-**Fil: `supabase/functions/send-notification-email/index.ts`**
+`report-reminder-10th` og `report-reminder-20th` er forældede — `daily-report-reminder` dækker alle dage, og edge-funktionens day gate (`REMINDER_DAYS = [7, 15, 20]`) håndterer logikken.
 
-1. **Dedup `chat_reply` + `advisor_replied`**: Når begge typer eksisterer for samme bruger med reference til samme besked/tidsrum, send kun én e-mail og marker begge som sendt.
+```sql
+SELECT cron.unschedule('report-reminder-10th');
+SELECT cron.unschedule('report-reminder-20th');
+```
 
-2. **Aggreger chat-notifikationer**: I stedet for én e-mail per besked, send én samlet "Du har X ulæste beskeder fra din rådgiver" e-mail per bruger.
+### 3. Ingen kodeændringer nødvendige
 
-**Fil: `supabase/functions/send-slack-chat-notification/index.ts`**
-
-3. **Fjern `advisor_replied`-notifikationen herfra**: Denne edge function bør kun sende Slack-notifikationen. `notify-chat-reply` håndterer allerede in-app notifikationen. Det eliminerer duplikatet ved roden.
-
-**Fil: `supabase/functions/send-notification-email/index.ts`**
-
-4. **Tilføj `chat_reply` og `member_message` til `EMAIL_SUBJECTS` og `NOTIFICATION_TEMPLATE_NAMES`**: Så disse typer også håndteres korrekt af template-systemet (i stedet for at falde igennem uden match).
-
-### Bygge-fejl
-
-Build-fejlen med `total` er et stale artefakt — filen bruger allerede `dedupedTotal` overalt. En genstart af preview bør løse den.
+Edge function-koden er korrekt: den tjekker `REMINDER_DAYS = [7, 15, 20]`, sætter urgency baseret på dag, og sender til members der mangler committed facts for forrige måned. Problemet er udelukkende at cron-jobbet aldrig kalder den.
 
