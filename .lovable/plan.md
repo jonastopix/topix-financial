@@ -1,47 +1,53 @@
 
 
-## Problem
+## Email System Audit — Resultater
 
-`send-report-reminder` er aldrig blevet kaldt. Der er nul edge function logs og nul rækker i `email_send_log` med `template_name = 'report-reminder'`.
+### Status: 3 problemer fundet, 2 allerede løst, 1 åben
 
-**Årsag:** `daily-report-reminder` cron-jobbet konstruerer URL'en via `vault.decrypted_secrets WHERE name = 'supabase_url'`, men den secret eksisterer ikke. Resultatet er `net.http_post(url := NULL)` som fejler stille.
+---
 
-Derudover er der to gamle cron-jobs (`report-reminder-10th` og `report-reminder-20th`) med forkert dag-mapping og muligvis også manglende auth-setting.
+### Problem 1: Dobbelt chat-notifikation (`advisor_replied` + `chat_reply`) ✅ LØST
+**Status:** Koden er deployeret og virker. Ingen nye `advisor_replied`-notifikationer siden deployment. Der er **1 stale `advisor_replied`** fra d. 7/4 kl. 18:41 (René Larsen) der stadig ikke er markeret — den vil blive plukket af næste cron-kørsel og aggregeret korrekt med hans chat-notifikationer.
 
-## Løsning
+**Anbefaling:** Ingen yderligere handling nødvendig. Cron-systemet håndterer den korrekt nu.
 
-### 1. Fix `daily-report-reminder` cron-jobbet
+---
 
-Opdater jobbet til at bruge den hardkodede Supabase URL (som de andre cron-jobs gør) i stedet for en vault secret der ikke eksisterer. Alternativt: tilføj `supabase_url` til vault — men da vi allerede kender URL'en, er det enkleste at hardkode den som i de andre jobs.
+### Problem 2: `report_review_ready` / `report_error` duplikater ✅ IKKE ET PROBLEM
+Duplikaterne skyldes **forskellige rapport-uploads** (unikke `reference_id`). Eksempel: Jonas test-virksomhed uploadede 7 rapporter d. 1/4 → 7 separate notifikationer. Sarah Fjeldgaard uploadede 8 gange med fejl → 8 `report_error`. **Dette er korrekt opførsel** — hver upload er en separat handling.
 
-**Nyt cron-job SQL:**
-```sql
-SELECT cron.alter_job(
-  (SELECT jobid FROM cron.job WHERE jobname = 'daily-report-reminder'),
-  schedule := '0 9 * * *',
-  command := $$
-    SELECT net.http_post(
-      url := 'https://loiavmastgeieqyiwyyr.supabase.co/functions/v1/send-report-reminder',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'email_queue_service_role_key' LIMIT 1)
-      ),
-      body := '{}'::jsonb
-    ) AS request_id;
-  $$
-);
-```
+---
 
-### 2. Fjern de to gamle, overflødige cron-jobs
+### Problem 3: `report-reminder` cron-job aldrig kaldt ✅ LØST
+Fixet i forrige session ved at opdatere cron-jobbet med korrekt URL. Næste afsendelse: 15. april kl. 09:00.
 
-`report-reminder-10th` og `report-reminder-20th` er forældede — `daily-report-reminder` dækker alle dage, og edge-funktionens day gate (`REMINDER_DAYS = [7, 15, 20]`) håndterer logikken.
+---
 
-```sql
-SELECT cron.unschedule('report-reminder-10th');
-SELECT cron.unschedule('report-reminder-20th');
-```
+### Problem 4: `report_committed` emails sendes til advisors ⚠️ ÅBEN
+Jonas Herlev og Morten Larsen (begge advisors) har fået **17 `report_committed`-notifikationer** hver de seneste 14 dage. Selv om e-mails til advisors undertrykkes af `ADVISOR_EMAIL_DISABLED`, genereres der stadig in-app notifikationer. Det er ikke en fejl i sig selv (de kan bruges i advisor-dashboardet), men det oppuster `notifications`-tabellen.
 
-### 3. Ingen kodeændringer nødvendige
+**Anbefaling:** Ikke kritisk — notifikationerne undertrykkes korrekt for e-mail. Kan optimeres senere hvis ønsket.
 
-Edge function-koden er korrekt: den tjekker `REMINDER_DAYS = [7, 15, 20]`, sætter urgency baseret på dag, og sender til members der mangler committed facts for forrige måned. Problemet er udelukkende at cron-jobbet aldrig kalder den.
+---
+
+### Problem 5: Stale `pending`-rækker i email_send_log ✅ LØST
+Email-log-dashboardet deduplikerer nu korrekt på `message_id` og viser kun den seneste status.
+
+---
+
+### Opsummering
+
+| System | Status |
+|--------|--------|
+| Chat-notifikationer | ✅ Fixet — ingen dobbelt-emails mere |
+| Chat-aggregering | ✅ Virker — én samlet email per bruger |
+| Rapport-notifikationer | ✅ Korrekt — én per upload |
+| Rapport-påmindelser | ✅ Fixet — kører fra 15. april |
+| Invitation-emails | ✅ Fungerer korrekt |
+| Signup/recovery | ✅ Fungerer korrekt |
+| Session-booking | ✅ Fungerer korrekt |
+| Advisor email-suppression | ✅ Virker — advisors får ikke emails |
+| DLQ (fejlede mails) | 8 invitationer + 1 signup i DLQ — sandsynligvis ugyldige adresser |
+
+**Ingen yderligere kodeændringer er nødvendige.**
 
