@@ -229,6 +229,7 @@ Deno.serve(async (req) => {
       report_review_ready: "Gennemgå mine tal →",
       report_error: "Prøv igen →",
       advisor_replied: "Læs beskeden →",
+      chat_reply: "Læs beskeden →",
       report_committed: "Se virksomhedens tal →",
       weekly_focus_ready: "Se ugens fokus",
     };
@@ -236,6 +237,7 @@ Deno.serve(async (req) => {
       report_review_ready: "Dine tal er klar",
       report_error: "Rapport fejl",
       advisor_replied: "Ny besked",
+      chat_reply: "Ny besked",
       weekly_focus_ready: "Ugens fokus",
     };
     const highlights: Record<string, string> = {
@@ -243,7 +245,117 @@ Deno.serve(async (req) => {
       report_error: "Prøv at eksportere filen direkte fra dit regnskabsprogram og upload igen.",
     };
 
+    // ── Separate chat notifications from non-chat ──
+    const chatNotifsByUser = new Map<string, any[]>();
+    const nonChatNotifs: any[] = [];
+
     for (const notif of pending) {
+      if (CHAT_NOTIFICATION_TYPES.has(notif.type)) {
+        const existing = chatNotifsByUser.get(notif.user_id) || [];
+        existing.push(notif);
+        chatNotifsByUser.set(notif.user_id, existing);
+      } else {
+        nonChatNotifs.push(notif);
+      }
+    }
+
+    // ── Process aggregated chat notifications (one email per user) ──
+    for (const [userId, chatNotifs] of chatNotifsByUser.entries()) {
+      const userDailyCount = countMap[userId] || 0;
+      if (userDailyCount >= MAX_EMAILS_PER_DAY) {
+        console.log(`[anti-spam] Skipping chat notifs for user ${userId} (${userDailyCount} emails today)`);
+        skipped += chatNotifs.length;
+        continue;
+      }
+
+      if (advisorUserIds.has(userId)) {
+        for (const n of chatNotifs) {
+          await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
+        }
+        console.log(`[advisor-skip] Skipping ${chatNotifs.length} chat emails for advisor ${userId}`);
+        skipped += chatNotifs.length;
+        continue;
+      }
+
+      const userPrefs = prefsByUser.get(userId);
+      if (userPrefs && (userPrefs as any).important === false) {
+        for (const n of chatNotifs) {
+          await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
+        }
+        console.log(`[pref-optout] User ${userId} opted out of important emails`);
+        skipped += chatNotifs.length;
+        continue;
+      }
+
+      const { data: userData } = await admin.auth.admin.getUserById(userId);
+      if (!userData?.user?.email) {
+        skipped += chatNotifs.length;
+        continue;
+      }
+
+      // Aggregate: use the latest notification for deep_link, send one email
+      const latestNotif = chatNotifs[chatNotifs.length - 1];
+      const msgCount = chatNotifs.length;
+      const subject = msgCount > 1
+        ? `Du har ${msgCount} ulæste beskeder fra din rådgiver`
+        : (EMAIL_SUBJECTS[latestNotif.type] || latestNotif.title);
+      const body = msgCount > 1
+        ? `Du har ${msgCount} ulæste beskeder. Log ind for at læse dem.`
+        : (latestNotif.body || "");
+      const deepLink = latestNotif.deep_link || "/chat";
+
+      const html = buildEmailHtml(
+        subject,
+        body,
+        deepLink,
+        "Læs beskeden →",
+        "Ny besked",
+        undefined
+      );
+
+      const messageId = crypto.randomUUID();
+
+      await admin.from("email_send_log").insert({
+        message_id: messageId,
+        template_name: `notification-chat_aggregated`,
+        recipient_email: userData.user.email,
+        status: "pending",
+      });
+
+      const { error: enqueueErr } = await admin.rpc("enqueue_email", {
+        queue_name: "transactional_emails",
+        payload: {
+          message_id: messageId,
+          idempotency_key: messageId,
+          to: userData.user.email,
+          from: SENDER_FROM,
+          sender_domain: SENDER_DOMAIN,
+          subject,
+          html,
+          text: subject,
+          purpose: "transactional",
+          label: `notification-chat_aggregated`,
+          queued_at: new Date().toISOString(),
+        },
+      });
+
+      if (enqueueErr) {
+        console.error(`Enqueue failed for aggregated chat notifs user ${userId}:`, enqueueErr);
+        skipped += chatNotifs.length;
+        continue;
+      }
+
+      // Mark all chat notifications as email_sent
+      for (const n of chatNotifs) {
+        await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
+      }
+
+      countMap[userId] = (countMap[userId] || 0) + 1;
+      sent++;
+    }
+
+    // ── Process non-chat notifications (one email per notification) ──
+    for (const notif of nonChatNotifs) {
       const userDailyCount = countMap[notif.user_id] || 0;
       if (userDailyCount >= MAX_EMAILS_PER_DAY) {
         console.log(`[anti-spam] Skipping user ${notif.user_id} (${userDailyCount} emails today)`);
