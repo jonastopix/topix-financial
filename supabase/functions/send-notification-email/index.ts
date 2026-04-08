@@ -37,6 +37,8 @@ const MAX_EMAILS_PER_DAY = 5;
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   advisor_replied: "Ny besked fra din rådgiver",
+  chat_reply: "Ny besked fra din rådgiver",
+  member_message: "Ny besked i chatten",
   report_review_ready: "Dine tal er klar til gennemsyn",
   report_error: "Din rapport kunne ikke behandles",
   report_committed: "Ny rapport godkendt",
@@ -47,6 +49,8 @@ const EMAIL_SUBJECTS: Record<string, string> = {
 
 const NOTIFICATION_TEMPLATE_NAMES: Record<string, string> = {
   advisor_replied:        "Notifikation: Ny besked fra rådgiver",
+  chat_reply:             "Notifikation: Ny besked fra rådgiver",
+  member_message:         "Notifikation: Ny besked i chatten",
   report_review_ready:    "Notifikation: Rapport klar til gennemsyn",
   report_error:           "Notifikation: Rapport fejl",
   report_committed:       "Notifikation: Rapport godkendt",
@@ -54,6 +58,9 @@ const NOTIFICATION_TEMPLATE_NAMES: Record<string, string> = {
   pulse_checkin_received: "Notifikation: Pulse check-in modtaget",
   weekly_focus_ready:     "Notifikation: Ugens fokus klar",
 };
+
+// Chat notification types that should be deduplicated and aggregated
+const CHAT_NOTIFICATION_TYPES = new Set(["advisor_replied", "chat_reply"]);
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
