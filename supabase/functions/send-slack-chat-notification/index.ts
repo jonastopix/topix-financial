@@ -76,44 +76,8 @@ Deno.serve(async (req) => {
       (r: any) => r.role === "advisor" || r.role === "admin"
     );
 
-    // ── Phase 2: advisor→member notification ──
+    // ── Advisor messages: skip Slack (notify-chat-reply handles member notification) ──
     if (isAdvisorOrAdmin) {
-      // Skip Slack for advisor messages, but write member notification
-      try {
-        // Fetch conversation + message for notification context
-        const { data: advMsg } = await admin
-          .from("messages")
-          .select("id, conversation_id, content")
-          .eq("id", message_id)
-          .single();
-
-        if (advMsg) {
-          const { data: advConv } = await admin
-            .from("conversations")
-            .select("id, company_id, member_id")
-            .eq("id", advMsg.conversation_id)
-            .single();
-
-          if (advConv?.member_id && advConv.member_id !== callerId) {
-            const msgPreview = (advMsg.content || "").slice(0, 100);
-            const chatDeepLink = `/chat?conversationId=${advConv.id}&messageId=${advMsg.id}`;
-            await writeNotificationToMany(admin, [advConv.member_id], {
-              type: "advisor_replied",
-              priority: "important",
-              title: "Ny besked fra din rådgiver",
-              body: msgPreview.length >= 100 ? msgPreview + "…" : msgPreview,
-              reference_type: "chat",
-              reference_id: advMsg.id,
-              deep_link: chatDeepLink,
-              company_id: advConv.company_id,
-              dedup_key: `advisor_replied:${advMsg.id}`,
-            });
-            console.log(`[Phase2] advisor_replied notification written for member ${advConv.member_id}`);
-          }
-        }
-      } catch (e) {
-        console.error("[Phase2] advisor_replied notification error (non-blocking):", e);
-      }
       return json({ ok: true, skipped: "sender_is_advisor" });
     }
 
