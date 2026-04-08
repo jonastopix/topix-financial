@@ -1,71 +1,22 @@
 
 
-# Implementering af prioriterede fixes
+## Problem
 
-## Overblik
-Implementering af de 4 højest prioriterede punkter fra analysen.
+Email-loggen viser **alle rækker** fra `email_send_log` uden deduplikering. Hver email opretter først en `pending`-række og derefter en `sent`-række (samme `message_id`). Derfor ser du dobbelt så mange rækker som reelle emails, og "Afventer"-tallet er oppustet fordi gamle `pending`-rækker aldrig forsvinder fra visningen.
 
----
+## Løsning
 
-## 1. Fix `auth.getUser` → `auth.getClaims` i generate-weekly-focus
+Dedupliker på `message_id` så kun den **nyeste status** per email vises. Supabase JS-klienten understøtter ikke `DISTINCT ON`, så vi henter data og deduplicerer client-side.
 
-**Fil:** `supabase/functions/generate-weekly-focus/index.ts` (linje 34-49)
+## Plan
 
-Erstat `authClient.auth.getUser(token)` med `authClient.auth.getClaims(token)` og brug `claimsData.claims.sub` til at hente userId — i overensstemmelse med projektets auth-pattern.
+**Fil: `src/pages/AdminEmailLog.tsx`**
 
----
+1. **Dedupliker rækker efter fetch**: Efter query-resultatet returneres, grupper rækkerne på `message_id` og behold kun den nyeste (`created_at` DESC) per gruppe. Rækker uden `message_id` beholdes som-de-er.
 
-## 2. Fix ebitda_margin mapping i weekly focus T5
+2. **Opdater stats til at bruge deduplikerede rækker**: `countByStatus` og `failedCount` skal beregnes på de deduplikerede rækker, ikke de rå rækker. Ligeledes `total`-visningen i headeren.
 
-**Fil:** `supabase/functions/generate-weekly-focus/index.ts` (linje 277-283)
+3. **Opdater `uniqueTypes`-filter**: Basér også på deduplikerede rækker.
 
-Ret `ebitda_margin: "ebitda"` til `ebitda_margin: "ebitda_margin_pct"` så margin-procent sammenlignes med margin-target (ikke et absolut beløb). Fjern den manuelle on-the-fly beregning (linje 293-295) da `ebitda_margin_pct` allerede er en procentværdi i metrics.
-
----
-
-## 3. Fix hardcoded `done: false` for milestones i dashboard
-
-**Fil:** `src/pages/Index.tsx` (linje 411)
-
-Beregn om der er mindst én aktiv milestone med progress > 0 eller status "done" denne måned. Brug eksisterende milestones-query (hvis den allerede er tilgængelig) eller tilføj en simpel count-query for milestones med `updated_at` i denne måned.
-
----
-
-## 4. Tilføj toast-feedback ved KPI sync
-
-**Fil:** `src/pages/Settings.tsx` (linje 601-633)
-
-Efter sync-loopet afsluttes, vis en informativ toast: "KPI-mål opdateret fra branchestandard" så brugeren ved at deres targets er ændret.
-
----
-
-## Tekniske detaljer
-
-### generate-weekly-focus auth fix (punkt 1)
-```typescript
-// Before:
-const { data: claimsData } = await authClient.auth.getUser(token);
-if (claimsData?.user) { ... claimsData.user.id ... }
-
-// After:
-const { data: claimsData } = await authClient.auth.getClaims(token);
-const callerId = claimsData?.claims?.sub as string | undefined;
-if (callerId) { ... callerId ... }
-```
-
-### ebitda mapping fix (punkt 2)
-```typescript
-// Before:
-ebitda_margin: "ebitda",  // WRONG: ebitda is an amount, not a margin
-
-// After:
-ebitda_margin: "ebitda_margin_pct",  // CORRECT: compare margin % with margin target
-```
-Fjern linje 293-295 (on-the-fly ebitda margin beregning) da `ebitda_margin_pct` allerede er den korrekte procentværdi.
-
-### Milestones done-status (punkt 3)
-Tilføj en query for milestones denne måned og beregn `hasMilestoneProgressThisMonth` baseret på om der er mindst én milestone med `status = 'done'` eller `progress > 0` opdateret i denne måned.
-
-### Toast feedback (punkt 4)
-Tilføj `toast.info("KPI-mål opdateret fra branchestandard")` efter sync-loopet.
+Denne ændring sker udelukkende i queryFn's return og de afledte beregninger — ingen ændring af query eller andre filer.
 
