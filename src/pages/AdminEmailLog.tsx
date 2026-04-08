@@ -94,13 +94,31 @@ export default function AdminEmailLog() {
 
       const { data, error, count } = await query;
       if (error) throw error;
-      return { rows: (data || []) as LogEntry[], total: count || 0 };
+      const raw = (data || []) as LogEntry[];
+
+      // Deduplicate: keep only the latest row per message_id
+      const byMessageId = new Map<string, LogEntry>();
+      const noMessageId: LogEntry[] = [];
+      for (const row of raw) {
+        if (!row.message_id) {
+          noMessageId.push(row);
+          continue;
+        }
+        const existing = byMessageId.get(row.message_id);
+        if (!existing || new Date(row.created_at) > new Date(existing.created_at)) {
+          byMessageId.set(row.message_id, row);
+        }
+      }
+      const deduped = [...byMessageId.values(), ...noMessageId]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return { rows: deduped, total: count || 0 };
     },
     staleTime: 30_000,
   });
 
   const rows = data?.rows || [];
-  const total = data?.total || 0;
+  const dedupedTotal = rows.length;
 
   const filtered = search.trim()
     ? rows.filter(r =>
