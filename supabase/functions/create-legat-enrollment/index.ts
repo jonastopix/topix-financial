@@ -33,10 +33,22 @@ Deno.serve(async (req) => {
   try {
     // 1. Create or find auth user
     let userId: string;
+    let isExistingUser = false;
+
+    // Pre-create a company_invitation so handle_new_user trigger doesn't reject signup
+    const inviteToken = crypto.randomUUID();
+    await adminClient.from("company_invitations").insert({
+      email: email.trim().toLowerCase(),
+      token: inviteToken,
+      status: "pending",
+      invited_by: callerId,
+      // company_id is NULL — trigger will create a new company (we'll override below)
+    });
+
     const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
       email,
       email_confirm: true,
-      user_metadata: { full_name },
+      user_metadata: { full_name, invite_token: inviteToken },
     });
     if (userError) {
       console.error("[create-legat-enrollment] Auth error details:", JSON.stringify({
@@ -53,8 +65,13 @@ Deno.serve(async (req) => {
         );
         if (!existing) throw new Error("User exists but could not be found");
         userId = existing.id;
+        isExistingUser = true;
         console.log(`[create-legat-enrollment] Using existing user ${userId} for ${email}`);
+        // Clean up unused invitation
+        await adminClient.from("company_invitations").delete().eq("token", inviteToken);
       } else {
+        // Clean up invitation on unexpected error
+        await adminClient.from("company_invitations").delete().eq("token", inviteToken);
         throw new Error(`Auth user creation failed: ${userError.message}`);
       }
     } else {
