@@ -89,6 +89,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLegat, setIsLegat] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   // Group state (additive — Koncern v1)
