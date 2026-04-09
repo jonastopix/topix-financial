@@ -47,12 +47,12 @@ Deno.serve(async (req) => {
       userId = newUser.user.id;
     }
 
-    // 2. Create profile
-    await adminClient.from("profiles").insert({
+    // 2. Upsert profile (may already exist for existing users)
+    await adminClient.from("profiles").upsert({
       user_id: userId,
       full_name,
       company_name: company_name || "",
-    });
+    }, { onConflict: "user_id" });
 
     // 3. Create legat company
     const { data: company, error: companyError } = await adminClient
