@@ -249,6 +249,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
           setIsAdvisor(false);
           setIsAdmin(false);
+          setIsLegat(false);
           setProfile(null);
           setNeedsOnboarding(false);
           setOwnCompanyId(null);
