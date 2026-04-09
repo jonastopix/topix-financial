@@ -39,6 +39,12 @@ Deno.serve(async (req) => {
       user_metadata: { full_name },
     });
     if (userError) {
+      console.error("[create-legat-enrollment] Auth error details:", JSON.stringify({
+        message: userError.message,
+        status: userError.status,
+        code: (userError as any).code,
+        details: (userError as any).__isAuthError,
+      }));
       if (userError.message?.includes("already been registered")) {
         // User exists — find them via listUsers
         const { data: listData } = await adminClient.auth.admin.listUsers();
