@@ -334,7 +334,13 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
-          {[
+          {(isLegat && !effectiveAdvisor ? [
+              { icon: Sparkles, label: "Forløb", path: "/legat" },
+              { icon: BookOpen, label: "Handouts", path: "/handouts" },
+              { icon: Target, label: "Milestones", path: "/milestones" },
+              { icon: MessageCircle, label: "Chat", path: "/chat" },
+              { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
+            ] : [
             ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
             ...(isGroupUser && !effectiveAdvisor ? [
               { icon: Layers, label: "Koncern", path: "/group" },
@@ -350,7 +356,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               { icon: null as any, label: "Admin", path: "__admin_header__", isHeader: true },
               ...adminNavItems,
             ] : []),
-          ].map((item: any) => {
+          ]).map((item: any) => {
             if (item.isHeader) {
               return (
                 <div key={item.path} className="px-3 pt-3 pb-1">
