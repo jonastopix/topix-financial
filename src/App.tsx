@@ -42,6 +42,7 @@ const BulkImport = lazy(() => import("./pages/BulkImport"));
 const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
 const AdminGroups = lazy(() => import("./pages/AdminGroups"));
 const AdminGroupDetail = lazy(() => import("./pages/AdminGroupDetail"));
+const AdminLegat = lazy(() => import("./pages/AdminLegat"));
 
 // Lazy — group routes
 const GroupDashboard = lazy(() => import("./pages/GroupDashboard"));
@@ -145,6 +146,7 @@ const App = () => (
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
               <Route path="/admin/groups" element={<AdminRoute><AdminGroups /></AdminRoute>} />
               <Route path="/admin/groups/:groupId" element={<AdminRoute><AdminGroupDetail /></AdminRoute>} />
+              <Route path="/admin/legat" element={<AdminRoute><AdminLegat /></AdminRoute>} />
               <Route path="/groups" element={<AdvisorRoute><AdvisorGroupList /></AdvisorRoute>} />
               <Route path="/groups/:groupId" element={<AdvisorRoute><AdvisorGroupDashboard /></AdvisorRoute>} />
               <Route path="/legat" element={<ProtectedRoute><LegatDashboard /></ProtectedRoute>} />

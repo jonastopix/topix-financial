@@ -66,6 +66,7 @@ const adminNavItems = [
   { icon: History, label: "Email-log", path: "/admin/email-log" },
   { icon: SettingsIcon, label: "Platformconfig", path: "/admin/config" },
   { icon: MessageCircle, label: "Feedback", path: "/admin/feedback" },
+  { icon: Users, label: "Legat", path: "/admin/legat" },
 ];
 
 interface AppSidebarProps {
