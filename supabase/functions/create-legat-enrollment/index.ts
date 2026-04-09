@@ -33,24 +33,25 @@ Deno.serve(async (req) => {
   try {
     // 1. Create or find auth user
     let userId: string;
-    const { data: listData } = await adminClient.auth.admin.listUsers({
-      page: 1,
-      perPage: 1,
+    const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: { full_name },
     });
-    const existingUser = (listData?.users ?? []).find(
-      (u: any) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (existingUser) {
-      userId = existingUser.id;
-      console.log(`[create-legat-enrollment] Using existing user ${userId} for ${email}`);
+    if (userError) {
+      if (userError.message?.includes("already been registered")) {
+        // User exists — find them via listUsers
+        const { data: listData } = await adminClient.auth.admin.listUsers();
+        const existing = (listData?.users ?? []).find(
+          (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+        );
+        if (!existing) throw new Error("User exists but could not be found");
+        userId = existing.id;
+        console.log(`[create-legat-enrollment] Using existing user ${userId} for ${email}`);
+      } else {
+        throw new Error(`Auth user creation failed: ${userError.message}`);
+      }
     } else {
-      const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: { full_name },
-      });
-      if (userError) throw new Error(`Auth user creation failed: ${userError.message}`);
       userId = newUser.user.id;
     }
 
