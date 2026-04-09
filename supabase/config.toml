@@ -59,3 +59,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.create-legat-enrollment]
     verify_jwt = false
+  [functions.upgrade-legat-to-member]
+    verify_jwt = false
