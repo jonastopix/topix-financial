@@ -44,9 +44,10 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor, isLegat, refreshProfile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
+  const navigate = useNavigate();
   const [tourDismissed, setTourDismissed] = useState(false);
   const [showPulseModal, setShowPulseModal] = useState(false);
   const queryClient = useQueryClient();

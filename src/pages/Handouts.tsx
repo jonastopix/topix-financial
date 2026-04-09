@@ -283,16 +283,33 @@ const Handouts = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {summaries.map(s => (
-            <HandoutCard
-              key={s.module}
-              config={handoutConfigs[s.module]}
-              status={s.status}
-              progress={s.progress}
-              completedAt={s.completedAt}
-              onClick={() => setActiveModule(s.module)}
-            />
-          ))}
+          {summaries.map(s => {
+            const locked = !isModuleUnlocked(s.module);
+            return (
+              <div key={s.module} className={locked ? "opacity-50 relative" : ""}>
+                {locked && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-[1px] cursor-not-allowed"
+                    onClick={() => toast(`Dette modul åbner på dag ${LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb`)}
+                  >
+                    <Lock className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <HandoutCard
+                  config={handoutConfigs[s.module]}
+                  status={s.status}
+                  progress={s.progress}
+                  completedAt={s.completedAt}
+                  onClick={() => {
+                    if (locked) {
+                      toast(`Dette modul åbner på dag ${LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb`);
+                    } else {
+                      setActiveModule(s.module);
+                    }
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 
