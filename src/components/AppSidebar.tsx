@@ -28,6 +28,7 @@ import {
   BookOpen,
   History,
   Calendar,
+  Sparkles,
 } from "lucide-react";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -79,7 +80,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user, profile, signOut, isAdvisor, isAdmin, isGroupUser, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
+  const { user, profile, signOut, isAdvisor, isAdmin, isLegat, isGroupUser, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
@@ -333,7 +334,13 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
-          {[
+          {(isLegat && !effectiveAdvisor ? [
+              { icon: Sparkles, label: "Forløb", path: "/legat" },
+              { icon: BookOpen, label: "Handouts", path: "/handouts" },
+              { icon: Target, label: "Milestones", path: "/milestones" },
+              { icon: MessageCircle, label: "Chat", path: "/chat" },
+              { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
+            ] : [
             ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
             ...(isGroupUser && !effectiveAdvisor ? [
               { icon: Layers, label: "Koncern", path: "/group" },
@@ -349,7 +356,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               { icon: null as any, label: "Admin", path: "__admin_header__", isHeader: true },
               ...adminNavItems,
             ] : []),
-          ].map((item: any) => {
+          ]).map((item: any) => {
             if (item.isHeader) {
               return (
                 <div key={item.path} className="px-3 pt-3 pb-1">
@@ -395,7 +402,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
             );
           })}
           {/* Secondary links */}
-          {(
+          {!isLegat && (
             <div className="mt-3 pt-3 border-t border-sidebar-border/50 space-y-0.5">
               {secondaryNavItems.map(item => {
                 const isActive = location.pathname === item.path;

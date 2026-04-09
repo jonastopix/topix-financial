@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight, BarChart3, X } from "lucide-react";
@@ -43,9 +44,10 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor, isLegat, refreshProfile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
+  const navigate = useNavigate();
   const [tourDismissed, setTourDismissed] = useState(false);
   const [showPulseModal, setShowPulseModal] = useState(false);
   const queryClient = useQueryClient();
@@ -97,6 +99,11 @@ const Dashboard = () => {
   }, [companyInfo]);
 
   const isLoading = factsLoading || budgetLoading;
+
+  // Redirect legat users to their dedicated dashboard
+  useEffect(() => {
+    if (isLegat) navigate("/legat");
+  }, [isLegat]);
 
   // Mark tour as completed on first dashboard load for new users
   useEffect(() => {

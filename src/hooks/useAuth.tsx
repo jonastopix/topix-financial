@@ -11,6 +11,7 @@ interface AuthContext {
   loading: boolean;
   isAdvisor: boolean;
   isAdmin: boolean;
+  isLegat: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string; tour_completed_at: string | null } | null;
   companyId: string | null;
   companyName: string | null;
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContext>({
   loading: true,
   isAdvisor: false,
   isAdmin: false,
+  isLegat: false,
   profile: null,
   companyId: null,
   companyName: null,
@@ -87,6 +89,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLegat, setIsLegat] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   // Group state (additive — Koncern v1)
@@ -145,6 +148,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
     setIsAdmin(roles.includes("admin" as any));
+    setIsLegat(!isAdv && !roles.includes("member"));
     setProfile(profileRes.data);
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
@@ -245,6 +249,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
           setIsAdvisor(false);
           setIsAdmin(false);
+          setIsLegat(false);
           setProfile(null);
           setNeedsOnboarding(false);
           setOwnCompanyId(null);
@@ -280,7 +285,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, isAdmin, profile,
+      user, session, loading, isAdvisor, isAdmin, isLegat, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ClipboardList, ArrowLeft, Lightbulb, ArrowRight } from "lucide-react";
+import { ClipboardList, ArrowLeft, Lightbulb, ArrowRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
@@ -13,6 +13,8 @@ import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface HandoutSummary {
   module: HandoutModule;
@@ -24,7 +26,7 @@ interface HandoutSummary {
 }
 
 const Handouts = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isLegat } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,7 +40,40 @@ const Handouts = () => {
   const [memberUserId, setMemberUserId] = useState<string | null>(null);
   // Per-module user_id from existing handout rows
   const [moduleUserMap, setModuleUserMap] = useState<Record<string, string>>({});
+  // Legat module gating
+  const { data: legatEnrollment } = useQuery({
+    queryKey: ["legat-enrollment-handouts", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await (supabase as any)
+        .from("legat_enrollments")
+        .select("start_date, status")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && isLegat,
+  });
 
+  const legatDay = legatEnrollment ? Math.min(
+    Math.max(
+      Math.floor((Date.now() - new Date(legatEnrollment.start_date).getTime()) / 86400000) + 1,
+      1
+    ),
+    10
+  ) : null;
+
+  const LEGAT_UNLOCK_DAYS: Record<string, number> = {
+    overordnet: 1, bogholderi: 3, administration: 5, salg: 7, marketing: 9,
+  };
+
+  const isModuleUnlocked = (moduleKey: string): boolean => {
+    if (!isLegat || legatDay === null) return true;
+    return legatDay >= (LEGAT_UNLOCK_DAYS[moduleKey] ?? 1);
+  };
+
+  
   // Deep-link support: ?module=bogholderi opens that handout directly
   useEffect(() => {
     const moduleParam = searchParams.get("module") as HandoutModule | null;
@@ -248,16 +283,33 @@ const Handouts = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {summaries.map(s => (
-            <HandoutCard
-              key={s.module}
-              config={handoutConfigs[s.module]}
-              status={s.status}
-              progress={s.progress}
-              completedAt={s.completedAt}
-              onClick={() => setActiveModule(s.module)}
-            />
-          ))}
+          {summaries.map(s => {
+            const locked = !isModuleUnlocked(s.module);
+            return (
+              <div key={s.module} className={locked ? "opacity-50 relative" : ""}>
+                {locked && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-[1px] cursor-not-allowed"
+                    onClick={() => toast(`Dette modul åbner på dag ${LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb`)}
+                  >
+                    <Lock className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <HandoutCard
+                  config={handoutConfigs[s.module]}
+                  status={s.status}
+                  progress={s.progress}
+                  completedAt={s.completedAt}
+                  onClick={() => {
+                    if (locked) {
+                      toast(`Dette modul åbner på dag ${LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb`);
+                    } else {
+                      setActiveModule(s.module);
+                    }
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 
