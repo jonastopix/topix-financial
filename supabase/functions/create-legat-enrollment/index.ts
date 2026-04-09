@@ -175,8 +175,8 @@ Deno.serve(async (req) => {
       source: "legat",
     });
 
-    // 7. Send invitation email via Supabase magic link
-    const { error: inviteError } = await adminClient.auth.admin.generateLink({
+    // 7. Generate a magic link and include it in the welcome email
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
       type: "magiclink",
       email,
       options: {
@@ -187,6 +187,8 @@ Deno.serve(async (req) => {
       console.error("Magic link generation failed:", inviteError.message);
       // Non-fatal — user is created, link can be resent
     }
+    const legatAccessUrl = inviteData?.properties?.action_link
+      ?? "https://app.theboardroom.dk/auth?returnUrl=https%3A%2F%2Fapp.theboardroom.dk%2Flegat";
 
     // 8. Send welcome email via email queue
     const firstName = full_name.split(" ")[0];
@@ -207,7 +209,7 @@ Deno.serve(async (req) => {
     <p style="font-size:15px;line-height:1.6;margin:0 0 24px">Du har fået en plads på The Boardroom Legat. De næste 10 dage får du adgang til materialer, handouts og sparring der hjælper dig med at tage din forretning videre.</p>
     <p style="font-size:15px;line-height:1.6;margin:0 0 24px">Klik herunder for at logge ind på platformen og komme i gang.</p>
     <div style="text-align:center;margin:32px 0">
-      <a href="https://app.theboardroom.dk/legat" style="display:inline-block;padding:14px 32px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">Kom i gang →</a>
+      <a href="${legatAccessUrl}" style="display:inline-block;padding:14px 32px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">Kom i gang →</a>
     </div>
     <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:24px 0">
       <p style="margin:0;font-size:14px;color:#374151"><strong>Første skridt:</strong> Book dit Momentumkald med Jonas — du finder det som dit første mål på platformen.</p>
@@ -227,7 +229,7 @@ Deno.serve(async (req) => {
         sender_domain: "mail.topix.dk",
         subject: `Velkommen til The Boardroom Legat, ${firstName}`,
         html,
-        text: `Hej ${firstName} — du er udvalgt til The Boardroom Legat. Log ind her: https://app.theboardroom.dk/legat`,
+        text: `Hej ${firstName} — du er udvalgt til The Boardroom Legat. Log ind her: ${legatAccessUrl}`,
         purpose: "transactional",
         label: "legat-welcome",
         queued_at: new Date().toISOString(),
