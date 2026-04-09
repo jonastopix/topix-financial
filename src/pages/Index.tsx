@@ -100,6 +100,11 @@ const Dashboard = () => {
 
   const isLoading = factsLoading || budgetLoading;
 
+  // Redirect legat users to their dedicated dashboard
+  useEffect(() => {
+    if (isLegat) navigate("/legat");
+  }, [isLegat]);
+
   // Mark tour as completed on first dashboard load for new users
   useEffect(() => {
     if (shouldShowTour && !tourTriggered && !isLoading) {
