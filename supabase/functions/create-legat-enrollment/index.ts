@@ -78,30 +78,76 @@ Deno.serve(async (req) => {
       userId = newUser.user.id;
     }
 
-    // 2. Upsert profile (may already exist for existing users)
+    // 2. Upsert profile
     await adminClient.from("profiles").upsert({
       user_id: userId,
       full_name,
       company_name: company_name || "",
     }, { onConflict: "user_id" });
 
-    // 3. Create legat company
-    const { data: company, error: companyError } = await adminClient
-      .from("companies")
-      .insert({
-        name: company_name || full_name,
-        is_legat: true,
-      })
-      .select("id")
-      .single();
-    if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
+    let companyId: string;
 
-    // 4. Add user as company member
-    await adminClient.from("company_members").insert({
-      company_id: company.id,
-      user_id: userId,
-      role: "member",
-    });
+    if (!isExistingUser) {
+      // For new users, handle_new_user trigger already created a company via the NULL-company invitation.
+      // Find that company and update it to be a legat company.
+      const { data: existingMembership } = await adminClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (existingMembership) {
+        companyId = existingMembership.company_id;
+        // Update the trigger-created company to be a legat company
+        await adminClient.from("companies").update({
+          name: company_name || full_name,
+          is_legat: true,
+        }).eq("id", companyId);
+      } else {
+        // Fallback: create company if trigger didn't
+        const { data: company, error: companyError } = await adminClient
+          .from("companies")
+          .insert({ name: company_name || full_name, is_legat: true })
+          .select("id")
+          .single();
+        if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
+        companyId = company.id;
+
+        await adminClient.from("company_members").insert({
+          company_id: companyId,
+          user_id: userId,
+          role: "member",
+        });
+      }
+    } else {
+      // Existing user — check if they already have a company
+      const { data: existingMembership } = await adminClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (existingMembership) {
+        companyId = existingMembership.company_id;
+        await adminClient.from("companies").update({ is_legat: true }).eq("id", companyId);
+      } else {
+        const { data: company, error: companyError } = await adminClient
+          .from("companies")
+          .insert({ name: company_name || full_name, is_legat: true })
+          .select("id")
+          .single();
+        if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
+        companyId = company.id;
+
+        await adminClient.from("company_members").insert({
+          company_id: companyId,
+          user_id: userId,
+          role: "member",
+        });
+      }
+    }
 
     // 5. Create legat enrollment
     const enrollStart = start_date || new Date().toISOString().split("T")[0];
