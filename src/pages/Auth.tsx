@@ -32,13 +32,37 @@ const Auth = () => {
 
   // Redirect after successful auth
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         if (returnUrl && returnUrl.startsWith("https://")) {
           window.location.href = returnUrl;
-        } else {
-          navigate(returnUrl || "/", { replace: true });
+          return;
         }
+
+        // Check if user is a legat user and redirect accordingly
+        const userId = session.user.id;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        try {
+          const res = await fetch(
+            `${supabaseUrl}/rest/v1/legat_enrollments?user_id=eq.${userId}&status=eq.active&select=id&limit=1`,
+            {
+              headers: {
+                apikey: anonKey,
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            }
+          );
+          const rows = await res.json();
+          if (rows?.length > 0) {
+            navigate("/legat", { replace: true });
+            return;
+          }
+        } catch (e) {
+          // ignore — fall through to default redirect
+        }
+
+        navigate(returnUrl || "/", { replace: true });
       }
     });
     return () => subscription.unsubscribe();
