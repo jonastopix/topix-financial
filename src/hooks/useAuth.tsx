@@ -148,6 +148,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
     setIsAdmin(roles.includes("admin" as any));
+    setIsLegat(!isAdv && !roles.includes("member"));
     setProfile(profileRes.data);
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
@@ -283,7 +284,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, isAdmin, profile,
+      user, session, loading, isAdvisor, isAdmin, isLegat, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,
