@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight, BarChart3, X } from "lucide-react";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ClipboardList, ArrowLeft, Lightbulb, ArrowRight } from "lucide-react";
+import { ClipboardList, ArrowLeft, Lightbulb, ArrowRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AppLayout from "@/components/AppLayout";
 import HandoutCard from "@/components/HandoutCard";
@@ -13,6 +13,8 @@ import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface HandoutSummary {
   module: HandoutModule;
