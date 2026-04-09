@@ -517,6 +517,7 @@ export type Database = {
           industry_code: string | null
           industry_label: string | null
           is_demo: boolean | null
+          is_legat: boolean
           logo_url: string | null
           name: string
           postal_code: string | null
@@ -541,6 +542,7 @@ export type Database = {
           industry_code?: string | null
           industry_label?: string | null
           is_demo?: boolean | null
+          is_legat?: boolean
           logo_url?: string | null
           name?: string
           postal_code?: string | null
@@ -565,6 +567,7 @@ export type Database = {
           industry_code?: string | null
           industry_label?: string | null
           is_demo?: boolean | null
+          is_legat?: boolean
           logo_url?: string | null
           name?: string
           postal_code?: string | null
@@ -1808,6 +1811,53 @@ export type Database = {
           },
         ]
       }
+      legat_enrollments: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          momentumkald_booked: boolean
+          notes: string | null
+          start_date: string
+          status: string
+          upgraded_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          momentumkald_booked?: boolean
+          notes?: string | null
+          start_date?: string
+          status?: string
+          upgraded_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          momentumkald_booked?: boolean
+          notes?: string | null
+          start_date?: string
+          status?: string
+          upgraded_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legat_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           created_at: string
@@ -2635,6 +2685,9 @@ export type Database = {
         Returns: boolean
       }
       is_group_subcompany: { Args: { p_company_id: string }; Returns: boolean }
+      is_legat_user: { Args: { _user_id: string }; Returns: boolean }
+      legat_day: { Args: { _user_id: string }; Returns: number }
+      legat_unlocked_modules: { Args: { _user_id: string }; Returns: string[] }
       log_user_login: { Args: never; Returns: undefined }
       lookup_invite_company: { Args: { invite_token: string }; Returns: string }
       lookup_invite_company_info: {
