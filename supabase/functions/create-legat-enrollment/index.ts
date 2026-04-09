@@ -33,9 +33,16 @@ Deno.serve(async (req) => {
   try {
     // 1. Create or find auth user
     let userId: string;
-    const { data: existingUser } = await adminClient.auth.admin.getUserByEmail(email);
-    if (existingUser?.user) {
-      userId = existingUser.user.id;
+    const { data: listData } = await adminClient.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+    });
+    const existingUser = (listData?.users ?? []).find(
+      (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (existingUser) {
+      userId = existingUser.id;
       console.log(`[create-legat-enrollment] Using existing user ${userId} for ${email}`);
     } else {
       const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
