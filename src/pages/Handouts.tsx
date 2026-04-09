@@ -26,7 +26,7 @@ interface HandoutSummary {
 }
 
 const Handouts = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isLegat } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
