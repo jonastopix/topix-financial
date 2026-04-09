@@ -33,10 +33,22 @@ Deno.serve(async (req) => {
   try {
     // 1. Create or find auth user
     let userId: string;
+    let isExistingUser = false;
+
+    // Pre-create a company_invitation so handle_new_user trigger doesn't reject signup
+    const inviteToken = crypto.randomUUID();
+    await adminClient.from("company_invitations").insert({
+      email: email.trim().toLowerCase(),
+      token: inviteToken,
+      status: "pending",
+      invited_by: callerId,
+      // company_id is NULL — trigger will create a new company (we'll override below)
+    });
+
     const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
       email,
       email_confirm: true,
-      user_metadata: { full_name },
+      user_metadata: { full_name, invite_token: inviteToken },
     });
     if (userError) {
       console.error("[create-legat-enrollment] Auth error details:", JSON.stringify({
@@ -53,44 +65,95 @@ Deno.serve(async (req) => {
         );
         if (!existing) throw new Error("User exists but could not be found");
         userId = existing.id;
+        isExistingUser = true;
         console.log(`[create-legat-enrollment] Using existing user ${userId} for ${email}`);
+        // Clean up unused invitation
+        await adminClient.from("company_invitations").delete().eq("token", inviteToken);
       } else {
+        // Clean up invitation on unexpected error
+        await adminClient.from("company_invitations").delete().eq("token", inviteToken);
         throw new Error(`Auth user creation failed: ${userError.message}`);
       }
     } else {
       userId = newUser.user.id;
     }
 
-    // 2. Upsert profile (may already exist for existing users)
+    // 2. Upsert profile
     await adminClient.from("profiles").upsert({
       user_id: userId,
       full_name,
       company_name: company_name || "",
     }, { onConflict: "user_id" });
 
-    // 3. Create legat company
-    const { data: company, error: companyError } = await adminClient
-      .from("companies")
-      .insert({
-        name: company_name || full_name,
-        is_legat: true,
-      })
-      .select("id")
-      .single();
-    if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
+    let companyId: string;
 
-    // 4. Add user as company member
-    await adminClient.from("company_members").insert({
-      company_id: company.id,
-      user_id: userId,
-      role: "member",
-    });
+    if (!isExistingUser) {
+      // For new users, handle_new_user trigger already created a company via the NULL-company invitation.
+      // Find that company and update it to be a legat company.
+      const { data: existingMembership } = await adminClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (existingMembership) {
+        companyId = existingMembership.company_id;
+        // Update the trigger-created company to be a legat company
+        await adminClient.from("companies").update({
+          name: company_name || full_name,
+          is_legat: true,
+        }).eq("id", companyId);
+      } else {
+        // Fallback: create company if trigger didn't
+        const { data: company, error: companyError } = await adminClient
+          .from("companies")
+          .insert({ name: company_name || full_name, is_legat: true })
+          .select("id")
+          .single();
+        if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
+        companyId = company.id;
+
+        await adminClient.from("company_members").insert({
+          company_id: companyId,
+          user_id: userId,
+          role: "member",
+        });
+      }
+    } else {
+      // Existing user — check if they already have a company
+      const { data: existingMembership } = await adminClient
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (existingMembership) {
+        companyId = existingMembership.company_id;
+        await adminClient.from("companies").update({ is_legat: true }).eq("id", companyId);
+      } else {
+        const { data: company, error: companyError } = await adminClient
+          .from("companies")
+          .insert({ name: company_name || full_name, is_legat: true })
+          .select("id")
+          .single();
+        if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
+        companyId = company.id;
+
+        await adminClient.from("company_members").insert({
+          company_id: companyId,
+          user_id: userId,
+          role: "member",
+        });
+      }
+    }
 
     // 5. Create legat enrollment
     const enrollStart = start_date || new Date().toISOString().split("T")[0];
     const { error: enrollError } = await adminClient.from("legat_enrollments").insert({
       user_id: userId,
-      company_id: company.id,
+      company_id: companyId,
       start_date: enrollStart,
       status: "active",
       notes: notes || null,
@@ -103,7 +166,7 @@ Deno.serve(async (req) => {
     deadline.setDate(deadline.getDate() + 3);
     await adminClient.from("milestones").insert({
       user_id: userId,
-      company_id: company.id,
+      company_id: companyId,
       title: "Book dit Momentumkald med Jonas",
       description: "Book et 30-minutters Momentumkald — det er din mulighed for at få sparring direkte på din forretning og afslutte forløbet stærkt. Book her: https://theboardroom.dk/momentumkald",
       deadline: deadline.toISOString().split("T")[0],
@@ -176,7 +239,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       user_id: userId,
-      company_id: company.id,
+      company_id: companyId,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
