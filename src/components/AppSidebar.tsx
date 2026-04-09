@@ -402,7 +402,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
             );
           })}
           {/* Secondary links */}
-          {(
+          {!isLegat && (
             <div className="mt-3 pt-3 border-t border-sidebar-border/50 space-y-0.5">
               {secondaryNavItems.map(item => {
                 const isActive = location.pathname === item.path;
