@@ -31,21 +31,28 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1. Create auth user with magic link
-    const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: { full_name },
-    });
-    if (userError) throw new Error(`Auth user creation failed: ${userError.message}`);
-    const userId = newUser.user.id;
+    // 1. Create or find auth user
+    let userId: string;
+    const { data: existingUser } = await adminClient.auth.admin.getUserByEmail(email);
+    if (existingUser?.user) {
+      userId = existingUser.user.id;
+      console.log(`[create-legat-enrollment] Using existing user ${userId} for ${email}`);
+    } else {
+      const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
+      if (userError) throw new Error(`Auth user creation failed: ${userError.message}`);
+      userId = newUser.user.id;
+    }
 
-    // 2. Create profile
-    await adminClient.from("profiles").insert({
+    // 2. Upsert profile (may already exist for existing users)
+    await adminClient.from("profiles").upsert({
       user_id: userId,
       full_name,
       company_name: company_name || "",
-    });
+    }, { onConflict: "user_id" });
 
     // 3. Create legat company
     const { data: company, error: companyError } = await adminClient
