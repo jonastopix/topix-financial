@@ -40,7 +40,40 @@ const Handouts = () => {
   const [memberUserId, setMemberUserId] = useState<string | null>(null);
   // Per-module user_id from existing handout rows
   const [moduleUserMap, setModuleUserMap] = useState<Record<string, string>>({});
+  // Legat module gating
+  const { data: legatEnrollment } = useQuery({
+    queryKey: ["legat-enrollment-handouts", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await (supabase as any)
+        .from("legat_enrollments")
+        .select("start_date, status")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && isLegat,
+  });
 
+  const legatDay = legatEnrollment ? Math.min(
+    Math.max(
+      Math.floor((Date.now() - new Date(legatEnrollment.start_date).getTime()) / 86400000) + 1,
+      1
+    ),
+    10
+  ) : null;
+
+  const LEGAT_UNLOCK_DAYS: Record<string, number> = {
+    overordnet: 1, bogholderi: 3, administration: 5, salg: 7, marketing: 9,
+  };
+
+  const isModuleUnlocked = (moduleKey: string): boolean => {
+    if (!isLegat || legatDay === null) return true;
+    return legatDay >= (LEGAT_UNLOCK_DAYS[moduleKey] ?? 1);
+  };
+
+  
   // Deep-link support: ?module=bogholderi opens that handout directly
   useEffect(() => {
     const moduleParam = searchParams.get("module") as HandoutModule | null;
