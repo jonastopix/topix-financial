@@ -48,6 +48,7 @@ const GroupDashboard = lazy(() => import("./pages/GroupDashboard"));
 const GroupBudget = lazy(() => import("./pages/GroupBudget"));
 const AdvisorGroupList = lazy(() => import("./pages/AdvisorGroupList"));
 const AdvisorGroupDashboard = lazy(() => import("./pages/AdvisorGroupDashboard"));
+const LegatDashboard = lazy(() => import("./pages/LegatDashboard"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -146,6 +147,7 @@ const App = () => (
               <Route path="/admin/groups/:groupId" element={<AdminRoute><AdminGroupDetail /></AdminRoute>} />
               <Route path="/groups" element={<AdvisorRoute><AdvisorGroupList /></AdvisorRoute>} />
               <Route path="/groups/:groupId" element={<AdvisorRoute><AdvisorGroupDashboard /></AdvisorRoute>} />
+              <Route path="/legat" element={<ProtectedRoute><LegatDashboard /></ProtectedRoute>} />
               <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
               <Route path="/group/budget" element={<ProtectedRoute><GroupBudget /></ProtectedRoute>} />
               <Route path="/group/onboarding" element={<Navigate to="/" replace />} />
