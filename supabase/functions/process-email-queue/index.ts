@@ -246,13 +246,71 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const purpose = payload.purpose || (queue === 'auth_emails' ? 'auth' : 'transactional')
+        const purpose = queue === 'auth_emails' ? 'auth' : 'transactional'
         const idempotencyKey =
           typeof payload.idempotency_key === 'string' && payload.idempotency_key.trim().length > 0
             ? payload.idempotency_key
             : queue === 'transactional_emails' && typeof payload.message_id === 'string' && payload.message_id.trim().length > 0
               ? payload.message_id
               : undefined
+        const unsubscribeToken =
+          purpose === 'transactional' && typeof payload.to === 'string' && payload.to.trim().length > 0
+            ? typeof payload.unsubscribe_token === 'string' && payload.unsubscribe_token.trim().length > 0
+              ? payload.unsubscribe_token
+              : await (async () => {
+                  const normalizedEmail = payload.to.trim().toLowerCase()
+                  const { data: existingToken, error: existingTokenError } = await supabase
+                    .from('email_unsubscribe_tokens')
+                    .select('token')
+                    .eq('email', normalizedEmail)
+                    .maybeSingle()
+
+                  if (existingTokenError) {
+                    throw new Error(`Failed to load unsubscribe token: ${existingTokenError.message}`)
+                  }
+
+                  if (existingToken?.token) {
+                    return existingToken.token
+                  }
+
+                  const generatedToken = crypto.randomUUID()
+                  const { error: insertTokenError } = await supabase
+                    .from('email_unsubscribe_tokens')
+                    .insert({
+                      email: normalizedEmail,
+                      token: generatedToken,
+                    })
+
+                  if (insertTokenError) {
+                    if (insertTokenError.code === '23505') {
+                      const { data: retryToken, error: retryTokenError } = await supabase
+                        .from('email_unsubscribe_tokens')
+                        .select('token')
+                        .eq('email', normalizedEmail)
+                        .maybeSingle()
+
+                      if (retryTokenError) {
+                        throw new Error(`Failed to reload unsubscribe token: ${retryTokenError.message}`)
+                      }
+
+                      if (retryToken?.token) {
+                        return retryToken.token
+                      }
+                    }
+
+                    throw new Error(`Failed to create unsubscribe token: ${insertTokenError.message}`)
+                  }
+
+                  console.log('Auto-created unsubscribe token for queued app email', {
+                    queue,
+                    msg_id: msg.msg_id,
+                    message_id: payload.message_id,
+                    recipient: normalizedEmail,
+                  })
+
+                  return generatedToken
+                })()
+            : undefined
 
         // Send all emails via Lovable Email API
         await sendLovableEmail(
@@ -267,7 +325,7 @@ Deno.serve(async (req) => {
             purpose,
             label: payload.label,
             idempotency_key: idempotencyKey,
-            unsubscribe_token: payload.unsubscribe_token,
+            unsubscribe_token: unsubscribeToken,
             message_id: payload.message_id,
           },
           { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
