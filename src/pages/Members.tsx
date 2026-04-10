@@ -532,6 +532,16 @@ const Members = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
+      // Phase 0: Delete handout_lever_milestones (FK to handouts)
+      const { data: handoutsForDelete } = await supabase
+        .from("handouts")
+        .select("id")
+        .eq("company_id", deleteTarget.id);
+      if (handoutsForDelete && handoutsForDelete.length > 0) {
+        await supabase.from("handout_lever_milestones").delete().in("handout_id", handoutsForDelete.map(h => h.id));
+      }
+
+      // Phase 1: Leaf tables with no FK dependents
       await Promise.all([
         supabase.from("financial_commentaries").delete().eq("company_id", deleteTarget.id),
         supabase.from("financial_report_facts").delete().eq("company_id", deleteTarget.id),
@@ -544,6 +554,8 @@ const Members = () => {
         supabase.from("company_actions").delete().eq("company_id", deleteTarget.id),
         supabase.from("notifications").delete().eq("company_id", deleteTarget.id),
         supabase.from("weekly_focus").delete().eq("company_id", deleteTarget.id),
+        supabase.from("kpi_chart_comments").delete().eq("company_id", deleteTarget.id),
+        supabase.from("legat_enrollments" as any).delete().eq("company_id", deleteTarget.id) as any,
       ]);
       await supabase.from("financial_reports").delete().eq("company_id", deleteTarget.id);
       await Promise.all([
