@@ -200,6 +200,25 @@ Deno.serve(async (req) => {
       status: "pending",
     });
 
+    // Generate or retrieve unsubscribe token for this recipient
+    const recipientEmail = email.trim().toLowerCase();
+    const { data: existingToken } = await adminClient
+      .from("email_unsubscribe_tokens")
+      .select("token")
+      .eq("email", recipientEmail)
+      .maybeSingle();
+
+    let unsubscribeToken: string;
+    if (existingToken?.token) {
+      unsubscribeToken = existingToken.token;
+    } else {
+      unsubscribeToken = crypto.randomUUID();
+      await adminClient.from("email_unsubscribe_tokens").insert({
+        email: recipientEmail,
+        token: unsubscribeToken,
+      });
+    }
+
     const html = `<div style="font-family:'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fff;color:#1a1a1a">
     <div style="text-align:center;margin-bottom:24px">
       <h2 style="margin:0;font-size:18px;font-weight:700;color:#1a1a1a">The Boardroom</h2>
@@ -233,6 +252,7 @@ Deno.serve(async (req) => {
         text: `Hej ${firstName} — du er udvalgt til The Boardroom Legat. Log ind her: ${legatAccessUrl}`,
         purpose: "transactional",
         label: "legat-welcome",
+        unsubscribe_token: unsubscribeToken,
         queued_at: new Date().toISOString(),
       },
     });
