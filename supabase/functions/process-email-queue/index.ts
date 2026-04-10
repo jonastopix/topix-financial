@@ -246,57 +246,24 @@ Deno.serve(async (req) => {
       }
 
       try {
-        if (payload.run_id) {
-          // Auth emails: use Lovable Email API (requires valid webhook run_id)
-          await sendLovableEmail(
-            {
-              run_id: payload.run_id,
-              to: payload.to,
-              from: payload.from,
-              sender_domain: payload.sender_domain,
-              subject: payload.subject,
-              html: payload.html,
-              text: payload.text,
-              purpose: payload.purpose,
-              label: payload.label,
-              idempotency_key: payload.idempotency_key,
-              unsubscribe_token: payload.unsubscribe_token,
-              message_id: payload.message_id,
-            },
-            { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
-          )
-        } else {
-          // Transactional emails: send directly via Resend API
-          const resendApiKey = Deno.env.get('RESEND_API_KEY')
-          if (!resendApiKey) {
-            throw new Error('RESEND_API_KEY not configured — required for transactional emails')
-          }
-          const resendPayload: Record<string, unknown> = {
-            from: payload.from,
+        // Send all emails via Lovable Email API
+        await sendLovableEmail(
+          {
+            run_id: payload.run_id,
             to: payload.to,
+            from: payload.from,
+            sender_domain: payload.sender_domain,
             subject: payload.subject,
             html: payload.html,
-          }
-          if (payload.text) resendPayload.text = payload.text
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(resendPayload),
-          })
-          if (!resendResponse.ok) {
-            const errBody = await resendResponse.text()
-            if (resendResponse.status === 429) {
-              const err = new Error(`Resend rate limited: ${errBody}`)
-              ;(err as any).status = 429
-              throw err
-            }
-            throw new Error(`Resend API error: ${resendResponse.status} ${errBody}`)
-          }
-          await resendResponse.text()
-        }
+            text: payload.text,
+            purpose: payload.purpose || 'transactional',
+            label: payload.label,
+            idempotency_key: payload.idempotency_key,
+            unsubscribe_token: payload.unsubscribe_token,
+            message_id: payload.message_id,
+          },
+          { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+        )
 
         // Log success
         await supabase.from('email_send_log').insert({

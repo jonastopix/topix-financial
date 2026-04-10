@@ -225,8 +225,8 @@ Deno.serve(async (req) => {
       payload: {
         message_id: messageId,
         to: email,
-        from: "The Boardroom <noreply@mail.topix.dk>",
-        sender_domain: "mail.topix.dk",
+        from: `The Boardroom <noreply@topix.dk>`,
+        sender_domain: "boardroom.topix.dk",
         subject: `Velkommen til The Boardroom Legat, ${firstName}`,
         html,
         text: `Hej ${firstName} — du er udvalgt til The Boardroom Legat. Log ind her: ${legatAccessUrl}`,
