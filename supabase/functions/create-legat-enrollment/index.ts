@@ -83,6 +83,7 @@ Deno.serve(async (req) => {
       user_id: userId,
       full_name,
       company_name: company_name || "",
+      onboarded_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
 
     let companyId: string;
