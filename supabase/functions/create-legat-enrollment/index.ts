@@ -191,6 +191,57 @@ Deno.serve(async (req) => {
     const legatAccessUrl = inviteData?.properties?.action_link
       ?? "https://app.theboardroom.dk/auth?returnUrl=https%3A%2F%2Fapp.theboardroom.dk%2Flegat";
 
+    // 8a. Create conversation and send legat welcome message in chat
+    try {
+      // Find or create conversation for this user
+      const { data: existingConv } = await adminClient
+        .from("conversations")
+        .select("id")
+        .eq("member_id", userId)
+        .maybeSingle();
+
+      let convId: string;
+      if (existingConv?.id) {
+        convId = existingConv.id;
+      } else {
+        const { data: newConv, error: convError } = await adminClient
+          .from("conversations")
+          .insert({
+            member_id: userId,
+            company_id: companyId,
+            conversation_status: "open",
+            awaiting_reply_from: "company",
+          })
+          .select("id")
+          .single();
+        if (convError) throw new Error(`Conversation creation failed: ${convError.message}`);
+        convId = newConv.id;
+      }
+
+      // Find Jonas' user_id (created_by = advisor who created the enrollment)
+      const firstName = full_name.split(" ")[0];
+      const welcomeMessage = `Hej ${firstName}!\n\nVelkommen på The Boardroom, hvor du som legatmodtager har eksklusiv adgang de næste 10 dage.\n\nDet er i denne chat du kan skrive til mig hvis du har spørgsmål undervejs.\n\nMorten og jeg ser frem til at følge dig de kommende 10 dage 🙂\n\nVh Jonas`;
+      const now = new Date().toISOString();
+      await adminClient.from("messages").insert({
+        conversation_id: convId,
+        sender_id: callerId,
+        content: welcomeMessage,
+        message_type: "welcome",
+        created_at: now,
+      });
+
+      // Update conversation last_message_at
+      await adminClient.from("conversations").update({
+        last_message_at: now,
+        awaiting_reply_from: "company",
+      }).eq("id", convId);
+
+      console.log(`[create-legat-enrollment] Welcome message sent for user ${userId}`);
+    } catch (msgErr: any) {
+      console.error("[create-legat-enrollment] Welcome message error (non-fatal):", msgErr.message);
+      // Non-fatal — enrollment is still created successfully
+    }
+
     // 8. Send welcome email via email queue
     const firstName = full_name.split(" ")[0];
     const messageId = crypto.randomUUID();
