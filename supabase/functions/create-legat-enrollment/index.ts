@@ -224,8 +224,9 @@ Deno.serve(async (req) => {
       queue_name: "transactional_emails",
       payload: {
         message_id: messageId,
+        idempotency_key: messageId,
         to: email,
-        from: `The Boardroom <noreply@topix.dk>`,
+        from: `The Boardroom <noreply@boardroom.topix.dk>`,
         sender_domain: "boardroom.topix.dk",
         subject: `Velkommen til The Boardroom Legat, ${firstName}`,
         html,

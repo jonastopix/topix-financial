@@ -246,6 +246,14 @@ Deno.serve(async (req) => {
       }
 
       try {
+        const purpose = payload.purpose || (queue === 'auth_emails' ? 'auth' : 'transactional')
+        const idempotencyKey =
+          typeof payload.idempotency_key === 'string' && payload.idempotency_key.trim().length > 0
+            ? payload.idempotency_key
+            : queue === 'transactional_emails' && typeof payload.message_id === 'string' && payload.message_id.trim().length > 0
+              ? payload.message_id
+              : undefined
+
         // Send all emails via Lovable Email API
         await sendLovableEmail(
           {
@@ -256,9 +264,9 @@ Deno.serve(async (req) => {
             subject: payload.subject,
             html: payload.html,
             text: payload.text,
-            purpose: payload.purpose || 'transactional',
+            purpose,
             label: payload.label,
-            idempotency_key: payload.idempotency_key,
+            idempotency_key: idempotencyKey,
             unsubscribe_token: payload.unsubscribe_token,
             message_id: payload.message_id,
           },
