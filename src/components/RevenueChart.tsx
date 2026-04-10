@@ -123,7 +123,7 @@ const RevenueChart = () => {
                 contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", color: "hsl(var(--foreground))" }}
                 formatter={(value: number, name: string) => [
                   `${(value / 1000).toFixed(0)}k DKK`,
-                  name === "revenue" ? "Omsætning" : name === "expenses" ? "Udgifter" : "Resultat"
+                  name,
                 ]}
               />
               <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorRevenue)" name="Omsætning" />
