@@ -532,55 +532,14 @@ const Members = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      // Phase 0: Delete handout_lever_milestones (FK to handouts)
-      const { data: handoutsForDelete } = await supabase
-        .from("handouts")
-        .select("id")
-        .eq("company_id", deleteTarget.id);
-      if (handoutsForDelete && handoutsForDelete.length > 0) {
-        await supabase.from("handout_lever_milestones").delete().in("handout_id", handoutsForDelete.map(h => h.id));
-      }
-
-      // Phase 1: Leaf tables with no FK dependents
-      await Promise.all([
-        supabase.from("financial_commentaries").delete().eq("company_id", deleteTarget.id),
-        supabase.from("financial_report_facts").delete().eq("company_id", deleteTarget.id),
-        supabase.from("advisor_notifications").delete().eq("company_id", deleteTarget.id),
-        supabase.from("slack_conversation_threads").delete().eq("company_id", deleteTarget.id),
-        supabase.from("slack_notification_log").delete().eq("company_id", deleteTarget.id),
-        supabase.from("slack_handout_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
-        supabase.from("slack_report_notification_log" as any).delete().eq("company_id", deleteTarget.id) as any,
-        supabase.from("group_companies" as any).delete().eq("company_id", deleteTarget.id) as any,
-        supabase.from("company_actions").delete().eq("company_id", deleteTarget.id),
-        supabase.from("notifications").delete().eq("company_id", deleteTarget.id),
-        supabase.from("weekly_focus").delete().eq("company_id", deleteTarget.id),
-        supabase.from("kpi_chart_comments").delete().eq("company_id", deleteTarget.id),
-        supabase.from("legat_enrollments" as any).delete().eq("company_id", deleteTarget.id) as any,
-      ]);
-      await supabase.from("financial_reports").delete().eq("company_id", deleteTarget.id);
-      await Promise.all([
-        supabase.from("handouts").delete().eq("company_id", deleteTarget.id),
-        supabase.from("milestones").delete().eq("company_id", deleteTarget.id),
-        supabase.from("budget_targets").delete().eq("company_id", deleteTarget.id),
-        supabase.from("kpi_targets").delete().eq("company_id", deleteTarget.id),
-        supabase.from("kpi_benchmarks").delete().eq("company_id", deleteTarget.id),
-        supabase.from("company_invitations").delete().eq("company_id", deleteTarget.id),
-        supabase.from("feedback").delete().eq("company_id", deleteTarget.id),
-        supabase.from("advisor_session_notes").delete().eq("company_id", deleteTarget.id),
-        supabase.from("pulse_checkins").delete().eq("company_id", deleteTarget.id),
-      ]);
-      const { data: convs } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("company_id", deleteTarget.id);
-      if (convs && convs.length > 0) {
-        const convIds = convs.map((c) => c.id);
-        await supabase.from("messages").delete().in("conversation_id", convIds);
-      }
-      await supabase.from("conversations").delete().eq("company_id", deleteTarget.id);
-      await (supabase.from("company_members" as any).delete().eq("company_id", deleteTarget.id) as any);
-      const { error } = await supabase.from("companies" as any).delete().eq("id", deleteTarget.id) as any;
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "delete-company", company_id: deleteTarget.id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
       toast.success(`${deleteTarget.name} slettet`);
       setDeleteDialogOpen(false);
       setDeleteTarget(null);

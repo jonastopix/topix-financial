@@ -1,3 +1,5 @@
+import { hardDeleteCompany } from "../_shared/companyHardDelete.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -217,67 +219,10 @@ Deno.serve(async (req) => {
 
       for (const companyId of (delete_company_ids || [])) {
         try {
-          // Get user_ids for this company
-          const { data: members } = await adminSupabase
-            .from('company_members')
-            .select('user_id')
-            .eq('company_id', companyId);
-          const userIds = (members || []).map((m: any) => m.user_id).filter(Boolean);
-
-          // 1. handout_lever_milestones (via handout_id)
-          const { data: handouts } = await adminSupabase
-            .from('handouts')
-            .select('id')
-            .eq('company_id', companyId);
-          const handoutIds = (handouts || []).map((h: any) => h.id);
-          if (handoutIds.length > 0) {
-            await adminSupabase.from('handout_lever_milestones').delete().in('handout_id', handoutIds);
-          }
-
-          // 2-6. Delete company data tables
-          await adminSupabase.from('handouts').delete().eq('company_id', companyId);
-          await adminSupabase.from('milestones').delete().eq('company_id', companyId);
-          await adminSupabase.from('budget_targets').delete().eq('company_id', companyId);
-          await adminSupabase.from('kpi_targets').delete().eq('company_id', companyId);
-          await adminSupabase.from('kpi_benchmarks').delete().eq('company_id', companyId);
-          await adminSupabase.from('financial_reports').delete().eq('company_id', companyId);
-          await adminSupabase.from('advisor_notifications').delete().eq('company_id', companyId);
-
-          // 7-8. Messages via conversations
-          const { data: convos } = await adminSupabase
-            .from('conversations')
-            .select('id')
-            .eq('company_id', companyId);
-          const convoIds = (convos || []).map((c: any) => c.id);
-          if (convoIds.length > 0) {
-            await adminSupabase.from('messages').delete().in('conversation_id', convoIds);
-          }
-
-          // 9. Conversations
-          await adminSupabase.from('conversations').delete().eq('company_id', companyId);
-
-          // 10. Company members
-          await adminSupabase.from('company_members').delete().eq('company_id', companyId);
-
-          // 11-12. Profiles + auth users
-          for (const uid of userIds) {
-            await adminSupabase.from('profiles').delete().eq('user_id', uid);
-            await adminSupabase.from('user_login_log').delete().eq('user_id', uid);
-            try {
-              await adminSupabase.auth.admin.deleteUser(uid);
-            } catch (e) {
-              console.warn(`[cleanup-shells] Could not delete auth user ${uid}:`, e);
-            }
-          }
-
-          // 13. Nullify company_id on invitations (preserve the invitation)
-          await adminSupabase
-            .from('company_invitations')
-            .update({ company_id: null })
-            .eq('company_id', companyId);
-
-          // 14. Delete the company itself
-          await adminSupabase.from('companies').delete().eq('id', companyId);
+          const { userIds } = await hardDeleteCompany(adminSupabase, companyId, {
+            deleteUsers: true,
+            preserveInvitations: true,
+          });
 
           results.push({ company_id: companyId, status: 'deleted' });
           console.log(`[cleanup-shells] Deleted company ${companyId} with ${userIds.length} users`);
@@ -294,6 +239,25 @@ Deno.serve(async (req) => {
         errors: results.filter(r => r.status === 'error'),
         results,
       }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (action === 'delete-company') {
+      const { company_id } = body;
+
+      if (!company_id) {
+        return new Response(JSON.stringify({ error: 'Missing company_id' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      await hardDeleteCompany(adminSupabase, company_id, {
+        deleteUsers: false,
+        preserveInvitations: false,
+      });
+
+      return new Response(JSON.stringify({ success: true, company_id }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
