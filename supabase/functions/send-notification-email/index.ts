@@ -29,7 +29,7 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
   }
 }
 
-const SENDER_DOMAIN = "mail.topix.dk";
+const SENDER_DOMAIN = "boardroom.topix.dk";
 const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
 const SENDER_FROM = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
 const APP_URL = "https://app.theboardroom.dk";

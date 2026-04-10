@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const SENDER_DOMAIN = "mail.topix.dk";
+const SENDER_DOMAIN = "boardroom.topix.dk";
 const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
 const SENDER = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
 const APP_URL = "https://app.theboardroom.dk";
