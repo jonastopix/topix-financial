@@ -102,8 +102,8 @@ Deno.serve(async (req) => {
         payload: {
           message_id: messageId,
           to: userEmail,
-          from: "The Boardroom <noreply@mail.topix.dk>",
-          sender_domain: "mail.topix.dk",
+          from: "The Boardroom <noreply@boardroom.topix.dk>",
+          sender_domain: "boardroom.topix.dk",
           subject,
           html,
           text: `Hej ${firstName} — du er nu medlem af The Boardroom. Log ind her: https://app.theboardroom.dk`,

@@ -4,7 +4,7 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const SENDER_DOMAIN = 'mail.topix.dk'
+const SENDER_DOMAIN = 'boardroom.topix.dk'
 const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`
 
 function resolveSenderFromTemplate(

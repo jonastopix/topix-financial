@@ -8,7 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
-const SENDER_DOMAIN = "mail.topix.dk";
+const SENDER_DOMAIN = "boardroom.topix.dk";
 const FROM = `The Boardroom <noreply@${SENDER_DOMAIN}>`;
 const APP_URL = "https://app.theboardroom.dk";
 

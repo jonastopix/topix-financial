@@ -191,8 +191,8 @@ Deno.serve(async (req) => {
         payload: {
           message_id: messageId,
           to: userEmail,
-          from: "The Boardroom <noreply@mail.topix.dk>",
-          sender_domain: "mail.topix.dk",
+          from: "The Boardroom <noreply@boardroom.topix.dk>",
+          sender_domain: "boardroom.topix.dk",
           subject,
           html,
           text: `Hej ${firstName} — tak for din betaling. Book din session her: ${bookingUrl}`,

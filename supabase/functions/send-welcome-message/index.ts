@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const VERIFIED_FROM_EMAIL = "noreply@mail.topix.dk";
+const VERIFIED_FROM_EMAIL = "noreply@boardroom.topix.dk";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
