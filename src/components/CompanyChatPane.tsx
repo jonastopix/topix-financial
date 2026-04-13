@@ -70,6 +70,7 @@ interface ConversationWithProfile {
   company_id?: string;
   companyName?: string;
   companyLogoUrl?: string;
+  isLegat?: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   unreadCount: number;
   lastMessage?: string;
@@ -315,7 +316,7 @@ const CompanyChatPane = () => {
     const loadConversations = async () => {
       let convsQuery = supabase
         .from("conversations")
-        .select("*, companies:company_id(id, name, logo_url)")
+        .select("*, companies:company_id(id, name, logo_url, is_legat)")
         .order("last_message_at", { ascending: false });
       
       if (isCompanyOverride && companyId) {
@@ -413,6 +414,7 @@ const CompanyChatPane = () => {
           company_id: cid,
           companyName: companyData?.name || undefined,
           companyLogoUrl: companyData?.logo_url || undefined,
+          isLegat: !!companyData?.is_legat,
           profile: profile
             ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
             : null,
@@ -1603,6 +1605,9 @@ const CompanyChatPane = () => {
                               <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
                                 {conv.companyName || conv.profile?.full_name || "Ukendt"}
                               </p>
+                              {conv.isLegat && (
+                                <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full ml-1 shrink-0">Legat</span>
+                              )}
                             </div>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
