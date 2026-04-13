@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ const HANDOUT_MODULES = [
 export default function LegatDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: enrollment, isLoading } = useQuery({
     queryKey: ["legat-enrollment", user?.id],
@@ -63,6 +64,25 @@ export default function LegatDashboard() {
       return data;
     },
     enabled: !!user,
+  });
+
+  const confirmBookingMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("No user");
+      await (supabase as any)
+        .from("legat_enrollments")
+        .update({ momentumkald_booked: true })
+        .eq("user_id", user.id);
+      await (supabase as any)
+        .from("milestones")
+        .update({ progress: 100, status: "completed" })
+        .eq("user_id", user.id)
+        .eq("source", "legat");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["legat-enrollment", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["legat-momentum-milestone", user?.id] });
+    },
   });
 
   const currentDay = enrollment ? Math.min(
@@ -157,12 +177,22 @@ export default function LegatDashboard() {
               </p>
             </div>
             {momentumMilestone?.progress !== 100 && (
-              <Button
-                size="sm"
-                onClick={() => window.open("https://theboardroom.dk/momentumkald", "_blank")}
-              >
-                Book nu →
-              </Button>
+              <div className="flex flex-col gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  onClick={() => window.open("https://theboardroom.dk/momentumkald", "_blank")}
+                >
+                  Book nu →
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={confirmBookingMutation.isPending}
+                  onClick={() => confirmBookingMutation.mutate()}
+                >
+                  {confirmBookingMutation.isPending ? "Gemmer…" : "Jeg har booket mit kald ✓"}
+                </Button>
+              </div>
             )}
             {momentumMilestone?.progress === 100 && (
               <CheckCircle2 className="h-6 w-6 text-green-500 flex-shrink-0" />
