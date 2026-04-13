@@ -75,6 +75,19 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const MemberRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, needsOnboarding, isLegat } = useAuth();
+  if (loading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+    </div>
+  );
+  if (!user) return <Navigate to="/auth" replace />;
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
+  if (isLegat) return <Navigate to="/legat" replace />;
+  return <>{children}</>;
+};
+
 const AdvisorRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isAdvisor } = useAuth();
   if (loading) return null;
@@ -121,12 +134,12 @@ const App = () => (
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-              <Route path="/budget" element={<ProtectedRoute><Budget /></ProtectedRoute>} />
+              <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
+              <Route path="/reports" element={<MemberRoute><Reports /></MemberRoute>} />
+              <Route path="/budget" element={<MemberRoute><Budget /></MemberRoute>} />
               <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
               <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
-              <Route path="/kpis" element={<ProtectedRoute><KPIs /></ProtectedRoute>} />
+              <Route path="/kpis" element={<MemberRoute><KPIs /></MemberRoute>} />
               <Route path="/chat" element={<ProtectedRoute><ChatShell /></ProtectedRoute>} />
               <Route path="/book-session" element={<ProtectedRoute><BookSession /></ProtectedRoute>} />
               <Route path="/pulse" element={<ProtectedRoute><PulseCheckin /></ProtectedRoute>} />
