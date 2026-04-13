@@ -86,7 +86,7 @@ const Members = () => {
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
       const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
-        supabase.from("companies" as any).select("*").limit(500),
+        supabase.from("companies" as any).select("*, is_legat").limit(500),
         supabase.from("company_members" as any).select("company_id, user_id, role").limit(2000),
         supabase.from("profiles").select("user_id, full_name, avatar_url"),
         supabase.from("conversations").select("id, company_id, last_message_at"),
@@ -100,6 +100,8 @@ const Members = () => {
       ]);
 
       const allCompanies = (companiesRes.data || []) as any[];
+      const legatCompanyIds = new Set(allCompanies.filter((c: any) => c.is_legat).map((c: any) => c.id));
+      const regularCompanies = allCompanies.filter((c: any) => !c.is_legat);
       const allMembers = (membersRes.data || []) as any[];
       const allProfiles = (profilesRes.data || []) as any[];
       const allConvs = (convsRes.data || []) as any[];
@@ -259,7 +261,7 @@ const Members = () => {
         }
       });
 
-      const enriched: CompanyData[] = allCompanies
+      const enriched: CompanyData[] = regularCompanies
         .filter((c: any) => c.status === "active" || !c.status)
         .map((c: any) => {
           const conv = convByCompany.get(c.id);
@@ -345,6 +347,10 @@ const Members = () => {
         standalonePendingInvitations: standalonePending,
         groupInfoMap: groupInfoMapResult,
         groupedCompanyIds: groupedCompanyIdsResult,
+        legatCompanies: allCompanies.filter((c: any) => c.is_legat),
+        legatCompanyIds,
+        allMembers: membersRes.data || [],
+        allProfiles: profilesRes.data || [],
       };
     },
     enabled: !!user && !!isAdvisor,
@@ -356,6 +362,10 @@ const Members = () => {
   const standalonePendingInvitations = membersData?.standalonePendingInvitations || [];
   const groupInfoMap = membersData?.groupInfoMap || new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
   const groupedCompanyIds = membersData?.groupedCompanyIds || new Set<string>();
+  const legatCompanies = membersData?.legatCompanies || [];
+  const legatCompanyIds = membersData?.legatCompanyIds || new Set<string>();
+  const allMembersRaw = (membersData?.allMembers || []) as any[];
+  const allProfilesRaw = (membersData?.allProfiles || []) as any[];
 
   const handleRenameCompany = async () => {
     if (!renamingCompany || !renameValue.trim()) return;
@@ -1053,6 +1063,33 @@ const Members = () => {
           Viser {groupedView.standaloneCompanies.length} virksomheder + {groupedView.groups.length} koncerner af {companies.length} total
         </div>
       </div>
+
+      {legatCompanyIds.size > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Legatforløb</span>
+            <span className="text-xs text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded-full">{legatCompanyIds.size} aktive</span>
+          </div>
+          <div className="rounded-xl border border-primary/10 bg-primary/5 divide-y divide-border/30">
+            {legatCompanies.map((company: any) => {
+              const member = allMembersRaw.find((m: any) => m.company_id === company.id);
+              const profile = member ? allProfilesRaw.find((p: any) => p.user_id === member.user_id) : null;
+              return (
+                <div key={company.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs font-bold text-primary">
+                    {(profile?.full_name || company.name || "?").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{profile?.full_name || "Ukendt"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{company.name}</p>
+                  </div>
+                  <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">Legat</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <MembersAdminSection
         isAdmin={!!isAdmin}
