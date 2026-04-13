@@ -162,7 +162,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setProfile(profileRes.data);
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
-    setNeedsOnboarding(!isAdv && (!profileData || !profileData.onboarded_at));
+    const legatActive = isLegat;
+    setNeedsOnboarding(!isAdv && !legatActive && (!profileData || !profileData.onboarded_at));
 
     // Fetch group data (additive — Koncern v1)
     const [groupMembershipRes, groupFeatureFlagRes] = await Promise.all([
