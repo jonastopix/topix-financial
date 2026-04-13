@@ -150,13 +150,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4b. Add member role to user_roles so RLS policies work correctly
-    // Note: isLegat is determined by legat_enrollments existence, not this role
-    // But member role ensures data access policies (handouts, milestones etc.) work
-    await adminClient.from("user_roles").insert({
-      user_id: userId,
-      role: "member",
-    }).select().maybeSingle(); // ignore conflict if already exists
 
     // 5. Create legat enrollment
     const enrollStart = start_date || new Date().toISOString().split("T")[0];
