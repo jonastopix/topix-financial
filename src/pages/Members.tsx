@@ -364,8 +364,8 @@ const Members = () => {
   const groupedCompanyIds = membersData?.groupedCompanyIds || new Set<string>();
   const legatCompanies = membersData?.legatCompanies || [];
   const legatCompanyIds = membersData?.legatCompanyIds || new Set<string>();
-  const allMembersRaw = membersData?.allMembers || [];
-  const allProfilesRaw = membersData?.allProfiles || [];
+  const allMembersRaw = (membersData?.allMembers || []) as any[];
+  const allProfilesRaw = (membersData?.allProfiles || []) as any[];
 
   const handleRenameCompany = async () => {
     if (!renamingCompany || !renameValue.trim()) return;
