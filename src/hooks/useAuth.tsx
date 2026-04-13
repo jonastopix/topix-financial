@@ -148,13 +148,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
     setIsAdmin(roles.includes("admin" as any));
-    if (!isAdv && !roles.includes("member")) {
-      const { data: legatRow } = await supabase
+    let legatRow: any = null;
+    if (!isAdv) {
+      const { data } = await supabase
         .from("legat_enrollments" as any)
         .select("id")
         .eq("user_id", userId)
         .in("status", ["active", "completed"])
         .maybeSingle();
+      legatRow = data;
       setIsLegat(!!legatRow);
     } else {
       setIsLegat(false);
@@ -162,7 +164,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setProfile(profileRes.data);
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
-    const legatActive = isLegat;
+    const legatActive = !isAdv && !!legatRow;
     setNeedsOnboarding(!isAdv && !legatActive && (!profileData || !profileData.onboarded_at));
 
     // Fetch group data (additive — Koncern v1)
