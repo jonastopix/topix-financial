@@ -29,7 +29,10 @@ import {
   History,
   Calendar,
   Sparkles,
+  BarChart3,
+  Lock,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
@@ -334,13 +337,60 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
-          {(isLegat && !effectiveAdvisor ? [
-              { icon: Sparkles, label: "Forløb", path: "/legat" },
-              { icon: BookOpen, label: "Handouts", path: "/handouts" },
-              { icon: Target, label: "Milestones", path: "/milestones" },
-              { icon: MessageCircle, label: "Chat", path: "/chat" },
-              { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
-            ] : [
+          {(isLegat && !effectiveAdvisor) ? (
+            <>
+              {/* Legat unlocked items */}
+              {[
+                { icon: Sparkles, label: "Forløb", path: "/legat" },
+                { icon: BookOpen, label: "Handouts", path: "/handouts" },
+                { icon: Target, label: "Milestones", path: "/milestones" },
+                { icon: MessageCircle, label: "Chat", path: "/chat" },
+                { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
+              ].map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => { navigate(item.path, { state: { resetKey: Date.now() } }); if (isMobile) onClose(); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group w-full text-left ${
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
+                    }`}
+                  >
+                    <item.icon className={`h-4 w-4 transition-colors ${isActive ? "text-primary" : "text-sidebar-muted group-hover:text-primary"}`} />
+                    {item.label}
+                    {item.path === "/chat" && unreadChat > 0 && !isActive && (
+                      <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                        {unreadChat > 99 ? "99+" : unreadChat}
+                      </span>
+                    )}
+                    {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />}
+                  </button>
+                );
+              })}
+              {/* Locked member-only items */}
+              <div className="mt-2 pt-2 border-t border-sidebar-border/30">
+                <p className="px-3 pb-1.5 text-[10px] font-semibold text-sidebar-muted/50 uppercase tracking-wider">Medlemsadgang</p>
+                {[
+                  { icon: LayoutDashboard, label: "Dashboard" },
+                  { icon: FileText, label: "Rapportering" },
+                  { icon: BarChart3, label: "Budget" },
+                  { icon: TrendingUp, label: "KPI'er" },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={() => toast("Dette område er forbeholdt medlemmer af The Boardroom", { description: "Book et Momentumkald med Jonas for at høre mere." })}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-left text-sidebar-muted/40 hover:text-sidebar-muted/60 hover:bg-sidebar-accent/20 transition-all duration-200 group"
+                  >
+                    <item.icon className="h-4 w-4 text-sidebar-muted/30 group-hover:text-sidebar-muted/50 transition-colors" />
+                    {item.label}
+                    <Lock className="ml-auto h-3 w-3 text-sidebar-muted/25 group-hover:text-sidebar-muted/40 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : [
             ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
             ...(isGroupUser && !effectiveAdvisor ? [
               { icon: Layers, label: "Koncern", path: "/group" },
@@ -356,7 +406,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               { icon: null as any, label: "Admin", path: "__admin_header__", isHeader: true },
               ...adminNavItems,
             ] : []),
-          ]).map((item: any) => {
+          ].map((item: any) => {
             if (item.isHeader) {
               return (
                 <div key={item.path} className="px-3 pt-3 pb-1">
