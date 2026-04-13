@@ -388,6 +388,15 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                     <Lock className="ml-auto h-3 w-3 text-sidebar-muted/25 group-hover:text-sidebar-muted/40 transition-colors" />
                   </button>
                 ))}
+                <a
+                  href="https://theboardroom.dk/momentumkald"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 mt-3 px-3 py-2.5 rounded-lg text-sm font-semibold w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-sm"
+                >
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  Book Momentumkald
+                </a>
               </div>
             </>
           ) : [
