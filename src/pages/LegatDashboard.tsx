@@ -21,6 +21,7 @@ const HANDOUT_MODULES = [
 export default function LegatDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: enrollment, isLoading } = useQuery({
     queryKey: ["legat-enrollment", user?.id],
