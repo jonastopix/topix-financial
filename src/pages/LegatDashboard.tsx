@@ -85,6 +85,7 @@ export default function LegatDashboard() {
     },
   });
 
+  const currentDay = enrollment ? Math.min(
     Math.max(
       Math.floor((Date.now() - new Date(enrollment.start_date).getTime()) / 86400000) + 1,
       1
