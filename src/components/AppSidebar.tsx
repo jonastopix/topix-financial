@@ -29,7 +29,10 @@ import {
   History,
   Calendar,
   Sparkles,
+  BarChart3,
+  Lock,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
