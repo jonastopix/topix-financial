@@ -286,27 +286,38 @@ const Handouts = () => {
           {summaries.map(s => {
             const locked = !isModuleUnlocked(s.module);
             return (
-              <div key={s.module} className={locked ? "opacity-50 relative" : ""}>
-                {locked && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-[1px] cursor-not-allowed"
-                    onClick={() => toast(`Dette modul åbner på dag ${LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb`)}
-                  >
-                    <Lock className="h-5 w-5 text-muted-foreground" />
+              <div key={s.module} className="relative">
+                {locked ? (
+                  <div className="rounded-xl border border-border/40 bg-secondary/20 p-5 flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-lg bg-secondary/60 flex items-center justify-center shrink-0">
+                      <Lock className="h-5 w-5 text-muted-foreground/50" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-muted-foreground/70">
+                        {s.module === "bogholderi" ? "Bogholderi & Økonomi" :
+                         s.module === "administration" ? "Administration & Kundeservice" :
+                         s.module === "salg" ? "Salg" :
+                         s.module === "marketing" ? "Marketing" : s.module}
+                      </p>
+                      <p className="text-xs text-muted-foreground/50 mt-0.5">
+                        Åbner på dag {LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-xs text-muted-foreground/40 bg-secondary/60 px-2.5 py-1 rounded-full">
+                        Dag {LEGAT_UNLOCK_DAYS[s.module] ?? "?"}
+                      </span>
+                    </div>
                   </div>
-                )}
+                ) : (
                 <HandoutCard
                   config={handoutConfigs[s.module]}
                   status={s.status}
                   progress={s.progress}
                   completedAt={s.completedAt}
-                  onClick={() => {
-                    if (locked) {
-                      toast(`Dette modul åbner på dag ${LEGAT_UNLOCK_DAYS[s.module] ?? "?"} af dit forløb`);
-                    } else {
-                      setActiveModule(s.module);
-                    }
-                  }}
+                  onClick={() => setActiveModule(s.module)}
                 />
+                )}
               </div>
             );
           })}
