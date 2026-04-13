@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
-  Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle,
+  Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
@@ -277,7 +277,7 @@ const AdvisorDashboard = () => {
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
-          .select("id, name, logo_url")
+          .select("id, name, logo_url, is_legat")
           .order("name"),
         (supabase
           .from("financial_reports")
@@ -367,6 +367,11 @@ const AdvisorDashboard = () => {
       }));
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
+      const legatCompanyIds = new Set(
+        (companiesRes.data || [])
+          .filter((c: any) => c.is_legat)
+          .map((c: any) => c.id)
+      );
       // Add groups as pseudo-companies so they resolve in companyMap
       for (const [gid, gname] of groupNameMap) {
         companyMap.set(`group_${gid}`, { id: `group_${gid}`, name: gname, logo_url: null });
@@ -526,7 +531,7 @@ const AdvisorDashboard = () => {
       // Build InvestorCompanySummary[]
       const monthsElapsed = new Date().getMonth() + 1;
 
-      const investorSummaries: InvestorCompanySummary[] = companies.map(c => {
+      const investorSummaries: InvestorCompanySummary[] = companies.filter(c => !legatCompanyIds.has(c.id)).map(c => {
         const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
         const missingReport = companiesMissingReport.has(c.id);
@@ -865,7 +870,7 @@ const AdvisorDashboard = () => {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
-        allConversations, groupedCompanyIds, companyToUser,
+        allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
       };
     },
     enabled: !!user,
@@ -1136,6 +1141,25 @@ const AdvisorDashboard = () => {
           onAssign={handleAssignAdvisor}
         />
       </div>
+
+      {(data?.legatCompanyIds?.size ?? 0) > 0 && (
+        <div className="rounded-xl border border-primary/10 bg-primary/5 p-4 mb-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold text-foreground">Legatforløb</p>
+            <span className="text-xs text-muted-foreground">{data!.legatCompanyIds.size} aktive</span>
+          </div>
+          <div className="space-y-1">
+            {(data?.companies || []).filter((c: any) => data!.legatCompanyIds.has(c.id)).map((company: any) => (
+              <div key={company.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                <span className="truncate">{company.name}</span>
+                <span className="text-[10px] text-primary ml-auto">Legat</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Financial Alerts ── */}
       <AdvisorAlertsPanel
