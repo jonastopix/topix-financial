@@ -66,7 +66,25 @@ export default function LegatDashboard() {
     enabled: !!user,
   });
 
-  const currentDay = enrollment ? Math.min(
+  const confirmBookingMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("No user");
+      await (supabase as any)
+        .from("legat_enrollments")
+        .update({ momentumkald_booked: true })
+        .eq("user_id", user.id);
+      await (supabase as any)
+        .from("milestones")
+        .update({ progress: 100, status: "completed" })
+        .eq("user_id", user.id)
+        .eq("source", "legat");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["legat-enrollment", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["legat-momentum-milestone", user?.id] });
+    },
+  });
+
     Math.max(
       Math.floor((Date.now() - new Date(enrollment.start_date).getTime()) / 86400000) + 1,
       1
