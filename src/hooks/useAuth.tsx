@@ -148,7 +148,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
     setIsAdmin(roles.includes("admin" as any));
-    setIsLegat(!isAdv && !roles.includes("member"));
+    if (!isAdv && !roles.includes("member")) {
+      const { data: legatRow } = await supabase
+        .from("legat_enrollments" as any)
+        .select("id")
+        .eq("user_id", userId)
+        .in("status", ["active", "completed"])
+        .maybeSingle();
+      setIsLegat(!!legatRow);
+    } else {
+      setIsLegat(false);
+    }
     setProfile(profileRes.data);
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
