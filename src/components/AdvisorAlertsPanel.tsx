@@ -327,6 +327,14 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
                       >
                         {financialActioningId === alert.id ? <X className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       </button>
+                      <button
+                        onClick={() => financialDismissMutation.mutate({ notificationId: alert.id })}
+                        className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Fjern — ingen handling nødvendig"
+                        disabled={financialDismissMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                   {financialActioningId === alert.id && (
