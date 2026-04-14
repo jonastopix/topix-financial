@@ -19,9 +19,16 @@ const HANDOUT_MODULES = [
 ] as const;
 
 export default function LegatDashboard() {
-  const { user } = useAuth();
+  const { user, isLegat, loading } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Redirect non-legat users to dashboard
+  useEffect(() => {
+    if (!loading && !isLegat) {
+      navigate("/", { replace: true });
+    }
+  }, [loading, isLegat, navigate]);
 
   const { data: enrollment, isLoading } = useQuery({
     queryKey: ["legat-enrollment", user?.id],
