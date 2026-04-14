@@ -203,6 +203,32 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       setFinancialNote("");
       setFinancialSnoozeDays(14);
     },
+    onError: (error: any) => {
+      console.error("financialActionMutation error:", error);
+      toast.error(`Fejl: ${error?.message || JSON.stringify(error)}`);
+    },
+  });
+
+  const financialDismissMutation = useMutation({
+    mutationFn: async ({ notificationId }: { notificationId: string }) => {
+      const { error } = await (supabase as any)
+        .from("advisor_financial_actions")
+        .upsert({
+          notification_id: notificationId,
+          actioned_by_advisor_id: user!.id,
+          actioned_at: new Date().toISOString(),
+          snoozed_until: new Date(Date.now() + 365 * 86400000).toISOString(),
+          note: "Afvist — ingen handling nødvendig",
+        }, { onConflict: "notification_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advisor-alerts"] });
+    },
+    onError: (error: any) => {
+      console.error("financialDismissMutation error:", error);
+      toast.error(`Fejl: ${error?.message || JSON.stringify(error)}`);
+    },
   });
 
   const milestoneItems: MilestoneItem[] = [];
@@ -300,6 +326,14 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
                         title="Kvittér og snooze"
                       >
                         {financialActioningId === alert.id ? <X className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => financialDismissMutation.mutate({ notificationId: alert.id })}
+                        className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Fjern — ingen handling nødvendig"
+                        disabled={financialDismissMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
