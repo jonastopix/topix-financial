@@ -76,7 +76,7 @@ const MONTH_NAMES = [
 // ── Subtotal detection ──
 
 function isSubtotalName(name: string): boolean {
-  return /i alt|total|dækningsbidrag|resultat/i.test(name);
+  return /i alt|total|dækningsbidrag|resultat|nettoomsætning/i.test(name);
 }
 
 // ── Main Parser ──
