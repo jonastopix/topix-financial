@@ -52,15 +52,28 @@ Deno.serve(async (req) => {
   const now = new Date().toISOString();
   const { data: snoozedActions } = await adminClient
     .from("advisor_financial_actions")
-    .select("notification_id, snoozed_until, note, actioned_by_advisor_id, profiles:actioned_by_advisor_id(full_name)")
+    .select("notification_id, snoozed_until, note, actioned_by_advisor_id")
     .in("notification_id", alertIds)
     .gt("snoozed_until", now);
+
+  // Fetch advisor names separately (no FK to profiles)
+  const advisorIds = [...new Set((snoozedActions || []).map((a: any) => a.actioned_by_advisor_id).filter(Boolean))];
+  let advisorNameMap = new Map<string, string>();
+  if (advisorIds.length > 0) {
+    const { data: profiles } = await adminClient
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", advisorIds);
+    for (const p of profiles || []) {
+      advisorNameMap.set(p.user_id, p.full_name);
+    }
+  }
 
   const snoozedMap = new Map(
     (snoozedActions || []).map((a: any) => [a.notification_id, {
       snoozed_until: a.snoozed_until,
       note: a.note,
-      advisor_name: (a.profiles as any)?.full_name || null,
+      advisor_name: advisorNameMap.get(a.actioned_by_advisor_id) || null,
     }])
   );
 
