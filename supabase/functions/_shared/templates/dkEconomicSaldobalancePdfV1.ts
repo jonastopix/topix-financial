@@ -201,7 +201,10 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     // P&L METRICS — from "Perioden" column (period_amount)
     // ═══════════════════════════════════════════════════════════════
 
-    const omsaetningLine = findByLabel(lines, /omsætning\s*(i alt|ialt)/i, "PNL");
+    const omsaetningLine =
+      findByLabel(lines, /nettoomsætning/i, "PNL") ||
+      findByLabel(lines, /omsætning\s*(i alt|ialt)/i, "PNL") ||
+      findByLabel(lines, /omsætning\s*diverse/i, "PNL");
     const direkteOmkLine = findByLabel(lines, /direkte omkostninger\s*(i alt|ialt)/i, "PNL");
     const dbLine = findByLabel(lines, /dækningsbidrag/i, "PNL");
     const loenLine = findByLabel(lines, /lønninger\s*(i alt|ialt)/i, "PNL");
@@ -209,7 +212,10 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     const adminLine = findByLabel(lines, /administrations.*(i alt|ialt)/i, "PNL");
     const afskrLine = findByLabel(lines, /afskrivninger\s*(i alt|ialt)/i, "PNL");
     const ebitdaLine = findByLabel(lines, /resultat før afskrivninger/i, "PNL");
-    const ebtLine = findByLabel(lines, /resultat før skat/i, "PNL");
+    const ebtLine =
+      findByLabel(lines, /resultat før skat/i, "PNL") ||
+      findByLabel(lines, /resultat før ekstraordinære poster/i, "PNL") ||
+      findByLabel(lines, /^resultat$/i, "PNL");
     const netResultLine = findByLabel(lines, /resultat efter skat/i, "PNL");
 
     // ═══════════════════════════════════════════════════════════════
@@ -256,6 +262,7 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
       omsaetning: absVal(omsaetningLine?.period_amount ?? null),
       direkte_omkostninger: absVal(direkteOmkLine?.period_amount ?? null),
       daekningsbidrag: flipPnlSign(dbLine?.period_amount ?? null),
+      gross_profit: flipPnlSign(dbLine?.period_amount ?? null),
       loenninger: absVal(loenLine?.period_amount ?? null),
       salgsomkostninger: absVal(salgsLine?.period_amount ?? null),
       administrationsomkostninger: absVal(adminLine?.period_amount ?? null),
