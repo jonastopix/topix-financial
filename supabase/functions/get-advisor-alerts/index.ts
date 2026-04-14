@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     (snoozedActions || []).map((a: any) => [a.notification_id, {
       snoozed_until: a.snoozed_until,
       note: a.note,
-      advisor_name: (a.profiles as any)?.full_name || null,
+      advisor_name: advisorNameMap.get(a.actioned_by_advisor_id) || null,
     }])
   );
 
