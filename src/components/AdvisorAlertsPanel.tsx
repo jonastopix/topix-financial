@@ -203,6 +203,32 @@ export default function AdvisorAlertsPanel({ onCompanyClick }: AdvisorAlertsPane
       setFinancialNote("");
       setFinancialSnoozeDays(14);
     },
+    onError: (error: any) => {
+      console.error("financialActionMutation error:", error);
+      toast.error(`Fejl: ${error?.message || JSON.stringify(error)}`);
+    },
+  });
+
+  const financialDismissMutation = useMutation({
+    mutationFn: async ({ notificationId }: { notificationId: string }) => {
+      const { error } = await (supabase as any)
+        .from("advisor_financial_actions")
+        .upsert({
+          notification_id: notificationId,
+          actioned_by_advisor_id: user!.id,
+          actioned_at: new Date().toISOString(),
+          snoozed_until: new Date(Date.now() + 365 * 86400000).toISOString(),
+          note: "Afvist — ingen handling nødvendig",
+        }, { onConflict: "notification_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advisor-alerts"] });
+    },
+    onError: (error: any) => {
+      console.error("financialDismissMutation error:", error);
+      toast.error(`Fejl: ${error?.message || JSON.stringify(error)}`);
+    },
   });
 
   const milestoneItems: MilestoneItem[] = [];
