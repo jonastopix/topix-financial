@@ -1,53 +1,65 @@
 
+## Oprydning af forældreløse brugere
 
-## Email System Audit — Resultater
+### Tal
+- **50 brugere** total i `auth.users`
+- **18 brugere** uden virksomhedstilknytning
+- Heraf:
+  - **13 helt forældreløse** (ingen virksomhed, ingen rolle, ingen legat) — kandidater til sletning
+  - **5 har en rolle** — skal IKKE røres (advisors/admins + Topix-konti)
 
-### Status: 3 problemer fundet, 2 allerede løst, 1 åben
+### De 13 forældreløse brugere
 
----
+| Email | Oprettet | Sidste login | Logins | Status |
+|---|---|---|---|---|
+| jonas+legat5@topix.dk | 10/4 | aldrig | 0 | Test-legat, aldrig logget ind |
+| jonas+legat4@topix.dk | 10/4 | aldrig | 0 | Test-legat, aldrig logget ind |
+| jonas+legat3@topix.dk | 10/4 | aldrig | 0 | Test-legat, aldrig logget ind |
+| jonas+legat2@topix.dk | 9/4 | aldrig | 0 | Test-legat, aldrig logget ind |
+| jonas+legat1@topix.dk | 9/4 | aldrig | 0 | Test-legat, aldrig logget ind |
+| ditte@mondokaos.dk | 2/4 | aldrig | 0 | Pending invite, aldrig signed up færdig |
+| demo@theboardroom.dk | 1/4 | 1/4 | 19 | Demo-konto |
+| jonas+test2endelig@topix.dk | 27/3 | 27/3 | 11 | Test-konto |
+| jonas+endeligtest@topix.dk | 27/3 | 27/3 | 23 | Test-konto |
+| roskilde.dan@gmail.com | 18/3 | 18/3 | 2 | Aldrig færdiggjort onboarding |
+| linealmegaard@gmail.com | 16/3 | 16/3 | 3 | Aldrig færdiggjort onboarding |
+| jonasherlev@hotmail.com | 3/3 | 3/3 | 3 | Aldrig færdiggjort onboarding |
+| jh@jonasherlev.dk | 27/2 | 8/4 | 55 | **Du selv?** Logger ind men har ingen company |
 
-### Problem 1: Dobbelt chat-notifikation (`advisor_replied` + `chat_reply`) ✅ LØST
-**Status:** Koden er deployeret og virker. Ingen nye `advisor_replied`-notifikationer siden deployment. Der er **1 stale `advisor_replied`** fra d. 7/4 kl. 18:41 (René Larsen) der stadig ikke er markeret — den vil blive plukket af næste cron-kørsel og aggregeret korrekt med hans chat-notifikationer.
+Alle har **0 messages, 0 reports, 0 milestones** — de er reelt tomme skaller.
 
-**Anbefaling:** Ingen yderligere handling nødvendig. Cron-systemet håndterer den korrekt nu.
+### Ting at være opmærksom på
 
----
+1. **`jh@jonasherlev.dk`** har 55 logins og loggede ind for en uge siden — det ser ud til at være dig selv. Skal vi beholde den? Eller var det en gammel testkonto?
+2. **`demo@theboardroom.dk`** — er det en aktiv demo-konto vi vil beholde?
+3. De 5 jonas+legat-konti er tydeligt tests fra legat-flow udvikling.
 
-### Problem 2: `report_review_ready` / `report_error` duplikater ✅ IKKE ET PROBLEM
-Duplikaterne skyldes **forskellige rapport-uploads** (unikke `reference_id`). Eksempel: Jonas test-virksomhed uploadede 7 rapporter d. 1/4 → 7 separate notifikationer. Sarah Fjeldgaard uploadede 8 gange med fejl → 8 `report_error`. **Dette er korrekt opførsel** — hver upload er en separat handling.
+### Forslag — to-trins oprydning
 
----
+**Trin 1 (sikker):** Slet de 11 åbenlyse test/forældreløse:
+- 5x `jonas+legat[1-5]@topix.dk` 
+- 2x `jonas+test/endeligtest@topix.dk`
+- `ditte@mondokaos.dk`, `roskilde.dan@gmail.com`, `linealmegaard@gmail.com`, `jonasherlev@hotmail.com`
 
-### Problem 3: `report-reminder` cron-job aldrig kaldt ✅ LØST
-Fixet i forrige session ved at opdatere cron-jobbet med korrekt URL. Næste afsendelse: 15. april kl. 09:00.
+**Trin 2 (kræver din bekræftelse):**
+- `jh@jonasherlev.dk` — slettes hvis det er en gammel testkonto
+- `demo@theboardroom.dk` — slettes hvis demo ikke længere bruges
 
----
+### Sletningsproces (per bruger)
 
-### Problem 4: `report_committed` emails sendes til advisors ⚠️ ÅBEN
-Jonas Herlev og Morten Larsen (begge advisors) har fået **17 `report_committed`-notifikationer** hver de seneste 14 dage. Selv om e-mails til advisors undertrykkes af `ADVISOR_EMAIL_DISABLED`, genereres der stadig in-app notifikationer. Det er ikke en fejl i sig selv (de kan bruges i advisor-dashboardet), men det oppuster `notifications`-tabellen.
+For hver bruger sletter jeg i denne rækkefølge for at respektere FK constraints:
+```text
+1. user_login_log    (login-historik)
+2. profiles          (profil-data)
+3. user_roles        (hvis nogen — gælder ikke disse 13)
+4. company_invitations  (accepted-rækker der peger på brugeren via email)
+5. auth.users        (via supabase.auth.admin.deleteUser)
+```
+Brugerne har ingen messages/reports/milestones så de tabeller behøver vi ikke røre.
 
-**Anbefaling:** Ikke kritisk — notifikationerne undertrykkes korrekt for e-mail. Kan optimeres senere hvis ønsket.
+Jeg laver dette som et engangsscript via Supabase service role — ikke en edge function, da det er en éngangs-oprydning.
 
----
+### Spørgsmål før jeg går i gang
 
-### Problem 5: Stale `pending`-rækker i email_send_log ✅ LØST
-Email-log-dashboardet deduplikerer nu korrekt på `message_id` og viser kun den seneste status.
-
----
-
-### Opsummering
-
-| System | Status |
-|--------|--------|
-| Chat-notifikationer | ✅ Fixet — ingen dobbelt-emails mere |
-| Chat-aggregering | ✅ Virker — én samlet email per bruger |
-| Rapport-notifikationer | ✅ Korrekt — én per upload |
-| Rapport-påmindelser | ✅ Fixet — kører fra 15. april |
-| Invitation-emails | ✅ Fungerer korrekt |
-| Signup/recovery | ✅ Fungerer korrekt |
-| Session-booking | ✅ Fungerer korrekt |
-| Advisor email-suppression | ✅ Virker — advisors får ikke emails |
-| DLQ (fejlede mails) | 8 invitationer + 1 signup i DLQ — sandsynligvis ugyldige adresser |
-
-**Ingen yderligere kodeændringer er nødvendige.**
-
+1. Skal jeg medtage `jh@jonasherlev.dk` og `demo@theboardroom.dk` i sletningen, eller kun de 11 åbenlyse?
+2. Skal jeg også rydde `company_invitations` med status `accepted` der peger på de slettede emails (de er forældreløse referencer nu)?
