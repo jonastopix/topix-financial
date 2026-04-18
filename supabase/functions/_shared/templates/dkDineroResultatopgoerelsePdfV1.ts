@@ -289,6 +289,8 @@ export const dkDineroResultatopgoerelsePdfV1: TemplateEntry = {
     if (/\bAKTIVER\b/i.test(text) || /\bPASSIVER\b/i.test(text)) return 0;
     if (/\bSaldobalance\b/i.test(text)) return 0;
     if (/Konto;Kontonavn;Beløb/.test(text)) return 0;
+    // Anti-match: only match Dinero-branded documents — yield all others to generic template
+    if (!/dinero/i.test(text)) return 0;
 
     let score = 0;
 
