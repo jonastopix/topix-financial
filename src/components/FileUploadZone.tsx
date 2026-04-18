@@ -770,9 +770,12 @@ const FileUploadZone = ({
           extractedData?.status === "structural_parse_fail" ||
           extractedData?.status === "structural_payload_missing" ||
           extractedData?.status === "error" ||
+          extractedData?.status === "processed" ||
+          extractedData?.needs_manual_entry === true ||
           extractedData?.error?.includes("Known source without supported template") ||
           extractedData?.error?.includes("Structural semantic extraction failed") ||
-          extractedData?.error?.includes("Deterministic parsing failed");
+          extractedData?.error?.includes("Deterministic parsing failed") ||
+          extractedData?.error?.includes("AI returned no tool call");
 
         if (!isKnownFallback) {
           const friendlyMsg = getFriendlyErrorMessage(extractedData);
