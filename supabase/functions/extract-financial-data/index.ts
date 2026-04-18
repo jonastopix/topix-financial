@@ -1285,7 +1285,40 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
 
       if (!toolCall) {
-        throw new Error("AI returned no tool call");
+        console.error("[AI] No tool call returned from AI — falling back to needs_manual_entry");
+        if (reportId) {
+          await supabase
+            .from("financial_reports")
+            .update({
+              extraction_method: "ai_no_tool_call",
+              raw_extracted_data: { routing_trace: routingTrace, error: "AI returned no tool call" },
+              processed_at: new Date().toISOString(),
+              status: "processed",
+              extraction_contract_version: "v1",
+              validation_status: "FAIL",
+              validation_errors: ["AI returned no tool call"],
+              quality_signals: {
+                needs_manual_entry: true,
+                validation_status: "FAIL",
+                validation_errors: ["AI returned no tool call"],
+                canonical_checks: [],
+                ai_eligible: false,
+                has_metrics: false,
+                has_period: false,
+                extraction_method: "ai_no_tool_call",
+                routing_branch: routingTrace.branch || "ai_no_tool_call",
+              },
+            })
+            .eq("id", reportId);
+        }
+        return new Response(
+          JSON.stringify({
+            error: "AI returned no tool call",
+            status: "processed",
+            needs_manual_entry: true,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       extractedData = JSON.parse(toolCall.function.arguments);
@@ -1681,9 +1714,46 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     });
   } catch (error) {
     console.error("extract-financial-data error:", error);
+    // Best-effort: try to mark report as needs_manual_entry instead of leaving it in limbo
+    try {
+      if (typeof reportId === "string" && reportId) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+        const fallbackClient = createClient(supabaseUrl, supabaseServiceKey);
+        await fallbackClient
+          .from("financial_reports")
+          .update({
+            extraction_method: "exception",
+            raw_extracted_data: { error: error instanceof Error ? error.message : "Unknown error" },
+            processed_at: new Date().toISOString(),
+            status: "processed",
+            validation_status: "FAIL",
+            validation_errors: [error instanceof Error ? error.message : "Unknown error"],
+            quality_signals: {
+              needs_manual_entry: true,
+              validation_status: "FAIL",
+              validation_errors: [error instanceof Error ? error.message : "Unknown error"],
+              canonical_checks: [],
+              ai_eligible: false,
+              has_metrics: false,
+              has_period: false,
+              extraction_method: "exception",
+              routing_branch: "exception",
+            },
+          })
+          .eq("id", reportId);
+      }
+    } catch (fallbackErr) {
+      console.error("Fallback DB update also failed:", fallbackErr);
+    }
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+        status: "processed",
+        needs_manual_entry: true,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
