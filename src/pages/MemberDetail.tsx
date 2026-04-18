@@ -319,118 +319,123 @@ const MemberDetail = () => {
 
     const load = async () => {
       setLoading(true);
-      const [profileRes, reportsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
-        supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
-        (supabase.from("financial_reports").select("*") as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }),
-        supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
-        supabase.from("conversations").select("id").eq("member_id", userId).single(),
-        supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
-      ]);
+      try {
+        const [profileRes, reportsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
+          supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
+          (supabase.from("financial_reports").select("*") as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }),
+          supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
+          supabase.from("conversations").select("id").eq("member_id", userId).single(),
+          supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
+        ]);
 
-      // Fetch company context via company_members
-      const { data: cmData } = await supabase
-        .from("company_members" as any)
-        .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
-        .eq("user_id", userId)
-        .limit(1)
-        .maybeSingle();
-      const cm = cmData as any;
-      if (cm?.companies) {
-        const ctx = { ...cm.companies, company_id: cm.company_id } as CompanyContext;
-        setCompanyCtx(ctx);
-        // Fetch budgets by company_id (correct key)
-        const { data: budgetData } = await supabase
-          .from("budget_targets")
-          .select("*")
-          .eq("company_id", cm.company_id)
-          .order("category");
-        setBudgets(budgetData || []);
-        // Fetch invitation that was accepted by this specific user
-        let invData: any = null;
-        // Primary: match via accepted_by
-        const { data: invByAcceptor } = await (supabase
-          .from("company_invitations") as any)
-          .select("email")
-          .eq("company_id", cm.company_id)
-          .eq("accepted_by", userId)
-          .eq("status", "accepted")
+        // Fetch company context via company_members
+        const { data: cmData } = await supabase
+          .from("company_members" as any)
+          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
+          .eq("user_id", userId)
+          .limit(1)
           .maybeSingle();
-        invData = invByAcceptor;
+        const cm = cmData as any;
+        if (cm?.companies) {
+          const ctx = { ...cm.companies, company_id: cm.company_id } as CompanyContext;
+          setCompanyCtx(ctx);
+          // Fetch budgets by company_id (correct key)
+          const { data: budgetData } = await supabase
+            .from("budget_targets")
+            .select("*")
+            .eq("company_id", cm.company_id)
+            .order("category");
+          setBudgets(budgetData || []);
+          // Fetch invitation that was accepted by this specific user
+          let invData: any = null;
+          // Primary: match via accepted_by
+          const { data: invByAcceptor } = await (supabase
+            .from("company_invitations") as any)
+            .select("email")
+            .eq("company_id", cm.company_id)
+            .eq("accepted_by", userId)
+            .eq("status", "accepted")
+            .maybeSingle();
+          invData = invByAcceptor;
 
-        // Fallback for legacy data: if company has exactly 1 member and 1 accepted invitation
-        if (!invData) {
-          const { count: memberCount } = await supabase
-            .from("company_members")
-            .select("id", { count: "exact", head: true })
-            .eq("company_id", cm.company_id);
-          if (memberCount === 1) {
-            const { data: singleInv } = await (supabase
-              .from("company_invitations") as any)
-              .select("email")
-              .eq("company_id", cm.company_id)
-              .eq("status", "accepted")
-              .maybeSingle();
-            invData = singleInv;
+          // Fallback for legacy data: if company has exactly 1 member and 1 accepted invitation
+          if (!invData) {
+            const { count: memberCount } = await supabase
+              .from("company_members")
+              .select("id", { count: "exact", head: true })
+              .eq("company_id", cm.company_id);
+            if (memberCount === 1) {
+              const { data: singleInv } = await (supabase
+                .from("company_invitations") as any)
+                .select("email")
+                .eq("company_id", cm.company_id)
+                .eq("status", "accepted")
+                .maybeSingle();
+              invData = singleInv;
+            }
           }
-        }
 
-        const profileEmail = profileRes.data?.email?.toLowerCase()?.trim();
-        const invEmail = (invData as any)?.email?.toLowerCase()?.trim();
-        if (invEmail && invEmail !== profileEmail) {
-          setInvitedEmail((invData as any).email);
+          const profileEmail = profileRes.data?.email?.toLowerCase()?.trim();
+          const invEmail = (invData as any)?.email?.toLowerCase()?.trim();
+          if (invEmail && invEmail !== profileEmail) {
+            setInvitedEmail((invData as any).email);
+          } else {
+            setInvitedEmail(null);
+          }
         } else {
+          setCompanyCtx(null);
           setInvitedEmail(null);
         }
-      } else {
-        setCompanyCtx(null);
-        setInvitedEmail(null);
+
+        const reportsList = reportsRes.data || [];
+        setProfile(profileRes.data);
+        setReports(reportsList);
+        setMilestones(milestonesRes.data || []);
+        setConversationId(convRes.data?.id || null);
+
+        // Build handout summaries
+        const handoutMap = new Map((handoutsRes.data || []).map((d: any) => [d.module, d]));
+        setHandoutSummaries(moduleOrder.map(m => {
+          const d = handoutMap.get(m) as any;
+          if (!d) return { module: m, status: 'not_started' as const, progress: 0, levers: [] };
+          const config = handoutConfigs[m];
+          const rawLevers = (d.levers as string[]) || [];
+          const progress = calcHandoutProgress(
+            config,
+            (d.responses as Record<string, string>) || {},
+            (d.checklist as Record<string, boolean>) || {},
+            rawLevers
+          );
+          return { module: m, status: d.status as HandoutSummaryItem["status"], progress, levers: rawLevers.filter(l => l.trim()) };
+        }));
+
+        // Fetch chat messages with report context
+        if (reportsList.length > 0 && convRes.data?.id) {
+          const reportIds = reportsList.map((r) => r.id);
+          const { data: msgs } = await supabase
+            .from("messages")
+            .select("*")
+            .eq("conversation_id", convRes.data.id)
+            .eq("context_type", "report")
+            .in("context_id", reportIds)
+            .order("created_at", { ascending: true });
+
+          const grouped: Record<string, ChatMessage[]> = {};
+          (msgs || []).forEach((m: any) => {
+            const rid = m.context_id;
+            if (rid) {
+              if (!grouped[rid]) grouped[rid] = [];
+              grouped[rid].push(m as ChatMessage);
+            }
+          });
+          setChatMessages(grouped);
+        }
+      } catch (e) {
+        console.error("[MemberDetail] load failed:", e);
+        toast.error("Kunne ikke indlæse siden", { description: "Tjek din internetforbindelse og prøv at genindlæse." });
+      } finally {
+        setLoading(false);
       }
-
-      const reportsList = reportsRes.data || [];
-      setProfile(profileRes.data);
-      setReports(reportsList);
-      setMilestones(milestonesRes.data || []);
-      setConversationId(convRes.data?.id || null);
-
-      // Build handout summaries
-      const handoutMap = new Map((handoutsRes.data || []).map((d: any) => [d.module, d]));
-      setHandoutSummaries(moduleOrder.map(m => {
-        const d = handoutMap.get(m) as any;
-        if (!d) return { module: m, status: 'not_started' as const, progress: 0, levers: [] };
-        const config = handoutConfigs[m];
-        const rawLevers = (d.levers as string[]) || [];
-        const progress = calcHandoutProgress(
-          config,
-          (d.responses as Record<string, string>) || {},
-          (d.checklist as Record<string, boolean>) || {},
-          rawLevers
-        );
-        return { module: m, status: d.status as HandoutSummaryItem["status"], progress, levers: rawLevers.filter(l => l.trim()) };
-      }));
-
-      // Fetch chat messages with report context
-      if (reportsList.length > 0 && convRes.data?.id) {
-        const reportIds = reportsList.map((r) => r.id);
-        const { data: msgs } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("conversation_id", convRes.data.id)
-          .eq("context_type", "report")
-          .in("context_id", reportIds)
-          .order("created_at", { ascending: true });
-
-        const grouped: Record<string, ChatMessage[]> = {};
-        (msgs || []).forEach((m: any) => {
-          const rid = m.context_id;
-          if (rid) {
-            if (!grouped[rid]) grouped[rid] = [];
-            grouped[rid].push(m as ChatMessage);
-          }
-        });
-        setChatMessages(grouped);
-      }
-
-      setLoading(false);
     };
 
     load();
