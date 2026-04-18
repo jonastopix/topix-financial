@@ -337,6 +337,8 @@ const Dashboard = () => {
     );
   }
 
+  const factsLoadFailed = !factsLoading && !budgetLoading && facts.length === 0 && companyId;
+
 
   return (
     <AppLayout>

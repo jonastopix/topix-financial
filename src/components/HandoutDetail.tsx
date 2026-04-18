@@ -53,47 +53,52 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
   const loadData = useCallback(async () => {
     if (!effectiveUserId) return;
     setLoading(true);
-    const { data } = await supabase
-      .from("handouts")
-      .select("*")
-      .eq("user_id", effectiveUserId)
-      .eq("module", config.module)
-      .maybeSingle();
+    try {
+      const { data } = await supabase
+        .from("handouts")
+        .select("*")
+        .eq("user_id", effectiveUserId)
+        .eq("module", config.module)
+        .maybeSingle();
 
-    if (data) {
-      setHandoutId(data.id);
-      setResponses((data.responses as Record<string, string>) || {});
-      setChecklist((data.checklist as Record<string, boolean>) || {});
-      const loadedLevers = (data.levers as string[]) || [];
-      setLevers([...loadedLevers, ...Array(Math.max(0, config.leverCount - loadedLevers.length)).fill("")]);
-      setAiFeedback(data.ai_feedback);
-      setAiFeedbackAt(data.ai_feedback_at);
-      setHandoutStatus(data.status || "not_started");
+      if (data) {
+        setHandoutId(data.id);
+        setResponses((data.responses as Record<string, string>) || {});
+        setChecklist((data.checklist as Record<string, boolean>) || {});
+        const loadedLevers = (data.levers as string[]) || [];
+        setLevers([...loadedLevers, ...Array(Math.max(0, config.leverCount - loadedLevers.length)).fill("")]);
+        setAiFeedback(data.ai_feedback);
+        setAiFeedbackAt(data.ai_feedback_at);
+        setHandoutStatus(data.status || "not_started");
 
-      // Load lever milestones
-      const { data: links } = await supabase
-        .from("handout_lever_milestones" as any)
-        .select("lever_index, milestone_id")
-        .eq("handout_id", data.id);
+        // Load lever milestones
+        const { data: links } = await supabase
+          .from("handout_lever_milestones" as any)
+          .select("lever_index, milestone_id")
+          .eq("handout_id", data.id);
 
-      if (links && links.length > 0) {
-        const msIds = links.map((l: any) => l.milestone_id);
-        const { data: milestones } = await supabase
-          .from("milestones")
-          .select("id, title, progress, status")
-          .in("id", msIds);
+        if (links && links.length > 0) {
+          const msIds = links.map((l: any) => l.milestone_id);
+          const { data: milestones } = await supabase
+            .from("milestones")
+            .select("id, title, progress, status")
+            .in("id", msIds);
 
-        const map: Record<number, LeverMilestone> = {};
-        for (const link of links as any[]) {
-          const ms = milestones?.find((m) => m.id === link.milestone_id);
-          if (ms) {
-            map[link.lever_index] = { milestone_id: ms.id, title: ms.title, progress: ms.progress, status: ms.status };
+          const map: Record<number, LeverMilestone> = {};
+          for (const link of links as any[]) {
+            const ms = milestones?.find((m) => m.id === link.milestone_id);
+            if (ms) {
+              map[link.lever_index] = { milestone_id: ms.id, title: ms.title, progress: ms.progress, status: ms.status };
+            }
           }
+          setLeverMilestones(map);
         }
-        setLeverMilestones(map);
       }
+    } catch (e) {
+      console.error("[HandoutDetail] loadData failed:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [effectiveUserId, config.module, config.leverCount]);
 
   useEffect(() => { loadData(); }, [loadData]);
