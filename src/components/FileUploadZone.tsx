@@ -551,9 +551,12 @@ const FileUploadZone = ({
               aiData?.status === "structural_parse_fail" ||
               aiData?.status === "structural_payload_missing" ||
               aiData?.status === "error" ||
+              aiData?.status === "processed" ||
+              aiData?.needs_manual_entry === true ||
               aiData?.error?.includes("Known source without supported template") ||
               aiData?.error?.includes("Structural semantic extraction failed") ||
-              aiData?.error?.includes("Deterministic parsing failed");
+              aiData?.error?.includes("Deterministic parsing failed") ||
+              aiData?.error?.includes("AI returned no tool call");
 
             if (isKnownFallback) {
               
