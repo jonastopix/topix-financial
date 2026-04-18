@@ -115,16 +115,45 @@ async function runPostExtractionPipeline(params: {
   }
 
   const edgeFunctionStatus = reportData.status;
-  const needsManualEntry = reportData.quality_signals?.needs_manual_entry === true;
+  // If status is still "processing" after retries, treat as needs_manual_entry
+  // (edge function may have crashed before writing to DB)
+  const isStuckProcessing = edgeFunctionStatus === "processing";
+  const needsManualEntry = reportData.quality_signals?.needs_manual_entry === true || isStuckProcessing;
   const isError = edgeFunctionStatus === "error";
 
   // Always set UI status to "done" for processed reports (including needs_manual_entry)
-  const uiStatus = isError ? "error" : edgeFunctionStatus === "processed" ? "done" : "processing";
+  const uiStatus = isError ? "error" : (edgeFunctionStatus === "processed" || isStuckProcessing) ? "done" : "processing";
   updateFile(fileId, {
     status: uiStatus,
     milestonesCreated: 0,
     errorMessage: isError ? "Dokumentet kunne ikke genkendes som en finansiel rapport" : undefined,
   });
+
+  // If stuck in processing: write needs_manual_entry to DB so Reports page shows the right CTA
+  if (isStuckProcessing) {
+    try {
+      await supabase
+        .from("financial_reports")
+        .update({
+          status: "processed",
+          processed_at: new Date().toISOString(),
+          quality_signals: {
+            needs_manual_entry: true,
+            validation_status: "FAIL",
+            validation_errors: ["Extraction timed out or crashed without updating DB"],
+            canonical_checks: [],
+            ai_eligible: false,
+            has_metrics: false,
+            has_period: false,
+            extraction_method: "stuck_processing_recovery",
+            routing_branch: "stuck_processing_recovery",
+          },
+        } as any)
+        .eq("id", reportId);
+    } catch (e) {
+      console.error("[runPostExtractionPipeline] Failed to recover stuck-processing report:", e);
+    }
+  }
 
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
@@ -963,8 +992,20 @@ const FileUploadZone = ({
                       </span>
                     )}
                     {file.status === "error" && (
-                      <span className="text-destructive leading-snug">
-                        {file.errorMessage || "Rapporten kunne ikke behandles. Prøv en anden fil."}
+                      <span className="leading-snug">
+                        {file.errorMessage?.includes("ikke genkendt") ? (
+                          <span className="text-destructive">{file.errorMessage}</span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400">
+                            {file.errorMessage || "Vi kunne ikke læse filen automatisk."}{" "}
+                            <a
+                              href="/reports"
+                              className="underline font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200"
+                            >
+                              Gå til Rapportering for at indtaste tallene manuelt →
+                            </a>
+                          </span>
+                        )}
                       </span>
                     )}
                   </p>
