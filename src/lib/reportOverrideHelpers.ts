@@ -236,6 +236,8 @@ export async function saveManualOverride(params: SaveManualOverrideParams): Prom
       manual_override_at: new Date().toISOString(),
       manual_override_source: overrideSource,
       manual_override_status: status,
+      // Promote error-status reports to processed so commit becomes possible
+      ...(status === "applied" ? { status: "processed" } : {}),
     } as any)
     .eq("id", reportId) as any);
 
