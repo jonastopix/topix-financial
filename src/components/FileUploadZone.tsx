@@ -380,7 +380,7 @@ const FileUploadZone = ({
       try {
         // === STEP 1: Create report record in DB ===
         if (!userId) throw new Error("Du skal være logget ind for at uploade");
-        if (!companyId) throw new Error("Din konto er ikke tilknyttet en virksomhed. Kontakt support.");
+        if (!companyId) throw new Error("Din konto er ikke tilknyttet en virksomhed endnu. Prøv at logge ud og ind igen, eller kontakt support.");
 
         const insertData: any = {
             user_id: userId,
