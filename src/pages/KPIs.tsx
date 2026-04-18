@@ -654,7 +654,7 @@ const KPIs = () => {
               <SettingsIcon className="h-3.5 w-3.5" />
               {showAdvanced ? "Skjul avanceret" : "Avanceret"}
             </button>
-            {showAdvanced && (
+            {showAdvanced && !isAdvisor && (
               <>
                 <button
                   onClick={startEditingBenchmarks}
