@@ -190,7 +190,8 @@ export function useGroupChat({ groupId }: UseGroupChatOptions = {}) {
 
     let attachments: ChatAttachment[] = [];
     if (hasFiles) {
-      attachments = await uploadChatAttachments(user.id, files);
+      const uploadResult = await uploadChatAttachments(user.id, files);
+      attachments = uploadResult.attachments;
     }
 
     const insertData: any = {

@@ -8,8 +8,9 @@ import type { ChatAttachment } from "@/components/ChatAttachments";
 export async function uploadChatAttachments(
   userId: string,
   files: File[]
-): Promise<ChatAttachment[]> {
+): Promise<{ attachments: ChatAttachment[]; failedCount: number }> {
   const results: ChatAttachment[] = [];
+  let failedCount = 0;
 
   for (const file of files) {
     const ts = Date.now();
@@ -22,6 +23,7 @@ export async function uploadChatAttachments(
 
     if (error) {
       console.error(`Failed to upload ${file.name}:`, error);
+      failedCount++;
       continue;
     }
 
@@ -37,5 +39,5 @@ export async function uploadChatAttachments(
     });
   }
 
-  return results;
+  return { attachments: results, failedCount };
 }
