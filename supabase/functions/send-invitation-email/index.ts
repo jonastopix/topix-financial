@@ -30,6 +30,8 @@ const FALLBACK_HTML = `<!DOCTYPE html>
     <div style="padding:20px 0">
       <a href="{{signup_url}}" target="_blank" style="background-color:hsl(170,46%,14%);border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:13px 28px;text-decoration:none">Acceptér invitationen</a>
     </div>
+    <p style="color:hsl(170,15%,35%);font-size:13px;line-height:1.6;margin:0 0 14px">Virker knappen ikke? Kopiér og indsæt dette link i din browser:</p>
+    <p style="margin:0 0 14px;word-break:break-all"><a href="{{signup_url}}" target="_blank" style="color:hsl(158,64%,35%);font-size:13px;text-decoration:underline">{{signup_url}}</a></p>
     <div style="height:0.5px;background:#e5e7eb"></div>
     <div style="padding:16px 0">
       <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; Ignorer denne besked hvis du ikke forventer den.</span>
