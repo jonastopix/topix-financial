@@ -67,108 +67,112 @@ const Budget = () => {
       setLabelOverrides({});
       setDbLoaded(false);
 
-      const res = await (supabase
-        .from("budget_targets")
-        .select("category, budget_amount, period") as any)
-        .eq("company_id", companyId);
-      const data = (res.data || []) as { category: string; budget_amount: number; period: string }[];
+      try {
+        const res = await (supabase
+          .from("budget_targets")
+          .select("category, budget_amount, period") as any)
+          .eq("company_id", companyId);
+        const data = (res.data || []) as { category: string; budget_amount: number; period: string }[];
 
-      if (!data || data.length === 0) {
+        if (!data || data.length === 0) {
+          return;
+        }
+
+        // Detect template
+        const templateMarker = data.find(d => d.category === "__template__");
+        let template: BudgetTemplate | undefined;
+
+        if (templateMarker) {
+          template = BUDGET_TEMPLATES.find(t => t.key === templateMarker.period);
+        }
+
+        if (!template) {
+          const storedKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
+          let bestMatch = BUDGET_TEMPLATES[0];
+          let bestScore = 0;
+          for (const tmpl of BUDGET_TEMPLATES) {
+            const score = tmpl.categories.filter(c => storedKeys.has(c.key)).length;
+            if (score > bestScore) { bestScore = score; bestMatch = tmpl; }
+          }
+          template = bestMatch;
+        }
+
+        setSelectedTemplate(template);
+
+        // Collect all unique category keys
+        const allCatKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
+
+        const templateKeys = new Set(template.categories.map(c => c.key));
+        const extraKeys = [...allCatKeys].filter(k => !templateKeys.has(k));
+
+        const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
+        const extraGroupMap: Record<string, string> = {};
+        groupMarkers.forEach(g => {
+          const key = g.category
+            .replace(/__group__\d{4}_/, "")
+            .replace("__group__", "");
+          extraGroupMap[key] = g.period;
+        });
+
+        const extraCategories: BudgetCategory[] = extraKeys.map(key => ({
+          key,
+          label: key.replace(/_/g, " "),
+          group: (extraGroupMap[key] || "variable") as BudgetCategory["group"],
+        }));
+
+        const allCategories = [...template.categories, ...extraCategories];
+
+        const newData: Record<ScenarioKey, BudgetRow[]> = {
+          base: allCategories.map(catToRow),
+          optimistisk: allCategories.map(catToRow),
+          pessimistisk: allCategories.map(catToRow),
+        };
+
+        // Load label overrides
+        const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
+        const loadedLabels: Record<string, string> = {};
+        labelMarkers.forEach(m => {
+          const key = m.category
+            .replace(/__label__\d{4}_/, "")
+            .replace("__label__", "");
+          loadedLabels[key] = m.period;
+        });
+        setLabelOverrides(loadedLabels);
+
+        // Apply labels
+        Object.entries(loadedLabels).forEach(([key, label]) => {
+          for (const sc of Object.values(newData)) {
+            const row = sc.find(r => r.key === key);
+            if (row) row.label = label;
+          }
+        });
+        extraCategories.forEach(ec => {
+          if (loadedLabels[ec.key]) ec.label = loadedLabels[ec.key];
+        });
+
+        // Apply values
+        data.forEach(item => {
+          if (item.category === "__template__" || item.category.startsWith("__label__") || item.category.startsWith("__group__")) return;
+          const parts = item.period.split("-");
+          if (parts.length < 3) return;
+          const [, scenario, monthIdxStr] = parts;
+          const monthIdx = parseInt(monthIdxStr, 10);
+          if (isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return;
+          const sc = scenario as ScenarioKey;
+          if (!newData[sc]) return;
+
+          const row = newData[sc].find(r => r.key === item.category);
+          if (row) {
+            row.values[monthIdx] = Number(item.budget_amount);
+          }
+        });
+
+        setScenarioData(newData);
+      } catch (e) {
+        console.error("[Budget] loadBudget failed:", e);
+      } finally {
         setDbLoaded(true);
-        return;
       }
-
-      // Detect template
-      const templateMarker = data.find(d => d.category === "__template__");
-      let template: BudgetTemplate | undefined;
-
-      if (templateMarker) {
-        template = BUDGET_TEMPLATES.find(t => t.key === templateMarker.period);
-      }
-
-      if (!template) {
-        const storedKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
-        let bestMatch = BUDGET_TEMPLATES[0];
-        let bestScore = 0;
-        for (const tmpl of BUDGET_TEMPLATES) {
-          const score = tmpl.categories.filter(c => storedKeys.has(c.key)).length;
-          if (score > bestScore) { bestScore = score; bestMatch = tmpl; }
-        }
-        template = bestMatch;
-      }
-
-      setSelectedTemplate(template);
-
-      // Collect all unique category keys
-      const allCatKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
-
-      const templateKeys = new Set(template.categories.map(c => c.key));
-      const extraKeys = [...allCatKeys].filter(k => !templateKeys.has(k));
-
-      const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
-      const extraGroupMap: Record<string, string> = {};
-      groupMarkers.forEach(g => {
-        const key = g.category
-          .replace(/__group__\d{4}_/, "")
-          .replace("__group__", "");
-        extraGroupMap[key] = g.period;
-      });
-
-      const extraCategories: BudgetCategory[] = extraKeys.map(key => ({
-        key,
-        label: key.replace(/_/g, " "),
-        group: (extraGroupMap[key] || "variable") as BudgetCategory["group"],
-      }));
-
-      const allCategories = [...template.categories, ...extraCategories];
-
-      const newData: Record<ScenarioKey, BudgetRow[]> = {
-        base: allCategories.map(catToRow),
-        optimistisk: allCategories.map(catToRow),
-        pessimistisk: allCategories.map(catToRow),
-      };
-
-      // Load label overrides
-      const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
-      const loadedLabels: Record<string, string> = {};
-      labelMarkers.forEach(m => {
-        const key = m.category
-          .replace(/__label__\d{4}_/, "")
-          .replace("__label__", "");
-        loadedLabels[key] = m.period;
-      });
-      setLabelOverrides(loadedLabels);
-
-      // Apply labels
-      Object.entries(loadedLabels).forEach(([key, label]) => {
-        for (const sc of Object.values(newData)) {
-          const row = sc.find(r => r.key === key);
-          if (row) row.label = label;
-        }
-      });
-      extraCategories.forEach(ec => {
-        if (loadedLabels[ec.key]) ec.label = loadedLabels[ec.key];
-      });
-
-      // Apply values
-      data.forEach(item => {
-        if (item.category === "__template__" || item.category.startsWith("__label__") || item.category.startsWith("__group__")) return;
-        const parts = item.period.split("-");
-        if (parts.length < 3) return;
-        const [, scenario, monthIdxStr] = parts;
-        const monthIdx = parseInt(monthIdxStr, 10);
-        if (isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return;
-        const sc = scenario as ScenarioKey;
-        if (!newData[sc]) return;
-
-        const row = newData[sc].find(r => r.key === item.category);
-        if (row) {
-          row.values[monthIdx] = Number(item.budget_amount);
-        }
-      });
-
-      setScenarioData(newData);
-      setDbLoaded(true);
     };
 
     loadBudget();
