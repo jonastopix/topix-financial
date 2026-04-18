@@ -779,7 +779,7 @@ const KPIs = () => {
         </div>
       )}
 
-      {kpiProgress.length === 0 && !editingTargets && (
+      {kpiProgress.length === 0 && !editingTargets && !isAdvisor && (
         <div className="glass-card rounded-xl p-5 mb-6 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-foreground">
