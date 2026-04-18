@@ -152,15 +152,17 @@ import { dkEconomicResultatopgoerelsePdfV1 } from "./templates/dkEconomicResulta
 import { dkEconomicResultatopgoerelseXlsxV1 } from "./templates/dkEconomicResultatopgoerelseXlsxV1.ts";
 import { dkDineroResultatopgoerelseCsvV1 } from "./templates/dkDineroResultatopgoerelseCsvV1.ts";
 import { dkDineroResultatopgoerelsePdfV1 } from "./templates/dkDineroResultatopgoerelsePdfV1.ts";
+import { dkGenericResultatopgoerelsePdfV1 } from "./templates/dkGenericResultatopgoerelsePdfV1.ts";
 
 const TEMPLATE_REGISTRY: TemplateEntry[] = [
-  dkEconomicSaldobalanceXlsxV1, // More specific — checked before combined
+  dkEconomicSaldobalanceXlsxV1,
   dkCombinedBalancePnlV1,
   dkEconomicSaldobalancePdfV1,
   dkEconomicResultatopgoerelsePdfV1,
   dkEconomicResultatopgoerelseXlsxV1,
   dkDineroResultatopgoerelseCsvV1,
   dkDineroResultatopgoerelsePdfV1,
+  dkGenericResultatopgoerelsePdfV1,
 ];
 
 // ── Detection with Ambiguity Rule ──
