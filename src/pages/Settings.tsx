@@ -338,7 +338,9 @@ const Settings = () => {
         setSelectedMainCategory(mainCat);
       }
     };
-    fetchCompany();
+    fetchCompany().catch((e) => {
+      console.error("[Settings] fetchCompany failed:", e);
+    });
   }, [user]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -601,74 +603,77 @@ const Settings = () => {
 
     setSavingCompany(true);
 
-    const { error } = await supabase
-      .from("companies")
-      .update({
-        name,
-        cvr_number: cvr || null,
-        contact_email: email || null,
-        website: website || null,
-        contact_phone: phone || null,
-        industry_code: industryCode || null,
-        industry_label: industryLabel || null,
-      })
-      .eq("id", company.id);
+    try {
+      const { error } = await supabase
+        .from("companies")
+        .update({
+          name,
+          cvr_number: cvr || null,
+          contact_email: email || null,
+          website: website || null,
+          contact_phone: phone || null,
+          industry_code: industryCode || null,
+          industry_label: industryLabel || null,
+        })
+        .eq("id", company.id);
 
-    if (error) {
-      toast.error("Kunne ikke gemme virksomhedsdata");
-    } else {
-      toast.success("Virksomhed opdateret");
+      if (error) {
+        toast.error("Kunne ikke gemme virksomhedsdata");
+      } else {
+        toast.success("Virksomhed opdateret");
 
-      // Auto-sync KPI benchmarks from industry_benchmarks only when industry actually changes
-      const industryChanged = industryCode !== (company.industry_code || "");
-      if (industryCode && industryChanged) {
-        const KPI_KEY_MAP: Record<string, string> = {
-          gross_margin_pct: "db_margin",
-          ebitda_margin_pct: "ebitda_margin",
-        };
+        // Auto-sync KPI benchmarks from industry_benchmarks only when industry actually changes
+        const industryChanged = industryCode !== (company.industry_code || "");
+        if (industryCode && industryChanged) {
+          const KPI_KEY_MAP: Record<string, string> = {
+            gross_margin_pct: "db_margin",
+            ebitda_margin_pct: "ebitda_margin",
+          };
 
-        const { data: industryBenchmarks } = await supabase
-          .from("industry_benchmarks")
-          .select("kpi_key, benchmark_value, benchmark_label, source_label")
-          .eq("industry_code", industryCode);
+          const { data: industryBenchmarks } = await supabase
+            .from("industry_benchmarks")
+            .select("kpi_key, benchmark_value, benchmark_label, source_label")
+            .eq("industry_code", industryCode);
 
-        if (industryBenchmarks && industryBenchmarks.length > 0) {
-          for (const ib of industryBenchmarks) {
-            const mappedKey = KPI_KEY_MAP[ib.kpi_key] || ib.kpi_key;
-            // Sync benchmarks
-            await supabase
-              .from("kpi_benchmarks")
-              .upsert(
-                {
-                  company_id: company.id,
-                  user_id: user!.id,
-                  kpi_key: mappedKey,
-                  benchmark_value: ib.benchmark_value,
-                  benchmark_label: ib.benchmark_label,
-                  source_label: ib.source_label,
-                } as any,
-                { onConflict: "company_id,kpi_key" } as any
-              );
-            // Sync targets (use benchmark_value as default target)
-            await supabase
-              .from("kpi_targets")
-              .upsert(
-                {
-                  company_id: company.id,
-                  user_id: user!.id,
-                  kpi_key: mappedKey,
-                  target_value: ib.benchmark_value,
-                  target_label: ib.benchmark_label,
-                  lower_is_better: false,
-                } as any,
-                { onConflict: "company_id,kpi_key" } as any
-              );
+          if (industryBenchmarks && industryBenchmarks.length > 0) {
+            for (const ib of industryBenchmarks) {
+              const mappedKey = KPI_KEY_MAP[ib.kpi_key] || ib.kpi_key;
+              // Sync benchmarks
+              await supabase
+                .from("kpi_benchmarks")
+                .upsert(
+                  {
+                    company_id: company.id,
+                    user_id: user!.id,
+                    kpi_key: mappedKey,
+                    benchmark_value: ib.benchmark_value,
+                    benchmark_label: ib.benchmark_label,
+                    source_label: ib.source_label,
+                  } as any,
+                  { onConflict: "company_id,kpi_key" } as any
+                );
+              // Sync targets (use benchmark_value as default target)
+              await supabase
+                .from("kpi_targets")
+                .upsert(
+                  {
+                    company_id: company.id,
+                    user_id: user!.id,
+                    kpi_key: mappedKey,
+                    target_value: ib.benchmark_value,
+                    target_label: ib.benchmark_label,
+                    lower_is_better: false,
+                  } as any,
+                  { onConflict: "company_id,kpi_key" } as any
+                );
+            }
+            toast.info("KPI-mål opdateret fra branchestandard");
           }
-          toast.info("KPI-mål opdateret fra branchestandard");
         }
       }
+    } finally {
+      setSavingCompany(false);
     }
-    setSavingCompany(false);
   };
 
   const companyField = (

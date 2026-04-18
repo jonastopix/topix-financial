@@ -966,11 +966,15 @@ const CompanyChatPane = () => {
     // Upload attachments if any
     let attachments: ChatAttachment[] = [];
     if (hasFiles) {
-      attachments = await uploadChatAttachments(user.id, files);
-      if (attachments.length === 0 && !trimmed) {
-        setSending(false);
-        toast.error("Upload fejlede");
-        return;
+      const uploadResult = await uploadChatAttachments(user.id, files);
+      attachments = uploadResult.attachments;
+      if (uploadResult.failedCount > 0) {
+        if (attachments.length === 0 && !trimmed) {
+          setSending(false);
+          toast.error("Filer kunne ikke uploades. Prøv igen.");
+          return;
+        }
+        toast.warning(`${uploadResult.failedCount} fil${uploadResult.failedCount > 1 ? "er" : ""} kunne ikke uploades og er ikke vedhæftet.`);
       }
     }
 
