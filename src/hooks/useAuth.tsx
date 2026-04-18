@@ -256,8 +256,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             });
           }
           setTimeout(async () => {
-            await fetchUserData(session.user.id);
-            setLoading(false);
+            try {
+              await fetchUserData(session.user.id);
+            } catch (e) {
+              console.error("[useAuth] fetchUserData failed:", e);
+            } finally {
+              setLoading(false);
+            }
           }, 0);
         } else {
           setIsAdvisor(false);
