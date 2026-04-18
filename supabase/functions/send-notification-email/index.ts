@@ -62,9 +62,10 @@ const NOTIFICATION_TEMPLATE_NAMES: Record<string, string> = {
 // Chat notification types that should be deduplicated and aggregated
 const CHAT_NOTIFICATION_TYPES = new Set(["advisor_replied", "chat_reply"]);
 
+import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
+
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
-  const logoMark = `<div style="width:28px;height:28px;background:#16a34a;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:10px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="5" height="5" rx="1" fill="white"/><rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity=".6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity=".3"/></svg></div>`;
 
   const highlightBlock = highlight
     ? `<div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0"><p style="color:#166534;font-size:13px;margin:0;font-weight:500">${highlight}</p></div>`
@@ -78,22 +79,21 @@ function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="background-color:#f9f9f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
 <div style="max-width:520px;margin:0 auto">
-  <div style="background:hsl(170,46%,14%);border-radius:10px 10px 0 0;padding:18px 28px;display:flex;align-items:center">
-    ${logoMark}
-    <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em">The Boardroom</span>
-  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse">
+    <tr><td style="background-color:#133332;border-radius:10px 10px 0 0;padding:18px 28px">
+      <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em;font-family:'Manrope',Arial,sans-serif">The Boardroom</span>
+    </td></tr>
+  </table>
   <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
     ${eyebrowBlock}
     <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">${title}</h1>
     <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">${body}</p>
     ${highlightBlock}
-    <div style="padding:20px 0">
-      <a href="${fullUrl}" target="_blank" style="background:#16a34a;border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:12px 28px;text-decoration:none;letter-spacing:-.01em">${ctaLabel || 'Åbn i The Boardroom'} →</a>
-    </div>
+    ${bulletproofButton({ href: fullUrl, label: ctaLabel || 'Åbn i The Boardroom', bgColor: "#16a34a" })}
+    ${fallbackLinkBlock(fullUrl)}
     <div style="height:0.5px;background:#e5e7eb;margin:0"></div>
-    <div style="padding:16px 0;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk</span>
-      <a href="${APP_URL}/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a>
+    <div style="padding:16px 0">
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; <a href="${APP_URL}/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a></span>
     </div>
   </div>
 </div>
