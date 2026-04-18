@@ -29,6 +29,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   handleReset = () => {
     this.setState({ hasError: false, error: null });
+    window.location.href = "/";
   };
 
   render() {
@@ -47,7 +48,7 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             <div className="flex gap-3 justify-center">
               <Button variant="outline" onClick={this.handleReset}>
-                Prøv igen
+                Gå til dashboard
               </Button>
               <Button onClick={() => window.location.reload()}>
                 Genindlæs siden
