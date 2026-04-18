@@ -14,24 +14,32 @@ const FALLBACK_HTML = `<!DOCTYPE html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
 <div style="max-width:520px;margin:0 auto;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-    <tr><td style="background-color:hsl(170,46%,14%);padding:18px 24px;border-radius:10px 10px 0 0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse" role="presentation">
+    <tr><td style="background-color:#133332;padding:18px 24px;border-radius:10px 10px 0 0">
       <span style="font-family:'Manrope',Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">The Boardroom</span>
-      <span style="font-family:'Manrope',Arial,sans-serif;font-size:13px;font-weight:400;color:rgba(255,255,255,0.55)">&nbsp;by Topix</span>
+      <span style="font-family:'Manrope',Arial,sans-serif;font-size:13px;font-weight:400;color:#8FA3A1">&nbsp;by Topix</span>
     </td></tr>
-    <tr><td style="height:3px;background-color:hsl(158,64%,42%)"></td></tr>
+    <tr><td style="height:3px;background-color:#27AE82"></td></tr>
   </table>
   <div style="background:#ffffff;padding:28px 32px 32px">
-    <h1 style="color:hsl(170,46%,14%);font-size:20px;font-weight:700;margin:0 0 16px;line-height:1.3">Velkommen til The Boardroom</h1>
-    <p style="color:hsl(170,15%,35%);font-size:14px;line-height:1.6;margin:0 0 14px">Du er blevet inviteret til at blive en del af <strong>The Boardroom</strong> på vores platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p>
-    <div style="background:#f0fdf4;border-left:3px solid hsl(158,64%,42%);border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0">
+    <h1 style="color:#133332;font-size:20px;font-weight:700;margin:0 0 16px;line-height:1.3">Velkommen til The Boardroom</h1>
+    <p style="color:#4D6663;font-size:14px;line-height:1.6;margin:0 0 14px">Du er blevet inviteret til at blive en del af <strong>The Boardroom</strong> på vores platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p>
+    <div style="background:#f0fdf4;border-left:3px solid #27AE82;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0">
       <p style="color:#166534;font-size:13px;margin:0;font-weight:500">Du kan oprette dig med en hvilken som helst e-mail — du bliver automatisk tilknyttet The Boardroom via dit invitationslink.</p>
     </div>
     <div style="padding:20px 0">
-      <a href="{{signup_url}}" target="_blank" style="background-color:hsl(170,46%,14%);border-radius:8px;color:#ffffff;display:inline-block;font-size:14px;font-weight:600;padding:13px 28px;text-decoration:none">Acceptér invitationen</a>
+      <!--[if mso]>
+      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{signup_url}}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="18%" stroke="f" fillcolor="#133332">
+        <w:anchorlock/>
+        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;">Acceptér invitationen</center>
+      </v:roundrect>
+      <![endif]-->
+      <!--[if !mso]><!-- -->
+      <a href="{{signup_url}}" target="_blank" style="background-color:#133332;border-radius:8px;color:#ffffff;display:inline-block;font-family:'Manrope',Arial,sans-serif;font-size:14px;font-weight:600;line-height:44px;text-align:center;text-decoration:none;width:220px;mso-hide:all;">Acceptér invitationen</a>
+      <!--<![endif]-->
     </div>
-    <p style="color:hsl(170,15%,35%);font-size:13px;line-height:1.6;margin:0 0 14px">Virker knappen ikke? Kopiér og indsæt dette link i din browser:</p>
-    <p style="margin:0 0 14px;word-break:break-all"><a href="{{signup_url}}" target="_blank" style="color:hsl(158,64%,35%);font-size:13px;text-decoration:underline">{{signup_url}}</a></p>
+    <p style="color:#4D6663;font-size:13px;line-height:1.6;margin:0 0 14px">Virker knappen ikke? Kopiér og indsæt dette link i din browser:</p>
+    <p style="margin:0 0 14px;word-break:break-all"><a href="{{signup_url}}" target="_blank" style="color:#20916C;font-size:13px;text-decoration:underline">{{signup_url}}</a></p>
     <div style="height:0.5px;background:#e5e7eb"></div>
     <div style="padding:16px 0">
       <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; Ignorer denne besked hvis du ikke forventer den.</span>
