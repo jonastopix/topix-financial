@@ -145,8 +145,12 @@ export default function ReportReviewDialog({
   useEffect(() => {
     if (!open || !preview || loading) return;
     const needsManual = (preview.quality_signals as any)?.needs_manual_entry === true;
+    const isStuckStatus = !preview.eligible && (
+      preview.eligibility_reason?.includes("Status is error") ||
+      preview.eligibility_reason?.includes("Status is processing")
+    );
     const hasMetrics = preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0;
-    if (needsManual && !hasMetrics && !editing) {
+    if ((needsManual || isStuckStatus) && !hasMetrics && !editing) {
       enterEditMode();
     }
   }, [open, preview, loading]);
@@ -482,11 +486,28 @@ export default function ReportReviewDialog({
               </div>
             )}
 
-            {!preview.eligible && preview.eligibility_reason && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                <p className="text-sm text-destructive">{preview.eligibility_reason}</p>
-              </div>
-            )}
+            {!preview.eligible && preview.eligibility_reason && (() => {
+              const isErrorOrProcessing =
+                preview.eligibility_reason.includes("Status is error") ||
+                preview.eligibility_reason.includes("Status is processing");
+              if (isErrorOrProcessing) {
+                return (
+                  <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-3">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      Udfyld tallene nedenfor
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Vi kunne ikke læse dokumentet automatisk. Indtast tallene fra din rapport — så gemmer vi dem og aktiverer din AI-analyse.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <p className="text-sm text-destructive">{preview.eligibility_reason}</p>
+                </div>
+              );
+            })()}
 
             {/* Metrics preview */}
             {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
@@ -572,7 +593,7 @@ export default function ReportReviewDialog({
             })()}
 
             {/* "Ret data" button for blocked reports or when no metrics yet */}
-            {preview.eligible && (!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
+            {(!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
               <Button variant="outline" size="sm" className="gap-1" onClick={enterEditMode}>
                 <Pencil className="h-3 w-3" />
                 Ret data
