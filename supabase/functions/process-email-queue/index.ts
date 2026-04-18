@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const purpose = queue === 'auth_emails' ? 'auth' : 'transactional'
+        const purpose = 'transactional'
         const idempotencyKey =
           typeof payload.idempotency_key === 'string' && payload.idempotency_key.trim().length > 0
             ? payload.idempotency_key
