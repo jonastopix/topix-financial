@@ -1,65 +1,49 @@
 
-## Oprydning af forældreløse brugere
 
-### Tal
-- **50 brugere** total i `auth.users`
-- **18 brugere** uden virksomhedstilknytning
-- Heraf:
-  - **13 helt forældreløse** (ingen virksomhed, ingen rolle, ingen legat) — kandidater til sletning
-  - **5 har en rolle** — skal IKKE røres (advisors/admins + Topix-konti)
+## Oprydning: April 2026 facts (igangværende måned)
 
-### De 13 forældreløse brugere
+### Hvad vi fandt
+Én virksomhed har en committed facts-row for `2026-04` (April 2026), som er den igangværende måned:
 
-| Email | Oprettet | Sidste login | Logins | Status |
-|---|---|---|---|---|
-| jonas+legat5@topix.dk | 10/4 | aldrig | 0 | Test-legat, aldrig logget ind |
-| jonas+legat4@topix.dk | 10/4 | aldrig | 0 | Test-legat, aldrig logget ind |
-| jonas+legat3@topix.dk | 10/4 | aldrig | 0 | Test-legat, aldrig logget ind |
-| jonas+legat2@topix.dk | 9/4 | aldrig | 0 | Test-legat, aldrig logget ind |
-| jonas+legat1@topix.dk | 9/4 | aldrig | 0 | Test-legat, aldrig logget ind |
-| ditte@mondokaos.dk | 2/4 | aldrig | 0 | Pending invite, aldrig signed up færdig |
-| demo@theboardroom.dk | 1/4 | 1/4 | 19 | Demo-konto |
-| jonas+test2endelig@topix.dk | 27/3 | 27/3 | 11 | Test-konto |
-| jonas+endeligtest@topix.dk | 27/3 | 27/3 | 23 | Test-konto |
-| roskilde.dan@gmail.com | 18/3 | 18/3 | 2 | Aldrig færdiggjort onboarding |
-| linealmegaard@gmail.com | 16/3 | 16/3 | 3 | Aldrig færdiggjort onboarding |
-| jonasherlev@hotmail.com | 3/3 | 3/3 | 3 | Aldrig færdiggjort onboarding |
-| jh@jonasherlev.dk | 27/2 | 8/4 | 55 | **Du selv?** Logger ind men har ingen company |
+| Virksomhed | period_key | source | Underliggende rapport |
+|---|---|---|---|
+| Rezycl.com | 2026-04 | manual | `Resultat rezycl 2026 marts.csv` (rapporten selv peger nu på 2026-03) |
 
-Alle har **0 messages, 0 reports, 0 milestones** — de er reelt tomme skaller.
+Rapporten har efterfølgende fået sit `manual_report_period_key` rettet til `2026-03`, men den oprindelige facts-row for `2026-04` blev aldrig fjernet. Resultatet er en "spøgelses-commit" for en måned, der ikke er afsluttet — præcis det vi netop har gjort umuligt fremadrettet.
 
-### Ting at være opmærksom på
+### Plan
 
-1. **`jh@jonasherlev.dk`** har 55 logins og loggede ind for en uge siden — det ser ud til at være dig selv. Skal vi beholde den? Eller var det en gammel testkonto?
-2. **`demo@theboardroom.dk`** — er det en aktiv demo-konto vi vil beholde?
-3. De 5 jonas+legat-konti er tydeligt tests fra legat-flow udvikling.
+**1. Slet den ene facts-row for 2026-04**
 
-### Forslag — to-trins oprydning
-
-**Trin 1 (sikker):** Slet de 11 åbenlyse test/forældreløse:
-- 5x `jonas+legat[1-5]@topix.dk` 
-- 2x `jonas+test/endeligtest@topix.dk`
-- `ditte@mondokaos.dk`, `roskilde.dan@gmail.com`, `linealmegaard@gmail.com`, `jonasherlev@hotmail.com`
-
-**Trin 2 (kræver din bekræftelse):**
-- `jh@jonasherlev.dk` — slettes hvis det er en gammel testkonto
-- `demo@theboardroom.dk` — slettes hvis demo ikke længere bruges
-
-### Sletningsproces (per bruger)
-
-For hver bruger sletter jeg i denne rækkefølge for at respektere FK constraints:
-```text
-1. user_login_log    (login-historik)
-2. profiles          (profil-data)
-3. user_roles        (hvis nogen — gælder ikke disse 13)
-4. company_invitations  (accepted-rækker der peger på brugeren via email)
-5. auth.users        (via supabase.auth.admin.deleteUser)
+Brug insert-tool (DELETE):
+```sql
+DELETE FROM financial_report_facts
+WHERE id = '590a3bee-ebd0-4b25-86ae-d8433ee79828'
+  AND period_key = '2026-04';
 ```
-Brugerne har ingen messages/reports/milestones så de tabeller behøver vi ikke røre.
 
-Jeg laver dette som et engangsscript via Supabase service role — ikke en edge function, da det er en éngangs-oprydning.
+**2. Log oprydningen i `_facts_backfill_log`** for sporbarhed:
+```sql
+INSERT INTO _facts_backfill_log (company_id, report_id, period_key, source_type, result, detail)
+VALUES (
+  '183f082e-5090-41e1-995b-371e72318d73',
+  '49ef768e-b9df-4ad3-ad0a-11f3840b4da4',
+  '2026-04',
+  'manual',
+  'cleanup_current_month',
+  'Slettet facts-row for igangværende måned (April 2026). Underliggende rapport peger nu på 2026-03.'
+);
+```
 
-### Spørgsmål før jeg går i gang
+**3. Bekræft oprydning** med en kontrol-query der viser at ingen virksomheder har committed facts for nogen fremtidig eller igangværende måned (>= 2026-04).
 
-1. Skal jeg medtage `jh@jonasherlev.dk` og `demo@theboardroom.dk` i sletningen, eller kun de 11 åbenlyse?
-2. Skal jeg også rydde `company_invitations` med status `accepted` der peger på de slettede emails (de er forældreløse referencer nu)?
+### Hvad vi IKKE rører
+- Selve `financial_reports`-rækken (`49ef768e…`) bevares — den er gyldigt mappet til marts 2026 via `manual_report_period_key`.
+- Ingen andre virksomheder berøres (kun Rezycl.com har april-data).
+- Ingen schema-ændringer — guarden mod commits til igangværende/fremtidige måneder er allerede på plads.
+
+### Effekt for brugeren
+- Rezycl.coms leveringsoverblik vil ikke længere fejlagtigt vise april som "leveret".
+- KPI-grafer/trends opdateres automatisk når facts-cachen invalideres.
+- Marts 2026 commit'en for Rezycl.com forbliver intakt.
+
