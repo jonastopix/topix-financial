@@ -245,20 +245,9 @@ const Reports = () => {
     }
   }, [searchParams, dbReports]);
 
-  const reportsByMonth = useMemo(() => {
-    const map: Record<string, DbReport> = {};
-    const sorted = [...dbReports].sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
-    sorted.forEach((r) => {
-      const key = getEffectiveReportPeriodKey(r);
-      if (key) {
-        const existing = map[key];
-        if (!existing || r.status === "processed") {
-          map[key] = r;
-        }
-      }
-    });
-    return map;
-  }, [dbReports]);
+  const hasAnyPeriodData = useMemo(() =>
+    dbReports.some(r => !!getEffectiveReportPeriodKey(r as any)),
+  [dbReports]);
 
   // (delivery overview logic is now in DeliveryOverview component)
 
