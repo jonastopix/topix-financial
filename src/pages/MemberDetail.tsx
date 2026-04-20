@@ -593,9 +593,6 @@ const MemberDetail = () => {
     );
   }
 
-  return (
-    <AppLayout>
-      {/* Back link */}
   // ── Derived KPI snapshot from facts ──
   const latestFact = memberFacts[memberFacts.length - 1] ?? null;
   const prevFact = memberFacts.length >= 2 ? memberFacts[memberFacts.length - 2] : null;
