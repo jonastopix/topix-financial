@@ -1564,6 +1564,15 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           }
         }
 
+        // Priority 5: extract period from filename (last resort for CSV files without period in content)
+        if (fileName) {
+          const periodFromFileName = extractPeriodFromText(fileName.replace(/_/g, " ").replace(/-/g, " "));
+          if (periodFromFileName) {
+            console.log(`[PeriodResolve] From filename fallback "${fileName}" → "${periodFromFileName}"`);
+            return periodFromFileName;
+          }
+        }
+
         // All resolution attempts failed — log explicitly
         console.error(`[PeriodResolve] FAILED: Could not resolve period. report_period_label="${rawLabel}", period_end="${canonical.period_end}", period_start="${canonical.period_start}", fileContent available=${!!fileContent}`);
         return rawLabel || null;
