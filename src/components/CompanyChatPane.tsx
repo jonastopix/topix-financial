@@ -1964,10 +1964,15 @@ const CompanyChatPane = () => {
                                 { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }
                               ) }} />
                               {contextType && contextMeta?.title && (() => {
+                                const memberId = activeConv?.member_id;
                                 const linkPath =
-                                  contextType === "report" ? "/reports" :
-                                  contextType === "milestone" ? "/milestones" :
-                                  null;
+                                  contextType === "report" && memberId
+                                    ? (contextMeta?.report_id
+                                        ? `/members/${memberId}?reportId=${contextMeta.report_id}&section=reports`
+                                        : `/members/${memberId}?section=reports`)
+                                    : contextType === "milestone" && memberId
+                                    ? `/members/${memberId}?section=milestones`
+                                    : null;
                                 const chip = (
                                   <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
                                     {contextType === "report" && <FileText className="h-3 w-3" />}
