@@ -108,6 +108,18 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "get_kpi_targets",
+      description: "Henter de KPI-mål som founder selv har sat. Brug dette til at sammenligne faktiske tal med foundrens egne ambitioner og mål.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_budget_vs_actual",
       description:
         "Sammenligner budget med realiserede tal for en given periode. Returnerer afvigelser i procent.",
