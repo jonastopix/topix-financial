@@ -908,12 +908,13 @@ const MemberDetail = () => {
 
           {/* ───── Finansiel udvikling ───── */}
           {memberFacts.length >= 2 && (() => {
-            const chartData = memberFacts.slice(-8).map(f => {
+            const chartData = memberFacts.slice(-8).map((f, i) => {
               const kf = factsToDanishMetrics(f.metrics);
               return {
                 period: f.period_label,
                 omsaetning: kf.omsaetning ?? 0,
                 resultat: kf.resultat_foer_skat ?? 0,
+                budget: budgetChartData[i]?.budgetRevenue ?? null,
               };
             });
             return (
@@ -926,6 +927,12 @@ const MemberDetail = () => {
                   <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary inline-block" />Omsætning</span>
                     <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-chart-info inline-block" />Resultat</span>
+                    {budgetChartData.some(b => b.budgetRevenue != null) && (
+                      <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span className="inline-block w-5 border-t-2 border-dashed border-chart-warning" />
+                        Budget
+                      </span>
+                    )}
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height={180}>
