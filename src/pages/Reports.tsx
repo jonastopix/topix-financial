@@ -337,6 +337,9 @@ const Reports = () => {
       setPendingReviewReportId(null);
     } else if (entry.state === "not_ready") {
       setPendingReviewReportId(null);
+      // Open manual override so user can fix the period
+      const report = dbReports.find(r => r.id === pendingReviewReportId);
+      if (report) setOverrideReport(report);
     }
   }, [pendingReviewReportId, commitStatesQuery.data, dbReports]);
 
