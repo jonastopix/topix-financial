@@ -212,6 +212,18 @@ const Reports = () => {
     loadData();
   }, [loadData, refreshKey]);
 
+  // Auto-refresh while any report is processing
+  useEffect(() => {
+    const hasProcessing = dbReports.some(r => r.status === "processing");
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      setRefreshKey(k => k + 1);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [dbReports]);
+
   // Deep link: auto-expand report from ?reportId= query param
   const reportCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   useEffect(() => {
