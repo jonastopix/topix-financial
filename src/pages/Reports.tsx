@@ -450,9 +450,13 @@ const Reports = () => {
           .delete()
           .in("facts_id", factIds) as any);
       }
-      await (supabase.from("financial_report_facts" as any)
+      const { error: factsDeleteError } = await (supabase.from("financial_report_facts" as any)
         .delete()
         .eq("source_report_id", report.id) as any);
+      if (factsDeleteError) {
+        console.error("Facts delete error:", factsDeleteError);
+        throw new Error("Kunne ikke slette rapportens nøgletal. Prøv igen.");
+      }
       const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
       if (error) throw error;
       setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
