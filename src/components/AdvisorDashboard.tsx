@@ -882,6 +882,8 @@ const AdvisorDashboard = () => {
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
         allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
+        companyMemberNameMap,
+        recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
       };
     },
     enabled: !!user,
