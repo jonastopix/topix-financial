@@ -31,12 +31,12 @@ import type { MetricFamily } from "../normalizationProfiles.ts";
 
 const LABEL_CLASSES: Record<string, string[]> = {
   revenue: ["salg", "omsætning", "indtægt", "honorar"],
-  cogs: ["vareforbrug", "underleverandør", "direkte omkostning"],
+  cogs: ["vareforbrug", "direkte omkostning"],
   payroll: ["løn", "am-indkomst", "atp", "feriepenge", "pension", "a-skat"],
   facility_costs: ["husleje", "lokale", "elforbrug", "elektricitet", "vand", "varme", "rengøring"],
   vehicle_costs: ["parkering", "færge", "transport", "kørsel", "brændstof"],
   sales_costs: ["reklame", "markedsføring", "annoncering", "messe", "repræsentation", "gaver"],
-  admin_costs: ["bogføring", "konsulent", "porto", "software", "forsikring", "telefon", "kontingent", "kontor"],
+  admin_costs: ["bogføring", "konsulent", "porto", "software", "forsikring", "telefon", "kontingent", "kontor", "fremmed arbejde", "underleverandør"],
   depreciation: ["afskrivning", "småanskaffelse"],
   financial_costs: ["rente", "renteudgift", "renteindtægt", "bankgebyr", "finansiel", "kursregulering"],
   tax: ["selskabsskat", "skat af årets resultat", "årets skat"],
