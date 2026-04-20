@@ -1549,6 +1549,30 @@ const CompanyChatPane = () => {
                 );
               })()}
             </div>
+            {/* Internal note — fixed at sidebar bottom */}
+            {isAdvisor && activeConvId && !activeConvId.startsWith("group_") && (
+              <div className="border-t border-border bg-amber-500/5 flex-shrink-0">
+                <div className="px-3 py-2 flex items-center gap-2">
+                  <StickyNote className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex-1">
+                    Intern note
+                  </span>
+                  <span className="text-[9px] text-amber-600/50 dark:text-amber-400/50">Kun rådgivere</span>
+                </div>
+                <div className="px-3 pb-3">
+                  <Textarea
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    onBlur={handleNoteSave}
+                    placeholder="Skriv en intern note..."
+                    className="min-h-[72px] max-h-[140px] text-xs bg-transparent border-amber-500/20 focus-visible:ring-amber-500/30 resize-none placeholder:text-amber-600/40 dark:placeholder:text-amber-400/40"
+                  />
+                  <p className="text-[9px] text-amber-600/50 dark:text-amber-400/50 mt-1">
+                    {noteSaveStatus === 'saving' ? "Gemmer..." : noteSaveStatus === 'saved' ? "Gemt ✓" : noteMeta?.updated_at ? `Opdateret ${formatDistanceToNow(new Date(noteMeta.updated_at), { addSuffix: true, locale: da })}` : ""}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1776,111 +1800,13 @@ const CompanyChatPane = () => {
                   </div>
                 ) : null}
 
-                {/* Internal advisor note */}
-                {isAdvisor && activeConvId && !isGroupThread && (
-                  <Collapsible open={noteExpanded} onOpenChange={setNoteExpanded}>
-                    <div className="border-b border-amber-500/20 bg-amber-500/5">
-                      <CollapsibleTrigger asChild>
-                        <button className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-amber-500/10 transition-colors">
-                          <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                          <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider">Intern note</span>
-                          {!noteExpanded && noteDbContent.trim() && (
-                            <span className="text-[10px] text-amber-600/60 dark:text-amber-400/60 truncate max-w-[200px]">
-                              — {noteDbContent.trim().slice(0, 40)}{noteDbContent.trim().length > 40 ? "…" : ""}
-                            </span>
-                          )}
-                          <ChevronDown className={`h-3 w-3 ml-auto text-amber-600 dark:text-amber-400 transition-transform ${noteExpanded ? "rotate-180" : ""}`} />
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="px-4 pb-2">
-                          <Textarea
-                            value={noteContent}
-                            onChange={(e) => setNoteContent(e.target.value)}
-                            onBlur={handleNoteSave}
-                            placeholder="Skriv en intern note om denne samtale..."
-                            className="min-h-[60px] max-h-[120px] text-xs bg-transparent border-amber-500/20 focus-visible:ring-amber-500/30 resize-none placeholder:text-amber-600/40 dark:placeholder:text-amber-400/40"
-                          />
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-[9px] text-amber-600/50 dark:text-amber-400/50">
-                              {noteSaveStatus === 'saving' ? "Gemmer..." : noteSaveStatus === 'saved' ? "Gemt ✓" : ""}
-                              {noteMeta?.updated_at && noteSaveStatus === 'idle' && (
-                                <>Opdateret {formatDistanceToNow(new Date(noteMeta.updated_at), { addSuffix: true, locale: da })}</>
-                              )}
-                            </span>
-                            <span className="text-[9px] text-amber-600/40 dark:text-amber-400/40">Kun synlig for rådgivere</span>
-                          </div>
-                        </div>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                )}
-
-                {/* Pinned messages section */}
-                {pinnedMessages.length > 0 && !isGroupThread && (
-                  <Collapsible>
-                    <div className="border-b border-border bg-primary/[0.02]">
-                      <CollapsibleTrigger asChild>
-                        <button className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-primary/5 transition-colors">
-                          <Pin className="h-3 w-3 text-primary" />
-                          <span className="text-[10px] font-medium text-primary uppercase tracking-wider">
-                            {isAdvisor ? `Pinned (${pinnedMessages.length})` : `Vigtige beskeder (${pinnedMessages.length})`}
-                          </span>
-                          <ChevronDown className="h-3 w-3 ml-auto text-primary transition-transform" />
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="px-4 pb-2 space-y-1.5">
-                          {pinnedMessages.map(pm => (
-                            <button
-                              key={pm.id}
-                              onClick={() => scrollToMessage(pm.id)}
-                              className="w-full text-left p-2 rounded-md bg-card hover:bg-secondary/50 border border-border/50 transition-colors"
-                            >
-                              <p className="text-[11px] text-foreground line-clamp-2">
-                                {pm.content.replace(/<[^>]+>/g, '').slice(0, 100)}
-                              </p>
-                              <p className="text-[9px] text-muted-foreground mt-0.5">
-                                {profilesMap.get(pm.sender_id)?.full_name || "Ukendt"} · {format(new Date(pm.created_at), "d. MMM HH:mm", { locale: da })}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                )}
-
-                {/* Advisor context banner */}
-                {isAdvisor && activeConv && !isGroupThread && (
-                  <>
-                    <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border-b border-primary/10">
-                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                        {activeConv.companyLogoUrl ? (
-                          <img src={activeConv.companyLogoUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
-                        ) : (
-                          <span className="text-[9px] font-bold text-primary">
-                            {(activeConv.companyName || "?").slice(0, 2).toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-primary font-medium flex-1">
-                        Du svarer <span className="font-semibold">{activeConv.companyName}</span> som rådgiver
-                      </p>
-                      {activeConv.conversation_status === "open" && activeConv.awaiting_reply_from === "advisor" && (
-                        <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                          Afventer dit svar
-                        </span>
-                      )}
-                    </div>
-                    {latestPulse?.help_needed && (
-                      <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/10">
-                        <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                          <span className="font-semibold">Brug for hjælp til:</span> {latestPulse.help_needed}
-                        </p>
-                      </div>
-                    )}
-                  </>
+                {/* Pulse banner */}
+                {isAdvisor && activeConv && !isGroupThread && latestPulse?.help_needed && (
+                  <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/10">
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      <span className="font-semibold">Brug for hjælp til:</span> {latestPulse.help_needed}
+                    </p>
+                  </div>
                 )}
 
                 {/* Messages list */}
