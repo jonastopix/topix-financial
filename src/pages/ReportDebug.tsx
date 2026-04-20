@@ -5,10 +5,11 @@ import AppLayout from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { ArrowLeft, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, HelpCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, HelpCircle, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { useState } from "react";
+import { toast } from "sonner";
 
 // -- Helpers --
 const fmt = (v: number | null | undefined) =>
@@ -64,6 +65,7 @@ const KV = ({ label, value, mono }: { label: string; value: React.ReactNode; mon
 export default function ReportDebug() {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
+  const [agentRunning, setAgentRunning] = useState(false);
 
   const { data: report, isLoading } = useQuery({
     queryKey: ["report-debug", reportId],
@@ -383,6 +385,42 @@ export default function ReportDebug() {
                 {aiAnalysis && <JsonBlock data={aiAnalysis} label="ai_analysis" />}
               </div>
             </Section>
+
+            {/* 7. Agent */}
+            <div className="mt-6 rounded-lg border border-border/40 p-4">
+              <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Agent
+              </p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Kør agenten manuelt for denne rapport — nyttigt til test og fejlfinding.
+              </p>
+              <button
+                onClick={async () => {
+                  setAgentRunning(true);
+                  try {
+                    await supabase.functions.invoke("run-company-agent", {
+                      body: {
+                        company_id: report.company_id,
+                        trigger: "report_committed",
+                        period_key: report.report_period_key || report.report_period,
+                        period_label: report.report_period,
+                      },
+                    });
+                    toast.success("Agent kørt ✓", { description: "Tjek chatten for resultatet." });
+                  } catch (err) {
+                    toast.error("Agent fejlede", { description: String(err) });
+                  } finally {
+                    setAgentRunning(false);
+                  }
+                }}
+                disabled={agentRunning}
+                className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {agentRunning ? "Kører..." : "Kør agent manuelt"}
+              </button>
+            </div>
           </div>
         )}
       </div>
