@@ -1177,6 +1177,58 @@ const AdvisorDashboard = () => {
             })}
           </div>
         )}
+        {/* Proaktiv sparring */}
+        {sparringItems.length > 0 && (
+          <div className="mt-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+              Proaktiv sparring
+            </p>
+            <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
+              {sparringItems.slice(0, 8).map(item => {
+                const primarySignal = item.signals[0];
+                const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
+                const userId = data?.companyToUser?.get(item.company.company_id);
+                return (
+                  <div key={item.company.company_id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/20 transition-colors">
+                    <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                      {item.company.logo_url
+                        ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
+                        : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
+                      {primarySignal && (
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          <span className="text-primary/80">{primarySignal.label}</span>
+                          {primarySignal.hint && <span> — {primarySignal.hint}</span>}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {convId && (
+                        <button
+                          onClick={() => navigate(`/chat?conversationId=${convId}`)}
+                          className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
+                        >
+                          Åbn chat
+                        </button>
+                      )}
+                      {userId && (
+                        <button
+                          onClick={() => navigate(`/members/${userId}`)}
+                          className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
+                        >
+                          Se virksomhed
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Section 2: Portfolio table */}
