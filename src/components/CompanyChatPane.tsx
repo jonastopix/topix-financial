@@ -1612,6 +1612,12 @@ const CompanyChatPane = () => {
                         <p className="text-sm font-semibold text-foreground truncate">
                           {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                         </p>
+                        {/* Member name shown directly under company name */}
+                        {!isGroupThread && activeConv?.profile?.full_name && (
+                          <p className="text-[11px] text-muted-foreground truncate leading-tight">
+                            {activeConv.profile.full_name}
+                          </p>
+                        )}
                         {/* Quick nav links */}
                         {activeConv?.member_id && !isGroupThread && (
                           <div className="flex items-center gap-1 mt-0.5">
