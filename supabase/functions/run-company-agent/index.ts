@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SYSTEM_PROMPT = `Du er en proaktiv finansiel agent for The Boardroom — en platform der hjælper danske iværksættere.
 En virksomhed har netop committet en ny finansiel rapport. Din opgave er at:
@@ -325,19 +325,35 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Auth: internal-only (service role)
-  const auth = authenticateServiceRole(req);
+  const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
+  const { callerClient } = auth;
+
+  const body = await req.json();
+  const { company_id, trigger, period_key, period_label } = body;
+
+  if (!company_id || !period_key) {
+    return new Response(
+      JSON.stringify({ error: "Missing required fields" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Verify caller has RLS access to this company before any admin operations
+  const { data: accessCheck } = await callerClient
+    .from("companies")
+    .select("id")
+    .eq("id", company_id)
+    .maybeSingle();
+
+  if (!accessCheck) {
+    return new Response(
+      JSON.stringify({ error: "Forbidden" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
   try {
-    const { company_id, trigger, period_key, period_label } = await req.json();
-
-    if (!company_id || !period_key) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
