@@ -1012,9 +1012,16 @@ const AdvisorDashboard = () => {
       }
     }
 
-    // Report review reason — navigate to reports
+    // Report review reason — navigate to member's specific report
     if (reason?.includes("godkendelse")) {
-      navigate("/reports");
+      const userId = data?.companyToUser?.get(companyId);
+      const recentReport = (data?.recentReportsData || []).find((r: any) => r.company_id === companyId);
+      if (userId) {
+        navigate(recentReport?.id
+          ? `/members/${userId}?reportId=${recentReport.id}&section=reports`
+          : `/members/${userId}?section=reports`
+        );
+      }
       return;
     }
 
