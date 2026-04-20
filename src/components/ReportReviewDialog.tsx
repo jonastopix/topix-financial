@@ -289,14 +289,20 @@ export default function ReportReviewDialog({
         console.warn("Alert detection failed (non-blocking):", alertErr);
       });
 
-      // Auto-generate AI financial analysis — non-blocking
+      // Auto-generate AI financial analysis — non-blocking, with deferred invalidation
       supabase.functions.invoke("generate-financial-commentary", {
         body: {
           company_id: companyId,
           period_key: preview?.period_key,
         },
+      }).then(() => {
+        // Invalidate AFTER generation completes so the UI shows the result immediately
+        queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
+        queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
       }).catch((err) => {
         console.warn("Commentary generation failed (non-blocking):", err);
+        // Still invalidate so stale UI clears
+        queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
       });
 
       onOpenChange(false);
