@@ -1478,15 +1478,15 @@ const CompanyChatPane = () => {
                                 <span className="ml-1.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Legat</span>
                               )}
                             </p>
-                            {conv.companyName && conv.profile?.full_name && conv.threadType !== "group" && (
-                              <p className="text-[10px] text-muted-foreground truncate">
-                                {conv.profile.full_name}
-                              </p>
-                            )}
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
                           </div>
+                          {conv.companyName && conv.profile?.full_name && conv.threadType !== "group" && (
+                            <p className="text-[10px] text-muted-foreground truncate leading-tight mb-0.5">
+                              {conv.profile.full_name}
+                            </p>
+                          )}
                           <div className="flex items-center gap-1.5 mt-1">
                             {urgency === 'reply' && (
                               <span className="text-[10px] font-medium text-destructive">
@@ -1521,12 +1521,12 @@ const CompanyChatPane = () => {
                             {urgency === 'normal' && conversationNoteIds.has(conv.id) && (
                               <StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0 ml-auto" />
                             )}
-                            {assignedInitials && urgency !== 'reply' && (
+                            {assignedInitials && (
                               <span
-                                className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-muted text-[8px] font-bold text-muted-foreground flex-shrink-0 ml-auto"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted text-[9px] font-medium text-muted-foreground flex-shrink-0 ml-auto"
                                 title={assignedName || ""}
                               >
-                                {assignedInitials}
+                                {assignedName?.split(" ")[0] || assignedInitials}
                               </span>
                             )}
                           </div>
