@@ -140,10 +140,6 @@ const CompanyChatPane = () => {
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
-  const [snoozePopoverOpen, setSnoozePopoverOpen] = useState(false);
-  const [snoozeShowCalendar, setSnoozeShowCalendar] = useState(false);
-  const [mobileFilterDrawerOpen, setMobileFilterDrawerOpen] = useState(false);
-  const [mobileActionsDrawerOpen, setMobileActionsDrawerOpen] = useState(false);
 
   // Internal note state
   const [noteContent, setNoteContent] = useState("");
@@ -1227,8 +1223,6 @@ const CompanyChatPane = () => {
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, ...updateData } : c
     ));
-    setSnoozePopoverOpen(false);
-    setSnoozeShowCalendar(false);
     toast.success(`Følger op ${format(followUpAt, "d. MMM", { locale: da })}`);
   };
 
