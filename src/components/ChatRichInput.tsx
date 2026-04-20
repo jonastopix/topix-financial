@@ -251,6 +251,10 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
 
   useEffect(() => { submitRef.current = submitFromEditor; }, [submitFromEditor]);
 
+  useEffect(() => {
+    if (onRequestSubmit) onRequestSubmit(submitFromEditor);
+  }, [onRequestSubmit, submitFromEditor]);
+
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList) return;
