@@ -1084,565 +1084,214 @@ const AdvisorDashboard = () => {
   }
 
   return (
-    <div className="space-y-8">
-      {/* ── Advisor fordeling ── */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-secondary/30 rounded-xl flex-wrap">
-        <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Fordeling</span>
-        <div className="flex items-center gap-2 flex-wrap">
-          {advisorProfiles
-            .map(a => ({
-              ...a,
-              count: assignmentCounts[a.user_id] || 0,
-              isMe: a.user_id === user?.id,
-            }))
-            .sort((a, b) => b.count - a.count)
-            .map(a => (
-              <div key={a.user_id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                a.isMe
-                  ? "bg-primary/15 text-primary"
-                  : "bg-secondary text-muted-foreground"
-              }`}>
-                <div className={`h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold ${
-                  a.isMe ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
-                }`}>
-                  {a.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
-                </div>
-                <span>{a.full_name.split(" ")[0]}</span>
-                <span className={`font-bold ${a.isMe ? "text-primary" : "text-foreground"}`}>{a.count}</span>
-              </div>
-            ))}
-          {unassignedCount > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="h-3 w-3" />
-              <span>{unassignedCount} uden ejer</span>
-            </div>
-          )}
-        </div>
-        <div className="ml-auto text-[10px] text-muted-foreground">
-          {totalAssigned} tildelt · {total} i alt
-        </div>
-      </div>
-
-      {/* ── Priority + Sparring side by side ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <AdvisorPriorityQueue
-          items={priorityItems}
-          onCompanyClick={handleAdvisorCompanyClick}
-          advisorProfiles={advisorProfiles}
-          currentUserId={user?.id}
-          onAssign={handleAssignAdvisor}
-        />
-        <AdvisorSparringQueue
-          items={sparringItems}
-          onCompanyClick={handleAdvisorCompanyClick}
-          advisorProfiles={advisorProfiles}
-          currentUserId={user?.id}
-          onAssign={handleAssignAdvisor}
-        />
-      </div>
-
-      {(data?.legatCompanyIds?.size ?? 0) > 0 && (
-        <div className="rounded-xl border border-primary/10 bg-primary/5 p-4 mb-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <p className="text-sm font-semibold text-foreground">Legatforløb</p>
-            <span className="text-xs text-muted-foreground">{data!.legatCompanyIds.size} aktive</span>
-          </div>
-          <div className="space-y-1">
-            {(data?.companies || []).filter((c: any) => data!.legatCompanyIds.has(c.id)).map((company: any) => (
-              <div key={company.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                <span className="truncate">{company.name}</span>
-                <span className="text-[10px] text-primary ml-auto">Legat</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Financial Alerts ── */}
-      <AdvisorAlertsPanel
-        onCompanyClick={handleAdvisorCompanyClick}
-      />
-
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <button onClick={() => { setMemberFilter("alle"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard
-            title="Rapporterer aktivt"
-            value={`${reportedThisMonth} / ${total}`}
-            subtitle={`${total - reportedThisMonth} mangler rapport denne måned`}
-            accentColor={total > 0 && reportedThisMonth / total >= 0.7 ? "emerald" : "amber"}
-          />
-        </button>
-        <button onClick={() => { setMemberFilter("ubesvaret"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard
-            title="Ulæste beskeder"
-            value={String(unbesvaredCount)}
-            subtitle={unbesvaredCount > 0 ? "founders afventer svar" : "Alle beskeder besvaret ✓"}
-            accentColor={unbesvaredCount > 3 ? "rose" : unbesvaredCount > 0 ? "amber" : "emerald"}
-          />
-        </button>
-        <button onClick={() => { setMemberFilter("alle"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard
-            title="Afventende follow-ups"
-            value={String(overdueFollowUps.length + upcomingFollowUps.length)}
-            subtitle={overdueFollowUps.length > 0 ? `${overdueFollowUps.length} forfaldne` : "ingen forfaldne"}
-            accentColor={overdueFollowUps.length > 0 ? "rose" : upcomingFollowUps.length > 0 ? "amber" : "emerald"}
-          />
-        </button>
-        <button onClick={() => { setMemberFilter("passive"); document.getElementById("member-list")?.scrollIntoView({ behavior: "smooth" }); }} className="text-left w-full">
-          <KPICard
-            title="Uden milestones"
-            value={String(investorSummaries.filter(c => c.milestones.length === 0 && c.has_verified_metrics).length)}
-            subtitle="har data men ingen mål sat"
-            accentColor="amber"
-          />
-        </button>
-      </div>
-
-      {/* ── Two-column layout ── */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* LEFT: Members */}
-        <div id="member-list" className="flex-1 min-w-0 lg:w-2/3">
-          {/* Toolbar: search + filter + view toggle */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                value={memberSearch}
-                onChange={e => setMemberSearch(e.target.value)}
-                placeholder="Søg virksomhed..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-border bg-secondary/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              {([
-                { key: "alle", label: "Alle" },
-                { key: "ubesvaret", label: "Ubesvaret" },
-                { key: "aktive", label: "Aktive" },
-                { key: "passive", label: "Passive" },
-              ] as const).map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setMemberFilter(tab.key)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                    memberFilter === tab.key
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  {tab.label}
-                  {tab.key === "ubesvaret" && unbesvaredCount > 0 && (
-                    <span className="ml-1 text-[9px] opacity-70">({unbesvaredCount})</span>
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1 ml-auto">
-              <div className="mr-2">
-                <AdvisorBroadcast
-                  companies={(investorSummaries || []).map((c) => ({
-                    id: c.company_id,
-                    name: c.company_name,
-                  }))}
-                />
-              </div>
-              <button
-                onClick={() => setMemberView("table")}
-                className={`p-1.5 rounded transition-colors ${memberView === "table" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                title="Tabelvisning"
-              >
-                <List className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setMemberView("cards")}
-                className={`p-1.5 rounded transition-colors ${memberView === "cards" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                title="Kortvisning"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <span className="text-[10px] text-muted-foreground ml-1">
-                {filteredMembers.length}/{investorSummaries.length}
-              </span>
-            </div>
-          </div>
-
-          {/* Member content */}
-          {memberView === "table" ? (
-            <>
-              {/* Engagement snapshot */}
-              {(() => {
-                const currentPeriodKey = getMissingReportKey();
-                const reportedCount = filteredMembers.filter(c =>
-                  !c.missing_current_period && c.has_verified_metrics).length;
-                const pulseCount = filteredMembers.filter(c =>
-                  c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000)).length;
-                return (
-                  <div className="flex items-center gap-4 mb-3 text-[11px] text-muted-foreground">
-                    <span>
-                      <span className="font-semibold text-primary">{reportedCount}</span>
-                      /{filteredMembers.length} rapporteret denne måned
-                    </span>
-                    <span>·</span>
-                    <span>
-                      <span className="font-semibold text-chart-info">{pulseCount}</span>
-                      /{filteredMembers.length} pulse seneste 30 dage
-                    </span>
-                  </div>
-                );
-              })()}
-              <div className="glass-card rounded-xl overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-secondary/30">
-                      <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Trend</th>
-                      {showKpiColumn && <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">KPI mål</th>}
-                      <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
-                      <th className="py-2 px-3 w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/20">
-                    {(() => {
-                      let lastGroup = "";
-                      const GROUP_LABELS: Record<string, { label: string; color: string }> = {
-                        attention: { label: "Kræver opmærksomhed", color: "text-destructive/70" },
-                        active: { label: "Aktive", color: "text-primary/70" },
-                        passive: { label: "Passive", color: "text-muted-foreground/50" },
-                      };
-                       const getRowGroup = (c: typeof filteredMembers[0]) => {
-                         const inPriorityQueue = priorityItems.some(p => p.company.company_id === c.company_id);
-                         if (!inPriorityQueue && (c.unreadMessages > 0 || c.needsAttention || (c.revenueTrendPct != null && c.revenueTrendPct < -15))) return "attention";
-                         if (c.has_verified_metrics || c.milestones.length > 0) return "active";
-                         return "passive";
-                      };
-                      return filteredMembers.map(c => {
-                      const group = getRowGroup(c);
-                      const showSeparator = group !== lastGroup;
-                      lastGroup = group;
-                      const cfg = GROUP_LABELS[group];
-                      const currentPeriodKey = getMissingReportKey();
-                      const hasCurrentReport = c.effective_period_key === currentPeriodKey
-                        || (c.effective_period_key != null && !c.missing_current_period);
-                      const hasPulse30 = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
-                      const hasChat = (convByCompany.get(c.company_id)?.[0]?.last_member_message_at) != null;
-                      const hasMilestones = c.milestones.length > 0;
-                      const hasKpiTargets = c.kpiTargets.length > 0;
-                      const primaryKpi = c.kpiTargets.find(k => k.kpi_key === "omsaetning") || c.kpiTargets[0];
-                      const kpiPct = primaryKpi && c.revenue != null && primaryKpi.target_value > 0
-                        ? Math.min(100, (c.revenue / primaryKpi.target_value) * 100)
-                        : null;
-
-                      return (
-                        <React.Fragment key={c.company_id}>
-                        {showSeparator && (
-                          <tr>
-                            <td colSpan={6} className="pt-4 pb-1 px-4">
-                              <p className={`text-[9px] font-bold uppercase tracking-widest ${cfg.color}`}>
-                                {cfg.label}
-                              </p>
-                            </td>
-                          </tr>
-                        )}
-                        <tr
-                          className="hover:bg-accent/20 transition-colors group cursor-pointer"
-                           onClick={() => {
-                             if (c.unreadMessages > 0) {
-                               handleAdvisorCompanyClick(c.company_id, c.company_name, "besked");
-                             } else {
-                               setCompanyOverride(c.company_id, c.company_name);
-                             }
-                           }}
-                        >
-                          {/* Virksomhed */}
-                          <td className="py-2.5 px-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                                {c.logo_url
-                                  ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
-                                  : <span className="text-[9px] font-bold text-muted-foreground">{c.company_name.slice(0, 2).toUpperCase()}</span>
-                                }
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-medium text-foreground truncate max-w-[160px]">{c.company_name}</p>
-                              </div>
-                              {c.unreadMessages > 0 && (
-                                <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                                  {c.unreadMessages}
-                                </span>
-                              )}
-                              {hasPulse30 && (
-                                <span title="Pulse check-in sendt denne måned" className="text-primary/60 shrink-0">
-                                  <Heart className="h-3 w-3 fill-current" />
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          {/* Rapport denne måned */}
-                          <td className="py-2.5 px-3 text-center hidden sm:table-cell">
-                            {hasCurrentReport ? (
-                              <div className="flex items-center justify-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-primary" />
-                                <span className="text-[10px] text-primary font-medium">
-                                  {c.effective_period_label}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-amber-500" />
-                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                                  Mangler
-                                </span>
-                              </div>
-                            )}
-                          </td>
-                          {/* Trend */}
-                          <td className="py-2.5 px-3 text-center hidden sm:table-cell">
-                            {c.revenueTrendPct != null ? (
-                              <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
-                                c.revenueTrendPct > 5 ? "text-primary" :
-                                c.revenueTrendPct < -5 ? "text-destructive" :
-                                "text-muted-foreground"
-                              }`}>
-                                {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}
-                                {Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/30">—</span>
-                            )}
-                          </td>
-                          {/* KPI-fremskridt */}
-                          {showKpiColumn && (
-                            <td className="py-2.5 px-3 hidden md:table-cell">
-                              {kpiPct != null ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[80px]">
-                                    <div
-                                      className={`h-full rounded-full ${
-                                        kpiPct >= 100 ? "bg-primary" :
-                                        kpiPct >= 70 ? "bg-chart-warning" :
-                                        "bg-destructive/50"
-                                      }`}
-                                      style={{ width: `${kpiPct}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">
-                                    {Math.round(kpiPct)}%
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground/30">Ingen mål</span>
-                              )}
-                            </td>
-                          )}
-                          {/* Engagement */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1">
-                              {[
-                                { active: hasCurrentReport, color: "bg-primary", label: "R", title: "Rapport" },
-                                { active: hasPulse30, color: "bg-chart-info", label: "P", title: "Pulse" },
-                                { active: hasChat, color: "bg-purple-500", label: "C", title: "Chat" },
-                                { active: hasMilestones, color: "bg-chart-warning", label: "M", title: "Milestones" },
-                                { active: hasKpiTargets, color: "bg-teal-500", label: "K", title: "KPI" },
-                                { active: c.hasWeeklyFocus, color: "bg-primary/50", label: "W", title: "Ugens fokus aktiv" },
-                              ].map((dot, i) => (
-                                <span
-                                  key={i}
-                                  title={dot.title}
-                                  className={`inline-flex items-center justify-center h-4 w-4 rounded text-[8px] font-bold transition-colors ${
-                                    dot.active
-                                      ? `${dot.color} text-white`
-                                      : "bg-muted-foreground/10 text-muted-foreground/30"
-                                  }`}
-                                >
-                                  {dot.label}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          {/* Action */}
-                          <td className="py-2.5 px-3">
-                            <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary transition-colors">Se data →</span>
-                          </td>
-                        </tr>
-                        </React.Fragment>
-                      );
-                    });
-                    })()}
-                  </tbody>
-                </table>
-                {filteredMembers.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-8">
-                    {memberSearch ? "Ingen resultater for søgningen" : "Ingen medlemmer matcher dette filter"}
-                  </p>
-                )}
-              </div>
-              {/* Legend */}
-              <div className="flex items-center gap-4 mt-2 px-1 flex-wrap">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement:</p>
-                {[
-                  { color: "bg-primary", label: "R = Rapport denne måned" },
-                  { color: "bg-chart-info", label: "P = Pulse" },
-                  { color: "bg-purple-500", label: "C = Chat" },
-                  { color: "bg-chart-warning", label: "M = Milestones" },
-                  { color: "bg-teal-500", label: "K = KPI mål" },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center gap-1">
-                    <div className={`h-1.5 w-1.5 rounded-full ${item.color}`} />
-                    <span className="text-[9px] text-muted-foreground">{item.label}</span>
-                  </div>
-                ))}
-                <span className="text-[9px] text-muted-foreground ml-2">
-                  · Trend = omsætningsvækst seneste to rapporter · W = Ugens AI-fokus aktivt
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {filteredMembers.map(c => (
-                <MemberCard
-                  key={c.company_id}
-                  company={c}
-                  onCompanyClick={setCompanyOverride}
-                  convByCompany={convByCompany}
-                />
-              ))}
-              {filteredMembers.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-8 col-span-2">
-                  {memberSearch ? "Ingen resultater for søgningen" : "Ingen medlemmer matcher dette filter"}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT: Min kø */}
-        <div className="lg:w-80 shrink-0 space-y-4">
-          {/* Mine tildelinger der venter */}
-          <div className="glass-card rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <UserCheck className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Min kø</h3>
-              <span className="ml-auto text-[10px] text-muted-foreground">{myAssignments} tildelt</span>
-            </div>
-            {(() => {
-              const myQueue = investorSummaries
-                .filter(c => {
-                  const conv = allConvsByCompany.get(c.company_id);
-                  const isAssignedToMe = conv?.assigned_advisor_id === user?.id;
-                  const isUnassignedWithMessages = !conv?.assigned_advisor_id && c.unreadMessages > 0;
-                  return (isAssignedToMe || isUnassignedWithMessages) && (
-                    c.unreadMessages > 0 ||
-                    c.needsAttention ||
-                    (c.revenueTrendPct != null && c.revenueTrendPct < -15)
-                  );
-                })
-                .sort((a, b) => b.unreadMessages - a.unreadMessages);
-              const visibleQueue = showAllQueue ? myQueue : myQueue.slice(0, 8);
-              if (myQueue.length === 0) return (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  Ingen åbne handlinger i din kø ✓
-                </p>
-              );
+    <div className="space-y-6">
+      {/* Section 1: Action list */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-chart-warning" />
+            Kræver handling
+          </h2>
+          {/* Advisor distribution — moved here, compact */}
+          <div className="flex items-center gap-1.5">
+            {advisorProfiles.map(a => {
+              const count = assignmentCounts[a.user_id] || 0;
+              const isMe = a.user_id === user?.id;
               return (
-                <div className="space-y-1">
-                  {visibleQueue.map(c => (
-                    <button
-                      key={c.company_id}
-                      onClick={() => handleAdvisorCompanyClick(c.company_id, c.company_name)}
-                      className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-secondary/60 transition-colors text-left"
-                    >
-                      <div className="h-6 w-6 rounded bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                        {c.logo_url
-                          ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
-                          : <span className="text-[8px] font-bold text-muted-foreground">{c.company_name.slice(0,2).toUpperCase()}</span>
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{c.company_name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {c.unreadMessages > 0 ? `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""}`
-                            : (c.cash != null && c.cash < 0) ? "Bankovertræk"
-                            : (c.revenueTrendPct != null && c.revenueTrendPct < -15) ? `Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`
-                            : c.missing_current_period ? "Mangler rapport"
-                            : "Kræver opfølgning"}
-                        </p>
-                      </div>
-                      {c.unreadMessages > 0 && (
-                        <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                          {c.unreadMessages}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                  {myQueue.length > 8 && (
-                    <button
-                      onClick={() => setShowAllQueue(v => !v)}
-                      className="w-full text-center text-[11px] text-primary hover:text-primary/80 transition-colors pt-2"
-                    >
-                      {showAllQueue ? "Vis færre ↑" : `Se alle ${myQueue.length} →`}
-                    </button>
+                <span key={a.user_id} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isMe ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                  {a.full_name.split(" ")[0]} {count}
+                </span>
+              );
+            })}
+            {unassignedCount > 0 && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600">
+                {unassignedCount} uden ejer
+              </span>
+            )}
+          </div>
+        </div>
+        {priorityItems.length === 0 ? (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/30 text-sm text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+            Ingen virksomheder kræver handling lige nu
+          </div>
+        ) : (
+          <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
+            {priorityItems.slice(0, 15).map(item => {
+              const primaryReason = item.reasons[0];
+              const isChatReason = primaryReason?.label.includes("besked");
+              const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
+              const userId = data?.companyToUser?.get(item.company.company_id);
+              return (
+                <div key={item.company.company_id} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
+                  <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                    {item.company.logo_url
+                      ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
+                      : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
+                    <p className={`text-[11px] truncate ${primaryReason?.urgency === "high" ? "text-destructive" : "text-chart-warning"}`}>
+                      {primaryReason?.label}
+                    </p>
+                  </div>
+                  {item.assigned_advisor_name && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                      {item.assigned_advisor_name.split(" ")[0]}
+                    </span>
                   )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isChatReason && convId && (
+                      <button
+                        onClick={() => navigate(`/chat?conversationId=${convId}`)}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        Åbn chat
+                      </button>
+                    )}
+                    {userId && (
+                      <button
+                        onClick={() => navigate(`/members/${userId}`)}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
+                      >
+                        Se virksomhed
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
-            })()}
+            })}
           </div>
+        )}
+      </div>
 
-          {/* Follow-ups */}
-          {hasFollowUps && (
-            <div className="glass-card rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="h-4 w-4 text-chart-warning" />
-                <h3 className="text-sm font-semibold text-foreground">Follow-ups</h3>
-              </div>
-              <div className="space-y-1">
-                {[...overdueFollowUps, ...upcomingFollowUps].slice(0, 5).map(conv => (
-                  <button
-                    key={conv.id}
-                    onClick={() => navigate(`/chat?conversationId=${conv.id}`)}
-                    className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-secondary/60 transition-colors text-left"
-                  >
-                    <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${overdueFollowUps.includes(conv) ? "bg-destructive" : "bg-chart-warning"}`} />
-                    <p className="text-xs text-foreground truncate flex-1">{getCompanyName(conv.company_id)}</p>
-                    {conv.follow_up_at && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* Section 2: Portfolio table */}
+      <div id="member-list">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          <h2 className="text-sm font-semibold text-foreground">Alle virksomheder</h2>
+          <div className="flex items-center gap-1 sm:ml-4">
+            {(["alle", "ubesvaret", "aktive", "passive"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setMemberFilter(tab)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  memberFilter === tab
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
+              >
+                {tab === "alle" ? "Alle" : tab === "ubesvaret" ? "Ubesvaret" : tab === "aktive" ? "Aktive" : "Passive"}
+                {tab === "ubesvaret" && unbesvaredCount > 0 && <span className="ml-1 opacity-70">({unbesvaredCount})</span>}
+              </button>
+            ))}
+          </div>
+          <div className="relative sm:ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={memberSearch}
+              onChange={e => setMemberSearch(e.target.value)}
+              placeholder="Søg virksomhed..."
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-border bg-secondary/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground"
+            />
+          </div>
+        </div>
+        <div className="glass-card rounded-xl overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
+                <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Person</th>
+                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
+                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Trend</th>
+                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
+                <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Advisor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/20">
+              {filteredMembers.map(c => {
+                const hasCurrentReport = c.effective_period_key != null && !c.missing_current_period;
+                const hasPulse30 = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
+                const hasChat = !!convByCompany.get(c.company_id)?.[0]?.last_member_message_at;
+                const hasMilestones = c.milestones.length > 0;
+                const hasKpiTargets = c.kpiTargets.length > 0;
+                const userId = data?.companyToUser?.get(c.company_id);
+                const conv = allConvsByCompany.get(c.company_id);
+                const assignedName = advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name;
 
-          {/* Seneste pulse fra founders */}
-          {pulseCompanies.length > 0 && (
-            <div className="glass-card rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Activity className="h-4 w-4 text-chart-info" />
-                <h3 className="text-sm font-semibold text-foreground">Seneste pulse</h3>
-              </div>
-              <div className="space-y-2">
-                {pulseCompanies.slice(0, 3).map(c => (
-                  <button
+                return (
+                  <tr
                     key={c.company_id}
-                    onClick={() => setCompanyOverride(c.company_id, c.company_name)}
-                    className="w-full text-left p-2 rounded-lg hover:bg-secondary/60 transition-colors"
+                    className="hover:bg-accent/20 transition-colors cursor-pointer group"
+                    onClick={() => userId && navigate(`/members/${userId}`)}
                   >
-                    <p className="text-[10px] font-medium text-foreground truncate">{c.company_name}</p>
-                    {c.latestPulse?.biggest_challenge && (
-                      <p className="text-[10px] text-muted-foreground/70 italic line-clamp-1 mt-0.5">
-                        "{c.latestPulse.biggest_challenge}"
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                          {c.logo_url
+                            ? <img src={c.logo_url} alt="" className="h-full w-full object-contain" />
+                            : <span className="text-[9px] font-bold text-muted-foreground">{c.company_name.slice(0, 2).toUpperCase()}</span>
+                          }
+                        </div>
+                        <p className="text-xs font-medium text-foreground truncate max-w-[140px]">{c.company_name}</p>
+                        {c.unreadMessages > 0 && (
+                          <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                            {c.unreadMessages}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 hidden sm:table-cell">
+                      <p className="text-[11px] text-muted-foreground truncate max-w-[100px]">
+                        {((data?.companies || []) as any[]).find((co: any) => co.id === c.company_id)?.memberName || "—"}
                       </p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center hidden sm:table-cell">
+                      {hasCurrentReport ? (
+                        <span className="text-[10px] text-primary font-medium">{c.effective_period_label}</span>
+                      ) : (
+                        <span className="text-[10px] text-amber-600 font-medium">Mangler</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center hidden md:table-cell">
+                      {c.revenueTrendPct != null ? (
+                        <span className={`text-xs font-semibold ${c.revenueTrendPct > 5 ? "text-primary" : c.revenueTrendPct < -5 ? "text-destructive" : "text-muted-foreground"}`}>
+                          {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}{Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
+                        </span>
+                      ) : <span className="text-muted-foreground/30">—</span>}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center justify-center gap-1">
+                        {[
+                          { active: hasCurrentReport, color: "bg-primary", title: "Rapport" },
+                          { active: hasPulse30, color: "bg-chart-info", title: "Pulse" },
+                          { active: hasChat, color: "bg-purple-500", title: "Chat" },
+                          { active: hasMilestones, color: "bg-chart-warning", title: "Milestones" },
+                          { active: hasKpiTargets, color: "bg-teal-500", title: "KPI mål" },
+                        ].map((dot, i) => (
+                          <div key={i} title={dot.title} className={`h-2 w-2 rounded-full ${dot.active ? dot.color : "bg-muted-foreground/15"}`} />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 text-right hidden sm:table-cell">
+                      {assignedName ? (
+                        <span className="text-[10px] font-medium text-muted-foreground">{assignedName.split(" ")[0]}</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/30">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredMembers.length === 0 && (
+                <tr><td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">Ingen virksomheder matcher filteret</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center gap-4 mt-2 px-1">
+          <p className="text-[9px] text-muted-foreground">Engagement-dots: Rapport · Pulse · Chat · Milestones · KPI mål</p>
+          <span className="text-[9px] text-muted-foreground ml-auto">{filteredMembers.length} virksomheder</span>
         </div>
       </div>
     </div>
