@@ -490,17 +490,19 @@ Deno.serve(async (req) => {
   }
 
   // Verify caller has RLS access to this company before any admin operations
-  const { data: accessCheck } = await callerClient
-    .from("companies")
-    .select("id")
-    .eq("id", company_id)
-    .maybeSingle();
+  if (!isServiceRole) {
+    const { data: accessCheck } = await callerClient
+      .from("companies")
+      .select("id")
+      .eq("id", company_id)
+      .maybeSingle();
 
-  if (!accessCheck) {
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    if (!accessCheck) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   }
 
   try {
