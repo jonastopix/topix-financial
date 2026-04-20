@@ -1565,39 +1565,36 @@ const CompanyChatPane = () => {
               <>
                 {/* Header */}
                 {isAdvisor ? (
-                  <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
-                    {isMobile && (
-                      <button
-                        onClick={handleBackToList}
-                        className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                      >
-                        <ArrowLeft className="h-5 w-5" />
-                      </button>
-                    )}
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                      {isGroupThread ? (
-                        <Layers className="h-4 w-4 text-primary" />
-                      ) : activeConv?.companyLogoUrl ? (
-                        <img src={activeConv.companyLogoUrl} alt="" className="h-8 w-8 object-cover" />
-                      ) : (
-                        <span className="text-xs font-semibold text-primary">
-                          {getInitialsLocal(activeConv?.companyName || "??")}
-                        </span>
+                  <div className="px-4 py-3 border-b border-border">
+                    {/* Row 1: identity + nav */}
+                    <div className="flex items-center gap-3">
+                      {isMobile && (
+                        <button onClick={handleBackToList} className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                          <ArrowLeft className="h-5 w-5" />
+                        </button>
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">
-                        {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
-                      </p>
-                      {activeConv?.companyName && isAdvisor && (() => {
-                        const memberId = activeConv.member_id;
-                        return memberId ? (
-                          <div className="flex items-center gap-1 mt-1">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {isGroupThread ? (
+                          <Layers className="h-4 w-4 text-primary" />
+                        ) : activeConv?.companyLogoUrl ? (
+                          <img src={activeConv.companyLogoUrl} alt="" className="h-8 w-8 object-cover" />
+                        ) : (
+                          <span className="text-xs font-semibold text-primary">
+                            {getInitialsLocal(activeConv?.companyName || "??")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
+                        </p>
+                        {/* Quick nav links */}
+                        {activeConv?.member_id && !isGroupThread && (
+                          <div className="flex items-center gap-1 mt-0.5">
                             {[
-                              { label: "Overblik", path: `/members/${memberId}` },
-                              { label: "KPI'er", path: `/members/${memberId}?tab=kpis` },
-                              { label: "Milestones", path: `/members/${memberId}?tab=milestones` },
-                              { label: "Rapporter", path: `/members/${memberId}?tab=reports` },
+                              { label: "Overblik", path: `/members/${activeConv.member_id}` },
+                              { label: "KPI'er", path: `/members/${activeConv.member_id}?tab=kpis` },
+                              { label: "Rapporter", path: `/members/${activeConv.member_id}?tab=reports` },
                             ].map(({ label, path }) => (
                               <button
                                 key={label}
@@ -1608,126 +1605,54 @@ const CompanyChatPane = () => {
                               </button>
                             ))}
                           </div>
-                        ) : null;
-                      })()}
-                      {!isAdvisor && (
-                       <p className="text-[10px] text-muted-foreground">
-                          {advisorNamesLabel}
-                        </p>
-                      )}
-                      {participants.length > 0 && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <div className="flex -space-x-1.5">
-                            {participants.slice(0, 4).map((p) => (
-                              <div
-                                key={p.user_id}
-                                className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center overflow-hidden"
-                                title={p.full_name}
-                              >
-                                {p.avatar_url ? (
-                                  <img src={p.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                                ) : (
-                                  <span className="text-[8px] font-medium text-muted-foreground">
-                                    {getInitialsLocal(p.full_name || "?")}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                            {participants.length > 4 && (
-                              <div className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center">
-                                <span className="text-[8px] font-medium text-muted-foreground">+{participants.length - 4}</span>
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-[11px] text-muted-foreground truncate">
-                            {(() => {
-                              const members = participants.filter(p => !p.isAdvisor);
-                              const advisors = participants.filter(p => p.isAdvisor);
-                              const shortName = (name: string) => {
-                                const parts = name.split(" ");
-                                return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
-                              };
-                              const names = members.slice(0, 2).map(p => shortName(p.full_name));
-                              if (members.length > 2) names.push(`+${members.length - 2}`);
-                              const advisorCount = advisors.length;
-                              const parts = [...names];
-                              if (advisorCount > 0) parts.push(`${advisorCount} rådgiver${advisorCount > 1 ? "e" : ""}`);
-                              return parts.join(", ");
-                            })()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Advisor prev/next navigation */}
-                    {isAdvisor && advisorConvList.length > 1 && (
-                      <div className="flex items-center gap-1 ml-auto">
-                        <button
-                          onClick={() => prevConv && setActiveConvId(prevConv.id)}
-                          disabled={!prevConv}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
-                          title={prevConv ? `← ${prevConv.companyName}` : "Ingen tidligere"}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                          {currentConvIdx + 1} / {advisorConvList.length}
-                        </span>
-                        <button
-                          onClick={() => nextConv && setActiveConvId(nextConv.id)}
-                          disabled={!nextConv}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
-                          title={nextConv ? `${nextConv.companyName} →` : "Ingen næste"}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
+                        )}
                       </div>
-                    )}
-
-                    {/* Advisor action controls */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {/* Assignment popover */}
-                      <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
-                        <PopoverTrigger asChild>
-                          <button
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors border ${
-                              activeConv?.assigned_advisor_id
-                                ? "bg-primary/10 text-primary border-primary/20"
-                                : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
-                            }`}
-                          >
-                            <UserCheck className="h-3.5 w-3.5" />
-                            <span className="hidden md:inline">
-                              {activeConv?.assigned_advisor_id
-                                ? getAdvisorName(activeConv.assigned_advisor_id) || "Tildelt"
-                                : "Tildel"}
+                      {/* Primary contextual action */}
+                      {(() => {
+                        const now = new Date();
+                        const isActionable = activeConv &&
+                          !isGroupThread &&
+                          activeConv.awaiting_reply_from === "advisor" &&
+                          activeConv.conversation_status !== "resolved" &&
+                          (!activeConv.acknowledged_at || (!!activeConv.follow_up_at && new Date(activeConv.follow_up_at) <= now));
+                        const hasFutureSnooze = activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > now;
+                        if (isActionable) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex-shrink-0">
+                              <Clock className="h-3.5 w-3.5" />
+                              Afventer dit svar
                             </span>
-                            <ChevronDown className={`h-3 w-3 transition-transform ${assignmentPopoverOpen ? "rotate-180" : ""}`} />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent align="end" sideOffset={8} collisionPadding={16} className="w-52 p-0 z-[200]">
-                          <div className="px-3 py-1.5 border-b border-border">
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tildel rådgiver</span>
-                          </div>
-                          {advisorUsersError ? (
-                            <div className="px-3 py-3 text-xs text-destructive text-center">
-                              Kunne ikke hente rådgivere
-                            </div>
-                          ) : (!advisorUsers || advisorUsers.length === 0) ? (
-                            <div className="px-3 py-3 text-xs text-muted-foreground text-center">
-                              Ingen rådgivere fundet
-                            </div>
-                          ) : (
-                            <>
-                              {advisorUsers.map((a: any) => {
+                          );
+                        }
+                        if (hasFutureSnooze) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex-shrink-0">
+                              <Clock className="h-3.5 w-3.5" />
+                              Følger op {format(new Date(activeConv!.follow_up_at!), "d. MMM", { locale: da })}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {/* ⋯ secondary actions menu */}
+                      {!isGroupThread && (
+                        <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
+                          <PopoverTrigger asChild>
+                            <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" sideOffset={8} className="w-56 p-1 z-[200]">
+                            {/* Assign */}
+                            <div className="px-2 py-1 mb-1">
+                              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1.5">Tildel rådgiver</p>
+                              {(advisorUsers || []).map((a: any) => {
                                 const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
                                 return (
                                   <button
                                     key={a.user_id}
                                     onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
-                                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors text-foreground ${
-                                      isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"
-                                    }`}
+                                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors text-foreground ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"}`}
                                   >
                                     <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
                                       {a.avatar_url ? (
@@ -1737,235 +1662,88 @@ const CompanyChatPane = () => {
                                       )}
                                     </div>
                                     <span className="truncate">{a.full_name}</span>
-                                    {isCurrent && (
-                                      <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />
-                                    )}
+                                    {isCurrent && <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />}
                                   </button>
                                 );
                               })}
                               {activeConv?.assigned_advisor_id && (
                                 <button
                                   onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
-                                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors border-t border-border"
+                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors mt-1"
                                 >
                                   Fjern tildeling
                                 </button>
                               )}
-                            </>
-                          )}
-                        </PopoverContent>
-                      </Popover>
-
-                      {/* Acknowledge button */}
-                      {isAdvisor && activeConv && !isGroupThread && activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && activeConv?.conversation_status !== 'resolved' && (
-                        <button
-                          onClick={handleAcknowledge}
-                          title="Fjerner samtalen fra 'Kræver svar' uden at sende en besked"
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Jeg følger op</span>
-                        </button>
-                      )}
-
-                      {/* Active snooze indicator */}
-                      {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' &&
-                        activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && !isMobile && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                          <Clock className="h-3 w-3" />
-                          Følger op d. {format(new Date(activeConv.follow_up_at), "d. MMM", { locale: da })}
-                          <button
-                            onClick={handleCancelSnooze}
-                            className="ml-0.5 hover:text-destructive transition-colors"
-                            title="Fjern opfølgning"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      )}
-
-                      {/* Desktop: inline snooze + resolve controls */}
-                      {!isMobile && (
-                        <>
-                          {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' && (
-                            <Popover open={snoozePopoverOpen} onOpenChange={(open) => { setSnoozePopoverOpen(open); if (!open) setSnoozeShowCalendar(false); }}>
-                              <PopoverTrigger asChild>
-                                <button
-                                  title="Sæt en opfølgningsdato — samtalen forsvinder midlertidigt fra køen"
-                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
-                                >
-                                  <Clock className="h-3.5 w-3.5" />
-                                  <span className="hidden md:inline">Følg op senere</span>
-                                </button>
-                              </PopoverTrigger>
-                              <PopoverContent align="end" sideOffset={8} className="w-auto p-0 z-[200]">
-                                {!snoozeShowCalendar ? (
-                                  <div className="py-1">
-                                    <div className="px-3 py-1.5 border-b border-border">
-                                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Følg op</span>
-                                    </div>
-                                    <button
-                                      onClick={() => handleSnooze(getSnoozeDate('tomorrow'))}
-                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                    >
-                                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                      I morgen
-                                      <span className="ml-auto text-muted-foreground text-[10px]">
-                                        {format(getSnoozeDate('tomorrow'), "EEE d. MMM", { locale: da })}
-                                      </span>
-                                    </button>
-                                    <button
-                                      onClick={() => handleSnooze(getSnoozeDate('3days'))}
-                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                    >
-                                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                      Om 3 dage
-                                      <span className="ml-auto text-muted-foreground text-[10px]">
-                                        {format(getSnoozeDate('3days'), "EEE d. MMM", { locale: da })}
-                                      </span>
-                                    </button>
-                                    <button
-                                      onClick={() => handleSnooze(getSnoozeDate('nextweek'))}
-                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                    >
-                                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                      Næste uge
-                                      <span className="ml-auto text-muted-foreground text-[10px]">
-                                        {format(getSnoozeDate('nextweek'), "EEE d. MMM", { locale: da })}
-                                      </span>
-                                    </button>
-                                    <div className="border-t border-border">
-                                      <button
-                                        onClick={() => setSnoozeShowCalendar(true)}
-                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
-                                      >
-                                        <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                                        Vælg dato
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
-                                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Vælg dato</span>
-                                      <button
-                                        onClick={() => setSnoozeShowCalendar(false)}
-                                        className="text-muted-foreground hover:text-foreground transition-colors"
-                                      >
-                                        <ArrowLeft className="h-3.5 w-3.5" />
-                                      </button>
-                                    </div>
-                                    <Calendar
-                                      mode="single"
-                                      selected={undefined}
-                                      onSelect={(date) => {
-                                        if (date) {
-                                          const snoozeDate = setSeconds(setMinutes(setHours(date, 9), 0), 0);
-                                          handleSnooze(snoozeDate);
-                                        }
-                                      }}
-                                      disabled={(date) => date < new Date()}
-                                      className="p-3 pointer-events-auto"
-                                    />
-                                  </div>
+                            </div>
+                            <div className="border-t border-border my-1" />
+                            {/* Snooze */}
+                            {activeConv?.conversation_status !== 'resolved' && (
+                              <>
+                                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-2 py-1">Følg op</p>
+                                {[
+                                  { label: "I morgen", date: getSnoozeDate('tomorrow') },
+                                  { label: "Om 3 dage", date: getSnoozeDate('3days') },
+                                  { label: "Næste uge", date: getSnoozeDate('nextweek') },
+                                ].map(({ label, date }) => (
+                                  <button
+                                    key={label}
+                                    onClick={() => { handleSnooze(date); setAssignmentPopoverOpen(false); }}
+                                    className="flex items-center justify-between w-full px-2 py-1.5 rounded-md text-xs text-foreground hover:bg-secondary/60 transition-colors"
+                                  >
+                                    <span>{label}</span>
+                                    <span className="text-muted-foreground text-[10px]">{format(date, "EEE d. MMM", { locale: da })}</span>
+                                  </button>
+                                ))}
+                                {activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && (
+                                  <button
+                                    onClick={() => { handleCancelSnooze(); setAssignmentPopoverOpen(false); }}
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
+                                  >
+                                    <X className="h-3 w-3" />
+                                    Fjern opfølgning
+                                  </button>
                                 )}
-                              </PopoverContent>
-                            </Popover>
-                          )}
-
-                          {isAdvisor && activeConv && !isGroupThread && (
+                                <div className="border-t border-border my-1" />
+                              </>
+                            )}
+                            {/* Acknowledge / no action */}
+                            {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
+                              <button
+                                onClick={() => { handleAcknowledge(); setAssignmentPopoverOpen(false); }}
+                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-foreground hover:bg-secondary/60 transition-colors"
+                              >
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                Jeg følger op (fjern fra kø)
+                              </button>
+                            )}
                             <button
-                              onClick={handleNoActionNeeded}
-                              title="Ingen handling nødvendig — fjerner samtalen fra handlingskøen"
-                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors bg-muted text-muted-foreground border border-border hover:bg-secondary"
+                              onClick={() => { handleNoActionNeeded(); setAssignmentPopoverOpen(false); }}
+                              className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-secondary/60 transition-colors"
                             >
                               <CheckCheck className="h-3.5 w-3.5" />
-                              <span className="hidden md:inline">Ingen handling</span>
+                              Ingen handling nødvendig
                             </button>
-                          )}
-
-                          {activeConv?.hasRecentReport && (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-                              <FileText className="h-3 w-3" />
-                              Ny rapport
-                            </span>
-                          )}
-                        </>
+                          </PopoverContent>
+                        </Popover>
                       )}
-
-                      {/* Mobile: overflow Drawer for snooze + resolve */}
-                      {isMobile && (
-                        <Drawer open={mobileActionsDrawerOpen} onOpenChange={setMobileActionsDrawerOpen}>
+                      {/* Prev/next */}
+                      {advisorConvList.length > 1 && (
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                           <button
-                            onClick={() => setMobileActionsDrawerOpen(true)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                            onClick={() => prevConv && setActiveConvId(prevConv.id)}
+                            disabled={!prevConv}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
                           >
-                            <MoreHorizontal className="h-4 w-4" />
+                            <ChevronLeft className="h-4 w-4" />
                           </button>
-                          <DrawerContent>
-                            <DrawerHeader>
-                              <DrawerTitle>Handlinger</DrawerTitle>
-                            </DrawerHeader>
-                            <div className="px-4 pb-6 space-y-1">
-                              {activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && (
-                                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-sm">
-                                  <Clock className="h-4 w-4" />
-                                  <span className="flex-1">Følger op d. {format(new Date(activeConv.follow_up_at), "d. MMM", { locale: da })}</span>
-                                  <button onClick={() => { handleCancelSnooze(); setMobileActionsDrawerOpen(false); }} className="text-xs underline">
-                                    Fjern
-                                  </button>
-                                </div>
-                              )}
-
-                              {isAdvisor && activeConv && !isGroupThread && activeConv?.conversation_status !== 'resolved' && (
-                                <>
-                                  <button
-                                    onClick={() => { handleSnooze(getSnoozeDate('tomorrow')); setMobileActionsDrawerOpen(false); }}
-                                    className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
-                                  >
-                                    <Clock className="h-4 w-4 text-muted-foreground" />
-                                    <span className="flex-1 text-left">Følg op i morgen</span>
-                                    <span className="text-xs text-muted-foreground">{format(getSnoozeDate('tomorrow'), "EEE d. MMM", { locale: da })}</span>
-                                  </button>
-                                  <button
-                                    onClick={() => { handleSnooze(getSnoozeDate('3days')); setMobileActionsDrawerOpen(false); }}
-                                    className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
-                                  >
-                                    <Clock className="h-4 w-4 text-muted-foreground" />
-                                    <span className="flex-1 text-left">Følg op om 3 dage</span>
-                                    <span className="text-xs text-muted-foreground">{format(getSnoozeDate('3days'), "EEE d. MMM", { locale: da })}</span>
-                                  </button>
-                                  <button
-                                    onClick={() => { handleSnooze(getSnoozeDate('nextweek')); setMobileActionsDrawerOpen(false); }}
-                                    className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
-                                  >
-                                    <Clock className="h-4 w-4 text-muted-foreground" />
-                                    <span className="flex-1 text-left">Følg op næste uge</span>
-                                    <span className="text-xs text-muted-foreground">{format(getSnoozeDate('nextweek'), "EEE d. MMM", { locale: da })}</span>
-                                  </button>
-                                </>
-                              )}
-
-                              {isAdvisor && activeConv && !isGroupThread && (
-                                <button
-                                  onClick={() => { handleNoActionNeeded(); setMobileActionsDrawerOpen(false); }}
-                                  className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors border-t border-border mt-2 pt-3"
-                                >
-                                  <CheckCheck className="h-4 w-4 text-muted-foreground" />
-                                  <span className="flex-1 text-left">Ingen handling nødvendig</span>
-                                </button>
-                              )}
-
-                              {activeConv?.hasRecentReport && (
-                                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-primary/5 text-primary text-sm">
-                                  <FileText className="h-4 w-4" />
-                                  <span>Ny rapport vedhæftet</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="safe-bottom-spacer" />
-                          </DrawerContent>
-                        </Drawer>
+                          <button
+                            onClick={() => nextConv && setActiveConvId(nextConv.id)}
+                            disabled={!nextConv}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
