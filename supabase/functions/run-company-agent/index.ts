@@ -399,7 +399,17 @@ Deno.serve(async (req) => {
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Virksomhed: ${companyData.name} (${company_id})\nBranche: ${companyData.industry_label || "ukendt"}\nNy rapport committed: ${period_label} (${period_key})\nTrigger: ${trigger}\n\nStart med at hente data og analyser situationen.`,
+        content: `VIRKSOMHED: ${companyData.name}
+
+CVR: ${companyData.cvr_number || "ukendt"}
+
+Branche: ${companyData.industry_label || "ukendt"}
+
+Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDateString("da-DK", { month: "long", year: "numeric" }) : "ukendt"}
+
+Ny rapport: ${period_label} (${period_key})
+
+Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_kpi_targets parallelt for at danne dig et komplet billede. Analysér derefter situationen og skriv din besked.`,
       },
     ];
 
