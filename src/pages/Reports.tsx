@@ -847,7 +847,7 @@ const Reports = () => {
             const needsManualEntry = (report.quality_signals as any)?.needs_manual_entry === true;
             const isTrueError = false; // All error reports now route through manual entry — no dead ends
             const hasNeedsManualFlag = (report.quality_signals as any)?.needs_manual_entry === true;
-            const isUnrecoverableError = report.status === "error" && !hasNeedsManualFlag;
+            const isUnrecoverableError = false; // All error reports get manual entry path — no dead ends
             const config = isUnrecoverableError
               ? { icon: AlertCircle, label: "Ikke genkendt", className: "text-destructive", bg: "bg-destructive/10" }
               : needsManualEntry
