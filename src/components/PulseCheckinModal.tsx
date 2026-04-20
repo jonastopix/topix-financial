@@ -59,8 +59,9 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
   });
 
   const now = new Date();
-  const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const periodLabel = now.toLocaleDateString("da-DK", { month: "long", year: "numeric" });
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const periodKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+  const periodLabel = prevMonth.toLocaleDateString("da-DK", { month: "long", year: "numeric" });
 
   useEffect(() => {
     if (!user || !companyId || !open) return;
