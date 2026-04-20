@@ -523,9 +523,10 @@ Branche: ${companyData.industry_label || "ukendt"}
 
 Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDateString("da-DK", { month: "long", year: "numeric" }) : "ukendt"}
 
-Ny rapport: ${period_label} (${period_key})
-
-Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_kpi_targets parallelt for at danne dig et komplet billede. Analysér derefter situationen og skriv din besked.`,
+${trigger === "pulse_submitted" 
+  ? `Founder har netop afleveret månedlig pulse check-in for ${period_label}.\n\nHent pulse-svaret med get_pulse_checkins og de seneste facts med get_company_facts. Skriv en kort personlig respons i chatten der tager udgangspunkt i hvad founder selv har skrevet — særligt deres største udfordring. Foreslå ét konkret næste skridt. Opdatér weekly focus. Notificér advisor.`
+  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_kpi_targets parallelt for at danne dig et komplet billede. Analysér derefter situationen og skriv din besked.`
+}`,
       },
     ];
 
