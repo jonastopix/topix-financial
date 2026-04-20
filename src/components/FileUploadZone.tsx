@@ -607,10 +607,21 @@ const FileUploadZone = ({
         if (!adminMode && conversationId && userId) {
           const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
           const period = extractedData.report_period || "ukendt periode";
+          const omsaetning = (extractedData as any)?.normalized_data?.omsaetning ?? (extractedData as any)?.extracted_data?.omsaetning ?? null;
+          const resultat = (extractedData as any)?.normalized_data?.resultat_foer_skat ?? (extractedData as any)?.extracted_data?.resultat_foer_skat ?? null;
+          const lines = [`📄 **${reportLabel}** uploadet for **${period}**`];
+          if (omsaetning != null) {
+            lines.push(`Omsætning: ${Number(omsaetning).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
+          }
+          if (resultat != null) {
+            const sign = Number(resultat) >= 0 ? "+" : "";
+            lines.push(`Resultat: ${sign}${Number(resultat).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
+          }
+          const content = lines.join("\n");
           const messageId = await postActivityMessage({
             conversationId,
             senderId: userId,
-            content: `📄 Ny rapport uploadet: **${reportLabel}** for ${period}`,
+            content,
             contextType: "report",
             contextId: reportRecord.id,
             contextMeta: {
@@ -821,10 +832,21 @@ const FileUploadZone = ({
       if (!adminMode && conversationId && userId) {
         const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
         const period = extractedData.report_period || "ukendt periode";
+        const omsaetning = (extractedData as any)?.normalized_data?.omsaetning ?? (extractedData as any)?.extracted_data?.omsaetning ?? null;
+        const resultat = (extractedData as any)?.normalized_data?.resultat_foer_skat ?? (extractedData as any)?.extracted_data?.resultat_foer_skat ?? null;
+        const lines = [`📄 Rapport overskrevet: **${reportLabel}** for **${period}**`];
+        if (omsaetning != null) {
+          lines.push(`Omsætning: ${Number(omsaetning).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
+        }
+        if (resultat != null) {
+          const sign = Number(resultat) >= 0 ? "+" : "";
+          lines.push(`Resultat: ${sign}${Number(resultat).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
+        }
+        const content = lines.join("\n");
         const messageId = await postActivityMessage({
           conversationId,
           senderId: userId,
-          content: `📄 Rapport overskrevet: **${reportLabel}** for ${period}`,
+          content,
           contextType: "report",
           contextId: reportRecord.id,
           contextMeta: {
