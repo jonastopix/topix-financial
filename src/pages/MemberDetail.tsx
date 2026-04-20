@@ -232,6 +232,7 @@ const MemberDetail = () => {
   const [removing, setRemoving] = useState(false);
   const [sessionBullets, setSessionBullets] = useState<string[]>([]);
   const [loadingSession, setLoadingSession] = useState(false);
+  const [agentRunning, setAgentRunning] = useState<string | null>(null);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
@@ -1271,6 +1272,33 @@ const MemberDetail = () => {
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                                 ✓ Committed
                               </span>
+                            )}
+                            {isCommitted && (
+                              <button
+                                onClick={async () => {
+                                  setAgentRunning(report.id);
+                                  try {
+                                    await supabase.functions.invoke("run-company-agent", {
+                                      body: {
+                                        company_id: memberCompanyId,
+                                        trigger: "report_committed",
+                                        period_key: report.manual_report_period_key || report.report_period,
+                                        period_label: report.manual_report_period_label || report.report_period,
+                                      },
+                                    });
+                                    toast.success("Agent kørt ✓", { description: "Tjek chatten for analysen." });
+                                  } catch (err) {
+                                    toast.error("Agent fejlede");
+                                  } finally {
+                                    setAgentRunning(null);
+                                  }
+                                }}
+                                disabled={agentRunning === report.id}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                {agentRunning === report.id ? "Kører..." : "Kør agent"}
+                              </button>
                             )}
                             {report.processed_at && (
                               <span className="text-[10px] text-muted-foreground">
