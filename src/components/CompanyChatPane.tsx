@@ -1644,9 +1644,8 @@ const CompanyChatPane = () => {
                         </p>
                         {/* Member names shown directly under company name */}
                         {!isGroupThread && (() => {
-                          const memberParticipants = participants.filter(p => !p.isAdvisor);
-                          const names = memberParticipants.length > 0
-                            ? memberParticipants.map(p => p.full_name).join(", ")
+                          const names = companyMembers.length > 0
+                            ? companyMembers.map(p => p.full_name).join(", ")
                             : activeConv?.profile?.full_name || null;
                           return names ? (
                             <p className="text-[11px] text-muted-foreground truncate leading-tight">
