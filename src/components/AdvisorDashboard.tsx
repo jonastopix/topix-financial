@@ -1132,9 +1132,12 @@ const AdvisorDashboard = () => {
           <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
             {priorityItems.slice(0, 15).map(item => {
               const primaryReason = item.reasons[0];
-              const isChatReason = primaryReason?.label.includes("besked");
+              const label = primaryReason?.label || "";
+              const isDirectChatReason = label.includes("besked") || label.includes("Opfølgning") || label.includes("pulse");
+              const isReportReason = label.includes("godkendelse");
               const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
               const userId = data?.companyToUser?.get(item.company.company_id);
+              const recentReportId = (data?.recentReportsData || []).find((r: any) => r.company_id === item.company.company_id)?.id;
               return (
                 <div key={item.company.company_id} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
                   <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
@@ -1155,10 +1158,30 @@ const AdvisorDashboard = () => {
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {isChatReason && convId && (
+                    {isDirectChatReason && convId && (
                       <button
                         onClick={() => navigate(`/chat?conversationId=${convId}`)}
                         className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        Åbn chat
+                      </button>
+                    )}
+                    {isReportReason && userId && (
+                      <button
+                        onClick={() => navigate(
+                          recentReportId
+                            ? `/members/${userId}?reportId=${recentReportId}&section=reports`
+                            : `/members/${userId}?section=reports`
+                        )}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        Se rapport
+                      </button>
+                    )}
+                    {!isDirectChatReason && !isReportReason && convId && (
+                      <button
+                        onClick={() => navigate(`/chat?conversationId=${convId}`)}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
                       >
                         Åbn chat
                       </button>
