@@ -182,7 +182,7 @@ const AdvisorCompanyOverview = () => {
       const convIds = conversations.map(c => c.id);
       const assignedId = primaryConv?.assigned_advisor_id ?? null;
 
-      const [notesRes, advisorProfileRes] = await Promise.all([
+      const [notesRes, advisorProfileRes, membersRes] = await Promise.all([
         // Notes: only for this company's conversations
         convIds.length > 0
           ? supabase.from("conversation_notes")
@@ -196,7 +196,25 @@ const AdvisorCompanyOverview = () => {
               .eq("user_id", assignedId)
               .maybeSingle()
           : Promise.resolve({ data: null as { full_name: string; user_id: string } | null }),
+        // Company members + their profile names
+        supabase.from("company_members")
+          .select("user_id")
+          .eq("company_id", companyId!),
       ]);
+
+      // Resolve member full names
+      const memberUserIds = ((membersRes as any)?.data || []).map((m: any) => m.user_id).filter(Boolean);
+      let memberNames = "";
+      if (memberUserIds.length > 0) {
+        const { data: memberProfiles } = await supabase
+          .from("profiles")
+          .select("full_name, user_id")
+          .in("user_id", memberUserIds);
+        memberNames = (memberProfiles || [])
+          .map((p: any) => p.full_name)
+          .filter(Boolean)
+          .join(", ");
+      }
 
       // Notes: check if any conversation for this company has a note
       const noteConvIds = new Set(((notesRes as any).data || []).map((n: any) => n.conversation_id));
