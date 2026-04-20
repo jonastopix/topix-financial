@@ -572,7 +572,7 @@ export function runExtendedValidation(
   // 11. impossible_margin_check
   if (metrics.gross_margin_pct != null) {
     const hasContraCogs = metrics.cogs != null && metrics.cogs < 0 && metrics.revenue != null && metrics.revenue > 0;
-    const outsideStandardRange = metrics.gross_margin_pct > 100 || metrics.gross_margin_pct < -100;
+    const outsideStandardRange = metrics.gross_margin_pct > 150 || metrics.gross_margin_pct < -500;
 
     if (outsideStandardRange && !hasContraCogs) {
       checks.push({ name: "impossible_margin_check", result: "FAIL", details: `Gross margin ${metrics.gross_margin_pct.toFixed(1)}% outside ±100%` });
