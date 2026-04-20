@@ -1346,9 +1346,14 @@ const AdvisorDashboard = () => {
                       </div>
                     </td>
                     <td className="py-2.5 px-3 hidden sm:table-cell">
-                      <p className="text-[11px] text-muted-foreground truncate max-w-[100px]">
+                      <p className="text-[11px] text-foreground truncate max-w-[110px]">
                         {data?.companyMemberNameMap?.get(c.company_id) || "—"}
                       </p>
+                      {convByCompany.get(c.company_id)?.[0]?.last_message_at && (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {timeAgo(convByCompany.get(c.company_id)?.[0]?.last_message_at ?? null)}
+                        </p>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-center hidden sm:table-cell">
                       {hasCurrentReport ? (
