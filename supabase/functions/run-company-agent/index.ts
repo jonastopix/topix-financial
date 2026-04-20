@@ -253,6 +253,8 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
           sender_id: conv.member_id,
           content: args.content,
           message_type: "system",
+          context_type: "agent",
+          context_meta: { source: "run-company-agent", trigger: "report_committed" },
         })
         .select("id")
         .single();
