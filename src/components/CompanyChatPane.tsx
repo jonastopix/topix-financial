@@ -1892,14 +1892,35 @@ const CompanyChatPane = () => {
                                   {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                 </span>
                               </div>
-                              <div className="text-sm text-foreground leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
-                              {contextType && contextMeta?.title && (
-                                <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
-                                  {contextType === "report" && <FileText className="h-3 w-3" />}
-                                  {contextType === "milestone" && <Target className="h-3 w-3" />}
-                                  {String(contextMeta.title)}
-                                </div>
-                              )}
+                              <div className="text-sm text-foreground leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
+                                msg.content
+                                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                  .replace(/\n/g, '<br>'),
+                                { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }
+                              ) }} />
+                              {contextType && contextMeta?.title && (() => {
+                                const linkPath =
+                                  contextType === "report" ? "/reports" :
+                                  contextType === "milestone" ? "/milestones" :
+                                  null;
+                                const chip = (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
+                                    {contextType === "report" && <FileText className="h-3 w-3" />}
+                                    {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                    {String(contextMeta.title)}
+                                    {isAdvisor && linkPath && <ExternalLink className="h-2.5 w-2.5 ml-0.5" />}
+                                  </span>
+                                );
+                                return (
+                                  <div className="mt-2">
+                                    {isAdvisor && linkPath ? (
+                                      <button onClick={() => navigate(linkPath)} className="hover:opacity-80 transition-opacity">
+                                        {chip}
+                                      </button>
+                                    ) : chip}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         </React.Fragment>
