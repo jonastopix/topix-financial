@@ -305,6 +305,18 @@ export default function ReportReviewDialog({
         queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
       });
 
+      // Trigger company agent — analyses the new data and writes proactive insights
+      supabase.functions.invoke("run-company-agent", {
+        body: {
+          company_id: companyId,
+          trigger: "report_committed",
+          period_key: preview?.period_key,
+          period_label: preview?.period_label || preview?.period_key,
+        },
+      }).catch((err) => {
+        console.warn("Agent run failed (non-blocking):", err);
+      });
+
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fejl ved commit", { description: err.message || "Ukendt fejl" });
@@ -384,6 +396,18 @@ export default function ReportReviewDialog({
         console.warn("Commentary generation failed (non-blocking):", err);
         // Still invalidate so stale UI clears
         queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
+      });
+
+      // Trigger company agent — analyses the new data and writes proactive insights
+      supabase.functions.invoke("run-company-agent", {
+        body: {
+          company_id: companyId,
+          trigger: "report_committed",
+          period_key: preview?.period_key,
+          period_label: preview?.period_label || preview?.period_key,
+        },
+      }).catch((err) => {
+        console.warn("Agent run failed (non-blocking):", err);
       });
 
       onOpenChange(false);
