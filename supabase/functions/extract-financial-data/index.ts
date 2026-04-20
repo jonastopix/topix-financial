@@ -808,33 +808,18 @@ serve(async (req) => {
         };
         console.log(`[Routing] Semantic CSV success: ${semanticCsvResult.template_id}`);
       } else if (semanticCsvResult.type === "semantic_fail") {
-        // ── Phase 6b: Migrated template semantic_fail → hard fail for known sources ──
+        // ── Phase 6b: Known source template failed — fall back to AI rather than hard fail ──
         if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+          console.warn(`[Routing] Semantic CSV fail for known source ${sourceFingerprint.source_system} — falling back to AI extraction`);
           routingTrace.deterministic_attempted = true;
-          routingTrace.deterministic_result = "semantic_csv_fail";
-          routingTrace.deterministic_template_id = semanticCsvResult.template_id;
-          routingTrace.branch = "semantic_csv_hard_fail";
-          routingTrace.deterministic_error = semanticCsvResult.error;
-          console.error(`[Routing] Semantic CSV HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`);
-
-          if (reportId) {
-            const earlyExitErrors = [`Semantic CSV extraction failed for known source ${sourceFingerprint.source_system}: ${semanticCsvResult.error}`];
-            await supabase
-              .from("financial_reports")
-              .update(getEarlyExitPersistPayload(isV2Cohort, "semantic_csv_fail", "semantic_csv_hard_fail", earlyExitErrors, routingTrace))
-              .eq("id", reportId);
-          }
-
-          return new Response(
-            JSON.stringify({
-              error: "Semantic CSV extraction failed",
-              status: "semantic_csv_fail",
-              source_system: sourceFingerprint.source_system,
-              template_id: semanticCsvResult.template_id,
-              details: semanticCsvResult.error,
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          routingTrace.deterministic_result = "semantic_csv_fail_ai_fallback";
+          routingTrace.branch = "semantic_csv_fail_ai_fallback";
+          // Continue to AI extraction below — do NOT return early
+        } else {
+          // Unknown source: fall back to legacy
+          console.log(`[Routing] Semantic CSV semantic_fail for unknown source, falling back to legacy deterministic...`);
+          routingTrace.deterministic_attempted = true;
+          detResult = tryDeterministicCsvExtraction(fileContent, fileName);
         }
         // Unknown source: fall back to legacy
         console.log(`[Routing] Semantic CSV semantic_fail for unknown source, falling back to legacy deterministic...`);
