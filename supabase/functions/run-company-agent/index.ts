@@ -383,7 +383,7 @@ Deno.serve(async (req) => {
     // Fetch company context
     const { data: companyData, error: companyErr } = await adminClient
       .from("companies")
-      .select("name, industry_label")
+      .select("name, industry_label, cvr_number, start_date")
       .eq("id", company_id)
       .maybeSingle();
 
