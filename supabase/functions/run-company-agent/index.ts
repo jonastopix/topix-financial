@@ -528,6 +528,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fetch founder's first name
+    const { data: memberData } = await adminClient
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", company_id)
+      .limit(1)
+      .maybeSingle();
+
+    let founderFirstName = "du";
+    if (memberData?.user_id) {
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", memberData.user_id)
+        .maybeSingle();
+
+      if (profile?.full_name) {
+        founderFirstName = profile.full_name.split(" ")[0];
+      }
+    }
+
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
       {
