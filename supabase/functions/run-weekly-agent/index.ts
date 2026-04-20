@@ -1,30 +1,24 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const auth = authenticateServiceRole(req);
-  if (auth instanceof Response) return auth;
+Deno.cron("weekly-company-agent", "0 7 * * 1", async () => {
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-  // Get all active companies that have at least one committed fact
   const { data: companies, error } = await adminClient
     .from("companies")
     .select("id, name")
     .eq("status", "active");
 
   if (error || !companies?.length) {
-    return new Response(JSON.stringify({ ok: false, error: error?.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("Weekly agent: failed to fetch companies", error?.message);
+    return;
   }
 
-  // For each company, find their latest committed fact
-  const results: { company_id: string; status: string }[] = [];
+  console.log(`Weekly agent: processing ${companies.length} companies`);
 
   for (const company of companies) {
     const { data: latestFact } = await adminClient
@@ -36,14 +30,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!latestFact) {
-      results.push({ company_id: company.id, status: "skipped_no_facts" });
+      console.log(`Weekly agent: skipping ${company.name} — no committed facts`);
       continue;
     }
 
-    // Call agent directly via HTTP using service role key as Bearer token
     const agentUrl = `${supabaseUrl}/functions/v1/run-company-agent`;
-
-    const agentResp = await fetch(agentUrl, {
+    const resp = await fetch(agentUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -57,17 +49,9 @@ Deno.serve(async (req) => {
       }),
     });
 
-    const agentResult = agentResp.ok ? await agentResp.json() : null;
-    results.push({
-      company_id: company.id,
-      status: agentResult?.ok ? "triggered" : `error: ${agentResult?.error || agentResp.status}`,
-    });
+    const result = resp.ok ? await resp.json() : null;
+    console.log(`Weekly agent: ${company.name} → ${result?.ok ? "ok" : "failed"}`);
 
-    // Small delay between companies to avoid rate limiting
     await new Promise(r => setTimeout(r, 2000));
   }
-
-  return new Response(JSON.stringify({ ok: true, processed: results.length, results }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 });
