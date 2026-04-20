@@ -445,9 +445,22 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const auth = await authenticateUser(req);
-  if (auth instanceof Response) return auth;
-  const { callerClient } = auth;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const isServiceRole = authHeader === `Bearer ${serviceRoleKey}`;
+
+  let callerClient: any;
+  if (isServiceRole) {
+    // Internal call from weekly cron or other edge functions — trust fully
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    callerClient = createClient(supabaseUrl, anonKey);
+  } else {
+    // User-triggered call — validate JWT
+    const auth = await authenticateUser(req);
+    if (auth instanceof Response) return auth;
+    callerClient = auth.callerClient;
+  }
 
   const body = await req.json();
   const { company_id, trigger, period_key, period_label } = body;
@@ -477,17 +490,19 @@ Deno.serve(async (req) => {
   }
 
   // Verify caller has RLS access to this company before any admin operations
-  const { data: accessCheck } = await callerClient
-    .from("companies")
-    .select("id")
-    .eq("id", company_id)
-    .maybeSingle();
+  if (!isServiceRole) {
+    const { data: accessCheck } = await callerClient
+      .from("companies")
+      .select("id")
+      .eq("id", company_id)
+      .maybeSingle();
 
-  if (!accessCheck) {
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    if (!accessCheck) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   }
 
   try {
