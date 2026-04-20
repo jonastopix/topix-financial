@@ -1276,7 +1276,7 @@ const MemberDetail = () => {
                             {isCommitted && (
                               <button
                                 onClick={async () => {
-                                  setAgentRunning(report.source_report_id || report.id);
+                                  setAgentRunning(report.id);
                                   try {
                                     await supabase.functions.invoke("run-company-agent", {
                                       body: {
@@ -1293,11 +1293,11 @@ const MemberDetail = () => {
                                     setAgentRunning(null);
                                   }
                                 }}
-                                disabled={agentRunning === (report.source_report_id || report.id)}
+                                disabled={agentRunning === report.id}
                                 className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                               >
                                 <Sparkles className="h-3 w-3" />
-                                {agentRunning === (report.source_report_id || report.id) ? "Kører..." : "Kør agent"}
+                                {agentRunning === report.id ? "Kører..." : "Kør agent"}
                               </button>
                             )}
                             {report.processed_at && (
