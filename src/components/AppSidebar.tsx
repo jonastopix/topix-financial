@@ -222,7 +222,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
           .in("conversation_id", convIds)
           .neq("sender_id", user.id)
           .is("read_at", null)
-          .eq("message_type", "user");
+          .in("message_type", ["user", "system", "ai"]);
         totalUnread += count || 0;
       }
 
