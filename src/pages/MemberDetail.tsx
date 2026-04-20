@@ -957,6 +957,17 @@ const MemberDetail = () => {
                     />
                     <Area type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revGradMD)" dot={false} />
                     <Area type="monotone" dataKey="resultat" stroke="hsl(var(--chart-info))" strokeWidth={2} fill="url(#resGradMD)" dot={false} />
+                    {budgetChartData.some(b => b.budgetRevenue != null) && (
+                      <Line
+                        type="monotone"
+                        dataKey="budget"
+                        stroke="hsl(var(--chart-warning))"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 3"
+                        dot={false}
+                        connectNulls
+                      />
+                    )}
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
