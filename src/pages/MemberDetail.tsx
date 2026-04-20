@@ -638,6 +638,19 @@ const MemberDetail = () => {
     muted: "bg-muted text-muted-foreground",
   };
 
+  // Budget chart data for overlay
+  const budgetChartData = (() => {
+    if (!budgets.length || !memberFacts.length) return [];
+    return memberFacts.slice(-8).map(f => {
+      const [year, month] = f.period_key.split("-");
+      const monthIndex = parseInt(month, 10) - 1;
+      const baseKey = `${year}-base-${monthIndex}`;
+      const monthBudgets = budgets.filter(b => b.period === baseKey);
+      const budgetRevenue = monthBudgets.find(b => b.category === "omsaetning")?.budget_amount ?? null;
+      return { periodKey: f.period_key, budgetRevenue };
+    });
+  })();
+
   return (
     <AppLayout>
       {/* Back link */}
