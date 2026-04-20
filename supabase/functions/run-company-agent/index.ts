@@ -448,6 +448,9 @@ Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_
     const MAX_ITERATIONS = 8;
     let iterations = 0;
     let done = false;
+    let messageWritten = false;
+    let lastError: string | null = null;
+    let stopReason: string | null = null;
 
     while (!done && iterations < MAX_ITERATIONS) {
       iterations++;
@@ -469,6 +472,8 @@ Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_
       if (!response.ok) {
         const errText = await response.text();
         console.error("AI gateway error", response.status, errText);
+        lastError = `AI gateway error ${response.status}: ${errText.slice(0, 500)}`;
+        stopReason = "ai_gateway_error";
         break;
       }
 
@@ -476,11 +481,17 @@ Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_
       const choice = result.choices?.[0];
       const assistantMessage = choice?.message;
 
-      if (!assistantMessage) break;
+      if (!assistantMessage) {
+        stopReason = "no_assistant_message";
+        break;
+      }
 
       messages.push(assistantMessage);
 
-      if (!assistantMessage.tool_calls?.length) break;
+      if (!assistantMessage.tool_calls?.length) {
+        stopReason = "no_tool_calls";
+        break;
+      }
 
       const toolResults: any[] = [];
       for (const toolCall of assistantMessage.tool_calls) {
@@ -500,6 +511,10 @@ Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_
           toolResult = { error: err instanceof Error ? err.message : "Tool execution failed" };
         }
 
+        if (toolName === "write_chat_message" && toolResult?.ok === true) {
+          messageWritten = true;
+        }
+
         if (toolName === "finish") {
           done = true;
         }
@@ -514,8 +529,21 @@ Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_
       messages.push(...toolResults);
     }
 
+    if (!messageWritten) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          done,
+          iterations,
+          error: lastError || "Agent fuldførte uden at skrive en chat-besked",
+          diagnostics: { stop_reason: stopReason || "max_iterations_reached", message_written: false },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, iterations, done }),
+      JSON.stringify({ ok: true, iterations, done, message_written: true }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
