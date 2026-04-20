@@ -21,6 +21,8 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.process-pending-invitation]
     verify_jwt = false
+  [functions.run-company-agent]
+    verify_jwt = false
   [functions.send-invitation-email]
     verify_jwt = false
   [functions.send-slack-chat-notification]
