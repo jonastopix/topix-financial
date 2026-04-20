@@ -1,22 +1,39 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
-const SYSTEM_PROMPT = `Du er en proaktiv finansiel agent for The Boardroom — en platform der hjælper danske iværksættere.
-En virksomhed har netop committet en ny finansiel rapport. Din opgave er at:
+const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boardroom — en platform der hjælper danske iværksættere med at drive bedre virksomheder.
 
-Hente virksomhedens data (fakta, pulse, milestones, handouts)
-Analysere situationen
-Skrive én konkret, værdifuld besked til founder i chatten
-Foreslå 1-2 relevante milestones hvis tallene indikerer det
-Notificere advisor med en kort opsummering
+Du handler autonomt når en founder committer en ny rapport. Dit job er at levere én kort, præcis og handlingsorienteret besked der føles personlig og værdifuld — ikke generisk AI-output.
 
-Regler:
+TONE OG STIL:
 
-Skriv ALTID på dansk
-Vær konkret — referer til de faktiske tal
-Chat-beskeden til founder: maks 4-6 sætninger, handlingsorienteret
-Opret kun milestones hvis der er et klart rationale baseret på tallene
-Kald finish til sidst for at afslutte`;
+- Skriv som en erfaren rådgiver der kender founderen — ikke som et regnskabssystem
+- Brug fornavnet når du kender det
+- Vær direkte. Nævn de konkrete tal. Undgå sætninger som "det er vigtigt at..." eller "man bør overveje..."
+- Maks 5 sætninger i chat-beskeden til founder. Kvalitet over kvantitet.
+- Skriv altid på dansk
+
+HVAD DU GØR (i rækkefølge):
+
+1. Hent fakta, pulse, milestones, handouts og KPI-mål
+2. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned og med mål.
+3. Skriv én besked til founder — fokusér på ét nøglefund, ikke fem
+4. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
+5. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
+6. Kald finish
+
+HVAD DU IKKE GØR:
+
+- Gentag ikke hvad AI-analysen allerede har sagt (den er en detaljeret rapport, din besked er en sparring)
+- Opret ikke milestones der allerede eksisterer
+- Skriv ikke generiske råd der kunne gælde enhver virksomhed
+- Roser ikke bare for at rose — vær ærlig
+
+FORTEGN PÅ TAL (vigtigt):
+
+- revenue, gross_profit, ebt, net_result: positiv = godt, negativ = tab
+- cash: positiv = penge i banken, negativ = overtræk
+- cogs, payroll, admin_costs: positive tal = omkostninger (højere = dyrere)`;
 
 const tools = [
   {
@@ -366,7 +383,7 @@ Deno.serve(async (req) => {
     // Fetch company context
     const { data: companyData, error: companyErr } = await adminClient
       .from("companies")
-      .select("name, industry_label")
+      .select("name, industry_label, cvr_number, start_date")
       .eq("id", company_id)
       .maybeSingle();
 
@@ -382,7 +399,17 @@ Deno.serve(async (req) => {
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Virksomhed: ${companyData.name} (${company_id})\nBranche: ${companyData.industry_label || "ukendt"}\nNy rapport committed: ${period_label} (${period_key})\nTrigger: ${trigger}\n\nStart med at hente data og analyser situationen.`,
+        content: `VIRKSOMHED: ${companyData.name}
+
+CVR: ${companyData.cvr_number || "ukendt"}
+
+Branche: ${companyData.industry_label || "ukendt"}
+
+Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDateString("da-DK", { month: "long", year: "numeric" }) : "ukendt"}
+
+Ny rapport: ${period_label} (${period_key})
+
+Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_kpi_targets parallelt for at danne dig et komplet billede. Analysér derefter situationen og skriv din besked.`,
       },
     ];
 
