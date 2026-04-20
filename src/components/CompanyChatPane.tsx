@@ -25,7 +25,7 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2,
+  CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { Textarea } from "@/components/ui/textarea";
@@ -136,6 +136,7 @@ const CompanyChatPane = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const chatSubmitRef = useRef<() => void>(() => {});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
@@ -2157,10 +2158,20 @@ const CompanyChatPane = () => {
                   <div className="flex gap-2 items-end">
                     <ChatRichInput
                       onSubmit={handleSend}
+                      onRequestSubmit={(fn) => { chatSubmitRef.current = fn; }}
                       disabled={sending}
                       placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${advisorNamesLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
+                    <button
+                      type="button"
+                      onClick={() => chatSubmitRef.current()}
+                      disabled={sending}
+                      className="flex-shrink-0 h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      aria-label="Send besked"
+                    >
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
                   </div>
                   <div className="safe-bottom-spacer" />
                 </div>

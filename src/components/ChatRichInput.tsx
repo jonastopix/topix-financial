@@ -18,6 +18,7 @@ interface ChatRichInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  onRequestSubmit?: (fn: () => void) => void;
 }
 
 function ToolbarBtn({
@@ -143,6 +144,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   disabled = false,
   placeholder = "Skriv en besked...",
   maxLength = 5000,
+  onRequestSubmit,
 }) => {
   const editorRef = useRef<Editor | null>(null);
   const submitRef = useRef<() => void>(() => {});
@@ -202,11 +204,8 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
             ed.chain().focus().splitListItem("listItem").run();
             return true;
           }
-          if (!event.shiftKey) {
-            event.preventDefault();
-            submitRef.current();
-            return true;
-          }
+          // Enter always creates a line break — send is done via the send button
+          return false; // let Tiptap handle it naturally (inserts paragraph)
         }
         return false;
       },
@@ -251,6 +250,10 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   }, [editor, onSubmit, pendingFiles]);
 
   useEffect(() => { submitRef.current = submitFromEditor; }, [submitFromEditor]);
+
+  useEffect(() => {
+    if (onRequestSubmit) onRequestSubmit(submitFromEditor);
+  }, [onRequestSubmit, submitFromEditor]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
