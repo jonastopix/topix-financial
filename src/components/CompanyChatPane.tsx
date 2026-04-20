@@ -140,6 +140,7 @@ const CompanyChatPane = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
+  const [companyMembers, setCompanyMembers] = useState<{ user_id: string; full_name: string; avatar_url: string | null }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
 
   // Internal note state
