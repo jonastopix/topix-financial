@@ -1290,7 +1290,7 @@ const MemberDetail = () => {
                                       || report.manual_report_period_label
                                       || report.report_period;
 
-                                    const { error: agentError } = await supabase.functions.invoke("run-company-agent", {
+                                    const { data: agentData, error: agentError } = await supabase.functions.invoke("run-company-agent", {
                                       body: {
                                         company_id: memberCompanyId,
                                         trigger: "report_committed",
@@ -1300,11 +1300,14 @@ const MemberDetail = () => {
                                     });
 
                                     if (agentError) throw agentError;
+                                    if (!agentData?.ok) {
+                                      throw new Error(agentData?.error || "Agenten skrev ingen besked");
+                                    }
 
                                     toast.success("Agent kørt ✓", { description: "Tjek chatten for analysen." });
                                   } catch (err) {
                                     console.error("Agent error:", err);
-                                    toast.error("Agent fejlede", { description: String(err) });
+                                    toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
                                   } finally {
                                     setAgentRunning(null);
                                   }
