@@ -730,8 +730,11 @@ const CompanyChatPane = () => {
   const CHECKIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
   const groupedConversations = useMemo(() => {
     const now = new Date();
+    // Split legat from regular conversations immediately
+    const regularConvs = conversations.filter(c => !c.isLegat);
+    const legatConvs = conversations.filter(c => c.isLegat);
     // KRÆVER SVAR: all conversations awaiting any advisor reply, not acknowledged, not snoozed
-    const needsReply = conversations.filter(c => {
+    const needsReply = regularConvs.filter(c => {
       if (c.conversation_status === 'resolved') return false;
       if (c.awaiting_reply_from !== 'advisor') return false;
       const hasExpiredSnooze = !!c.follow_up_at && new Date(c.follow_up_at) <= now;
@@ -743,7 +746,7 @@ const CompanyChatPane = () => {
     });
     const needsReplyIds = new Set(needsReply.map(c => c.id));
     // TJEK IND: all conversations where no advisor has written in 14+ days
-    const needsCheckin = conversations.filter(c => {
+    const needsCheckin = regularConvs.filter(c => {
       if (needsReplyIds.has(c.id)) return false;
       if (c.conversation_status === 'resolved') return false;
       const lastAdvisor = c.last_advisor_reply_at
@@ -757,12 +760,16 @@ const CompanyChatPane = () => {
     });
     const checkinIds = new Set(needsCheckin.map(c => c.id));
     // ALLE ANDRE: everything not in the two groups above, sorted by latest activity
-    const rest = conversations.filter(c => {
+    const rest = regularConvs.filter(c => {
       return !needsReplyIds.has(c.id) && !checkinIds.has(c.id);
     }).sort((a, b) =>
       new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
     );
-    return { needsReply, needsCheckin, rest };
+    // Legat: sorted by latest message
+    const legat = legatConvs.sort((a, b) =>
+      new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
+    return { needsReply, needsCheckin, rest, legat };
   }, [conversations, user?.id]);
 
   // Load messages for active conversation
@@ -1419,7 +1426,8 @@ const CompanyChatPane = () => {
                 const replyList = filterConvs(groupedConversations.needsReply);
                 const checkinList = filterConvs(groupedConversations.needsCheckin);
                 const restList = filterConvs(groupedConversations.rest);
-                const total = replyList.length + checkinList.length + restList.length;
+                const legatList = filterConvs(groupedConversations.legat);
+                const total = replyList.length + checkinList.length + restList.length + legatList.length;
 
                 if (q && total === 0) {
                   return (
@@ -1575,8 +1583,23 @@ const CompanyChatPane = () => {
                       </div>
                     )}
 
+                    {/* Section: Legat */}
+                    {legatList.length > 0 && (
+                      <div className={(replyList.length > 0 || checkinList.length > 0 || restList.length > 0) ? "border-t-2 border-border mt-1" : ""}>
+                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+                          <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                            Legat
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {legatList.length}
+                          </span>
+                        </div>
+                        {legatList.map(c => renderConvCard(c, 'normal'))}
+                      </div>
+                    )}
+
                     {/* Empty state */}
-                    {replyList.length === 0 && checkinList.length === 0 && restList.length === 0 && !q && (
+                    {replyList.length === 0 && checkinList.length === 0 && restList.length === 0 && legatList.length === 0 && !q && (
                       <div className="p-8 text-center">
                         <CheckCheck className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
                         <p className="text-xs text-muted-foreground">Alt er i orden 🎉</p>
