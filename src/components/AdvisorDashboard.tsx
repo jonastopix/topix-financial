@@ -1223,7 +1223,13 @@ const AdvisorDashboard = () => {
                   <tr
                     key={c.company_id}
                     className="hover:bg-accent/20 transition-colors cursor-pointer group"
-                    onClick={() => userId && navigate(`/members/${userId}`)}
+                    onClick={() => {
+                      if (c.unreadMessages > 0) {
+                        handleAdvisorCompanyClick(c.company_id, c.company_name, "besked");
+                      } else if (userId) {
+                        navigate(`/members/${userId}`);
+                      }
+                    }}
                   >
                     <td className="py-2.5 px-4">
                       <div className="flex items-center gap-2.5">

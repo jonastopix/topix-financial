@@ -501,7 +501,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                     >
                       <Building2 className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate flex-1 text-left">
-                        {isCompanyOverride ? companyName : "Vis som virksomhed"}
+                        {isCompanyOverride ? companyName : "Se som member"}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                     </button>
@@ -561,7 +561,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                     >
                       <Building2 className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate flex-1 text-left">
-                        {isCompanyOverride ? companyName : "Vis som virksomhed"}
+                        {isCompanyOverride ? companyName : "Se som member"}
                       </span>
                       <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showCompanyPicker ? "rotate-180" : ""}`} />
                     </button>
