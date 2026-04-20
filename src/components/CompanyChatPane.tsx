@@ -98,7 +98,7 @@ interface ConversationWithProfile {
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
-type TopicFilter = "all" | "report" | "handout" | "milestone" | "budget" | "sparring";
+
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
 
 const ADVISOR_FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
@@ -109,14 +109,6 @@ const ADVISOR_FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inb
   { key: "rapporter", label: "Ny rapport", icon: FileText },
 ];
 
-const TOPIC_CONFIG: { key: TopicFilter; label: string; icon: typeof MessageSquare; color: string }[] = [
-  { key: "all", label: "Alle", icon: MessageSquare, color: "bg-muted text-muted-foreground" },
-  { key: "report", label: "Rapporter", icon: FileText, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-  { key: "handout", label: "Handouts", icon: BookOpen, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-  { key: "milestone", label: "Milestones", icon: Target, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-  { key: "budget", label: "Budget", icon: Calculator, color: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
-  { key: "sparring", label: "Sparring", icon: MessageSquare, color: "bg-muted text-muted-foreground" },
-];
 
 const TOPIC_COLORS: Record<string, { bg: string; text: string; label: string; icon: typeof MessageSquare }> = {
   report: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", label: "Rapport", icon: FileText },
@@ -150,7 +142,7 @@ const CompanyChatPane = () => {
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
-  const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
+  
   const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -547,7 +539,7 @@ const CompanyChatPane = () => {
     };
 
     loadConversations();
-  }, [user, isAdvisor, activeConvId, companyId, isCompanyOverride]);
+  }, [user, isAdvisor, companyId, isCompanyOverride]);
 
   // Realtime subscription on conversations + group_conversations for live ops state updates
   useEffect(() => {
@@ -1060,24 +1052,20 @@ const CompanyChatPane = () => {
     setSending(false);
   }, [activeConvId, user, selectedTopic]);
 
-  const filteredMessages = useMemo(() => {
-    if (topicFilter === "all") return messages;
-    if (topicFilter === "sparring") return messages.filter(m => !m.context_type);
-    return messages.filter(m => m.context_type === topicFilter);
-  }, [messages, topicFilter]);
-
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const isGroupThread = activeConv?.threadType === "group";
 
-  // Pulse context for advisor chat banner
+  // Pulse context for advisor chat banner — only show if from last 30 days
   const { data: latestPulse } = useQuery({
     queryKey: ["chat-pulse-context", activeConv?.company_id],
     queryFn: async () => {
       if (!activeConv?.company_id) return null;
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from("pulse_checkins")
         .select("help_needed, biggest_challenge, period_key")
         .eq("company_id", activeConv.company_id)
+        .gte("created_at", thirtyDaysAgo)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -1087,11 +1075,13 @@ const CompanyChatPane = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Advisor prev/next navigation — mirrors the left panel filter
+  // Advisor prev/next navigation — always uses full unfiltered list (filter-agnostic)
   const advisorConvList = useMemo(() => {
     if (!isAdvisor) return [];
-    return filteredConversations;
-  }, [filteredConversations, isAdvisor]);
+    return [...conversations].sort(
+      (a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
+  }, [conversations, isAdvisor]);
 
   const currentConvIdx = advisorConvList.findIndex(c => c.id === activeConvId);
   const prevConv = currentConvIdx > 0 ? advisorConvList[currentConvIdx - 1] : null;
@@ -1214,12 +1204,14 @@ const CompanyChatPane = () => {
       .update({
         awaiting_reply_from: null,
         follow_up_at: null,
+        acknowledged_at: null,
+        acknowledged_by_advisor_id: null,
       })
       .eq("id", id);
     if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
     setConversations(prev => prev.map(c =>
       c.id === activeConvId
-        ? { ...c, awaiting_reply_from: null, follow_up_at: null }
+        ? { ...c, awaiting_reply_from: null, follow_up_at: null, acknowledged_at: null, acknowledged_by_advisor_id: null }
         : c
     ));
     toast.success("Fjernet fra handlingskøen");
@@ -1840,9 +1832,6 @@ const CompanyChatPane = () => {
                         </button>
                         <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                           {currentConvIdx + 1} / {advisorConvList.length}
-                          {activeFilter === "action" && (
-                            <span className="ml-1 text-amber-500">kræver svar</span>
-                          )}
                         </span>
                         <button
                           onClick={() => nextConv && setActiveConvId(nextConv.id)}
@@ -2250,27 +2239,6 @@ const CompanyChatPane = () => {
                   </Collapsible>
                 )}
 
-                {/* Topic filter row */}
-                {isAdvisor && !isGroupThread && (
-                  <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                    {TOPIC_CONFIG.map(t => {
-                      const isActive = topicFilter === t.key;
-                      return (
-                        <button
-                          key={t.key}
-                          onClick={() => setTopicFilter(t.key)}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors ${
-                            isActive ? `${t.color} ring-1 ring-current/20` : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                          }`}
-                        >
-                          <t.icon className="h-3 w-3" />
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
                 {/* Advisor context banner */}
                 {isAdvisor && activeConv && !isGroupThread && (
                   <>
@@ -2305,7 +2273,7 @@ const CompanyChatPane = () => {
 
                 {/* Messages list */}
                 <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 md:px-5 py-4 space-y-4">
-                  {filteredMessages.length === 0 && !activeConvId?.startsWith("group_") && (
+                  {messages.length === 0 && !activeConvId?.startsWith("group_") && (
                     <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
                       <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                         <MessageSquare className="h-6 w-6 text-primary" />
@@ -2321,7 +2289,7 @@ const CompanyChatPane = () => {
                   {(() => {
                     let lastDateKey = "";
                     let unreadDividerShown = false;
-                    return filteredMessages.map((msg, msgIdx) => {
+                    return messages.map((msg, msgIdx) => {
                       const isMine = msg.sender_id === user?.id;
                       const contextType = msg.context_type || null;
                       const contextMeta = msg.context_meta || null;
@@ -2402,7 +2370,7 @@ const CompanyChatPane = () => {
                       // Unread divider
                       let showUnreadDivider = false;
                       if (!unreadDividerShown && companyLastSeenId && companyLastSeenId !== latestMsgId && msgIdx > 0) {
-                        if (filteredMessages[msgIdx - 1].id === companyLastSeenId && !isMine) {
+                        if (messages[msgIdx - 1].id === companyLastSeenId && !isMine) {
                           showUnreadDivider = true;
                           unreadDividerShown = true;
                         }
