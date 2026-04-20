@@ -1158,10 +1158,30 @@ const AdvisorDashboard = () => {
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {isChatReason && convId && (
+                    {isDirectChatReason && convId && (
                       <button
                         onClick={() => navigate(`/chat?conversationId=${convId}`)}
                         className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        Åbn chat
+                      </button>
+                    )}
+                    {isReportReason && userId && (
+                      <button
+                        onClick={() => navigate(
+                          recentReportId
+                            ? `/members/${userId}?reportId=${recentReportId}&section=reports`
+                            : `/members/${userId}?section=reports`
+                        )}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        Se rapport
+                      </button>
+                    )}
+                    {!isDirectChatReason && !isReportReason && convId && (
+                      <button
+                        onClick={() => navigate(`/chat?conversationId=${convId}`)}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
                       >
                         Åbn chat
                       </button>
