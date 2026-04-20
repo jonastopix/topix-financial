@@ -97,17 +97,7 @@ interface ConversationWithProfile {
   groupName?: string;
 }
 
-type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
-
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
-
-const ADVISOR_FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
-  { key: "action", label: "Kræver svar", icon: AlertCircle },
-  { key: "mine", label: "Mine", icon: UserCheck },
-  { key: "alle", label: "Alle", icon: Inbox },
-  { key: "unassigned", label: "Uden ejer", icon: UsersIcon },
-  { key: "rapporter", label: "Ny rapport", icon: FileText },
-];
 
 
 const TOPIC_COLORS: Record<string, { bg: string; text: string; label: string; icon: typeof MessageSquare }> = {
@@ -141,7 +131,6 @@ const CompanyChatPane = () => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
   
   const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -213,12 +202,6 @@ const CompanyChatPane = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Set default filter for advisors on mount
-  useEffect(() => {
-    if (isAdvisor) {
-      setActiveFilter("action");
-    }
-  }, [isAdvisor]);
 
   // Deep linking
   useEffect(() => {
@@ -697,59 +680,6 @@ const CompanyChatPane = () => {
     setTimeout(() => setNoteSaveStatus('idle'), 2000);
   };
 
-  // Filtered & searched conversations for advisor
-  const filteredConversations = useMemo(() => {
-    let result = conversations;
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.companyName?.toLowerCase().includes(q) ||
-          c.profile?.full_name?.toLowerCase().includes(q)
-      );
-    }
-
-    if (isAdvisor) {
-      switch (activeFilter) {
-        case "action": {
-          const now = new Date();
-          result = result.filter((c) => isConversationActionable(c, now));
-          result = [...result].sort((a, b) => {
-            const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
-            const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
-            return aT - bT;
-          });
-          break;
-        }
-        case "mine":
-          result = result.filter((c) => c.assigned_advisor_id === user?.id);
-          result = [...result].sort((a, b) =>
-            new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
-          );
-          break;
-        case "alle":
-          result = [...result].sort((a, b) =>
-            (a.companyName || "").localeCompare(b.companyName || "", "da")
-          );
-          break;
-        case "unassigned":
-          result = result.filter((c) => !c.assigned_advisor_id);
-          result = [...result].sort((a, b) => {
-            const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
-            const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
-            return aT - bT;
-          });
-          break;
-        case "rapporter":
-          result = result.filter((c) => c.hasRecentReport);
-          break;
-      }
-    }
-
-    return result;
-  }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
-
   const stats = useMemo(() => {
     const now = new Date();
     const actionCount = conversations.filter((c) => {
@@ -768,6 +698,44 @@ const CompanyChatPane = () => {
       mine: conversations.filter((c) => c.assigned_advisor_id === user?.id).length,
       unassigned: conversations.filter((c) => !c.assigned_advisor_id).length,
     };
+  }, [conversations, user?.id]);
+
+  const CHECKIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+  const groupedConversations = useMemo(() => {
+    const now = new Date();
+    const needsReply = conversations.filter(c => {
+      if (c.conversation_status === 'resolved') return false;
+      if (c.awaiting_reply_from !== 'advisor') return false;
+      const hasExpiredSnooze = !!c.follow_up_at && new Date(c.follow_up_at) <= now;
+      return !c.acknowledged_at || hasExpiredSnooze;
+    }).sort((a, b) => {
+      const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
+      const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
+      return aT - bT; // oldest first = most urgent first
+    });
+    const needsReplyIds = new Set(needsReply.map(c => c.id));
+    const needsCheckin = conversations.filter(c => {
+      if (needsReplyIds.has(c.id)) return false;
+      if (c.conversation_status === 'resolved') return false;
+      if (c.assigned_advisor_id && c.assigned_advisor_id !== user?.id) return false;
+      const lastAdvisor = c.last_advisor_reply_at
+        ? new Date(c.last_advisor_reply_at).getTime()
+        : new Date(c.last_message_at).getTime();
+      return now.getTime() - lastAdvisor > CHECKIN_THRESHOLD_MS;
+    }).sort((a, b) => {
+      const aLast = a.last_advisor_reply_at || a.last_message_at;
+      const bLast = b.last_advisor_reply_at || b.last_message_at;
+      return new Date(aLast).getTime() - new Date(bLast).getTime(); // longest since contact first
+    });
+    const checkinIds = new Set(needsCheckin.map(c => c.id));
+    const mine = conversations.filter(c => {
+      if (needsReplyIds.has(c.id)) return false;
+      if (checkinIds.has(c.id)) return false;
+      return c.assigned_advisor_id === user?.id;
+    }).sort((a, b) =>
+      new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
+    return { needsReply, needsCheckin, mine };
   }, [conversations, user?.id]);
 
   // Load messages for active conversation
@@ -1392,289 +1360,133 @@ const CompanyChatPane = () => {
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {showSidebar && (
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
-            {/* Quick stats */}
-            <div className="px-4 pt-4 pb-3 border-b border-border space-y-3">
+            {/* Search */}
+            <div className="px-3 pt-3 pb-2 border-b border-border">
               {isMobile && (
-                <h1 className="text-lg font-display font-bold text-foreground tracking-tight flex items-center gap-2">
+                <h1 className="text-lg font-display font-bold text-foreground tracking-tight flex items-center gap-2 mb-2">
                   <MessageCircle className="h-4.5 w-4.5 text-primary" />
                   Indbakke
                 </h1>
               )}
-              {/* Quick stats — hidden on mobile */}
-              <div className="hidden md:grid grid-cols-3 gap-2">
-                <div className="text-center py-2 rounded-lg bg-secondary/50">
-                  <p className={`text-lg font-display font-bold ${stats.action > 0 ? "text-destructive" : "text-foreground"}`}>
-                    {stats.action}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Kræver svar</p>
-                </div>
-                <div className="text-center py-2 rounded-lg bg-secondary/50">
-                  <p className={`text-lg font-display font-bold ${stats.withReports > 0 ? "text-primary" : "text-foreground"}`}>
-                    {stats.withReports}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Ny rapport</p>
-                </div>
-                <div className="text-center py-2 rounded-lg bg-secondary/50">
-                  <p className="text-lg font-display font-bold text-foreground">{stats.total}</p>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total</p>
-                </div>
-              </div>
-
-              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Søg virksomhed eller koncern..."
-                  className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  placeholder="Søg virksomhed..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               </div>
-
-              {/* Filter tabs */}
-              {isMobile ? (
-                <div className="flex gap-1.5">
-                  {ADVISOR_FILTER_CONFIG.filter(f => f.key === "action" || f.key === "mine").map((f) => {
-                    const count = f.key === "action" ? stats.action : stats.mine;
-                    const isActive = activeFilter === f.key;
-                    return (
-                      <button
-                        key={f.key}
-                        onClick={() => setActiveFilter(f.key)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        <f.icon className="h-3 w-3" />
-                        {f.label}
-                        {count > 0 && (
-                          <span className={`ml-0.5 text-[9px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                            {count}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-
-                  <Drawer open={mobileFilterDrawerOpen} onOpenChange={setMobileFilterDrawerOpen}>
-                    <button
-                      onClick={() => setMobileFilterDrawerOpen(true)}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
-                        activeFilter !== "action" && activeFilter !== "mine"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                      }`}
-                    >
-                      <Filter className="h-3 w-3" />
-                      {activeFilter !== "action" && activeFilter !== "mine"
-                        ? ADVISOR_FILTER_CONFIG.find(f => f.key === activeFilter)?.label || "Filtre"
-                        : "Filtre"}
-                    </button>
-                    <DrawerContent>
-                      <DrawerHeader>
-                        <DrawerTitle>Filtre</DrawerTitle>
-                      </DrawerHeader>
-                      <div className="px-4 pb-6 space-y-1">
-                        {ADVISOR_FILTER_CONFIG.map((f) => {
-                          const count = f.key === "action" ? stats.action
-                            : f.key === "mine" ? stats.mine
-                            : f.key === "alle" ? stats.total
-                            : f.key === "unassigned" ? stats.unassigned
-                            : stats.withReports;
-                          const isActive = activeFilter === f.key;
-                          return (
-                            <button
-                              key={f.key}
-                              onClick={() => { setActiveFilter(f.key); setMobileFilterDrawerOpen(false); }}
-                              className={`flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
-                                isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
-                              }`}
-                            >
-                              <f.icon className="h-4 w-4" />
-                              <span className="flex-1 text-left">{f.label}</span>
-                              {count > 0 && (
-                                <span className={`text-xs ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                                  {count}
-                                </span>
-                              )}
-                              {isActive && <Check className="h-4 w-4 text-primary" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="safe-bottom-spacer" />
-                    </DrawerContent>
-                  </Drawer>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {ADVISOR_FILTER_CONFIG.map((f) => {
-                    const count = f.key === "action" ? stats.action
-                      : f.key === "mine" ? stats.mine
-                      : f.key === "alle" ? stats.total
-                      : f.key === "unassigned" ? stats.unassigned
-                      : stats.withReports;
-                    const isActive = activeFilter === f.key;
-                    return (
-                      <button
-                        key={f.key}
-                        onClick={() => setActiveFilter(f.key)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap ${
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        <f.icon className="h-3 w-3" />
-                        {f.label}
-                        {count > 0 && f.key !== "alle" && (
-                          <span className={`ml-0.5 text-[9px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                            {count}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {activeFilter === "rapporter" && stats.withReports > 0 && (
-                <button
-                  onClick={handleMarkReportsAsRead}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary whitespace-nowrap"
-                >
-                  <CheckCheck className="h-3 w-3" />
-                  Markér alle som læst
-                </button>
-              )}
             </div>
 
-            {/* Conversation list */}
+            {/* Grouped conversation list */}
             <div className="flex-1 overflow-y-auto">
               {(() => {
-                const renderConvCard = (conv: ConversationWithProfile) => {
-                  const isActive = activeConvId === conv.id;
-                  const isResolved = conv.conversation_status === 'resolved';
-                  const now = new Date();
-                  const hasExpiredSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) <= now;
-                  const hasFutureSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) > now;
-                  const isActionable = !isResolved && conv.awaiting_reply_from === "advisor" && (!conv.acknowledged_at || hasExpiredSnooze);
-                  const isAcknowledged = !!conv.acknowledged_at && !hasExpiredSnooze;
-                  const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
+                // Apply search filter across all groups
+                const q = searchQuery.toLowerCase().trim();
+                const filterConvs = (list: ConversationWithProfile[]) =>
+                  q ? list.filter(c =>
+                    c.companyName?.toLowerCase().includes(q) ||
+                    c.profile?.full_name?.toLowerCase().includes(q)
+                  ) : list;
 
+                const replyList = filterConvs(groupedConversations.needsReply);
+                const checkinList = filterConvs(groupedConversations.needsCheckin);
+                const mineList = filterConvs(groupedConversations.mine);
+                const total = replyList.length + checkinList.length + mineList.length;
+
+                if (q && total === 0) {
+                  return (
+                    <div className="p-6 text-center">
+                      <p className="text-xs text-muted-foreground">Ingen resultater for "{searchQuery}"</p>
+                    </div>
+                  );
+                }
+
+                const renderConvCard = (conv: ConversationWithProfile, urgency: 'reply' | 'checkin' | 'normal') => {
+                  const isActive = activeConvId === conv.id;
+                  const hasFutureSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) > new Date();
+                  const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
+                  const assignedName = getAdvisorName(conv.assigned_advisor_id);
                   return (
                     <button
                       key={conv.id}
                       onClick={() => handleSelectConversation(conv.id)}
-                      className={`w-full text-left px-4 py-3.5 border-b border-border/30 transition-colors ${
+                      className={`w-full text-left px-3 py-3 border-b border-border/30 transition-colors ${
                         isActive
-                          ? "bg-primary/5 border-l-2 border-l-primary"
-                          : isActionable
-                          ? "bg-destructive/[0.03] hover:bg-secondary/50"
+                          ? "bg-primary/8 border-l-2 border-l-primary"
+                          : urgency === 'reply'
+                          ? "hover:bg-destructive/5"
+                          : urgency === 'checkin'
+                          ? "hover:bg-amber-500/5"
                           : "hover:bg-secondary/30"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="relative flex-shrink-0">
-                          <div className={`h-10 w-10 rounded-full flex items-center justify-center overflow-hidden ${
-                            isActionable ? "bg-destructive/10" : "bg-primary/10"
-                          }`}>
-                            {conv.threadType === "group" ? (
-                              <Layers className={`h-4.5 w-4.5 ${isActionable ? "text-destructive" : "text-primary"}`} />
-                            ) : conv.companyLogoUrl ? (
-                              <img src={conv.companyLogoUrl} alt="" className="h-10 w-10 object-cover" />
-                            ) : (
-                              <span className={`text-xs font-semibold ${isActionable ? "text-destructive" : "text-primary"}`}>
-                                {getInitialsLocal(conv.companyName || conv.profile?.full_name || "??")}
-                              </span>
-                            )}
-                          </div>
-                          {isActionable && (
-                            <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-card" />
+                      <div className="flex items-center gap-2.5">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                          urgency === 'reply' ? "bg-destructive/10" : "bg-primary/10"
+                        }`}>
+                          {conv.threadType === "group" ? (
+                            <Layers className={`h-4 w-4 ${urgency === 'reply' ? "text-destructive" : "text-primary"}`} />
+                          ) : conv.companyLogoUrl ? (
+                            <img src={conv.companyLogoUrl} alt="" className="h-9 w-9 object-cover" />
+                          ) : (
+                            <span className={`text-xs font-semibold ${urgency === 'reply' ? "text-destructive" : "text-primary"}`}>
+                              {getInitialsLocal(conv.companyName || conv.profile?.full_name || "??")}
+                            </span>
                           )}
                         </div>
-
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <p className={`text-sm truncate ${isActionable ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
-                                {conv.companyName || conv.profile?.full_name || "Ukendt"}
-                              </p>
+                          <div className="flex items-center justify-between">
+                            <p className={`text-sm truncate ${urgency === 'reply' ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                              {conv.companyName || conv.profile?.full_name || "Ukendt"}
                               {conv.isLegat && (
-                                <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full ml-1 shrink-0">Legat</span>
+                                <span className="ml-1.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Legat</span>
                               )}
-                            </div>
+                            </p>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
                           </div>
-
-                          {conv.lastMessage && (
-                            <p className={`text-xs truncate ${isActionable ? "text-foreground/70 font-medium" : "text-muted-foreground"}`}>
-                              {conv.lastMessageSenderId && conv.lastMessageSenderId !== user?.id ? "" : "Du: "}
-                              {conv.lastMessage}
-                            </p>
-                          )}
-
-                          <div className="flex items-center gap-1.5 mt-1.5">
-                            {isResolved && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                                <CheckCheck className="h-2.5 w-2.5" />
-                                Afsluttet
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {urgency === 'reply' && (
+                              <span className="text-[10px] font-medium text-destructive">
+                                {conv.last_member_message_at
+                                  ? `Afventer · ${formatDistanceToNow(new Date(conv.last_member_message_at), { locale: da })}`
+                                  : "Afventer svar"}
                               </span>
                             )}
-                            {!isResolved && isActionable && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
-                                <Clock className="h-2.5 w-2.5" />
-                                Afventer svar
-                                {conv.last_member_message_at && (
-                                  <span className="text-destructive/70">
-                                    · {formatDistanceToNow(new Date(conv.last_member_message_at), { locale: da })}
-                                  </span>
-                                )}
+                            {urgency === 'checkin' && (
+                              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                {conv.last_advisor_reply_at
+                                  ? `Ingen kontakt · ${formatDistanceToNow(new Date(conv.last_advisor_reply_at), { locale: da })}`
+                                  : "Tjek ind"}
                               </span>
                             )}
-                            {!isResolved && !isActionable && conv.awaiting_reply_from === "company" && !isAcknowledged && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                                <ArrowRightLeft className="h-2.5 w-2.5" />
-                                {conv.threadType === "group" ? "Afventer koncern" : "Afventer virksomhed"}
-                              </span>
+                            {urgency === 'normal' && conv.lastMessage && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {conv.lastMessageSenderId === user?.id ? "Du: " : ""}
+                                {conv.lastMessage.replace(/<[^>]+>/g, "").slice(0, 50)}
+                              </p>
                             )}
-                            {!isResolved && isAcknowledged && conv.awaiting_reply_from !== "advisor" && !hasFutureSnooze && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                <Check className="h-2.5 w-2.5" />
-                                Følger op
-                              </span>
-                            )}
-                            {!isResolved && hasFutureSnooze && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                <Clock className="h-2.5 w-2.5" />
-                                Følg op {format(new Date(conv.follow_up_at!), "d. MMM", { locale: da })}
+                            {hasFutureSnooze && (
+                              <span className="ml-auto text-[10px] text-amber-500 flex-shrink-0">
+                                ↩ {format(new Date(conv.follow_up_at!), "d. MMM", { locale: da })}
                               </span>
                             )}
                             {conv.hasRecentReport && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                                <FileText className="h-2.5 w-2.5" />
-                                {conv.recentReportName
-                                  ? conv.recentReportName.length > 15
-                                    ? conv.recentReportName.slice(0, 15) + "…"
-                                    : conv.recentReportName
-                                  : "Ny rapport"}
-                                <span
-                                  onClick={(e) => handleMarkSingleReportRead(conv.id, conv.recentReportIds || [], e)}
-                                  className="ml-0.5 hover:text-destructive cursor-pointer text-xs leading-none"
-                                  title="Markér som læst"
-                                >
-                                  ×
-                                </span>
+                              <span className="ml-auto flex-shrink-0">
+                                <FileText className="h-3 w-3 text-primary" />
                               </span>
                             )}
-                            {conv.threadType !== "group" && conversationNoteIds.has(conv.id) && (
-                              <span title="Har intern note"><StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0" /></span>
+                            {urgency === 'normal' && conversationNoteIds.has(conv.id) && (
+                              <StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0 ml-auto" />
                             )}
-                            {assignedInitials && (
-                              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-muted text-[8px] font-bold text-muted-foreground ml-auto flex-shrink-0" title={getAdvisorName(conv.assigned_advisor_id) || ""}>
+                            {assignedInitials && urgency !== 'reply' && (
+                              <span
+                                className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-muted text-[8px] font-bold text-muted-foreground flex-shrink-0 ml-auto"
+                                title={assignedName || ""}
+                              >
                                 {assignedInitials}
                               </span>
                             )}
@@ -1685,32 +1497,60 @@ const CompanyChatPane = () => {
                   );
                 };
 
-                if (filteredConversations.length === 0) {
-                  return (
-                    <div className="p-6 text-center">
-                      <Inbox className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">
-                        {searchQuery ? "Ingen resultater"
-                          : activeFilter === "action" ? "Ingen samtaler kræver svar 🎉"
-                          : activeFilter === "mine" ? "Ingen samtaler tildelt dig"
-                          : activeFilter === "unassigned" ? "Alle samtaler har en ejer"
-                          : "Ingen samtaler i denne kategori"}
-                      </p>
-                      {activeFilter !== "alle" && !searchQuery && (
-                        <button
-                          onClick={() => setActiveFilter("alle")}
-                          className="text-xs text-primary hover:underline mt-2"
-                        >
-                          Vis alle samtaler
-                        </button>
-                      )}
-                    </div>
-                  );
-                }
-
                 return (
                   <>
-                    {filteredConversations.map(renderConvCard)}
+                    {/* Section: Kræver svar */}
+                    {replyList.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+                          <span className="text-[10px] font-semibold text-destructive uppercase tracking-wider">
+                            Kræver svar
+                          </span>
+                          <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
+                            {replyList.length}
+                          </span>
+                        </div>
+                        {replyList.map(c => renderConvCard(c, 'reply'))}
+                      </div>
+                    )}
+
+                    {/* Section: Tjek ind */}
+                    {checkinList.length > 0 && (
+                      <div className={replyList.length > 0 ? "border-t border-border" : ""}>
+                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+                          <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                            Tjek ind
+                          </span>
+                          <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500/20 text-[9px] font-bold text-amber-700 dark:text-amber-300">
+                            {checkinList.length}
+                          </span>
+                        </div>
+                        {checkinList.map(c => renderConvCard(c, 'checkin'))}
+                      </div>
+                    )}
+
+                    {/* Section: Mine */}
+                    {mineList.length > 0 && (
+                      <div className={(replyList.length > 0 || checkinList.length > 0) ? "border-t border-border" : ""}>
+                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            Mine
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {mineList.length}
+                          </span>
+                        </div>
+                        {mineList.map(c => renderConvCard(c, 'normal'))}
+                      </div>
+                    )}
+
+                    {/* Empty state */}
+                    {replyList.length === 0 && checkinList.length === 0 && mineList.length === 0 && !q && (
+                      <div className="p-8 text-center">
+                        <CheckCheck className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">Alt er i orden 🎉</p>
+                      </div>
+                    )}
                   </>
                 );
               })()}
