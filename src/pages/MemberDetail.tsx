@@ -31,6 +31,13 @@ import {
   Pencil,
   Sparkles,
   Loader2,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Activity,
+  Briefcase,
+  CircleDot,
+  AlertTriangle,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
 import DeliveryOverview from "@/components/DeliveryOverview";
@@ -586,6 +593,43 @@ const MemberDetail = () => {
     );
   }
 
+  // ── Derived KPI snapshot from facts ──
+  const latestFact = memberFacts[memberFacts.length - 1] ?? null;
+  const prevFact = memberFacts.length >= 2 ? memberFacts[memberFacts.length - 2] : null;
+  const latestKf = latestFact ? factsToDanishMetrics(latestFact.metrics) : null;
+  const prevKf = prevFact ? factsToDanishMetrics(prevFact.metrics) : null;
+
+  const kpiSnapshot = (() => {
+    if (!latestKf) return [];
+    const calc = (curr?: number, prev?: number) => {
+      if (curr == null || prev == null || prev === 0) return { pct: null as number | null, dir: "neutral" as const };
+      const pct = ((curr - prev) / Math.abs(prev)) * 100;
+      return { pct, dir: pct > 1 ? "up" as const : pct < -1 ? "down" as const : "neutral" as const };
+    };
+    return [
+      { label: "Omsætning", value: latestKf.omsaetning, ...calc(latestKf.omsaetning, prevKf?.omsaetning) },
+      { label: "Dækningsbidrag", value: latestKf.daekningsbidrag, ...calc(latestKf.daekningsbidrag, prevKf?.daekningsbidrag) },
+      { label: "Resultat f. skat", value: latestKf.resultat_foer_skat, ...calc(latestKf.resultat_foer_skat, prevKf?.resultat_foer_skat) },
+      { label: "Bank", value: latestKf.bank_balance, ...calc(latestKf.bank_balance, prevKf?.bank_balance) },
+    ].filter(k => k.value != null);
+  })();
+
+  // ── Conversation status helpers ──
+  const conversationStatusBadge = (() => {
+    if (!convStatus) return { label: "Ingen samtale", tone: "muted" as const };
+    if (convStatus.conversation_status === "resolved") return { label: "Løst", tone: "success" as const };
+    if (convStatus.awaiting_reply_from === "advisor") return { label: "Afventer rådgiver", tone: "warning" as const };
+    if (convStatus.awaiting_reply_from === "company") return { label: "Afventer member", tone: "info" as const };
+    return { label: "Åben", tone: "muted" as const };
+  })();
+
+  const toneClasses: Record<"success" | "warning" | "info" | "muted", string> = {
+    success: "bg-primary/10 text-primary",
+    warning: "bg-chart-warning/15 text-chart-warning",
+    info: "bg-accent/40 text-accent-foreground",
+    muted: "bg-muted text-muted-foreground",
+  };
+
   return (
     <AppLayout>
       {/* Back link */}
@@ -604,93 +648,163 @@ const MemberDetail = () => {
         <div className="text-center py-20 text-muted-foreground">Medlem ikke fundet</div>
       ) : (
         <>
-          {/* Member header */}
-           <div className="glass-card rounded-xl p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {companyCtx?.logo_url ? (
-                <img src={companyCtx.logo_url} alt={companyCtx.name} className="h-full w-full object-contain" />
-              ) : (
-                <span className="text-lg font-bold text-primary">{getInitials(profile.full_name)}</span>
-              )}
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl font-display font-bold text-foreground">{profile.full_name}</h1>
-              <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted-foreground">
-                {companyCtx?.name && (
-                  <span className="flex items-center gap-1 font-medium text-foreground">
-                    <Building2 className="h-3.5 w-3.5 text-primary" /> {companyCtx.name}
-                  </span>
-                )}
-                {companyCtx?.industry_label && (
-                  <span className="flex items-center gap-1">
-                    <Globe className="h-3.5 w-3.5" /> {companyCtx.industry_label}
-                  </span>
-                )}
-                {companyCtx?.cvr_number && (
-                  <span className="flex items-center gap-1 font-mono text-xs">
-                    CVR: {companyCtx.cvr_number}
-                  </span>
-                )}
-                {companyCtx?.slack_channel && (
-                  <span className="flex items-center gap-1">
-                    <Hash className="h-3.5 w-3.5" /> {companyCtx.slack_channel}
-                  </span>
-                )}
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5" /> Medlem siden {format(new Date(profile.created_at), "MMMM yyyy", { locale: da })}
-                </span>
-              </div>
-              {/* Email display */}
-              {profile.email && (
-                <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5" /> {profile.email}
-                  </span>
+          {/* ───── Hero header ───── */}
+          <div className="glass-card rounded-2xl p-6 mb-6">
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+              {/* Logo + identity */}
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-border/50">
+                  {companyCtx?.logo_url ? (
+                    <img src={companyCtx.logo_url} alt={companyCtx.name} className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-xl font-bold text-primary">{getInitials(profile.full_name)}</span>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <div className="text-center px-4">
-                <p className="text-2xl font-display font-bold text-foreground">{reports.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">Rapporter</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-2xl font-display font-bold text-foreground">
+                      {companyCtx?.name || profile.full_name}
+                    </h1>
+                    {companyCtx?.industry_label && (
+                      <Badge variant="outline" className="text-[10px] font-normal">{companyCtx.industry_label}</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5">{profile.full_name}</p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                    {companyCtx?.cvr_number && (
+                      <span className="font-mono">CVR {companyCtx.cvr_number}</span>
+                    )}
+                    {companyCtx?.city && (
+                      <span className="flex items-center gap-1"><Globe className="h-3 w-3" /> {companyCtx.city}</span>
+                    )}
+                    {companyCtx?.slack_channel && (
+                      <span className="flex items-center gap-1"><Hash className="h-3 w-3" /> {companyCtx.slack_channel}</span>
+                    )}
+                    {profile.email && (
+                      <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {profile.email}</span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" /> Medlem siden {format(new Date(profile.created_at), "MMM yyyy", { locale: da })}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="text-center px-4 border-l border-border">
-                <p className="text-2xl font-display font-bold text-foreground">{budgets.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">Budgetposter</p>
+
+              {/* Quick stat strip */}
+              <div className="flex gap-2 lg:gap-3 flex-shrink-0">
+                <div className="text-center px-3 py-2 rounded-xl bg-secondary/40 min-w-[68px]">
+                  <p className="text-xl font-display font-bold text-foreground leading-tight">{reports.length}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Rapporter</p>
+                </div>
+                <div className="text-center px-3 py-2 rounded-xl bg-secondary/40 min-w-[68px]">
+                  <p className="text-xl font-display font-bold text-foreground leading-tight">
+                    {milestones.filter(m => m.status !== "completed" && m.status !== "parked").length}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Aktive</p>
+                </div>
+                <div className="text-center px-3 py-2 rounded-xl bg-secondary/40 min-w-[68px]">
+                  <p className="text-xl font-display font-bold text-foreground leading-tight">
+                    {handoutSummaries.filter(h => h.status === "completed").length}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Handouts</p>
+                </div>
               </div>
-              <div className="text-center px-4 border-l border-border">
-                <p className="text-2xl font-display font-bold text-foreground">{milestones.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">Milestones</p>
+
+              {/* Action cluster */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadSessionPrep}
+                  disabled={loadingSession || sessionBullets.length > 0}
+                  className="gap-1.5"
+                >
+                  {loadingSession ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" />Genererer...</>
+                  ) : sessionBullets.length > 0 ? (
+                    <><Sparkles className="h-3.5 w-3.5" />Klar</>
+                  ) : (
+                    <><Sparkles className="h-3.5 w-3.5" />Forbered session</>
+                  )}
+                </Button>
+                <Link
+                  to={conversationId ? `/chat?conversationId=${conversationId}` : `/chat`}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" /> Chat
+                </Link>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Fjern medlem</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Er du sikker på, at du vil fjerne <strong>{profile.full_name}</strong>
+                        {profile.email ? ` (${profile.email})` : ''}?
+                        Denne handling er permanent og fjerner brugeren fra virksomheden, profilen og kontoen.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annuller</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleRemoveMember}
+                        disabled={removing}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {removing ? "Fjerner..." : "Fjern medlem"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLoadSessionPrep}
-              disabled={loadingSession || sessionBullets.length > 0}
-              className="gap-2 shrink-0"
-            >
-              {loadingSession ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Genererer...</>
-              ) : sessionBullets.length > 0 ? (
-                <><Sparkles className="h-3.5 w-3.5" />Session klar</>
-              ) : (
-                <><Sparkles className="h-3.5 w-3.5" />Forbered session</>
+            {/* Chat status bar */}
+            <div className="mt-5 pt-4 border-t border-border/40 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${toneClasses[conversationStatusBadge.tone]}`}>
+                <CircleDot className="h-3 w-3" /> {conversationStatusBadge.label}
+              </span>
+              {assignedAdvisorName && (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Briefcase className="h-3 w-3" />
+                  Tildelt: <span className="text-foreground font-medium">{assignedAdvisorName}</span>
+                </span>
               )}
-            </Button>
-            <div id="section-session">
-            {sessionBullets.length > 0 && (
-              <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <p className="text-sm font-semibold text-foreground">Sessionsforberedelse</p>
-                  <button
-                    onClick={() => setSessionBullets([])}
-                    className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Ryd
-                  </button>
-                </div>
+              {convStatus?.follow_up_at && (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  Opfølgning: <span className="text-foreground font-medium">
+                    {format(new Date(convStatus.follow_up_at), "d. MMM yyyy", { locale: da })}
+                  </span>
+                </span>
+              )}
+              {invitedEmail && (
+                <span className="flex items-center gap-1.5 text-chart-warning">
+                  <AlertTriangle className="h-3 w-3" />
+                  Invitation sendt til <span className="font-medium">{invitedEmail}</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* ───── Session prep panel ───── */}
+          {sessionBullets.length > 0 && (
+            <div id="section-session" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Sessionsforberedelse</p>
+                <button
+                  onClick={() => setSessionBullets([])}
+                  className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Ryd
+                </button>
+              </div>
+              <div className="space-y-2">
                 {sessionBullets.map((bullet, i) => (
                   <div key={i} className="flex items-start gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0 mt-2" />
@@ -698,258 +812,161 @@ const MemberDetail = () => {
                   </div>
                 ))}
               </div>
-            )}
             </div>
-            {/* Remove member button */}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0">
-                  <Trash2 className="h-5 w-5" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Fjern medlem</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Er du sikker på, at du vil fjerne <strong>{profile.full_name}</strong>
-                    {profile.email ? ` (${profile.email})` : ''}? 
-                    Denne handling er permanent og fjerner brugeren fra virksomheden, profilen og kontoen.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annuller</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleRemoveMember}
-                    disabled={removing}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    {removing ? "Fjerner..." : "Fjern medlem"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-          </div>
+          )}
 
-          {/* Advisor overview */}
-          <div className="glass-card rounded-xl p-5 mb-6 border border-border/50">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-4">
-              Advisor-overblik
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Seneste rapport</p>
-                {reports.length > 0 ? (
-                  <p className="text-sm font-semibold text-foreground">
-                    {reports[0].report_period || "Uploadet"}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground/60">Ingen endnu</p>
-                )}
+          {/* ───── Financial snapshot ───── */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display font-semibold text-foreground text-base flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Finansielt øjebliksbillede
+              </h2>
+              {latestFact && (
+                <span className="text-xs text-muted-foreground">
+                  Senest committed: <span className="font-medium text-foreground">{latestFact.period_label}</span>
+                </span>
+              )}
+            </div>
+            {kpiSnapshot.length === 0 ? (
+              <div className="glass-card rounded-2xl p-8 text-center">
+                <p className="text-sm text-muted-foreground">Ingen committede tal endnu — godkend en rapport for at se snapshot.</p>
               </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Seneste pulse</p>
-                {latestPulse ? (
-                  <p className="text-sm font-semibold text-foreground">
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {kpiSnapshot.map(k => {
+                  const TrendIcon = k.dir === "up" ? TrendingUp : k.dir === "down" ? TrendingDown : Minus;
+                  const trendColor = k.dir === "up" ? "text-primary" : k.dir === "down" ? "text-destructive" : "text-muted-foreground";
+                  return (
+                    <div key={k.label} className="glass-card rounded-xl p-4">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">{k.label}</p>
+                      <p className="text-lg font-display font-bold text-foreground">
+                        {k.value != null ? `${k.value.toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.` : "—"}
+                      </p>
+                      {k.pct != null && (
+                        <div className={`flex items-center gap-1 mt-1.5 text-[11px] font-medium ${trendColor}`}>
+                          <TrendIcon className="h-3 w-3" />
+                          {Math.abs(k.pct).toFixed(1)}% vs. forrige
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ───── Pulse + talking points ───── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+            {/* Pulse */}
+            <div className="glass-card rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Pulse check-in
+                {latestPulse && (
+                  <span className="text-xs font-normal text-muted-foreground ml-auto">
                     {(() => {
                       const [y, m] = (latestPulse.period_key || "").split("-");
                       const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
                       return `${months[parseInt(m, 10) - 1] || m} ${y}`;
                     })()}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground/60">Ingen endnu</p>
+                  </span>
                 )}
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Aktive milestones</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {milestones.filter(m => m.status !== "completed").length}
-                  <span className="text-muted-foreground font-normal">
-                    {" "}/ {milestones.length} total
-                  </span>
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Handouts</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {handoutSummaries.filter(h => h.progress >= 80).length}
-                  <span className="text-muted-foreground font-normal">
-                    {" "}/ {handoutSummaries.length} fulgt
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-3 border-t border-border/30">
-              {latestPulse?.biggest_challenge && (
-                <div className="flex items-start gap-2.5">
-                  <div className="h-5 w-5 rounded bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-[9px] font-bold text-destructive">!</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-                      Største udfordring (pulse)
-                    </p>
-                    <p className="text-sm text-foreground leading-relaxed">
-                      {latestPulse.biggest_challenge}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {milestones.filter(m =>
-                m.deadline && new Date(m.deadline) < new Date() &&
-                m.status !== "completed"
-              ).length > 0 && (
-                <div className="flex items-start gap-2.5">
-                  <div className="h-5 w-5 rounded bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-[9px] font-bold text-amber-600">M</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-                      Overskredte milestones
-                    </p>
-                    <p className="text-sm text-foreground">
-                      {milestones
-                        .filter(m => m.deadline && new Date(m.deadline) < new Date()
-                          && m.status !== "completed")
-                        .map(m => m.title)
-                        .join(" · ")
-                      }
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {handoutSummaries.some(h => h.levers.length > 0) && (
-                <div className="flex items-start gap-2.5">
-                  <div className="h-5 w-5 rounded bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-[9px] font-bold text-primary">L</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-                      Valgte løftestænger
-                    </p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {handoutSummaries
-                        .flatMap(h => h.levers)
-                        .slice(0, 5)
-                        .map((lever, i) => (
-                          <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                            {lever}
-                          </span>
-                        ))
-                      }
-                      {handoutSummaries.flatMap(h => h.levers).length > 5 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          +{handoutSummaries.flatMap(h => h.levers).length - 5} flere
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!latestPulse?.biggest_challenge &&
-               milestones.filter(m => m.deadline && new Date(m.deadline) < new Date()
-                 && m.status !== "completed").length === 0 &&
-               !handoutSummaries.some(h => h.levers.length > 0) && (
-                <p className="text-xs text-muted-foreground italic">
-                  Ingen fremhævede samtaleemner — se sektionerne nedenfor.
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/30">
-              <Link
-                to={conversationId ? `/chat?conversationId=${conversationId}` : `/chat`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Åbn chat
-              </Link>
-              <span className="text-xs text-muted-foreground">
-                {reports.length > 0
-                  ? `${reports.length} rapporter uploadet`
-                  : "Ingen rapporter endnu"
-                }
-              </span>
-            </div>
-          </div>
-
-          {/* Pulse check-in section */}
-          {latestPulse && (
-            <div className="mb-8">
-              <div className="glass-card rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-3">
-                  Pulse check-in · {(() => {
-                    const [y, m] = (latestPulse.period_key || "").split("-");
-                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
-                    return `${months[parseInt(m, 10) - 1] || m} ${y}`;
-                  })()}
-                </h3>
+              </h3>
+              {!latestPulse ? (
+                <p className="text-xs text-muted-foreground">Ingen pulse endnu. Bed member om at udfylde månedlig check-in.</p>
+              ) : (
                 <div className="space-y-3">
                   {latestPulse.went_well && (
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hvad gik godt</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Hvad gik godt</p>
                       <p className="text-sm text-foreground">{latestPulse.went_well}</p>
                     </div>
                   )}
                   {latestPulse.biggest_challenge && (
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Største udfordring</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Største udfordring</p>
                       <p className="text-sm text-foreground">{latestPulse.biggest_challenge}</p>
                     </div>
                   )}
                   {latestPulse.milestone_progress != null && (
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Milestone fremgang</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Milestone fremgang</p>
                       <p className="text-sm font-medium text-foreground">{latestPulse.milestone_progress}%</p>
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* Talking points */}
+            <div className="glass-card rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                Samtaleemner
+              </h3>
+              <div className="space-y-3">
+                {milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed" && m.status !== "parked").length > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-5 w-5 rounded bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <AlertCircle className="h-3 w-3 text-destructive" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Overskredte milestones</p>
+                      <p className="text-sm text-foreground">
+                        {milestones
+                          .filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed" && m.status !== "parked")
+                          .map(m => m.title).join(" · ")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {handoutSummaries.some(h => h.levers.length > 0) && (
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-5 w-5 rounded bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <ClipboardList className="h-3 w-3 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Valgte løftestænger</p>
+                      <div className="flex flex-wrap gap-1">
+                        {handoutSummaries.flatMap(h => h.levers).slice(0, 6).map((lever, i) => (
+                          <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                            {lever}
+                          </span>
+                        ))}
+                        {handoutSummaries.flatMap(h => h.levers).length > 6 && (
+                          <span className="text-[10px] text-muted-foreground self-center">
+                            +{handoutSummaries.flatMap(h => h.levers).length - 6} flere
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!latestPulse?.biggest_challenge &&
+                  milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed").length === 0 &&
+                  !handoutSummaries.some(h => h.levers.length > 0) && (
+                    <p className="text-xs text-muted-foreground italic">Ingen fremhævede emner — gennemgå sektionerne nedenfor.</p>
+                  )}
               </div>
             </div>
-          )}
+          </div>
 
-          {!latestPulse && memberCompanyId && (
-            <div className="glass-card rounded-xl p-5 mb-8">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-foreground mb-0.5">
-                    Ingen pulse check-in endnu
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Bed member om at udfylde deres månedlige pulse check-in.
-                  </p>
-                </div>
-                <Link
-                  to={conversationId ? `/chat?conversationId=${conversationId}` : `/chat`}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-accent transition-colors"
-                >
-                  Åbn chat →
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* Milestones section */}
+          {/* ───── Milestones section ───── */}
           <div className="mb-8" id="section-milestones">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               Milestones
             </h2>
 
-            {milestones.length === 0 ? (
+            {milestones.filter(m => m.status !== "parked").length === 0 ? (
               <div className="glass-card rounded-xl p-8 text-center">
                 <Target className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">Ingen milestones oprettet endnu</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {milestones.map((m) => {
+                {milestones.filter(m => m.status !== "parked").map((m) => {
                   const isCompleted = m.status === "completed";
                   const isOverdue = m.deadline && new Date(m.deadline) < new Date() && !isCompleted;
 
@@ -969,14 +986,10 @@ const MemberDetail = () => {
                               {m.title}
                             </p>
                             {m.source === "ai" && (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                                AI-foreslået
-                              </span>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">AI-foreslået</span>
                             )}
                             {isOverdue && (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
-                                Overskredet
-                              </span>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">Overskredet</span>
                             )}
                           </div>
                           {m.description && (
@@ -1017,7 +1030,7 @@ const MemberDetail = () => {
             )}
           </div>
 
-          {/* Budget section */}
+          {/* ───── Budget section ───── */}
           <div className="mb-8" id="section-budget">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <Wallet className="h-5 w-5 text-primary" />
@@ -1049,9 +1062,7 @@ const MemberDetail = () => {
                   <div className="grid grid-cols-3 gap-3 p-4 bg-secondary/30 border-b border-border">
                     <div className="text-center">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Omsætning</p>
-                      <p className="text-sm font-display font-bold text-foreground">
-                        {formatDKK(totalRevenue)}
-                      </p>
+                      <p className="text-sm font-display font-bold text-foreground">{formatDKK(totalRevenue)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">EBITDA</p>
@@ -1081,7 +1092,7 @@ const MemberDetail = () => {
             })()}
           </div>
 
-          {/* Handouts section */}
+          {/* ───── Handouts section ───── */}
           <div className="mb-8" id="section-handouts">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <ClipboardList className="h-5 w-5 text-primary" />
@@ -1114,7 +1125,7 @@ const MemberDetail = () => {
             </div>
           </div>
 
-          {/* Reports section */}
+          {/* ───── Reports section ───── */}
           <div className="mb-8" id="section-reports">
             <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
@@ -1130,8 +1141,20 @@ const MemberDetail = () => {
               <div className="space-y-3">
                 {reports.map((report) => {
                   const isExpanded = expandedReport === report.id;
-                  const config = statusConfig[report.status] || statusConfig.processing;
-                  const StatusIcon = config.icon;
+                  const isCommitted = !!memberFacts.find(f => f.source_report_id === report.id);
+                  const isProcessed = report.status === "processed" || report.status === "committed";
+
+                  // Compose badge: committed (green) vs processed-needs-approval (amber) vs needs_manual_entry vs processing/error
+                  const badge = (() => {
+                    if (isCommitted) return { label: "Committed ✓", className: "text-primary", bg: "bg-primary/15", Icon: CheckCircle2 };
+                    if (report.status === "needs_manual_entry") return { label: "Indtast tal manuelt", className: "text-chart-warning", bg: "bg-chart-warning/15", Icon: AlertTriangle };
+                    if (report.status === "processed") return { label: "Afventer godkendelse", className: "text-chart-warning", bg: "bg-chart-warning/15", Icon: Clock };
+                    if (report.status === "processing") return { label: "Behandles...", className: "text-muted-foreground", bg: "bg-muted", Icon: Clock };
+                    if (report.status === "error") return { label: "Fejl", className: "text-destructive", bg: "bg-destructive/10", Icon: AlertCircle };
+                    const fallback = reportStatusConfig[report.status] || reportStatusConfig.processing;
+                    return { label: fallback.label, className: fallback.className, bg: fallback.bg, Icon: Clock };
+                  })();
+                  const BadgeIcon = badge.Icon;
 
                   return (
                     <div key={report.id} id={`report-${report.id}`} className="glass-card rounded-xl overflow-hidden animate-fade-in transition-all duration-300">
@@ -1146,7 +1169,7 @@ const MemberDetail = () => {
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">{report.file_name}</p>
-                              <div className="flex items-center gap-3 mt-0.5">
+                              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                                 <span className="text-xs text-muted-foreground capitalize">{report.report_type}</span>
                                 {(() => {
                                   const effectivePeriod = getEffectiveReportPeriod(report as unknown as ReportData);
@@ -1166,9 +1189,9 @@ const MemberDetail = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0 ml-3">
-                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.bg} ${config.className}`}>
-                              <StatusIcon className="h-3 w-3" />
-                              {config.label}
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${badge.bg} ${badge.className}`}>
+                              <BadgeIcon className="h-3 w-3" />
+                              {badge.label}
                             </span>
                             {isExpanded ? (
                               <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -1186,11 +1209,27 @@ const MemberDetail = () => {
                           </h4>
                           {renderExtractedData(report)}
 
-                          {report.processed_at && (
-                            <p className="text-[10px] text-muted-foreground mt-4">
-                              Behandlet {format(new Date(report.processed_at), "d. MMM yyyy HH:mm", { locale: da })}
-                            </p>
-                          )}
+                          {/* Commit status / approve action */}
+                          <div className="mt-4 flex items-center gap-2 flex-wrap">
+                            {isProcessed && !isCommitted && (
+                              <a
+                                href={`/admin/review-queue`}
+                                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                              >
+                                Godkend rapport →
+                              </a>
+                            )}
+                            {isCommitted && (
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                ✓ Committed
+                              </span>
+                            )}
+                            {report.processed_at && (
+                              <span className="text-[10px] text-muted-foreground">
+                                Behandlet {format(new Date(report.processed_at), "d. MMM yyyy HH:mm", { locale: da })}
+                              </span>
+                            )}
+                          </div>
 
                           {/* View original file button */}
                           {report.file_path && !isLegacyPath(report.file_path) && (
@@ -1265,7 +1304,7 @@ const MemberDetail = () => {
             )}
           </div>
 
-          {/* Delivery Overview */}
+          {/* ───── Delivery Overview ───── */}
           <div className="mb-8">
             <DeliveryOverview reports={reports} />
           </div>
@@ -1276,4 +1315,5 @@ const MemberDetail = () => {
 };
 
 export default MemberDetail;
+
 
