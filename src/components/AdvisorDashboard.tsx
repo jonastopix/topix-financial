@@ -1320,10 +1320,13 @@ const AdvisorDashboard = () => {
                     className="hover:bg-accent/20 transition-colors cursor-pointer group"
                     onClick={() => {
                       if (c.unreadMessages > 0) {
-                        handleAdvisorCompanyClick(c.company_id, c.company_name, "besked");
-                      } else if (userId) {
-                        navigate(`/members/${userId}`);
+                        const convId = convByCompany.get(c.company_id)?.[0]?.id;
+                        if (convId) {
+                          navigate(`/chat?conversationId=${convId}`);
+                          return;
+                        }
                       }
+                      if (userId) navigate(`/members/${userId}`);
                     }}
                   >
                     <td className="py-2.5 px-4">
