@@ -383,9 +383,26 @@ Deno.serve(async (req) => {
   const body = await req.json();
   const { company_id, trigger, period_key, period_label } = body;
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const PERIOD_RE = /^\d{4}-\d{2}$/;
+
   if (!company_id || !period_key) {
     return new Response(
-      JSON.stringify({ error: "Missing required fields" }),
+      JSON.stringify({ ok: false, error: "Missing required fields" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  if (!UUID_RE.test(company_id)) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Invalid company_id (must be UUID)" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  if (!PERIOD_RE.test(period_key)) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Invalid period_key (must be YYYY-MM)" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -432,8 +449,6 @@ Deno.serve(async (req) => {
       {
         role: "user",
         content: `VIRKSOMHED: ${companyData.name}
-
-CVR: ${companyData.cvr_number || "ukendt"}
 
 Branche: ${companyData.industry_label || "ukendt"}
 
@@ -501,6 +516,12 @@ Start med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_
           toolArgs = JSON.parse(toolCall.function.arguments || "{}");
         } catch (e) {
           toolArgs = {};
+        }
+
+        // Sanitize: always force the verified company_id from the request,
+        // never trust the model's value (it sometimes confuses CVR with UUID).
+        if (toolName !== "finish" && typeof toolArgs === "object" && toolArgs !== null) {
+          toolArgs.company_id = company_id;
         }
 
         let toolResult: any;
