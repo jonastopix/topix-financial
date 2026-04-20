@@ -62,6 +62,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
+import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip as RechartsTooltip } from "recharts";
 import type { Json } from "@/integrations/supabase/types";
 
 interface MemberProfile {
@@ -856,6 +857,56 @@ const MemberDetail = () => {
             )}
           </div>
 
+          {/* ───── Finansiel udvikling ───── */}
+          {memberFacts.length >= 2 && (() => {
+            const chartData = memberFacts.slice(-8).map(f => {
+              const kf = factsToDanishMetrics(f.metrics);
+              return {
+                period: f.period_label,
+                omsaetning: kf.omsaetning ?? 0,
+                resultat: kf.resultat_foer_skat ?? 0,
+              };
+            });
+            return (
+              <div className="glass-card rounded-2xl p-5 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-display font-semibold text-foreground text-base flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-primary" />
+                    Finansiel udvikling
+                  </h2>
+                  <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary inline-block" />Omsætning</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-chart-info inline-block" />Resultat</span>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="revGradMD" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="resGradMD" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-info))" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-info))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="period" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
+                      formatter={(v: number, name: string) => [
+                        `${Number(v).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`,
+                        name === "omsaetning" ? "Omsætning" : "Resultat f. skat"
+                      ]}
+                    />
+                    <Area type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revGradMD)" dot={false} />
+                    <Area type="monotone" dataKey="resultat" stroke="hsl(var(--chart-info))" strokeWidth={2} fill="url(#resGradMD)" dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+
           {/* ───── Pulse + talking points ───── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             {/* Pulse */}
@@ -952,176 +1003,94 @@ const MemberDetail = () => {
             </div>
           </div>
 
-          {/* ───── Milestones section ───── */}
-          <div className="mb-8" id="section-milestones">
-            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              Milestones
-            </h2>
-
-            {milestones.filter(m => m.status !== "parked").length === 0 ? (
-              <div className="glass-card rounded-xl p-8 text-center">
-                <Target className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Ingen milestones oprettet endnu</p>
+          {/* ───── Milestones + Handouts compact ───── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            {/* Milestones */}
+            <div className="glass-card rounded-2xl p-5" id="section-milestones">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" /> Milestones
+                </h3>
+                <div className="flex items-center gap-2 text-[10px]">
+                  {milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed" && m.status !== "parked").length > 0 && (
+                    <span className="text-destructive font-semibold">
+                      {milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed" && m.status !== "parked").length} overskredet
+                    </span>
+                  )}
+                  <span className="text-muted-foreground">
+                    {milestones.filter(m => m.status !== "completed" && m.status !== "parked").length} aktive
+                  </span>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {milestones.filter(m => m.status !== "parked").map((m) => {
-                  const isCompleted = m.status === "completed";
-                  const isOverdue = m.deadline && new Date(m.deadline) < new Date() && !isCompleted;
-
-                  return (
-                    <div key={m.id} className="glass-card rounded-xl p-4 animate-fade-in">
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 p-2 rounded-lg flex-shrink-0 ${isCompleted ? "bg-primary/10" : isOverdue ? "bg-destructive/10" : "bg-muted"}`}>
-                          {isCompleted ? (
-                            <CheckCircle2 className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Target className={`h-4 w-4 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`} />
+              {milestones.filter(m => m.status !== "parked").length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Ingen milestones oprettet endnu</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {milestones.filter(m => m.status !== "parked").slice(0, 6).map(m => {
+                    const isOverdue = m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed";
+                    const isCompleted = m.status === "completed";
+                    return (
+                      <div key={m.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-xs truncate flex-1 ${isCompleted ? "line-through text-muted-foreground" : isOverdue ? "text-destructive" : "text-foreground"}`}>
+                            {m.title}
+                          </p>
+                          {m.deadline && (
+                            <span className={`text-[10px] shrink-0 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
+                              {format(new Date(m.deadline), "d. MMM", { locale: da })}
+                            </span>
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`text-sm font-medium ${isCompleted ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                              {m.title}
-                            </p>
-                            {m.source === "ai" && (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">AI-foreslået</span>
-                            )}
-                            {isOverdue && (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">Overskredet</span>
-                            )}
-                          </div>
-                          {m.description && (
-                            <p className="text-xs text-muted-foreground mt-1">{m.description}</p>
-                          )}
-                          <div className="flex items-center gap-3 mt-2">
-                            {m.deadline && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {format(new Date(m.deadline), "d. MMM yyyy", { locale: da })}
-                              </span>
-                            )}
-                            {m.source_report && (
-                              <span className="text-xs text-muted-foreground">· {m.source_report}</span>
-                            )}
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${isCompleted ? "bg-primary" : isOverdue ? "bg-destructive" : "bg-primary/70"}`}
-                                style={{ width: `${m.progress}%` }}
-                              />
-                            </div>
-                            {(m as any).target_value && (m as any).unit ? (
-                              <span className="text-[10px] text-muted-foreground font-medium text-right shrink-0">
-                                {(m as any).current_value ?? 0}/{(m as any).target_value} {(m as any).unit}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground font-medium w-8 text-right">{m.progress}%</span>
-                            )}
-                          </div>
+                        <div className="h-1 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${isCompleted ? "bg-primary" : isOverdue ? "bg-destructive" : "bg-primary/70"}`}
+                            style={{ width: `${m.progress ?? 0}%` }}
+                          />
                         </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                  {milestones.filter(m => m.status !== "parked").length > 6 && (
+                    <p className="text-[10px] text-muted-foreground">+{milestones.filter(m => m.status !== "parked").length - 6} flere</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Handouts */}
+            <div className="glass-card rounded-2xl p-5" id="section-handouts">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" /> Handouts
+                </h3>
+                <span className="text-[10px] text-muted-foreground">
+                  {handoutSummaries.filter(h => h.status === "completed").length}/{handoutSummaries.length} fulgt
+                </span>
+              </div>
+              <div className="mb-3">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${handoutSummaries.length > 0 ? (handoutSummaries.filter(h => h.status === "completed").length / handoutSummaries.length) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {handoutSummaries.map(s => {
+                  const config = handoutConfigs[s.module];
+                  return (
+                    <button
+                      key={s.module}
+                      onClick={() => setActiveHandout(s.module)}
+                      className="w-full flex items-center gap-2.5 py-1.5 px-2 hover:bg-accent/30 rounded-lg transition-colors text-left"
+                    >
+                      <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${s.status === "completed" ? "bg-primary" : s.progress > 0 ? "bg-chart-warning" : "bg-muted-foreground/20"}`} />
+                      <p className="text-xs text-foreground truncate flex-1">{config?.title || s.module}</p>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{s.progress}%</span>
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </div>
-
-          {/* ───── Budget section ───── */}
-          <div className="mb-8" id="section-budget">
-            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              Budget
-            </h2>
-
-            {budgets.length === 0 ? (
-              <div className="glass-card rounded-xl p-8 text-center">
-                <Wallet className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Intet budget opsat endnu</p>
-              </div>
-            ) : (() => {
-              const summary = buildBudgetSummary(budgets);
-              const totalRevenue = summary.find(s => s.group === "indtaegter")?.total ?? 0;
-              const totalCosts = summary.filter(s => s.group !== "indtaegter").reduce((s, g) => s + g.total, 0);
-              const ebitda = totalRevenue - totalCosts;
-              const margin = totalRevenue > 0 ? (ebitda / totalRevenue) * 100 : 0;
-
-              if (summary.length === 0) {
-                return (
-                  <div className="glass-card rounded-xl p-6 text-center">
-                    <p className="text-sm text-muted-foreground">Budget er opsat men ikke udfyldt</p>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="glass-card rounded-xl overflow-hidden">
-                  <div className="grid grid-cols-3 gap-3 p-4 bg-secondary/30 border-b border-border">
-                    <div className="text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Omsætning</p>
-                      <p className="text-sm font-display font-bold text-foreground">{formatDKK(totalRevenue)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">EBITDA</p>
-                      <p className={`text-sm font-display font-bold ${ebitda >= 0 ? "text-primary" : "text-destructive"}`}>
-                        {formatDKK(ebitda)}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Margin</p>
-                      <p className={`text-sm font-display font-bold ${margin >= 0 ? "text-primary" : "text-destructive"}`}>
-                        {margin.toFixed(1)}%
-                      </p>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-border/30">
-                    {summary.map(group => (
-                      <div key={group.group} className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-xs text-muted-foreground">{group.label}</span>
-                        <span className={`text-xs font-semibold ${group.isRevenue ? "text-primary" : "text-foreground"}`}>
-                          {formatDKK(group.total)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* ───── Handouts section ───── */}
-          <div className="mb-8" id="section-handouts">
-            <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-primary" />
-              Handouts
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {handoutSummaries.map(s => {
-                const config = handoutConfigs[s.module];
-                const statusInfo = handoutStatusLabels[s.status];
-                return (
-                  <button
-                    key={s.module}
-                    onClick={() => setActiveHandout(s.module)}
-                    className="glass-card rounded-xl p-4 text-left hover:ring-2 hover:ring-primary/30 transition-all"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-foreground">{config.title}</h3>
-                      <Badge variant={statusInfo.variant} className="text-[10px]">{statusInfo.label}</Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground">Udfyldt</span>
-                        <span className="font-medium text-foreground">{s.progress}%</span>
-                      </div>
-                      <Progress value={s.progress} className="h-1.5" />
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           </div>
 
