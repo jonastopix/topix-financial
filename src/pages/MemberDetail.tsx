@@ -62,7 +62,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip as RechartsTooltip } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip as RechartsTooltip, LineChart, Line } from "recharts";
 import type { Json } from "@/integrations/supabase/types";
 
 interface MemberProfile {
@@ -600,6 +600,13 @@ const MemberDetail = () => {
   const latestKf = latestFact ? factsToDanishMetrics(latestFact.metrics) : null;
   const prevKf = prevFact ? factsToDanishMetrics(prevFact.metrics) : null;
 
+  const sparklinesByKey: Record<string, number[]> = {
+    omsaetning: memberFacts.slice(-6).map(f => factsToDanishMetrics(f.metrics).omsaetning ?? 0),
+    daekningsbidrag: memberFacts.slice(-6).map(f => factsToDanishMetrics(f.metrics).daekningsbidrag ?? 0),
+    resultat_foer_skat: memberFacts.slice(-6).map(f => factsToDanishMetrics(f.metrics).resultat_foer_skat ?? 0),
+    bank_balance: memberFacts.slice(-6).filter(f => factsToDanishMetrics(f.metrics).bank_balance != null).map(f => factsToDanishMetrics(f.metrics).bank_balance as number),
+  };
+
   const kpiSnapshot = (() => {
     if (!latestKf) return [];
     const calc = (curr?: number, prev?: number) => {
@@ -608,10 +615,10 @@ const MemberDetail = () => {
       return { pct, dir: pct > 1 ? "up" as const : pct < -1 ? "down" as const : "neutral" as const };
     };
     return [
-      { label: "Omsætning", value: latestKf.omsaetning, ...calc(latestKf.omsaetning, prevKf?.omsaetning) },
-      { label: "Dækningsbidrag", value: latestKf.daekningsbidrag, ...calc(latestKf.daekningsbidrag, prevKf?.daekningsbidrag) },
-      { label: "Resultat f. skat", value: latestKf.resultat_foer_skat, ...calc(latestKf.resultat_foer_skat, prevKf?.resultat_foer_skat) },
-      { label: "Bank", value: latestKf.bank_balance, ...calc(latestKf.bank_balance, prevKf?.bank_balance) },
+      { label: "Omsætning", value: latestKf.omsaetning, sparkKey: "omsaetning", ...calc(latestKf.omsaetning, prevKf?.omsaetning) },
+      { label: "Dækningsbidrag", value: latestKf.daekningsbidrag, sparkKey: "daekningsbidrag", ...calc(latestKf.daekningsbidrag, prevKf?.daekningsbidrag) },
+      { label: "Resultat f. skat", value: latestKf.resultat_foer_skat, sparkKey: "resultat_foer_skat", ...calc(latestKf.resultat_foer_skat, prevKf?.resultat_foer_skat) },
+      { label: "Bank", value: latestKf.bank_balance, sparkKey: "bank_balance", ...calc(latestKf.bank_balance, prevKf?.bank_balance) },
     ].filter(k => k.value != null);
   })();
 
@@ -766,9 +773,18 @@ const MemberDetail = () => {
 
             {/* Chat status bar */}
             <div className="mt-5 pt-4 border-t border-border/40 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${toneClasses[conversationStatusBadge.tone]}`}>
-                <CircleDot className="h-3 w-3" /> {conversationStatusBadge.label}
-              </span>
+              {conversationId ? (
+                <Link
+                  to={`/chat?conversationId=${conversationId}`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium hover:opacity-80 transition-opacity ${toneClasses[conversationStatusBadge.tone]}`}
+                >
+                  <CircleDot className="h-3 w-3" /> {conversationStatusBadge.label}
+                </Link>
+              ) : (
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${toneClasses[conversationStatusBadge.tone]}`}>
+                  <CircleDot className="h-3 w-3" /> {conversationStatusBadge.label}
+                </span>
+              )}
               {assignedAdvisorName && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Briefcase className="h-3 w-3" />
@@ -844,12 +860,32 @@ const MemberDetail = () => {
                       <p className="text-lg font-display font-bold text-foreground">
                         {k.value != null ? `${k.value.toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.` : "—"}
                       </p>
-                      {k.pct != null && (
+                      {k.pct != null && Math.abs(k.pct) >= 0.5 && (
                         <div className={`flex items-center gap-1 mt-1.5 text-[11px] font-medium ${trendColor}`}>
                           <TrendIcon className="h-3 w-3" />
                           {Math.abs(k.pct).toFixed(1)}% vs. forrige
                         </div>
                       )}
+                      {(() => {
+                        const spark = sparklinesByKey[k.sparkKey] ?? [];
+                        if (spark.length < 2) return null;
+                        const isPositive = spark[spark.length - 1] >= spark[0];
+                        return (
+                          <div className="mt-2 -mx-1">
+                            <ResponsiveContainer width="100%" height={28}>
+                              <LineChart data={spark.map((v, i) => ({ v, i }))} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                                <Line
+                                  type="monotone"
+                                  dataKey="v"
+                                  stroke={isPositive ? "hsl(var(--primary))" : "hsl(var(--destructive))"}
+                                  strokeWidth={1.5}
+                                  dot={false}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
