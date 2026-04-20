@@ -379,6 +379,33 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
       return { ok: true };
     }
 
+    case "update_weekly_focus": {
+      const now = new Date();
+      const dayNum = now.getUTCDay() || 7;
+      const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1 - dayNum));
+      const yearStart = new Date(Date.UTC(monday.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((monday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      const weekKey = `${monday.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+
+      const { error } = await adminClient
+        .from("weekly_focus")
+        .upsert({
+          company_id: args.company_id,
+          week_key: weekKey,
+          status: "active",
+          headline: args.headline,
+          summary: args.summary,
+          triggers_fired: ["report_committed"],
+          trigger_data: { trigger: "report_committed" },
+          actions_generated: 1,
+          generated_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
+        }, { onConflict: "company_id,week_key" });
+
+      if (error) throw new Error(error.message);
+      return { ok: true, week_key: weekKey };
+    }
+
     case "finish": {
       return { done: true, summary: args.summary };
     }
