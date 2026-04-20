@@ -1438,6 +1438,11 @@ const CompanyChatPane = () => {
                                 <span className="ml-1.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Legat</span>
                               )}
                             </p>
+                            {conv.companyName && conv.profile?.full_name && conv.threadType !== "group" && (
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {conv.profile.full_name}
+                              </p>
+                            )}
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
