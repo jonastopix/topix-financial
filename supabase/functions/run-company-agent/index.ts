@@ -17,10 +17,11 @@ HVAD DU GØR (i rækkefølge):
 
 1. Hent fakta, pulse, milestones, handouts og KPI-mål
 2. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned og med mål.
-3. Skriv én besked til founder — fokusér på ét nøglefund, ikke fem
-4. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
-5. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
-6. Kald finish
+3. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering
+4. Skriv én besked til founder i chatten — fokusér på ét nøglefund, ikke fem
+5. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
+6. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
+7. Kald finish
 
 HVAD DU IKKE GØR:
 
@@ -169,6 +170,22 @@ const tools = [
           message: { type: "string" },
         },
         required: ["company_id", "message"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_weekly_focus",
+      description: "Opdaterer ugens fokus-kort på member's dashboard. Brug dette til at sætte en kort, handlingsorienteret overskrift og opsummering baseret på rapporten. Det er det første founder ser når de logger ind.",
+      parameters: {
+        type: "object",
+        properties: {
+          company_id: { type: "string" },
+          headline: { type: "string", description: "Maks 8 ord. Direkte og konkret — fx 'Omsætning op 23% — hold momentum i salg'" },
+          summary: { type: "string", description: "2-3 sætninger. Hvad betyder tallene og hvad er næste skridt?" },
+        },
+        required: ["company_id", "headline", "summary"],
       },
     },
   },
