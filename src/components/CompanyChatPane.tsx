@@ -97,17 +97,7 @@ interface ConversationWithProfile {
   groupName?: string;
 }
 
-type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
-
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
-
-const ADVISOR_FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
-  { key: "action", label: "Kræver svar", icon: AlertCircle },
-  { key: "mine", label: "Mine", icon: UserCheck },
-  { key: "alle", label: "Alle", icon: Inbox },
-  { key: "unassigned", label: "Uden ejer", icon: UsersIcon },
-  { key: "rapporter", label: "Ny rapport", icon: FileText },
-];
 
 
 const TOPIC_COLORS: Record<string, { bg: string; text: string; label: string; icon: typeof MessageSquare }> = {
@@ -141,7 +131,6 @@ const CompanyChatPane = () => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<InboxFilter>("alle");
   
   const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -213,12 +202,6 @@ const CompanyChatPane = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Set default filter for advisors on mount
-  useEffect(() => {
-    if (isAdvisor) {
-      setActiveFilter("action");
-    }
-  }, [isAdvisor]);
 
   // Deep linking
   useEffect(() => {
@@ -697,59 +680,6 @@ const CompanyChatPane = () => {
     setTimeout(() => setNoteSaveStatus('idle'), 2000);
   };
 
-  // Filtered & searched conversations for advisor
-  const filteredConversations = useMemo(() => {
-    let result = conversations;
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.companyName?.toLowerCase().includes(q) ||
-          c.profile?.full_name?.toLowerCase().includes(q)
-      );
-    }
-
-    if (isAdvisor) {
-      switch (activeFilter) {
-        case "action": {
-          const now = new Date();
-          result = result.filter((c) => isConversationActionable(c, now));
-          result = [...result].sort((a, b) => {
-            const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
-            const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
-            return aT - bT;
-          });
-          break;
-        }
-        case "mine":
-          result = result.filter((c) => c.assigned_advisor_id === user?.id);
-          result = [...result].sort((a, b) =>
-            new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
-          );
-          break;
-        case "alle":
-          result = [...result].sort((a, b) =>
-            (a.companyName || "").localeCompare(b.companyName || "", "da")
-          );
-          break;
-        case "unassigned":
-          result = result.filter((c) => !c.assigned_advisor_id);
-          result = [...result].sort((a, b) => {
-            const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
-            const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
-            return aT - bT;
-          });
-          break;
-        case "rapporter":
-          result = result.filter((c) => c.hasRecentReport);
-          break;
-      }
-    }
-
-    return result;
-  }, [conversations, searchQuery, activeFilter, isAdvisor, user?.id]);
-
   const stats = useMemo(() => {
     const now = new Date();
     const actionCount = conversations.filter((c) => {
@@ -768,6 +698,44 @@ const CompanyChatPane = () => {
       mine: conversations.filter((c) => c.assigned_advisor_id === user?.id).length,
       unassigned: conversations.filter((c) => !c.assigned_advisor_id).length,
     };
+  }, [conversations, user?.id]);
+
+  const CHECKIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+  const groupedConversations = useMemo(() => {
+    const now = new Date();
+    const needsReply = conversations.filter(c => {
+      if (c.conversation_status === 'resolved') return false;
+      if (c.awaiting_reply_from !== 'advisor') return false;
+      const hasExpiredSnooze = !!c.follow_up_at && new Date(c.follow_up_at) <= now;
+      return !c.acknowledged_at || hasExpiredSnooze;
+    }).sort((a, b) => {
+      const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
+      const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
+      return aT - bT; // oldest first = most urgent first
+    });
+    const needsReplyIds = new Set(needsReply.map(c => c.id));
+    const needsCheckin = conversations.filter(c => {
+      if (needsReplyIds.has(c.id)) return false;
+      if (c.conversation_status === 'resolved') return false;
+      if (c.assigned_advisor_id && c.assigned_advisor_id !== user?.id) return false;
+      const lastAdvisor = c.last_advisor_reply_at
+        ? new Date(c.last_advisor_reply_at).getTime()
+        : new Date(c.last_message_at).getTime();
+      return now.getTime() - lastAdvisor > CHECKIN_THRESHOLD_MS;
+    }).sort((a, b) => {
+      const aLast = a.last_advisor_reply_at || a.last_message_at;
+      const bLast = b.last_advisor_reply_at || b.last_message_at;
+      return new Date(aLast).getTime() - new Date(bLast).getTime(); // longest since contact first
+    });
+    const checkinIds = new Set(needsCheckin.map(c => c.id));
+    const mine = conversations.filter(c => {
+      if (needsReplyIds.has(c.id)) return false;
+      if (checkinIds.has(c.id)) return false;
+      return c.assigned_advisor_id === user?.id;
+    }).sort((a, b) =>
+      new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
+    return { needsReply, needsCheckin, mine };
   }, [conversations, user?.id]);
 
   // Load messages for active conversation
