@@ -388,6 +388,17 @@ const AdvisorDashboard = () => {
         companyToUser.set(m.company_id, m.user_id);
       }
 
+      // Fetch member profiles for name display
+      const memberUserIds = [...companyToUser.values()].filter(Boolean);
+      const memberProfilesRes = memberUserIds.length > 0
+        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", memberUserIds)
+        : { data: [] as { user_id: string; full_name: string | null }[] };
+      const companyMemberNameMap = new Map<string, string>();
+      for (const [companyId, userId] of companyToUser.entries()) {
+        const profile = (memberProfilesRes.data || []).find(p => p.user_id === userId);
+        if (profile?.full_name) companyMemberNameMap.set(companyId, profile.full_name);
+      }
+
       // company_id → active milestones[]
       const milestonesByCompany = new Map<string, MilestoneData[]>();
       for (const m of (milestonesRes.data || []) as any[]) {
@@ -871,6 +882,8 @@ const AdvisorDashboard = () => {
         investorSummaries, companyMap, activityFeed, convByCompany,
         priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
         allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
+        companyMemberNameMap,
+        recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
       };
     },
     enabled: !!user,
@@ -1249,7 +1262,7 @@ const AdvisorDashboard = () => {
                     </td>
                     <td className="py-2.5 px-3 hidden sm:table-cell">
                       <p className="text-[11px] text-muted-foreground truncate max-w-[100px]">
-                        {((data?.companies || []) as any[]).find((co: any) => co.id === c.company_id)?.memberName || "—"}
+                        {data?.companyMemberNameMap?.get(c.company_id) || "—"}
                       </p>
                     </td>
                     <td className="py-2.5 px-3 text-center hidden sm:table-cell">
