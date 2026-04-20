@@ -399,7 +399,7 @@ export default function ReportDebug() {
                 onClick={async () => {
                   setAgentRunning(true);
                   try {
-                    await supabase.functions.invoke("run-company-agent", {
+                    const { data: agentData, error: agentError } = await supabase.functions.invoke("run-company-agent", {
                       body: {
                         company_id: report.company_id,
                         trigger: "report_committed",
@@ -407,9 +407,13 @@ export default function ReportDebug() {
                         period_label: report.report_period,
                       },
                     });
+                    if (agentError) throw agentError;
+                    if (!agentData?.ok) {
+                      throw new Error(agentData?.error || "Agenten skrev ingen besked");
+                    }
                     toast.success("Agent kørt ✓", { description: "Tjek chatten for resultatet." });
                   } catch (err) {
-                    toast.error("Agent fejlede", { description: String(err) });
+                    toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
                   } finally {
                     setAgentRunning(false);
                   }
