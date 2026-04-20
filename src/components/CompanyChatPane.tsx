@@ -699,6 +699,7 @@ const CompanyChatPane = () => {
   const CHECKIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
   const groupedConversations = useMemo(() => {
     const now = new Date();
+    // KRÆVER SVAR: all conversations awaiting any advisor reply, not acknowledged, not snoozed
     const needsReply = conversations.filter(c => {
       if (c.conversation_status === 'resolved') return false;
       if (c.awaiting_reply_from !== 'advisor') return false;
@@ -707,13 +708,13 @@ const CompanyChatPane = () => {
     }).sort((a, b) => {
       const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
       const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
-      return aT - bT; // oldest first = most urgent first
+      return aT - bT; // oldest first = most urgent
     });
     const needsReplyIds = new Set(needsReply.map(c => c.id));
+    // TJEK IND: all conversations where no advisor has written in 14+ days
     const needsCheckin = conversations.filter(c => {
       if (needsReplyIds.has(c.id)) return false;
       if (c.conversation_status === 'resolved') return false;
-      if (c.assigned_advisor_id && c.assigned_advisor_id !== user?.id) return false;
       const lastAdvisor = c.last_advisor_reply_at
         ? new Date(c.last_advisor_reply_at).getTime()
         : new Date(c.last_message_at).getTime();
@@ -721,17 +722,16 @@ const CompanyChatPane = () => {
     }).sort((a, b) => {
       const aLast = a.last_advisor_reply_at || a.last_message_at;
       const bLast = b.last_advisor_reply_at || b.last_message_at;
-      return new Date(aLast).getTime() - new Date(bLast).getTime(); // longest since contact first
+      return new Date(aLast).getTime() - new Date(bLast).getTime(); // longest without contact first
     });
     const checkinIds = new Set(needsCheckin.map(c => c.id));
-    const mine = conversations.filter(c => {
-      if (needsReplyIds.has(c.id)) return false;
-      if (checkinIds.has(c.id)) return false;
-      return c.assigned_advisor_id === user?.id;
+    // ALLE ANDRE: everything not in the two groups above, sorted by latest activity
+    const rest = conversations.filter(c => {
+      return !needsReplyIds.has(c.id) && !checkinIds.has(c.id);
     }).sort((a, b) =>
       new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
     );
-    return { needsReply, needsCheckin, mine };
+    return { needsReply, needsCheckin, rest };
   }, [conversations, user?.id]);
 
   // Load messages for active conversation
@@ -1386,8 +1386,8 @@ const CompanyChatPane = () => {
 
                 const replyList = filterConvs(groupedConversations.needsReply);
                 const checkinList = filterConvs(groupedConversations.needsCheckin);
-                const mineList = filterConvs(groupedConversations.mine);
-                const total = replyList.length + checkinList.length + mineList.length;
+                const restList = filterConvs(groupedConversations.rest);
+                const total = replyList.length + checkinList.length + restList.length;
 
                 if (q && total === 0) {
                   return (
@@ -1523,23 +1523,23 @@ const CompanyChatPane = () => {
                       </div>
                     )}
 
-                    {/* Section: Mine */}
-                    {mineList.length > 0 && (
+                    {/* Section: Alle andre */}
+                    {restList.length > 0 && (
                       <div className={(replyList.length > 0 || checkinList.length > 0) ? "border-t border-border" : ""}>
                         <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
                           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                            Mine
+                            Alle
                           </span>
                           <span className="text-[10px] text-muted-foreground">
-                            {mineList.length}
+                            {restList.length}
                           </span>
                         </div>
-                        {mineList.map(c => renderConvCard(c, 'normal'))}
+                        {restList.map(c => renderConvCard(c, 'normal'))}
                       </div>
                     )}
 
                     {/* Empty state */}
-                    {replyList.length === 0 && checkinList.length === 0 && mineList.length === 0 && !q && (
+                    {replyList.length === 0 && checkinList.length === 0 && restList.length === 0 && !q && (
                       <div className="p-8 text-center">
                         <CheckCheck className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
                         <p className="text-xs text-muted-foreground">Alt er i orden 🎉</p>
