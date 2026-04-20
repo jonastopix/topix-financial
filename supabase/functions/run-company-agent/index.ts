@@ -555,6 +555,8 @@ Deno.serve(async (req) => {
         role: "user",
         content: `VIRKSOMHED: ${companyData.name}
 
+Founders fornavn: ${founderFirstName}
+
 Branche: ${companyData.industry_label || "ukendt"}
 
 Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDateString("da-DK", { month: "long", year: "numeric" }) : "ukendt"}
