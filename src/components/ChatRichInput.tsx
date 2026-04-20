@@ -204,11 +204,8 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
             ed.chain().focus().splitListItem("listItem").run();
             return true;
           }
-          if (!event.shiftKey) {
-            event.preventDefault();
-            submitRef.current();
-            return true;
-          }
+          // Enter always creates a line break — send is done via the send button
+          return false; // let Tiptap handle it naturally (inserts paragraph)
         }
         return false;
       },
