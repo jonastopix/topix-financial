@@ -96,6 +96,30 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "get_kpi_targets",
+      description: "Henter de KPI-mål som founder selv har sat. Brug dette til at sammenligne faktiske tal med foundrens egne ambitioner og mål.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_kpi_targets",
+      description: "Henter de KPI-mål som founder selv har sat. Brug dette til at sammenligne faktiske tal med foundrens egne ambitioner og mål.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_budget_vs_actual",
       description:
         "Sammenligner budget med realiserede tal for en given periode. Returnerer afvigelser i procent.",
@@ -215,6 +239,26 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
         .from("handouts")
         .select("module, status")
         .eq("company_id", args.company_id);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    }
+
+    case "get_kpi_targets": {
+      // kpi_targets is linked via user_id, find the member first
+      const { data: member } = await adminClient
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", args.company_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!member) return [];
+
+      const { data, error } = await adminClient
+        .from("kpi_targets")
+        .select("kpi_key, target_value, target_label, lower_is_better")
+        .eq("user_id", member.user_id);
+
       if (error) throw new Error(error.message);
       return data ?? [];
     }
