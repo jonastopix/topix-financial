@@ -245,20 +245,9 @@ const Reports = () => {
     }
   }, [searchParams, dbReports]);
 
-  const reportsByMonth = useMemo(() => {
-    const map: Record<string, DbReport> = {};
-    const sorted = [...dbReports].sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
-    sorted.forEach((r) => {
-      const key = getEffectiveReportPeriodKey(r);
-      if (key) {
-        const existing = map[key];
-        if (!existing || r.status === "processed") {
-          map[key] = r;
-        }
-      }
-    });
-    return map;
-  }, [dbReports]);
+  const hasAnyPeriodData = useMemo(() =>
+    dbReports.some(r => !!getEffectiveReportPeriodKey(r as any)),
+  [dbReports]);
 
   // (delivery overview logic is now in DeliveryOverview component)
 
@@ -628,7 +617,7 @@ const Reports = () => {
       )}
 
       {/* ── Trend Charts ── */}
-      {reportCount >= 3 && Object.keys(reportsByMonth).length > 0 && (() => {
+      {reportCount >= 3 && hasAnyPeriodData && (() => {
         const SERIES = [
           { key: "omsaetning", label: "Omsætning", color: "hsl(var(--chart-positive))" },
           { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(var(--chart-warning))" },
@@ -1177,7 +1166,7 @@ const Reports = () => {
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
-                            handleSubmitComment(report.id, report.report_period || report.file_name);
+                            handleSubmitComment(report.id, getEffectiveReportPeriod(report as any) || report.file_name);
                           }
                         }}
                         placeholder="Skriv en kommentar — sendes i chatten"
@@ -1186,7 +1175,7 @@ const Reports = () => {
                         className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                       <button
-                        onClick={() => handleSubmitComment(report.id, report.report_period || report.file_name)}
+                        onClick={() => handleSubmitComment(report.id, getEffectiveReportPeriod(report as any) || report.file_name)}
                         disabled={!(commentInputs[report.id] || "").trim() || submittingComment === report.id}
                         className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                       >
