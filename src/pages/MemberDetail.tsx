@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { notifyChatMessage } from "@/lib/chatNotify";
+import AdvisorAIChat from "@/components/AdvisorAIChat";
 import {
   ArrowLeft,
   FileText,
@@ -1069,6 +1070,16 @@ const MemberDetail = () => {
               </div>
             </div>
           </div>
+
+          {/* ───── AI Sparring-assistent ───── */}
+          {memberFacts.length > 0 && memberCompanyId && (
+            <div className="mb-8">
+              <AdvisorAIChat
+                companyId={memberCompanyId}
+                companyName={companyCtx?.name || profile.full_name || ""}
+              />
+            </div>
+          )}
 
           {/* ───── Milestones + Handouts compact ───── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
