@@ -1273,6 +1273,33 @@ const MemberDetail = () => {
                                 ✓ Committed
                               </span>
                             )}
+                            {isCommitted && (
+                              <button
+                                onClick={async () => {
+                                  setAgentRunning(report.source_report_id || report.id);
+                                  try {
+                                    await supabase.functions.invoke("run-company-agent", {
+                                      body: {
+                                        company_id: memberCompanyId,
+                                        trigger: "report_committed",
+                                        period_key: report.manual_report_period_key || report.report_period,
+                                        period_label: report.manual_report_period_label || report.report_period,
+                                      },
+                                    });
+                                    toast.success("Agent kørt ✓", { description: "Tjek chatten for analysen." });
+                                  } catch (err) {
+                                    toast.error("Agent fejlede");
+                                  } finally {
+                                    setAgentRunning(null);
+                                  }
+                                }}
+                                disabled={agentRunning === (report.source_report_id || report.id)}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                {agentRunning === (report.source_report_id || report.id) ? "Kører..." : "Kør agent"}
+                              </button>
+                            )}
                             {report.processed_at && (
                               <span className="text-[10px] text-muted-foreground">
                                 Behandlet {format(new Date(report.processed_at), "d. MMM yyyy HH:mm", { locale: da })}
