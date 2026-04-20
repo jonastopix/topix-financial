@@ -18,6 +18,7 @@ interface ChatRichInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  onRequestSubmit?: (fn: () => void) => void;
 }
 
 function ToolbarBtn({
