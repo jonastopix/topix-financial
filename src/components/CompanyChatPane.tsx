@@ -140,6 +140,7 @@ const CompanyChatPane = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
+  const [companyMembers, setCompanyMembers] = useState<{ user_id: string; full_name: string; avatar_url: string | null }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
 
   // Internal note state
@@ -280,6 +281,35 @@ const CompanyChatPane = () => {
       fetchParticipants(activeConvId);
     }
   }, [activeConvId]);
+
+  // Fetch all company members (not just message senders) for the active conversation
+  useEffect(() => {
+    if (!activeConvId || activeConvId.startsWith("group_")) {
+      setCompanyMembers([]);
+      return;
+    }
+    const conv = conversations.find(c => c.id === activeConvId);
+    const companyId = conv?.company_id;
+    if (!companyId) { setCompanyMembers([]); return; }
+    const loadMembers = async () => {
+      const { data: cm } = await supabase
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", companyId);
+      const userIds = (cm || []).map(r => r.user_id);
+      if (userIds.length === 0) { setCompanyMembers([]); return; }
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", userIds);
+      setCompanyMembers((profs || []).map(p => ({
+        user_id: p.user_id,
+        full_name: p.full_name || "Ukendt",
+        avatar_url: p.avatar_url,
+      })));
+    };
+    loadMembers();
+  }, [activeConvId, conversations]);
 
   // Load conversations — batch fetch, no N+1
   useEffect(() => {
@@ -1614,9 +1644,8 @@ const CompanyChatPane = () => {
                         </p>
                         {/* Member names shown directly under company name */}
                         {!isGroupThread && (() => {
-                          const memberParticipants = participants.filter(p => !p.isAdvisor);
-                          const names = memberParticipants.length > 0
-                            ? memberParticipants.map(p => p.full_name).join(", ")
+                          const names = companyMembers.length > 0
+                            ? companyMembers.map(p => p.full_name).join(", ")
                             : activeConv?.profile?.full_name || null;
                           return names ? (
                             <p className="text-[11px] text-muted-foreground truncate leading-tight">
