@@ -299,10 +299,10 @@ Deno.serve(async (req) => {
 
     for (const company of missingCompanies) {
       const { data: members } = await supabase
-        .from("company_members").select("user_id").eq("company_id", company.id);
+        .from("company_members").select("user_id").eq("company_id", company.id).limit(1);
       if (!members?.length) continue;
 
-      for (const member of members) {
+      const member = members[0];
         const { data: userData } = await supabase.auth.admin.getUserById(member.user_id);
         if (!userData?.user?.email) continue;
         const email = userData.user.email;
