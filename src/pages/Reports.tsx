@@ -1166,7 +1166,7 @@ const Reports = () => {
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
-                            handleSubmitComment(report.id, report.report_period || report.file_name);
+                            handleSubmitComment(report.id, getEffectiveReportPeriod(report as any) || report.file_name);
                           }
                         }}
                         placeholder="Skriv en kommentar — sendes i chatten"
@@ -1175,7 +1175,7 @@ const Reports = () => {
                         className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                       <button
-                        onClick={() => handleSubmitComment(report.id, report.report_period || report.file_name)}
+                        onClick={() => handleSubmitComment(report.id, getEffectiveReportPeriod(report as any) || report.file_name)}
                         disabled={!(commentInputs[report.id] || "").trim() || submittingComment === report.id}
                         className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                       >
