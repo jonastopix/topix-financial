@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     priority: "important",
     title: "Ny besked fra din rådgiver",
     body: `Din rådgiver har svaret i chatten for ${companyName}`,
-    deep_link: "/chat",
+    deep_link: conversation_id ? `/chat?conversationId=${conversation_id}` : "/chat",
     reference_type: "message",
     reference_id: message_id || undefined,
     company_id: conversation_id ? undefined : undefined,
