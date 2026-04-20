@@ -313,6 +313,12 @@ export default function ReportReviewDialog({
           period_key: preview?.period_key,
           period_label: preview?.period_label || preview?.period_key,
         },
+      }).then(({ data, error }) => {
+        if (error) {
+          console.warn("Agent run failed (non-blocking):", error);
+        } else if (!data?.ok) {
+          console.warn("Agent run reported failure (non-blocking):", data?.error, data?.diagnostics);
+        }
       }).catch((err) => {
         console.warn("Agent run failed (non-blocking):", err);
       });
