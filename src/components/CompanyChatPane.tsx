@@ -98,7 +98,7 @@ interface ConversationWithProfile {
 }
 
 type InboxFilter = "action" | "mine" | "alle" | "unassigned" | "rapporter";
-type TopicFilter = "all" | "report" | "handout" | "milestone" | "budget" | "sparring";
+
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
 
 const ADVISOR_FILTER_CONFIG: { key: InboxFilter; label: string; icon: typeof Inbox }[] = [
