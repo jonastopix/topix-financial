@@ -260,6 +260,7 @@ const AdvisorCompanyOverview = () => {
         
         assignedName,
         revenueTimeline,
+        memberNames,
       };
     },
     enabled: !!companyId && !!user,
