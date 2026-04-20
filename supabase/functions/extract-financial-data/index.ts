@@ -518,38 +518,19 @@ serve(async (req) => {
         };
         console.log(`[Routing] Semantic XLSX success: ${semanticXlsxResult.template_id}`);
       } else if (semanticXlsxResult.type === "semantic_fail") {
-        // ── Phase 6b: Migrated template semantic_fail → hard fail for known sources ──
+        // ── Phase 6b: Known source template failed — fall back to AI rather than hard fail ──
         if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
+          console.warn(`[Routing] Semantic XLSX fail for known source ${sourceFingerprint.source_system} — falling back to AI extraction`);
           routingTrace.deterministic_attempted = true;
-          routingTrace.deterministic_result = "semantic_xlsx_fail";
-          routingTrace.deterministic_template_id = semanticXlsxResult.template_id;
-          routingTrace.branch = "semantic_xlsx_hard_fail";
-          routingTrace.deterministic_error = semanticXlsxResult.error;
-          console.error(`[Routing] Semantic XLSX HARD FAIL for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`);
-
-          if (reportId) {
-            const earlyExitErrors = [`Semantic XLSX extraction failed for known source ${sourceFingerprint.source_system}: ${semanticXlsxResult.error}`];
-            await supabase
-              .from("financial_reports")
-              .update(getEarlyExitPersistPayload(isV2Cohort, "semantic_xlsx_fail", "semantic_xlsx_hard_fail", earlyExitErrors, routingTrace))
-              .eq("id", reportId);
-          }
-
-          return new Response(
-            JSON.stringify({
-              error: "Semantic XLSX extraction failed",
-              status: "semantic_xlsx_fail",
-              source_system: sourceFingerprint.source_system,
-              template_id: semanticXlsxResult.template_id,
-              details: semanticXlsxResult.error,
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          routingTrace.deterministic_result = "semantic_xlsx_fail_ai_fallback";
+          routingTrace.branch = "semantic_xlsx_fail_ai_fallback";
+          // Continue to AI extraction below — do NOT return early
+        } else {
+          // Unknown source: fall back to legacy
+          console.log(`[Routing] Semantic XLSX semantic_fail for unknown source, falling back to legacy deterministic...`);
+          routingTrace.deterministic_attempted = true;
+          detResult = await tryDeterministicExtraction(excelBase64, fileName);
         }
-        // Unknown source: fall back to legacy
-        console.log(`[Routing] Semantic XLSX semantic_fail for unknown source, falling back to legacy deterministic...`);
-        routingTrace.deterministic_attempted = true;
-        detResult = await tryDeterministicExtraction(excelBase64, fileName);
       } else {
         // no_match or no_semantic_support: fall back to legacy
         console.log(`[Routing] Semantic XLSX ${semanticXlsxResult.type}, falling back to legacy deterministic...`);
