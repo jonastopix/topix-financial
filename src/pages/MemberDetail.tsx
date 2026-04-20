@@ -1102,11 +1102,12 @@ const MemberDetail = () => {
                           <p className={`text-xs truncate flex-1 ${isCompleted ? "line-through text-muted-foreground" : isOverdue ? "text-destructive" : "text-foreground"}`}>
                             {m.title}
                           </p>
-                          {m.deadline && (
-                            <span className={`text-[10px] shrink-0 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
-                              {format(new Date(m.deadline), "d. MMM", { locale: da })}
-                            </span>
-                          )}
+                          <span className={`text-[10px] shrink-0 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                            {m.deadline
+                              ? format(new Date(m.deadline), "d. MMM", { locale: da })
+                              : <span className="text-muted-foreground/40 italic">ingen frist</span>
+                            }
+                          </span>
                         </div>
                         <div className="h-1 rounded-full bg-muted overflow-hidden">
                           <div
