@@ -97,6 +97,15 @@ Deno.serve(async (req) => {
         .eq("id", milestoneCompanyId)
         .single();
 
+      const { data: companyMember } = await admin
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", milestoneCompanyId)
+        .eq("role", "member")
+        .limit(1)
+        .maybeSingle();
+      const memberUserId = companyMember?.user_id;
+
       const companyName = company?.name || "Et member";
       const title = milestoneTitle ? `"${milestoneTitle}"` : "Et milestone";
 
@@ -115,7 +124,9 @@ Deno.serve(async (req) => {
           body: `Milestone fuldført — ${companyName} er et skridt tættere på sit mål.`,
           reference_type: "milestone",
           company_id: milestoneCompanyId,
-          deep_link: `/members?companyId=${milestoneCompanyId}`,
+          deep_link: memberUserId
+            ? `/members/${memberUserId}?section=milestones`
+            : `/members?companyId=${milestoneCompanyId}`,
           dedup_key: `milestone_completed:${milestoneCompanyId}:${milestoneTitle || "unknown"}:${Date.now()}`,
         });
       }
@@ -137,6 +148,15 @@ Deno.serve(async (req) => {
         .select("name")
         .eq("id", pulseCompanyId)
         .single();
+
+      const { data: pulseCompanyMember } = await admin
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", pulseCompanyId)
+        .eq("role", "member")
+        .limit(1)
+        .maybeSingle();
+      const pulseMemberUserId = pulseCompanyMember?.user_id;
 
       const companyName = company?.name || "Et member";
       const months = ["Januar","Februar","Marts","April","Maj","Juni",
@@ -160,7 +180,9 @@ Deno.serve(async (req) => {
           body: `Læs hvad der gik godt og hvad der er den største udfordring — så I kan give dem den bedste sparring.`,
           reference_type: "pulse",
           company_id: pulseCompanyId,
-          deep_link: `/members?companyId=${pulseCompanyId}`,
+          deep_link: pulseMemberUserId
+            ? `/members/${pulseMemberUserId}`
+            : `/members?companyId=${pulseCompanyId}`,
           dedup_key: `pulse_checkin:${pulseCompanyId}:${pulsePeriodKey || "unknown"}`,
         });
       }
