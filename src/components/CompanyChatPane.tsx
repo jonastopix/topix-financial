@@ -1194,22 +1194,23 @@ const CompanyChatPane = () => {
   const handleNoActionNeeded = async () => {
     if (!activeConvId || !user) return;
     const { table, id } = getOpsTarget();
+    const now = new Date().toISOString();
+    const updateData = {
+      awaiting_reply_from: null,
+      follow_up_at: null,
+      acknowledged_at: null,
+      acknowledged_by_advisor_id: null,
+      last_advisor_reply_at: now,
+    };
     const { error } = await supabase
       .from(table as any)
-      .update({
-        awaiting_reply_from: null,
-        follow_up_at: null,
-        acknowledged_at: null,
-        acknowledged_by_advisor_id: null,
-      })
+      .update(updateData)
       .eq("id", id);
     if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
     setConversations(prev => prev.map(c =>
-      c.id === activeConvId
-        ? { ...c, awaiting_reply_from: null, follow_up_at: null, acknowledged_at: null, acknowledged_by_advisor_id: null }
-        : c
+      c.id === activeConvId ? { ...c, ...updateData } : c
     ));
-    toast.success("Fjernet fra handlingskøen");
+    toast.success("Markeret som tjekket ind");
   };
 
   // Snooze / follow-up helpers
