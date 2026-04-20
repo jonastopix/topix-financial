@@ -100,6 +100,17 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     supabase.functions.invoke("send-slack-report-notification", {
       body: { event: "pulse_checkin_received", companyId, periodKey },
     }).catch((err) => console.error("[PulseCheckin] Slack notification failed:", err));
+    // Trigger agent to respond to pulse check-in — non-blocking
+    supabase.functions.invoke("run-company-agent", {
+      body: {
+        company_id: companyId,
+        trigger: "pulse_submitted",
+        period_key: periodKey,
+        period_label: periodLabel,
+      },
+    }).catch((err) => {
+      console.warn("Agent pulse trigger failed (non-blocking):", err);
+    });
     onComplete?.();
     onOpenChange(false);
   };
