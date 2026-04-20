@@ -1042,6 +1042,8 @@ const AdvisorDashboard = () => {
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
   const [memberView, setMemberView] = useState<"table" | "cards">("table");
   const [showAllQueue, setShowAllQueue] = useState(false);
+  const [showAllPriority, setShowAllPriority] = useState(false);
+  const [showAllSparring, setShowAllSparring] = useState(false);
 
   const filteredMembers = useMemo(() => {
     let list = [...investorSummaries];
@@ -1137,7 +1139,7 @@ const AdvisorDashboard = () => {
           </div>
         ) : (
           <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
-            {priorityItems.slice(0, 15).map(item => {
+            {(showAllPriority ? priorityItems : priorityItems.slice(0, 5)).map(item => {
               const primaryReason = item.reasons[0];
               const label = primaryReason?.label || "";
               const isDirectChatReason = label.includes("besked") || label.includes("Opfølgning") || label.includes("pulse");
@@ -1207,6 +1209,14 @@ const AdvisorDashboard = () => {
             })}
           </div>
         )}
+        {priorityItems.length > 5 && (
+          <button
+            onClick={() => setShowAllPriority(v => !v)}
+            className="w-full mt-1.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showAllPriority ? "Vis færre ↑" : `+ ${priorityItems.length - 5} mere kræver handling`}
+          </button>
+        )}
         {/* Proaktiv sparring */}
         {sparringItems.length > 0 && (
           <div className="mt-4">
@@ -1214,7 +1224,7 @@ const AdvisorDashboard = () => {
               Proaktiv sparring
             </p>
             <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
-              {sparringItems.slice(0, 8).map(item => {
+              {(showAllSparring ? sparringItems : sparringItems.slice(0, 5)).map(item => {
                 const primarySignal = item.signals[0];
                 const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
                 const userId = data?.companyToUser?.get(item.company.company_id);
@@ -1257,6 +1267,14 @@ const AdvisorDashboard = () => {
                 );
               })}
             </div>
+            {sparringItems.length > 5 && (
+              <button
+                onClick={() => setShowAllSparring(v => !v)}
+                className="w-full mt-1.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showAllSparring ? "Vis færre ↑" : `+ ${sparringItems.length - 5} mere`}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1298,8 +1316,7 @@ const AdvisorDashboard = () => {
                 <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
                 <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Person</th>
                 <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
-                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Trend</th>
-                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Engagement</th>
+                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Signal</th>
                 <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Advisor</th>
               </tr>
             </thead>
@@ -1362,24 +1379,26 @@ const AdvisorDashboard = () => {
                         <span className="text-[10px] text-amber-600 font-medium">Mangler</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-center hidden md:table-cell">
-                      {c.revenueTrendPct != null ? (
-                        <span className={`text-xs font-semibold ${c.revenueTrendPct > 5 ? "text-primary" : c.revenueTrendPct < -5 ? "text-destructive" : "text-muted-foreground"}`}>
-                          {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}{Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
-                        </span>
-                      ) : <span className="text-muted-foreground/30">—</span>}
-                    </td>
                     <td className="py-2.5 px-3">
                       <div className="flex items-center justify-center gap-1">
-                        {[
-                          { active: hasCurrentReport, color: "bg-primary", title: "Rapport" },
-                          { active: hasPulse30, color: "bg-chart-info", title: "Pulse" },
-                          { active: hasChat, color: "bg-purple-500", title: "Chat" },
-                          { active: hasMilestones, color: "bg-chart-warning", title: "Milestones" },
-                          { active: hasKpiTargets, color: "bg-teal-500", title: "KPI mål" },
-                        ].map((dot, i) => (
-                          <div key={i} title={dot.title} className={`h-2 w-2 rounded-full ${dot.active ? dot.color : "bg-muted-foreground/15"}`} />
-                        ))}
+                        {c.unreadMessages > 0 && (
+                          <span className="h-4 min-w-[16px] px-1 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center" title="Ulæste beskeder">
+                            {c.unreadMessages}
+                          </span>
+                        )}
+                        {!hasCurrentReport && (
+                          <span className="text-[9px] font-medium text-amber-600 px-1.5 py-0.5 rounded bg-amber-500/10" title="Mangler rapport">
+                            !
+                          </span>
+                        )}
+                        {hasCurrentReport && hasPulse30 && c.revenueTrendPct != null && (
+                          <span className={`text-[10px] font-semibold ${c.revenueTrendPct > 5 ? "text-primary" : c.revenueTrendPct < -5 ? "text-destructive" : "text-muted-foreground"}`}>
+                            {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}{Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
+                          </span>
+                        )}
+                        {!c.unreadMessages && hasCurrentReport && !hasPulse30 && (
+                          <span className="text-[9px] text-muted-foreground/40">OK</span>
+                        )}
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-right hidden sm:table-cell">
@@ -1393,13 +1412,12 @@ const AdvisorDashboard = () => {
                 );
               })}
               {filteredMembers.length === 0 && (
-                <tr><td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">Ingen virksomheder matcher filteret</td></tr>
+                <tr><td colSpan={5} className="py-8 text-center text-xs text-muted-foreground">Ingen virksomheder matcher filteret</td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div className="flex items-center gap-4 mt-2 px-1">
-          <p className="text-[9px] text-muted-foreground">Engagement-dots: Rapport · Pulse · Chat · Milestones · KPI mål</p>
           <span className="text-[9px] text-muted-foreground ml-auto">{filteredMembers.length} virksomheder</span>
         </div>
       </div>
