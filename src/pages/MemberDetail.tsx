@@ -1278,17 +1278,33 @@ const MemberDetail = () => {
                                 onClick={async () => {
                                   setAgentRunning(report.id);
                                   try {
-                                    await supabase.functions.invoke("run-company-agent", {
+                                    // Find correct YYYY-MM period_key from committed facts
+                                    const matchingFact = memberFacts.find(f => f.source_report_id === report.id)
+                                      || memberFacts.find(f => f.period_label === report.report_period);
+
+                                    const resolvedPeriodKey = matchingFact?.period_key
+                                      || report.manual_report_period_key
+                                      || report.report_period;
+
+                                    const resolvedPeriodLabel = matchingFact?.period_label
+                                      || report.manual_report_period_label
+                                      || report.report_period;
+
+                                    const { error: agentError } = await supabase.functions.invoke("run-company-agent", {
                                       body: {
                                         company_id: memberCompanyId,
                                         trigger: "report_committed",
-                                        period_key: report.manual_report_period_key || report.report_period,
-                                        period_label: report.manual_report_period_label || report.report_period,
+                                        period_key: resolvedPeriodKey,
+                                        period_label: resolvedPeriodLabel,
                                       },
                                     });
+
+                                    if (agentError) throw agentError;
+
                                     toast.success("Agent kørt ✓", { description: "Tjek chatten for analysen." });
                                   } catch (err) {
-                                    toast.error("Agent fejlede");
+                                    console.error("Agent error:", err);
+                                    toast.error("Agent fejlede", { description: String(err) });
                                   } finally {
                                     setAgentRunning(null);
                                   }
