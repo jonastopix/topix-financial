@@ -617,7 +617,7 @@ const Reports = () => {
       )}
 
       {/* ── Trend Charts ── */}
-      {reportCount >= 3 && Object.keys(reportsByMonth).length > 0 && (() => {
+      {reportCount >= 3 && hasAnyPeriodData && (() => {
         const SERIES = [
           { key: "omsaetning", label: "Omsætning", color: "hsl(var(--chart-positive))" },
           { key: "daekningsbidrag", label: "Dækningsbidrag", color: "hsl(var(--chart-warning))" },
