@@ -1612,12 +1612,18 @@ const CompanyChatPane = () => {
                         <p className="text-sm font-semibold text-foreground truncate">
                           {isGroupThread ? activeConv?.groupName || "Koncern" : activeConv?.companyName || "Ukendt"}
                         </p>
-                        {/* Member name shown directly under company name */}
-                        {!isGroupThread && activeConv?.profile?.full_name && (
-                          <p className="text-[11px] text-muted-foreground truncate leading-tight">
-                            {activeConv.profile.full_name}
-                          </p>
-                        )}
+                        {/* Member names shown directly under company name */}
+                        {!isGroupThread && (() => {
+                          const memberParticipants = participants.filter(p => !p.isAdvisor);
+                          const names = memberParticipants.length > 0
+                            ? memberParticipants.map(p => p.full_name).join(", ")
+                            : activeConv?.profile?.full_name || null;
+                          return names ? (
+                            <p className="text-[11px] text-muted-foreground truncate leading-tight">
+                              {names}
+                            </p>
+                          ) : null;
+                        })()}
                         {/* Quick nav links */}
                         {activeConv?.member_id && !isGroupThread && (
                           <div className="flex items-center gap-1 mt-0.5">
