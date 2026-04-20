@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
   BookOpen, Clock, StickyNote, Eye, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
-  ChevronRight, ChevronDown, Sparkles, ExternalLink,
+  ChevronRight, ChevronDown, Sparkles, ExternalLink, AlertCircle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -182,7 +182,7 @@ const AdvisorCompanyOverview = () => {
       const convIds = conversations.map(c => c.id);
       const assignedId = primaryConv?.assigned_advisor_id ?? null;
 
-      const [notesRes, advisorProfileRes] = await Promise.all([
+      const [notesRes, advisorProfileRes, membersRes] = await Promise.all([
         // Notes: only for this company's conversations
         convIds.length > 0
           ? supabase.from("conversation_notes")
@@ -196,7 +196,25 @@ const AdvisorCompanyOverview = () => {
               .eq("user_id", assignedId)
               .maybeSingle()
           : Promise.resolve({ data: null as { full_name: string; user_id: string } | null }),
+        // Company members + their profile names
+        supabase.from("company_members")
+          .select("user_id")
+          .eq("company_id", companyId!),
       ]);
+
+      // Resolve member full names
+      const memberUserIds = ((membersRes as any)?.data || []).map((m: any) => m.user_id).filter(Boolean);
+      let memberNames = "";
+      if (memberUserIds.length > 0) {
+        const { data: memberProfiles } = await supabase
+          .from("profiles")
+          .select("full_name, user_id")
+          .in("user_id", memberUserIds);
+        memberNames = (memberProfiles || [])
+          .map((p: any) => p.full_name)
+          .filter(Boolean)
+          .join(", ");
+      }
 
       // Notes: check if any conversation for this company has a note
       const noteConvIds = new Set(((notesRes as any).data || []).map((n: any) => n.conversation_id));
@@ -242,6 +260,7 @@ const AdvisorCompanyOverview = () => {
         
         assignedName,
         revenueTimeline,
+        memberNames,
       };
     },
     enabled: !!companyId && !!user,
@@ -368,461 +387,281 @@ const AdvisorCompanyOverview = () => {
   const latestPeriodLabel = latest ? formatReportKey(latest.key) : null;
   const handoutsCompleted = handoutData?.completed ?? 0;
   const handoutsTotal = handoutData?.total ?? 5;
+  const memberNames = data?.memberNames ?? "";
 
   return (
-    <div className="space-y-4 max-w-3xl">
-
-      {/* ── Header: virksomhedsnavn + handlinger ── */}
-      {isMobile ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { clearCompanyOverride(); navigate("/"); }}
-              className="p-1.5 rounded-lg hover:bg-accent transition-colors shrink-0"
-              title="Tilbage til portefølje"
-            >
-              <ArrowLeft className="h-4 w-4 text-muted-foreground" />
-            </button>
-            <h1 className="text-lg font-display font-bold text-foreground tracking-tight truncate flex-1">
-              {company?.name || companyName || "Virksomhed"}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pl-9 min-w-0">
+    <div className="space-y-5 max-w-3xl">
+      {/* ── Header ── */}
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => { clearCompanyOverride(); navigate("/"); }}
+          className="mt-1 p-1.5 rounded-lg hover:bg-accent transition-colors shrink-0"
+        >
+          <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-display font-bold text-foreground tracking-tight truncate">
+            {company?.name || companyName || "Virksomhed"}
+          </h1>
+          {/* Member names */}
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {memberNames || "—"}
+            {company?.industry_label && <span className="text-muted-foreground/50 mx-1.5">·</span>}
             {company?.industry_label && <span>{company.industry_label}</span>}
-            {company?.cvr_number && <><span>·</span><span>CVR {company.cvr_number}</span></>}
-            {data?.assignedName && <><span>·</span><span>{data.assignedName}</span></>}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={toggleViewMode} className="flex-1 gap-1.5">
-              <Eye className="h-3.5 w-3.5" />Vis som virksomhed
-            </Button>
-            {primaryMemberUserId && (
-              <Button variant="outline" size="sm" onClick={() => { clearCompanyOverride(); navigate(`/members/${primaryMemberUserId}`); }} className="flex-1 gap-1.5">
-                <ExternalLink className="h-3.5 w-3.5" />Se fuldt overblik
-              </Button>
-            )}
-          </div>
+            {data?.assignedName && <span className="text-muted-foreground/50 mx-1.5">·</span>}
+            {data?.assignedName && <span>Tildelt: {data.assignedName}</span>}
+          </p>
         </div>
-      ) : (
-        <div className="flex items-start gap-4">
-          <button
-            onClick={() => { clearCompanyOverride(); navigate("/"); }}
-            className="mt-1 p-1.5 rounded-lg hover:bg-accent transition-colors shrink-0"
-            title="Tilbage til portefølje"
-          >
-            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-display font-bold text-foreground tracking-tight truncate">
-              {company?.name || companyName || "Virksomhed"}
-            </h1>
-            <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-              {company?.industry_label && <span>{company.industry_label}</span>}
-              {company?.cvr_number && <><span>·</span><span>CVR {company.cvr_number}</span></>}
-              {data?.assignedName && <><span>·</span><span>{data.assignedName}</span></>}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {primaryMemberUserId && (
-              <Button variant="ghost" size="sm" onClick={() => { clearCompanyOverride(); navigate(`/members/${primaryMemberUserId}`); }} className="gap-1.5 text-muted-foreground">
-                <ExternalLink className="h-3.5 w-3.5" />Se fuldt overblik
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={toggleViewMode} className="gap-1.5">
-              <Eye className="h-3.5 w-3.5" />Vis som virksomhed
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Engagement status ── */}
-      <div className="flex items-center gap-4 px-4 py-2.5 bg-secondary/30 rounded-xl text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${hasReport ? "bg-primary" : "bg-muted-foreground/30"}`} />
-          <span className="text-muted-foreground">{hasReport ? `Rapport: ${latestPeriodLabel}` : "Ingen rapport endnu"}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${hasPulse ? "bg-blue-500" : "bg-muted-foreground/30"}`} />
-          <span className="text-muted-foreground">{hasPulse ? "Pulse udfyldt" : "Ingen pulse endnu"}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${handoutsCompleted > 0 ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
-          <span className="text-muted-foreground">{handoutsCompleted}/{handoutsTotal} handouts</span>
-        </div>
-      </div>
-
-      {/* ── AI ugens fokus ── */}
-      {weeklyFocus && (
-        <div className="flex items-start gap-3 px-4 py-3 bg-primary/5 border border-primary/10 rounded-xl">
-          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">AI-fokus denne uge</p>
-            <p className="text-xs font-medium text-foreground leading-snug">{weeklyFocus.headline}</p>
-            {weeklyFocus.summary && (
-              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">{weeklyFocus.summary}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Status Bar ── */}
-      <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
-        {/* Chat state */}
+        {/* Primary action button */}
         <Link
           to={primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat"}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium hover:bg-accent/50 transition-colors max-w-full min-w-0 ${chatState.color}`}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ${
+            primaryConv?.awaiting_reply_from === "advisor"
+              ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              : "border border-border bg-card hover:bg-accent text-foreground"
+          }`}
         >
-          <ChatIcon className="h-3.5 w-3.5" />
-          {chatState.label}
+          <MessageSquare className="h-3.5 w-3.5" />
+          {primaryConv?.awaiting_reply_from === "advisor" ? "Svar nu" : "Åbn chat"}
         </Link>
-
-        {/* Overdue follow-up (if not already shown in chat state) */}
-        {primaryConv?.follow_up_at && new Date(primaryConv.follow_up_at) <= new Date() && (
-          <Link
-            to={`/chat?conversationId=${primaryConv.id}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-destructive/20 bg-destructive/5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors max-w-full min-w-0"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Forfalden opfølgning
-          </Link>
-        )}
-
-        {/* Report status */}
-        {latest && (
-          <Link
-            to="/reports"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Seneste rapport: {formatReportKey(latest.key)}
-          </Link>
-        )}
-
-        {/* Internal note indicator — links to chat if possible, otherwise non-clickable */}
-        {hasNote && (
-          noteConvId ? (
-             <Link
-              to={`/chat?conversationId=${noteConvId}`}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground hover:bg-accent/50 transition-colors max-w-full min-w-0"
-              title="Intern note — se i chatten"
-            >
-              <StickyNote className="h-3.5 w-3.5" />
-              Note
-            </Link>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card text-xs text-muted-foreground max-w-full min-w-0" title="Intern note">
-              <StickyNote className="h-3.5 w-3.5" />
-              Note
-            </span>
-          )
-        )}
       </div>
 
-      {/* ── Primary action hint ── */}
-      {(() => {
-        if (primaryConv?.awaiting_reply_from === "advisor") {
-          return (
-            <Link
-              to={`/chat?conversationId=${primaryConv.id}`}
-              className="flex items-center gap-3 p-3 rounded-xl bg-destructive/5 border border-destructive/20 hover:bg-destructive/10 transition-colors"
-            >
-              <MessageSquare className="h-4 w-4 text-destructive flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-destructive">Afventer dit svar</p>
-                <p className="text-xs text-destructive/70">Åbn chatten og svar founder</p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-destructive/50 flex-shrink-0" />
-            </Link>
-          );
-        }
-        if (overdueMilestones.length > 0) {
-          return (
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-chart-warning/5 border border-chart-warning/20">
-              <Target className="h-4 w-4 text-chart-warning flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-chart-warning">
-                  {overdueMilestones.length} milestone{overdueMilestones.length > 1 ? "s" : ""} overskredet deadline
-                </p>
-                <p className="text-xs text-chart-warning/70 truncate">{overdueMilestones[0].title}</p>
-              </div>
-            </div>
-          );
-        }
-        if (!data?.latest) {
-          return (
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
-              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <p className="text-sm text-muted-foreground">Ingen rapport uploadet endnu</p>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* ── Financial Snapshot ── */}
-      {latest && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Seneste nøgletal · {formatReportKey(latest.key)}
-            {data?.previous ? ` vs. ${formatReportKey(data.previous.key)}` : ""}
+      {/* ── Chat status + follow-up ── */}
+      {primaryConv && (
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+          primaryConv.awaiting_reply_from === "advisor"
+            ? "bg-destructive/5 border-destructive/20"
+            : primaryConv.follow_up_at && new Date(primaryConv.follow_up_at) > new Date()
+            ? "bg-amber-500/5 border-amber-500/20"
+            : "bg-secondary/30 border-border"
+        }`}>
+          <MessageSquare className={`h-4 w-4 shrink-0 ${
+            primaryConv.awaiting_reply_from === "advisor" ? "text-destructive" :
+            primaryConv.follow_up_at ? "text-amber-600" : "text-muted-foreground"
+          }`} />
+          <p className="text-sm font-medium text-foreground flex-1">
+            {deriveChatState(primaryConv).label}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <TrendMetric
-              icon={DollarSign}
-              label="Omsætning"
-              current={latest.kf.omsaetning}
-              previous={data?.previous?.kf.omsaetning}
-              hasPrevious={!!data?.previous}
-            />
-            <TrendMetric
-              icon={TrendingUp}
-              label="Resultat"
-              current={latest.kf.resultat_foer_skat}
-              previous={data?.previous?.kf.resultat_foer_skat}
-              hasPrevious={!!data?.previous}
-              negativeIsRed
-            />
-            <TrendMetric
-              icon={Wallet}
-              label="Bank"
-              current={bankReport?.kf.bank_balance}
-              previous={data?.bankPrevious?.kf.bank_balance}
-              hasPrevious={!!data?.bankPrevious}
-              periodNote={bankReport && bankReport.key !== latest.key ? `pr. ${formatReportKey(bankReport.key)}` : undefined}
-            />
-          </div>
+          {primaryConv.follow_up_at && new Date(primaryConv.follow_up_at) <= new Date() && (
+            <span className="text-xs text-destructive font-medium">Forfalden</span>
+          )}
         </div>
       )}
 
-      {/* ── Revenue Sparkline ── */}
-      {data?.revenueTimeline && data.revenueTimeline.length >= 3 && (() => {
-        const tl = data.revenueTimeline;
-        const first = tl[0].value;
-        const last = tl[tl.length - 1].value;
-        const totalDelta = first !== 0 ? Math.round(((last - first) / Math.abs(first)) * 100) : 0;
-        if (Math.abs(totalDelta) < 5) return null;
-        const isPositive = last >= first;
-        const lineColor = isPositive ? "#1D9E75" : "#E24B4A";
-        return (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                Omsætning — {formatReportKey(tl[0].key)} til {formatReportKey(tl[tl.length - 1].key)}
-              </p>
-              <span className={`text-[11px] font-semibold ${isPositive ? "text-emerald-600" : "text-destructive"}`}>
-                {totalDelta >= 0 ? "+" : ""}{totalDelta}%
-              </span>
-            </div>
-            <ResponsiveContainer width="100%" height={48}>
-              <LineChart data={tl}>
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={lineColor}
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+      {/* ── Financial snapshot ── */}
+      {latest ? (
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Seneste rapport · {formatReportKey(latest.key)}
+            </p>
+            <Link
+              to={`/members/${primaryMemberUserId}?section=reports`}
+              className="text-[11px] text-primary hover:underline"
+              onClick={() => clearCompanyOverride()}
+            >
+              Se alle rapporter →
+            </Link>
           </div>
-        );
-      })()}
+          <div className="grid grid-cols-3 gap-4">
+            <TrendMetric icon={DollarSign} label="Omsætning" current={latest.kf.omsaetning} previous={data?.previous?.kf.omsaetning} hasPrevious={!!data?.previous} />
+            <TrendMetric icon={TrendingUp} label="Resultat" current={latest.kf.resultat_foer_skat} previous={data?.previous?.kf.resultat_foer_skat} hasPrevious={!!data?.previous} negativeIsRed />
+            <TrendMetric icon={Wallet} label="Bank" current={bankReport?.kf.bank_balance} previous={data?.bankPrevious?.kf.bank_balance} hasPrevious={!!data?.bankPrevious} periodNote={bankReport && bankReport.key !== latest.key ? `pr. ${formatReportKey(bankReport.key)}` : undefined} />
+          </div>
+          {/* Revenue trend sparkline */}
+          {data?.revenueTimeline && data.revenueTimeline.length >= 3 && (() => {
+            const tl = data.revenueTimeline;
+            const first = tl[0].value;
+            const last = tl[tl.length - 1].value;
+            const totalDelta = first !== 0 ? Math.round(((last - first) / Math.abs(first)) * 100) : 0;
+            if (Math.abs(totalDelta) < 3) return null;
+            const lineColor = last >= first ? "#1D9E75" : "#E24B4A";
+            return (
+              <div className="mt-4 border-t border-border pt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-muted-foreground">Omsætningstrend — {tl.length} måneder</p>
+                  <span className={`text-[11px] font-semibold ${last >= first ? "text-emerald-600" : "text-destructive"}`}>
+                    {totalDelta >= 0 ? "+" : ""}{totalDelta}%
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={40}>
+                  <LineChart data={tl}>
+                    <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-secondary/20">
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          <p className="text-sm text-muted-foreground">Ingen rapport uploadet endnu</p>
+        </div>
+      )}
 
-      {/* ── Details toggle ── */}
-      <button
-        onClick={() => setShowDetails(v => !v)}
-        className="flex items-center justify-between w-full px-3 py-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-left"
-      >
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {latestPulse && (
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              Pulse: {latestPulse.milestone_progress != null ? `${latestPulse.milestone_progress}% milestone` : "indsendt"}
-            </span>
-          )}
-          {milestones.length > 0 && (
-            <span className="flex items-center gap-1">
-              <div className={`h-1.5 w-1.5 rounded-full ${overdueMilestones.length > 0 ? "bg-destructive" : "bg-chart-warning"}`} />
-              {milestones.length} milestone{milestones.length !== 1 ? "s" : ""}
-              {overdueMilestones.length > 0 && <span className="text-destructive">({overdueMilestones.length} overskredet)</span>}
-            </span>
-          )}
-          {handoutsTotal > 0 && (
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              {handoutsCompleted}/{handoutsTotal} handouts
-            </span>
+      {/* ── Two-column: Pulse + Milestones ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Pulse */}
+        <div className="glass-card rounded-xl p-4">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Pulse check-in
+            {latestPulse?.period_key && (() => {
+              const [year, month] = latestPulse.period_key.split("-");
+              const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+              return ` · ${months[parseInt(month,10)-1]} ${year}`;
+            })()}
+          </p>
+          {latestPulse ? (
+            <div className="space-y-2.5">
+              {latestPulse.went_well && (
+                <div>
+                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Hvad gik godt</p>
+                  <p className="text-xs text-foreground leading-relaxed">{latestPulse.went_well}</p>
+                </div>
+              )}
+              {latestPulse.biggest_challenge && (
+                <div>
+                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Største udfordring</p>
+                  <p className="text-xs text-foreground leading-relaxed">{latestPulse.biggest_challenge}</p>
+                </div>
+              )}
+              {(latestPulse as any).help_needed && (
+                <div className="flex items-start gap-1.5 px-2.5 py-2 bg-amber-500/8 rounded-lg border border-amber-500/20">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">{(latestPulse as any).help_needed}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/60 italic">Ingen check-in denne måned</p>
           )}
         </div>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showDetails ? "rotate-180" : ""}`} />
-      </button>
 
-      {showDetails && (
-        <div className="space-y-3">
-          {/* ── Pulse Check-in ── */}
-          {latestPulse && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Pulse check-in · {(() => {
-                    const [year, month] = (latestPulse.period_key || "").split("-");
-                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
-                    return `${months[parseInt(month,10)-1] || month} ${year}`;
-                  })()}
-                </p>
-                {latestPulse.milestone_progress != null && (
-                  <span className="text-xs font-semibold text-primary">
-                    {latestPulse.milestone_progress}% på milestone
-                  </span>
-                )}
-              </div>
-              <div className="space-y-3">
-                {latestPulse.went_well && (
-                  <div>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      Hvad gik godt
-                    </p>
-                    <p className="text-sm text-foreground leading-relaxed">
-                      {latestPulse.went_well}
-                    </p>
-                  </div>
-                )}
-                {latestPulse.biggest_challenge && (
-                  <div>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      Største udfordring
-                    </p>
-                    <p className="text-sm text-foreground leading-relaxed">
-                      {latestPulse.biggest_challenge}
-                    </p>
-                  </div>
-                )}
-                {(latestPulse as any).help_needed && (
-                  <div>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                      Brug for hjælp til
-                    </p>
-                    <p className="text-sm text-foreground leading-relaxed">
-                      {(latestPulse as any).help_needed}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {!latestPulse && (
-            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                Pulse check-in
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Medlemmet har endnu ikke udfyldt et check-in denne måned.
-              </p>
-            </div>
-          )}
-
-          {/* ── Milestones ── */}
-          {milestones.length > 0 && (
-            <div className="glass-card rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Aktive milestones
-                </p>
-                {overdueMilestones.length > 0 && (
-                  <span className="text-[10px] font-semibold text-destructive">
-                    {overdueMilestones.length} overskredet
-                  </span>
-                )}
-              </div>
-              <div className="space-y-2">
-                {milestones.slice(0, 4).map(m => {
-                  const isOverdue = m.deadline && new Date(m.deadline) < new Date();
-                  return (
-                    <div key={m.id} className="flex items-center gap-2.5">
-                      <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                        isOverdue ? "bg-destructive" :
-                        m.progress >= 70 ? "bg-primary" : "bg-chart-warning"
-                      }`} />
-                      <span className="text-xs text-foreground flex-1 truncate">
+        {/* Milestones */}
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Milestones</p>
+            {primaryMemberUserId && (
+              <Link
+                to={`/members/${primaryMemberUserId}?section=milestones`}
+                className="text-[11px] text-primary hover:underline"
+                onClick={() => clearCompanyOverride()}
+              >
+                Se alle →
+              </Link>
+            )}
+          </div>
+          {milestones.length > 0 ? (
+            <div className="space-y-2">
+              {milestones.slice(0, 5).map((m: any) => {
+                const isOverdue = m.deadline && new Date(m.deadline) < new Date();
+                return (
+                  <div key={m.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-xs truncate flex-1 ${isOverdue ? "text-destructive" : "text-foreground"}`}>
                         {m.title}
+                      </p>
+                      <span className={`text-[10px] shrink-0 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
+                        {m.deadline ? new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short" }) : ""}
                       </span>
-                      {(m as any).target_value && (m as any).unit && (
-                        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                          {(m as any).current_value ?? 0}/{(m as any).target_value} {(m as any).unit}
-                        </span>
-                      )}
-                      {m.deadline && (
-                        <span className={`text-[10px] shrink-0 ${
-                          isOverdue ? "text-destructive" : "text-muted-foreground"
-                        }`}>
-                          {new Date(m.deadline).toLocaleDateString("da-DK",
-                            { day: "numeric", month: "short" })}
-                        </span>
-                      )}
                     </div>
-                  );
-                })}
-                {milestones.length > 4 && (
-                  <p className="text-[10px] text-muted-foreground pl-3.5">
-                    +{milestones.length - 4} flere
-                  </p>
-                )}
-              </div>
+                    <div className="h-1 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${m.progress >= 100 ? "bg-primary" : isOverdue ? "bg-destructive" : "bg-chart-warning"}`}
+                        style={{ width: `${m.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {milestones.length > 5 && (
+                <p className="text-[10px] text-muted-foreground">+{milestones.length - 5} flere</p>
+              )}
             </div>
-          )}
-
-          {/* ── Handouts ── */}
-          {handoutsTotal > 0 && (
-            <div className="glass-card rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Handouts
-                </p>
-                <span className="text-xs font-semibold text-foreground">
-                  {handoutsCompleted}/{handoutsTotal} fulgt
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${(handoutsCompleted / handoutsTotal) * 100}%` }}
-                />
-              </div>
-            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/60 italic">Ingen aktive milestones</p>
           )}
         </div>
-      )}
-
-      {!latest && (
-        <div className="rounded-xl border border-border bg-card p-4 text-center">
-          <p className="text-sm text-muted-foreground">Ingen rapporter er behandlet endnu. Upload den første via Rapporter.</p>
-        </div>
-      )}
-
-      {/* ── Quick Links ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {[
-          { to: primaryConv ? `/chat?conversationId=${primaryConv.id}` : "/chat", icon: MessageSquare, label: "Chat", direct: true },
-          { to: "/reports", icon: FileText, label: "Rapporter", direct: false },
-          { to: "/handouts", icon: BookOpen, label: "Handouts", direct: false },
-          { to: "/milestones", icon: Target, label: "Milestones", direct: false },
-          { to: "/kpis", icon: BarChart3, label: "KPI'er", direct: false },
-        ].map(link => (
-          <button
-            key={link.label}
-            onClick={() => {
-              if (!link.direct && companyId && companyName) {
-                setCompanyOverride(companyId, companyName);
-              }
-              navigate(link.to);
-            }}
-            className="flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border border-border bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-center group"
-          >
-            <link.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">{link.label}</span>
-          </button>
-        ))}
       </div>
+
+      {/* ── Handouts + Weekly focus ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Handouts</p>
+            {primaryMemberUserId && (
+              <Link
+                to={`/members/${primaryMemberUserId}?handout=overordnet`}
+                className="text-[11px] text-primary hover:underline"
+                onClick={() => clearCompanyOverride()}
+              >
+                Se handouts →
+              </Link>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${((handoutData?.completed ?? 0) / (handoutData?.total ?? 5)) * 100}%` }}
+              />
+            </div>
+            <span className="text-sm font-semibold text-foreground shrink-0">
+              {handoutData?.completed ?? 0}/{handoutData?.total ?? 5}
+            </span>
+          </div>
+        </div>
+
+        {weeklyFocus ? (
+          <div className="glass-card rounded-xl p-4">
+            <p className="text-[11px] font-semibold text-primary uppercase tracking-wider mb-2">AI-fokus denne uge</p>
+            <p className="text-xs font-medium text-foreground leading-snug">{weeklyFocus.headline}</p>
+            {weeklyFocus.summary && (
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed line-clamp-3">{weeklyFocus.summary}</p>
+            )}
+          </div>
+        ) : (
+          <div className="glass-card rounded-xl p-4 flex items-center justify-center">
+            <p className="text-xs text-muted-foreground/40">Ingen AI-fokus denne uge</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Intern note (always visible) ── */}
+      {hasNote && noteConvId && (
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <StickyNote className="h-3.5 w-3.5 text-amber-600" />
+            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Intern note</p>
+            <Link to={`/chat?conversationId=${noteConvId}`} className="ml-auto text-[11px] text-primary hover:underline">
+              Se i chat →
+            </Link>
+          </div>
+          <p className="text-xs text-muted-foreground italic">Note er gemt — klik for at se og redigere i chatten</p>
+        </div>
+      )}
+
+      {/* ── Quick links ── */}
+      {primaryMemberUserId && (
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "Rapporter", path: `/members/${primaryMemberUserId}?section=reports` },
+            { label: "Milestones", path: `/members/${primaryMemberUserId}?section=milestones` },
+            { label: "Handouts", path: `/members/${primaryMemberUserId}?section=handouts` },
+            { label: "Fuldt overblik", path: `/members/${primaryMemberUserId}` },
+          ].map(link => (
+            <Link
+              key={link.label}
+              to={link.path}
+              onClick={() => clearCompanyOverride()}
+              className="flex items-center justify-center px-3 py-2.5 rounded-xl border border-border bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-xs font-medium text-muted-foreground hover:text-primary"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
