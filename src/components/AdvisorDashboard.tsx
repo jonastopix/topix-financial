@@ -1262,7 +1262,7 @@ const AdvisorDashboard = () => {
                     </td>
                     <td className="py-2.5 px-3 hidden sm:table-cell">
                       <p className="text-[11px] text-muted-foreground truncate max-w-[100px]">
-                        {((data?.companies || []) as any[]).find((co: any) => co.id === c.company_id)?.memberName || "—"}
+                        {data?.companyMemberNameMap?.get(c.company_id) || "—"}
                       </p>
                     </td>
                     <td className="py-2.5 px-3 text-center hidden sm:table-cell">
