@@ -361,22 +361,47 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
     }
 
     case "notify_advisor": {
+      // Find assigned advisor for this company
+      const { data: conv } = await adminClient
+        .from("conversations")
+        .select("assigned_advisor_id, member_id")
+        .eq("company_id", args.company_id)
+        .maybeSingle();
+
+      const advisorId = conv?.assigned_advisor_id;
+      const memberId = conv?.member_id;
+
+      // In-app notification (always, regardless of Slack)
+      if (advisorId) {
+        await adminClient
+          .from("advisor_notifications")
+          .insert({
+            type: "agent_insight",
+            title: "AI-agent har analyseret ny rapport",
+            body: args.message,
+            company_id: args.company_id,
+            member_id: memberId || advisorId,
+            reference_type: "agent",
+          });
+      }
+
+      // Slack notification (best effort)
       const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
       const slackChannel = Deno.env.get("SLACK_ADVISOR_CHANNEL_ID");
-      if (!slackToken || !slackChannel) {
-        return { ok: false, reason: "slack_not_configured" };
+      if (slackToken && slackChannel) {
+        const resp = await fetch("https://slack.com/api/chat.postMessage", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${slackToken}`,
+            "Content-Type": "application/json; charset=utf-8",
+          },
+          body: JSON.stringify({ channel: slackChannel, text: args.message }),
+        });
+        const data = await resp.json();
+        if (!data.ok) console.warn("Slack notification failed:", data.error);
       }
-      const resp = await fetch("https://slack.com/api/chat.postMessage", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${slackToken}`,
-          "Content-Type": "application/json; charset=utf-8",
-        },
-        body: JSON.stringify({ channel: slackChannel, text: args.message }),
-      });
-      const data = await resp.json();
-      if (!data.ok) return { ok: false, reason: data.error ?? "slack_error" };
-      return { ok: true };
+
+      return { ok: true, in_app: !!advisorId, slack: !!(slackToken && slackChannel) };
     }
 
     case "update_weekly_focus": {
