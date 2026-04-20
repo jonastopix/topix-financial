@@ -144,6 +144,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   disabled = false,
   placeholder = "Skriv en besked...",
   maxLength = 5000,
+  onRequestSubmit,
 }) => {
   const editorRef = useRef<Editor | null>(null);
   const submitRef = useRef<() => void>(() => {});
