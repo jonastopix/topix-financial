@@ -840,11 +840,11 @@ const MemberDetail = () => {
 
             <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/30">
               <Link
-                to={`/chat`}
+                to={conversationId ? `/chat?conversationId=${conversationId}` : `/chat`}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
-                Skriv besked
+                Åbn chat
               </Link>
               <span className="text-xs text-muted-foreground">
                 {reports.length > 0
@@ -902,10 +902,10 @@ const MemberDetail = () => {
                   </p>
                 </div>
                 <Link
-                  to="/chat"
+                  to={conversationId ? `/chat?conversationId=${conversationId}` : `/chat`}
                   className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-accent transition-colors"
                 >
-                  Send reminder →
+                  Åbn chat →
                 </Link>
               </div>
             </div>
