@@ -1682,8 +1682,8 @@ const CompanyChatPane = () => {
                           <div className="flex items-center gap-1 mt-0.5">
                             {[
                               { label: "Overblik", path: `/members/${activeConv.member_id}` },
-                              { label: "KPI'er", path: `/members/${activeConv.member_id}?tab=kpis` },
-                              { label: "Rapporter", path: `/members/${activeConv.member_id}?tab=reports` },
+                              { label: "Milestones", path: `/members/${activeConv.member_id}?section=milestones` },
+                              { label: "Rapporter", path: `/members/${activeConv.member_id}?section=reports` },
                             ].map(({ label, path }) => (
                               <button
                                 key={label}
