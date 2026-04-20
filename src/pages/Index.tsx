@@ -20,7 +20,6 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 
 import AdvisorDashboard from "@/components/AdvisorDashboard";
-import AdvisorCompanyOverview from "@/components/AdvisorCompanyOverview";
 
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
@@ -317,14 +316,6 @@ const Dashboard = () => {
           </h1>
         </div>
         <AdvisorDashboard />
-      </AppLayout>
-    );
-  }
-
-  if (isAdvisor && companyId) {
-    return (
-      <AppLayout>
-        <AdvisorCompanyOverview />
       </AppLayout>
     );
   }

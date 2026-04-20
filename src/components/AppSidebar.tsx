@@ -535,6 +535,8 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                               setCompanyOverride(c.id, c.name);
                               setShowCompanyPicker(false);
                               setCompanySearch("");
+                              // Navigate to members list — from there click into MemberDetail
+                              navigate("/members");
                             }}
                             className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm hover:bg-secondary/60 transition-colors text-foreground"
                           >
@@ -593,6 +595,8 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                               setCompanyOverride(c.id, c.name);
                               setShowCompanyPicker(false);
                               setCompanySearch("");
+                              // Navigate to members list — from there click into MemberDetail
+                              navigate("/members");
                             }}
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-secondary/60 transition-colors text-foreground"
                           >
