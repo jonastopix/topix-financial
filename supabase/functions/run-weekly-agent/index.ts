@@ -40,19 +40,27 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    // Invoke the agent for this company — non-blocking per company
-    const { error: agentError } = await adminClient.functions.invoke("run-company-agent", {
-      body: {
+    // Call agent directly via HTTP using service role key as Bearer token
+    const agentUrl = `${supabaseUrl}/functions/v1/run-company-agent`;
+
+    const agentResp = await fetch(agentUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
         company_id: company.id,
         trigger: "weekly_cron",
         period_key: latestFact.period_key,
         period_label: latestFact.period_label,
-      },
+      }),
     });
 
+    const agentResult = agentResp.ok ? await agentResp.json() : null;
     results.push({
       company_id: company.id,
-      status: agentError ? `error: ${agentError.message}` : "triggered",
+      status: agentResult?.ok ? "triggered" : `error: ${agentResult?.error || agentResp.status}`,
     });
 
     // Small delay between companies to avoid rate limiting
