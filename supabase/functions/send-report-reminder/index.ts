@@ -360,7 +360,6 @@ Deno.serve(async (req) => {
         } catch (e) {
           console.error(`Error ${email}:`, e);
         }
-      }
     }
 
     const summary = { sent, skipped, period: expectedPeriod, test_mode: !emailEnabled };
