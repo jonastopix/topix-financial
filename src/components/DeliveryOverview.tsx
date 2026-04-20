@@ -99,7 +99,11 @@ const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => 
 
             <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
               {group.months.map(({ key, month, year, report }) => {
-                const isPast = new Date(key + "-28") < new Date();
+                // A month is past only when we're in a later month — consistent with commit blocking
+                const [slotYear, slotMonth] = key.split("-").map(Number);
+                const now = new Date();
+                const isPast = slotYear < now.getFullYear() ||
+                  (slotYear === now.getFullYear() && slotMonth < now.getMonth() + 1);
                 const status = report?.status;
                 return (
                   <div
