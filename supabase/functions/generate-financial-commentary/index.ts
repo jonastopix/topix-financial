@@ -6,10 +6,12 @@
  * This function:
  *   1. Validates caller auth + access
  *   2. Loads committed facts for the target period
- *   3. Builds canonical AI payload server-side (current-period-only)
- *   4. Calls ai-financial-feedback edge function
- *   5. Persists commentary in financial_commentaries via service-role
- *   6. Returns the new commentary row
+ *   3. Computes basis_metrics_hash
+ *   4. Idempotency guard — returns existing fresh commentary if same hash
+ *   5. Builds canonical AI payload server-side (current-period-only)
+ *   6. Calls ai-financial-feedback edge function
+ *   7. Persists commentary in financial_commentaries via service-role
+ *   8. Returns the new commentary row
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -54,9 +56,40 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "No committed facts found for this period" }, 404);
     }
 
-    // 4. Build canonical AI payload server-side (current-period-only — no historical context in RP-2)
     const metrics = facts.metrics as Record<string, unknown>;
 
+    // 4. Compute basis hash early so we can guard against duplicates
+    const basisMetricsHash = await computeMetricsHash(metrics);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // 4b. Idempotency: hvis der allerede findes en frisk commentary for samme
+    // (company_id, period_key, basis_metrics_hash), returnér den i stedet for
+    // at oprette en dublet. Dette beskytter mod dobbelt-trigger fra
+    // ReportReviewDialog (fx ved "Erstat gammel data" eller dobbeltklik).
+    const { data: existing } = await adminClient
+      .from("financial_commentaries")
+      .select("*")
+      .eq("company_id", company_id)
+      .eq("period_key", period_key)
+      .eq("basis_metrics_hash", basisMetricsHash)
+      .eq("is_stale", false)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      console.log(
+        `[generate-financial-commentary] Skipping duplicate for ${company_id}/${period_key} — existing id ${existing.id}`
+      );
+      return new Response(JSON.stringify(existing), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 5. Build canonical AI payload server-side (current-period-only — no historical context in RP-2)
     const canonicalPayload = {
       input_type: "canonical" as const,
       company_name: companyData.name,
@@ -69,13 +102,9 @@ Deno.serve(async (req) => {
       metrics,
     };
 
-    // 4b. Fetch budget for the same period to enrich AI analysis
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // 5b. Fetch budget for the same period to enrich AI analysis
     const periodYear = period_key.split("-")[0];
     const periodMonth = parseInt(period_key.split("-")[1], 10) - 1;
-
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: budgetRows } = await adminClient
       .from("budget_targets")
@@ -95,7 +124,7 @@ Deno.serve(async (req) => {
       budgetContext = `\nBUDGETMÅL FOR ${period_key}:\n- Budgetteret omsætning: ${Math.round(budgetRevenue).toLocaleString("da-DK")} kr.\n- Budgetterede omkostninger: ${Math.round(budgetCosts).toLocaleString("da-DK")} kr.\n- Budgetteret EBITDA: ${Math.round(budgetEbitda).toLocaleString("da-DK")} kr.\n- Budget EBITDA-margin: ${budgetRevenue > 0 ? ((budgetEbitda / budgetRevenue) * 100).toFixed(1) : "—"}%\nSammenlign altid med disse budgetmål i analysen når de er tilgængelige.\nAngiv afvigelse i procent: f.eks. "Omsætningen er 12% under budgetmålet".\n`;
     }
 
-    // 5. Call ai-financial-feedback edge function (server-to-server with caller's auth)
+    // 6. Call ai-financial-feedback edge function (server-to-server with caller's auth)
     const aiFeedbackUrl = `${supabaseUrl}/functions/v1/ai-financial-feedback`;
 
     const aiResponse = await fetch(aiFeedbackUrl, {
@@ -133,11 +162,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 6. Compute basis hash using the same function as the DB trigger
-    const basisMetricsHash = await computeMetricsHash(metrics);
-
-    // 7. Persist commentary via service-role (adminClient already created above)
-
+    // 7. Persist commentary via service-role
     const { data: commentary, error: insertErr } = await adminClient
       .from("financial_commentaries")
       .insert({
@@ -177,9 +202,6 @@ Deno.serve(async (req) => {
  * We replicate this by using the same JSON stringification approach.
  */
 async function computeMetricsHash(metrics: Record<string, unknown>): Promise<string> {
-  // PostgreSQL jsonb::text produces a canonical form. We use JSON.stringify
-  // but to match PostgreSQL's md5(jsonb::text), we query the DB function directly.
-  // Safest approach: call the DB function.
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
