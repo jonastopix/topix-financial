@@ -284,7 +284,7 @@ const tools = [
   },
 ];
 
-async function executeTool(name: string, args: any, adminClient: any): Promise<any> {
+async function executeTool(name: string, args: any, adminClient: any, trigger: string): Promise<any> {
   switch (name) {
     case "get_company_facts": {
       const limit = args.limit ?? 6;
@@ -401,7 +401,7 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
           content: args.content,
           message_type: "system",
           context_type: "agent",
-          context_meta: { source: "run-company-agent", trigger: "report_committed" },
+          context_meta: { source: "run-company-agent", trigger },
         })
         .select("id")
         .single();
@@ -462,6 +462,7 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
             body: args.message,
             company_id: args.company_id,
             member_id: memberId || advisorId,
+            advisor_id: advisorId || null,
             reference_type: "agent",
           });
       }
@@ -501,8 +502,8 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
           status: "active",
           headline: args.headline,
           summary: args.summary,
-          triggers_fired: ["report_committed"],
-          trigger_data: { trigger: "report_committed" },
+          triggers_fired: [trigger],
+          trigger_data: { trigger },
           actions_generated: 1,
           generated_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
@@ -868,7 +869,7 @@ ${trigger === "pulse_submitted"
 
         let toolResult: any;
         try {
-          toolResult = await executeTool(toolName, toolArgs, adminClient);
+          toolResult = await executeTool(toolName, toolArgs, adminClient, trigger);
         } catch (err) {
           console.error(`Tool ${toolName} failed:`, err);
           toolResult = { error: err instanceof Error ? err.message : "Tool execution failed" };
