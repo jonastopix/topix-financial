@@ -100,6 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [groupName, setGroupName] = useState<string | null>(null);
   const [isGroupFeatureEnabled, setIsGroupFeatureEnabled] = useState(false);
   const [isGroupOwner, setIsGroupOwner] = useState(false);
+  const [membershipTier, setMembershipTier] = useState<"full" | "subscriber" | "expired" | null>(null);
   const [welcomeDismissedAt, setWelcomeDismissedAt] = useState<string | null>(null);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
