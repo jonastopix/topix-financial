@@ -152,6 +152,7 @@ export type Database = {
       }
       advisor_notifications: {
         Row: {
+          advisor_id: string | null
           body: string | null
           company_id: string
           created_at: string
@@ -164,6 +165,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          advisor_id?: string | null
           body?: string | null
           company_id: string
           created_at?: string
@@ -176,6 +178,7 @@ export type Database = {
           type: string
         }
         Update: {
+          advisor_id?: string | null
           body?: string | null
           company_id?: string
           created_at?: string
