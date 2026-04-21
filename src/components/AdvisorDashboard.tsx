@@ -465,6 +465,17 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Unread agent messages per company
+      const unreadAgentByCompany = new Map<string, number>();
+      const convIdToCompanyId = new Map<string, string>();
+      for (const c of conversations) {
+        if (c.company_id && c.id) convIdToCompanyId.set(c.id, c.company_id);
+      }
+      for (const msg of (unreadAgentMsgsRes.data || []) as any[]) {
+        const compId = convIdToCompanyId.get(msg.conversation_id);
+        if (compId) unreadAgentByCompany.set(compId, (unreadAgentByCompany.get(compId) || 0) + 1);
+      }
+
       // Build report keys per company + KFs by period
       const reportKeysByCompany = new Map<string, Set<string>>();
       const kfByCompanyPeriod = new Map<string, Map<string, Record<string, number>>>();
@@ -597,6 +608,7 @@ const AdvisorDashboard = () => {
           latestPulse: pulse,
           needsAttention,
           unreadMessages: unreadByCompany.get(c.id) || 0,
+          unreadAgentMessages: unreadAgentByCompany.get(c.id) || 0,
           milestones: milestonesByCompany.get(c.id) || [],
           kpiTargets: kpiByCompany.get(c.id) || [],
           hasWeeklyFocus: weeklyFocusCompanies.has(c.id),
@@ -667,6 +679,10 @@ const AdvisorDashboard = () => {
           if (c.unreadMessages > 0) {
             reasons.push({ label: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, urgency: "high" });
             score += 100;
+          }
+          if (c.unreadAgentMessages > 0) {
+            reasons.push({ label: "AI-indsigt klar til opfølgning", urgency: "medium" });
+            score += 35;
           }
           if (c.cash != null && c.cash < 0) {
             reasons.push({ label: "Bankovertræk", urgency: "high" });
