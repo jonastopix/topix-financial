@@ -233,6 +233,7 @@ const MemberDetail = () => {
   const [sessionBullets, setSessionBullets] = useState<string[]>([]);
   const [loadingSession, setLoadingSession] = useState(false);
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
+  const [showAgentLog, setShowAgentLog] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
@@ -251,6 +252,28 @@ const MemberDetail = () => {
     },
     enabled: !!memberCompanyId,
     staleTime: 5 * 60_000,
+  });
+
+  const { data: agentMessages = [] } = useQuery({
+    queryKey: ["agent-log", memberCompanyId],
+    queryFn: async () => {
+      if (!memberCompanyId) return [];
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("company_id", memberCompanyId)
+        .maybeSingle();
+      if (!conv) return [];
+      const { data } = await supabase
+        .from("messages")
+        .select("id, content, created_at, context_meta")
+        .eq("conversation_id", conv.id)
+        .eq("context_type", "agent")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+    enabled: !!memberCompanyId,
   });
 
 
@@ -1172,6 +1195,41 @@ const MemberDetail = () => {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* ───── Agent log ───── */}
+          <div className="mt-6 mb-6">
+            <button
+              onClick={() => setShowAgentLog(v => !v)}
+              className="flex items-center gap-2 text-sm font-medium text-foreground mb-3"
+            >
+              <Sparkles className="h-4 w-4 text-primary" />
+              Agent-log
+              <span className="text-xs font-normal text-muted-foreground ml-1">({agentMessages.length})</span>
+              {showAgentLog ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            {showAgentLog && (
+              <div className="space-y-2">
+                {agentMessages.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Agenten har ikke kørt endnu for denne virksomhed.</p>
+                ) : agentMessages.map((msg: any) => (
+                  <div key={msg.id} className="rounded-lg border border-border/40 bg-muted/20 p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-medium text-primary uppercase tracking-wider">Agent</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(new Date(msg.created_at), "d. MMM yyyy HH:mm", { locale: da })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-foreground line-clamp-3">{msg.content}</p>
+                    {(msg.context_meta as any)?.feedback && (
+                      <span className="text-[10px] text-muted-foreground mt-1 block">
+                        Feedback: {(msg.context_meta as any).feedback === "up" ? "Nyttigt" : "Ikke nyttigt"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ───── Reports section ───── */}
