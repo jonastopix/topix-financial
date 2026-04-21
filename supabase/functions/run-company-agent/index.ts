@@ -37,6 +37,7 @@ HVAD DU IKKE GØR:
 - Roser ikke bare for at rose — vær ærlig
 - Hvis get_budget_vs_actual viser afvigelser over 20%, skal dette altid nævnes konkret i din besked — det er det founder har brug for at vide
 - Hvis get_handout_levers viser et relevant ugennemført modul der matcher en udfordring i tallene, nævn det som et konkret næste skridt
+- Analyser altid den periode der er angivet i triggeren (period_key) — ikke den nyeste periode. Når en founder backfiller gamle rapporter, er det den committede periode der er relevant, ikke den seneste i databasen.
 
 FORTEGN PÅ TAL (vigtigt):
 
@@ -50,7 +51,7 @@ const tools = [
     function: {
       name: "get_company_facts",
       description:
-        "Henter committede finansielle nøgletal for virksomheden. Returnerer de seneste perioder med revenue, gross_profit, ebt, payroll, cash m.fl.",
+        "Henter committede finansielle nøgletal for virksomheden sorteret med nyeste først. Bemærk: facts[0] er den seneste periode — men ved report_committed trigger skal du primært analysere den periode der matcher period_key fra triggeren, ikke automatisk den nyeste.",
       parameters: {
         type: "object",
         properties: {
@@ -443,6 +444,16 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
     }
 
     case "create_milestone": {
+      // Check for existing milestone with same title
+      const { data: existing } = await adminClient
+        .from("milestones")
+        .select("id")
+        .eq("company_id", args.company_id)
+        .ilike("title", args.title)
+        .eq("status", "active")
+        .maybeSingle();
+      if (existing) return { ok: false, reason: "milestone_already_exists", id: existing.id };
+
       const { data: member, error: memberErr } = await adminClient
         .from("company_members")
         .select("user_id")

@@ -1899,6 +1899,7 @@ const CompanyChatPane = () => {
                     let lastDateKey = "";
                     let unreadDividerShown = false;
                     return messages.map((msg, msgIdx) => {
+                      if (msg.context_type === "session_prep" && !isAdvisor) return null;
                       const isMine = msg.sender_id === user?.id;
                       const contextType = msg.context_type || null;
                       const contextMeta = msg.context_meta || null;
