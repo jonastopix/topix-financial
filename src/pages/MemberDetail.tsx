@@ -233,6 +233,7 @@ const MemberDetail = () => {
   const [sessionBullets, setSessionBullets] = useState<string[]>([]);
   const [loadingSession, setLoadingSession] = useState(false);
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
+  const [showAgentLog, setShowAgentLog] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
