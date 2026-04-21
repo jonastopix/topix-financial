@@ -1553,7 +1553,7 @@ const Members = () => {
                   </div>
 
                   <button
-                    onClick={() => { setParsed(false); setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" }); }}
+                    onClick={() => { setParsed(false); setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" }); }}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
                     ← Upload anden fil
