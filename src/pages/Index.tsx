@@ -45,9 +45,6 @@ function budgetPeriodToKey(period: string): string | null {
 
 const Dashboard = () => {
   const { user, profile, companyId, isAdvisor: rawAdvisor, isLegat, refreshProfile, membershipTier } = useAuth();
-  if (!rawAdvisor && membershipTier === "expired") {
-    return <MembershipExpiredGate />;
-  }
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const navigate = useNavigate();
@@ -334,6 +331,10 @@ const Dashboard = () => {
 
   const factsLoadFailed = !factsLoading && !budgetLoading && facts.length === 0 && companyId;
 
+
+  if (!rawAdvisor && membershipTier === "expired") {
+    return <MembershipExpiredGate />;
+  }
 
   return (
     <AppLayout>
