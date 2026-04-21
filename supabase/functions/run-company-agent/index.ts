@@ -31,6 +31,7 @@ HVAD DU IKKE GØR:
 - Opret ikke milestones der allerede eksisterer
 - Skriv ikke generiske råd der kunne gælde enhver virksomhed
 - Roser ikke bare for at rose — vær ærlig
+- Hvis get_budget_vs_actual viser afvigelser over 20%, skal dette altid nævnes konkret i din besked — det er det founder har brug for at vide
 
 FORTEGN PÅ TAL (vigtigt):
 
@@ -795,7 +796,7 @@ ${trigger === "pulse_submitted"
   ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nHent facts, pulse, milestones og KPI-mål. Skriv én kort motiverende besked i chatten der opsummerer hvad der er vigtigst at fokusere på denne uge. Opdatér weekly focus. Notificér advisor kun hvis der er noget konkret at handle på.`
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Skriv en kort, direkte besked til founder der forklarer hvad der er sket og hvad de skal gøre NU. Maks 3 sætninger. Opdatér IKKE weekly focus med negativ information — brug kun chat. Notificér advisor med høj prioritet.`
-  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_pulse_checkins, get_milestones og get_kpi_targets parallelt for at danne dig et komplet billede. Analysér derefter situationen og skriv din besked.`
+  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din besked.`
 }`,
       },
     ];
