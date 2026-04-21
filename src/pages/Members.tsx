@@ -31,6 +31,7 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
   email: string; company_name: string; cvr_number: string; contact_name: string;
   annual_revenue: string; revenue_interval: string; industry_label: string; current_situation: string;
   goals: string; help_needed: string; website: string; phone: string;
+  contract_start_date: string; contract_end_date: string;
 }>> {
   const XLSX = await import("xlsx");
   const { read, utils } = XLSX;
@@ -90,6 +91,18 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
         // Store the raw interval string for the agent context
         const revenueInterval = intervalRev && intervalRev !== exactRev ? intervalRev : null;
 
+        // Parse contract dates
+        const parseExcelDate = (raw: string): string | null => {
+          if (!raw || raw === "nan") return null;
+          try {
+            const d = new Date(raw);
+            if (isNaN(d.getTime())) return null;
+            return d.toISOString().slice(0, 10);
+          } catch { return null; }
+        };
+        const contractStart = parseExcelDate(get("Startdato"));
+        const contractEnd = parseExcelDate(get("End date"));
+
         resolve({
           email: get("Email"),
           company_name: get("Name"),
@@ -103,6 +116,8 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
           help_needed: get("Beskriv hvilken hjælp"),
           website: get("Hjemmeside"),
           phone: get("Telefon"),
+          contract_start_date: contractStart,
+          contract_end_date: contractEnd,
         });
       } catch (err) {
         reject(err);
@@ -170,6 +185,7 @@ const Members = () => {
     email: "", company_name: "", cvr_number: "", contact_name: "",
     annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "",
     goals: "", help_needed: "", website: "", phone: "",
+    contract_start_date: "", contract_end_date: "",
   });
   const [importing, setImporting] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -179,7 +195,7 @@ const Members = () => {
     setShowImportDialog(false);
     setParsed(false);
     setParsing(false);
-    setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" });
+    setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "", contract_start_date: "", contract_end_date: "" });
   };
 
   const { data: membersData, isLoading: loading, refetch: refetchMembers } = useQuery({
@@ -487,6 +503,8 @@ const Members = () => {
           ...importForm,
           annual_revenue: importForm.annual_revenue ? Number(importForm.annual_revenue) : undefined,
           revenue_interval: importForm.revenue_interval || undefined,
+          contract_start_date: importForm.contract_start_date || undefined,
+          contract_end_date: importForm.contract_end_date || undefined,
         },
       });
       if (error) throw new Error(error.message || "Import fejlede");
@@ -1558,6 +1576,14 @@ const Members = () => {
                       <label className="text-xs font-medium text-muted-foreground">Branche</label>
                       <input value={importForm.industry_label} onChange={e => setImportForm(f => ({ ...f, industry_label: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Kontraktstart</label>
+                      <input value={importForm.contract_start_date} onChange={e => setImportForm(f => ({ ...f, contract_start_date: e.target.value }))} type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Kontraktslut *</label>
+                      <input value={importForm.contract_end_date} onChange={e => setImportForm(f => ({ ...f, contract_end_date: e.target.value }))} type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
                     <div className="col-span-2 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Nuværende situation</label>
                       <textarea value={importForm.current_situation} onChange={e => setImportForm(f => ({ ...f, current_situation: e.target.value }))} rows={3} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
@@ -1573,7 +1599,7 @@ const Members = () => {
                   </div>
 
                   <button
-                    onClick={() => { setParsed(false); setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" }); }}
+                    onClick={() => { setParsed(false); setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "", contract_start_date: "", contract_end_date: "" }); }}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
                     ← Upload anden fil
