@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import {
-  Building2, MessageCircle, MessageSquare, FileText,
-  ChevronDown, ChevronUp, Users, Globe, MapPin, User,
+  MessageCircle, MessageSquare, FileText,
+  ChevronDown, ChevronUp, Users, Globe, User,
   Mail, Phone, Wallet, ExternalLink, Hash, Trash2,
-  UserPlus, X, Activity, Send, RotateCcw, CheckCircle2,
-  Loader2, Layers, Pencil,
+  UserPlus, X, Send, RotateCcw, CheckCircle2,
+  Loader2, Layers, Pencil, CalendarDays,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
