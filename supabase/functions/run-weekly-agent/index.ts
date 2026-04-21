@@ -34,6 +34,28 @@ Deno.cron("weekly-company-agent", "0 7 * * 1", async () => {
       continue;
     }
 
+    // Skip if agent already ran for this company this week
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+    weekStart.setHours(0, 0, 0, 0);
+    const { data: recentConv } = await adminClient
+      .from("conversations")
+      .select("id")
+      .eq("company_id", company.id)
+      .maybeSingle();
+    if (recentConv) {
+      const { count } = await adminClient
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", recentConv.id)
+        .eq("context_type", "agent")
+        .gte("created_at", weekStart.toISOString());
+      if ((count ?? 0) > 0) {
+        console.log(`Weekly agent: skipping ${company.name} — already ran this week`);
+        continue;
+      }
+    }
+
     const agentUrl = `${supabaseUrl}/functions/v1/run-company-agent`;
     const resp = await fetch(agentUrl, {
       method: "POST",
