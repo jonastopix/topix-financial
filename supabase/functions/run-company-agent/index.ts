@@ -622,24 +622,35 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         return { available: false, reason: "too_few_peers_with_data" };
       }
 
-      // Calculate averages for key metrics
-      const metricKeys = ["revenue", "gross_profit", "ebt", "payroll"];
-      const averages: Record<string, number | null> = {};
-      for (const key of metricKeys) {
-        const values = Array.from(latestPerCompany.values())
-          .map(m => m[key])
-          .filter(v => typeof v === "number" && v != null) as number[];
-        averages[key] = values.length >= 3
-          ? Math.round(values.reduce((a, b) => a + b, 0) / values.length)
-          : null;
+      // Use ratios not absolute values — otherwise large companies dominate averages
+      const ratios: { gross_margin_pct: number | null; ebt_margin_pct: number | null; payroll_pct: number | null } = {
+        gross_margin_pct: null,
+        ebt_margin_pct: null,
+        payroll_pct: null,
+      };
+      const grossMargins: number[] = [];
+      const ebtMargins: number[] = [];
+      const payrollPcts: number[] = [];
+      for (const m of latestPerCompany.values()) {
+        if (m.revenue && m.revenue > 0) {
+          if (m.gross_profit != null) grossMargins.push((m.gross_profit / m.revenue) * 100);
+          if (m.ebt != null) ebtMargins.push((m.ebt / m.revenue) * 100);
+          if (m.payroll != null) payrollPcts.push((m.payroll / m.revenue) * 100);
+        }
       }
+      const avg = (arr: number[]) => arr.length >= 3
+        ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
+        : null;
+      ratios.gross_margin_pct = avg(grossMargins);
+      ratios.ebt_margin_pct = avg(ebtMargins);
+      ratios.payroll_pct = avg(payrollPcts);
 
       return {
         available: true,
         industry: company.industry_label,
         peer_count: latestPerCompany.size,
-        averages,
-        note: "Anonymiserede gennemsnit — minimum 3 virksomheder krævet",
+        ratios,
+        note: "Anonymiserede gennemsnit — ratioer, ikke absolutte tal. Minimum 3 virksomheder.",
       };
     }
 
