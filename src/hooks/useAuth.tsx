@@ -216,6 +216,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .maybeSingle();
 
       if (companyMeta?.onboarding_completed === false && companyMeta?.application_context) {
+        // Mark completed immediately to prevent duplicate runs on rapid re-auth
+        await supabase
+          .from("companies")
+          .update({ onboarding_completed: true })
+          .eq("id", cm.company_id);
+
         // Fire and forget — non-blocking
         supabase.functions.invoke("run-company-agent", {
           body: {
