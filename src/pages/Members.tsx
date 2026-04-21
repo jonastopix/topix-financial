@@ -92,12 +92,19 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
         const revenueInterval = intervalRev && intervalRev !== exactRev ? intervalRev : null;
 
         // Parse contract dates
-        const parseExcelDate = (raw: string): string | null => {
-          if (!raw || raw === "nan") return null;
+        const parseExcelDate = (raw: string | number | null | undefined): string | null => {
+          if (raw == null || raw === "" || raw === "nan") return null;
           try {
-            const d = new Date(raw);
-            if (isNaN(d.getTime())) return null;
-            return d.toISOString().slice(0, 10);
+            // Numeric Excel serial date (days since 1900-01-01, with Lotus 1-2-3 leap year bug)
+            const num = typeof raw === "number" ? raw : parseFloat(String(raw));
+            if (!isNaN(num) && num > 1000 && num < 100000) {
+              const utc = new Date(Date.UTC(1899, 11, 30 + Math.floor(num)));
+              if (!isNaN(utc.getTime())) return utc.toISOString().slice(0, 10);
+            }
+            // ISO string or other parseable formats
+            const d = new Date(String(raw));
+            if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+            return null;
           } catch { return null; }
         };
         const contractStart = parseExcelDate(get("Startdato"));
@@ -495,6 +502,16 @@ const Members = () => {
     if (importForm.cvr_number && !/^\d{8}$/.test(importForm.cvr_number.trim())) {
       toast.error("CVR-nummer skal være præcis 8 cifre");
       return;
+    }
+    if (!importForm.contract_end_date) {
+      toast.error("Kontraktslut er påkrævet");
+      return;
+    }
+    if (importForm.contract_start_date && importForm.contract_end_date) {
+      if (new Date(importForm.contract_end_date) <= new Date(importForm.contract_start_date)) {
+        toast.error("Kontraktslut skal være efter kontraktstart");
+        return;
+      }
     }
     setImporting(true);
     try {
@@ -1581,7 +1598,9 @@ const Members = () => {
                       <input value={importForm.contract_start_date} onChange={e => setImportForm(f => ({ ...f, contract_start_date: e.target.value }))} type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Kontraktslut *</label>
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Kontraktslut <span className="text-destructive">*</span>
+                      </label>
                       <input value={importForm.contract_end_date} onChange={e => setImportForm(f => ({ ...f, contract_end_date: e.target.value }))} type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
                     </div>
                     <div className="col-span-2 space-y-1">
