@@ -70,8 +70,31 @@ const Onboarding = () => {
         .eq("id", companyId);
     }
 
-    // Welcome message is now delivered by run-company-agent (onboarding trigger in useAuth)
-    // as a real advisor message. No separate send-welcome-message call here.
+    // Trigger onboarding agent directly here (don't rely on useAuth timing).
+    // Mark company onboarding_completed=true first to prevent duplicate runs from useAuth.
+    if (companyId) {
+      const { data: companyMeta } = await supabase
+        .from("companies")
+        .select("onboarding_completed, application_context")
+        .eq("id", companyId)
+        .maybeSingle();
+      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context) {
+        await supabase
+          .from("companies")
+          .update({ onboarding_completed: true })
+          .eq("id", companyId);
+        // Fire and forget — agent sender velkomst som rådgiver
+        supabase.functions.invoke("run-company-agent", {
+          body: {
+            company_id: companyId,
+            trigger: "onboarding",
+            period_key: new Date().toISOString().slice(0, 7),
+            period_label: new Date().toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
+          },
+        }).catch((err) => console.warn("Onboarding agent failed:", err));
+      }
+    }
+
     setFullName(nameToSave);
     setStep(2);
   };
