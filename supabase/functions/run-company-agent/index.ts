@@ -494,6 +494,35 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
       return { ok: true, week_key: weekKey };
     }
 
+    case "write_session_prep": {
+      const points = (args.points as string[]).slice(0, 3);
+      const now = new Date();
+
+      const { data: conv } = await adminClient
+        .from("conversations")
+        .select("id, assigned_advisor_id, member_id")
+        .eq("company_id", args.company_id)
+        .maybeSingle();
+      if (!conv) return { ok: false, reason: "no_conversation" };
+
+      // Store as a pinned system message so advisor sees it in chat
+      const content = `**Forbered til næste session:**\n${points.map((p, i) => `${i + 1}. ${p}`).join("\n")}`;
+
+      const { error } = await adminClient
+        .from("messages")
+        .insert({
+          conversation_id: conv.id,
+          sender_id: conv.member_id,
+          content,
+          message_type: "system",
+          context_type: "session_prep",
+          context_meta: { source: "run-company-agent", points, generated_at: now.toISOString() },
+        });
+
+      if (error) throw new Error(error.message);
+      return { ok: true, points_count: points.length };
+    }
+
     case "finish": {
       return { done: true, summary: args.summary };
     }
