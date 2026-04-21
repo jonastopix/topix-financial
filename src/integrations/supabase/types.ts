@@ -508,11 +508,13 @@ export type Database = {
         Row: {
           address: string | null
           annual_revenue: number | null
+          application_context: Json | null
           city: string | null
           contact_email: string | null
           contact_person: string | null
           contact_phone: string | null
           created_at: string
+          cvr_fetched_at: string | null
           cvr_number: string | null
           end_date: string | null
           id: string
@@ -523,6 +525,7 @@ export type Database = {
           is_legat: boolean
           logo_url: string | null
           name: string
+          onboarding_completed: boolean
           postal_code: string | null
           slack_channel: string | null
           start_date: string | null
@@ -533,11 +536,13 @@ export type Database = {
         Insert: {
           address?: string | null
           annual_revenue?: number | null
+          application_context?: Json | null
           city?: string | null
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
           created_at?: string
+          cvr_fetched_at?: string | null
           cvr_number?: string | null
           end_date?: string | null
           id?: string
@@ -548,6 +553,7 @@ export type Database = {
           is_legat?: boolean
           logo_url?: string | null
           name?: string
+          onboarding_completed?: boolean
           postal_code?: string | null
           slack_channel?: string | null
           start_date?: string | null
@@ -558,11 +564,13 @@ export type Database = {
         Update: {
           address?: string | null
           annual_revenue?: number | null
+          application_context?: Json | null
           city?: string | null
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
           created_at?: string
+          cvr_fetched_at?: string | null
           cvr_number?: string | null
           end_date?: string | null
           id?: string
@@ -573,6 +581,7 @@ export type Database = {
           is_legat?: boolean
           logo_url?: string | null
           name?: string
+          onboarding_completed?: boolean
           postal_code?: string | null
           slack_channel?: string | null
           start_date?: string | null
