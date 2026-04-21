@@ -207,6 +207,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (cm?.company_id) {
       setOwnCompanyId(cm.company_id);
       setOwnCompanyName(cm.companies?.name || null);
+
+      // Trigger onboarding agent if this is first login for an imported company
+      const { data: companyMeta } = await supabase
+        .from("companies")
+        .select("onboarding_completed, application_context")
+        .eq("id", cm.company_id)
+        .maybeSingle();
+
+      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context) {
+        // Fire and forget — non-blocking
+        supabase.functions.invoke("run-company-agent", {
+          body: {
+            company_id: cm.company_id,
+            trigger: "onboarding",
+            period_key: new Date().toISOString().slice(0, 7),
+            period_label: new Date().toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
+          },
+        }).catch((err) => console.warn("Onboarding agent failed:", err));
+      }
     } else {
       // No company membership — check for pending invitation
       const authUser = (await supabase.auth.getUser()).data.user;
