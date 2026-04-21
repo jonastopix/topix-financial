@@ -234,6 +234,7 @@ const MemberDetail = () => {
   const [loadingSession, setLoadingSession] = useState(false);
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
   const [showAgentLog, setShowAgentLog] = useState(false);
+  const [forecast, setForecast] = useState<any[] | null>(null);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
