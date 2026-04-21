@@ -325,6 +325,20 @@ const Dashboard = () => {
     ? budgetBadge(kpiData.ytdResult, budgetData.ytdRevenue - budgetData.ytdExpenses, true)
     : null;
 
+  // Show spinner while auth tier is still resolving
+  if (!rawAdvisor && membershipTier === null && !isLoading) {
+    return (
+      <AppLayout>
+        <DashboardSkeleton />
+      </AppLayout>
+    );
+  }
+
+  // Show expired gate before attempting to render dashboard
+  if (!rawAdvisor && membershipTier === "expired") {
+    return <MembershipExpiredGate />;
+  }
+
   if (isAdvisor && !companyId) {
     return (
       <AppLayout>
@@ -347,11 +361,6 @@ const Dashboard = () => {
   }
 
   const factsLoadFailed = !factsLoading && !budgetLoading && facts.length === 0 && companyId;
-
-
-  if (!rawAdvisor && membershipTier === "expired") {
-    return <MembershipExpiredGate />;
-  }
 
   return (
     <AppLayout>
