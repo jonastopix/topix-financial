@@ -41,6 +41,14 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
@@ -203,7 +211,7 @@ const MemberDetail = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
-  const { isAdvisor: rawAdvisor, user, loading: authLoading } = useAuth();
+  const { isAdvisor: rawAdvisor, isAdmin, user, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [profile, setProfile] = useState<MemberProfile | null>(null);
@@ -238,6 +246,17 @@ const MemberDetail = () => {
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
   const [showAgentLog, setShowAgentLog] = useState(false);
   const [forecast, setForecast] = useState<any[] | null>(null);
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [companyEditForm, setCompanyEditForm] = useState<{
+    contract_start_date: string;
+    contract_end_date: string;
+    subscription_status: string;
+    cvr_number: string;
+    industry_label: string;
+    website: string;
+    slack_channel: string;
+  }>({ contract_start_date: "", contract_end_date: "", subscription_status: "", cvr_number: "", industry_label: "", website: "", slack_channel: "" });
+  const [savingCompany, setSavingCompany] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
@@ -280,6 +299,44 @@ const MemberDetail = () => {
     enabled: !!memberCompanyId,
   });
 
+  const refetch = async () => {
+    if (!userId) return;
+    const { data: cmData } = await supabase
+      .from("company_members" as any)
+      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status)" as any)
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    const cm = cmData as any;
+    if (cm?.companies) {
+      setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
+    }
+  };
+
+  const handleSaveCompany = async () => {
+    if (!companyCtx?.company_id) return;
+    setSavingCompany(true);
+    try {
+      const updates: Record<string, any> = {
+        contract_start_date: companyEditForm.contract_start_date || null,
+        contract_end_date: companyEditForm.contract_end_date || null,
+        subscription_status: companyEditForm.subscription_status || null,
+        cvr_number: companyEditForm.cvr_number || null,
+        industry_label: companyEditForm.industry_label || null,
+        website: companyEditForm.website || null,
+        slack_channel: companyEditForm.slack_channel || null,
+      };
+      const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyCtx.company_id) as any);
+      if (error) throw error;
+      toast.success("Virksomhedsdata gemt");
+      setEditingCompany(false);
+      refetch();
+    } catch (err: any) {
+      toast.error("Kunne ikke gemme", { description: err.message });
+    } finally {
+      setSavingCompany(false);
+    }
+  };
 
   // Clear deep-link params after consuming
   useEffect(() => {
@@ -849,6 +906,29 @@ const MemberDetail = () => {
               )}
             </div>
           </div>
+
+          {isAdmin && (
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCompanyEditForm({
+                    contract_start_date: (companyCtx as any).contract_start_date?.slice(0, 10) || "",
+                    contract_end_date: (companyCtx as any).contract_end_date?.slice(0, 10) || "",
+                    subscription_status: (companyCtx as any).subscription_status || "",
+                    cvr_number: (companyCtx as any).cvr_number || "",
+                    industry_label: (companyCtx as any).industry_label || "",
+                    website: (companyCtx as any).website || "",
+                    slack_channel: (companyCtx as any).slack_channel || "",
+                  });
+                  setEditingCompany(true);
+                }}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <Pencil className="h-3 w-3" /> Rediger virksomhedsdata
+              </button>
+            </div>
+          )}
 
           {/* ───── Application context panel ───── */}
           {(companyCtx as any)?.application_context && (
@@ -1538,6 +1618,93 @@ const MemberDetail = () => {
           </div>
         </>
       )}
+
+      <Dialog open={editingCompany} onOpenChange={setEditingCompany}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Rediger virksomhedsdata</DialogTitle>
+            <DialogDescription>Ændringer gemmes direkte på virksomheden i databasen.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Kontraktstart</label>
+              <input
+                type="date"
+                value={companyEditForm.contract_start_date}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, contract_start_date: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Kontraktslut</label>
+              <input
+                type="date"
+                value={companyEditForm.contract_end_date}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, contract_end_date: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">CVR-nummer</label>
+              <input
+                type="text"
+                value={companyEditForm.cvr_number}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, cvr_number: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                placeholder="12345678"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Branche</label>
+              <input
+                type="text"
+                value={companyEditForm.industry_label}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, industry_label: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Website</label>
+              <input
+                type="text"
+                value={companyEditForm.website}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, website: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                placeholder="https://"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Slack-kanal</label>
+              <input
+                type="text"
+                value={companyEditForm.slack_channel}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, slack_channel: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                placeholder="#virksomhed"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Abonnementsstatus</label>
+              <select
+                value={companyEditForm.subscription_status}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, subscription_status: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— Ingen (kontraktmedlem) —</option>
+                <option value="active">active (self-serve abonnent)</option>
+                <option value="cancelled">cancelled</option>
+                <option value="past_due">past_due</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCompany(false)}>Annullér</Button>
+            <Button onClick={handleSaveCompany} disabled={savingCompany}>
+              {savingCompany ? "Gemmer..." : "Gem ændringer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

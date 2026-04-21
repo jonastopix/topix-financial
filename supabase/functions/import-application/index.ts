@@ -105,40 +105,9 @@ Deno.serve(async (req) => {
 
   const email = body.email.trim().toLowerCase();
 
-  // 1a. Check if a Supabase Auth user already exists with this email.
-  // If so, the standard signup flow won't work (Supabase suppresses the
-  // confirmation email on user_repeated_signup), and the handle_new_user
-  // trigger only runs on first signup. Fail fast with a clear reason so
-  // the advisor can either ask the user to log in or attach them manually.
-  try {
-    const { data: existingUserData } = await adminClient.auth.admin.listUsers({
-      page: 1,
-      perPage: 200,
-    });
-    const existingUser = existingUserData?.users?.find(
-      (u) => (u.email || "").toLowerCase() === email
-    );
-    if (existingUser) {
-      console.log(
-        `[import-application] Skipping import — auth user already exists for ${email} (user_id=${existingUser.id})`
-      );
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          reason: "user_already_exists",
-          email_confirmed: !!existingUser.email_confirmed_at,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-  } catch (err) {
-    console.warn(
-      "[import-application] auth.admin.listUsers lookup failed (continuing):",
-      err instanceof Error ? err.message : err
-    );
-  }
-
   // 1c. Enrich mode: update existing company with application context (no invitation, no signup)
+  // This must run BEFORE the auth user check — enrich is for existing companies and shouldn't
+  // be blocked by an existing auth user.
   if (body.enrich_company_id) {
     const { data: existingCo, error: coErr } = await adminClient
       .from("companies")
@@ -200,6 +169,40 @@ Deno.serve(async (req) => {
       company_id: body.enrich_company_id,
       fields_updated: Object.keys(updates),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
+  // 1a. Check if a Supabase Auth user already exists with this email.
+  // Only relevant for new imports (enrich already returned above).
+  // If so, the standard signup flow won't work (Supabase suppresses the
+  // confirmation email on user_repeated_signup), and the handle_new_user
+  // trigger only runs on first signup. Fail fast with a clear reason so
+  // the advisor can either ask the user to log in or attach them manually.
+  try {
+    const { data: existingUserData } = await adminClient.auth.admin.listUsers({
+      page: 1,
+      perPage: 200,
+    });
+    const existingUser = existingUserData?.users?.find(
+      (u) => (u.email || "").toLowerCase() === email
+    );
+    if (existingUser) {
+      console.log(
+        `[import-application] Skipping import — auth user already exists for ${email} (user_id=${existingUser.id})`
+      );
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          reason: "user_already_exists",
+          email_confirmed: !!existingUser.email_confirmed_at,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  } catch (err) {
+    console.warn(
+      "[import-application] auth.admin.listUsers lookup failed (continuing):",
+      err instanceof Error ? err.message : err
+    );
   }
 
   // 1b. Check if invitation already exists for this email
