@@ -140,6 +140,18 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "get_financial_alerts",
+      description: "Henter aktive finansielle alerts for virksomheden — fx omsætningsfald, bankovertræk eller negativt resultat. Brug dette til at prioritere hvad der er mest kritisk at adressere i din besked.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_budget_vs_actual",
       description:
         "Sammenligner budget med realiserede tal for en given periode. Returnerer afvigelser i procent.",
