@@ -160,14 +160,6 @@ Deno.serve(async (req) => {
   if (metrics.depreciation != null && metrics.depreciation > 0)
     budgetCategories.push({ category: "afskrivninger", annual: metrics.depreciation * 12 });
 
-  // Insert template marker
-  await adminClient.from("budget_targets").upsert({
-    user_id,
-    company_id,
-    category: "__template__",
-    budget_amount: 0,
-    period: "webshop_b2c",
-  } as any, { onConflict: "company_id,user_id,category,period" });
 
   // Insert monthly budget rows
   const budgetRows = budgetCategories.flatMap(({ category, annual }) =>
