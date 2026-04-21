@@ -527,11 +527,16 @@ export type Database = {
           is_legat: boolean
           logo_url: string | null
           name: string
+          offboarding_requested_at: string | null
           onboarding_completed: boolean
           postal_code: string | null
           slack_channel: string | null
           start_date: string | null
           status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_current_period_end: string | null
+          subscription_status: string | null
           website: string | null
           weekly_focus_enabled: boolean
         }
@@ -557,11 +562,16 @@ export type Database = {
           is_legat?: boolean
           logo_url?: string | null
           name?: string
+          offboarding_requested_at?: string | null
           onboarding_completed?: boolean
           postal_code?: string | null
           slack_channel?: string | null
           start_date?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_current_period_end?: string | null
+          subscription_status?: string | null
           website?: string | null
           weekly_focus_enabled?: boolean
         }
@@ -587,11 +597,16 @@ export type Database = {
           is_legat?: boolean
           logo_url?: string | null
           name?: string
+          offboarding_requested_at?: string | null
           onboarding_completed?: boolean
           postal_code?: string | null
           slack_channel?: string | null
           start_date?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_current_period_end?: string | null
+          subscription_status?: string | null
           website?: string | null
           weekly_focus_enabled?: boolean
         }
