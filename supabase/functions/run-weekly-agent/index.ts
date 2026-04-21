@@ -8,19 +8,35 @@ Deno.cron("weekly-company-agent", "0 7 * * 1", async () => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const now = new Date().toISOString();
   const { data: companies, error } = await adminClient
     .from("companies")
-    .select("id, name")
+    .select("id, name, contract_end_date, subscription_status, subscription_current_period_end")
     .eq("status", "active");
+
+  // Filter to only companies with valid membership
+  const activeCompanies = (companies ?? []).filter(c => {
+    // No end date set = legacy full member, always include
+    if (!c.contract_end_date) return true;
+    // Active contract
+    if (new Date(c.contract_end_date) > new Date(now)) return true;
+    // Active self-serve subscription
+    if (
+      c.subscription_status === "active" &&
+      c.subscription_current_period_end &&
+      new Date(c.subscription_current_period_end) > new Date(now)
+    ) return true;
+    return false;
+  });
 
   if (error || !companies?.length) {
     console.error("Weekly agent: failed to fetch companies", error?.message);
     return;
   }
 
-  console.log(`Weekly agent: processing ${companies.length} companies`);
+  console.log(`Weekly agent: processing ${activeCompanies.length} companies`);
 
-  for (const company of companies) {
+  for (const company of activeCompanies) {
     const { data: latestFact } = await adminClient
       .from("financial_report_facts")
       .select("period_key, period_label")
