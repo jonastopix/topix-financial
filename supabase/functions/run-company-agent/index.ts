@@ -561,6 +561,29 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
       };
     }
 
+    case "get_financial_alerts": {
+      // Find the member user_id for this company
+      const { data: member } = await adminClient
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", args.company_id)
+        .limit(1)
+        .maybeSingle();
+      if (!member) return [];
+
+      const { data, error } = await adminClient
+        .from("notifications")
+        .select("type, title, body, created_at")
+        .eq("company_id", args.company_id)
+        .eq("user_id", member.user_id)
+        .in("type", ["alert_revenue_drop", "alert_negative_cash", "alert_result_negative"])
+        .is("read_at", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
