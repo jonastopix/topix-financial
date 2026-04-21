@@ -1,49 +1,61 @@
 
-Målet er at få “Kør agent” til faktisk skrive en agent-besked i chatten — og vise en reel fejl, hvis agenten ikke lykkes.
 
-1. Ret den konkrete backend-fejl i `supabase/functions/run-company-agent/index.ts`
-- Fjern den duplikerede `get_kpi_targets` tool-definition i `tools` arrayet.
-- Det er den primære årsag til fejlen lige nu: AI-kaldet bliver afvist, så agenten når aldrig til `write_chat_message`.
-- Behold resten af tool-kontrakten uændret.
+# Plan: Stop dubletter af AI-finansanalyser
 
-2. Gør edge-funktionen fail-safe i stedet for “success despite failure”
-- Stop med at returnere `{ ok: true }`, hvis AI-gatewayen fejler eller agent-loopet afbrydes uden at have skrevet en besked.
-- Returnér en struktureret fejlrespons med fx:
-  - `ok: false`
-  - `error`
-  - `done`
-  - evt. `diagnostics` om hvorfor agenten stoppede
-- Track eksplicit om `write_chat_message` faktisk blev kaldt og lykkedes.
-- Hvis ingen chatbesked blev skrevet, skal funktionen returnere fejlstatus, selv hvis HTTP-responsen stadig er 200.
+## Problem
+`generate-financial-commentary` opretter en ny commentary hver gang den kaldes — også hvis der allerede findes en frisk (ikke-stale) analyse for **samme periode med samme metrics-hash**. I nat resulterede det i to identiske Marts 2026-analyser for Alina Beauty & Skincare (02:27 og 02:34, begge basis hash `56788ae3…`).
 
-3. Stram frontend-håndteringen i `src/pages/MemberDetail.tsx`
-- Behold den nye `invoke`-fejlcheck, men udvid den til også at validere responsens `data.ok` og ikke kun `error`.
-- Vis success-toast kun når funktionen både:
-  - ikke returnerer `error`
-  - og returnerer `data.ok === true`
-  - og gerne `data.done === true`
-- Vis en tydelig fejltoast med backendens fejlbesked, hvis agenten ikke skrev noget til chatten.
+Januar-agenten kørte korrekt: Anja committede en manuel januar-override kl. 02:25, og post-commit pipelinen i `ReportReviewDialog` trigger `run-company-agent` + `generate-financial-commentary` som designet.
 
-4. Gør samme responshåndtering konsekvent i de øvrige agent-kald
-- Opdatér de andre manuelle/automatiske kald til `run-company-agent`, så de ikke logger falsk succes:
-  - `src/components/ReportReviewDialog.tsx`
-  - `src/pages/ReportDebug.tsx`
-- For non-blocking flows kan de stadig være “best effort”, men de skal logge backendens `ok:false` tydeligt.
+## Løsning
+Tilføj en **idempotency-guard** i `supabase/functions/generate-financial-commentary/index.ts` som tjekker for en eksisterende, ikke-stale commentary med samme hash før en ny indsættes.
 
-5. Ingen ændring nødvendig i chat-renderingen
-- `CompanyChatPane` renderer allerede `system`/`ai` beskeder.
-- `write_chat_message` indsætter allerede `message_type: "system"` og `context_type: "agent"`.
-- Derfor ligger problemet ikke i visningen, men i at agenten aldrig når til at skrive beskeden.
+### Ændringer i `generate-financial-commentary/index.ts`
 
-Tekniske noter
-- Den nuværende logik i edge-funktionen bryder AI-loopet ved gateway-fejl, men returnerer bagefter stadig `{ ok: true, iterations, done }`.
-- Logs viser den konkrete fejl: `Duplicate function declaration found: get_kpi_targets`.
-- `supabase/config.toml` er allerede sat korrekt op for `run-company-agent`; der behøves ikke flere config-ændringer.
+Lige efter `basisMetricsHash` er beregnet (linje ~137), før insert (linje ~141), tilføjes:
 
-Validering efter implementering
-- Kør “Kør agent” på en committed rapport fra `MemberDetail`.
-- Bekræft at:
-  - der kommer en ny system/agent-besked i virksomhedens chat
-  - success-toast kun vises ved reel succes
-  - fejltoast vises, hvis AI-kaldet eller beskedskrivningen fejler
-- Tjek også at den automatiske post-commit trigger stadig virker uden at blokere rapport-flowet.
+```ts
+// Idempotency: hvis der allerede findes en frisk commentary for samme
+// (company_id, period_key, basis_metrics_hash), returnér den i stedet for
+// at oprette en dublet. Dette beskytter mod dobbelt-trigger fra
+// ReportReviewDialog (fx ved "Erstat gammel data" eller dobbeltklik).
+const { data: existing } = await adminClient
+  .from("financial_commentaries")
+  .select("*")
+  .eq("company_id", company_id)
+  .eq("period_key", period_key)
+  .eq("basis_metrics_hash", basisMetricsHash)
+  .eq("is_stale", false)
+  .order("generated_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+if (existing) {
+  console.log(
+    `[generate-financial-commentary] Skipping duplicate for ${company_id}/${period_key} — existing id ${existing.id}`
+  );
+  return new Response(JSON.stringify(existing), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+```
+
+Bemærk: AI-kaldet (`fetch(aiFeedbackUrl, …)`) flyttes **efter** denne guard, så vi heller ikke spilder AI-tokens på et duplikat. Konkret: hele blokken fra linje 98 ("Call ai-financial-feedback") til 134 ("needs_more_data") flyttes til efter guard'en.
+
+## Rækkefølge i den opdaterede funktion
+1. Auth + access check
+2. Hent committed facts
+3. Beregn `basisMetricsHash`
+4. **NYT:** tjek for eksisterende ikke-stale commentary med samme hash → returnér hvis fundet
+5. Hent budget-kontekst
+6. Kald `ai-financial-feedback`
+7. Persistér ny commentary
+8. Returnér
+
+## Hvad det IKKE løser (med vilje)
+- `run-company-agent` skriver stadig en chat-besked hver gang (det er ønsket — agenten må gerne kvittere, og dens output er kort og personligt, ikke en lang analyse-rapport).
+- Eksisterende dubletter i databasen ryddes ikke automatisk. Hvis du vil rydde nat-duplikatet manuelt, kan jeg slette commentary `2df843a7-0b40-4e37-9994-e96e6d99ec1c` og dens tilhørende system-besked `46e43581-…` separat efter approval.
+
+## Filer der ændres
+- `supabase/functions/generate-financial-commentary/index.ts` (én funktion, omflytning + ny guard, ~25 linjer)
+
