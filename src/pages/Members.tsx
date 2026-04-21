@@ -29,7 +29,7 @@ import MembersAdminSection from "@/components/members/MembersAdminSection";
 
 async function parseApplicationExcel(file: File): Promise<Partial<{
   email: string; company_name: string; cvr_number: string; contact_name: string;
-  annual_revenue: string; industry_label: string; current_situation: string;
+  annual_revenue: string; revenue_interval: string; industry_label: string; current_situation: string;
   goals: string; help_needed: string; website: string; phone: string;
 }>> {
   const XLSX = await import("xlsx");
@@ -66,14 +66,29 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
         };
 
         let annualRevenue = "";
-        const revRaw = get("Årlig omsætning") || get("Omsætning (interval)");
+        // Try exact annual revenue first (if founder filled it in)
+        const exactRev = get("Årlig omsætning");
+        const intervalRev = get("Omsætning (interval)");
+        const revRaw = exactRev || intervalRev;
         if (revRaw) {
-          const num = parseFloat(revRaw.replace(/[^\d]/g, ""));
-          if (!isNaN(num) && num > 0) annualRevenue = String(num);
-          else if (revRaw.includes("1.000.000")) annualRevenue = "1500000";
-          else if (revRaw.includes("500.000")) annualRevenue = "750000";
-          else if (revRaw.includes("2.000.000")) annualRevenue = "2500000";
+          // Check if it's a clean number (exact revenue)
+          const cleanNum = parseFloat(revRaw.replace(/[\s.]/g, "").replace(",", "."));
+          if (!isNaN(cleanNum) && cleanNum > 0 && cleanNum < 100_000_000 && !revRaw.includes("-")) {
+            annualRevenue = String(Math.round(cleanNum));
+          } else {
+            // It's an interval — extract the two boundary numbers and take midpoint
+            const nums = revRaw.match(/[\d.]+/g)
+              ?.map(n => parseFloat(n.replace(/\./g, "")))
+              .filter(n => !isNaN(n) && n > 0 && n < 100_000_000);
+            if (nums && nums.length >= 2) {
+              annualRevenue = String(Math.round((nums[0] + nums[1]) / 2));
+            } else if (nums && nums.length === 1) {
+              annualRevenue = String(nums[0]);
+            }
+          }
         }
+        // Store the raw interval string for the agent context
+        const revenueInterval = intervalRev && intervalRev !== exactRev ? intervalRev : null;
 
         resolve({
           email: get("Email"),
@@ -81,6 +96,7 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
           cvr_number: get("CVR").replace(/\s/g, ""),
           contact_name: get("Kontaktperson"),
           annual_revenue: annualRevenue,
+          revenue_interval: revenueInterval || undefined,
           industry_label: get("Branche"),
           current_situation: get("Nuværende situation"),
           goals: get("Mål med virksomhed"),
@@ -152,7 +168,7 @@ const Members = () => {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importForm, setImportForm] = useState({
     email: "", company_name: "", cvr_number: "", contact_name: "",
-    annual_revenue: "", industry_label: "", current_situation: "",
+    annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "",
     goals: "", help_needed: "", website: "", phone: "",
   });
   const [importing, setImporting] = useState(false);
@@ -163,7 +179,7 @@ const Members = () => {
     setShowImportDialog(false);
     setParsed(false);
     setParsing(false);
-    setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" });
+    setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" });
   };
 
   const { data: membersData, isLoading: loading, refetch: refetchMembers } = useQuery({
@@ -466,6 +482,7 @@ const Members = () => {
         body: {
           ...importForm,
           annual_revenue: importForm.annual_revenue ? Number(importForm.annual_revenue) : undefined,
+          revenue_interval: importForm.revenue_interval || undefined,
         },
       });
       if (error || !data?.ok) throw new Error(data?.error || error?.message || "Import fejlede");
