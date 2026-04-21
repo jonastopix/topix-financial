@@ -32,6 +32,7 @@ interface MemberCompanyRowProps {
   onRemoveMember: (company: CompanyData, member: CompanyMember) => void;
   onDelete: (company: CompanyData) => void;
   onCreateGroup: (id: string, name: string) => void;
+  onEnrich?: (companyId: string) => void;
   getDisplayRevenue: (c: CompanyData) => { value: number; source: string } | null;
   getInitials: (name: string) => string;
 }
@@ -53,6 +54,7 @@ const MemberCompanyRow = ({
   onRemoveMember,
   onDelete,
   onCreateGroup,
+  onEnrich,
   getDisplayRevenue,
   getInitials,
 }: MemberCompanyRowProps) => {
