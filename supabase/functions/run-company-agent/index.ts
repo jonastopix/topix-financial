@@ -204,6 +204,22 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "update_milestone_progress",
+      description: "Opdaterer fremgangen på et eksisterende milestone baseret på de faktiske tal. Brug KUN hvis tallene klart viser fremgang mod et specifikt milestone-mål — fx omsætningsmilestone der nærmer sig målet.",
+      parameters: {
+        type: "object",
+        properties: {
+          milestone_id: { type: "string", description: "ID fra get_milestones" },
+          progress: { type: "number", description: "Ny fremgang 0-100" },
+          reason: { type: "string", description: "Kort forklaring på hvorfor" },
+        },
+        required: ["milestone_id", "progress", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "notify_advisor",
       description:
         "Sender en kort Slack-notifikation til virksomhedens tildelte advisor. Skriv en actionable besked på maks 2 sætninger.",
@@ -521,6 +537,20 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
 
       if (error) throw new Error(error.message);
       return { ok: true, points_count: points.length };
+    }
+
+    case "update_milestone_progress": {
+      const progress = Math.min(100, Math.max(0, Number(args.progress)));
+      const { error } = await adminClient
+        .from("milestones")
+        .update({
+          progress,
+          status: progress >= 100 ? "completed" : "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", args.milestone_id);
+      if (error) throw new Error(error.message);
+      return { ok: true, milestone_id: args.milestone_id, new_progress: progress };
     }
 
     case "finish": {
