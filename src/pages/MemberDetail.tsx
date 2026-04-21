@@ -996,6 +996,29 @@ const MemberDetail = () => {
                     )}
                   </AreaChart>
                 </ResponsiveContainer>
+                <button
+                  onClick={async () => {
+                    const { data } = await supabase.functions.invoke("generate-ai-forecast", {
+                      body: { company_id: memberCompanyId },
+                    });
+                    if (data?.forecast) setForecast(data.forecast);
+                  }}
+                  className="text-xs text-primary hover:underline mt-2"
+                >
+                  Generer 3-måneders forecast →
+                </button>
+                {forecast && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {forecast.map((f: any) => (
+                      <div key={f.period_key} className="rounded-lg border border-border/40 bg-muted/20 p-2">
+                        <p className="text-[10px] font-medium text-muted-foreground">{f.period_label}</p>
+                        <p className="text-xs text-foreground mt-1">Omsætning: {f.revenue?.toLocaleString("da-DK")} kr.</p>
+                        <p className="text-xs text-foreground">Resultat: {f.ebt?.toLocaleString("da-DK")} kr.</p>
+                      </div>
+                    ))}
+                    <p className="col-span-3 text-[10px] text-muted-foreground italic">Baseret på lineær trend — ikke en garanti</p>
+                  </div>
+                )}
               </div>
             );
           })()}
