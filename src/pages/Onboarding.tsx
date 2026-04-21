@@ -70,12 +70,8 @@ const Onboarding = () => {
         .eq("id", companyId);
     }
 
-    // Send welcome message right after onboarded_at is persisted (fire and forget)
-    if (companyId) {
-      supabase.functions.invoke("send-welcome-message", {
-        body: { companyId, memberName: nameToSave },
-      }).catch((err) => console.error("[Onboarding] Welcome message failed:", err));
-    }
+    // Welcome message is now delivered by run-company-agent (onboarding trigger in useAuth)
+    // as a real advisor message. No separate send-welcome-message call here.
     setFullName(nameToSave);
     setStep(2);
   };
