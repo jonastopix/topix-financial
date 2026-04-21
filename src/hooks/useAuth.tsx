@@ -341,6 +341,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setGroupName(null);
           setIsGroupFeatureEnabled(false);
           setIsGroupOwner(false);
+          setMembershipTier(null);
           setWelcomeDismissedAt(null);
           setLoading(false);
         }
