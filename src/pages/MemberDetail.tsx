@@ -299,6 +299,44 @@ const MemberDetail = () => {
     enabled: !!memberCompanyId,
   });
 
+  const refetch = async () => {
+    if (!userId) return;
+    const { data: cmData } = await supabase
+      .from("company_members" as any)
+      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status)" as any)
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    const cm = cmData as any;
+    if (cm?.companies) {
+      setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
+    }
+  };
+
+  const handleSaveCompany = async () => {
+    if (!companyCtx?.company_id) return;
+    setSavingCompany(true);
+    try {
+      const updates: Record<string, any> = {
+        contract_start_date: companyEditForm.contract_start_date || null,
+        contract_end_date: companyEditForm.contract_end_date || null,
+        subscription_status: companyEditForm.subscription_status || null,
+        cvr_number: companyEditForm.cvr_number || null,
+        industry_label: companyEditForm.industry_label || null,
+        website: companyEditForm.website || null,
+        slack_channel: companyEditForm.slack_channel || null,
+      };
+      const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyCtx.company_id) as any);
+      if (error) throw error;
+      toast.success("Virksomhedsdata gemt");
+      setEditingCompany(false);
+      refetch();
+    } catch (err: any) {
+      toast.error("Kunne ikke gemme", { description: err.message });
+    } finally {
+      setSavingCompany(false);
+    }
+  };
 
   // Clear deep-link params after consuming
   useEffect(() => {
