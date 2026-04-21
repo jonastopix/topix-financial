@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import {
-  MessageCircle, MessageSquare, FileText,
-  ChevronDown, ChevronUp, Users, Globe, User,
+  Building2, MessageCircle, MessageSquare, FileText,
+  ChevronDown, ChevronUp, Users, Globe, MapPin, User,
   Mail, Phone, Wallet, ExternalLink, Hash, Trash2,
-  UserPlus, X, Send, RotateCcw, CheckCircle2,
+  UserPlus, X, Activity, Send, RotateCcw, CheckCircle2,
   Loader2, Layers, Pencil, CalendarDays,
 } from "lucide-react";
 import {
