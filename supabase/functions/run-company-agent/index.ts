@@ -125,6 +125,21 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "get_industry_benchmark",
+      description: "Henter anonymiserede gennemsnit for virksomhedens branche baseret på andre virksomheder på platformen. Brug dette til at sætte tallene i kontekst — fx 'din bruttomargin er over/under gennemsnittet for din branche'.",
+      parameters: {
+        type: "object",
+        properties: {
+          company_id: { type: "string" },
+          period_key: { type: "string" },
+        },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_budget_vs_actual",
       description:
         "Sammenligner budget med realiserede tal for en given periode. Returnerer afvigelser i procent.",
@@ -472,6 +487,66 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
         content: m.content.slice(0, 300),
         date: new Date(m.created_at).toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
       }));
+    }
+
+    case "get_industry_benchmark": {
+      // Find this company's industry
+      const { data: company } = await adminClient
+        .from("companies")
+        .select("industry_label")
+        .eq("id", args.company_id)
+        .maybeSingle();
+      if (!company?.industry_label) return { available: false, reason: "no_industry_set" };
+
+      // Find other companies in same industry (exclude this company)
+      const { data: peers } = await adminClient
+        .from("companies")
+        .select("id")
+        .eq("industry_label", company.industry_label)
+        .neq("id", args.company_id)
+        .eq("status", "active");
+      if (!peers || peers.length < 3) {
+        return { available: false, reason: "too_few_peers", count: peers?.length ?? 0 };
+      }
+      const peerIds = peers.map(p => p.id);
+
+      // Get latest facts for peers
+      const { data: peerFacts } = await adminClient
+        .from("financial_report_facts")
+        .select("company_id, metrics")
+        .in("company_id", peerIds)
+        .order("period_key", { ascending: false });
+
+      // Take only the most recent fact per company
+      const latestPerCompany = new Map<string, Record<string, number>>();
+      for (const f of peerFacts ?? []) {
+        if (!latestPerCompany.has(f.company_id)) {
+          latestPerCompany.set(f.company_id, f.metrics as Record<string, number>);
+        }
+      }
+      if (latestPerCompany.size < 3) {
+        return { available: false, reason: "too_few_peers_with_data" };
+      }
+
+      // Calculate averages for key metrics
+      const metricKeys = ["revenue", "gross_profit", "ebt", "payroll"];
+      const averages: Record<string, number | null> = {};
+      for (const key of metricKeys) {
+        const values = Array.from(latestPerCompany.values())
+          .map(m => m[key])
+          .filter(v => typeof v === "number" && v != null) as number[];
+        averages[key] = values.length >= 3
+          ? Math.round(values.reduce((a, b) => a + b, 0) / values.length)
+          : null;
+      }
+
+      return {
+        available: true,
+        industry: company.industry_label,
+        peer_count: latestPerCompany.size,
+        averages,
+        note: "Anonymiserede gennemsnit — minimum 3 virksomheder krævet",
+      };
     }
 
     default:
