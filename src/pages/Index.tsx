@@ -20,6 +20,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 
 import AdvisorDashboard from "@/components/AdvisorDashboard";
+import MembershipExpiredGate from "@/components/MembershipExpiredGate";
 
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
@@ -43,7 +44,7 @@ function budgetPeriodToKey(period: string): string | null {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor: rawAdvisor, isLegat, refreshProfile } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor, isLegat, refreshProfile, membershipTier } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const navigate = useNavigate();
@@ -330,6 +331,10 @@ const Dashboard = () => {
 
   const factsLoadFailed = !factsLoading && !budgetLoading && facts.length === 0 && companyId;
 
+
+  if (!rawAdvisor && membershipTier === "expired") {
+    return <MembershipExpiredGate />;
+  }
 
   return (
     <AppLayout>
