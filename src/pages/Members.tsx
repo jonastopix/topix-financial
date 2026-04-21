@@ -485,10 +485,26 @@ const Members = () => {
           revenue_interval: importForm.revenue_interval || undefined,
         },
       });
-      if (error || !data?.ok) throw new Error(data?.error || error?.message || "Import fejlede");
-      toast.success("Ansøgning importeret ✓", {
-        description: `${data.company_name} er oprettet og invitation sendt til ${importForm.email}`,
-      });
+      if (error) throw new Error(error.message || "Import fejlede");
+      if (!data?.ok) {
+        if (data?.reason === "invitation_already_exists") {
+          toast.warning("Der er allerede en aktiv invitation på denne email", {
+            description: "Founder har allerede modtaget en invitationsmail.",
+          });
+          resetImportDialog();
+          return;
+        }
+        throw new Error(data?.error || "Import fejlede");
+      }
+      if (data.reused_company) {
+        toast.success("Virksomheden findes allerede — ny invitation sendt", {
+          description: `Invitation sendt til ${importForm.email} for ${data.company_name}`,
+        });
+      } else {
+        toast.success("Ansøgning importeret ✓", {
+          description: `${data.company_name} er oprettet og invitation sendt til ${importForm.email}`,
+        });
+      }
       resetImportDialog();
       refetchMembers();
     } catch (err: any) {
