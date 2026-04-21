@@ -513,6 +513,8 @@ export type Database = {
           contact_email: string | null
           contact_person: string | null
           contact_phone: string | null
+          contract_end_date: string | null
+          contract_start_date: string | null
           created_at: string
           cvr_fetched_at: string | null
           cvr_number: string | null
@@ -541,6 +543,8 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          contract_end_date?: string | null
+          contract_start_date?: string | null
           created_at?: string
           cvr_fetched_at?: string | null
           cvr_number?: string | null
@@ -569,6 +573,8 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          contract_end_date?: string | null
+          contract_start_date?: string | null
           created_at?: string
           cvr_fetched_at?: string | null
           cvr_number?: string | null
