@@ -323,6 +323,27 @@ export default function ReportReviewDialog({
         console.warn("Agent run failed (non-blocking):", err);
       });
 
+      // If alerts were detected, trigger a second focused agent run
+      supabase.functions.invoke("detect-financial-alerts", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          report_id: reportId,
+        },
+      }).then(async (alertResult) => {
+        const alertData = alertResult.data;
+        if (alertData?.alerts_written > 0) {
+          supabase.functions.invoke("run-company-agent", {
+            body: {
+              company_id: companyId,
+              trigger: "anomaly_detected",
+              period_key: preview?.period_key,
+              period_label: preview?.period_label || preview?.period_key,
+            },
+          }).catch((err) => console.warn("Anomaly agent failed:", err));
+        }
+      }).catch(() => {});
+
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fejl ved commit", { description: err.message || "Ukendt fejl" });
