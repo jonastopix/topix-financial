@@ -163,6 +163,7 @@ const Members = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyData | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteAlsoUsers, setDeleteAlsoUsers] = useState(false);
 
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
@@ -813,15 +814,25 @@ const Members = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("manage-advisor", {
-        body: { action: "delete-company", company_id: deleteTarget.id },
+        body: {
+          action: "delete-company",
+          company_id: deleteTarget.id,
+          delete_users: deleteAlsoUsers,
+        },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`${deleteTarget.name} slettet`);
+      const userCount = data?.deleted_user_count ?? 0;
+      toast.success(
+        deleteAlsoUsers && userCount > 0
+          ? `${deleteTarget.name} slettet (inkl. ${userCount} ${userCount === 1 ? "bruger" : "brugere"})`
+          : `${deleteTarget.name} slettet`,
+      );
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
+      setDeleteAlsoUsers(false);
       refetchMembers();
     } catch (err: any) {
       console.error("Delete error:", err);
@@ -1432,7 +1443,7 @@ const Members = () => {
       </Dialog>
 
       {/* Delete dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setDeleteAlsoUsers(false); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1476,10 +1487,26 @@ const Members = () => {
               </div>
             </DialogDescription>
           </DialogHeader>
+          {deleteTarget && deleteTarget.members.length > 0 && (
+            <label className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={deleteAlsoUsers}
+                onChange={(e) => setDeleteAlsoUsers(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-border accent-destructive"
+              />
+              <span className="flex-1">
+                <span className="font-medium text-destructive">Slet også tilknyttede brugerkonti permanent</span>
+                <span className="block text-xs text-muted-foreground mt-0.5">
+                  {deleteTarget.members.length === 1 ? "Brugeren" : `Alle ${deleteTarget.members.length} brugere`} slettes fra login-systemet (auth) og kan ikke gendannes. Brug kun til testdata.
+                </span>
+              </span>
+            </label>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Annullér</Button>
             <Button variant="destructive" onClick={handleDeleteCompany} disabled={deleting}>
-              {deleting ? "Sletter..." : "Slet virksomhed"}
+              {deleting ? "Sletter..." : deleteAlsoUsers ? "Slet virksomhed + brugere" : "Slet virksomhed"}
             </Button>
           </DialogFooter>
         </DialogContent>

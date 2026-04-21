@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'delete-company') {
-      const { company_id } = body;
+      const { company_id, delete_users } = body;
 
       if (!company_id) {
         return new Response(JSON.stringify({ error: 'Missing company_id' }), {
@@ -253,12 +253,20 @@ Deno.serve(async (req) => {
         });
       }
 
-      await hardDeleteCompany(adminSupabase, company_id, {
-        deleteUsers: false,
+      const { userIds } = await hardDeleteCompany(adminSupabase, company_id, {
+        deleteUsers: delete_users === true,
         preserveInvitations: false,
       });
 
-      return new Response(JSON.stringify({ success: true, company_id }), {
+      console.log(
+        `[manage-advisor] delete-company ${company_id} done. delete_users=${delete_users === true} affected_users=${userIds.length}`,
+      );
+
+      return new Response(JSON.stringify({
+        success: true,
+        company_id,
+        deleted_user_count: delete_users === true ? userIds.length : 0,
+      }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
