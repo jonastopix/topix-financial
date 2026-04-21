@@ -163,6 +163,7 @@ const Members = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyData | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteAlsoUsers, setDeleteAlsoUsers] = useState(false);
 
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
@@ -813,15 +814,25 @@ const Members = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("manage-advisor", {
-        body: { action: "delete-company", company_id: deleteTarget.id },
+        body: {
+          action: "delete-company",
+          company_id: deleteTarget.id,
+          delete_users: deleteAlsoUsers,
+        },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`${deleteTarget.name} slettet`);
+      const userCount = data?.deleted_user_count ?? 0;
+      toast.success(
+        deleteAlsoUsers && userCount > 0
+          ? `${deleteTarget.name} slettet (inkl. ${userCount} ${userCount === 1 ? "bruger" : "brugere"})`
+          : `${deleteTarget.name} slettet`,
+      );
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
+      setDeleteAlsoUsers(false);
       refetchMembers();
     } catch (err: any) {
       console.error("Delete error:", err);
