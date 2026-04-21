@@ -74,6 +74,7 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string } | null;
   needsAttention: boolean;
   unreadMessages: number;
+  unreadAgentMessages: number;
   milestones: MilestoneData[];
   kpiTargets: KpiTargetData[];
   hasWeeklyFocus: boolean;
