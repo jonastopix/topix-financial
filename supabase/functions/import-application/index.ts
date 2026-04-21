@@ -238,6 +238,8 @@ Deno.serve(async (req) => {
     console.warn("Failed to send invitation email (non-blocking):", emailErr);
   }
 
+  console.log(`[import-application] Invitation created: company=${companyId}, email=${email}, token=${invitation.token}, email_sent=${!emailErr}`);
+
   return new Response(JSON.stringify({
     ok: true,
     reused_company: !!existingCompanyId,
