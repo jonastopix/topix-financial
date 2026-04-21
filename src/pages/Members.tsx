@@ -1721,7 +1721,9 @@ const Members = () => {
                   disabled={importing || !parsed || !importForm.email || !importForm.company_name}
                   className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
-                  {importing ? "Importerer..." : "Importér og send invitation"}
+                  {importing
+                    ? (enrichCompanyId ? "Beriger..." : "Importerer...")
+                    : (enrichCompanyId ? "Berig virksomhed" : "Importér og send invitation")}
                 </button>
               </div>
             </div>
