@@ -298,6 +298,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setMembershipTier(null);
       }
     }
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
