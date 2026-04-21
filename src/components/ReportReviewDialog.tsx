@@ -312,6 +312,13 @@ export default function ReportReviewDialog({
         console.warn("Agent run failed (non-blocking):", err);
       });
 
+      // Auto-generate weekly focus with full AI analysis — non-blocking
+      supabase.functions.invoke("generate-weekly-focus", {
+        body: { company_id: companyId },
+      }).catch((err) => {
+        console.warn("Weekly focus generation failed (non-blocking):", err);
+      });
+
       // If alerts were detected, trigger a second focused agent run
       supabase.functions.invoke("detect-financial-alerts", {
         body: {
@@ -419,6 +426,13 @@ export default function ReportReviewDialog({
         }
       }).catch((err) => {
         console.warn("Agent run failed (non-blocking):", err);
+      });
+
+      // Auto-generate weekly focus with full AI analysis — non-blocking
+      supabase.functions.invoke("generate-weekly-focus", {
+        body: { company_id: companyId },
+      }).catch((err) => {
+        console.warn("Weekly focus generation failed (non-blocking):", err);
       });
 
       onOpenChange(false);

@@ -19,10 +19,11 @@ HVAD DU GØR (i rækkefølge):
 2. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned og med mål.
 3. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering
 4. Skriv én besked til founder i chatten — fokusér på ét nøglefund, ikke fem
-5. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
-6. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
-7. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
-8. Kald finish
+5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
+6. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
+7. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
+8. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
+9. Kald finish
 
 HVAD DU IKKE GØR:
 
@@ -267,6 +268,23 @@ const tools = [
           summary: { type: "string", description: "2-3 sætninger. Hvad betyder tallene og hvad er næste skridt?" },
         },
         required: ["company_id", "headline", "summary"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "write_company_action",
+      description: "Opretter en konkret handlingsopgave i virksomhedens action center på dashboardet. Brug kun til ét klart, specifikt næste skridt — fx 'Ring til din bank om kreditfacilitet' eller 'Opdatér din salgspipeline inden fredag'. Maks 1 action per kørsel.",
+      parameters: {
+        type: "object",
+        properties: {
+          company_id: { type: "string" },
+          title: { type: "string", description: "Handlingen i imperativ form. Maks 10 ord." },
+          context: { type: "string", description: "Kort forklaring på hvorfor. Maks 20 ord." },
+          priority: { type: "string", enum: ["high", "medium", "low"] },
+        },
+        required: ["company_id", "title", "context", "priority"],
       },
     },
   },
@@ -554,6 +572,31 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .eq("id", args.milestone_id);
       if (error) throw new Error(error.message);
       return { ok: true, milestone_id: args.milestone_id, new_progress: progress };
+    }
+
+    case "write_company_action": {
+      const { data: member } = await adminClient
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", args.company_id)
+        .limit(1)
+        .maybeSingle();
+      if (!member) return { ok: false, reason: "no_member" };
+
+      const { error } = await adminClient
+        .from("company_actions")
+        .insert({
+          company_id: args.company_id,
+          user_id: member.user_id,
+          title: args.title,
+          context: args.context,
+          priority: args.priority,
+          source_type: "agent",
+          status: "open",
+        } as any);
+
+      if (error) throw new Error(error.message);
+      return { ok: true };
     }
 
     case "finish": {
