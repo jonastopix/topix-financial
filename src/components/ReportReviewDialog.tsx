@@ -446,6 +446,37 @@ export default function ReportReviewDialog({
         console.warn("Weekly focus generation failed (non-blocking):", err);
       });
 
+      // Auto-create baseline + budget on first report — non-blocking
+      supabase.functions.invoke("auto-create-baseline-budget", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          metrics: preview?.metrics_preview ?? {},
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+        },
+      }).catch(() => {});
+
+      // If alerts were detected, trigger a second focused agent run
+      supabase.functions.invoke("detect-financial-alerts", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          report_id: reportId,
+        },
+      }).then(async (alertResult) => {
+        const alertData = alertResult.data;
+        if (alertData?.alerts_written > 0) {
+          supabase.functions.invoke("run-company-agent", {
+            body: {
+              company_id: companyId,
+              trigger: "anomaly_detected",
+              period_key: preview?.period_key,
+              period_label: preview?.period_label || preview?.period_key,
+            },
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fejl ved erstatning", { description: err.message || "Ukendt fejl" });
