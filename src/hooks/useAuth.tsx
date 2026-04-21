@@ -28,6 +28,8 @@ interface AuthContext {
   isGroupFeatureEnabled: boolean;
   /** True when user is the owner of their group (groups.owner_user_id) */
   isGroupOwner: boolean;
+  /** Membership tier: full (contract), subscriber (stripe), expired, or null */
+  membershipTier: "full" | "subscriber" | "expired" | null;
   /** Welcome banner dismissal timestamp from group_memberships */
   welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
