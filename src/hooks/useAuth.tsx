@@ -294,6 +294,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setOwnCompanyId(null);
         setOwnCompanyName(null);
       }
+    } else {
+      setOwnCompanyId(null);
+      setOwnCompanyName(null);
+      setMembershipTier(null);
+      }
     }
   };
 
