@@ -25,6 +25,7 @@ HVAD DU GØR (i rækkefølge):
 
 HVAD DU IKKE GØR:
 
+- Kald altid get_previous_agent_messages inden du skriver — skriv aldrig det samme som du sagde sidst
 - Gentag ikke hvad AI-analysen allerede har sagt (den er en detaljeret rapport, din besked er en sparring)
 - Opret ikke milestones der allerede eksisterer
 - Skriv ikke generiske råd der kunne gælde enhver virksomhed
@@ -102,6 +103,21 @@ const tools = [
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_previous_agent_messages",
+      description: "Henter agentens egne tidligere beskeder til denne virksomhed. Brug dette FØR du skriver en ny besked, så du ikke gentager observationer du allerede har delt. Se hvad der er sagt og fokusér på noget nyt.",
+      parameters: {
+        type: "object",
+        properties: {
+          company_id: { type: "string" },
+          limit: { type: "number", description: "Antal tidligere beskeder, standard 3" },
+        },
         required: ["company_id"],
       },
     },
@@ -433,6 +449,29 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
 
     case "finish": {
       return { done: true, summary: args.summary };
+    }
+
+    case "get_previous_agent_messages": {
+      const limit = args.limit ?? 3;
+      const { data: conv } = await adminClient
+        .from("conversations")
+        .select("id")
+        .eq("company_id", args.company_id)
+        .maybeSingle();
+      if (!conv) return [];
+
+      const { data, error } = await adminClient
+        .from("messages")
+        .select("content, created_at")
+        .eq("conversation_id", conv.id)
+        .eq("context_type", "agent")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw new Error(error.message);
+      return (data ?? []).map(m => ({
+        content: m.content.slice(0, 300),
+        date: new Date(m.created_at).toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
+      }));
     }
 
     default:
