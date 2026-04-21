@@ -3,6 +3,8 @@ project_id = "loiavmastgeieqyiwyyr"
 [functions]
   [functions.ai-financial-feedback]
     verify_jwt = false
+  [functions.attach-user-to-company]
+    verify_jwt = false
   [functions.auth-email-hook]
     verify_jwt = false
   [functions.extract-financial-data]

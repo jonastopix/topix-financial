@@ -197,6 +197,48 @@ const Members = () => {
   const [importing, setImporting] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [parsed, setParsed] = useState(false);
+  const [showAttachUser, setShowAttachUser] = useState(false);
+  const [attachEmail, setAttachEmail] = useState("");
+  const [attaching, setAttaching] = useState(false);
+
+  const handleAttachExistingUser = async () => {
+    if (!attachEmail) return;
+    setAttaching(true);
+    try {
+      if (!importForm.cvr_number) {
+        toast.error("CVR mangler — kan ikke finde virksomheden");
+        return;
+      }
+      const { data: company } = await supabase
+        .from("companies")
+        .select("id, name")
+        .eq("cvr_number", importForm.cvr_number)
+        .maybeSingle();
+
+      if (!company) {
+        toast.error("Virksomhed ikke fundet — importér ansøgningen først");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("attach-user-to-company", {
+        body: { email: attachEmail.trim().toLowerCase(), company_id: company.id },
+      });
+
+      if (error || !data?.ok) throw new Error(data?.error || error?.message || "Tilknytning fejlede");
+
+      toast.success("Bruger tilknyttet ✓", {
+        description: `${attachEmail} er nu tilknyttet ${company.name}`,
+      });
+      setShowAttachUser(false);
+      setAttachEmail("");
+      resetImportDialog();
+      refetchMembers();
+    } catch (err: any) {
+      toast.error("Fejl ved tilknytning", { description: err.message });
+    } finally {
+      setAttaching(false);
+    }
+  };
 
   const resetImportDialog = () => {
     setShowImportDialog(false);
@@ -558,12 +600,8 @@ const Members = () => {
           return;
         }
         if (data?.reason === "user_already_exists") {
-          toast.error("Bruger findes allerede", {
-            description: data.email_confirmed
-              ? "Denne email har allerede en bekræftet konto. Bed dem logge ind direkte på app.theboardroom.dk."
-              : "Denne email har en ubekræftet konto. Bed dem tjekke deres bekræftelsesmail.",
-          });
-          resetImportDialog();
+          setAttachEmail(importForm.email);
+          setShowAttachUser(true);
           return;
         }
         throw new Error(data?.error || "Import fejlede");
@@ -1673,6 +1711,38 @@ const Members = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={showAttachUser} onOpenChange={(open) => { if (!open) { setShowAttachUser(false); setAttachEmail(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bruger findes allerede</DialogTitle>
+            <DialogDescription>
+              Denne email har allerede en konto. Du kan tilknytte den eksisterende bruger direkte til virksomheden.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <input
+              type="email"
+              value={attachEmail}
+              onChange={(e) => setAttachEmail(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setShowAttachUser(false); setAttachEmail(""); resetImportDialog(); }}
+              disabled={attaching}
+            >
+              Annullér
+            </Button>
+            <Button onClick={handleAttachExistingUser} disabled={attaching || !attachEmail}>
+              {attaching ? "Tilknytter..." : "Tilknyt bruger →"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
