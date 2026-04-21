@@ -282,6 +282,15 @@ const Members = () => {
       const allCircleActivity = (circleActivityRes.data || []) as any[];
       const allInvitations = (invitationsRes.data || []) as any[];
       const allLoginLogs = (loginLogsRes.data || []) as any[];
+      const allMemberUserIds = (allMembers as any[]).map((m: any) => m.user_id);
+      const { data: authLoginData } = await supabase.rpc(
+        "get_users_last_login" as any,
+        { user_ids: allMemberUserIds }
+      );
+      const authLoginMap = new Map<string, string>();
+      for (const row of (authLoginData || []) as any[]) {
+        if (row.last_sign_in_at) authLoginMap.set(row.user_id, row.last_sign_in_at);
+      }
       const allFacts = (factsRes.data || []) as any[];
       const pulseThisMonthSet = new Set(
         (pulseRes.data || []).map((p: any) => p.company_id)
@@ -316,12 +325,18 @@ const Members = () => {
         if (!existing) {
           loginInfoMap.set(log.user_id, { lastLogin: log.logged_in_at, loginCount: 1 });
         } else {
-          existing.loginCount++;
+          if (existing.loginCount !== null) existing.loginCount++;
           if (log.logged_in_at > (existing.lastLogin || "")) {
             existing.lastLogin = log.logged_in_at;
           }
         }
       });
+      // Fallback: use auth.users last_sign_in_at for users not in login log
+      for (const [userId, lastSignIn] of authLoginMap) {
+        if (!loginInfoMap.has(userId)) {
+          loginInfoMap.set(userId, { lastLogin: lastSignIn, loginCount: null });
+        }
+      }
 
       const pendingInvitationByCompany = new Map<string, string>();
       const invitationInfoByCompany = new Map<string, { status: string; email: string; accepted_at: string | null }>();
@@ -487,6 +502,21 @@ const Members = () => {
             })(),
             __pendingInvitations: pendingInvsByCompany.get(c.id) || [],
             hasPulseThisMonth: pulseThisMonthSet.has(c.id),
+            contract_start_date: c.contract_start_date || null,
+            contract_end_date: c.contract_end_date || null,
+            subscription_status: c.subscription_status || null,
+            membershipTier: (() => {
+              if (!c.contract_end_date) return "no_date";
+              const now = new Date();
+              const end = new Date(c.contract_end_date);
+              if (end > now) return "full";
+              if (
+                c.subscription_status === "active" &&
+                c.subscription_current_period_end &&
+                new Date(c.subscription_current_period_end) > now
+              ) return "subscriber";
+              return "expired";
+            })(),
           } as any;
         });
 
@@ -1064,6 +1094,15 @@ const Members = () => {
     return { active, inactive, never };
   }, [companies]);
 
+  const contractStats = useMemo(() => {
+    let noEndDate = 0, expired = 0;
+    companies.forEach(c => {
+      if (c.membershipTier === "no_date") noEndDate++;
+      else if (c.membershipTier === "expired") expired++;
+    });
+    return { noEndDate, expired };
+  }, [companies]);
+
   const onboardingFunnel = useMemo(() => {
     const notInvited: CompanyData[] = [];
     const invitedPending: CompanyData[] = [];
@@ -1129,6 +1168,8 @@ const Members = () => {
         totalUnread={totalUnread}
         companiesWithReports={companiesWithReports}
         loginStats={loginStats}
+        companiesNoEndDate={contractStats.noEndDate}
+        companiesExpired={contractStats.expired}
       />
 
       <MembersOnboardingFunnel

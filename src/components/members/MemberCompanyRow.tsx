@@ -95,12 +95,32 @@ const MemberCompanyRow = ({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-muted-foreground">
-                {c.members.length} {c.members.length === 1 ? "bruger" : "brugere"}
-                {c.slack_channel && (
-                  <span className="ml-2 text-primary"><Hash className="h-2.5 w-2.5 inline" />{c.slack_channel}</span>
-                )}
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-muted-foreground">
+                  {c.members.length} {c.members.length === 1 ? "bruger" : "brugere"}
+                  {c.slack_channel && (
+                    <span className="ml-2 text-primary"><Hash className="h-2.5 w-2.5 inline" />{c.slack_channel}</span>
+                  )}
+                </span>
+                {(() => {
+                  const tier = c.membershipTier;
+                  if (tier === "full") return (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                      {c.contract_end_date ? `til ${format(new Date(c.contract_end_date), "MMM yyyy", { locale: da })}` : "Fuldt"}
+                    </span>
+                  );
+                  if (tier === "subscriber") return (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">Abonnent</span>
+                  );
+                  if (tier === "expired") return (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">Udløbet</span>
+                  );
+                  if (tier === "no_date") return (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">Ingen slutdato</span>
+                  );
+                  return null;
+                })()}
+              </div>
             </div>
           </div>
           <div className="flex flex-col">
@@ -306,7 +326,7 @@ const MemberCompanyRow = ({
                             );
                             return (
                               <span className="text-[10px] text-muted-foreground">
-                                Sidst aktiv {format(new Date(login.lastLogin!), "d. MMM", { locale: da })} · {login.loginCount} logins
+                                Sidst aktiv {format(new Date(login.lastLogin!), "d. MMM yyyy", { locale: da })}{login.loginCount ? ` · ${login.loginCount} logins` : ""}
                               </span>
                             );
                           })()}
@@ -425,7 +445,6 @@ const MemberCompanyRow = ({
                   <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
                 </div>
                 <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-foreground">
                     {c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret
                     {c.latestReportPeriod && (
@@ -434,13 +453,6 @@ const MemberCompanyRow = ({
                       </span>
                     )}
                   </p>
-                  {c.committedCount > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                      <CheckCircle2 className="h-2.5 w-2.5" />
-                      {c.committedCount} godkendt
-                    </span>
-                  )}
-                </div>
                   {c.committedCount > 0 && (
                     <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                       <CheckCircle2 className="h-2.5 w-2.5" />

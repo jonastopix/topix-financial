@@ -1,6 +1,6 @@
 export interface LoginInfo {
   lastLogin: string | null;
-  loginCount: number;
+  loginCount: number | null;
 }
 
 export interface CompanyMember {
@@ -50,6 +50,10 @@ export interface CompanyData {
   invitationEmail: string | null;
   loginInfo: Map<string, LoginInfo>;
   hasPulseThisMonth: boolean;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  subscription_status: string | null;
+  membershipTier: "full" | "subscriber" | "expired" | "no_date";
   __pendingInvitations?: any[];
 }
 
