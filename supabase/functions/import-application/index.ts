@@ -50,7 +50,8 @@ async function lookupCVR(cvr: string): Promise<{
       industry_code: data.industrycode ? String(data.industrycode) : undefined,
       industry_label: data.industrydesc || undefined,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[import-application] CVR lookup failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
