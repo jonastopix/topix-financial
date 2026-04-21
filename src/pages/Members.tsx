@@ -197,6 +197,48 @@ const Members = () => {
   const [importing, setImporting] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [parsed, setParsed] = useState(false);
+  const [showAttachUser, setShowAttachUser] = useState(false);
+  const [attachEmail, setAttachEmail] = useState("");
+  const [attaching, setAttaching] = useState(false);
+
+  const handleAttachExistingUser = async () => {
+    if (!attachEmail) return;
+    setAttaching(true);
+    try {
+      if (!importForm.cvr_number) {
+        toast.error("CVR mangler — kan ikke finde virksomheden");
+        return;
+      }
+      const { data: company } = await supabase
+        .from("companies")
+        .select("id, name")
+        .eq("cvr_number", importForm.cvr_number)
+        .maybeSingle();
+
+      if (!company) {
+        toast.error("Virksomhed ikke fundet — importér ansøgningen først");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("attach-user-to-company", {
+        body: { email: attachEmail.trim().toLowerCase(), company_id: company.id },
+      });
+
+      if (error || !data?.ok) throw new Error(data?.error || error?.message || "Tilknytning fejlede");
+
+      toast.success("Bruger tilknyttet ✓", {
+        description: `${attachEmail} er nu tilknyttet ${company.name}`,
+      });
+      setShowAttachUser(false);
+      setAttachEmail("");
+      resetImportDialog();
+      refetchMembers();
+    } catch (err: any) {
+      toast.error("Fejl ved tilknytning", { description: err.message });
+    } finally {
+      setAttaching(false);
+    }
+  };
 
   const resetImportDialog = () => {
     setShowImportDialog(false);
