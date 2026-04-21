@@ -211,7 +211,7 @@ const MemberDetail = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
-  const { isAdvisor: rawAdvisor, user, loading: authLoading } = useAuth();
+  const { isAdvisor: rawAdvisor, isAdmin, user, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [profile, setProfile] = useState<MemberProfile | null>(null);
