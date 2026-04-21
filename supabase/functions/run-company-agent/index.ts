@@ -21,7 +21,8 @@ HVAD DU GØR (i rækkefølge):
 4. Skriv én besked til founder i chatten — fokusér på ét nøglefund, ikke fem
 5. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
 6. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
-7. Kald finish
+7. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
+8. Kald finish
 
 HVAD DU IKKE GØR:
 
@@ -213,6 +214,25 @@ const tools = [
           message: { type: "string" },
         },
         required: ["company_id", "message"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "write_session_prep",
+      description: "Gemmer 3 konkrete punkter som advisor bør tage op til næste session med founder. Brug dette når du har identificeret vigtige emner der kræver menneskelig sparring. Punkterne vises direkte i advisor-dashboardet.",
+      parameters: {
+        type: "object",
+        properties: {
+          company_id: { type: "string" },
+          points: {
+            type: "array",
+            items: { type: "string" },
+            description: "Præcis 3 punkter. Maks 15 ord per punkt. Konkrete og handlingsorienterede.",
+          },
+        },
+        required: ["company_id", "points"],
       },
     },
   },
@@ -472,6 +492,35 @@ async function executeTool(name: string, args: any, adminClient: any): Promise<a
 
       if (error) throw new Error(error.message);
       return { ok: true, week_key: weekKey };
+    }
+
+    case "write_session_prep": {
+      const points = (args.points as string[]).slice(0, 3);
+      const now = new Date();
+
+      const { data: conv } = await adminClient
+        .from("conversations")
+        .select("id, assigned_advisor_id, member_id")
+        .eq("company_id", args.company_id)
+        .maybeSingle();
+      if (!conv) return { ok: false, reason: "no_conversation" };
+
+      // Store as a pinned system message so advisor sees it in chat
+      const content = `**Forbered til næste session:**\n${points.map((p, i) => `${i + 1}. ${p}`).join("\n")}`;
+
+      const { error } = await adminClient
+        .from("messages")
+        .insert({
+          conversation_id: conv.id,
+          sender_id: conv.member_id,
+          content,
+          message_type: "system",
+          context_type: "session_prep",
+          context_meta: { source: "run-company-agent", points, generated_at: now.toISOString() },
+        });
+
+      if (error) throw new Error(error.message);
+      return { ok: true, points_count: points.length };
     }
 
     case "finish": {
