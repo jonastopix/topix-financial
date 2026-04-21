@@ -214,6 +214,19 @@ Deno.serve(async (req) => {
       unreadCount = count || 0;
     }
 
+    // Fetch latest agent insight
+    let latestAgentInsight: string | null = null;
+    if (conv?.id) {
+      const { data: agentMsgs } = await adminClient
+        .from("messages")
+        .select("content, created_at")
+        .eq("conversation_id", conv.id)
+        .eq("context_type", "agent")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      latestAgentInsight = agentMsgs?.[0]?.content?.slice(0, 400) || null;
+    }
+
     // Build KPI highlight
     const latestFact = facts?.[0];
     const metrics = latestFact?.metrics as Record<string, number> | null;
@@ -242,6 +255,9 @@ Deno.serve(async (req) => {
     }
     if (unreadCount > 0) {
       bodyLines.push(`\nDu har ${unreadCount} ulæst${unreadCount > 1 ? "e" : ""} besked${unreadCount > 1 ? "er" : ""} fra din rådgiver.`);
+    }
+    if (latestAgentInsight) {
+      bodyLines.push(`\n${`<div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0"><p style="color:#166534;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">AI-indsigt denne måned</p><p style="color:#4a4a4a;font-size:13px;line-height:20px;margin:0">${latestAgentInsight}</p></div>`}`);
     }
     if (!milestones?.length && unreadCount === 0 && !highlight) {
       console.log(`[digest] Skipping ${email} — no relevant content this month`);
