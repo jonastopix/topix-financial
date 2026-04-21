@@ -50,7 +50,8 @@ async function lookupCVR(cvr: string): Promise<{
       industry_code: data.industrycode ? String(data.industrycode) : undefined,
       industry_label: data.industrydesc || undefined,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[import-application] CVR lookup failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -119,6 +120,11 @@ Deno.serve(async (req) => {
 
     if (body.cvr_number && /^\d{8}$/.test(body.cvr_number)) {
       cvrData = await lookupCVR(body.cvr_number);
+      if (cvrData) {
+        console.log(`[import-application] CVR ${body.cvr_number} → ${cvrData.name}, founded: ${cvrData.founded}`);
+      } else {
+        console.warn(`[import-application] CVR ${body.cvr_number} lookup returned no data`);
+      }
       if (cvrData?.founded && !startDate) {
         startDate = cvrData.founded.slice(0, 10);
       }

@@ -476,6 +476,10 @@ const Members = () => {
       toast.error("Email og virksomhedsnavn er påkrævet");
       return;
     }
+    if (importForm.cvr_number && !/^\d{8}$/.test(importForm.cvr_number.trim())) {
+      toast.error("CVR-nummer skal være præcis 8 cifre");
+      return;
+    }
     setImporting(true);
     try {
       const { data, error } = await supabase.functions.invoke("import-application", {
