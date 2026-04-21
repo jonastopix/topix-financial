@@ -200,6 +200,7 @@ const Members = () => {
   const [showAttachUser, setShowAttachUser] = useState(false);
   const [attachEmail, setAttachEmail] = useState("");
   const [attaching, setAttaching] = useState(false);
+  const [enrichCompanyId, setEnrichCompanyId] = useState<string | null>(null);
 
   const handleAttachExistingUser = async () => {
     if (!attachEmail) return;
@@ -244,6 +245,7 @@ const Members = () => {
     setShowImportDialog(false);
     setParsed(false);
     setParsing(false);
+    setEnrichCompanyId(null);
     setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "", contract_start_date: "", contract_end_date: "" });
   };
 
@@ -545,7 +547,8 @@ const Members = () => {
       toast.error("CVR-nummer skal være præcis 8 cifre");
       return;
     }
-    if (!importForm.contract_end_date) {
+    // Contract end date is required for new imports, optional in enrich mode
+    if (!enrichCompanyId && !importForm.contract_end_date) {
       toast.error("Kontraktslut er påkrævet");
       return;
     }
@@ -588,9 +591,18 @@ const Members = () => {
           revenue_interval: importForm.revenue_interval || undefined,
           contract_start_date: importForm.contract_start_date || undefined,
           contract_end_date: importForm.contract_end_date || undefined,
+          enrich_company_id: enrichCompanyId || undefined,
         },
       });
       if (error) throw new Error(error.message || "Import fejlede");
+      if (data?.enriched) {
+        toast.success("Virksomhed beriget ✓", {
+          description: `Opdaterede: ${data.fields_updated?.join(", ") || "kontekst"}`,
+        });
+        resetImportDialog();
+        refetchMembers();
+        return;
+      }
       if (!data?.ok) {
         if (data?.reason === "invitation_already_exists") {
           toast.warning("Der er allerede en aktiv invitation på denne email", {
