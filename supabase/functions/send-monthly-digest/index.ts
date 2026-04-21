@@ -230,8 +230,8 @@ Deno.serve(async (req) => {
     // Build KPI highlight
     const latestFact = facts?.[0];
     const metrics = latestFact?.metrics as Record<string, number> | null;
-    const revenue = metrics?.omsaetning;
-    const result = metrics?.resultat_foer_skat;
+    const revenue = metrics?.revenue;
+    const result = metrics?.ebt;
 
     let highlight = "";
     if (revenue != null && latestFact?.period_label) {
