@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     .insert({
       company_id: company.id,
       email,
-      invited_by: (await adminClient.auth.admin.listUsers()).data?.users?.[0]?.id || "00000000-0000-0000-0000-000000000000",
+      invited_by: callerId,
       status: "pending",
     })
     .select("token")
