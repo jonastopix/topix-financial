@@ -1,86 +1,46 @@
 
 
-## Plan: Komplet oprydning af test-data
+## Plan: Én samlet velkomst fra advisor — ingen anonyme afsendere
 
-### Nuværende tilstand (fra database)
+### Problem
+Når en ny founder afslutter onboarding, oprettes **to** velkomstbeskeder:
 
-**Test-virksomhed:**
-- **Topix Test ApS** (`927a4f36-748d-4326-9259-bff940da7e3d`, CVR 45281736)
-  - 1 medlem: `jonas+test14@topix.dk`
-  - 56 financial_reports, 9 milestones, 2 handouts, 1 conversation
-  - 0 invitationer, 0 group-links
+1. **`send-welcome-message`** indsætter en `message_type: "welcome"` besked. Renderen i `CompanyChatPane` har ingen case for `"welcome"`, så den falder ned i bruger-bobbel-renderen. Den finder ikke advisor i `participants` (advisors er ikke i `company_members`), så afsenderen vises som **"M Medlem"** med default-avatar.
+2. **`run-company-agent`** trigger `onboarding` (kaldet fra `useAuth` når `onboarding_completed=false` og `profileOnboarded=true`) bruger sit `write_chat_message`-tool, som tvinger `sender_id = conv.member_id` og `message_type: "system"`. Det rendes som en grå **"SYSTEM"-boks** med Sparkles-ikon.
 
-**Test/demo auth-brugere:**
-| Email | User ID | Tilknyttet selskab | Sidst logget ind |
-|---|---|---|---|
-| `jonas+test14@topix.dk` | `7f1a05ce-…` | Topix Test ApS | 20. apr |
-| `kontakt@topix.dk` | `f899dbc5-…` | (ingen) — forældreløs | 26. feb |
-| `demo@theboardroom.dk` | `e1380355-…` | (ingen) — forældreløs | 1. apr |
-| `jonas+legat6@topix.dk` | `d22018e4-…` | Jonas legat | 13. apr |
+Begge brydes med vores princip: chatbeskeder skal komme fra en navngiven advisor med billede.
 
-**Forældreløse pending invitationer (11 stk, alle uden `company_id`):**
-Inkl. `ditte@mondokaos.dk`, `jonas@wesdex.dk`, `martin@meresmag.dk`, `jek@pro-vision.dk`, `skriv@livja.dk`, `oko@topdanmark.dk`, `friis000@icloud.com`, `jkj@webcompanies.dk`, `cj@couriercopenhagen.dk`, `kontakt@box-cut.com`, `office@coskunholding.dk` — 10 af dem fra 27. feb 2026 (legacy), 1 fra 20. apr.
+### Løsning — én velkomst, fra advisor, med navn og avatar
 
-**Email-log:** 658 rækker, 299 ældre end 14 dage.
+**1. Fjern den separate `send-welcome-message`-trigger**
+- Slet kaldet i `src/pages/Onboarding.tsx` (linje 73-78). Agenten leverer nu velkomsten — vi har ikke brug for to kanaler.
+- Behold edge function-filen for nu (kan kaldes manuelt fra admin), men marker den som deprecated i en kommentar.
 
-**Brugere uden login:** 6 brugere oprettet for >14 dage siden uden nogen login.
+**2. Lav agentens velkomst til en rigtig advisor-besked (ikke "system")**
+I `supabase/functions/run-company-agent/index.ts` `write_chat_message`-toolet:
+- Tilføj en valgfri parameter `as_advisor: boolean` (default `false`).
+- Når `as_advisor === true`:
+  - Slå `conv.assigned_advisor_id` op; fald tilbage til første bruger med rolle `advisor` eller `admin`.
+  - Sæt `sender_id = advisorId`, `message_type = "user"` (så den rendes som almindelig chat-bobbel), `context_type = null`, ingen `context_meta.source = agent` (skjul "Var dette nyttigt?"-knapperne for velkomstbeskeden).
+- Opdatér onboarding-prompten til at kalde `write_chat_message` med `as_advisor: true` for selve velkomsten. Andre agent-beskeder (post-commit analyse osv.) forbliver `system`-bokse som i dag.
 
----
+**3. Sørg for at advisor-profilen kan vises i chatten for founders**
+`CompanyChatPane`-renderen slår sender op i `participants` (kun company_members) eller `profilesMap`. For at "billede + navn" virker for advisor:
+- Når vi henter beskeder, udvid `profilesMap` så den også indeholder `assigned_advisor_id` for samtalen (hent profil + avatar én gang).
+- Hvis advisor stadig ikke kan opløses (edge case), vis "Rådgiver" + advisor-initial — **aldrig** "Medlem"/"M".
 
-### Trin 1 — Hard delete `Topix Test ApS`
+**4. Idempotens**
+Agentens onboarding-kørsel sætter allerede `onboarding_completed = true` med det samme (eksisterende fix), så den kører kun én gang. Vi behøver ingen ekstra guard når `send-welcome-message` ryger ud.
 
-Bruger den eksisterende `hardDeleteCompany`-funktion (som allerede håndterer alle cascading deletes inkl. financial_reports, milestones, handouts, conversations, messages, KPI-data, alerts, Slack-logs osv.).
+**5. Ryd op i eksisterende test-data**
+Manuel SQL-cleanup af Topix.dk ApS + bruger så du kan teste forfra med et tomt slate.
 
-**Eksekveres via en engangs-edge-function** `admin-cleanup-test-data` (POST, admin-gated, dry-run mode default). Ved kald med `{ action: "hard_delete_company", company_id: "927a4f36-…", delete_users: true }`:
-1. Kalder `hardDeleteCompany(adminSupabase, companyId, { deleteUsers: true })`
-2. Sletter dermed også auth-brugeren `jonas+test14@topix.dk`
+### Filer der ændres
+- `src/pages/Onboarding.tsx` — fjern `send-welcome-message`-kald
+- `supabase/functions/run-company-agent/index.ts` — tilføj `as_advisor` til `write_chat_message`, opdater onboarding-prompt
+- `src/components/CompanyChatPane.tsx` — sørg for advisor-profil hentes ind i `profilesMap`, fallback til "Rådgiver" i stedet for "Medlem"
+- SQL: hard-delete af Topix.dk ApS + kontakt@topix.dk
 
-### Trin 2 — Slet forældreløse auth-brugere
-
-Samme edge function med `{ action: "delete_orphan_user", user_id: "..." }`:
-- `kontakt@topix.dk` (`f899dbc5-…`) — så test-flowet med invite kan køres med frisk email
-- `demo@theboardroom.dk` (`e1380355-…`) — ubrugt demo-konto
-
-For hver: slet `profiles`, `user_login_log`, `notifications`, og kald `auth.admin.deleteUser`.
-
-**`jonas+legat6@topix.dk` BEVARES** — knyttet til "Jonas legat" og brugt aktivt.
-
-### Trin 3 — Ryd dangling pending invitationer
-
-Direkte SQL via insert-tool:
-```sql
-DELETE FROM company_invitations
-WHERE status = 'pending' AND company_id IS NULL;
-```
-Sletter alle 11 forældreløse invitationer (alle uden `company_id`).
-
-### Trin 4 — Ryd gammel email-log
-
-```sql
-DELETE FROM email_send_log
-WHERE created_at < now() - interval '14 days';
-```
-Sletter ~299 gamle log-rækker. Nye rækker dannes løbende af kø-systemet.
-
-### Trin 5 — Verifikation
-
-Efter oprydning kører jeg tjek på:
-- `companies` ikke længere indeholder Topix Test ApS
-- `auth.users` ikke længere indeholder de 3 slettede brugere
-- `company_invitations` har 0 pending uden `company_id`
-- `email_send_log` count ~359
-
----
-
-### Hvad IKKE bliver rørt
-- Aktive brugere/selskaber med rigtigt data (alt udover ovenstående)
-- "Jonas legat"-selskabet og dens bruger
-- `handle_new_user`-trigger, RLS-politikker, edge functions
-- Aktive pending-invitationer der ER tilknyttet en company
-
-### Tekniske detaljer
-- Den nye edge function `admin-cleanup-test-data` deployes med `verify_jwt = false` og admin-rolle-check via `getClaims` + `has_role`
-- Den kalder den eksisterende `_shared/companyHardDelete.ts` for selve sletningen — ingen ny sletteslogik
-- Funktionen bevares efter brug, så fremtidige test-oprydninger kan køres samme vej
-- Efter Trin 1+2 kan du straks teste det nye importflow med `kontakt@topix.dk` som ny invite (eller en hvilken som helst frisk email)
+### Resultat
+Founder ser **én** velkomstbesked i chatten — fra navngiven advisor (assigned eller fallback) med rigtigt avatar/navn. Ingen "Medlem"-boks, ingen "SYSTEM"-boks ved onboarding. Efterfølgende agent-beskeder (post-commit analyse) forbliver som "SYSTEM"-bokse, som de skal.
 
