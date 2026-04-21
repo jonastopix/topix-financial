@@ -814,7 +814,7 @@ ${trigger === "pulse_submitted"
       },
     ];
 
-    const MAX_ITERATIONS = 8;
+    const MAX_ITERATIONS = 12;
     let iterations = 0;
     let done = false;
     let messageWritten = false;
