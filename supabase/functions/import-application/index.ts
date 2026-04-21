@@ -24,6 +24,8 @@ interface ApplicationPayload {
   // Pricing
   price?: number;
   start_date?: string;
+  contract_start_date?: string;
+  contract_end_date?: string;
 }
 
 async function lookupCVR(cvr: string): Promise<{
@@ -143,6 +145,8 @@ Deno.serve(async (req) => {
         website: body.website || null,
         contact_phone: body.phone || null,
         start_date: startDate,
+        contract_start_date: body.contract_start_date ? body.contract_start_date.slice(0, 10) : null,
+        contract_end_date: body.contract_end_date ? body.contract_end_date.slice(0, 10) : null,
         cvr_fetched_at: cvrData ? new Date().toISOString() : null,
         onboarding_completed: false,
         application_context: {
