@@ -74,6 +74,7 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string } | null;
   needsAttention: boolean;
   unreadMessages: number;
+  unreadAgentMessages: number;
   milestones: MilestoneData[];
   kpiTargets: KpiTargetData[];
   hasWeeklyFocus: boolean;
@@ -270,6 +271,7 @@ const AdvisorDashboard = () => {
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
+        unreadAgentMsgsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -341,6 +343,13 @@ const AdvisorDashboard = () => {
           .select("company_id")
           .eq("status", "active")
           .gte("generated_at", new Date(Date.now() - 14 * 86400000).toISOString()) as any),
+        supabase
+          .from("messages")
+          .select("conversation_id")
+          .is("read_at", null)
+          .eq("message_type", "system")
+          .eq("context_type", "agent")
+          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString()),
       ]);
 
       // Map group conversations into the same shape as company conversations
@@ -454,6 +463,17 @@ const AdvisorDashboard = () => {
         if (c.company_id && c.awaiting_reply_from === "advisor") {
           unreadByCompany.set(c.company_id, (unreadByCompany.get(c.company_id) || 0) + 1);
         }
+      }
+
+      // Unread agent messages per company
+      const unreadAgentByCompany = new Map<string, number>();
+      const convIdToCompanyId = new Map<string, string>();
+      for (const c of conversations) {
+        if (c.company_id && c.id) convIdToCompanyId.set(c.id, c.company_id);
+      }
+      for (const msg of (unreadAgentMsgsRes.data || []) as any[]) {
+        const compId = convIdToCompanyId.get(msg.conversation_id);
+        if (compId) unreadAgentByCompany.set(compId, (unreadAgentByCompany.get(compId) || 0) + 1);
       }
 
       // Build report keys per company + KFs by period
@@ -588,6 +608,7 @@ const AdvisorDashboard = () => {
           latestPulse: pulse,
           needsAttention,
           unreadMessages: unreadByCompany.get(c.id) || 0,
+          unreadAgentMessages: unreadAgentByCompany.get(c.id) || 0,
           milestones: milestonesByCompany.get(c.id) || [],
           kpiTargets: kpiByCompany.get(c.id) || [],
           hasWeeklyFocus: weeklyFocusCompanies.has(c.id),
@@ -658,6 +679,10 @@ const AdvisorDashboard = () => {
           if (c.unreadMessages > 0) {
             reasons.push({ label: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, urgency: "high" });
             score += 100;
+          }
+          if (c.unreadAgentMessages > 0) {
+            reasons.push({ label: "AI-indsigt klar til opfølgning", urgency: "medium" });
+            score += 35;
           }
           if (c.cash != null && c.cash < 0) {
             reasons.push({ label: "Bankovertræk", urgency: "high" });
