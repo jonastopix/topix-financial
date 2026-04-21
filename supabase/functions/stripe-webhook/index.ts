@@ -78,29 +78,68 @@ Deno.serve(async (req) => {
   const event = JSON.parse(payload);
   console.log("[stripe-webhook] Event type:", event.type);
 
-  if (event.type !== "checkout.session.completed") {
-    return new Response(JSON.stringify({ received: true }), {
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  const session = event.data.object;
-  const userId = session.metadata?.user_id;
-  const companyId = session.metadata?.company_id || null;
-  const stripeSessionId = session.id;
-  const paymentIntentId = session.payment_intent;
-
-  if (!userId) {
-    console.error("No user_id in session metadata");
-    return new Response("Missing metadata", { status: 400 });
-  }
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const calendlyApiKey = Deno.env.get("CALENDLY_API_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   try {
+    // ── Subscription lifecycle events ──
+    if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
+      const sub = event.data.object;
+      const companyId = sub.metadata?.company_id;
+      if (companyId) {
+        await adminClient
+          .from("companies")
+          .update({
+            subscription_status: sub.status,
+            stripe_customer_id: sub.customer,
+            stripe_subscription_id: sub.id,
+            subscription_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+          } as any)
+          .eq("id", companyId);
+        console.log(`[stripe-webhook] Subscription ${event.type} for company ${companyId}, status: ${sub.status}`);
+      }
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (event.type === "customer.subscription.deleted") {
+      const sub = event.data.object;
+      const companyId = sub.metadata?.company_id;
+      if (companyId) {
+        await adminClient
+          .from("companies")
+          .update({
+            subscription_status: "cancelled",
+            subscription_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+          } as any)
+          .eq("id", companyId);
+        console.log(`[stripe-webhook] Subscription cancelled for company ${companyId}`);
+      }
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (event.type !== "checkout.session.completed") {
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const session = event.data.object;
+    const userId = session.metadata?.user_id;
+    const companyId = session.metadata?.company_id || null;
+    const stripeSessionId = session.id;
+    const paymentIntentId = session.payment_intent;
+
+    if (!userId) {
+      console.error("No user_id in session metadata");
+      return new Response("Missing metadata", { status: 400 });
+    }
+
     // Idempotency: check if we already processed this session
     const { data: existingBooking } = await adminClient
       .from("session_bookings")
