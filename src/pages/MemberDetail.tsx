@@ -1618,6 +1618,93 @@ const MemberDetail = () => {
           </div>
         </>
       )}
+
+      <Dialog open={editingCompany} onOpenChange={setEditingCompany}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Rediger virksomhedsdata</DialogTitle>
+            <DialogDescription>Ændringer gemmes direkte på virksomheden i databasen.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Kontraktstart</label>
+              <input
+                type="date"
+                value={companyEditForm.contract_start_date}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, contract_start_date: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Kontraktslut</label>
+              <input
+                type="date"
+                value={companyEditForm.contract_end_date}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, contract_end_date: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">CVR-nummer</label>
+              <input
+                type="text"
+                value={companyEditForm.cvr_number}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, cvr_number: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                placeholder="12345678"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Branche</label>
+              <input
+                type="text"
+                value={companyEditForm.industry_label}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, industry_label: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Website</label>
+              <input
+                type="text"
+                value={companyEditForm.website}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, website: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                placeholder="https://"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Slack-kanal</label>
+              <input
+                type="text"
+                value={companyEditForm.slack_channel}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, slack_channel: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                placeholder="#virksomhed"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Abonnementsstatus</label>
+              <select
+                value={companyEditForm.subscription_status}
+                onChange={(e) => setCompanyEditForm(f => ({ ...f, subscription_status: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— Ingen (kontraktmedlem) —</option>
+                <option value="active">active (self-serve abonnent)</option>
+                <option value="cancelled">cancelled</option>
+                <option value="past_due">past_due</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCompany(false)}>Annullér</Button>
+            <Button onClick={handleSaveCompany} disabled={savingCompany}>
+              {savingCompany ? "Gemmer..." : "Gem ændringer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
