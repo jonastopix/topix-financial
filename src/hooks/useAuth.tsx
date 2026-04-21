@@ -28,6 +28,8 @@ interface AuthContext {
   isGroupFeatureEnabled: boolean;
   /** True when user is the owner of their group (groups.owner_user_id) */
   isGroupOwner: boolean;
+  /** Membership tier: full (contract), subscriber (stripe), expired, or null */
+  membershipTier: "full" | "subscriber" | "expired" | null;
   /** Welcome banner dismissal timestamp from group_memberships */
   welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
@@ -56,6 +58,7 @@ const AuthContext = createContext<AuthContext>({
   isGroupUser: false,
   isGroupFeatureEnabled: false,
   isGroupOwner: false,
+  membershipTier: null,
   welcomeDismissedAt: null,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
@@ -97,6 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [groupName, setGroupName] = useState<string | null>(null);
   const [isGroupFeatureEnabled, setIsGroupFeatureEnabled] = useState(false);
   const [isGroupOwner, setIsGroupOwner] = useState(false);
+  const [membershipTier, setMembershipTier] = useState<"full" | "subscriber" | "expired" | null>(null);
   const [welcomeDismissedAt, setWelcomeDismissedAt] = useState<string | null>(null);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
@@ -209,6 +213,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setOwnCompanyId(cm.company_id);
       setOwnCompanyName(cm.companies?.name || null);
 
+      // Determine membership tier
+      if (isAdv) {
+        setMembershipTier("full");
+      } else {
+        const { data: companyTierData } = await supabase
+          .from("companies")
+          .select("contract_end_date, subscription_status, subscription_current_period_end")
+          .eq("id", cm.company_id)
+          .maybeSingle();
+
+        const now = new Date();
+        const contractEnd = companyTierData?.contract_end_date
+          ? new Date(companyTierData.contract_end_date)
+          : null;
+        const subEnd = companyTierData?.subscription_current_period_end
+          ? new Date(companyTierData.subscription_current_period_end)
+          : null;
+
+        if (contractEnd && contractEnd > now) {
+          setMembershipTier("full");
+        } else if (
+          companyTierData?.subscription_status === "active" &&
+          subEnd && subEnd > now
+        ) {
+          setMembershipTier("subscriber");
+        } else {
+          setMembershipTier("expired");
+        }
+      }
+
       // Trigger onboarding agent if this is first login for an imported company
       const { data: companyMeta } = await supabase
         .from("companies")
@@ -250,15 +284,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           } else {
             setOwnCompanyId(null);
             setOwnCompanyName(null);
+            setMembershipTier(null);
           }
         } catch (e) {
           console.error("Failed to process pending invitation:", e);
           setOwnCompanyId(null);
           setOwnCompanyName(null);
+          setMembershipTier(null);
         }
       } else {
         setOwnCompanyId(null);
         setOwnCompanyName(null);
+        setMembershipTier(null);
       }
     }
   };
@@ -304,6 +341,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setGroupName(null);
           setIsGroupFeatureEnabled(false);
           setIsGroupOwner(false);
+          setMembershipTier(null);
           setWelcomeDismissedAt(null);
           setLoading(false);
         }
@@ -337,6 +375,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isGroupUser: groupId != null,
       isGroupFeatureEnabled,
       isGroupOwner,
+      membershipTier,
       welcomeDismissedAt,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       refreshProfile, signOut,
