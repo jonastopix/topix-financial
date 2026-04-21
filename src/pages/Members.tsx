@@ -10,7 +10,7 @@ import AddCompanyToGroupDialog from "@/components/AddCompanyToGroupDialog";
 import {
   Building2, Search, ChevronDown, ArrowUpDown, UserPlus,
   AlertTriangle, Loader2, Layers, Pencil, Users, FileText,
-  Activity, Send,
+  Activity, Send, Upload, CheckCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -26,6 +26,76 @@ import MembersStatsBar from "@/components/members/MembersStatsBar";
 import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
 import MemberCompanyRow from "@/components/members/MemberCompanyRow";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
+
+async function parseApplicationExcel(file: File): Promise<Partial<{
+  email: string; company_name: string; cvr_number: string; contact_name: string;
+  annual_revenue: string; industry_label: string; current_situation: string;
+  goals: string; help_needed: string; website: string; phone: string;
+}>> {
+  const XLSX = await import("xlsx");
+  const { read, utils } = XLSX;
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const workbook = read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: any[][] = utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+        let headerIdx = -1;
+        for (let i = 0; i < Math.min(rows.length, 15); i++) {
+          const nonNull = rows[i].filter(v => v != null);
+          if (nonNull.length > 5 && (nonNull.includes("Name") || nonNull.includes("Email"))) {
+            headerIdx = i;
+            break;
+          }
+        }
+        if (headerIdx === -1) { reject(new Error("Kunne ikke finde kolonneoverskrifter")); return; }
+
+        const headers: string[] = rows[headerIdx].map(h => String(h ?? ""));
+        const dataRow = rows[headerIdx + 1];
+        if (!dataRow) { reject(new Error("Ingen data fundet")); return; }
+
+        const get = (key: string) => {
+          const idx = headers.findIndex(h => h.toLowerCase().includes(key.toLowerCase()));
+          if (idx === -1) return "";
+          const val = dataRow[idx];
+          return val != null ? String(val).trim() : "";
+        };
+
+        let annualRevenue = "";
+        const revRaw = get("Årlig omsætning") || get("Omsætning (interval)");
+        if (revRaw) {
+          const num = parseFloat(revRaw.replace(/[^\d]/g, ""));
+          if (!isNaN(num) && num > 0) annualRevenue = String(num);
+          else if (revRaw.includes("1.000.000")) annualRevenue = "1500000";
+          else if (revRaw.includes("500.000")) annualRevenue = "750000";
+          else if (revRaw.includes("2.000.000")) annualRevenue = "2500000";
+        }
+
+        resolve({
+          email: get("Email"),
+          company_name: get("Name"),
+          cvr_number: get("CVR").replace(/\s/g, ""),
+          contact_name: get("Kontaktperson"),
+          annual_revenue: annualRevenue,
+          industry_label: get("Branche"),
+          current_situation: get("Nuværende situation"),
+          goals: get("Mål med virksomhed"),
+          help_needed: get("Beskriv hvilken hjælp"),
+          website: get("Hjemmeside"),
+          phone: get("Telefon"),
+        });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error("Kunne ikke læse filen"));
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 interface CircleInfo {
   circle_member_id: number;
@@ -86,6 +156,15 @@ const Members = () => {
     goals: "", help_needed: "", website: "", phone: "",
   });
   const [importing, setImporting] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [parsed, setParsed] = useState(false);
+
+  const resetImportDialog = () => {
+    setShowImportDialog(false);
+    setParsed(false);
+    setParsing(false);
+    setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" });
+  };
 
   const { data: membersData, isLoading: loading, refetch: refetchMembers } = useQuery({
     queryKey: ["members-data", user?.id],
@@ -393,8 +472,7 @@ const Members = () => {
       toast.success("Ansøgning importeret ✓", {
         description: `${data.company_name} er oprettet og invitation sendt til ${importForm.email}`,
       });
-      setShowImportDialog(false);
-      setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" });
+      resetImportDialog();
       refetchMembers();
     } catch (err: any) {
       toast.error("Import fejlede", { description: err.message });
@@ -1354,58 +1432,123 @@ const Members = () => {
                     Opretter virksomhed, slår CVR op og sender invitationsmail automatisk
                   </p>
                 </div>
-                <button onClick={() => setShowImportDialog(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+                <button onClick={resetImportDialog} className="text-muted-foreground hover:text-foreground">✕</button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Email *</label>
-                  <input value={importForm.email} onChange={e => setImportForm(f => ({ ...f, email: e.target.value }))} placeholder="founder@virksomhed.dk" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              {!parsed ? (
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (!file) return;
+                    setParsing(true);
+                    try {
+                      const result = await parseApplicationExcel(file);
+                      setImportForm(f => ({ ...f, ...result }));
+                      setParsed(true);
+                    } catch (err: any) {
+                      toast.error("Kunne ikke læse filen", { description: err.message });
+                    } finally {
+                      setParsing(false);
+                    }
+                  }}
+                  onClick={() => document.getElementById("excel-upload")?.click()}
+                  className="border-2 border-dashed border-border rounded-xl p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:border-primary/50 hover:bg-accent/30 transition-colors"
+                >
+                  <input
+                    id="excel-upload"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setParsing(true);
+                      try {
+                        const result = await parseApplicationExcel(file);
+                        setImportForm(f => ({ ...f, ...result }));
+                        setParsed(true);
+                      } catch (err: any) {
+                        toast.error("Kunne ikke læse filen", { description: err.message });
+                      } finally {
+                        setParsing(false);
+                      }
+                    }}
+                  />
+                  {parsing ? (
+                    <>
+                      <Loader2 className="h-10 w-10 text-muted-foreground animate-spin mb-3" />
+                      <p className="text-sm font-medium text-foreground">Læser fil...</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-10 w-10 text-muted-foreground mb-3" />
+                      <p className="text-sm font-medium text-foreground">Træk ansøgnings-Excel hertil</p>
+                      <p className="text-xs text-muted-foreground mt-1">eller klik for at vælge fil · .xlsx fra Monday.com</p>
+                    </>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Virksomhedsnavn *</label>
-                  <input value={importForm.company_name} onChange={e => setImportForm(f => ({ ...f, company_name: e.target.value }))} placeholder="Virksomhed ApS" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
-                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-foreground bg-accent/30 border border-border rounded-lg px-3 py-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    Ansøgning læst — gennemgå og ret hvis nødvendigt
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">CVR-nummer</label>
-                  <input value={importForm.cvr_number} onChange={e => setImportForm(f => ({ ...f, cvr_number: e.target.value }))} placeholder="12345678" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Email *</label>
+                      <input value={importForm.email} onChange={e => setImportForm(f => ({ ...f, email: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Virksomhedsnavn *</label>
+                      <input value={importForm.company_name} onChange={e => setImportForm(f => ({ ...f, company_name: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">CVR-nummer</label>
+                      <input value={importForm.cvr_number} onChange={e => setImportForm(f => ({ ...f, cvr_number: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Kontaktperson</label>
+                      <input value={importForm.contact_name} onChange={e => setImportForm(f => ({ ...f, contact_name: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Årlig omsætning (kr.)</label>
+                      <input value={importForm.annual_revenue} onChange={e => setImportForm(f => ({ ...f, annual_revenue: e.target.value }))} type="number" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Branche</label>
+                      <input value={importForm.industry_label} onChange={e => setImportForm(f => ({ ...f, industry_label: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Nuværende situation</label>
+                      <textarea value={importForm.current_situation} onChange={e => setImportForm(f => ({ ...f, current_situation: e.target.value }))} rows={3} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Mål med virksomheden</label>
+                      <textarea value={importForm.goals} onChange={e => setImportForm(f => ({ ...f, goals: e.target.value }))} rows={2} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Hvilken hjælp søges?</label>
+                      <textarea value={importForm.help_needed} onChange={e => setImportForm(f => ({ ...f, help_needed: e.target.value }))} rows={2} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Kontaktperson</label>
-                  <input value={importForm.contact_name} onChange={e => setImportForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Peter Hansen" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                  <button
+                    onClick={() => { setParsed(false); setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" }); }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ← Upload anden fil
+                  </button>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Årlig omsætning (kr.)</label>
-                  <input value={importForm.annual_revenue} onChange={e => setImportForm(f => ({ ...f, annual_revenue: e.target.value }))} placeholder="1700000" type="number" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Branche</label>
-                  <input value={importForm.industry_label} onChange={e => setImportForm(f => ({ ...f, industry_label: e.target.value }))} placeholder="Event og rejsebureau" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
-                </div>
-
-                <div className="col-span-2 space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Nuværende situation</label>
-                  <textarea value={importForm.current_situation} onChange={e => setImportForm(f => ({ ...f, current_situation: e.target.value }))} rows={3} placeholder="Beskriv virksomhedens nuværende situation..." className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Mål med virksomheden</label>
-                  <textarea value={importForm.goals} onChange={e => setImportForm(f => ({ ...f, goals: e.target.value }))} rows={3} placeholder="Hvad er founder målet..." className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Hvilken hjælp søges?</label>
-                  <textarea value={importForm.help_needed} onChange={e => setImportForm(f => ({ ...f, help_needed: e.target.value }))} rows={2} placeholder="Økonomistyring, budgetter..." className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
-                </div>
-              </div>
+              )}
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
-                <button onClick={() => setShowImportDialog(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Annullér</button>
+                <button onClick={resetImportDialog} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Annullér</button>
                 <button
                   onClick={handleImport}
-                  disabled={importing || !importForm.email || !importForm.company_name}
+                  disabled={importing || !parsed || !importForm.email || !importForm.company_name}
                   className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   {importing ? "Importerer..." : "Importér og send invitation"}
