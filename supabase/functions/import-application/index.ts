@@ -14,6 +14,7 @@ interface ApplicationPayload {
   city?: string;
   industry_label?: string;
   annual_revenue?: number;
+  revenue_interval?: string;
   website?: string;
   // Application text
   current_situation?: string;
@@ -131,6 +132,7 @@ Deno.serve(async (req) => {
         goals: body.goals || null,
         help_needed: body.help_needed || null,
         annual_revenue: body.annual_revenue || null,
+        revenue_interval: body.revenue_interval || null,
         contact_name: body.contact_name || null,
         application_date: body.application_date || null,
         raw_cvr_data: cvrData || null,
