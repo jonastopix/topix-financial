@@ -284,22 +284,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           } else {
             setOwnCompanyId(null);
             setOwnCompanyName(null);
+            setMembershipTier(null);
           }
         } catch (e) {
           console.error("Failed to process pending invitation:", e);
           setOwnCompanyId(null);
           setOwnCompanyName(null);
+          setMembershipTier(null);
         }
       } else {
         setOwnCompanyId(null);
         setOwnCompanyName(null);
+        setMembershipTier(null);
       }
-    } else {
-      setOwnCompanyId(null);
-      setOwnCompanyName(null);
-      setMembershipTier(null);
     }
-  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
