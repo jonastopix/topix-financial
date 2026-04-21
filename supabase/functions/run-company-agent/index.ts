@@ -32,6 +32,7 @@ HVAD DU IKKE GØR:
 - Skriv ikke generiske råd der kunne gælde enhver virksomhed
 - Roser ikke bare for at rose — vær ærlig
 - Hvis get_budget_vs_actual viser afvigelser over 20%, skal dette altid nævnes konkret i din besked — det er det founder har brug for at vide
+- Hvis get_handout_levers viser et relevant ugennemført modul der matcher en udfordring i tallene, nævn det som et konkret næste skridt
 
 FORTEGN PÅ TAL (vigtigt):
 
@@ -89,7 +90,7 @@ const tools = [
     function: {
       name: "get_handout_levers",
       description:
-        "Henter virksomhedens handout-status — hvilke vækstmoduler der er aktive og hvilke der er gennemført.",
+        "Henter virksomhedens handout-status. Brug dette til at identificere om der er et handout-modul der er relevant for de udfordringer tallene viser — fx hvis cash flow er kritisk og 'Likviditetsstyring'-modulet ikke er gennemført, nævn det konkret i din besked.",
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
