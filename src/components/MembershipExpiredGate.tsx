@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, CalendarDays } from "lucide-react";
 
 export default function MembershipExpiredGate() {
   const { companyId, profile, signOut } = useAuth();
@@ -99,20 +99,23 @@ export default function MembershipExpiredGate() {
         <div className="space-y-3">
           {/* Path 1: Renew full membership */}
           <a
-            href="mailto:jonas@topix.dk?subject=Fornyelse%20af%20Boardroom-medlemskab&body=Hej%20Jonas%2C%0A%0AJeg%20vil%20gerne%20forny%20mit%20medlemskab%20af%20The%20Boardroom.%0A%0AMvh"
+            href="https://app.topix.dk/checkout/the-boardroom?coupon_code=TB2026V2"
+            target="_blank"
+            rel="noopener noreferrer"
             className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1">
-                <span className="inline-block text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded">
-                  Anbefalet
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded">
+                  <CalendarDays className="h-3 w-3" />
+                  Anbefalet · 70% rabat aktiveret
                 </span>
                 <h3 className="text-lg font-semibold text-foreground">
                   Forny dit fulde medlemskab
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Få Jonas & Morten som dine personlige sparringspartnere igen.
-                  Som tidligere medlem får du 50% rabat det første kvartal.
+                  Få Jonas & Morten som dine personlige sparringspartnere igen. Din rabatkode er allerede aktiveret —
+                  <span className="text-foreground font-medium"> 15.000 kr. for 12 måneder i stedet for 50.000 kr.</span>
                 </p>
               </div>
               <ArrowRight className="h-5 w-5 text-primary mt-1 group-hover:translate-x-1 transition-transform" />
