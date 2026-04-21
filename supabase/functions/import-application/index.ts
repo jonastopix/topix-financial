@@ -31,35 +31,24 @@ async function lookupCVR(cvr: string): Promise<{
   founded?: string;
   industry_code?: string;
   industry_label?: string;
-  address?: string;
-  zip?: string;
-  city?: string;
 } | null> {
   try {
     const resp = await fetch(
-      `https://data.virk.dk/datahenter/CVR/virksomhed/_search`,
+      `https://cvrapi.dk/api?country=dk&search=${cvr}`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          _source: ["Vrvirksomhed.cvrNummer", "Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn",
-            "Vrvirksomhed.virksomhedMetadata.stiftelsesDato",
-            "Vrvirksomhed.virksomhedMetadata.nyesteBranchekode.branchekode",
-            "Vrvirksomhed.virksomhedMetadata.nyesteBranchekode.branchetekst"],
-          query: { term: { "Vrvirksomhed.cvrNummer": parseInt(cvr) } },
-        }),
+        headers: {
+          "User-Agent": "TheboardroomDK/1.0 (kontakt@theboardroom.dk)",
+        },
       }
     );
     if (!resp.ok) return null;
     const data = await resp.json();
-    const hit = data?.hits?.hits?.[0]?._source?.Vrvirksomhed;
-    if (!hit) return null;
-    const meta = hit.virksomhedMetadata;
+    if (data.error) return null;
     return {
-      name: meta?.nyesteNavn?.navn,
-      founded: meta?.stiftelsesDato,
-      industry_code: meta?.nyesteBranchekode?.branchekode,
-      industry_label: meta?.nyesteBranchekode?.branchetekst,
+      name: data.name || undefined,
+      founded: data.startdate || undefined,
+      industry_code: data.industrycode ? String(data.industrycode) : undefined,
+      industry_label: data.industrydesc || undefined,
     };
   } catch {
     return null;
@@ -101,58 +90,84 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 2. CVR lookup
-  let cvrData: Awaited<ReturnType<typeof lookupCVR>> = null;
-  let startDate: string | null = body.start_date || null;
-
+  // 2. Check if company already exists with this CVR
+  let existingCompanyId: string | null = null;
   if (body.cvr_number && /^\d{8}$/.test(body.cvr_number)) {
-    cvrData = await lookupCVR(body.cvr_number);
-    if (cvrData?.founded && !startDate) {
-      startDate = cvrData.founded;
-    }
+    const { data: existingCompany } = await adminClient
+      .from("companies")
+      .select("id, name")
+      .eq("cvr_number", body.cvr_number)
+      .maybeSingle();
+    if (existingCompany) existingCompanyId = existingCompany.id;
   }
 
-  // 3. Create company with full context
-  const companyName = cvrData?.name || body.company_name;
-  const industryLabel = body.industry_label || cvrData?.industry_label || null;
+  // 3. Resolve company (reuse or create)
+  let companyId: string;
+  let companyName: string;
+  let cvrData: Awaited<ReturnType<typeof lookupCVR>> = null;
 
-  const { data: company, error: companyErr } = await adminClient
-    .from("companies")
-    .insert({
-      name: companyName,
-      cvr_number: body.cvr_number || null,
-      industry_label: industryLabel,
-      industry_code: cvrData?.industry_code || null,
-      website: body.website || null,
-      contact_phone: body.phone || null,
-      start_date: startDate,
-      cvr_fetched_at: cvrData ? new Date().toISOString() : null,
-      onboarding_completed: false,
-      application_context: {
-        current_situation: body.current_situation || null,
-        goals: body.goals || null,
-        help_needed: body.help_needed || null,
-        annual_revenue: body.annual_revenue || null,
-        revenue_interval: body.revenue_interval || null,
-        contact_name: body.contact_name || null,
-        application_date: body.application_date || null,
-        raw_cvr_data: cvrData || null,
-      },
-    })
-    .select("id")
-    .single();
+  if (existingCompanyId) {
+    const { data: co } = await adminClient
+      .from("companies")
+      .select("name")
+      .eq("id", existingCompanyId)
+      .maybeSingle();
+    companyId = existingCompanyId;
+    companyName = co?.name || body.company_name;
+  } else {
+    let startDate: string | null = body.start_date || null;
 
-  if (companyErr || !company) {
-    return new Response(JSON.stringify({ error: "Failed to create company", detail: companyErr?.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (body.cvr_number && /^\d{8}$/.test(body.cvr_number)) {
+      cvrData = await lookupCVR(body.cvr_number);
+      if (cvrData?.founded && !startDate) {
+        startDate = cvrData.founded.slice(0, 10);
+      }
+    }
+
+    const resolvedName = cvrData?.name || body.company_name;
+    const industryLabel = body.industry_label || cvrData?.industry_label || null;
+
+    const { data: company, error: companyErr } = await adminClient
+      .from("companies")
+      .insert({
+        name: resolvedName,
+        cvr_number: body.cvr_number || null,
+        industry_label: industryLabel,
+        industry_code: cvrData?.industry_code || null,
+        website: body.website || null,
+        contact_phone: body.phone || null,
+        start_date: startDate,
+        cvr_fetched_at: cvrData ? new Date().toISOString() : null,
+        onboarding_completed: false,
+        application_context: {
+          current_situation: body.current_situation || null,
+          goals: body.goals || null,
+          help_needed: body.help_needed || null,
+          annual_revenue: body.annual_revenue || null,
+          revenue_interval: body.revenue_interval || null,
+          contact_name: body.contact_name || null,
+          application_date: body.application_date || null,
+          raw_cvr_data: cvrData || null,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (companyErr || !company) {
+      return new Response(JSON.stringify({ error: "Failed to create company", detail: companyErr?.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    companyId = company.id;
+    companyName = resolvedName;
   }
 
   // 4. Create invitation token
   const { data: invitation, error: invErr } = await adminClient
     .from("company_invitations")
     .insert({
-      company_id: company.id,
+      company_id: companyId,
       email,
       invited_by: callerId,
       status: "pending",
@@ -182,7 +197,8 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({
     ok: true,
-    company_id: company.id,
+    reused_company: !!existingCompanyId,
+    company_id: companyId,
     company_name: companyName,
     invitation_token: invitation.token,
     signup_url: signupUrl,
