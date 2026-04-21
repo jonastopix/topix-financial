@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
 
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
+  const { callerId } = auth;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -147,19 +148,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 4. Create conversation for the company (no member yet)
-  await adminClient.from("conversations").insert({
-    member_id: "00000000-0000-0000-0000-000000000000", // placeholder — updated when member accepts
-    company_id: company.id,
-  }).then(() => {}).catch(() => {});
-
-  // 5. Create invitation token
+  // 4. Create invitation token
   const { data: invitation, error: invErr } = await adminClient
     .from("company_invitations")
     .insert({
       company_id: company.id,
       email,
-      invited_by: (await adminClient.auth.admin.listUsers()).data?.users?.[0]?.id || "00000000-0000-0000-0000-000000000000",
+      invited_by: callerId,
       status: "pending",
     })
     .select("token")
@@ -171,7 +166,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 6. Send invitation email
+  // 5. Send invitation email
   const signupUrl = `https://app.theboardroom.dk/auth?mode=signup&invite=${invitation.token}`;
   const { error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
     body: {
