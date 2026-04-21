@@ -1945,7 +1945,7 @@ const CompanyChatPane = () => {
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                                 <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                                  {msg.message_type === "ai" ? "AI Analyse" : "System"}
+                                  {msg.context_type === "session_prep" ? "Session-dagsorden" : msg.message_type === "ai" ? "AI Analyse" : "System"}
                                 </span>
                                 {topicInfo && (
                                   <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
@@ -2016,6 +2016,12 @@ const CompanyChatPane = () => {
                                   >
                                     Nej
                                   </button>
+                                </div>
+                              )}
+                              {msg.context_type === "session_prep" && (
+                                <div className="mt-2 pt-2 border-t border-border/20 flex items-center gap-1.5">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+                                  <span className="text-[10px] text-muted-foreground">Forberedelse til næste session med founder</span>
                                 </div>
                               )}
                             </div>
