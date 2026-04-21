@@ -14,11 +14,50 @@ import FinancialAIChat from "@/components/FinancialAIChat";
  * - Single-company member → company chat with AI tab
  */
 const ChatShell = () => {
-  const { isAdvisor, isGroupUser, loading } = useAuth();
+  const { isAdvisor, isGroupUser, loading, membershipTier } = useAuth();
   const [searchParams] = useSearchParams();
   const [chatTab, setChatTab] = useState<"advisor" | "ai">(
     searchParams.get("tab") === "ai" ? "ai" : "advisor"
   );
+
+  if (!isAdvisor && membershipTier === "subscriber") {
+    return (
+      <AppLayout>
+        <div className="min-h-[60vh] flex items-center justify-center px-4 py-12">
+          <div className="max-w-lg w-full text-center space-y-8">
+            <div className="flex items-center justify-center gap-8">
+              <img
+                src="/jonas-herlev.png"
+                alt="Jonas Herlev"
+                className="h-16 w-16 rounded-full object-cover"
+              />
+              <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold">
+                MH
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-2xl md:text-3xl font-semibold text-foreground">
+                Bliv fuldt medlem af The Boardroom
+              </h1>
+              <p className="text-muted-foreground">
+                Personlig sparring med Jonas & Morten er forbeholdt fulde medlemmer.
+                Som abonnent har du adgang til alle data-features — men ikke den direkte rådgivning.
+              </p>
+            </div>
+            <a
+              href="mailto:jonas@topix.dk?subject=Opgradering%20til%20fuldt%20medlemskab"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Kontakt Jonas om fuldt medlemskab →
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Dit abonnement fortsætter uændret
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (loading) {
     return (

@@ -78,18 +78,20 @@ export default function MembershipExpiredGate() {
         </div>
 
         {/* Advisor avatars */}
-        <div className="flex items-center justify-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-semibold">
-              JE
-            </div>
-            <span className="text-sm text-foreground">Jonas</span>
+        <div className="flex items-center justify-center gap-8">
+          <div className="text-center space-y-2">
+            <img
+              src="/jonas-herlev.png"
+              alt="Jonas Herlev"
+              className="h-16 w-16 rounded-full object-cover mx-auto"
+            />
+            <p className="text-sm text-foreground">Jonas</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-sm font-semibold">
+          <div className="text-center space-y-2">
+            <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold mx-auto">
               MH
             </div>
-            <span className="text-sm text-foreground">Morten</span>
+            <p className="text-sm text-foreground">Morten</p>
           </div>
         </div>
 
