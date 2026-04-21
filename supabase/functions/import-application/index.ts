@@ -29,6 +29,31 @@ interface ApplicationPayload {
   enrich_company_id?: string; // If set, enrich this existing company instead of creating new
 }
 
+/**
+ * Convert CVR-API date strings to ISO YYYY-MM-DD.
+ * Handles: "YYYY-MM-DD", "DD/MM - YYYY", "DD/MM/YYYY", "DD-MM-YYYY".
+ * Returns null when input cannot be parsed (better no date than invalid insert).
+ */
+function parseCvrFoundedDate(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const s = String(input).trim();
+  if (!s) return null;
+
+  // ISO already
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  // DK formats: "DD/MM - YYYY", "DD/MM/YYYY", "DD-MM-YYYY", "DD.MM.YYYY"
+  const dk = s.match(/^(\d{1,2})[\/\-.\s]+(\d{1,2})[\/\-.\s]+(\d{4})$/);
+  if (dk) {
+    const dd = dk[1].padStart(2, "0");
+    const mm = dk[2].padStart(2, "0");
+    return `${dk[3]}-${mm}-${dd}`;
+  }
+
+  return null;
+}
+
 async function lookupCVR(cvr: string): Promise<{
   name?: string;
   founded?: string;
@@ -137,8 +162,10 @@ Deno.serve(async (req) => {
     if (!existingCo.cvr_number && body.cvr_number) updates.cvr_number = body.cvr_number;
     if (!existingCo.industry_label && (body.industry_label || cvrEnrich?.industry_label))
       updates.industry_label = body.industry_label || cvrEnrich?.industry_label;
-    if (!existingCo.start_date && cvrEnrich?.founded)
-      updates.start_date = cvrEnrich.founded.slice(0, 10);
+    if (!existingCo.start_date && cvrEnrich?.founded) {
+      const parsed = parseCvrFoundedDate(cvrEnrich.founded);
+      if (parsed) updates.start_date = parsed;
+    }
     if (!existingCo.contract_end_date && body.contract_end_date)
       updates.contract_end_date = body.contract_end_date.slice(0, 10);
     if (body.contract_start_date)
@@ -224,7 +251,12 @@ Deno.serve(async (req) => {
         console.warn(`[import-application] CVR ${body.cvr_number} lookup returned no data`);
       }
       if (cvrData?.founded && !startDate) {
-        startDate = cvrData.founded.slice(0, 10);
+        const parsed = parseCvrFoundedDate(cvrData.founded);
+        if (parsed) {
+          startDate = parsed;
+        } else {
+          console.warn(`[import-application] Could not parse CVR founded date: "${cvrData.founded}"`);
+        }
       }
     }
 
@@ -260,6 +292,9 @@ Deno.serve(async (req) => {
       .single();
 
     if (companyErr || !company) {
+      console.error("[import-application] Failed to create company:", companyErr, "payload:", {
+        name: resolvedName, cvr: body.cvr_number, start_date: startDate,
+      });
       return new Response(JSON.stringify({ error: "Failed to create company", detail: companyErr?.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -282,6 +317,7 @@ Deno.serve(async (req) => {
     .single();
 
   if (invErr || !invitation) {
+    console.error("[import-application] Failed to create invitation:", invErr, "company_id:", companyId, "email:", email);
     return new Response(JSON.stringify({ error: "Failed to create invitation", detail: invErr?.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
