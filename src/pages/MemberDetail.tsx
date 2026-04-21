@@ -246,6 +246,17 @@ const MemberDetail = () => {
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
   const [showAgentLog, setShowAgentLog] = useState(false);
   const [forecast, setForecast] = useState<any[] | null>(null);
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [companyEditForm, setCompanyEditForm] = useState<{
+    contract_start_date: string;
+    contract_end_date: string;
+    subscription_status: string;
+    cvr_number: string;
+    industry_label: string;
+    website: string;
+    slack_channel: string;
+  }>({ contract_start_date: "", contract_end_date: "", subscription_status: "", cvr_number: "", industry_label: "", website: "", slack_channel: "" });
+  const [savingCompany, setSavingCompany] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
