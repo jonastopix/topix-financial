@@ -525,6 +525,18 @@ const Members = () => {
         return;
       }
     }
+    if (importForm.contract_start_date) {
+      const startDate = new Date(importForm.contract_start_date);
+      const minDate = new Date("2020-01-01");
+      const maxDate = new Date();
+      maxDate.setFullYear(maxDate.getFullYear() + 2);
+      if (startDate < minDate || startDate > maxDate) {
+        toast.error("Kontraktstart ser forkert ud", {
+          description: `Datoen ${importForm.contract_start_date} er udenfor forventet interval (2020–${maxDate.getFullYear()})`,
+        });
+        return;
+      }
+    }
     setImporting(true);
     try {
       const { data, error } = await supabase.functions.invoke("import-application", {
