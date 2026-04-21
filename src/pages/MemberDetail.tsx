@@ -84,7 +84,10 @@ interface CompanyContext {
   website: string | null;
   logo_url: string | null;
   start_date: string | null;
-  
+  application_context: Record<string, any> | null;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  onboarding_completed: boolean | null;
 }
 
 interface Report {
@@ -372,7 +375,7 @@ const MemberDetail = () => {
         // Fetch company context via company_members
         const { data: cmData } = await supabase
           .from("company_members" as any)
-          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date)" as any)
+          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed)" as any)
           .eq("user_id", userId)
           .limit(1)
           .maybeSingle();
@@ -846,6 +849,54 @@ const MemberDetail = () => {
               )}
             </div>
           </div>
+
+          {/* ───── Application context panel ───── */}
+          {(companyCtx as any)?.application_context && (
+            <div className="mb-6 rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Ansøgningskontekst</h3>
+              </div>
+              <div className="space-y-4">
+                {(companyCtx as any).application_context.current_situation && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Nuværende situation</p>
+                    <p className="text-sm text-foreground leading-relaxed">{(companyCtx as any).application_context.current_situation}</p>
+                  </div>
+                )}
+                {(companyCtx as any).application_context.goals && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Mål med virksomheden</p>
+                    <p className="text-sm text-foreground leading-relaxed">{(companyCtx as any).application_context.goals}</p>
+                  </div>
+                )}
+                {(companyCtx as any).application_context.help_needed && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Søger hjælp til</p>
+                    <p className="text-sm text-foreground leading-relaxed">{(companyCtx as any).application_context.help_needed}</p>
+                  </div>
+                )}
+                {((companyCtx as any).contract_start_date || (companyCtx as any).contract_end_date) && (
+                  <div className="flex gap-6 pt-2 border-t border-border/40">
+                    {(companyCtx as any).contract_start_date && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Kontraktstart</p>
+                        <p className="text-sm text-foreground">{new Date((companyCtx as any).contract_start_date).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}</p>
+                      </div>
+                    )}
+                    {(companyCtx as any).contract_end_date && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Kontraktslut</p>
+                        <p className={`text-sm font-medium ${new Date((companyCtx as any).contract_end_date) < new Date() ? "text-destructive" : "text-foreground"}`}>
+                          {new Date((companyCtx as any).contract_end_date).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ───── Session prep panel ───── */}
           {sessionBullets.length > 0 && (
