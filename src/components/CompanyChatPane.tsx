@@ -2033,7 +2033,7 @@ const CompanyChatPane = () => {
 
                       const participant = participants.find(p => p.user_id === msg.sender_id);
                       const senderProfile = participant || profilesMap.get(msg.sender_id);
-                      const senderName = senderProfile?.full_name || (participant?.isAdvisor ? "Rådgiver" : "Medlem");
+                      const senderName = senderProfile?.full_name || "Rådgiver";
                       const senderAvatar = senderProfile?.avatar_url;
 
                       // Unread divider
