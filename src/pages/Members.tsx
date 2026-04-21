@@ -557,6 +557,13 @@ const Members = () => {
           resetImportDialog();
           return;
         }
+        if (data?.reason === "user_already_exists") {
+          toast.error("Bruger findes allerede", {
+            description: "Denne email har allerede en konto. Tilføj brugeren til virksomheden manuelt eller bed dem logge ind.",
+          });
+          resetImportDialog();
+          return;
+        }
         throw new Error(data?.error || "Import fejlede");
       }
       if (data.reused_company) {
