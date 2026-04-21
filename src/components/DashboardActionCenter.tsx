@@ -130,6 +130,13 @@ export default function DashboardActionCenter({
         if (count && count > 0) {
           items.push({ id: "unread-messages", type: "chat", title: `${count} ulæst${count > 1 ? "e" : ""} besked${count > 1 ? "er" : ""}`, description: "Du har ubesvaret kommunikation fra dine rådgivere", urgency: count >= 3 ? "high" : "medium", link: "/chat" });
         }
+
+        // Check for unread agent messages separately
+        const { count: agentCount } = await supabase.from("messages").select("*", { count: "exact", head: true })
+          .eq("conversation_id", conv.id).is("read_at", null).eq("message_type", "system").eq("context_type", "agent");
+        if (agentCount && agentCount > 0) {
+          items.push({ id: "unread-agent", type: "pulse", title: "Din AI-chef har en ny indsigt", description: "Der er en ny analyse af dine tal klar i chatten", urgency: "medium", link: "/chat" });
+        }
       }
 
       if (!hasPulseThisMonth) {
