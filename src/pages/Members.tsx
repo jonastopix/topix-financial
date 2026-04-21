@@ -78,6 +78,15 @@ const Members = () => {
   const [standaloneSending, setStandaloneSending] = useState(false);
   const [standaloneCompanyId, setStandaloneCompanyId] = useState<string>("");
 
+  // Import application state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importForm, setImportForm] = useState({
+    email: "", company_name: "", cvr_number: "", contact_name: "",
+    annual_revenue: "", industry_label: "", current_situation: "",
+    goals: "", help_needed: "", website: "", phone: "",
+  });
+  const [importing, setImporting] = useState(false);
+
   const { data: membersData, isLoading: loading, refetch: refetchMembers } = useQuery({
     queryKey: ["members-data", user?.id],
     queryFn: async () => {
@@ -366,6 +375,33 @@ const Members = () => {
   const legatCompanyIds = membersData?.legatCompanyIds || new Set<string>();
   const allMembersRaw = (membersData?.allMembers || []) as any[];
   const allProfilesRaw = (membersData?.allProfiles || []) as any[];
+
+  const handleImport = async () => {
+    if (!importForm.email || !importForm.company_name) {
+      toast.error("Email og virksomhedsnavn er påkrævet");
+      return;
+    }
+    setImporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("import-application", {
+        body: {
+          ...importForm,
+          annual_revenue: importForm.annual_revenue ? Number(importForm.annual_revenue) : undefined,
+        },
+      });
+      if (error || !data?.ok) throw new Error(data?.error || error?.message || "Import fejlede");
+      toast.success("Ansøgning importeret ✓", {
+        description: `${data.company_name} er oprettet og invitation sendt til ${importForm.email}`,
+      });
+      setShowImportDialog(false);
+      setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "" });
+      refetchMembers();
+    } catch (err: any) {
+      toast.error("Import fejlede", { description: err.message });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleRenameCompany = async () => {
     if (!renamingCompany || !renameValue.trim()) return;
@@ -825,6 +861,16 @@ const Members = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          {isAdvisor && (
+            <button
+              onClick={() => setShowImportDialog(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-accent/50 transition-colors"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Importér ansøgning</span>
+              <span className="sm:hidden">Importér</span>
+            </button>
+          )}
           <Button onClick={() => setStandaloneInviteOpen(true)} className="gap-2" size="sm">
             <UserPlus className="h-4 w-4" />
             <span className="hidden sm:inline">Inviter ny bruger</span>
@@ -1296,6 +1342,79 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {showImportDialog && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl my-8">
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Importér ansøgning</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Opretter virksomhed, slår CVR op og sender invitationsmail automatisk
+                  </p>
+                </div>
+                <button onClick={() => setShowImportDialog(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Email *</label>
+                  <input value={importForm.email} onChange={e => setImportForm(f => ({ ...f, email: e.target.value }))} placeholder="founder@virksomhed.dk" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Virksomhedsnavn *</label>
+                  <input value={importForm.company_name} onChange={e => setImportForm(f => ({ ...f, company_name: e.target.value }))} placeholder="Virksomhed ApS" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">CVR-nummer</label>
+                  <input value={importForm.cvr_number} onChange={e => setImportForm(f => ({ ...f, cvr_number: e.target.value }))} placeholder="12345678" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Kontaktperson</label>
+                  <input value={importForm.contact_name} onChange={e => setImportForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Peter Hansen" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Årlig omsætning (kr.)</label>
+                  <input value={importForm.annual_revenue} onChange={e => setImportForm(f => ({ ...f, annual_revenue: e.target.value }))} placeholder="1700000" type="number" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Branche</label>
+                  <input value={importForm.industry_label} onChange={e => setImportForm(f => ({ ...f, industry_label: e.target.value }))} placeholder="Event og rejsebureau" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+
+                <div className="col-span-2 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Nuværende situation</label>
+                  <textarea value={importForm.current_situation} onChange={e => setImportForm(f => ({ ...f, current_situation: e.target.value }))} rows={3} placeholder="Beskriv virksomhedens nuværende situation..." className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Mål med virksomheden</label>
+                  <textarea value={importForm.goals} onChange={e => setImportForm(f => ({ ...f, goals: e.target.value }))} rows={3} placeholder="Hvad er founder målet..." className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Hvilken hjælp søges?</label>
+                  <textarea value={importForm.help_needed} onChange={e => setImportForm(f => ({ ...f, help_needed: e.target.value }))} rows={2} placeholder="Økonomistyring, budgetter..." className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
+                <button onClick={() => setShowImportDialog(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Annullér</button>
+                <button
+                  onClick={handleImport}
+                  disabled={importing || !importForm.email || !importForm.company_name}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {importing ? "Importerer..." : "Importér og send invitation"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 };
