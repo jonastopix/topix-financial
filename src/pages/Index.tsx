@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import GroupWelcomeBanner from "@/components/GroupWelcomeBanner";
 import { Link } from "react-router-dom";
 import { DollarSign, TrendingUp, Flame, Wallet, FileText, Clock, Upload, ArrowRight, Sparkles, CheckCircle2, ChevronRight, BarChart3, X } from "lucide-react";
@@ -48,6 +49,22 @@ const Dashboard = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const subscriptionResult = searchParams.get("subscription");
+
+  useEffect(() => {
+    if (subscriptionResult === "success") {
+      setSearchParams({}, { replace: true });
+      toast.success("Abonnement aktiveret 🎉", {
+        description: "Opdaterer din adgang…",
+      });
+      setTimeout(() => window.location.reload(), 1500);
+    } else if (subscriptionResult === "cancelled") {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscriptionResult]);
+
   const [tourDismissed, setTourDismissed] = useState(false);
   const [showPulseModal, setShowPulseModal] = useState(false);
   const queryClient = useQueryClient();
