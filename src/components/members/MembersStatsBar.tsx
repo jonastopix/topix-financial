@@ -6,6 +6,8 @@ interface MembersStatsBarProps {
   totalUnread: number;
   companiesWithReports: number;
   loginStats: { active: number; inactive: number; never: number };
+  companiesNoEndDate: number;
+  companiesExpired: number;
 }
 
 const MembersStatsBar = ({
@@ -14,11 +16,13 @@ const MembersStatsBar = ({
   totalUnread,
   companiesWithReports,
   loginStats,
+  companiesNoEndDate,
+  companiesExpired,
 }: MembersStatsBarProps) => {
   return (
     <>
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{totalCompanies}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Virksomheder</p>
@@ -34,6 +38,18 @@ const MembersStatsBar = ({
         <div className="glass-card rounded-xl p-4 text-center">
           <p className="text-2xl font-display font-bold text-foreground">{companiesWithReports}</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Har rapporteret</p>
+        </div>
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className={`text-2xl font-display font-bold ${companiesNoEndDate > 0 ? "text-amber-500" : "text-foreground"}`}>
+            {companiesNoEndDate}
+          </p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Uden slutdato</p>
+        </div>
+        <div className="glass-card rounded-xl p-4 text-center">
+          <p className={`text-2xl font-display font-bold ${companiesExpired > 0 ? "text-destructive" : "text-foreground"}`}>
+            {companiesExpired}
+          </p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Udløbet</p>
         </div>
       </div>
 

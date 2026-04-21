@@ -2706,6 +2706,14 @@ export type Database = {
           validation_status: string
         }[]
       }
+      get_users_last_login: {
+        Args: { user_ids: string[] }
+        Returns: {
+          email_confirmed_at: string
+          last_sign_in_at: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
