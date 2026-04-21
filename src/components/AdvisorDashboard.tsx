@@ -634,6 +634,21 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Fetch recent unread financial alerts (last 30 days)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: alertsData } = await supabase
+        .from("notifications")
+        .select("company_id, type, title, created_at")
+        .in("type", ["alert_revenue_drop", "alert_negative_cash", "alert_result_negative"])
+        .is("read_at", null)
+        .gte("created_at", thirtyDaysAgo);
+      const alertsByCompany = new Map<string, { type: string; title: string }[]>();
+      for (const alert of alertsData ?? []) {
+        if (!alert.company_id) continue;
+        if (!alertsByCompany.has(alert.company_id)) alertsByCompany.set(alert.company_id, []);
+        alertsByCompany.get(alert.company_id)!.push({ type: alert.type, title: alert.title });
+      }
+
       // Priority queue — score each company
       const priorityItems = investorSummaries
         .map(c => {
@@ -663,6 +678,21 @@ const AdvisorDashboard = () => {
             const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
             reasons.push({ label: `Opfølgning forfalden (${d})`, urgency: "medium" });
             score += 50;
+          }
+
+          const companyAlerts = alertsByCompany.get(c.company_id) ?? [];
+          for (const alert of companyAlerts) {
+            if (alert.type === "alert_negative_cash") {
+              // already handled above
+            } else if (alert.type === "alert_revenue_drop") {
+              if (!reasons.find(r => r.label.includes("Omsætning faldt"))) {
+                reasons.push({ label: "Omsætningsfald detekteret", urgency: "high" as const });
+                score += 75;
+              }
+            } else if (alert.type === "alert_result_negative") {
+              reasons.push({ label: "Negativt resultat", urgency: "high" as const });
+              score += 60;
+            }
           }
 
           // Signal: No pulse check-in this month (after day 15)
