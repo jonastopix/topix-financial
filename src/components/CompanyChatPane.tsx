@@ -1991,6 +1991,33 @@ const CompanyChatPane = () => {
                                   </div>
                                 );
                               })()}
+                              {msg.context_type === "agent" && (
+                                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/20">
+                                  <span className="text-[10px] text-muted-foreground">Var dette nyttigt?</span>
+                                  <button
+                                    onClick={async () => {
+                                      await supabase.from("messages").update({
+                                        context_meta: { ...(msg.context_meta as any || {}), feedback: "up" }
+                                      } as any).eq("id", msg.id);
+                                      toast.success("Tak for feedback");
+                                    }}
+                                    className="text-[11px] px-2 py-0.5 rounded border border-border/40 hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                                  >
+                                    Ja
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await supabase.from("messages").update({
+                                        context_meta: { ...(msg.context_meta as any || {}), feedback: "down" }
+                                      } as any).eq("id", msg.id);
+                                      toast("Forstået — vi arbejder på det");
+                                    }}
+                                    className="text-[11px] px-2 py-0.5 rounded border border-border/40 hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                                  >
+                                    Nej
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </React.Fragment>
