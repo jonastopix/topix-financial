@@ -120,6 +120,11 @@ Deno.serve(async (req) => {
 
     if (body.cvr_number && /^\d{8}$/.test(body.cvr_number)) {
       cvrData = await lookupCVR(body.cvr_number);
+      if (cvrData) {
+        console.log(`[import-application] CVR ${body.cvr_number} → ${cvrData.name}, founded: ${cvrData.founded}`);
+      } else {
+        console.warn(`[import-application] CVR ${body.cvr_number} lookup returned no data`);
+      }
       if (cvrData?.founded && !startDate) {
         startDate = cvrData.founded.slice(0, 10);
       }
