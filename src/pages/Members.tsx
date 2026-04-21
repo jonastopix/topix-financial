@@ -600,12 +600,8 @@ const Members = () => {
           return;
         }
         if (data?.reason === "user_already_exists") {
-          toast.error("Bruger findes allerede", {
-            description: data.email_confirmed
-              ? "Denne email har allerede en bekræftet konto. Bed dem logge ind direkte på app.theboardroom.dk."
-              : "Denne email har en ubekræftet konto. Bed dem tjekke deres bekræftelsesmail.",
-          });
-          resetImportDialog();
+          setAttachEmail(importForm.email);
+          setShowAttachUser(true);
           return;
         }
         throw new Error(data?.error || "Import fejlede");
