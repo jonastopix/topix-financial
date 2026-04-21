@@ -86,7 +86,7 @@ const MemberRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user) return <Navigate to="/auth" replace />;
   if (needsOnboarding) return <Navigate to="/onboarding" replace />;
   if (isLegat) return <Navigate to="/legat" replace />;
-  if (!isAdvisor && membershipTier === "expired") return <Navigate to="/" replace />;
+  if (!isAdvisor && membershipTier === "expired" && window.location.pathname !== "/") return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
