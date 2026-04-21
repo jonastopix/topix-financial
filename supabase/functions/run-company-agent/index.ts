@@ -159,6 +159,18 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "get_application_context",
+      description: "Henter ansøgningsdata for virksomheden — nuværende situation, mål, hvad de søger hjælp til, og omsætningstal. Brug dette ved onboarding for at skrive en personlig velkomst der tager udgangspunkt i hvad founder selv har skrevet.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_budget_vs_actual",
       description:
         "Sammenligner budget med realiserede tal for en given periode. Returnerer afvigelser i procent.",
@@ -723,6 +735,17 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       return data ?? [];
     }
 
+    case "get_application_context": {
+      const { data, error } = await adminClient
+        .from("companies")
+        .select("application_context, start_date, industry_label, cvr_number")
+        .eq("id", args.company_id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data?.application_context) return { available: false };
+      return { available: true, ...data.application_context, industry_label: data.industry_label, start_date: data.start_date };
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -856,6 +879,8 @@ ${trigger === "pulse_submitted"
   ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nHent facts, pulse, milestones og KPI-mål. Skriv én kort motiverende besked i chatten der opsummerer hvad der er vigtigst at fokusere på denne uge. Opdatér weekly focus. Notificér advisor kun hvis der er noget konkret at handle på.`
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Skriv en kort, direkte besked til founder der forklarer hvad der er sket og hvad de skal gøre NU. Maks 3 sætninger. Opdatér IKKE weekly focus med negativ information — brug kun chat. Notificér advisor med høj prioritet.`
+  : trigger === "onboarding"
+  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten der:\n   - Bruger fornavnet\n   - Refererer specifikt til hvad de selv har skrevet om deres situation og mål\n   - Er varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret 2-3 start-milestones baseret på deres mål og hvad de søger hjælp til\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din besked.`
 }`,
       },
@@ -962,6 +987,14 @@ ${trigger === "pulse_submitted"
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Mark onboarding completed if this was an onboarding trigger
+    if (trigger === "onboarding" && messageWritten) {
+      await adminClient
+        .from("companies")
+        .update({ onboarding_completed: true })
+        .eq("id", company_id);
     }
 
     return new Response(
