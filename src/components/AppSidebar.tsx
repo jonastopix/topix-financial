@@ -83,7 +83,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user, profile, signOut, isAdvisor, isAdmin, isLegat, isGroupUser, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName } = useAuth();
+  const { user, profile, signOut, isAdvisor, isAdmin, isLegat, isGroupUser, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName, membershipTier } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);

@@ -16,11 +16,50 @@ const TOPICS = [
 ];
 
 export default function BookSession() {
-  const { user } = useAuth();
+  const { user, isAdvisor, membershipTier } = useAuth();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const success = searchParams.get("success") === "true";
   const sessionId = searchParams.get("session_id");
+
+  if (!isAdvisor && membershipTier === "subscriber") {
+    return (
+      <AppLayout>
+        <div className="min-h-[60vh] flex items-center justify-center px-4 py-12">
+          <div className="max-w-lg w-full text-center space-y-8">
+            <div className="flex items-center justify-center gap-8">
+              <img
+                src="/jonas-herlev.png"
+                alt="Jonas Herlev"
+                className="h-16 w-16 rounded-full object-cover"
+              />
+              <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold">
+                MH
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-2xl md:text-3xl font-semibold text-foreground">
+                Book session er forbeholdt fulde medlemmer
+              </h1>
+              <p className="text-muted-foreground">
+                1:1 sessioner med Jonas er en del af det fulde Boardroom-medlemskab.
+                Som abonnent har du adgang til alle data-features — opgrader for at få personlig sparring.
+              </p>
+            </div>
+            <a
+              href="mailto:jonas@topix.dk?subject=Opgradering%20til%20fuldt%20medlemskab"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Kontakt Jonas om fuldt medlemskab →
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Dit abonnement fortsætter uændret
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   const { data: booking } = useQuery({
     queryKey: ["session-booking", sessionId],
