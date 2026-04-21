@@ -41,6 +41,14 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
