@@ -319,6 +319,26 @@ export default function ReportReviewDialog({
         console.warn("Weekly focus generation failed (non-blocking):", err);
       });
 
+      // Auto-create baseline + budget on first report — non-blocking
+      supabase.functions.invoke("auto-create-baseline-budget", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          metrics: preview?.metrics_preview ?? {},
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+        },
+      }).catch((err) => console.warn("[ReportReviewDialog] auto-create-baseline-budget failed:", err));
+
+      // Auto-create baseline + budget on first report — non-blocking
+      supabase.functions.invoke("auto-create-baseline-budget", {
+        body: {
+          company_id: companyId,
+          period_key: preview?.period_key,
+          metrics: preview?.metrics_preview ?? {},
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+        },
+      }).catch((err) => console.warn("[ReportReviewDialog] auto-create-baseline-budget failed:", err));
+
       // If alerts were detected, trigger a second focused agent run
       supabase.functions.invoke("detect-financial-alerts", {
         body: {
