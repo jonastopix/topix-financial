@@ -1711,6 +1711,38 @@ const Members = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={showAttachUser} onOpenChange={(open) => { if (!open) { setShowAttachUser(false); setAttachEmail(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bruger findes allerede</DialogTitle>
+            <DialogDescription>
+              Denne email har allerede en konto. Du kan tilknytte den eksisterende bruger direkte til virksomheden.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <input
+              type="email"
+              value={attachEmail}
+              onChange={(e) => setAttachEmail(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setShowAttachUser(false); setAttachEmail(""); resetImportDialog(); }}
+              disabled={attaching}
+            >
+              Annullér
+            </Button>
+            <Button onClick={handleAttachExistingUser} disabled={attaching || !attachEmail}>
+              {attaching ? "Tilknytter..." : "Tilknyt bruger →"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
