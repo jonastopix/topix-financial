@@ -405,9 +405,19 @@ const MemberCompanyRow = ({
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* Actions */}
+              {onEnrich && (
+                <div className="mt-3 pt-2 border-t border-border/30">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEnrich(c.id); }}
+                    className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                    title="Upload ansøgning for at berige virksomhedsdata"
+                  >
+                    <FileText className="h-3 w-3" /> Berig med ansøgning
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-2">

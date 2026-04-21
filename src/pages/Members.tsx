@@ -1226,6 +1226,7 @@ const Members = () => {
                 onRemoveMember={handleRemoveMember}
                 onDelete={(c) => { setDeleteTarget(c); setDeleteDialogOpen(true); }}
                 onCreateGroup={(id, name) => { setWizardAnchor({ id, name }); setWizardOpen(true); }}
+                onEnrich={(companyId) => { setEnrichCompanyId(companyId); setShowImportDialog(true); }}
                 getDisplayRevenue={getDisplayRevenue}
                 getInitials={getInitials}
               />
@@ -1582,9 +1583,13 @@ const Members = () => {
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">Importér ansøgning</h2>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    {enrichCompanyId ? "Berig virksomhed med ansøgning" : "Importér ansøgning"}
+                  </h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Opretter virksomhed, slår CVR op og sender invitationsmail automatisk
+                    {enrichCompanyId
+                      ? "Udfylder kun manglende felter på den eksisterende virksomhed — ingen invitation sendes"
+                      : "Opretter virksomhed, slår CVR op og sender invitationsmail automatisk"}
                   </p>
                 </div>
                 <button onClick={resetImportDialog} className="text-muted-foreground hover:text-foreground">✕</button>
