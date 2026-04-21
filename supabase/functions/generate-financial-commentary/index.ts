@@ -110,16 +110,22 @@ Deno.serve(async (req) => {
       .from("budget_targets")
       .select("category, budget_amount, period")
       .eq("company_id", company_id)
-      .eq("period", `${periodYear}-base-${periodMonth}`);
+      .neq("category", "__template__");
+
+    // Filter to rows matching this period year — budget periods vary in format
+    const periodBudgetRows = (budgetRows ?? []).filter((b: any) => {
+      if (!b.period) return false;
+      return String(b.period).includes(String(periodYear));
+    });
 
     let budgetContext = "";
-    if (budgetRows && budgetRows.length > 0) {
-      const budgetRevenue = budgetRows
-        .filter((b: any) => b.category === "omsaetning")
-        .reduce((s: number, b: any) => s + b.budget_amount, 0);
-      const budgetCosts = budgetRows
-        .filter((b: any) => b.category !== "omsaetning" && !b.category.startsWith("__"))
-        .reduce((s: number, b: any) => s + b.budget_amount, 0);
+    if (periodBudgetRows && periodBudgetRows.length > 0) {
+      const budgetRevenue = periodBudgetRows
+        .filter((b: any) => b.category === "omsaetning" || b.category === "revenue")
+        .reduce((s: number, b: any) => s + Number(b.budget_amount), 0);
+      const budgetCosts = periodBudgetRows
+        .filter((b: any) => b.category !== "omsaetning" && b.category !== "revenue" && !b.category.startsWith("__"))
+        .reduce((s: number, b: any) => s + Number(b.budget_amount), 0);
       const budgetEbitda = budgetRevenue - budgetCosts;
       budgetContext = `\nBUDGETMÅL FOR ${period_key}:\n- Budgetteret omsætning: ${Math.round(budgetRevenue).toLocaleString("da-DK")} kr.\n- Budgetterede omkostninger: ${Math.round(budgetCosts).toLocaleString("da-DK")} kr.\n- Budgetteret EBITDA: ${Math.round(budgetEbitda).toLocaleString("da-DK")} kr.\n- Budget EBITDA-margin: ${budgetRevenue > 0 ? ((budgetEbitda / budgetRevenue) * 100).toFixed(1) : "—"}%\nSammenlign altid med disse budgetmål i analysen når de er tilgængelige.\nAngiv afvigelse i procent: f.eks. "Omsætningen er 12% under budgetmålet".\n`;
     }
