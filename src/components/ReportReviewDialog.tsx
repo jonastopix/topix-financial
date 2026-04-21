@@ -428,6 +428,13 @@ export default function ReportReviewDialog({
         console.warn("Agent run failed (non-blocking):", err);
       });
 
+      // Auto-generate weekly focus with full AI analysis — non-blocking
+      supabase.functions.invoke("generate-weekly-focus", {
+        body: { company_id: companyId },
+      }).catch((err) => {
+        console.warn("Weekly focus generation failed (non-blocking):", err);
+      });
+
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fejl ved erstatning", { description: err.message || "Ukendt fejl" });
