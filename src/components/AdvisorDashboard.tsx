@@ -270,6 +270,7 @@ const AdvisorDashboard = () => {
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
+        unreadAgentMsgsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -341,6 +342,13 @@ const AdvisorDashboard = () => {
           .select("company_id")
           .eq("status", "active")
           .gte("generated_at", new Date(Date.now() - 14 * 86400000).toISOString()) as any),
+        supabase
+          .from("messages")
+          .select("conversation_id")
+          .is("read_at", null)
+          .eq("message_type", "system")
+          .eq("context_type", "agent")
+          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString()),
       ]);
 
       // Map group conversations into the same shape as company conversations
