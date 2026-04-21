@@ -21,7 +21,8 @@ HVAD DU GØR (i rækkefølge):
 4. Skriv én besked til founder i chatten — fokusér på ét nøglefund, ikke fem
 5. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
 6. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
-7. Kald finish
+7. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
+8. Kald finish
 
 HVAD DU IKKE GØR:
 
@@ -213,6 +214,25 @@ const tools = [
           message: { type: "string" },
         },
         required: ["company_id", "message"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "write_session_prep",
+      description: "Gemmer 3 konkrete punkter som advisor bør tage op til næste session med founder. Brug dette når du har identificeret vigtige emner der kræver menneskelig sparring. Punkterne vises direkte i advisor-dashboardet.",
+      parameters: {
+        type: "object",
+        properties: {
+          company_id: { type: "string" },
+          points: {
+            type: "array",
+            items: { type: "string" },
+            description: "Præcis 3 punkter. Maks 15 ord per punkt. Konkrete og handlingsorienterede.",
+          },
+        },
+        required: ["company_id", "points"],
       },
     },
   },
