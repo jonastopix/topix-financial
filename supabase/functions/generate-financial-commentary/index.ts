@@ -65,6 +65,22 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // Fetch up to 5 previous periods for trend analysis
+    const { data: historicalFacts } = await adminClient
+      .from("financial_report_facts")
+      .select("period_key, period_label, metrics")
+      .eq("company_id", company_id)
+      .neq("period_key", period_key)
+      .order("period_key", { ascending: false })
+      .limit(5);
+    const historicalCanonical = (historicalFacts ?? [])
+      .sort((a, b) => a.period_key.localeCompare(b.period_key))
+      .map(f => ({
+        period_key: f.period_key,
+        period_label: f.period_label,
+        metrics: f.metrics,
+      }));
+
     // 4b. Idempotency: hvis der allerede findes en frisk commentary for samme
     // (company_id, period_key, basis_metrics_hash), returnér den i stedet for
     // at oprette en dublet. Dette beskytter mod dobbelt-trigger fra
@@ -147,6 +163,7 @@ Deno.serve(async (req) => {
         },
         companyId: company_id,
         budgetContext,
+        historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
       }),
     });
 
