@@ -444,15 +444,20 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
     }
 
     case "create_milestone": {
-      // Check for existing milestone with same title
-      const { data: existing } = await adminClient
+      // Check for existing milestone with similar title (broader dedup)
+      const titleWords = args.title.toLowerCase().split(" ").slice(0, 3).join(" ");
+      const { data: existingMilestones } = await adminClient
         .from("milestones")
-        .select("id")
+        .select("id, title")
         .eq("company_id", args.company_id)
-        .ilike("title", args.title)
-        .eq("status", "active")
-        .maybeSingle();
-      if (existing) return { ok: false, reason: "milestone_already_exists", id: existing.id };
+        .eq("status", "active");
+      
+      const duplicate = (existingMilestones ?? []).find(m =>
+        m.title.toLowerCase().includes(titleWords) ||
+        args.title.toLowerCase().includes(m.title.toLowerCase().split(" ").slice(0, 3).join(" "))
+      );
+      
+      if (duplicate) return { ok: false, reason: "milestone_already_exists", id: duplicate.id };
 
       const { data: member, error: memberErr } = await adminClient
         .from("company_members")
@@ -891,7 +896,7 @@ ${trigger === "pulse_submitted"
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Skriv en kort, direkte besked til founder der forklarer hvad der er sket og hvad de skal gøre NU. Maks 3 sætninger. Opdatér IKKE weekly focus med negativ information — brug kun chat. Notificér advisor med høj prioritet.`
   : trigger === "onboarding"
-  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten der:\n   - Bruger fornavnet\n   - Refererer specifikt til hvad de selv har skrevet om deres situation og mål\n   - Er varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret 2-3 start-milestones baseret på deres mål og hvad de søger hjælp til\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
+  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten der:\n   - Bruger fornavnet\n   - Refererer specifikt til hvad de selv har skrevet om deres situation og mål\n   - Er varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din besked.`
 }`,
       },

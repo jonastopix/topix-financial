@@ -165,6 +165,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Advisors never need onboarding
     const profileData = profileRes.data as any;
     const legatActive = !isAdv && !!legatRow;
+    const profileOnboarded = !!(profileData?.onboarded_at);
     setNeedsOnboarding(!isAdv && !legatActive && (!profileData || !profileData.onboarded_at));
 
     // Fetch group data (additive — Koncern v1)
@@ -215,7 +216,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .eq("id", cm.company_id)
         .maybeSingle();
 
-      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context) {
+      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context && profileOnboarded) {
         // Mark completed immediately to prevent duplicate runs on rapid re-auth
         await supabase
           .from("companies")
