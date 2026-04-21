@@ -850,6 +850,54 @@ const MemberDetail = () => {
             </div>
           </div>
 
+          {/* ───── Application context panel ───── */}
+          {(companyCtx as any)?.application_context && (
+            <div className="mb-6 rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Ansøgningskontekst</h3>
+              </div>
+              <div className="space-y-4">
+                {(companyCtx as any).application_context.current_situation && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Nuværende situation</p>
+                    <p className="text-sm text-foreground leading-relaxed">{(companyCtx as any).application_context.current_situation}</p>
+                  </div>
+                )}
+                {(companyCtx as any).application_context.goals && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Mål med virksomheden</p>
+                    <p className="text-sm text-foreground leading-relaxed">{(companyCtx as any).application_context.goals}</p>
+                  </div>
+                )}
+                {(companyCtx as any).application_context.help_needed && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Søger hjælp til</p>
+                    <p className="text-sm text-foreground leading-relaxed">{(companyCtx as any).application_context.help_needed}</p>
+                  </div>
+                )}
+                {((companyCtx as any).contract_start_date || (companyCtx as any).contract_end_date) && (
+                  <div className="flex gap-6 pt-2 border-t border-border/40">
+                    {(companyCtx as any).contract_start_date && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Kontraktstart</p>
+                        <p className="text-sm text-foreground">{new Date((companyCtx as any).contract_start_date).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}</p>
+                      </div>
+                    )}
+                    {(companyCtx as any).contract_end_date && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Kontraktslut</p>
+                        <p className={`text-sm font-medium ${new Date((companyCtx as any).contract_end_date) < new Date() ? "text-destructive" : "text-foreground"}`}>
+                          {new Date((companyCtx as any).contract_end_date).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ───── Session prep panel ───── */}
           {sessionBullets.length > 0 && (
             <div id="section-session" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 p-5">
