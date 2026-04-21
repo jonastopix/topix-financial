@@ -100,7 +100,6 @@ Deno.serve(async (req) => {
         JSON.stringify({
           ok: false,
           reason: "user_already_exists",
-          existing_user_id: existingUser.id,
           email_confirmed: !!existingUser.email_confirmed_at,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
