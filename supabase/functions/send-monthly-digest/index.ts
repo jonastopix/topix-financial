@@ -214,6 +214,19 @@ Deno.serve(async (req) => {
       unreadCount = count || 0;
     }
 
+    // Fetch latest agent insight
+    let latestAgentInsight: string | null = null;
+    if (conv?.id) {
+      const { data: agentMsgs } = await adminClient
+        .from("messages")
+        .select("content, created_at")
+        .eq("conversation_id", conv.id)
+        .eq("context_type", "agent")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      latestAgentInsight = agentMsgs?.[0]?.content?.slice(0, 400) || null;
+    }
+
     // Build KPI highlight
     const latestFact = facts?.[0];
     const metrics = latestFact?.metrics as Record<string, number> | null;
