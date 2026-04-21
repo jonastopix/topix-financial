@@ -213,6 +213,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setOwnCompanyId(cm.company_id);
       setOwnCompanyName(cm.companies?.name || null);
 
+      // Determine membership tier
+      if (isAdv) {
+        setMembershipTier("full");
+      } else {
+        const { data: companyTierData } = await supabase
+          .from("companies")
+          .select("contract_end_date, subscription_status, subscription_current_period_end")
+          .eq("id", cm.company_id)
+          .maybeSingle();
+
+        const now = new Date();
+        const contractEnd = companyTierData?.contract_end_date
+          ? new Date(companyTierData.contract_end_date)
+          : null;
+        const subEnd = companyTierData?.subscription_current_period_end
+          ? new Date(companyTierData.subscription_current_period_end)
+          : null;
+
+        if (contractEnd && contractEnd > now) {
+          setMembershipTier("full");
+        } else if (
+          companyTierData?.subscription_status === "active" &&
+          subEnd && subEnd > now
+        ) {
+          setMembershipTier("subscriber");
+        } else {
+          setMembershipTier("expired");
+        }
+      }
+
       // Trigger onboarding agent if this is first login for an imported company
       const { data: companyMeta } = await supabase
         .from("companies")
