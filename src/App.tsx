@@ -64,7 +64,7 @@ const DemoHandouts = lazy(() => import("./demo/DemoHandouts"));
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, needsOnboarding } = useAuth();
+  const { user, loading, needsOnboarding, isAdvisor, membershipTier } = useAuth();
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -72,11 +72,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   );
   if (!user) return <Navigate to="/auth" replace />;
   if (needsOnboarding) return <Navigate to="/onboarding" replace />;
+  if (!isAdvisor && membershipTier === "expired") return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
 const MemberRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, needsOnboarding, isLegat } = useAuth();
+  const { user, loading, needsOnboarding, isLegat, isAdvisor, membershipTier } = useAuth();
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />

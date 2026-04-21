@@ -223,23 +223,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .eq("id", cm.company_id)
           .maybeSingle();
 
-        const now = new Date();
-        const contractEnd = companyTierData?.contract_end_date
-          ? new Date(companyTierData.contract_end_date)
-          : null;
-        const subEnd = companyTierData?.subscription_current_period_end
-          ? new Date(companyTierData.subscription_current_period_end)
-          : null;
-
-        if (contractEnd && contractEnd > now) {
+        if (!companyTierData || !companyTierData.contract_end_date) {
+          // No end date set — treat as active full member (legacy or manually managed)
           setMembershipTier("full");
-        } else if (
-          companyTierData?.subscription_status === "active" &&
-          subEnd && subEnd > now
-        ) {
-          setMembershipTier("subscriber");
         } else {
-          setMembershipTier("expired");
+          const now = new Date();
+          const contractEnd = new Date(companyTierData.contract_end_date);
+          const subEnd = companyTierData?.subscription_current_period_end
+            ? new Date(companyTierData.subscription_current_period_end)
+            : null;
+
+          if (contractEnd > now) {
+            setMembershipTier("full");
+          } else if (
+            companyTierData?.subscription_status === "active" &&
+            subEnd && subEnd > now
+          ) {
+            setMembershipTier("subscriber");
+          } else {
+            setMembershipTier("expired");
+          }
         }
       }
 
