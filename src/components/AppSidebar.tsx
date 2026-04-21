@@ -424,6 +424,8 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               );
             }
             const isActive = location.pathname === item.path;
+            const isLockedForSubscriber = !effectiveAdvisor && membershipTier === "subscriber" &&
+              (item.path === "/chat" || item.path === "/book-session");
             return (
               <button
                 key={item.path}
@@ -436,7 +438,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
-                }`}
+                } ${isLockedForSubscriber ? "opacity-50" : ""}`}
               >
                 <item.icon
                   className={`h-4 w-4 transition-colors ${
@@ -444,18 +446,24 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                   }`}
                 />
                 {item.label}
-                {item.path === "/chat" && unreadChat > 0 && !isActive && (
-                  <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                    {unreadChat > 99 ? "99+" : unreadChat}
-                  </span>
-                )}
-                {item.path === "/admin/feedback" && newFeedbackCount > 0 && !isActive && (
-                  <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                    {newFeedbackCount > 99 ? "99+" : newFeedbackCount}
-                  </span>
-                )}
-                {isActive && (
-                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />
+                {isLockedForSubscriber ? (
+                  <Lock className="ml-auto h-3.5 w-3.5 text-sidebar-muted" />
+                ) : (
+                  <>
+                    {item.path === "/chat" && unreadChat > 0 && !isActive && (
+                      <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                        {unreadChat > 99 ? "99+" : unreadChat}
+                      </span>
+                    )}
+                    {item.path === "/admin/feedback" && newFeedbackCount > 0 && !isActive && (
+                      <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                        {newFeedbackCount > 99 ? "99+" : newFeedbackCount}
+                      </span>
+                    )}
+                    {isActive && (
+                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-glow" />
+                    )}
+                  </>
                 )}
               </button>
             );
