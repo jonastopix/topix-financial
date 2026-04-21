@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Users, Globe, MapPin, User,
   Mail, Phone, Wallet, ExternalLink, Hash, Trash2,
   UserPlus, X, Activity, Send, RotateCcw, CheckCircle2,
-  Loader2, Layers, Pencil,
+  Loader2, Layers, Pencil, CalendarDays,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
@@ -216,255 +216,278 @@ const MemberCompanyRow = ({
 
       {/* Expanded details */}
       {isExpanded && (
-        <div className="px-5 pb-4 pt-1 bg-secondary/20 border-t border-border/30 animate-fade-in">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            {/* Contact info */}
-            <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <User className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Kontakt</span>
-              </div>
-              <p className="text-sm font-medium text-foreground">{c.contact_person || "–"}</p>
-              {c.contact_email && (
-                <a href={`mailto:${c.contact_email}`} className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
-                  <Mail className="h-3 w-3" /> {c.contact_email}
-                </a>
-              )}
-              {c.contact_phone && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <Phone className="h-3 w-3" /> {c.contact_phone}
-                </p>
-              )}
-              {c.website && (
-                <a href={c.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
-                  <Globe className="h-3 w-3" /> Hjemmeside
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-              )}
-              {c.slack_channel && (
-                <p className="text-xs text-primary flex items-center gap-1 mt-2 font-medium">
-                  <Hash className="h-3 w-3" /> {c.slack_channel}
-                </p>
-              )}
-              {/* Invitation status — admin only */}
-              {isAdmin && c.invitationStatus && (
-                <div className="mt-3 pt-2 border-t border-border/30">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <Send className="h-3 w-3" /> Invitation
+        <div className="px-5 pb-4 pt-2 bg-secondary/20 border-t border-border/30 animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* ── KOLONNE 1: Kontakt & Team ── */}
+            <div className="space-y-3">
+              {/* Kontakt */}
+              <div className="rounded-lg bg-background/50 border border-border/50 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Kontakt</span>
+                </div>
+                {c.contact_person && <p className="text-sm font-medium text-foreground">{c.contact_person}</p>}
+                {c.contact_email && (
+                  <a href={`mailto:${c.contact_email}`} className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
+                    <Mail className="h-3 w-3" /> {c.contact_email}
+                  </a>
+                )}
+                {c.contact_phone && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                    <Phone className="h-3 w-3" /> {c.contact_phone}
                   </p>
-                  {c.invitationStatus === 'pending' ? (
-                    <>
-                      <p className="text-xs text-muted-foreground">{c.invitationEmail}</p>
-                      <p className="text-xs text-chart-warning mt-0.5">Afventer svar</p>
-                    </>
-                  ) : c.invitationStatus === 'accepted' ? (
-                    <>
-                      {c.members.length > 0 ? (
-                        <p className="text-xs text-muted-foreground">Accepteret af {c.members[0].full_name}</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Accepteret</p>
-                      )}
-                      {c.invitationAcceptedAt && (
+                )}
+                {c.website && (
+                  <a href={c.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
+                    <Globe className="h-3 w-3" /> Hjemmeside <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                )}
+                {c.cvr_number && <p className="text-xs text-muted-foreground mt-1">CVR: {c.cvr_number}</p>}
+                {c.slack_channel && (
+                  <p className="text-xs text-primary flex items-center gap-1 mt-1 font-medium">
+                    <Hash className="h-3 w-3" /> {c.slack_channel}
+                  </p>
+                )}
+                {(() => {
+                  const rev = getDisplayRevenue(c);
+                  if (!rev) return null;
+                  return (
+                    <p className="text-xs text-foreground font-medium flex items-center gap-1 mt-2">
+                      <Wallet className="h-3 w-3 text-primary" /> {rev.value.toLocaleString("da-DK")} DKK
+                      <span className="text-[9px] text-muted-foreground font-normal">({rev.source})</span>
+                    </p>
+                  );
+                })()}
+                {isAdmin && c.invitationStatus && (
+                  <div className="mt-3 pt-2 border-t border-border/30">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <Send className="h-3 w-3" /> Invitation
+                    </p>
+                    {c.invitationStatus === 'pending' ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">{c.invitationEmail}</p>
+                        <p className="text-xs text-chart-warning mt-0.5">Afventer svar</p>
+                      </>
+                    ) : c.invitationStatus === 'accepted' && c.invitationAcceptedAt ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Accepteret{c.members.length > 0 ? ` af ${c.members[0].full_name}` : ""}
+                        </p>
                         <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
                           {format(new Date(c.invitationAcceptedAt), "d. MMM yyyy", { locale: da })}
                         </p>
-                      )}
-                    </>
-                  ) : null}
-                </div>
-              )}
-            </div>
-
-            {/* Team members */}
-            <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                    Team ({c.members.length})
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onInvite(c.id, c.contact_email || ""); }}
-                    className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                    title="Inviter ny bruger"
-                  >
-                    <Send className="h-3 w-3" /> Inviter
-                  </button>
-                  {isAdmin && (
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+              {/* Team */}
+              <div className="rounded-lg bg-background/50 border border-border/50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                      Team ({c.members.length})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={(e) => { e.stopPropagation(); onOpenMerge(c); }}
+                      onClick={(e) => { e.stopPropagation(); onInvite(c.id, c.contact_email || ""); }}
                       className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                      title="Tilknyt eksisterende bruger"
                     >
-                      <UserPlus className="h-3 w-3" /> Tilknyt
+                      <Send className="h-3 w-3" /> Inviter
                     </button>
-                  )}
-                </div>
-              </div>
-              {c.members.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Ingen tilknyttede brugere</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {c.members.map((m) => (
-                    <div key={m.user_id} className="flex items-center gap-2 group">
-                      <Link
-                        to={`/members/${m.user_id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-2 hover:bg-secondary/50 rounded-md p-1 -ml-1 transition-colors flex-1 min-w-0"
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onOpenMerge(c); }}
+                        className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
                       >
-                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <span className="text-[8px] font-semibold text-primary">{getInitials(m.full_name)}</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="text-xs text-foreground truncate block">{m.full_name}</span>
-                          {(() => {
-                            const login = c.loginInfo.get(m.user_id);
-                            if (!login) return (
-                              <span className="text-[10px] text-muted-foreground">Aldrig logget ind</span>
-                            );
-                            return (
-                              <span className="text-[10px] text-muted-foreground">
-                                Sidst aktiv {format(new Date(login.lastLogin!), "d. MMM yyyy", { locale: da })}{login.loginCount ? ` · ${login.loginCount} logins` : ""}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">{m.role}</span>
-                      </Link>
-                      {isAdmin && m.role !== 'owner' && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <button
-                              onClick={(e) => e.stopPropagation()}
-                              disabled={removingMember === m.user_id}
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
-                              title={`Fjern ${m.full_name}`}
-                            >
-                              {removingMember === m.user_id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <X className="h-3 w-3" />
-                              )}
-                            </button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Fjern teammedlem?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Er du sikker på, at du vil fjerne <strong>{m.full_name}</strong> fra {c.name}? Denne handling kan ikke fortrydes.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuller</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => onRemoveMember(c, m)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Fjern
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
-                  ))}
+                        <UserPlus className="h-3 w-3" /> Tilknyt
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
+                {c.members.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Ingen tilknyttede brugere</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {c.members.map((m) => (
+                      <div key={m.user_id} className="flex items-center gap-2 group">
+                        <Link
+                          to={`/members/${m.user_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 hover:bg-secondary/50 rounded-md p-1 -ml-1 transition-colors flex-1 min-w-0"
+                        >
+                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-[8px] font-semibold text-primary">{getInitials(m.full_name)}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs text-foreground truncate block">{m.full_name}</span>
+                            {(() => {
+                              const login = c.loginInfo.get(m.user_id);
+                              if (!login) return (
+                                <span className="text-[10px] text-muted-foreground">Aldrig logget ind</span>
+                              );
+                              return (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Sidst aktiv {format(new Date(login.lastLogin!), "d. MMM yyyy", { locale: da })}{login.loginCount ? ` · ${login.loginCount} logins` : ""}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">{m.role}</span>
+                        </Link>
+                        {isAdmin && m.role !== 'owner' && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                onClick={(e) => e.stopPropagation()}
+                                disabled={removingMember === m.user_id}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                                title={`Fjern ${m.full_name}`}
+                              >
+                                {removingMember === m.user_id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <X className="h-3 w-3" />
+                                )}
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Fjern teammedlem?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Er du sikker på, at du vil fjerne <strong>{m.full_name}</strong> fra {c.name}? Denne handling kan ikke fortrydes.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annuller</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => onRemoveMember(c, m)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Fjern
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Info + Circle activity */}
-            <div className="rounded-lg bg-background/50 border border-border/50 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Building2 className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Detaljer</span>
+            {/* ── KOLONNE 2: Kontrakt & Membership ── */}
+            <div className="rounded-lg bg-background/50 border border-border/50 p-3 h-fit">
+              <div className="flex items-center gap-2 mb-3">
+                <CalendarDays className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Kontrakt & Membership</span>
               </div>
-              {c.cvr_number && (
-                <p className="text-xs text-muted-foreground">CVR: {c.cvr_number}</p>
-              )}
-              {c.address && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <MapPin className="h-3 w-3" /> {c.address}, {c.postal_code} {c.city}
-                </p>
-              )}
-              {(() => {
-                const rev = getDisplayRevenue(c);
-                if (!rev) return null;
-                return (
-                  <p className="text-xs text-foreground font-medium flex items-center gap-1 mt-1">
-                    <Wallet className="h-3 w-3 text-primary" /> {rev.value.toLocaleString("da-DK")} DKK
-                    <span className="text-[9px] text-muted-foreground font-normal">({rev.source})</span>
-                  </p>
-                );
-              })()}
-              {c.start_date && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Forløb: {format(new Date(c.start_date), "d. MMM yyyy", { locale: da })}
-                  {c.end_date && ` – ${format(new Date(c.end_date), "d. MMM yyyy", { locale: da })}`}
-                </p>
-              )}
-
-              {/* Circle.so activity */}
-              {c.circleInfo.length > 0 && (
-                <div className="mt-3 pt-2 border-t border-border/30">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <Activity className="h-3 w-3" /> Community
-                  </p>
-                  {c.circleInfo.map((ci) => (
-                    <div key={ci.circle_member_id} className="text-xs text-muted-foreground mt-1.5 space-y-0.5">
-                      {ci.last_seen_at && (
-                        <p className="text-[10px]">
-                          Sidst aktiv: {format(new Date(ci.last_seen_at), "d. MMM yyyy", { locale: da })}
-                        </p>
-                      )}
-                      {ci.recent_activity_count > 0 && (
-                        <p>{ci.recent_activity_count} community-indlæg</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
+              {/* Tier badge */}
+              <div className="mb-3">
+                {c.membershipTier === "full" && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Fuldt medlem
+                  </span>
+                )}
+                {c.membershipTier === "subscriber" && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <div className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Selvbetjeningsabonnement
+                  </span>
+                )}
+                {c.membershipTier === "expired" && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-destructive/10 text-destructive">
+                    <div className="h-1.5 w-1.5 rounded-full bg-destructive" /> Udløbet
+                  </span>
+                )}
+                {c.membershipTier === "no_date" && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Ingen slutdato sat
+                  </span>
+                )}
+              </div>
+              {/* Contract dates */}
+              <div className="space-y-2">
+                {c.contract_start_date && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Kontraktstart</p>
+                    <p className="text-xs text-foreground mt-0.5">
+                      {format(new Date(c.contract_start_date), "d. MMM yyyy", { locale: da })}
+                    </p>
+                  </div>
+                )}
+                {c.contract_end_date && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Kontraktslut</p>
+                    <p className={`text-xs font-medium mt-0.5 ${new Date(c.contract_end_date) < new Date() ? "text-destructive" : "text-foreground"}`}>
+                      {format(new Date(c.contract_end_date), "d. MMM yyyy", { locale: da })}
+                    </p>
+                  </div>
+                )}
+                {c.subscription_status && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Abonnement</p>
+                    <p className="text-xs text-foreground mt-0.5 capitalize">{c.subscription_status}</p>
+                  </div>
+                )}
+                {!c.contract_start_date && !c.contract_end_date && !c.subscription_status && (
+                  <p className="text-xs text-muted-foreground italic">Ingen kontraktdata registreret</p>
+                )}
+              </div>
+              {/* Enrich button */}
               {onEnrich && (
-                <div className="mt-3 pt-2 border-t border-border/30">
+                <div className="mt-3 pt-3 border-t border-border/30">
                   <button
                     onClick={(e) => { e.stopPropagation(); onEnrich(c.id); }}
                     className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
-                    title="Upload ansøgning for at berige virksomhedsdata"
                   >
                     <FileText className="h-3 w-3" /> Berig med ansøgning
                   </button>
                 </div>
               )}
             </div>
-            <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between">
+            {/* ── KOLONNE 3: Aktivitet & Handlinger ── */}
+            <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between h-fit">
               <div>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
                   <FileText className="h-4 w-4 text-primary" />
-                  <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Rapporter & Chat</span>
+                  <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Aktivitet</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">
-                    {c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret
-                    {c.latestReportPeriod && (
-                      <span className="text-muted-foreground font-normal ml-1.5">
-                        · seneste: {c.latestReportPeriod}
+                {/* Reports */}
+                <div className="space-y-1.5 mb-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-foreground">
+                      {c.reportCount} {c.reportCount === 1 ? "periode" : "perioder"} leveret
+                      {c.latestReportPeriod && (
+                        <span className="text-muted-foreground font-normal ml-1.5">
+                          · seneste: {c.latestReportPeriod}
+                        </span>
+                      )}
+                    </p>
+                    {c.committedCount > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        {c.committedCount} godkendt
                       </span>
                     )}
-                  </p>
-                  {c.committedCount > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                      <CheckCircle2 className="h-2.5 w-2.5" />
-                      {c.committedCount} godkendt
-                    </span>
+                  </div>
+                  {c.unreadCount > 0 && (
+                    <p className="text-xs text-chart-warning font-semibold flex items-center gap-1">
+                      <MessageSquare className="h-3 w-3" /> {c.unreadCount} ubesvarede beskeder
+                    </p>
                   )}
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className={`h-2 w-2 rounded-full ${c.hasPulseThisMonth ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+                    <span className="text-xs text-muted-foreground">
+                      Pulse {c.hasPulseThisMonth ? "udfyldt" : "mangler"} denne måned
+                    </span>
+                  </div>
                 </div>
-                {c.unreadCount > 0 && (
-                  <p className="text-xs text-chart-warning font-semibold mt-1">{c.unreadCount} ubesvarede beskeder</p>
-                )}
               </div>
-              <div className="flex flex-wrap gap-2 mt-3">
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-2 pt-3 border-t border-border/30">
                 {c.members.length > 0 && (
                   <Link
                     to={`/members/${c.members[0].user_id}`}
