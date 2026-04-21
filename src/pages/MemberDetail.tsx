@@ -907,6 +907,29 @@ const MemberDetail = () => {
             </div>
           </div>
 
+          {isAdmin && (
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCompanyEditForm({
+                    contract_start_date: (companyCtx as any).contract_start_date?.slice(0, 10) || "",
+                    contract_end_date: (companyCtx as any).contract_end_date?.slice(0, 10) || "",
+                    subscription_status: (companyCtx as any).subscription_status || "",
+                    cvr_number: (companyCtx as any).cvr_number || "",
+                    industry_label: (companyCtx as any).industry_label || "",
+                    website: (companyCtx as any).website || "",
+                    slack_channel: (companyCtx as any).slack_channel || "",
+                  });
+                  setEditingCompany(true);
+                }}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <Pencil className="h-3 w-3" /> Rediger virksomhedsdata
+              </button>
+            </div>
+          )}
+
           {/* ───── Application context panel ───── */}
           {(companyCtx as any)?.application_context && (
             <div className="mb-6 rounded-xl border border-border bg-card p-5">
