@@ -71,3 +71,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.import-application]
     verify_jwt = false
+  [functions.admin-cleanup-test-data]
+    verify_jwt = false
