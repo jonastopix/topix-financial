@@ -68,6 +68,23 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     refetchInterval: 60_000,
   });
 
+  const { data: hasPulseThisMonth = true } = useQuery({
+    queryKey: ["mobile-pulse-this-month", companyId],
+    queryFn: async () => {
+      if (!companyId) return true;
+      const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+      const { data } = await supabase
+        .from("pulse_checkins")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("period_key", periodKey)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!companyId && isMobile && !isAdvisor,
+    staleTime: 5 * 60_000,
+  });
+
   const [showAnnouncement, setShowAnnouncement] = useState(() => {
     try {
       const dismissed = localStorage.getItem("dismissed-announcement");
