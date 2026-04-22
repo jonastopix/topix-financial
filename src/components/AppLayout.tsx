@@ -164,9 +164,12 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
               <div className="relative">
                 <Icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                 {item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
                     {item.badge > 99 ? "99+" : item.badge}
                   </span>
+                )}
+                {item.badge === -1 && (
+                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-background" />
                 )}
               </div>
               <span className={`text-[10px] font-medium ${isActive ? "text-primary" : "text-muted-foreground"}`}>
