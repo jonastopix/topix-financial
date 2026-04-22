@@ -89,8 +89,8 @@ export default function MembershipExpiredGate() {
           </div>
           <div className="text-center space-y-2">
             <img
-              src="/morten-hesselholt.jpg"
-              alt="Morten Hesselholt"
+              src="/morten-larsen.jpg"
+              alt="Morten Larsen"
               className="h-16 w-16 rounded-full object-cover mx-auto"
             />
             <p className="text-sm text-foreground">Morten</p>

@@ -32,8 +32,8 @@ const ChatShell = () => {
                 className="h-16 w-16 rounded-full object-cover"
               />
               <img
-                src="/morten-hesselholt.jpg"
-                alt="Morten Hesselholt"
+                src="/morten-larsen.jpg"
+                alt="Morten Larsen"
                 className="h-16 w-16 rounded-full object-cover"
               />
             </div>
