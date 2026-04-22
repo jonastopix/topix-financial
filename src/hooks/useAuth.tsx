@@ -170,7 +170,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const profileData = profileRes.data as any;
     const legatActive = !isAdv && !!legatRow;
     const profileOnboarded = !!(profileData?.onboarded_at);
-    setNeedsOnboarding(!isAdv && !legatActive && (!profileData || !profileData.onboarded_at));
+    const computedNeedsOnboarding = !isAdv && !legatActive && (!profileData || !profileData.onboarded_at);
+    setNeedsOnboarding(computedNeedsOnboarding);
+
+    // Persist a "known onboarded" flag for the pre-React redirect in main.tsx,
+    // so iOS standalone / mobile restoring /onboarding gets bounced instantly.
+    try {
+      if (isAdv || profileOnboarded || legatActive) {
+        localStorage.setItem("tbr.onboarded", "1");
+      } else {
+        localStorage.removeItem("tbr.onboarded");
+      }
+    } catch {
+      // ignore
+    }
 
     // Fetch group data (additive — Koncern v1)
     const [groupMembershipRes, groupFeatureFlagRes] = await Promise.all([
@@ -336,6 +349,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setIsLegat(false);
           setProfile(null);
           setNeedsOnboarding(false);
+          try { localStorage.removeItem("tbr.onboarded"); } catch { /* ignore */ }
           setOwnCompanyId(null);
           setOwnCompanyName(null);
           setOverrideCompanyId(null);
