@@ -31,7 +31,7 @@ interface AppLayoutProps {
 
 const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const isMobile = useIsMobile();
-  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor, user } = useAuth();
+  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor, user, companyId } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const navigate = useNavigate();
   const location = useLocation();
@@ -68,6 +68,23 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     refetchInterval: 60_000,
   });
 
+  const { data: hasPulseThisMonth = true } = useQuery({
+    queryKey: ["mobile-pulse-this-month", companyId],
+    queryFn: async () => {
+      if (!companyId) return true;
+      const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+      const { data } = await supabase
+        .from("pulse_checkins")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("period_key", periodKey)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!companyId && isMobile && !isAdvisor,
+    staleTime: 5 * 60_000,
+  });
+
   const [showAnnouncement, setShowAnnouncement] = useState(() => {
     try {
       const dismissed = localStorage.getItem("dismissed-announcement");
@@ -94,10 +111,12 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     { label: "Indstillinger", path: "/settings", icon: "⚙️" },
   ];
 
+  const showPulseBadge = !hasPulseThisMonth && new Date().getDate() >= 10;
+
   const bottomTabs = [
     { label: "Hjem", path: "/", icon: Home, badge: 0 },
     { label: "Chat", path: "/chat", icon: MessageCircle, badge: unreadCount },
-    { label: "Pulse", path: "/pulse", icon: Zap, badge: 0 },
+    { label: "Pulse", path: "/pulse", icon: Zap, badge: showPulseBadge ? -1 : 0 },
   ];
 
   const mobileBottomNav = isMobile && !isAdvisor ? (
@@ -145,9 +164,12 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
               <div className="relative">
                 <Icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                 {item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
                     {item.badge > 99 ? "99+" : item.badge}
                   </span>
+                )}
+                {item.badge === -1 && (
+                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-background" />
                 )}
               </div>
               <span className={`text-[10px] font-medium ${isActive ? "text-primary" : "text-muted-foreground"}`}>
