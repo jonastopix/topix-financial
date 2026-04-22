@@ -240,7 +240,14 @@ const Reports = () => {
     if (!companyId || !user) return;
     setAnnualUploading(true);
     try {
-      const filePath = `${companyId}/annual/${annualUploadYear}_${Date.now()}_${file.name}`;
+      const safeFileName = file.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[æÆ]/g, "ae")
+        .replace(/[øØ]/g, "oe")
+        .replace(/[åÅ]/g, "aa")
+        .replace(/[^a-zA-Z0-9._-]/g, "_");
+      const filePath = `${companyId}/annual/${annualUploadYear}_${Date.now()}_${safeFileName}`;
       const { error: uploadErr } = await supabase.storage
         .from("financial-documents")
         .upload(filePath, file);
