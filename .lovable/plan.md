@@ -1,79 +1,79 @@
 
+Mest sandsynligt er det ikke “klassisk cache” fra en service worker, fordi projektet ikke registrerer nogen service worker i koden. Den nye onboarding-guard er allerede på plads begge steder:
 
-## Problem
+- `src/App.tsx` beskytter `/onboarding` med `OnboardingRoute`
+- `src/pages/Onboarding.tsx` har også et redirect-sikkerhedsnet
 
-Du lander på `/onboarding` selv som aktiv onboardet bruger. Der er to årsager:
+Det betyder, at hvis du stadig bliver hængende på `/onboarding` på mobil, er de mest sandsynlige forklaringer:
 
-### 1. `/onboarding` er en ubeskyttet route (hovedårsag)
+1. Mobilen kører en ældre bundle/webview-version
+- Især på iPhone/hjemskærms-app kan en gammel JS-bundle leve videre lidt længere end forventet.
+- Der er PWA-manifest og standalone-mode, så installeret app/webview kan opføre sig mere “sticky” end desktop-browseren.
 
-I `src/App.tsx` linje 138:
-```tsx
-<Route path="/onboarding" element={<Onboarding />} />
-```
+2. Mobilen genåbner sidste route
+- iOS standalone eller mobilbrowser kan genoptage sidste side (`/onboarding`) ved app-åbning.
+- Med den nye kode bør den straks sende videre til `/`, men kun hvis den faktisk kører den nyeste bundle.
 
-Den har **ingen guard** — hverken auth eller "er du allerede onboardet?". Det betyder:
-- Hvis du har et browser-tab åbent på `/onboarding` og refresher, bliver du der
-- Hvis et gammelt link, notifikation eller bookmark peger på `/onboarding`, åbnes siden uanset hvad
-- Hvis du manuelt skriver `/onboarding`, ser du altid onboarding-flowet
+3. Der findes stadig et edge-case i auth/opstart
+- `useAuth` sætter `loading=false` efter `fetchUserData`.
+- Hvis mobil-sessionen genoptages under særlige timing-forhold, kan en gammel route blive vist længere end ønsket, eller redirect-logikken kan blive for sen.
 
-### 2. `Onboarding.tsx` tjekker ikke om brugeren allerede er onboardet
+Plan for at afklare og lukke hullet helt:
 
-Komponenten viser blot formularen ved mount uden at kigge på `profile?.onboarded_at`.
+1. Verificér om problemet er “gammel klient” eller reel kodefejl
+- Sammenlign adfærden på:
+  - mobil i browser
+  - mobil fra hjemskærm
+  - desktop
+- Hvis kun hjemskærms-versionen rammes, peger det stærkt på gammel klient/webview-state.
 
-### 3. Mindre race-risiko (sekundær)
+2. Instrumentér onboarding-redirects midlertidigt
+- Tilføj let debug-logging eller telemetry i:
+  - `OnboardingRoute`
+  - `Onboarding.tsx`
+  - `useAuth.tsx`
+- Log:
+  - nuværende path
+  - `loading`
+  - `user`
+  - `needsOnboarding`
+  - `isAdvisor`
+  - om redirect blev trigget
+- Så kan vi se, om mobilen faktisk kører den nye guard, eller om den aldrig rammer den.
 
-I `useAuth.tsx` sætter `fetchUserData` `setLoading(false)` i `finally`-blokken efter `setNeedsOnboarding(...)`. React batcher disse, så det er normalt fint — men hvis profil-querien fejler (linje 327 `catch`), bliver `loading=false` og `needsOnboarding=false` (initial værdi), hvilket vil sende dig til `/` snarere end `/onboarding`. Så bug 1+2 er den reelle årsag.
+3. Hærd redirecten mod “last route restore”
+- Tilføj en ekstra klient-sikring tidligt i app-opstart:
+  - hvis path er `/onboarding`
+  - og brugeren er logget ind
+  - og profil viser `onboarded_at`
+  - så redirect straks til `/`
+- Målet er at gøre redirect mere aggressiv helt tidligt i lifecycle, så mobil restore ikke føles som en landing på onboarding.
 
-## Løsning
+4. Tilføj versions-/build-markør for at afsløre stale klienter
+- Indbyg en lille build-version i frontend.
+- Ved app-start kan klienten sammenligne loaded version med seneste deploy-version.
+- Hvis version er gammel, vis “Appen er opdateret – genindlæs” eller tvungen reload.
+- Det er den mest robuste måde at eliminere tvivl om cache/stale bundle på mobil.
 
-**Fix 1 — Beskyt `/onboarding`-routen med en guard.**
+5. Hærd installeret mobil-app specifikt
+- Hvis appen kører i standalone, tilføj et ekstra reload-check ved resume/visibility:
+  - lyt på `visibilitychange` / `pageshow`
+  - hvis appen genåbnes på `/onboarding` og brugeren ikke behøver onboarding, redirect direkte
+- Det matcher eksisterende mobil/PWA-mønstre i projektet.
 
-Tilføj en `OnboardingRoute`-wrapper i `src/App.tsx` der:
-- Viser spinner mens `loading` er true
-- Sender ikke-loggede til `/auth`
-- Sender advisors til `/`
-- Sender brugere der **allerede er onboardet** (`!needsOnboarding`) til `/`
-- Ellers viser `<Onboarding />`
+6. Bekræft domæne-konsistens
+- Sikr at både `app.theboardroom.dk` og `www.app.theboardroom.dk` peger på samme aktuelle buildoplevelse.
+- Der er allerede redirect fra `topix.lovable.app`, men ikke tilsvarende klient-redirect mellem `www.app...` og `app...`.
+- Hvis mobilen åbner en anden host end forventet, kan det forklare oplevet “gammel” adfærd.
 
-```tsx
-const OnboardingRoute = ({ children }) => {
-  const { user, loading, needsOnboarding, isAdvisor } = useAuth();
-  if (loading) return <Spinner />;
-  if (!user) return <Navigate to="/auth" replace />;
-  if (isAdvisor) return <Navigate to="/" replace />;
-  if (!needsOnboarding) return <Navigate to="/" replace />;
-  return <>{children}</>;
-};
-```
+Filer der mest sandsynligt skal opdateres
+- `src/hooks/useAuth.tsx` — ekstra early-state/redirect robustness eller debug
+- `src/App.tsx` — tidlig guard/hærdning omkring `/onboarding`
+- `src/pages/Onboarding.tsx` — stærkere mount-redirect eller telemetry
+- `src/main.tsx` — evt. build-version check og/eller host-normalisering
+- evt. `index.html` — version-markør hvis vi vælger cache-diagnostik
 
-Og opdater route:
-```tsx
-<Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
-```
-
-**Fix 2 — Sikkerhedsnet i `Onboarding.tsx`.**
-
-Tilføj en `useEffect` der ved mount kalder `navigate("/", { replace: true })` hvis `profile?.onboarded_at` allerede findes. Dette beskytter mod fremtidige guard-regressioner.
-
-**Fix 3 — Sikrere `loading`-håndtering i `useAuth.tsx` (hærdning).**
-
-I `fetchUserData`s `catch`-blok: hvis profilen ikke kan hentes, sæt **ikke** `needsOnboarding=false` automatisk. I dag forbliver den på initial `false`. Bedre adfærd: lad `loading` forblive `true` ikke ved fejl, men vis i stedet spinner indtil retry. Minimal ændring: bare logge fejl og lade UI håndtere det. Ingen breaking change.
-
-## Filer der ændres
-
-- `src/App.tsx` — tilføj `OnboardingRoute` guard, brug den på `/onboarding`-route
-- `src/pages/Onboarding.tsx` — tilføj mount-tjek der redirecter onboardede brugere til `/`
-
-## Hvad ændres ikke
-
-- `useAuth.tsx`'s overordnede flow (kun evt. minimal log-ændring)
-- Eksisterende guards (`ProtectedRoute`, `MemberRoute`, `AdvisorRoute`, `AdminRoute`)
-- Onboarding-formularens UX for nye brugere
-
-## Forventet resultat
-
-Efter fix:
-- Aktive brugere kan ikke længere lande på `/onboarding`. Hvis de tilgår URL'en direkte, bliver de sendt til `/`
-- Nye brugere uden `onboarded_at` ser stadig onboarding-flowet som normalt
-- Advisors sendes altid til `/` hvis de prøver `/onboarding`
-
+Forventet resultat
+- Vi kan afgøre, om det er gammel mobilklient eller reel bug
+- Installeret mobil-app og mobilbrowser holder op med at “lande” på `/onboarding`
+- Allerede onboardede brugere bliver sendt videre konsekvent, også efter resume/genåbning på mobil
