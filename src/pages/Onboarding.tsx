@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,13 @@ const Onboarding = () => {
   const [industryCode, setIndustryCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+
+  // Safety net: if user is already onboarded, redirect to home
+  useEffect(() => {
+    if (profile?.onboarded_at) {
+      navigate("/", { replace: true });
+    }
+  }, [profile?.onboarded_at, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -148,7 +148,7 @@ const App = () => (
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               <Route path="/reports" element={<MemberRoute><Reports /></MemberRoute>} />
               <Route path="/budget" element={<MemberRoute><Budget /></MemberRoute>} />
