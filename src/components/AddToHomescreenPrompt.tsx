@@ -3,6 +3,14 @@ import { X, Share, Plus } from "lucide-react";
 import { useStandalone } from "@/hooks/useStandalone";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+function isIOSSafari() {
+  const ua = navigator.userAgent;
+  const isIos = /iphone|ipad|ipod/i.test(ua);
+  // Chrome on iOS includes "CriOS", Firefox includes "FxiOS"
+  const isNativeSafari = isIos && !/CriOS|FxiOS|OPiOS|mercury/i.test(ua);
+  return { isIos, isNativeSafari };
+}
+
 function isIOS() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
