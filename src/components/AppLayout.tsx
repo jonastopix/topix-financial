@@ -111,10 +111,12 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     { label: "Indstillinger", path: "/settings", icon: "⚙️" },
   ];
 
+  const showPulseBadge = !hasPulseThisMonth && new Date().getDate() >= 10;
+
   const bottomTabs = [
     { label: "Hjem", path: "/", icon: Home, badge: 0 },
     { label: "Chat", path: "/chat", icon: MessageCircle, badge: unreadCount },
-    { label: "Pulse", path: "/pulse", icon: Zap, badge: 0 },
+    { label: "Pulse", path: "/pulse", icon: Zap, badge: showPulseBadge ? -1 : 0 },
   ];
 
   const mobileBottomNav = isMobile && !isAdvisor ? (
