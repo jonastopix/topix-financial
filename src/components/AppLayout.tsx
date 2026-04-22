@@ -301,9 +301,10 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         {mobileShell}
         {desktopBanners}
-        <div className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
+        <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor ? "pb-20" : ""}`}>
           {children}
         </div>
+        {mobileBottomNav}
         <FeedbackButton />
       </div>
     );
@@ -316,10 +317,11 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         <main className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
           {mobileShell}
-          <div className="flex-1 min-h-0 min-w-0 flex flex-col px-4 pb-6">
+          <div className={`flex-1 min-h-0 min-w-0 flex flex-col px-4 ${!isAdvisor ? "pb-20" : "pb-6"}`}>
             {children}
           </div>
         </main>
+        {mobileBottomNav}
         <FeedbackButton />
       </div>
     );
