@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,12 +29,20 @@ const ONBOARDING_INDUSTRIES = [
 ];
 
 const Onboarding = () => {
-  const { user, profile, companyName, setOnboardingComplete, companyId } = useAuth();
+  const { user, profile, companyName, setOnboardingComplete, companyId, needsOnboarding, isAdvisor, loading } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [industryCode, setIndustryCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+
+  // Safety net: if user is already onboarded (or is advisor), redirect to home
+  useEffect(() => {
+    if (loading) return;
+    if (isAdvisor || (user && !needsOnboarding)) {
+      navigate("/", { replace: true });
+    }
+  }, [loading, isAdvisor, needsOnboarding, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
