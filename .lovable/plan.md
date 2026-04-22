@@ -1,46 +1,79 @@
 
 
-## Plan: Én samlet velkomst fra advisor — ingen anonyme afsendere
+## Problem
 
-### Problem
-Når en ny founder afslutter onboarding, oprettes **to** velkomstbeskeder:
+Du lander på `/onboarding` selv som aktiv onboardet bruger. Der er to årsager:
 
-1. **`send-welcome-message`** indsætter en `message_type: "welcome"` besked. Renderen i `CompanyChatPane` har ingen case for `"welcome"`, så den falder ned i bruger-bobbel-renderen. Den finder ikke advisor i `participants` (advisors er ikke i `company_members`), så afsenderen vises som **"M Medlem"** med default-avatar.
-2. **`run-company-agent`** trigger `onboarding` (kaldet fra `useAuth` når `onboarding_completed=false` og `profileOnboarded=true`) bruger sit `write_chat_message`-tool, som tvinger `sender_id = conv.member_id` og `message_type: "system"`. Det rendes som en grå **"SYSTEM"-boks** med Sparkles-ikon.
+### 1. `/onboarding` er en ubeskyttet route (hovedårsag)
 
-Begge brydes med vores princip: chatbeskeder skal komme fra en navngiven advisor med billede.
+I `src/App.tsx` linje 138:
+```tsx
+<Route path="/onboarding" element={<Onboarding />} />
+```
 
-### Løsning — én velkomst, fra advisor, med navn og avatar
+Den har **ingen guard** — hverken auth eller "er du allerede onboardet?". Det betyder:
+- Hvis du har et browser-tab åbent på `/onboarding` og refresher, bliver du der
+- Hvis et gammelt link, notifikation eller bookmark peger på `/onboarding`, åbnes siden uanset hvad
+- Hvis du manuelt skriver `/onboarding`, ser du altid onboarding-flowet
 
-**1. Fjern den separate `send-welcome-message`-trigger**
-- Slet kaldet i `src/pages/Onboarding.tsx` (linje 73-78). Agenten leverer nu velkomsten — vi har ikke brug for to kanaler.
-- Behold edge function-filen for nu (kan kaldes manuelt fra admin), men marker den som deprecated i en kommentar.
+### 2. `Onboarding.tsx` tjekker ikke om brugeren allerede er onboardet
 
-**2. Lav agentens velkomst til en rigtig advisor-besked (ikke "system")**
-I `supabase/functions/run-company-agent/index.ts` `write_chat_message`-toolet:
-- Tilføj en valgfri parameter `as_advisor: boolean` (default `false`).
-- Når `as_advisor === true`:
-  - Slå `conv.assigned_advisor_id` op; fald tilbage til første bruger med rolle `advisor` eller `admin`.
-  - Sæt `sender_id = advisorId`, `message_type = "user"` (så den rendes som almindelig chat-bobbel), `context_type = null`, ingen `context_meta.source = agent` (skjul "Var dette nyttigt?"-knapperne for velkomstbeskeden).
-- Opdatér onboarding-prompten til at kalde `write_chat_message` med `as_advisor: true` for selve velkomsten. Andre agent-beskeder (post-commit analyse osv.) forbliver `system`-bokse som i dag.
+Komponenten viser blot formularen ved mount uden at kigge på `profile?.onboarded_at`.
 
-**3. Sørg for at advisor-profilen kan vises i chatten for founders**
-`CompanyChatPane`-renderen slår sender op i `participants` (kun company_members) eller `profilesMap`. For at "billede + navn" virker for advisor:
-- Når vi henter beskeder, udvid `profilesMap` så den også indeholder `assigned_advisor_id` for samtalen (hent profil + avatar én gang).
-- Hvis advisor stadig ikke kan opløses (edge case), vis "Rådgiver" + advisor-initial — **aldrig** "Medlem"/"M".
+### 3. Mindre race-risiko (sekundær)
 
-**4. Idempotens**
-Agentens onboarding-kørsel sætter allerede `onboarding_completed = true` med det samme (eksisterende fix), så den kører kun én gang. Vi behøver ingen ekstra guard når `send-welcome-message` ryger ud.
+I `useAuth.tsx` sætter `fetchUserData` `setLoading(false)` i `finally`-blokken efter `setNeedsOnboarding(...)`. React batcher disse, så det er normalt fint — men hvis profil-querien fejler (linje 327 `catch`), bliver `loading=false` og `needsOnboarding=false` (initial værdi), hvilket vil sende dig til `/` snarere end `/onboarding`. Så bug 1+2 er den reelle årsag.
 
-**5. Ryd op i eksisterende test-data**
-Manuel SQL-cleanup af Topix.dk ApS + bruger så du kan teste forfra med et tomt slate.
+## Løsning
 
-### Filer der ændres
-- `src/pages/Onboarding.tsx` — fjern `send-welcome-message`-kald
-- `supabase/functions/run-company-agent/index.ts` — tilføj `as_advisor` til `write_chat_message`, opdater onboarding-prompt
-- `src/components/CompanyChatPane.tsx` — sørg for advisor-profil hentes ind i `profilesMap`, fallback til "Rådgiver" i stedet for "Medlem"
-- SQL: hard-delete af Topix.dk ApS + kontakt@topix.dk
+**Fix 1 — Beskyt `/onboarding`-routen med en guard.**
 
-### Resultat
-Founder ser **én** velkomstbesked i chatten — fra navngiven advisor (assigned eller fallback) med rigtigt avatar/navn. Ingen "Medlem"-boks, ingen "SYSTEM"-boks ved onboarding. Efterfølgende agent-beskeder (post-commit analyse) forbliver som "SYSTEM"-bokse, som de skal.
+Tilføj en `OnboardingRoute`-wrapper i `src/App.tsx` der:
+- Viser spinner mens `loading` er true
+- Sender ikke-loggede til `/auth`
+- Sender advisors til `/`
+- Sender brugere der **allerede er onboardet** (`!needsOnboarding`) til `/`
+- Ellers viser `<Onboarding />`
+
+```tsx
+const OnboardingRoute = ({ children }) => {
+  const { user, loading, needsOnboarding, isAdvisor } = useAuth();
+  if (loading) return <Spinner />;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (isAdvisor) return <Navigate to="/" replace />;
+  if (!needsOnboarding) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+```
+
+Og opdater route:
+```tsx
+<Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
+```
+
+**Fix 2 — Sikkerhedsnet i `Onboarding.tsx`.**
+
+Tilføj en `useEffect` der ved mount kalder `navigate("/", { replace: true })` hvis `profile?.onboarded_at` allerede findes. Dette beskytter mod fremtidige guard-regressioner.
+
+**Fix 3 — Sikrere `loading`-håndtering i `useAuth.tsx` (hærdning).**
+
+I `fetchUserData`s `catch`-blok: hvis profilen ikke kan hentes, sæt **ikke** `needsOnboarding=false` automatisk. I dag forbliver den på initial `false`. Bedre adfærd: lad `loading` forblive `true` ikke ved fejl, men vis i stedet spinner indtil retry. Minimal ændring: bare logge fejl og lade UI håndtere det. Ingen breaking change.
+
+## Filer der ændres
+
+- `src/App.tsx` — tilføj `OnboardingRoute` guard, brug den på `/onboarding`-route
+- `src/pages/Onboarding.tsx` — tilføj mount-tjek der redirecter onboardede brugere til `/`
+
+## Hvad ændres ikke
+
+- `useAuth.tsx`'s overordnede flow (kun evt. minimal log-ændring)
+- Eksisterende guards (`ProtectedRoute`, `MemberRoute`, `AdvisorRoute`, `AdminRoute`)
+- Onboarding-formularens UX for nye brugere
+
+## Forventet resultat
+
+Efter fix:
+- Aktive brugere kan ikke længere lande på `/onboarding`. Hvis de tilgår URL'en direkte, bliver de sendt til `/`
+- Nye brugere uden `onboarded_at` ser stadig onboarding-flowet som normalt
+- Advisors sendes altid til `/` hvis de prøver `/onboarding`
 
