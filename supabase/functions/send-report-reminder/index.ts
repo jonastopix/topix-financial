@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
 
     // --- Normal flow ---
     const { data: companies, error: compErr } = await supabase
-      .from("companies").select("id, name, start_date, created_at").eq("status", "active");
+      .from("companies").select("id, name, start_date, created_at, contract_end_date, subscription_status, subscription_current_period_end").eq("status", "active");
     if (compErr) throw compErr;
     if (!companies?.length) {
       return new Response(JSON.stringify({ sent: 0, skipped: 0 }), {
@@ -280,11 +280,19 @@ Deno.serve(async (req) => {
     const reportedIds = new Set<string>(
       (committedFacts || []).map((f: any) => f.company_id)
     );
+    const _nowR = new Date();
     const missingCompanies = companies.filter((c: any) => {
       if (reportedIds.has(c.id)) return false;
       const start = new Date(c.start_date || c.created_at);
       const earliest = new Date(start.getFullYear(), start.getMonth() - 1, 1);
-      return prevMonth.getTime() >= earliest.getTime();
+      if (prevMonth.getTime() < earliest.getTime()) return false;
+      if (c.contract_end_date && new Date(c.contract_end_date) <= _nowR) {
+        const hasActiveSub = c.subscription_status === "active" &&
+          c.subscription_current_period_end &&
+          new Date(c.subscription_current_period_end) > _nowR;
+        if (!hasActiveSub) return false;
+      }
+      return true;
     });
 
     if (!missingCompanies.length) {
