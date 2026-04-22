@@ -6,7 +6,7 @@ import {
   LayoutDashboard, FileText, TrendingUp, Calculator, Target,
   BookOpen, MessageCircle, Sparkles, Heart, Users, Upload,
   ChevronRight, CheckCircle2, AlertTriangle, BarChart3,
-  Send, Bell, ClipboardList, UserCog, Zap, Info, Mail, CheckCheck
+  Send, Bell, ClipboardList, UserCog, Zap, Info, Mail, CheckCheck, BookMarked
 } from "lucide-react";
 
 /* ── Founder data ── */
@@ -16,7 +16,11 @@ const founderFeatures = [
     icon: FileText, title: "Rapportering", path: "/reports",
     color: "text-primary", bg: "bg-primary/10",
     desc: "Upload din månedlige saldobalance eller resultatopgørelse. AI trækker tallene ud automatisk.",
-    tips: ["Understøtter PDF og Excel fra de fleste danske regnskabssystemer", "Godkend tallene med ét klik når AI har behandlet rapporten", "Klik 'Ingen rapport endnu' på koncernoverblikket for at uploade direkte til et selskab"],
+    tips: [
+      "Understøtter PDF og Excel fra de fleste danske regnskabssystemer",
+      "Godkend tallene med ét klik når AI har behandlet rapporten",
+      "Upload din årsrapport fra revisor (PDF) for at berige historiske data — tallene fordeles automatisk over 12 måneder",
+    ],
   },
   {
     icon: TrendingUp, title: "KPI'er", path: "/kpis",
@@ -55,6 +59,16 @@ const founderFeatures = [
     tips: ["Prøv: 'Hvad skal jeg fokusere på denne uge?'", "Prøv: 'Hvad driver mine udgifter?'", "Ugens fokus på dit dashboard er genereret af AI-chefen automatisk hver mandag"],
   },
   {
+    icon: BookMarked, title: "Historiske årsrapporter", path: "/reports",
+    color: "text-primary", bg: "bg-primary/10",
+    desc: "Upload din årsrapport fra revisor som PDF. AI læser tallene og fordeler dem over årets 12 måneder — giver dine KPI-grafer historisk kontekst.",
+    tips: [
+      "Understøtter årsrapporter fra BDO, Deloitte, PWC, KPMG og lokale revisorer",
+      "Upload 2024 og 2025 for at se din historiske udvikling i graferne",
+      "Måneder med rigtige committede rapporter overskrives ikke",
+    ],
+  },
+  {
     icon: BarChart3, title: "Virksomhedens sundhed", path: "/",
     color: "text-chart-positive", bg: "bg-chart-positive/10",
     desc: "En samlet score for din forretning baseret på vækst, margin, resultat og likviditet.",
@@ -63,22 +77,22 @@ const founderFeatures = [
 ];
 
 const founderTimeline = [
-  { week: "Uge 1", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Har du et årsregnskab? Start med 'Sæt baseline med årstal' i stedet.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
-  { week: "Uge 2", title: "Gennemse dine tal", desc: "Godkend dine nøgletal og se hvad AI-analysen siger om din udvikling.", icon: BarChart3, color: "bg-chart-info/10 text-chart-info", link: "/kpis" },
-  { week: "Løbende", title: "Pulse check-in", desc: "Brug 2 minutter på at fortælle os hvad der gik godt og hvad der er svært. Det er den hurtigste måde at give rådgiverne kontekst til god sparring. Dine milestone-fremskridt beregnes automatisk.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
-  { week: "Dag 5", title: "Månedlig digest", desc: "Den 5. i måneden modtager du automatisk et personligt overblik: dine seneste KPI-tal, kommende milestone-deadlines og ulæste beskeder fra rådgiverne.", icon: Mail, color: "bg-chart-positive/10 text-chart-positive", link: "/settings" },
+  { week: "Månedligt", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Systemet genkender typen automatisk og AI trækker tallene ud.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
+  { week: "Månedligt", title: "Pulse check-in", desc: "Brug 2 minutter på at fortælle os hvad der gik godt og hvad der er svært. Det er den hurtigste måde at give rådgiverne kontekst til god sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
+  { week: "Løbende", title: "Chat med rådgiver", desc: "Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og er klar til sparring.", icon: MessageCircle, color: "bg-chart-info/10 text-chart-info", link: "/chat" },
+  { week: "Én gang", title: "Upload årsrapporter", desc: "Upload din årsrapport fra revisor (PDF) under Rapportering → Historiske årsrapporter. Giver dine grafer historisk kontekst fra dag ét.", icon: BookMarked, color: "bg-primary/10 text-primary", link: "/reports" },
 ];
 
-const founderTips = [
-  "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt",
-  "Udfyld Pulse check-in hver måned — det er den hurtigste måde at give rådgiverne kontekst på",
-  "Brug chatten aktivt — dine rådgivere læser dine tal og svarer hurtigt",
-  "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret",
-  "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige",
-  "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet",
-  "Park idéer i køleskabet under Milestones — de forsvinder ikke men forstyrrer ikke dit overblik",
-  "Brug 'Ingen handling nødvendig' i chatten når rådgiveren har svaret og der ikke kræves yderligere opfølgning",
-  "Klikker du på en virksomhed i koncernoverblikket, skifter hele platformen til at vise data for netop det selskab",
+const founderTips: { text: string; link?: string }[] = [
+  { text: "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt", link: "/reports" },
+  { text: "Udfyld Pulse check-in hver måned — det er den hurtigste måde at give rådgiverne kontekst på", link: "/pulse" },
+  { text: "Brug chatten aktivt — dine rådgivere læser dine tal og svarer hurtigt", link: "/chat" },
+  { text: "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret", link: "/kpis" },
+  { text: "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige", link: "/handouts" },
+  { text: "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet", link: "/chat?tab=ai" },
+  { text: "Park idéer i køleskabet under Milestones — de forsvinder ikke men forstyrrer ikke dit overblik", link: "/milestones" },
+  { text: "Tilføj The Boardroom til din hjemskærm på mobilen for hurtig adgang — åbn siden i Safari og vælg 'Føj til hjemskærm'" },
+  { text: "Upload din årsrapport fra revisor under Rapportering for at se historisk udvikling i dine grafer", link: "/reports" },
 ];
 
 /* ── Advisor data ── */
@@ -90,6 +104,7 @@ const advisorWorkflow = [
   { step: 4, title: "Kommentér på KPI-grafer", desc: "Når du er inde på en virksomheds KPI-side, kan du pinne kommentarer direkte på graferne. Founder modtager automatisk en notifikation.", link: "/kpis", icon: TrendingUp, color: "text-chart-info bg-chart-info/10" },
   { step: 5, title: "Send broadcast ved behov", desc: "Skal alle founders have samme besked? Brug broadcast-funktionen i member-oversigten. Du kan vælge specifikke modtagere.", link: "/members", icon: Send, color: "text-chart-warning bg-chart-warning/10" },
   { step: 6, title: "Brug 'Ingen handling nødvendig'", desc: "Når en founder skriver 'tak' eller afslutter et emne, klik 'Ingen handling' i chat-headeren. Det fjerner samtalen fra handlingskøen uden at afbryde relationen.", link: "/chat", icon: CheckCheck, color: "text-primary bg-primary/10" },
+  { step: 7, title: "Kvitter eller sæt påmindelse", desc: "I prioriteringskøen kan du nu kvittere et item (det forsvinder fra køen for denne session) eller sætte en påmindelse om 2 eller 7 dage. Klik '···'-knappen yderst til højre på en virksomhed.", link: "/", icon: CheckCheck, color: "text-primary bg-primary/10" },
 ];
 
 const advisorFeatures = [
@@ -114,12 +129,14 @@ const advisorFeatures = [
 ];
 
 const advisorShortcuts = [
-  { situation: "Virksomhed afventer svar", action: "Klik virksomhed i prioriteringskø → åbner chatten direkte" },
-  { situation: "Founder mangler rapport", action: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 — tjek Review Queue hvis noget er stuck i pipeline" },
-  { situation: "Skift til en anden virksomhed", action: "Scroll ned i sidebar → 'Vis som virksomhed' → søg" },
-  { situation: "Se virksomhed som founder", action: "'Vis som virksomhed' + 'Vis som medlem' i sidebar" },
-  { situation: "Send månedlig digest", action: "Admin → E-mail skabeloner → 'Send digest nu'" },
-  { situation: "Tilføj KPI-kommentar", action: "KPI'er → vælg periode i grafen → klik datapunkt" },
+  { situation: "Virksomhed afventer svar", action: "Klik virksomhed i prioriteringskø → åbner chatten direkte", link: "/" },
+  { situation: "Founder mangler rapport", action: "Rapport-påmindelser sendes automatisk dag 7, 15 og 20 — tjek Review Queue hvis noget er stuck", link: "/admin/review-queue" },
+  { situation: "Skift til en anden virksomhed", action: "Scroll ned i sidebar → 'Vis som virksomhed' → søg og vælg", link: "/" },
+  { situation: "Se virksomhed som founder", action: "'Vis som virksomhed' + 'Vis som medlem' i sidebar", link: "/" },
+  { situation: "Send månedlig digest", action: "Admin → E-mail skabeloner → 'Send digest nu'", link: "/admin/emails" },
+  { situation: "Tilføj KPI-kommentar", action: "KPI'er → vælg periode i grafen → klik datapunkt", link: "/kpis" },
+  { situation: "Kvitter item i prioriteringskø", action: "Klik '···' på en virksomhed i 'Kræver handling' → Kvitter eller sæt påmindelse", link: "/" },
+  { situation: "Sæt slutdato på member", action: "Medlemmer → udvid virksomhed → 'Rediger virksomhedsdata' (kun admin)", link: "/members" },
 ];
 
 /* ── Shared feature card ── */
@@ -210,7 +227,13 @@ const FounderGuide = () => (
             <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary">{i + 1}</span>
             </div>
-            <p className="text-sm text-muted-foreground">{tip}</p>
+            {tip.link ? (
+              <Link to={tip.link} className="text-sm text-muted-foreground hover:text-primary transition-colors flex-1">
+                {tip.text} <ChevronRight className="h-3 w-3 inline" />
+              </Link>
+            ) : (
+              <p className="text-sm text-muted-foreground">{tip.text}</p>
+            )}
           </div>
         ))}
       </div>
@@ -267,10 +290,11 @@ const AdvisorGuide = () => (
       </div>
       <div className="space-y-2">
         {advisorShortcuts.map((row, i) => (
-          <div key={i} className="flex items-start gap-3 glass-card rounded-lg p-3">
+          <Link key={i} to={row.link} className="flex items-start gap-3 glass-card rounded-lg p-3 hover:shadow-sm transition-shadow block">
             <p className="text-sm font-medium text-foreground whitespace-nowrap shrink-0">{row.situation}</p>
-            <p className="text-sm text-muted-foreground">{row.action}</p>
-          </div>
+            <p className="text-sm text-muted-foreground flex-1">{row.action}</p>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+          </Link>
         ))}
       </div>
     </div>
