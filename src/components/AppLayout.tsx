@@ -1,14 +1,16 @@
 import { ReactNode, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { Eye, Building2, Menu, X } from "lucide-react";
+import { Eye, Building2, Menu, X, Home, MessageCircle, Zap, MoreHorizontal } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 // ⚠️ HUSK: Opdatér også DashboardActionCenter.tsx når du skifter announcement
 const CURRENT_ANNOUNCEMENT = {
