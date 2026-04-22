@@ -57,18 +57,25 @@ Deno.serve(async (req) => {
     .eq("company_id", company_id)
     .like("period_key", `${year}-%`);
 
+  // Only protect months with real committed data (from actual uploaded reports)
+  // manual_baseline and annual_report facts can be overwritten by a new annual report
   const protectedPeriods = new Set(
     (existingFacts || [])
-      .filter((f: any) => f.source_type !== "annual_report" && f.source_type !== "manual_baseline")
+      .filter((f: any) =>
+        f.source_type !== "annual_report" &&
+        f.source_type !== "manual_baseline" &&
+        f.source_type !== "baseline"
+      )
       .map((f: any) => f.period_key)
   );
 
-  // Delete existing annual_report facts for this year (allow re-upload)
+  // Delete existing annual_report and manual_baseline facts for this year
+  // Real annual report data is more accurate than auto-generated baselines
   await adminClient
     .from("financial_report_facts")
     .delete()
     .eq("company_id", company_id)
-    .eq("source_type", "annual_report")
+    .in("source_type", ["annual_report", "manual_baseline"])
     .like("period_key", `${year}-%`);
 
   // Insert 12 monthly facts
