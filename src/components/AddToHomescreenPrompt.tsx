@@ -11,9 +11,6 @@ function isIOSSafari() {
   return { isIos, isNativeSafari };
 }
 
-function isIOS() {
-}
-
 function isInStandaloneMode() {
   return (navigator as any).standalone === true ||
     window.matchMedia("(display-mode: standalone)").matches;
