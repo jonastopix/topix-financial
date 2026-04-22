@@ -139,6 +139,8 @@ export default function CombinedBudgetWidget() {
           {budgetData.rows.map(row => {
             const diff = row.actual - row.budget;
             const isGood = row.isRevenue ? diff >= 0 : diff <= 0;
+            const pct = row.budget > 0 ? Math.min(Math.abs(row.actual / row.budget) * 100, 150) : 0;
+            const overBudget = row.isRevenue ? row.actual < row.budget : row.actual > row.budget;
             return (
               <div key={row.label}>
                 <div className="flex items-center justify-between mb-1">
@@ -154,10 +156,22 @@ export default function CombinedBudgetWidget() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <span>Budget: {formatCompact(row.budget)}</span>
-                  <span>·</span>
-                  <span>Actual: {formatCompact(row.actual)}</span>
+                {/* Progress bar */}
+                {row.budget > 0 && (
+                  <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden mb-1.5">
+                    <div
+                      className={`absolute left-0 top-0 h-full rounded-full transition-all ${
+                        overBudget ? "bg-destructive" : "bg-primary"
+                      }`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                    {/* Budget marker at 100% */}
+                    <div className="absolute top-0 right-0 h-full w-px bg-foreground/20" />
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>{formatCompact(row.actual)} faktisk</span>
+                  <span>{formatCompact(row.budget)} budget</span>
                 </div>
               </div>
             );
