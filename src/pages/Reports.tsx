@@ -15,6 +15,7 @@ import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
 import ReportManualOverride from "@/components/ReportManualOverride";
+import { useScrollToHash } from "@/hooks/useScrollToHash";
 import {
   FileText,
   CheckCircle2,
@@ -109,6 +110,7 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; c
 };
 
 const Reports = () => {
+  useScrollToHash();
   const { user, companyId, isAdvisor: rawAdvisor, isAdmin } = useAuth();
   const { viewingAsMember } = useViewMode();
   const queryClient = useQueryClient();
@@ -654,7 +656,7 @@ const Reports = () => {
 
       {/* Upload section — primary action after delivery status */}
       {reportCount === 0 ? (
-        <div className="mb-8" data-tour="upload-zone">
+        <div id="upload" className="mb-8" data-tour="upload-zone">
           <FileUploadZone
             title="Upload finansiel rapport"
             description="Saldobalance, resultatopgørelse eller andet regnskab — systemet genkender typen automatisk"
@@ -676,7 +678,7 @@ const Reports = () => {
           </div>
         </div>
       ) : (
-        <div data-tour="upload-zone">
+        <div id="upload" data-tour="upload-zone">
           <button
             onClick={() => setUploadExpanded(v => !v)}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
@@ -1311,7 +1313,7 @@ const Reports = () => {
 
       {/* ── Annual Reports Section ── */}
       {!isAdvisor && (
-        <div className="bg-card border border-border shadow-sm rounded-xl p-6 mb-8">
+        <div id="annual-reports" className="bg-card border border-border shadow-sm rounded-xl p-6 mb-8 scroll-mt-24">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
