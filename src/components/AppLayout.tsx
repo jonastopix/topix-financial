@@ -1,14 +1,16 @@
 import { ReactNode, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { Eye, Building2, Menu, X } from "lucide-react";
+import { Eye, Building2, Menu, X, Home, MessageCircle, Zap, MoreHorizontal } from "lucide-react";
 import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 // ⚠️ HUSK: Opdatér også DashboardActionCenter.tsx når du skifter announcement
 const CURRENT_ANNOUNCEMENT = {
@@ -28,13 +30,42 @@ interface AppLayoutProps {
 
 const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const isMobile = useIsMobile();
-  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor } = useAuth();
+  const { isCompanyOverride, companyName, clearCompanyOverride, isAdvisor, user } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const navigate = useNavigate();
+  const location = useLocation();
   const { branding } = useAppConfig();
   const isStandalone = useStandalone();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["mobile-unread-chat", user?.id],
+    queryFn: async () => {
+      if (!user) return 0;
+      const { data: convs } = await supabase
+        .from("conversations")
+        .select("id")
+        .limit(10);
+      if (!convs?.length) return 0;
+      let total = 0;
+      for (const conv of convs) {
+        const { count } = await supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .eq("conversation_id", conv.id)
+          .neq("sender_id", user.id)
+          .is("read_at", null)
+          .in("message_type", ["user", "system"]);
+        total += count ?? 0;
+      }
+      return total;
+    },
+    enabled: !!user && isMobile && !isAdvisor,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const [showAnnouncement, setShowAnnouncement] = useState(() => {
     try {
@@ -52,6 +83,91 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     clearCompanyOverride();
     navigate("/");
   };
+
+  const moreMenuItems = [
+    { label: "Rapportering", path: "/reports", icon: "📊" },
+    { label: "KPI'er", path: "/kpis", icon: "📈" },
+    { label: "Budget", path: "/budget", icon: "💰" },
+    { label: "Milestones", path: "/milestones", icon: "🎯" },
+    { label: "Handouts", path: "/handouts", icon: "📋" },
+    { label: "Indstillinger", path: "/settings", icon: "⚙️" },
+  ];
+
+  const bottomTabs = [
+    { label: "Hjem", path: "/", icon: Home, badge: 0 },
+    { label: "Chat", path: "/chat", icon: MessageCircle, badge: unreadCount },
+    { label: "Pulse", path: "/pulse", icon: Zap, badge: 0 },
+  ];
+
+  const mobileBottomNav = isMobile && !isAdvisor ? (
+    <>
+      {showMoreMenu && (
+        <div
+          className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
+          onClick={() => setShowMoreMenu(false)}
+        />
+      )}
+      {showMoreMenu && (
+        <div
+          className={`fixed left-0 right-0 z-50 bg-card border-t border-border rounded-t-2xl shadow-xl p-4 ${isStandalone ? "safe-bottom-pad" : ""}`}
+          style={{ bottom: "4rem" }}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {moreMenuItems.map(item => (
+              <button
+                key={item.path}
+                onClick={() => { navigate(item.path); setShowMoreMenu(false); }}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-colors ${
+                  location.pathname === item.path
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-secondary text-foreground"
+                }`}
+              >
+                <span className="text-2xl">{item.icon}</span>
+                <span className="text-xs font-medium text-center">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <nav className={`fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border flex items-center justify-around h-16 ${isStandalone ? "safe-bottom-pad" : ""}`}>
+        {bottomTabs.map(item => {
+          const isActive = location.pathname === item.path;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.path}
+              onClick={() => { navigate(item.path); setShowMoreMenu(false); }}
+              className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors relative"
+            >
+              <div className="relative">
+                <Icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                {item.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[10px] font-medium ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                {item.label}
+              </span>
+              {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />}
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setShowMoreMenu(v => !v)}
+          className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors"
+        >
+          <MoreHorizontal className={`h-5 w-5 ${showMoreMenu ? "text-primary" : "text-muted-foreground"}`} />
+          <span className={`text-[10px] font-medium ${showMoreMenu ? "text-primary" : "text-muted-foreground"}`}>
+            Mere
+          </span>
+        </button>
+      </nav>
+    </>
+  ) : null;
 
   /** Sticky mobile shell: safe-area + topbar + banners as one unit */
   const mobileShell = isMobile ? (
@@ -185,9 +301,10 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         {mobileShell}
         {desktopBanners}
-        <div className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
+        <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor ? "pb-20" : ""}`}>
           {children}
         </div>
+        {mobileBottomNav}
         <FeedbackButton />
       </div>
     );
@@ -200,10 +317,11 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         <main className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
           {mobileShell}
-          <div className="flex-1 min-h-0 min-w-0 flex flex-col px-4 pb-6">
+          <div className={`flex-1 min-h-0 min-w-0 flex flex-col px-4 ${!isAdvisor ? "pb-20" : "pb-6"}`}>
             {children}
           </div>
         </main>
+        {mobileBottomNav}
         <FeedbackButton />
       </div>
     );
