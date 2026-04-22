@@ -12,7 +12,6 @@ function isIOSSafari() {
 }
 
 function isIOS() {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
 function isInStandaloneMode() {
@@ -26,10 +25,12 @@ export default function AddToHomescreenPrompt() {
   const isMobile = useIsMobile();
   const isStandalone = useStandalone();
   const [visible, setVisible] = useState(false);
+  const [browserInfo] = useState(() => isIOSSafari());
 
   useEffect(() => {
     if (!isMobile) return;
-    if (!isIOS()) return;
+    const { isIos, isNativeSafari } = isIOSSafari();
+    if (!isIos) return; // Only show on iOS at all
     if (isInStandaloneMode()) return;
     if (isStandalone) return;
     try {
@@ -75,31 +76,49 @@ export default function AddToHomescreenPrompt() {
           </div>
 
           <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                1
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-foreground">Trin 1</p>
-                <p className="text-xs text-muted-foreground">Tryk på Del-ikonet nederst i Safari</p>
-              </div>
-              <div className="shrink-0 ml-auto">
-                <Share className="h-4 w-4 text-primary" />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                2
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-foreground">Trin 2</p>
-                <p className="text-xs text-muted-foreground">Vælg "Føj til hjemskærm" i menuen</p>
-              </div>
-              <div className="shrink-0 ml-auto">
-                <Plus className="h-4 w-4 text-primary" />
-              </div>
-            </div>
+            {browserInfo.isNativeSafari ? (
+              <>
+                <div className="flex items-center gap-3 bg-secondary/50 rounded-xl px-3 py-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <Share className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Trin 1</p>
+                    <p className="text-xs text-muted-foreground">Tryk på <span className="font-semibold text-foreground">Del-ikonet</span> nederst i Safari</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-secondary/50 rounded-xl px-3 py-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Plus className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Trin 2</p>
+                    <p className="text-xs text-muted-foreground">Vælg <span className="font-semibold text-foreground">"Føj til hjemskærm"</span> i menuen</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 bg-secondary/50 rounded-xl px-3 py-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <Share className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Trin 1</p>
+                    <p className="text-xs text-muted-foreground">Tryk på <span className="font-semibold text-foreground">de tre prikker</span> øverst til højre i Chrome</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-secondary/50 rounded-xl px-3 py-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Plus className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Trin 2</p>
+                    <p className="text-xs text-muted-foreground">Vælg <span className="font-semibold text-foreground">"Føj til hjemskærm"</span> i menuen</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <button
