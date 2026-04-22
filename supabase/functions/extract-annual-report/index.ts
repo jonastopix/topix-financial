@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
 
   // Download PDF from storage
   const { data: fileData, error: downloadErr } = await adminClient.storage
-    .from("reports")
+    .from("financial-documents")
     .download(file_path);
   if (downloadErr || !fileData) {
     return new Response(JSON.stringify({ error: "Could not download file" }), {

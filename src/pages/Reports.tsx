@@ -242,7 +242,7 @@ const Reports = () => {
     try {
       const filePath = `${companyId}/annual/${annualUploadYear}_${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
-        .from("reports")
+        .from("financial-documents")
         .upload(filePath, file);
       if (uploadErr) throw uploadErr;
 
