@@ -13,7 +13,7 @@ import {
 
 const founderFeatures = [
   {
-    icon: FileText, title: "Rapportering", path: "/reports",
+    icon: FileText, title: "Rapportering", path: "/reports#upload",
     color: "text-primary", bg: "bg-primary/10",
     desc: "Upload din månedlige saldobalance eller resultatopgørelse. AI trækker tallene ud automatisk.",
     tips: [
@@ -23,13 +23,13 @@ const founderFeatures = [
     ],
   },
   {
-    icon: TrendingUp, title: "KPI'er", path: "/kpis",
+    icon: TrendingUp, title: "KPI'er", path: "/kpis#goals",
     color: "text-chart-info", bg: "bg-chart-info/10",
     desc: "Se dine vigtigste nøgletal: omsætning, margin, resultat og likviditet — med trend og branchesammenligning.",
     tips: ["Sæt mål for hvert KPI og følg din fremgang", "Sammenlign med branchesnittet for din sektor", "Download en PDF-rapport til investorer eller bestyrelse"],
   },
   {
-    icon: Calculator, title: "Budget", path: "/budget",
+    icon: Calculator, title: "Budget", path: "/budget#forecast",
     color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Byg dit årsbudget og følg om du rammer dine mål — omsætning, EBITDA og cashflow.",
     tips: ["Vælg en brancheskabelon som udgangspunkt", "Se budget vs. realiseret for hver måned under 'Budget vs. Realiseret'", "Brug 'Hvad-hvis?'-fanen til at simulere effekten af at ansætte eller investere"],
@@ -59,7 +59,7 @@ const founderFeatures = [
     tips: ["Prøv: 'Hvad skal jeg fokusere på denne uge?'", "Prøv: 'Hvad driver mine udgifter?'", "Ugens fokus på dit dashboard er genereret af AI-chefen automatisk hver mandag"],
   },
   {
-    icon: BookMarked, title: "Historiske årsrapporter", path: "/reports",
+    icon: BookMarked, title: "Historiske årsrapporter", path: "/reports#annual-reports",
     color: "text-primary", bg: "bg-primary/10",
     desc: "Upload din årsrapport fra revisor som PDF. AI læser tallene og fordeler dem over årets 12 måneder — giver dine KPI-grafer historisk kontekst.",
     tips: [
@@ -77,22 +77,22 @@ const founderFeatures = [
 ];
 
 const founderTimeline = [
-  { week: "Månedligt", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Systemet genkender typen automatisk og AI trækker tallene ud.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports" },
+  { week: "Månedligt", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Systemet genkender typen automatisk og AI trækker tallene ud.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports#upload" },
   { week: "Månedligt", title: "Pulse check-in", desc: "Brug 2 minutter på at fortælle os hvad der gik godt og hvad der er svært. Det er den hurtigste måde at give rådgiverne kontekst til god sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
   { week: "Løbende", title: "Chat med rådgiver", desc: "Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og er klar til sparring.", icon: MessageCircle, color: "bg-chart-info/10 text-chart-info", link: "/chat" },
-  { week: "Én gang", title: "Upload årsrapporter", desc: "Upload din årsrapport fra revisor (PDF) under Rapportering → Historiske årsrapporter. Giver dine grafer historisk kontekst fra dag ét.", icon: BookMarked, color: "bg-primary/10 text-primary", link: "/reports" },
+  { week: "Én gang", title: "Upload årsrapporter", desc: "Upload din årsrapport fra revisor (PDF) under Rapportering → Historiske årsrapporter. Giver dine grafer historisk kontekst fra dag ét.", icon: BookMarked, color: "bg-primary/10 text-primary", link: "/reports#annual-reports" },
 ];
 
 const founderTips: { text: string; link?: string }[] = [
-  { text: "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt", link: "/reports" },
+  { text: "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt", link: "/reports#upload" },
   { text: "Udfyld Pulse check-in hver måned — det er den hurtigste måde at give rådgiverne kontekst på", link: "/pulse" },
   { text: "Brug chatten aktivt — dine rådgivere læser dine tal og svarer hurtigt", link: "/chat" },
-  { text: "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret", link: "/kpis" },
+  { text: "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret", link: "/kpis#goals" },
   { text: "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige", link: "/handouts" },
   { text: "Brug AI-chefen aktivt — spørg 'Hvad skal jeg fokusere på denne uge?' direkte fra dashboardet", link: "/chat?tab=ai" },
   { text: "Park idéer i køleskabet under Milestones — de forsvinder ikke men forstyrrer ikke dit overblik", link: "/milestones" },
   { text: "Tilføj The Boardroom til din hjemskærm på mobilen for hurtig adgang — åbn siden i Safari og vælg 'Føj til hjemskærm'" },
-  { text: "Upload din årsrapport fra revisor under Rapportering for at se historisk udvikling i dine grafer", link: "/reports" },
+  { text: "Upload din årsrapport fra revisor under Rapportering for at se historisk udvikling i dine grafer", link: "/reports#annual-reports" },
 ];
 
 /* ── Advisor data ── */

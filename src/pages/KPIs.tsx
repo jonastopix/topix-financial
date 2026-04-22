@@ -51,6 +51,7 @@ import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
 import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
 import type { BenchmarkTemplate } from "@/lib/appConfig";
+import { useScrollToHash } from "@/hooks/useScrollToHash";
 
 interface KPIMetric {
   key: string;
@@ -150,6 +151,7 @@ const CustomDot = ({ cx = 0, cy = 0, payload, hasComment, isAdvisor, onClick }: 
 };
 
 const KPIs = () => {
+  useScrollToHash();
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
@@ -780,7 +782,7 @@ const KPIs = () => {
       )}
 
       {kpiProgress.length === 0 && !editingTargets && !isAdvisor && (
-        <div className="glass-card rounded-xl p-5 mb-6 flex items-center justify-between">
+        <div id="goals" className="glass-card rounded-xl p-5 mb-6 flex items-center justify-between scroll-mt-24">
           <div>
             <p className="text-sm font-medium text-foreground">
               Sæt dine KPI-mål

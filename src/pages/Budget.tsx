@@ -31,8 +31,10 @@ import BudgetScenariosTab from "@/components/budget/BudgetScenariosTab";
 import BudgetVsActualTab from "@/components/budget/BudgetVsActualTab";
 import BudgetForecastTab from "@/components/budget/BudgetForecastTab";
 import BudgetCashflowTab from "@/components/budget/BudgetCashflowTab";
+import { useScrollToHash } from "@/hooks/useScrollToHash";
 
 const Budget = () => {
+  useScrollToHash();
   const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
@@ -494,7 +496,7 @@ const Budget = () => {
           <BudgetVsActualTab scenarioData={scenarioData} year={year} companyId={companyId || undefined} />
         </TabsContent>
 
-        <TabsContent value="forecast">
+        <TabsContent value="forecast" id="forecast" className="scroll-mt-24">
           <BudgetForecastTab
             rows={rows}
             year={year}
