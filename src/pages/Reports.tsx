@@ -36,6 +36,8 @@ import {
   Bug,
   Pencil,
   Upload,
+  BookMarked,
+  Loader2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -133,6 +135,9 @@ const Reports = () => {
   const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
   const [uploadExpanded, setUploadExpanded] = useState(false);
   const [yearFilter, setYearFilter] = useState<string | null>(null);
+  const [annualUploadYear, setAnnualUploadYear] = useState<"2024" | "2025">("2024");
+  const [annualUploading, setAnnualUploading] = useState(false);
+  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number }[]>([]);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -211,6 +216,83 @@ const Reports = () => {
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    supabase
+      .from("financial_reports")
+      .select("id, report_period, status, extracted_data")
+      .eq("company_id", companyId)
+      .eq("report_type", "aarsrapport")
+      .order("uploaded_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          setAnnualReports(data.map((r: any) => ({
+            id: r.id,
+            year: r.report_period?.replace("Årsrapport ", "") || "?",
+            status: r.status,
+          })));
+        }
+      });
+  }, [companyId, refreshKey]);
+
+  const handleAnnualUpload = async (file: File) => {
+    if (!companyId || !user) return;
+    setAnnualUploading(true);
+    try {
+      const filePath = `${companyId}/annual/${annualUploadYear}_${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("reports")
+        .upload(filePath, file);
+      if (uploadErr) throw uploadErr;
+
+      const { data: reportRow, error: reportErr } = await (supabase
+        .from("financial_reports")
+        .insert({
+          company_id: companyId,
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          report_type: "aarsrapport",
+          report_period: `Årsrapport ${annualUploadYear}`,
+          status: "processing",
+        } as any)
+        .select("id")
+        .single() as any);
+      if (reportErr || !reportRow) throw reportErr;
+
+      const { data: extractResult, error: extractErr } = await supabase.functions.invoke("extract-annual-report", {
+        body: { report_id: reportRow.id, file_path: filePath, year: annualUploadYear, company_id: companyId },
+      });
+      if (extractErr) throw extractErr;
+
+      const { data: processResult } = await supabase.functions.invoke("process-annual-report", {
+        body: {
+          report_id: reportRow.id,
+          company_id: companyId,
+          year: annualUploadYear,
+          extracted: extractResult?.extracted,
+          user_id: user.id,
+        },
+      });
+
+      toast.success(`Årsrapport ${annualUploadYear} importeret ✓`, {
+        description: `${processResult?.inserted || 0} måneder opdateret med historiske tal`,
+      });
+
+      setAnnualReports(prev => [
+        { id: reportRow.id, year: annualUploadYear, status: "processed", inserted: processResult?.inserted },
+        ...prev.filter(r => r.year !== annualUploadYear),
+      ]);
+
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+    } catch (err: any) {
+      toast.error("Upload fejlede", { description: err.message || "Ukendt fejl" });
+    } finally {
+      setAnnualUploading(false);
+    }
+  };
 
   // Auto-refresh while any report is processing
   useEffect(() => {
@@ -1219,6 +1301,102 @@ const Reports = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Annual Reports Section ── */}
+      {!isAdvisor && (
+        <div className="bg-card border border-border shadow-sm rounded-xl p-6 mb-8">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
+                <BookMarked className="h-5 w-5 text-primary" />
+                Historiske årsrapporter
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Upload din årsrapport fra revisor (PDF) for at berige dine historiske data. Tallene fordeles jævnt over årets 12 måneder.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-muted-foreground">Regnskabsår:</span>
+            {(["2024", "2025"] as const).map(y => (
+              <button
+                key={y}
+                onClick={() => setAnnualUploadYear(y)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  annualUploadYear === y
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-foreground hover:bg-secondary/80"
+                }`}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+
+          {annualReports.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {annualReports.map(r => (
+                <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/50">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">Årsrapport {r.year}</p>
+                    <p className="text-xs text-muted-foreground">Importeret — fordelt over 12 måneder</p>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                    Aktiv
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files[0];
+              if (file && file.type === "application/pdf") handleAnnualUpload(file);
+              else toast.error("Kun PDF-filer understøttes");
+            }}
+            onClick={() => !annualUploading && document.getElementById("annual-report-upload")?.click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+              annualUploading
+                ? "border-primary/30 bg-primary/5"
+                : "border-border hover:border-primary/50 hover:bg-accent/20"
+            }`}
+          >
+            <input
+              id="annual-report-upload"
+              type="file"
+              accept=".pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAnnualUpload(file);
+                e.target.value = "";
+              }}
+            />
+            {annualUploading ? (
+              <>
+                <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground">Behandler årsrapport {annualUploadYear}…</p>
+                <p className="text-xs text-muted-foreground mt-1">AI læser tallene — det tager 15-30 sekunder</p>
+              </>
+            ) : (
+              <>
+                <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground">
+                  Upload årsrapport {annualUploadYear} som PDF
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Træk PDF hertil eller klik for at vælge · Fra revisor, BDO, Deloitte, PWC mv.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Trash section for advisors */}
       {isAdvisor && (
