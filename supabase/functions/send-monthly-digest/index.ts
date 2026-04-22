@@ -113,6 +113,22 @@ Deno.serve(async (req) => {
     .select("company_id, user_id")
     .limit(500);
 
+  // Fetch membership tier — skip expired companies
+  const { data: companiesMeta } = await adminClient
+    .from("companies")
+    .select("id, contract_end_date, subscription_status, subscription_current_period_end");
+
+  const _now = new Date();
+  const activeMembershipIds = new Set<string>(
+    (companiesMeta || []).filter((c: any) => {
+      if (!c.contract_end_date) return true;
+      if (new Date(c.contract_end_date) > _now) return true;
+      return c.subscription_status === "active" &&
+        c.subscription_current_period_end &&
+        new Date(c.subscription_current_period_end) > _now;
+    }).map((c: any) => c.id)
+  );
+
   if (!members?.length) {
     return json({ ok: true, sent: 0 });
   }
@@ -139,6 +155,7 @@ Deno.serve(async (req) => {
   for (const [companyId, userId] of companyToUser) {
     if (targetCompanyIds && !targetCompanyIds.includes(companyId)) continue;
     if (advisorIds.has(userId)) continue;
+    if (!activeMembershipIds.has(companyId)) continue;
 
     // Get user email
     const { data: userData } = await adminClient.auth.admin.getUserById(userId);
