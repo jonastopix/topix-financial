@@ -6,8 +6,15 @@ import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
+  MoreHorizontal,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
@@ -1099,6 +1106,24 @@ const AdvisorDashboard = () => {
   const [showAllQueue, setShowAllQueue] = useState(false);
   const [showAllPriority, setShowAllPriority] = useState(false);
   const [showAllSparring, setShowAllSparring] = useState(false);
+  const [dismissedItems, setDismissedItems] = useState(() => new Set<string>());
+
+  const dismissItem = (companyId: string) => {
+    setDismissedItems(prev => new Set([...prev, companyId]));
+  };
+
+  const snoozeItem = async (companyId: string, days: number) => {
+    const conv = convByCompany?.get(companyId)?.[0];
+    if (conv?.id) {
+      const followUpAt = new Date(Date.now() + days * 86400000).toISOString();
+      await supabase
+        .from("conversations")
+        .update({ follow_up_at: followUpAt, acknowledged_at: new Date().toISOString() } as any)
+        .eq("id", conv.id);
+      queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+    }
+    dismissItem(companyId);
+  };
 
   const filteredMembers = useMemo(() => {
     let list = [...investorSummaries];
@@ -1194,7 +1219,9 @@ const AdvisorDashboard = () => {
           </div>
         ) : (
           <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
-            {(showAllPriority ? priorityItems : priorityItems.slice(0, 5)).map(item => {
+            {(showAllPriority ? priorityItems : priorityItems.slice(0, 5))
+              .filter(item => !dismissedItems.has(item.company.company_id))
+              .map(item => {
               const primaryReason = item.reasons[0];
               const label = primaryReason?.label || "";
               const isDirectChatReason = label.includes("besked") || label.includes("Opfølgning") || label.includes("pulse");
@@ -1258,6 +1285,26 @@ const AdvisorDashboard = () => {
                         Se virksomhed
                       </button>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground"
+                        >
+                          <MoreHorizontal className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => dismissItem(item.company.company_id)} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                          ✓ Kvitter — ser det
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => snoozeItem(item.company.company_id, 2)} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                          ⏰ Påmind om 2 dage
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => snoozeItem(item.company.company_id, 7)} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                          ⏰ Påmind om 7 dage
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               );
