@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ interface PulseCheckinModalProps {
 
 export default function PulseCheckinModal({ open, onOpenChange, onComplete, inline }: PulseCheckinModalProps) {
   const { user, companyId } = useAuth();
+  const queryClient = useQueryClient();
   const { viewingAsMember } = useViewMode();
   const [wentWell, setWentWell] = useState("");
   const [challenge, setChallenge] = useState("");
@@ -98,6 +99,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     setSaving(false);
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Check-in gemt!");
+    queryClient.invalidateQueries({ queryKey: ["mobile-pulse-this-month"] });
     supabase.functions.invoke("send-slack-report-notification", {
       body: { event: "pulse_checkin_received", companyId, periodKey },
     }).catch((err) => console.error("[PulseCheckin] Slack notification failed:", err));
