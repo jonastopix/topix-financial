@@ -31,9 +31,11 @@ const ChatShell = () => {
                 alt="Jonas Herlev"
                 className="h-16 w-16 rounded-full object-cover"
               />
-              <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold">
-                MH
-              </div>
+              <img
+                src="/morten-hesselholt.jpg"
+                alt="Morten Hesselholt"
+                className="h-16 w-16 rounded-full object-cover"
+              />
             </div>
             <div className="space-y-3">
               <h1 className="text-2xl md:text-3xl font-semibold text-foreground">

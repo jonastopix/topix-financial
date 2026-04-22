@@ -88,9 +88,11 @@ export default function MembershipExpiredGate() {
             <p className="text-sm text-foreground">Jonas</p>
           </div>
           <div className="text-center space-y-2">
-            <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold mx-auto">
-              MH
-            </div>
+            <img
+              src="/morten-hesselholt.jpg"
+              alt="Morten Hesselholt"
+              className="h-16 w-16 rounded-full object-cover mx-auto"
+            />
             <p className="text-sm text-foreground">Morten</p>
           </div>
         </div>
