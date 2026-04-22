@@ -106,6 +106,19 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, needsOnboarding, isAdvisor } = useAuth();
+  if (loading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+    </div>
+  );
+  if (!user) return <Navigate to="/auth" replace />;
+  if (isAdvisor) return <Navigate to="/" replace />;
+  if (!needsOnboarding) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const qs = new URLSearchParams(window.location.search);
