@@ -7,6 +7,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Eye, Building2, Menu, X, Home, MessageCircle, Zap, MoreHorizontal } from "lucide-react";
+import AddToHomescreenPrompt from "./AddToHomescreenPrompt";
 import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
 import { useQuery } from "@tanstack/react-query";
@@ -304,6 +305,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor ? "pb-20" : ""}`}>
           {children}
         </div>
+        <AddToHomescreenPrompt />
         {mobileBottomNav}
         <FeedbackButton />
       </div>
@@ -321,6 +323,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
             {children}
           </div>
         </main>
+        <AddToHomescreenPrompt />
         {mobileBottomNav}
         <FeedbackButton />
       </div>
