@@ -9,6 +9,7 @@ import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
 import CombinedBudgetWidget from "@/components/CombinedBudgetWidget";
+import AnnualHistoryCard from "@/components/AnnualHistoryCard";
 import PerformanceScore from "@/components/PerformanceScore";
 import DashboardActionCenter from "@/components/DashboardActionCenter";
 import DashboardMilestones from "@/components/DashboardMilestones";
