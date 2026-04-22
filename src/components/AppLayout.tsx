@@ -41,7 +41,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
-  const { data: unreadCount = 0 } = useQuery({
+  const { data: unreadCount = 0, isLoading: unreadLoading } = useQuery({
     queryKey: ["mobile-unread-chat", user?.id],
     queryFn: async () => {
       if (!user) return 0;
@@ -68,7 +68,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     refetchInterval: 60_000,
   });
 
-  const { data: hasPulseThisMonth = true } = useQuery({
+  const { data: hasPulseThisMonth = true, isLoading: pulseLoading } = useQuery({
     queryKey: ["mobile-pulse-this-month", companyId],
     queryFn: async () => {
       if (!companyId) return true;
@@ -111,11 +111,11 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     { label: "Indstillinger", path: "/settings", icon: "⚙️" },
   ];
 
-  const showPulseBadge = !hasPulseThisMonth && new Date().getDate() >= 10;
+  const showPulseBadge = !pulseLoading && !hasPulseThisMonth && new Date().getDate() >= 10;
 
   const bottomTabs = [
     { label: "Hjem", path: "/", icon: Home, badge: 0 },
-    { label: "Chat", path: "/chat", icon: MessageCircle, badge: unreadCount },
+    { label: "Chat", path: "/chat", icon: MessageCircle, badge: unreadLoading ? 0 : unreadCount },
     { label: "Pulse", path: "/pulse", icon: Zap, badge: showPulseBadge ? -1 : 0 },
   ];
 
