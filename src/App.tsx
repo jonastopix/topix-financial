@@ -108,6 +108,29 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 
 const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, needsOnboarding, isAdvisor } = useAuth();
+
+  // Mobile/PWA hardening: if the app is resumed from background while
+  // sitting on /onboarding, force a re-check by reloading the route.
+  // This catches iOS standalone "last route restore" edge cases.
+  React.useEffect(() => {
+    const onResume = () => {
+      try {
+        if (
+          window.location.pathname === "/onboarding" &&
+          localStorage.getItem("tbr.onboarded") === "1"
+        ) {
+          window.location.replace("/");
+        }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("pageshow", onResume);
+    document.addEventListener("visibilitychange", onResume);
+    return () => {
+      window.removeEventListener("pageshow", onResume);
+      document.removeEventListener("visibilitychange", onResume);
+    };
+  }, []);
+
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
