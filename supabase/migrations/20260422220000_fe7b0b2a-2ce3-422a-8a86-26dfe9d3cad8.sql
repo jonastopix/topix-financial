@@ -1,0 +1,11 @@
+ALTER TABLE public.financial_reports DROP CONSTRAINT financial_reports_report_type_check;
+
+ALTER TABLE public.financial_reports ADD CONSTRAINT financial_reports_report_type_check 
+  CHECK (report_type = ANY (ARRAY[
+    'saldobalance'::text, 
+    'resultatopgørelse'::text, 
+    'andet'::text, 
+    'combined'::text, 
+    'trial_balance'::text,
+    'aarsrapport'::text
+  ]));
