@@ -9,6 +9,7 @@ import AppLayout from "@/components/AppLayout";
 import KPICard from "@/components/KPICard";
 import RevenueChart from "@/components/RevenueChart";
 import CombinedBudgetWidget from "@/components/CombinedBudgetWidget";
+import AnnualHistoryCard from "@/components/AnnualHistoryCard";
 import PerformanceScore from "@/components/PerformanceScore";
 import DashboardActionCenter from "@/components/DashboardActionCenter";
 import DashboardMilestones from "@/components/DashboardMilestones";
@@ -560,11 +561,12 @@ const Dashboard = () => {
         </Link>
       </div>
 
-      {/* 3-column snapshot grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
+      {/* Snapshot grid (4th card auto-hides if no annual data) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <DashboardMilestones />
         <DashboardHandouts />
         <CombinedBudgetWidget />
+        <AnnualHistoryCard />
       </div>
 
       {latestCommentary && !isAdvisor && (
