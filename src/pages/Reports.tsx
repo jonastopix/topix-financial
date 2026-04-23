@@ -139,7 +139,8 @@ const Reports = () => {
   const [yearFilter, setYearFilter] = useState<string | null>(null);
   const [annualUploadYear, setAnnualUploadYear] = useState<"2024" | "2025">("2024");
   const [annualUploading, setAnnualUploading] = useState(false);
-  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number }[]>([]);
+  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number; error_log?: { step?: string; message?: string; at?: string; [k: string]: any } | null }[]>([]);
+  const [expandedAnnualError, setExpandedAnnualError] = useState<string | null>(null);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -227,6 +228,7 @@ const Reports = () => {
       .select("id, report_period, status, extracted_data")
       .eq("company_id", companyId)
       .eq("report_type", "aarsrapport")
+      .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })
       .then(({ data }) => {
         if (data) {
@@ -234,6 +236,7 @@ const Reports = () => {
             id: r.id,
             year: r.report_period?.replace("Årsrapport ", "") || "?",
             status: r.status,
+            error_log: r.status === "error" ? (r.extracted_data?.error_log ?? null) : null,
           })));
         }
       });
@@ -1373,27 +1376,100 @@ const Reports = () => {
 
           {annualReports.length > 0 && (
             <div className="space-y-2 mb-4">
-              {annualReports.map(r => (
-                <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/50">
-                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">Årsrapport {r.year}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.inserted != null ? `${r.inserted} måneder opdateret` : "Importeret — fordelt over 12 måneder"}
-                    </p>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                    Aktiv
-                  </span>
-                  <button
-                    onClick={() => handleDeleteAnnualReport(r.id, r.year)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                    title="Slet årsrapport"
+              {annualReports.map(r => {
+                const isError = r.status === "error";
+                const isProcessing = r.status === "processing";
+                const isExpanded = expandedAnnualError === r.id;
+                return (
+                  <div
+                    key={r.id}
+                    className={`rounded-lg border ${
+                      isError
+                        ? "bg-destructive/5 border-destructive/30"
+                        : "bg-secondary/30 border-border/50"
+                    }`}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3 p-3">
+                      {isError ? (
+                        <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                      ) : isProcessing ? (
+                        <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">Årsrapport {r.year}</p>
+                        <p className={`text-xs ${isError ? "text-destructive" : "text-muted-foreground"}`}>
+                          {isError
+                            ? `Fejl${r.error_log?.step ? ` i trin: ${r.error_log.step}` : ""}${r.error_log?.message ? ` — ${r.error_log.message}` : ""}`
+                            : isProcessing
+                              ? "Behandles…"
+                              : r.inserted != null
+                                ? `${r.inserted} måneder opdateret`
+                                : "Importeret — fordelt over 12 måneder"}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                          isError
+                            ? "bg-destructive/10 text-destructive"
+                            : isProcessing
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-primary/10 text-primary"
+                        }`}
+                      >
+                        {isError ? "Fejlet" : isProcessing ? "Behandles" : "Aktiv"}
+                      </span>
+                      {isError && r.error_log && (
+                        <button
+                          onClick={() => setExpandedAnnualError(isExpanded ? null : r.id)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                          title={isExpanded ? "Skjul detaljer" : "Vis detaljer"}
+                        >
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteAnnualReport(r.id, r.year)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Slet årsrapport"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {isError && isExpanded && r.error_log && (
+                      <div className="px-3 pb-3 -mt-1">
+                        <div className="rounded-md bg-background/60 border border-destructive/20 p-3 space-y-1.5 text-xs">
+                          {r.error_log.step && (
+                            <div><span className="text-muted-foreground">Trin: </span><span className="font-mono text-foreground">{r.error_log.step}</span></div>
+                          )}
+                          {r.error_log.message && (
+                            <div><span className="text-muted-foreground">Fejlbesked: </span><span className="font-mono text-foreground break-all">{r.error_log.message}</span></div>
+                          )}
+                          {r.error_log.code && (
+                            <div><span className="text-muted-foreground">DB-kode: </span><span className="font-mono text-foreground">{String(r.error_log.code)}</span></div>
+                          )}
+                          {r.error_log.details && (
+                            <div><span className="text-muted-foreground">Detaljer: </span><span className="font-mono text-foreground break-all">{String(r.error_log.details)}</span></div>
+                          )}
+                          {r.error_log.hint && (
+                            <div><span className="text-muted-foreground">Hint: </span><span className="font-mono text-foreground break-all">{String(r.error_log.hint)}</span></div>
+                          )}
+                          {r.error_log.http_status && (
+                            <div><span className="text-muted-foreground">HTTP: </span><span className="font-mono text-foreground">{String(r.error_log.http_status)}</span></div>
+                          )}
+                          {r.error_log.at && (
+                            <div><span className="text-muted-foreground">Tidspunkt: </span><span className="font-mono text-foreground">{r.error_log.at}</span></div>
+                          )}
+                          <p className="text-muted-foreground pt-1.5 border-t border-border/50">
+                            Slet rapporten og prøv at uploade igen. Hvis fejlen gentager sig, kontakt support med ovenstående detaljer.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
