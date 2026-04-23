@@ -39,6 +39,28 @@ Deno.serve(async (req) => {
       .eq("id", report_id);
   };
 
+  // ── STEP 0: Auto soft-delete prior failed annual reports for same company+year ──
+  // Når brugeren uploader samme år igen efter en fejl, ryddes gamle error-rapporter automatisk væk.
+  try {
+    const { data: cleanedRows, error: cleanupErr } = await adminClient
+      .from("financial_reports")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("company_id", company_id)
+      .eq("report_type", "annual_report")
+      .eq("status", "error")
+      .is("deleted_at", null)
+      .neq("id", report_id)
+      .or(`report_period.eq.Årsrapport ${year},manual_report_period_key.eq.${year}`)
+      .select("id");
+    if (cleanupErr) {
+      console.warn(`[extract-annual-report] Auto-cleanup warning:`, cleanupErr.message);
+    } else if (cleanedRows && cleanedRows.length > 0) {
+      console.log(`[extract-annual-report] Auto-cleaned ${cleanedRows.length} prior failed report(s) for year ${year}`);
+    }
+  } catch (e) {
+    console.warn(`[extract-annual-report] Auto-cleanup exception:`, (e as Error).message);
+  }
+
   // ── STEP 1: Download PDF ──
   const { data: fileData, error: downloadErr } = await adminClient.storage
     .from("financial-documents")
