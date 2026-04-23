@@ -2,65 +2,54 @@
 
 ## Problem
 
-Upload af årsrapport fejler med fejlen:
-```
-new row for relation "financial_report_facts" violates check constraint "financial_report_facts_source_type_check"
+Når du indtaster omsætning manuelt på årsrapporten, opdateres `financial_report_facts` korrekt i databasen — men dashboardet, KPI-grafer og branche-sammenligning viser stadig de gamle tal (eller 0). Årsagen: `queryClient.invalidateQueries` matcher ikke alle de cache-keys, som de forskellige sider faktisk bruger.
+
+I dag invalideres kun:
+
+```text
+["company-facts"]
+["dashboard-kpis"]
 ```
 
-`financial_report_facts.source_type` har en CHECK constraint der kun tillader `canonical`, `manual`, `canonical_v2`. Vores edge function forsøger at indsætte rækker med `source_type = 'annual_report'` — som blive afvist. Det er derfor de 12 månedsfacts aldrig dukkede op, og UI ikke viser noget.
+Men `useCompanyFacts` cacher med `["company-facts", companyId]`, og flere widgets bruger nøgler som `["dashboard-budgets", companyId]`, `["financial-reports-chart"]` og `["company-commentaries", companyId]`. React Query matcher kun præfiks når key-arrayet er nøjagtigt det samme præfiks — derfor rammer `["company-facts"]` ikke `["company-facts", "<uuid>"]` på alle versioner / med strict matching i visse hooks.
 
 ## Løsning
 
-### Trin 1: Migration der udvider constraint
-Opdatér `financial_report_facts_source_type_check` til at acceptere de tre ekstra typer vi bruger til årsrapporter og baselines:
-```sql
-ALTER TABLE public.financial_report_facts 
-  DROP CONSTRAINT financial_report_facts_source_type_check;
-
-ALTER TABLE public.financial_report_facts 
-  ADD CONSTRAINT financial_report_facts_source_type_check 
-  CHECK (source_type = ANY (ARRAY[
-    'canonical'::text,
-    'canonical_v2'::text,
-    'manual'::text,
-    'annual_report'::text,
-    'manual_baseline'::text,
-    'baseline'::text
-  ]));
-```
-
-### Trin 2: Ryd op i de 2 fejlede rapporter
-De to rapporter (`35d654af...` for 2025 og `47793782...` for 2024) står med `status='error'` og er aldrig blevet processed korrekt. Vi soft-deleter dem så brugeren har en ren start:
-```sql
-UPDATE financial_reports 
-  SET deleted_at = now() 
-  WHERE id IN ('35d654af-b1c3-470c-a08a-dbf09fe3a846', '47793782-920c-404b-8273-fa41f001662b');
-```
-
-### Trin 3: Bekræft at edge function virker
-Når constraint er udvidet, kan brugeren genuploade. Edge function-koden er allerede korrekt — den fejlede kun på databaselaget.
-
-## Hvad brugeren skal gøre efter migrationen
-
-1. Gå til Rapportering → "Historiske årsrapporter"
-2. Vælg år (2024 eller 2025)
-3. Upload PDF'en igen — nu indsættes de 12 månedlige facts korrekt
-4. Tallene vil dukke op på Dashboard, KPI-grafer og i AI-chat-konteksten
+Udvid invaliderings-blokken i `handleSaveManualRevenue` (linje 424-425 i `src/pages/Reports.tsx`) til at busta alle relevante caches — både med og uden `companyId` — så den manuelt indtastede omsætning slår igennem på Dashboard, KPI-siden og kommentarer med det samme.
 
 ## Tekniske detaljer
 
-**Filer der ændres:**
-- Ny migration: `supabase/migrations/<timestamp>_extend_facts_source_type.sql`
+**Fil der ændres:**
 
-**Hvorfor edge function-koden ikke skal ændres:**
-Logikken i `extract-annual-report/index.ts` er korrekt — den kalder AI, beregner månedstal (1/12), beskytter committede måneder og indsætter med `source_type='annual_report'`. Den eneste blokering var DB-constraint.
+```text
+src/pages/Reports.tsx  (kun linje 424-425 i handleSaveManualRevenue)
+```
+
+**Diff:**
+
+```text
+-      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+-      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
++      // Invalidate with and without companyId to catch all cache variants
++      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
++      queryClient.invalidateQueries({ queryKey: ["company-facts", companyId] });
++      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
++      queryClient.invalidateQueries({ queryKey: ["dashboard-budgets", companyId] });
++      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
++      queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
+```
 
 **Effektkæde efter fix:**
+
 ```text
-Upload PDF
-   → AI ekstraktion (Gemini)
-   → Insert 12 facts med source_type='annual_report'  ← virker nu
-   → useCompanyFacts henter dem
-   → Synlige i Dashboard, KPI'er, AI-chat
+Indtast omsætning → Gem
+   → financial_report_facts opdateres (allerede OK)
+   → ALLE relevante React Query caches invalideres
+   → useCompanyFacts re-fetcher → Dashboard-tal opdateres
+   → KPI Trend-graf re-renderer med nye tal
+   → Brancheammenligning og resultatmargin opdateres
+   → Eventuelle AI-kommentarer markeres som stale
 ```
+
+**Ingen DB-ændringer. Ingen logik-ændringer. Kun ekstra cache-invaliderings-kald.**
 
