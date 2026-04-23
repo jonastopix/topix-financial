@@ -421,8 +421,13 @@ const Reports = () => {
 
       setEditingAnnualField(null);
       setManualRevenue("");
+      // Invalidate with and without companyId to catch all cache variants
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["company-facts", companyId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-budgets", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
+      queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
     } catch (err: any) {
       toast.error("Kunne ikke gemme", { description: err.message });
     } finally {
