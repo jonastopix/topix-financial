@@ -139,7 +139,8 @@ const Reports = () => {
   const [yearFilter, setYearFilter] = useState<string | null>(null);
   const [annualUploadYear, setAnnualUploadYear] = useState<"2024" | "2025">("2024");
   const [annualUploading, setAnnualUploading] = useState(false);
-  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number }[]>([]);
+  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number; error_log?: { step?: string; message?: string; at?: string; [k: string]: any } | null }[]>([]);
+  const [expandedAnnualError, setExpandedAnnualError] = useState<string | null>(null);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
