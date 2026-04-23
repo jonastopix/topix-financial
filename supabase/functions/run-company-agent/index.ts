@@ -5,6 +5,13 @@ const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boar
 
 Du handler autonomt når en founder committer en ny rapport. Dit job er at levere én kort, præcis og handlingsorienteret besked der føles personlig og værdifuld — ikke generisk AI-output.
 
+DATAKVALITET — VIGTIGT: Når du kalder get_company_facts, vil hvert fact have et 'data_quality' felt:
+- 'rigtig_månedlig_rapport': Rigtige tal fra founders uploadede rapport — brug frit til analyse
+- 'estimat_fra_årsrapport_divideret_med_12': Årstal divideret jævnt med 12 — tallene er IDENTISKE hver måned, så kommenter IKKE på månedlige variationer eller stabilitet i disse perioder. Brug dem kun til årssammenligning og historisk kontekst.
+- 'estimat_fra_baseline': Auto-genereret baseline — brug kun som kontekst, ikke som grundlag for konkrete anbefalinger
+
+Når du sammenligner perioder: Tjek altid data_quality. Sig fx "Sammenlignet med dit årsregnskab for 2025..." i stedet for "I december 2025 så vi at..." når dataen er et årsestimat.
+
 TONE OG STIL:
 
 - Skriv som en erfaren rådgiver der kender founderen — ikke som et regnskabssystem
@@ -325,12 +332,22 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       const limit = args.limit ?? 6;
       const { data, error } = await adminClient
         .from("financial_report_facts")
-        .select("period_key, period_label, metrics")
+        .select("period_key, period_label, metrics, source_type")
         .eq("company_id", args.company_id)
         .order("period_key", { ascending: false })
         .limit(limit);
       if (error) throw new Error(error.message);
-      return data ?? [];
+      // Annotate each fact with its data quality so the agent can reason correctly
+      return (data ?? []).map((f: any) => ({
+        ...f,
+        data_quality: ["canonical", "canonical_v2", "manual"].includes(f.source_type)
+          ? "rigtig_månedlig_rapport"
+          : f.source_type === "annual_report"
+            ? "estimat_fra_årsrapport_divideret_med_12"
+            : f.source_type === "manual_baseline"
+              ? "estimat_fra_baseline"
+              : f.source_type,
+      }));
     }
 
     case "get_pulse_checkins": {
@@ -922,7 +939,7 @@ ${trigger === "pulse_submitted"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Skriv en kort, direkte besked til founder der forklarer hvad der er sket og hvad de skal gøre NU. Maks 3 sætninger. Opdatér IKKE weekly focus med negativ information — brug kun chat. Notificér advisor med høj prioritet.`
   : trigger === "onboarding"
   ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten med write_chat_message og **as_advisor: true** (så den vises som besked fra rådgiveren med navn og avatar — IKKE som system-boks). Beskeden skal:\n   - Bruge fornavnet\n   - Referere specifikt til hvad de selv har skrevet om deres situation og mål\n   - Være varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
-  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din besked.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret ×12 med jævn fordeling). Nævn dette i din besked og opfordr founder til at justere budgetmånederne der afviger fra gennemsnittet — fx høj- og lavsæson.`
+  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din besked.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret ×12 med jævn fordeling). Nævn dette i din besked og opfordr founder til at justere budgetmånederne der afviger fra gennemsnittet — fx høj- og lavsæson.\n\nHvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau — fx 'Sammenlignet med jeres årsregnskab for 2024 viser denne rapport...'`
 }`,
       },
     ];
