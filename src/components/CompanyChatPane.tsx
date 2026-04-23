@@ -2091,7 +2091,7 @@ const CompanyChatPane = () => {
                           )}
                           <div
                             className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
-                            {...(isMobile ? useLongPress(() => setLongPressedMessageId(msg.id)) : {})}
+                            {...(isMobile ? longPressHandlers(msg.id) : {})}
                           >
                             {longPressedMessageId === msg.id && isMobile && (
                               <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-card border border-border rounded-full px-2 py-1 shadow-lg">
