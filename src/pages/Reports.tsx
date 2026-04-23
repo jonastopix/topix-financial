@@ -139,8 +139,9 @@ const Reports = () => {
   const [yearFilter, setYearFilter] = useState<string | null>(null);
   const [annualUploadYear, setAnnualUploadYear] = useState<"2024" | "2025">("2024");
   const [annualUploading, setAnnualUploading] = useState(false);
-  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number; error_log?: { step?: string; message?: string; at?: string; [k: string]: any } | null }[]>([]);
+  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number; success_log?: { year?: string; inserted_count?: number; protected_count?: number; total_months?: number; completed_at?: string; metrics_keys?: string[] } | null; error_log?: { step?: string; message?: string; at?: string; [k: string]: any } | null }[]>([]);
   const [expandedAnnualError, setExpandedAnnualError] = useState<string | null>(null);
+  const [expandedAnnualSuccess, setExpandedAnnualSuccess] = useState<string | null>(null);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -236,6 +237,7 @@ const Reports = () => {
             id: r.id,
             year: r.report_period?.replace("Årsrapport ", "") || "?",
             status: r.status,
+            success_log: r.status === "processed" ? (r.extracted_data?.success_log ?? null) : null,
             error_log: r.status === "error" ? (r.extracted_data?.error_log ?? null) : null,
           })));
         }
@@ -302,7 +304,20 @@ const Reports = () => {
       toast.success(`Årsrapport ${annualUploadYear} importeret ✓`, { description: desc });
 
       setAnnualReports(prev => [
-        { id: reportRow.id, year: annualUploadYear, status: "processed", inserted },
+        {
+          id: reportRow.id,
+          year: annualUploadYear,
+          status: "processed",
+          inserted,
+          success_log: {
+            year: annualUploadYear,
+            inserted_count: inserted,
+            protected_count,
+            total_months: 12,
+            completed_at: new Date().toISOString(),
+            metrics_keys: Array.isArray(result.extracted) ? [] : Object.keys(result.extracted ?? {}),
+          },
+        },
         ...prev.filter(r => r.year !== annualUploadYear),
       ]);
 
@@ -1379,7 +1394,9 @@ const Reports = () => {
               {annualReports.map(r => {
                 const isError = r.status === "error";
                 const isProcessing = r.status === "processing";
-                const isExpanded = expandedAnnualError === r.id;
+                const isErrorExpanded = expandedAnnualError === r.id;
+                const isSuccessExpanded = expandedAnnualSuccess === r.id;
+                const sl = r.success_log;
                 return (
                   <div
                     key={r.id}
@@ -1404,9 +1421,11 @@ const Reports = () => {
                             ? `Fejl${r.error_log?.step ? ` i trin: ${r.error_log.step}` : ""}${r.error_log?.message ? ` — ${r.error_log.message}` : ""}`
                             : isProcessing
                               ? "Behandles…"
-                              : r.inserted != null
-                                ? `${r.inserted} måneder opdateret`
-                                : "Importeret — fordelt over 12 måneder"}
+                              : sl?.inserted_count != null
+                                ? `${sl.inserted_count} af ${sl.total_months ?? 12} månedstal oprettet${(sl.protected_count ?? 0) > 0 ? ` · ${sl.protected_count} beskyttet` : ""} · år ${sl.year ?? r.year}`
+                                : r.inserted != null
+                                  ? `${r.inserted} måneder opdateret`
+                                  : "Importeret — fordelt over 12 måneder"}
                         </p>
                       </div>
                       <span
@@ -1422,11 +1441,20 @@ const Reports = () => {
                       </span>
                       {isError && r.error_log && (
                         <button
-                          onClick={() => setExpandedAnnualError(isExpanded ? null : r.id)}
+                          onClick={() => setExpandedAnnualError(isErrorExpanded ? null : r.id)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                          title={isExpanded ? "Skjul detaljer" : "Vis detaljer"}
+                          title={isErrorExpanded ? "Skjul detaljer" : "Vis detaljer"}
                         >
-                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          {isErrorExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      )}
+                      {!isError && !isProcessing && sl && (
+                        <button
+                          onClick={() => setExpandedAnnualSuccess(isSuccessExpanded ? null : r.id)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                          title={isSuccessExpanded ? "Skjul status" : "Vis status"}
+                        >
+                          {isSuccessExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </button>
                       )}
                       <button
@@ -1437,7 +1465,7 @@ const Reports = () => {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    {isError && isExpanded && r.error_log && (
+                    {isError && isErrorExpanded && r.error_log && (
                       <div className="px-3 pb-3 -mt-1">
                         <div className="rounded-md bg-background/60 border border-destructive/20 p-3 space-y-1.5 text-xs">
                           {r.error_log.step && (
@@ -1463,6 +1491,30 @@ const Reports = () => {
                           )}
                           <p className="text-muted-foreground pt-1.5 border-t border-border/50">
                             Slet rapporten og prøv at uploade igen. Hvis fejlen gentager sig, kontakt support med ovenstående detaljer.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {!isError && !isProcessing && isSuccessExpanded && sl && (
+                      <div className="px-3 pb-3 -mt-1">
+                        <div className="rounded-md bg-background/60 border border-primary/20 p-3 space-y-1.5 text-xs">
+                          <div className="flex items-center gap-2 pb-1.5 border-b border-border/50">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                            <span className="font-medium text-foreground">Importstatus</span>
+                          </div>
+                          <div><span className="text-muted-foreground">Anvendt regnskabsår: </span><span className="font-mono text-foreground">{sl.year ?? r.year}</span></div>
+                          <div><span className="text-muted-foreground">Månedstal oprettet: </span><span className="font-mono text-foreground">{sl.inserted_count ?? 0} af {sl.total_months ?? 12}</span></div>
+                          {(sl.protected_count ?? 0) > 0 && (
+                            <div><span className="text-muted-foreground">Beskyttede måneder (havde rigtige tal): </span><span className="font-mono text-foreground">{sl.protected_count}</span></div>
+                          )}
+                          {sl.metrics_keys && sl.metrics_keys.length > 0 && (
+                            <div><span className="text-muted-foreground">Udtrukne nøgletal: </span><span className="font-mono text-foreground break-all">{sl.metrics_keys.join(", ")}</span></div>
+                          )}
+                          {sl.completed_at && (
+                            <div><span className="text-muted-foreground">Gennemført: </span><span className="font-mono text-foreground">{new Date(sl.completed_at).toLocaleString("da-DK")}</span></div>
+                          )}
+                          <p className="text-muted-foreground pt-1.5 border-t border-border/50">
+                            Beløbene er fordelt jævnt (1/12) over årets 12 måneder og er nu synlige i Dashboard, KPI'er og AI-chat.
                           </p>
                         </div>
                       </div>
