@@ -96,20 +96,26 @@ const ChatShell = () => {
   return (
     <AppLayout fullscreen>
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <div className="flex items-center gap-1 px-4 pt-2 bg-card border-b border-border shrink-0 relative z-20">
-          {(["advisor", "ai"] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setChatTab(tab)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                chatTab === tab
-                  ? "bg-background text-foreground border border-b-0 border-border"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab === "advisor" ? "Advisor" : "Finansiel AI"}
-            </button>
-          ))}
+        <div className={`flex items-center gap-1 bg-card border-b border-border shrink-0 relative z-20 ${isMobile ? "px-2 pt-1" : "px-4 pt-2"}`}>
+          {(["advisor", "ai"] as const).map(tab => {
+            const Icon = tab === "advisor" ? MessageCircle : Sparkles;
+            const label = tab === "advisor" ? "Rådgiver" : "AI";
+            const active = chatTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setChatTab(tab)}
+                className={`flex items-center gap-1.5 ${isMobile ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-medium rounded-t-lg transition-colors ${
+                  active
+                    ? "bg-background text-foreground border border-b-0 border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {isMobile ? label : tab === "advisor" ? "Advisor" : "Finansiel AI"}
+              </button>
+            );
+          })}
         </div>
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {chatTab === "advisor" ? (
