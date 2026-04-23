@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import CompanyChatPane from "@/components/CompanyChatPane";
 import GroupChatInline from "@/components/GroupChatInline";
 import FinancialAIChat from "@/components/FinancialAIChat";
+import { MessageCircle, Sparkles } from "lucide-react";
 
 /**
  * Unified /chat route orchestrator.

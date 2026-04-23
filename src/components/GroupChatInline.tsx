@@ -50,16 +50,17 @@ const GroupChatInline = () => {
             />
           )}
 
-          {/* Input */}
-          <div className="px-4 py-3 border-t border-border shrink-0">
-            <div className="flex items-end gap-2">
-              <ChatRichInput
-                onSubmit={sendMessage}
-                disabled={sending}
-                placeholder="Skriv en besked til koncernen..."
-                maxLength={5000}
-              />
-            </div>
+          {/* Input — sticky at bottom of scroll column, safe-area aware */}
+          <div
+            className="sticky bottom-0 px-3 py-2 sm:px-4 sm:py-3 border-t border-border bg-background shrink-0"
+            style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+          >
+            <ChatRichInput
+              onSubmit={sendMessage}
+              disabled={sending}
+              placeholder="Skriv en besked til koncernen..."
+              maxLength={5000}
+            />
           </div>
         </>
       )}
