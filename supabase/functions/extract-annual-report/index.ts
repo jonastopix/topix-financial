@@ -253,6 +253,10 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
     total_months: 12,
     completed_at: new Date().toISOString(),
     metrics_keys: Object.keys(metrics),
+    revenue_status: revenueStatus,
+    revenue_alt_label: extracted.omsaetning_alt_label || null,
+    is_gross_profit_only: extracted.is_gross_profit_only || false,
+    derived_fields: derivedFields,
   };
   await adminClient
     .from("financial_reports")
