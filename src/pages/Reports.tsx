@@ -228,6 +228,7 @@ const Reports = () => {
       .select("id, report_period, status, extracted_data")
       .eq("company_id", companyId)
       .eq("report_type", "aarsrapport")
+      .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })
       .then(({ data }) => {
         if (data) {
