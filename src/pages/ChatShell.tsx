@@ -17,6 +17,7 @@ import { MessageCircle, Sparkles } from "lucide-react";
  */
 const ChatShell = () => {
   const { isAdvisor, isGroupUser, loading, membershipTier } = useAuth();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const [chatTab, setChatTab] = useState<"advisor" | "ai">(
     searchParams.get("tab") === "ai" ? "ai" : "advisor"
