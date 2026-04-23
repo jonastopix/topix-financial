@@ -1,0 +1,13 @@
+ALTER TABLE public.financial_report_facts 
+  DROP CONSTRAINT financial_report_facts_source_type_check;
+
+ALTER TABLE public.financial_report_facts 
+  ADD CONSTRAINT financial_report_facts_source_type_check 
+  CHECK (source_type = ANY (ARRAY[
+    'canonical'::text,
+    'canonical_v2'::text,
+    'manual'::text,
+    'annual_report'::text,
+    'manual_baseline'::text,
+    'baseline'::text
+  ]));
