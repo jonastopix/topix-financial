@@ -243,19 +243,28 @@ const Reports = () => {
     if (!companyId || !user) return;
     setAnnualUploading(true);
     try {
+      // Sanitize filename
       const safeFileName = file.name
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[æÆ]/g, "ae")
-        .replace(/[øØ]/g, "oe")
-        .replace(/[åÅ]/g, "aa")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[æÆ]/g, "ae").replace(/[øØ]/g, "oe").replace(/[åÅ]/g, "aa")
         .replace(/[^a-zA-Z0-9._-]/g, "_");
       const filePath = `${companyId}/annual/${annualUploadYear}_${Date.now()}_${safeFileName}`;
+
+      // Dedup: soft-delete any existing annual report for this year
+      const existing = annualReports.find(r => r.year === annualUploadYear);
+      if (existing) {
+        await supabase.from("financial_reports")
+          .update({ deleted_at: new Date().toISOString() } as any)
+          .eq("id", existing.id);
+      }
+
+      // Upload file
       const { error: uploadErr } = await supabase.storage
         .from("financial-documents")
         .upload(filePath, file);
-      if (uploadErr) throw uploadErr;
+      if (uploadErr) throw new Error(`Upload fejlede: ${uploadErr.message}`);
 
+      // Create report record
       const { data: reportRow, error: reportErr } = await (supabase
         .from("financial_reports")
         .insert({
@@ -269,38 +278,56 @@ const Reports = () => {
         } as any)
         .select("id")
         .single() as any);
-      if (reportErr || !reportRow) throw reportErr;
+      if (reportErr || !reportRow) throw new Error(reportErr?.message || "Kunne ikke oprette rapport");
 
-      const { data: extractResult, error: extractErr } = await supabase.functions.invoke("extract-annual-report", {
-        body: { report_id: reportRow.id, file_path: filePath, year: annualUploadYear, company_id: companyId },
+      // Extract + process in one call
+      const { data: result, error: fnErr } = await supabase.functions.invoke("extract-annual-report", {
+        body: { report_id: reportRow.id, file_path: filePath, year: annualUploadYear, company_id: companyId, user_id: user.id },
       });
-      if (extractErr) throw extractErr;
+      if (fnErr) throw new Error(fnErr.message);
+      if (!result?.ok) throw new Error(result?.error || "Ekstraktion fejlede");
 
-      const { data: processResult } = await supabase.functions.invoke("process-annual-report", {
-        body: {
-          report_id: reportRow.id,
-          company_id: companyId,
-          year: annualUploadYear,
-          extracted: extractResult?.extracted,
-          user_id: user.id,
-        },
-      });
+      const inserted = result.inserted ?? 0;
+      const protected_count = result.protected_count ?? 0;
 
-      toast.success(`Årsrapport ${annualUploadYear} importeret ✓`, {
-        description: `${processResult?.inserted || 0} måneder opdateret med historiske tal`,
-      });
+      const desc = inserted === 12
+        ? `12 måneder opdateret med historiske tal`
+        : inserted > 0
+          ? `${inserted} måneder opdateret (${protected_count} måneder havde allerede rigtige tal)`
+          : `Ingen måneder opdateret — alle ${protected_count} måneder har allerede committede rapporter`;
+
+      toast.success(`Årsrapport ${annualUploadYear} importeret ✓`, { description: desc });
 
       setAnnualReports(prev => [
-        { id: reportRow.id, year: annualUploadYear, status: "processed", inserted: processResult?.inserted },
+        { id: reportRow.id, year: annualUploadYear, status: "processed", inserted },
         ...prev.filter(r => r.year !== annualUploadYear),
       ]);
 
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-budgets"] });
     } catch (err: any) {
       toast.error("Upload fejlede", { description: err.message || "Ukendt fejl" });
     } finally {
       setAnnualUploading(false);
+    }
+  };
+
+  const handleDeleteAnnualReport = async (reportId: string, year: string) => {
+    try {
+      await supabase.from("financial_reports")
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq("id", reportId);
+      await (supabase.from("financial_report_facts" as any) as any)
+        .delete()
+        .eq("company_id", companyId!)
+        .eq("source_type", "annual_report")
+        .like("period_key", `${year}-%`);
+      setAnnualReports(prev => prev.filter(r => r.id !== reportId));
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      toast.success(`Årsrapport ${year} slettet`);
+    } catch (err: any) {
+      toast.error("Kunne ikke slette", { description: err.message });
     }
   };
 
@@ -1351,11 +1378,20 @@ const Reports = () => {
                   <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">Årsrapport {r.year}</p>
-                    <p className="text-xs text-muted-foreground">Importeret — fordelt over 12 måneder</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.inserted != null ? `${r.inserted} måneder opdateret` : "Importeret — fordelt over 12 måneder"}
+                    </p>
                   </div>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                     Aktiv
                   </span>
+                  <button
+                    onClick={() => handleDeleteAnnualReport(r.id, r.year)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Slet årsrapport"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ))}
             </div>
