@@ -170,7 +170,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const profileData = profileRes.data as any;
     const legatActive = !isAdv && !!legatRow;
     const profileOnboarded = !!(profileData?.onboarded_at);
-    const computedNeedsOnboarding = !isAdv && !legatActive && (!profileData || !profileData.onboarded_at);
+    const computedNeedsOnboarding = !isAdv && !legatActive && (!profileData || !profileData.onboarded_at) && !localStorage.getItem("tbr.onboarded");
     setNeedsOnboarding(computedNeedsOnboarding);
 
     // Persist a "known onboarded" flag for the pre-React redirect in main.tsx,
