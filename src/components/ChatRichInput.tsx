@@ -254,21 +254,26 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   useEffect(() => { editorRef.current = editor; }, [editor]);
   useEffect(() => { if (editor) editor.setEditable(!disabled); }, [disabled, editor]);
 
-  // Scroll input into view above mobile keyboard on focus
+  // Robust keyboard-aware composer using visualViewport API (iOS Safari compatible)
   useEffect(() => {
-    if (!editor || !isMobile) return;
-    const el = editor.view.dom as HTMLElement;
-    const onFocus = () => {
-      requestAnimationFrame(() => {
-        // Slight delay so keyboard has time to appear
-        setTimeout(() => {
-          (wrapperRef.current ?? el).scrollIntoView({ block: "end", behavior: "smooth" });
-        }, 250);
-      });
+    if (!isMobile || !wrapperRef.current) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastHeight = vv.height;
+    const onViewportResize = () => {
+      const newHeight = vv.height;
+      const keyboardVisible = newHeight < lastHeight - 50;
+      lastHeight = newHeight;
+      if (keyboardVisible && wrapperRef.current) {
+        // Push composer above keyboard
+        requestAnimationFrame(() => {
+          wrapperRef.current?.scrollIntoView({ block: "end", behavior: "instant" as ScrollBehavior });
+        });
+      }
     };
-    el.addEventListener("focus", onFocus);
-    return () => el.removeEventListener("focus", onFocus);
-  }, [editor, isMobile]);
+    vv.addEventListener("resize", onViewportResize);
+    return () => vv.removeEventListener("resize", onViewportResize);
+  }, [isMobile]);
 
   const submitFromEditor = useCallback(() => {
     if (!editor) return;
