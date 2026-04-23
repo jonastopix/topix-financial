@@ -1378,11 +1378,20 @@ const Reports = () => {
                   <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">Årsrapport {r.year}</p>
-                    <p className="text-xs text-muted-foreground">Importeret — fordelt over 12 måneder</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.inserted != null ? `${r.inserted} måneder opdateret` : "Importeret — fordelt over 12 måneder"}
+                    </p>
                   </div>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                     Aktiv
                   </span>
+                  <button
+                    onClick={() => handleDeleteAnnualReport(r.id, r.year)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Slet årsrapport"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ))}
             </div>
