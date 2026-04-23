@@ -82,13 +82,17 @@ export default function CombinedBudgetWidget() {
     const sorted = facts.map(f => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics) }));
     const [latestYear] = sorted[sorted.length - 1].key.split("-");
     const currentYearFacts = sorted.filter(r => r.key.startsWith(latestYear));
-    const actualsMonthCount = currentYearFacts.length;
-    if (actualsMonthCount < 2) return null;
+    // Only use months with actual revenue data for the average — exclude zero-revenue months
+    // which are likely annual_report estimates or empty baseline months
+    const activeFacts = currentYearFacts.filter(r => (r.kf.omsaetning ?? 0) > 0);
+    const actualsMonthCount = activeFacts.length;
+    if (actualsMonthCount < 1) return null;
 
-    const ytdRevenue = currentYearFacts.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
-    const ytdCosts = currentYearFacts.reduce((s, r) => s + calcTotalExpenses(r.kf), 0);
+    const ytdRevenue = activeFacts.reduce((s, r) => s + (r.kf.omsaetning ?? 0), 0);
+    const ytdCosts = activeFacts.reduce((s, r) => s + calcTotalExpenses(r.kf), 0);
     const avgMonthlyRevenue = ytdRevenue / actualsMonthCount;
     const avgMonthlyCosts = ytdCosts / actualsMonthCount;
+
 
     const latestMonthIdx = parseInt(sorted[sorted.length - 1].key.split("-")[1], 10) - 1;
     const remainingMonths = 11 - latestMonthIdx;

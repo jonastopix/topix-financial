@@ -631,7 +631,8 @@ export function computeAiEligible(
   statementType: StatementType,
   periodBasis: PeriodBasis
 ): boolean {
-  if (validationStatus !== "PASS") return false;
+  // For trial_balance, allow WARN status — balance data is often absent from P&L-only exports
+  if (validationStatus !== "PASS" && !(statementType === "trial_balance" && validationStatus !== "FAIL")) return false;
   if (statementType === "unknown") return false;
   if (periodBasis === "unknown") return false;
 
@@ -640,12 +641,16 @@ export function computeAiEligible(
       return metrics.revenue != null && metrics.ebt != null;
     case "combined":
       return metrics.revenue != null && metrics.ebt != null && metrics.assets_total != null;
-    case "balance":
     case "trial_balance":
+      // Trial balance (saldobalance) is AI-eligible if it has P&L data
+      // Balance data (assets/liabilities) is not required — e-conomic exports often omit it
+      return metrics.revenue != null && metrics.ebt != null;
+    case "balance":
       return false;
     default:
       return false;
   }
+
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
