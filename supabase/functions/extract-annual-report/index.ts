@@ -85,7 +85,9 @@ DIN OPGAVE: Udtræk de vigtigste nøgletal fra årsrapporten. Årsrapporten inde
 VIGTIGT:
 - Alle tal skal være i KR. (ikke t.kr. — gang med 1000 hvis rapporten bruger t.kr.)
 - Negative tal (underskud, tab) angives som negative tal
-- Hvis et tal ikke fremgår af rapporten, returner null — ALDRIG 0 som erstatning`;
+- Hvis et tal ikke fremgår af rapporten, returner null — ALDRIG 0 som erstatning
+
+NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske årsrapporter: 'Nettoomsætning', 'Omsætning', 'Indtægter', 'Salg', 'Honorarindtægter', 'Provisionsindtægter', 'Omsætningsindtægter', 'Nettoomsætning i alt'. Læs HELE resultatopgørelsen omhyggeligt og returner det beløb der er øverst i resultatopgørelsen som toplinjeindtægt. Hvis rapporten starter direkte med 'Bruttoresultat' eller 'Bruttotab' uden at vise nettoomsætning (klasse B mikro-rapport), sæt is_gross_profit_only: true og nettoomsaetning: null.`;
 
   const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -119,6 +121,9 @@ VIGTIGT:
               likvider: { type: "number" },
               egenkapital: { type: "number" },
               aktiver_i_alt: { type: "number" },
+              omsaetning_alt_label: { type: "string", description: "Den faktiske overskrift AI fandt for omsætning i rapporten" },
+              is_gross_profit_only: { type: "boolean", description: "True hvis rapporten kun viser fra Bruttoresultat uden nettoomsætning (klasse B mikro)" },
+              andre_driftsindtaegter: { type: "number", description: "Andre driftsindtægter hvis separate fra nettoomsætning" },
             },
             required: ["year", "resultat_foer_skat"],
           },
