@@ -304,7 +304,20 @@ const Reports = () => {
       toast.success(`Årsrapport ${annualUploadYear} importeret ✓`, { description: desc });
 
       setAnnualReports(prev => [
-        { id: reportRow.id, year: annualUploadYear, status: "processed", inserted },
+        {
+          id: reportRow.id,
+          year: annualUploadYear,
+          status: "processed",
+          inserted,
+          success_log: {
+            year: annualUploadYear,
+            inserted_count: inserted,
+            protected_count,
+            total_months: 12,
+            completed_at: new Date().toISOString(),
+            metrics_keys: Array.isArray(result.extracted) ? [] : Object.keys(result.extracted ?? {}),
+          },
+        },
         ...prev.filter(r => r.year !== annualUploadYear),
       ]);
 
