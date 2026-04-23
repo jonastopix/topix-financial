@@ -21,13 +21,31 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Helper: persist error details to the report record so UI can show them
+  const failReport = async (step: string, message: string, extra?: Record<string, unknown>) => {
+    const error_log = {
+      step,
+      message,
+      at: new Date().toISOString(),
+      ...(extra || {}),
+    };
+    console.error(`[extract-annual-report] FAIL step=${step}:`, message, extra || "");
+    await adminClient
+      .from("financial_reports")
+      .update({
+        status: "error",
+        extracted_data: { error_log } as any,
+      } as any)
+      .eq("id", report_id);
+  };
+
   // ── STEP 1: Download PDF ──
   const { data: fileData, error: downloadErr } = await adminClient.storage
     .from("financial-documents")
     .download(file_path);
   if (downloadErr || !fileData) {
-    await adminClient.from("financial_reports").update({ status: "error" } as any).eq("id", report_id);
-    return new Response(JSON.stringify({ ok: false, error: `Download failed: ${downloadErr?.message}` }), {
+    await failReport("download", downloadErr?.message || "Unknown download error", { file_path });
+    return new Response(JSON.stringify({ ok: false, error: `Download failed: ${downloadErr?.message}`, step: "download" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -89,10 +107,9 @@ VIGTIGT:
   });
 
   if (!aiResponse.ok) {
-    const err = await aiResponse.text();
-    console.error("[extract-annual-report] AI error:", err);
-    await adminClient.from("financial_reports").update({ status: "error" } as any).eq("id", report_id);
-    return new Response(JSON.stringify({ ok: false, error: "AI extraction failed" }), {
+    const errText = await aiResponse.text();
+    await failReport("ai_extraction", `AI gateway returned ${aiResponse.status}`, { http_status: aiResponse.status, body: errText.slice(0, 1000) });
+    return new Response(JSON.stringify({ ok: false, error: "AI extraction failed", step: "ai_extraction", http_status: aiResponse.status }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -100,8 +117,8 @@ VIGTIGT:
   const aiData = await aiResponse.json();
   const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall) {
-    await adminClient.from("financial_reports").update({ status: "error" } as any).eq("id", report_id);
-    return new Response(JSON.stringify({ ok: false, error: "No tool call in AI response" }), {
+    await failReport("ai_no_tool_call", "AI returned no tool_call", { ai_response: JSON.stringify(aiData).slice(0, 1000) });
+    return new Response(JSON.stringify({ ok: false, error: "No tool call in AI response", step: "ai_no_tool_call" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -109,9 +126,9 @@ VIGTIGT:
   let extracted: Record<string, any>;
   try {
     extracted = JSON.parse(toolCall.function.arguments);
-  } catch {
-    await adminClient.from("financial_reports").update({ status: "error" } as any).eq("id", report_id);
-    return new Response(JSON.stringify({ ok: false, error: "Could not parse AI response" }), {
+  } catch (e) {
+    await failReport("ai_parse", `Could not parse tool_call arguments: ${(e as Error).message}`, { raw: String(toolCall.function?.arguments).slice(0, 1000) });
+    return new Response(JSON.stringify({ ok: false, error: "Could not parse AI response", step: "ai_parse" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -139,8 +156,8 @@ VIGTIGT:
   if (extracted.egenkapital != null) metrics.equity = extracted.egenkapital;
 
   if (Object.keys(metrics).length === 0) {
-    await adminClient.from("financial_reports").update({ status: "error" } as any).eq("id", report_id);
-    return new Response(JSON.stringify({ ok: false, error: "No metrics could be extracted from the document" }), {
+    await failReport("no_metrics", "AI returned no usable metrics from the document", { extracted });
+    return new Response(JSON.stringify({ ok: false, error: "No metrics could be extracted from the document", step: "no_metrics" }), {
       status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -188,9 +205,8 @@ VIGTIGT:
   if (rows.length > 0) {
     const { error: insertErr } = await adminClient.from("financial_report_facts").insert(rows);
     if (insertErr) {
-      console.error("[extract-annual-report] Insert failed:", insertErr);
-      await adminClient.from("financial_reports").update({ status: "error" } as any).eq("id", report_id);
-      return new Response(JSON.stringify({ ok: false, error: `Insert failed: ${insertErr.message}` }), {
+      await failReport("insert_facts", insertErr.message, { code: insertErr.code, details: insertErr.details, hint: insertErr.hint, attempted_rows: rows.length });
+      return new Response(JSON.stringify({ ok: false, error: `Insert failed: ${insertErr.message}`, step: "insert_facts", db_code: insertErr.code }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -199,7 +215,7 @@ VIGTIGT:
 
   const protected_count = 12 - rows.length;
 
-  // ── STEP 7: Update report record ──
+  // ── STEP 7: Update report record (clear any prior error_log) ──
   await adminClient
     .from("financial_reports")
     .update({
