@@ -162,6 +162,26 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
 
   console.log(`[extract-annual-report] Extracted year ${year}:`, JSON.stringify(extracted));
 
+  // Deterministic fallback: derive revenue from gross_profit + cogs if missing
+  let revenueStatus: "extracted" | "derived" | "missing_gross_profit_only" | "missing" = "missing";
+  const derivedFields: string[] = [];
+
+  if (extracted.nettoomsaetning != null) {
+    revenueStatus = "extracted";
+  } else if (extracted.is_gross_profit_only) {
+    revenueStatus = "missing_gross_profit_only";
+  } else if (extracted.bruttoresultat != null && extracted.direkte_omkostninger != null) {
+    extracted.nettoomsaetning = Math.abs(extracted.bruttoresultat) + Math.abs(extracted.direkte_omkostninger);
+    revenueStatus = "derived";
+    derivedFields.push("revenue");
+    console.log(`[extract-annual-report] Derived revenue: ${extracted.nettoomsaetning} from gross_profit + cogs`);
+  } else if (extracted.bruttoresultat != null) {
+    extracted.nettoomsaetning = extracted.bruttoresultat;
+    revenueStatus = "derived";
+    derivedFields.push("revenue");
+    console.log(`[extract-annual-report] Derived revenue from gross_profit: ${extracted.nettoomsaetning}`);
+  }
+
   // ── STEP 3: Build monthly metrics ──
   const monthly = (val: number | null | undefined) => val != null ? Math.round(val / 12) : null;
 
