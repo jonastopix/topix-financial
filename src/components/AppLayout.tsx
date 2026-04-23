@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -96,6 +96,17 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     catch {}
     setShowAnnouncement(false);
   };
+
+  // Redirect advisors on mobile to /chat — chat-first experience
+  useEffect(() => {
+    if (isMobile && isAdvisor && !viewingAsMember) {
+      const advisorMobileAllowed = ["/chat", "/chat/"];
+      const isAllowed = advisorMobileAllowed.some(p => location.pathname.startsWith(p));
+      if (!isAllowed) {
+        navigate("/chat", { replace: true });
+      }
+    }
+  }, [isMobile, isAdvisor, location.pathname, viewingAsMember, navigate]);
 
   const handleExitCompanyOverride = () => {
     clearCompanyOverride();
@@ -324,7 +335,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         {mobileShell}
         {desktopBanners}
-        <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor ? "pb-20" : ""}`}>
+        <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor && location.pathname !== "/chat" ? "pb-20" : ""}`}>
           {children}
         </div>
         <AddToHomescreenPrompt />
@@ -341,7 +352,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         <main className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
           {mobileShell}
-          <div className={`flex-1 min-h-0 min-w-0 flex flex-col px-4 ${!isAdvisor ? "pb-20" : "pb-6"}`}>
+          <div className={`flex-1 min-h-0 min-w-0 flex flex-col px-4 ${!isAdvisor && location.pathname !== "/chat" ? "pb-20" : "pb-6"}`}>
             {children}
           </div>
         </main>

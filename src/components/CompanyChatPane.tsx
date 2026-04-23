@@ -1328,6 +1328,21 @@ const CompanyChatPane = () => {
     deleteMessage: deleteMessageAction, canEdit: canEditCheck, canDelete: canDeleteCheck,
   } = useMessageActions(reactionMessageTable, user?.id, !!isAdvisor);
 
+  // Long-press quick-react overlay for mobile message bubbles
+  const [longPressedMessageId, setLongPressedMessageId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressHandlers = useCallback((messageId: string) => ({
+    onTouchStart: () => {
+      longPressTimerRef.current = setTimeout(() => setLongPressedMessageId(messageId), 500);
+    },
+    onTouchEnd: () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    },
+    onTouchMove: () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    },
+  }), []);
+
   // Last-seen / unread marker hook
   const lastSeenConvType = reactionsIsGroup ? "group" as const : "company" as const;
   const latestMsgId = messages.length > 0 ? messages[messages.length - 1].id : null;
@@ -2076,7 +2091,15 @@ const CompanyChatPane = () => {
                           )}
                           <div
                             className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
+                            {...(isMobile ? longPressHandlers(msg.id) : {})}
                           >
+                            {longPressedMessageId === msg.id && isMobile && (
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-card border border-border rounded-full px-2 py-1 shadow-lg">
+                                <button onClick={() => { toggleReaction(msg.id, "👍"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">👍</button>
+                                <button onClick={() => { toggleReaction(msg.id, "❤️"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">❤️</button>
+                                <button onClick={() => { navigator.clipboard.writeText(msg.content || ""); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">📋</button>
+                              </div>
+                            )}
                             {!isMobile && !isEditingThis && (
                               <div className={`absolute ${isMine ? "-left-20" : "-right-20"} top-1/2 -translate-y-1/2 flex gap-0.5 z-10`}>
                                 <button
@@ -2257,8 +2280,13 @@ const CompanyChatPane = () => {
 
                 {/* Input with topic selector — sticky at bottom of message column */}
                 <div
-                  className={`sticky bottom-0 ${isMobile ? "p-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0`}
-                  style={{ paddingBottom: isMobile ? "max(0.5rem, env(safe-area-inset-bottom))" : undefined }}
+                  className={`sticky bottom-0 ${isMobile ? "p-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
+                  style={{
+                    paddingBottom: isMobile ? "max(0.5rem, env(safe-area-inset-bottom))" : undefined,
+                    // Ensure composer stays above virtual keyboard on iOS
+                    position: isMobile ? "sticky" : undefined,
+                    bottom: isMobile ? 0 : undefined,
+                  }}
                 >
                   {!isGroupThread && isAdvisor && (
                     <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
