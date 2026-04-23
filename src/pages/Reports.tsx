@@ -360,55 +360,25 @@ const Reports = () => {
 
   const handleSaveManualRevenue = async (reportId: string, year: string) => {
     const val = parseFloat(manualRevenue.replace(/\./g, "").replace(",", "."));
-
     if (isNaN(val) || val < 0) {
       toast.error("Indtast et gyldigt beløb");
       return;
     }
-
     setSavingManualRevenue(true);
     try {
-      const monthlyRevenue = Math.round(val / 12);
-
-      // Update all annual_report facts for this year with new revenue
-      const { data: factsToUpdate } = await (supabase
-        .from("financial_report_facts")
-        .select("id, metrics")
-        .eq("company_id", companyId!)
-        .eq("source_type", "annual_report")
-        .like("period_key", `${year}-%`) as any);
-
-      for (const fact of (factsToUpdate || []) as any[]) {
-        const updatedMetrics = { ...(fact.metrics as Record<string, number>), revenue: monthlyRevenue };
-        await (supabase
-          .from("financial_report_facts")
-          .update({ metrics: updatedMetrics } as any)
-          .eq("id", fact.id) as any);
-      }
-
-      // Update extracted_data on the report record
-      const { data: reportRow } = await (supabase
-        .from("financial_reports")
-        .select("extracted_data")
-        .eq("id", reportId)
-        .single() as any);
-
-      const updatedExtracted = {
-        ...(reportRow?.extracted_data as Record<string, any> || {}),
-        nettoomsaetning: val,
-        success_log: {
-          ...((reportRow?.extracted_data as any)?.success_log || {}),
-          revenue_status: "manual",
-          manual_revenue: val,
+      const { data, error } = await supabase.functions.invoke("update-annual-report-revenue", {
+        body: {
+          report_id: reportId,
+          year,
+          company_id: companyId,
+          annual_revenue: val,
         },
-      };
+      });
 
-      await (supabase
-        .from("financial_reports")
-        .update({ extracted_data: updatedExtracted } as any)
-        .eq("id", reportId) as any);
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Opdatering fejlede");
 
-      // Update local state
+      // Update local state to reflect new revenue
       setAnnualReports(prev => prev.map(r =>
         r.id === reportId
           ? { ...r, metrics_preview: { ...(r.metrics_preview || {}), nettoomsaetning: val } }
@@ -416,12 +386,13 @@ const Reports = () => {
       ));
 
       toast.success("Omsætning opdateret ✓", {
-        description: `${new Intl.NumberFormat("da-DK").format(val)} kr. fordelt over 12 måneder`,
+        description: `${new Intl.NumberFormat("da-DK").format(val)} kr. fordelt over ${data.updated} måneder`,
       });
 
       setEditingAnnualField(null);
       setManualRevenue("");
-      // Invalidate with and without companyId to catch all cache variants
+
+      // Bust all relevant caches
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["company-facts", companyId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
@@ -429,7 +400,7 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
       queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
     } catch (err: any) {
-      toast.error("Kunne ikke gemme", { description: err.message });
+      toast.error("Kunne ikke gemme", { description: err.message || "Ukendt fejl" });
     } finally {
       setSavingManualRevenue(false);
     }
