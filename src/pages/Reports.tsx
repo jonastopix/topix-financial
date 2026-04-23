@@ -237,6 +237,7 @@ const Reports = () => {
             id: r.id,
             year: r.report_period?.replace("Årsrapport ", "") || "?",
             status: r.status,
+            success_log: r.status === "processed" ? (r.extracted_data?.success_log ?? null) : null,
             error_log: r.status === "error" ? (r.extracted_data?.error_log ?? null) : null,
           })));
         }
