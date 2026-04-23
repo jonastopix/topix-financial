@@ -212,8 +212,8 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         </div>
       </div>
 
-      {/* Announcement banner */}
-      {showAnnouncement && !isAdvisor && (
+      {/* Announcement banner — hidden on /chat mobile to free vertical space */}
+      {showAnnouncement && !isAdvisor && location.pathname !== "/chat" && (
         <div className="flex items-start justify-between gap-3 px-4 py-3 bg-primary/5 border-t border-primary/20">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-primary mb-1">{CURRENT_ANNOUNCEMENT.title}</p>

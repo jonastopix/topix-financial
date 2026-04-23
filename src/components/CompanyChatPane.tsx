@@ -1389,7 +1389,7 @@ const CompanyChatPane = () => {
         </div>
       )}
 
-      <div className={`glass-card overflow-hidden flex flex-1 min-h-0 ${isFullscreen ? "" : "rounded-xl"}`}>
+      <div className={`${isMobile ? "bg-card overflow-hidden" : "glass-card overflow-hidden"} flex flex-1 min-h-0 ${isFullscreen || isMobile ? "" : "rounded-xl"}`}>
         {/* ─── ADVISOR INBOX SIDEBAR ─── */}
         {showSidebar && (
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
@@ -1677,8 +1677,8 @@ const CompanyChatPane = () => {
                             </p>
                           ) : null;
                         })()}
-                        {/* Quick nav links */}
-                        {activeConv?.member_id && !isGroupThread && (
+                        {/* Quick nav links — desktop only, takes too much vertical space on mobile */}
+                        {activeConv?.member_id && !isGroupThread && !isMobile && (
                           <div className="flex items-center gap-1 mt-0.5">
                             {[
                               { label: "Overblik", path: `/members/${activeConv.member_id}` },
@@ -1837,7 +1837,7 @@ const CompanyChatPane = () => {
                     </div>
                   </div>
                 ) : (allAdvisors && allAdvisors.length > 0) ? (
-                  <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-3">
+                  <div className={`${isMobile ? "px-3 py-2" : "px-4 md:px-5 py-3"} border-b border-border flex items-center gap-3`}>
                     {isMobile && (
                       <button
                         onClick={handleBackToList}
@@ -1846,7 +1846,7 @@ const CompanyChatPane = () => {
                         <ArrowLeft className="h-5 w-5" />
                       </button>
                     )}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <div className="flex -space-x-1.5">
                         {allAdvisors.slice(0, 3).map((p) => (
                           <div
@@ -1864,8 +1864,10 @@ const CompanyChatPane = () => {
                           </div>
                         ))}
                       </div>
-                      <span className="text-[11px] text-muted-foreground">
-                        Dine rådgivere: {allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")}
+                      <span className="text-[11px] text-muted-foreground truncate">
+                        {isMobile
+                          ? allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")
+                          : `Dine rådgivere: ${allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")}`}
                       </span>
                     </div>
                   </div>
@@ -1881,7 +1883,7 @@ const CompanyChatPane = () => {
                 )}
 
                 {/* Messages list */}
-                <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 md:px-5 py-4 space-y-4">
+                <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
                   {messages.length === 0 && !activeConvId?.startsWith("group_") && (
                     <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
                       <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
@@ -2061,7 +2063,7 @@ const CompanyChatPane = () => {
                           ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                           className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                         >
-                          {!isMine && (
+                          {!isMine && !isMobile && (
                             <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
                               {senderAvatar ? (
                                 <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
@@ -2073,7 +2075,7 @@ const CompanyChatPane = () => {
                             </div>
                           )}
                           <div
-                            className={`${isMobile ? "max-w-[85%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
+                            className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
                           >
                             {!isMobile && !isEditingThis && (
                               <div className={`absolute ${isMine ? "-left-20" : "-right-20"} top-1/2 -translate-y-1/2 flex gap-0.5 z-10`}>
@@ -2234,7 +2236,7 @@ const CompanyChatPane = () => {
                               }
                             />
                           </div>
-                          {isMine && (
+                          {isMine && !isMobile && (
                             <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
                               {senderAvatar ? (
                                 <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
@@ -2253,8 +2255,11 @@ const CompanyChatPane = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input with topic selector */}
-                <div className="p-3 md:p-4 border-t border-border">
+                {/* Input with topic selector — sticky at bottom of message column */}
+                <div
+                  className={`sticky bottom-0 ${isMobile ? "p-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0`}
+                  style={{ paddingBottom: isMobile ? "max(0.5rem, env(safe-area-inset-bottom))" : undefined }}
+                >
                   {!isGroupThread && isAdvisor && (
                     <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                       <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
@@ -2288,17 +2293,19 @@ const CompanyChatPane = () => {
                       placeholder={isGroupThread ? "Skriv en besked til koncernen..." : selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${advisorNamesLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                     />
-                    <button
-                      type="button"
-                      onClick={() => chatSubmitRef.current()}
-                      disabled={sending}
-                      className="flex-shrink-0 h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
-                      aria-label="Send besked"
-                    >
-                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    </button>
+                    {!isMobile && (
+                      <button
+                        type="button"
+                        onClick={() => chatSubmitRef.current()}
+                        disabled={sending}
+                        className="flex-shrink-0 h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                        aria-label="Send besked"
+                      >
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </button>
+                    )}
                   </div>
-                  <div className="safe-bottom-spacer" />
+                  {!isMobile && <div className="safe-bottom-spacer" />}
                 </div>
               </>
             ) : (

@@ -4,9 +4,10 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
-  Bold, Italic, List, ListOrdered, Link as LinkIcon, Paperclip,
+  Bold, Italic, List, ListOrdered, Link as LinkIcon, Paperclip, Send, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { AttachmentPreviewStrip } from "@/components/ChatAttachments";
 
 const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,.pdf,.xlsx,.xls,.csv,.doc,.docx";
@@ -19,6 +20,10 @@ interface ChatRichInputProps {
   placeholder?: string;
   maxLength?: number;
   onRequestSubmit?: (fn: () => void) => void;
+  /** When true, render compact inner-send pill (used on mobile by default). */
+  compact?: boolean;
+  /** When true, show inner send button. Defaults to compact value. */
+  showInnerSend?: boolean;
 }
 
 function ToolbarBtn({
@@ -145,10 +150,17 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   placeholder = "Skriv en besked...",
   maxLength = 5000,
   onRequestSubmit,
+  compact,
+  showInnerSend,
 }) => {
+  const isMobile = useIsMobile();
+  const isCompact = compact ?? isMobile;
+  const renderInnerSend = showInnerSend ?? isCompact;
+
   const editorRef = useRef<Editor | null>(null);
   const submitRef = useRef<() => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
@@ -183,7 +195,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     ],
     editorProps: {
       attributes: {
-        class: "px-3 py-2 text-sm text-foreground focus:outline-none min-h-[38px] max-h-[120px] overflow-y-auto",
+        class: cn(
+          "px-3 text-sm text-foreground focus:outline-none overflow-y-auto",
+          isCompact ? "py-2.5 min-h-[40px] max-h-[120px]" : "py-2 min-h-[38px] max-h-[120px]"
+        ),
+        inputmode: "text",
+        enterkeyhint: "send",
       },
       handleKeyDown: (_view, event) => {
         const ed = editorRef.current;
@@ -236,6 +253,22 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
 
   useEffect(() => { editorRef.current = editor; }, [editor]);
   useEffect(() => { if (editor) editor.setEditable(!disabled); }, [disabled, editor]);
+
+  // Scroll input into view above mobile keyboard on focus
+  useEffect(() => {
+    if (!editor || !isMobile) return;
+    const el = editor.view.dom as HTMLElement;
+    const onFocus = () => {
+      requestAnimationFrame(() => {
+        // Slight delay so keyboard has time to appear
+        setTimeout(() => {
+          (wrapperRef.current ?? el).scrollIntoView({ block: "end", behavior: "smooth" });
+        }, 250);
+      });
+    };
+    el.addEventListener("focus", onFocus);
+    return () => el.removeEventListener("focus", onFocus);
+  }, [editor, isMobile]);
 
   const submitFromEditor = useCallback(() => {
     if (!editor) return;
@@ -295,9 +328,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   }, [addFiles]);
 
   const charCount = editor?.storage.characterCount?.characters?.() ?? editor?.getText().length ?? 0;
+  const showCounter = !isCompact ? charCount > maxLength * 0.9 : charCount > maxLength * 0.95;
+  const hasContent = (editor?.getText().trim().length ?? 0) > 0 || pendingFiles.length > 0;
 
   return (
     <div
+      ref={wrapperRef}
       className={cn(
         "flex-1 rounded-xl bg-secondary border overflow-hidden transition-shadow",
         dragOver
@@ -308,10 +344,44 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {editor && <Toolbar editor={editor} onAttach={() => fileInputRef.current?.click()} />}
-      <EditorContent editor={editor} />
+      {editor && !isCompact && <Toolbar editor={editor} onAttach={() => fileInputRef.current?.click()} />}
+      {isCompact ? (
+        <div className="flex items-end gap-1 pr-1.5">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-shrink-0 self-end mb-1 ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            aria-label="Vedhæft fil"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <EditorContent editor={editor} />
+          </div>
+          {renderInnerSend && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => submitRef.current()}
+              disabled={disabled || !hasContent}
+              className={cn(
+                "flex-shrink-0 self-end mb-1 h-8 w-8 rounded-full flex items-center justify-center transition-all",
+                hasContent && !disabled
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-muted text-muted-foreground"
+              )}
+              aria-label="Send besked"
+            >
+              {disabled ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
+      ) : (
+        <EditorContent editor={editor} />
+      )}
       <AttachmentPreviewStrip files={pendingFiles} onRemove={removePendingFile} />
-      {charCount > maxLength * 0.9 && (
+      {showCounter && (
         <div className="px-3 pb-1 text-right">
           <span className={`text-[10px] ${charCount >= maxLength ? "text-destructive" : "text-muted-foreground"}`}>
             {charCount}/{maxLength}
