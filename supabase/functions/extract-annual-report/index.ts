@@ -225,7 +225,10 @@ VIGTIGT:
 
   let inserted = 0;
   if (rows.length > 0) {
-    const { error: insertErr } = await adminClient.from("financial_report_facts").insert(rows);
+    // Upsert med unique constraint (company_id, period_key, source_type) sikrer ingen dubletter
+    const { error: insertErr } = await adminClient
+      .from("financial_report_facts")
+      .upsert(rows, { onConflict: "company_id,period_key,source_type" });
     if (insertErr) {
       await failReport("insert_facts", insertErr.message, { code: insertErr.code, details: insertErr.details, hint: insertErr.hint, attempted_rows: rows.length });
       return new Response(JSON.stringify({ ok: false, error: `Insert failed: ${insertErr.message}`, step: "insert_facts", db_code: insertErr.code }), {
