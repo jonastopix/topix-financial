@@ -316,7 +316,11 @@ const Reports = () => {
             total_months: 12,
             completed_at: new Date().toISOString(),
             metrics_keys: Array.isArray(result.extracted) ? [] : Object.keys(result.extracted ?? {}),
-          },
+            revenue_status: result.extracted?.success_log?.revenue_status,
+            revenue_alt_label: result.extracted?.success_log?.revenue_alt_label ?? null,
+            is_gross_profit_only: result.extracted?.success_log?.is_gross_profit_only ?? false,
+            derived_fields: result.extracted?.success_log?.derived_fields ?? [],
+          } as any,
         },
         ...prev.filter(r => r.year !== annualUploadYear),
       ]);
@@ -1510,6 +1514,34 @@ const Reports = () => {
                           {sl.metrics_keys && sl.metrics_keys.length > 0 && (
                             <div><span className="text-muted-foreground">Udtrukne nøgletal: </span><span className="font-mono text-foreground break-all">{sl.metrics_keys.join(", ")}</span></div>
                           )}
+                          {(() => {
+                            const slAny = sl as any;
+                            const revenueStatus: string | undefined = slAny?.revenue_status;
+                            if (!revenueStatus || revenueStatus === "extracted") return null;
+                            const messages: Record<string, { text: string; color: string }> = {
+                              derived: {
+                                text: slAny?.revenue_alt_label
+                                  ? `Omsætning udledt fra Bruttoresultat + Direkte omkostninger (rapporten brugte: "${slAny.revenue_alt_label}")`
+                                  : "Omsætning udledt fra Bruttoresultat + Direkte omkostninger",
+                                color: "text-amber-600 dark:text-amber-400",
+                              },
+                              missing_gross_profit_only: {
+                                text: "Klasse B mikro-rapport — viser kun fra Bruttoresultat, ingen omsætning at trække ud",
+                                color: "text-muted-foreground",
+                              },
+                              missing: {
+                                text: "Omsætning ikke fundet i rapporten",
+                                color: "text-muted-foreground",
+                              },
+                            };
+                            const msg = messages[revenueStatus];
+                            if (!msg) return null;
+                            return (
+                              <p className={`text-[11px] mt-1 ${msg.color}`}>
+                                ℹ️ {msg.text}
+                              </p>
+                            );
+                          })()}
                           {sl.completed_at && (
                             <div><span className="text-muted-foreground">Gennemført: </span><span className="font-mono text-foreground">{new Date(sl.completed_at).toLocaleString("da-DK")}</span></div>
                           )}
