@@ -1330,12 +1330,18 @@ const CompanyChatPane = () => {
 
   // Long-press quick-react overlay for mobile message bubbles
   const [longPressedMessageId, setLongPressedMessageId] = useState<string | null>(null);
-  const useLongPress = (callback: () => void, ms = 500) => {
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const start = () => { timerRef.current = setTimeout(callback, ms); };
-    const stop = () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    return { onTouchStart: start, onTouchEnd: stop, onTouchMove: stop };
-  };
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressHandlers = useCallback((messageId: string) => ({
+    onTouchStart: () => {
+      longPressTimerRef.current = setTimeout(() => setLongPressedMessageId(messageId), 500);
+    },
+    onTouchEnd: () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    },
+    onTouchMove: () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    },
+  }), []);
 
   // Last-seen / unread marker hook
   const lastSeenConvType = reactionsIsGroup ? "group" as const : "company" as const;
