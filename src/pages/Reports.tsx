@@ -139,9 +139,12 @@ const Reports = () => {
   const [yearFilter, setYearFilter] = useState<string | null>(null);
   const [annualUploadYear, setAnnualUploadYear] = useState<"2024" | "2025">("2024");
   const [annualUploading, setAnnualUploading] = useState(false);
-  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number; success_log?: { year?: string; inserted_count?: number; protected_count?: number; total_months?: number; completed_at?: string; metrics_keys?: string[] } | null; error_log?: { step?: string; message?: string; at?: string; [k: string]: any } | null }[]>([]);
+  const [annualReports, setAnnualReports] = useState<{ id: string; year: string; status: string; inserted?: number; metrics_preview?: any; success_log?: { year?: string; inserted_count?: number; protected_count?: number; total_months?: number; completed_at?: string; metrics_keys?: string[] } | null; error_log?: { step?: string; message?: string; at?: string; [k: string]: any } | null }[]>([]);
   const [expandedAnnualError, setExpandedAnnualError] = useState<string | null>(null);
   const [expandedAnnualSuccess, setExpandedAnnualSuccess] = useState<string | null>(null);
+  const [editingAnnualField, setEditingAnnualField] = useState<{ reportId: string; year: string } | null>(null);
+  const [manualRevenue, setManualRevenue] = useState("");
+  const [savingManualRevenue, setSavingManualRevenue] = useState(false);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -237,6 +240,7 @@ const Reports = () => {
             id: r.id,
             year: r.report_period?.replace("Årsrapport ", "") || "?",
             status: r.status,
+            metrics_preview: r.extracted_data || {},
             success_log: r.status === "processed" ? (r.extracted_data?.success_log ?? null) : null,
             error_log: r.status === "error" ? (r.extracted_data?.error_log ?? null) : null,
           })));
@@ -309,6 +313,7 @@ const Reports = () => {
           year: annualUploadYear,
           status: "processed",
           inserted,
+          metrics_preview: result.extracted || {},
           success_log: {
             year: annualUploadYear,
             inserted_count: inserted,
@@ -350,6 +355,78 @@ const Reports = () => {
       toast.success(`Årsrapport ${year} slettet`);
     } catch (err: any) {
       toast.error("Kunne ikke slette", { description: err.message });
+    }
+  };
+
+  const handleSaveManualRevenue = async (reportId: string, year: string) => {
+    const val = parseFloat(manualRevenue.replace(/\./g, "").replace(",", "."));
+
+    if (isNaN(val) || val < 0) {
+      toast.error("Indtast et gyldigt beløb");
+      return;
+    }
+
+    setSavingManualRevenue(true);
+    try {
+      const monthlyRevenue = Math.round(val / 12);
+
+      // Update all annual_report facts for this year with new revenue
+      const { data: factsToUpdate } = await (supabase
+        .from("financial_report_facts")
+        .select("id, metrics")
+        .eq("company_id", companyId!)
+        .eq("source_type", "annual_report")
+        .like("period_key", `${year}-%`) as any);
+
+      for (const fact of (factsToUpdate || []) as any[]) {
+        const updatedMetrics = { ...(fact.metrics as Record<string, number>), revenue: monthlyRevenue };
+        await (supabase
+          .from("financial_report_facts")
+          .update({ metrics: updatedMetrics } as any)
+          .eq("id", fact.id) as any);
+      }
+
+      // Update extracted_data on the report record
+      const { data: reportRow } = await (supabase
+        .from("financial_reports")
+        .select("extracted_data")
+        .eq("id", reportId)
+        .single() as any);
+
+      const updatedExtracted = {
+        ...(reportRow?.extracted_data as Record<string, any> || {}),
+        nettoomsaetning: val,
+        success_log: {
+          ...((reportRow?.extracted_data as any)?.success_log || {}),
+          revenue_status: "manual",
+          manual_revenue: val,
+        },
+      };
+
+      await (supabase
+        .from("financial_reports")
+        .update({ extracted_data: updatedExtracted } as any)
+        .eq("id", reportId) as any);
+
+      // Update local state
+      setAnnualReports(prev => prev.map(r =>
+        r.id === reportId
+          ? { ...r, metrics_preview: { ...(r.metrics_preview || {}), nettoomsaetning: val } }
+          : r
+      ));
+
+      toast.success("Omsætning opdateret ✓", {
+        description: `${new Intl.NumberFormat("da-DK").format(val)} kr. fordelt over 12 måneder`,
+      });
+
+      setEditingAnnualField(null);
+      setManualRevenue("");
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+    } catch (err: any) {
+      toast.error("Kunne ikke gemme", { description: err.message });
+    } finally {
+      setSavingManualRevenue(false);
     }
   };
 
@@ -1515,31 +1592,69 @@ const Reports = () => {
                             <div><span className="text-muted-foreground">Udtrukne nøgletal: </span><span className="font-mono text-foreground break-all">{sl.metrics_keys.join(", ")}</span></div>
                           )}
                           {(() => {
-                            const slAny = sl as any;
-                            const revenueStatus: string | undefined = slAny?.revenue_status;
-                            if (!revenueStatus || revenueStatus === "extracted") return null;
-                            const messages: Record<string, { text: string; color: string }> = {
-                              derived: {
-                                text: slAny?.revenue_alt_label
-                                  ? `Omsætning udledt fra Bruttoresultat + Direkte omkostninger (rapporten brugte: "${slAny.revenue_alt_label}")`
-                                  : "Omsætning udledt fra Bruttoresultat + Direkte omkostninger",
-                                color: "text-amber-600 dark:text-amber-400",
-                              },
-                              missing_gross_profit_only: {
-                                text: "Klasse B mikro-rapport — viser kun fra Bruttoresultat, ingen omsætning at trække ud",
-                                color: "text-muted-foreground",
-                              },
-                              missing: {
-                                text: "Omsætning ikke fundet i rapporten",
-                                color: "text-muted-foreground",
-                              },
-                            };
-                            const msg = messages[revenueStatus];
-                            if (!msg) return null;
+                            const hasRevenue = r.metrics_preview?.nettoomsaetning != null &&
+                              r.metrics_preview.nettoomsaetning !== 0;
+                            const isEditing = editingAnnualField?.reportId === r.id;
+                            if (isEditing) {
+                              return (
+                                <div className="mt-2 pt-2 border-t border-border/30">
+                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                                    Indtast årets omsætning manuelt
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={manualRevenue}
+                                      onChange={e => setManualRevenue(e.target.value)}
+                                      placeholder="eks. 1.250.000"
+                                      className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                      autoFocus
+                                      onKeyDown={e => {
+                                        if (e.key === "Enter") handleSaveManualRevenue(r.id, r.year);
+                                        if (e.key === "Escape") { setEditingAnnualField(null); setManualRevenue(""); }
+                                      }}
+                                    />
+                                    <button
+                                      onClick={() => handleSaveManualRevenue(r.id, r.year)}
+                                      disabled={savingManualRevenue}
+                                      className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                                    >
+                                      {savingManualRevenue ? "Gemmer..." : "Gem"}
+                                    </button>
+                                    <button
+                                      onClick={() => { setEditingAnnualField(null); setManualRevenue(""); }}
+                                      className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                                    >
+                                      Annullér
+                                    </button>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground mt-1">
+                                    Beløbet fordeles automatisk med 1/12 pr. måned over {r.year}
+                                  </p>
+                                </div>
+                              );
+                            }
                             return (
-                              <p className={`text-[11px] mt-1 ${msg.color}`}>
-                                ℹ️ {msg.text}
-                              </p>
+                              <div className="mt-2 pt-2 border-t border-border/30 flex items-center justify-between">
+                                <div>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Omsætning: {hasRevenue
+                                      ? `${new Intl.NumberFormat("da-DK").format(r.metrics_preview!.nettoomsaetning!)} kr.`
+                                      : <span className="text-amber-600 dark:text-amber-400">Ikke fundet i rapporten</span>
+                                    }
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setEditingAnnualField({ reportId: r.id, year: r.year });
+                                    setManualRevenue(hasRevenue ? String(r.metrics_preview!.nettoomsaetning) : "");
+                                  }}
+                                  className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                  {hasRevenue ? "Ret" : "Tilføj omsætning"}
+                                </button>
+                              </div>
                             );
                           })()}
                           {sl.completed_at && (
