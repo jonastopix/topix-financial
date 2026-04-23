@@ -351,12 +351,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     >
       {editor && !isCompact && <Toolbar editor={editor} onAttach={() => fileInputRef.current?.click()} />}
       {isCompact ? (
-        <div className="flex items-end gap-1 pr-1.5">
+        <div className="flex items-center gap-1 pr-1.5 pl-1">
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
-            className="flex-shrink-0 self-end mb-1 ml-1 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            className="flex-shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
             aria-label="Vedhæft fil"
           >
             <Paperclip className="h-4 w-4" />
@@ -371,14 +371,14 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
               onClick={() => submitRef.current()}
               disabled={disabled || !hasContent}
               className={cn(
-                "flex-shrink-0 self-end mb-1 h-8 w-8 rounded-full flex items-center justify-center transition-all",
+                "flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-all",
                 hasContent && !disabled
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
                   : "bg-muted text-muted-foreground"
               )}
               aria-label="Send besked"
             >
-              {disabled ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {disabled ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
           )}
         </div>

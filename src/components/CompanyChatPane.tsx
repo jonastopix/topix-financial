@@ -2280,17 +2280,21 @@ const CompanyChatPane = () => {
 
                 {/* Input with topic selector — sticky at bottom of message column */}
                 <div
-                  className={`sticky bottom-0 ${isMobile ? "p-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
+                  className={`sticky bottom-0 ${isMobile ? "px-2 pt-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
                   style={{
-                    paddingBottom: isMobile ? "max(0.5rem, env(safe-area-inset-bottom))" : undefined,
-                    // Ensure composer stays above virtual keyboard on iOS
+                    paddingBottom: isMobile ? "calc(0.5rem + env(safe-area-inset-bottom))" : undefined,
                     position: isMobile ? "sticky" : undefined,
                     bottom: isMobile ? 0 : undefined,
                   }}
                 >
                   {!isGroupThread && isAdvisor && (
-                    <div className="flex items-center gap-1.5 mb-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                      <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
+                    <div
+                      className={`flex items-center gap-1.5 mb-2 overflow-x-auto ${isMobile ? "-mx-2 px-2" : ""}`}
+                      style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
+                    >
+                      {!isMobile && (
+                        <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
+                      )}
                       {MESSAGE_TOPICS.map(t => {
                         const isActive = selectedTopic === t.key;
                         const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
@@ -2299,7 +2303,7 @@ const CompanyChatPane = () => {
                             key={t.key ?? "general"}
                             type="button"
                             onClick={() => setSelectedTopic(t.key)}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors whitespace-nowrap ${
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                               isActive
                                 ? topicInfo
                                   ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
