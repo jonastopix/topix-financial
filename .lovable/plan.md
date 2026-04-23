@@ -1,79 +1,66 @@
 
-Mest sandsynligt er det ikke “klassisk cache” fra en service worker, fordi projektet ikke registrerer nogen service worker i koden. Den nye onboarding-guard er allerede på plads begge steder:
 
-- `src/App.tsx` beskytter `/onboarding` med `OnboardingRoute`
-- `src/pages/Onboarding.tsx` har også et redirect-sikkerhedsnet
+## Problem
 
-Det betyder, at hvis du stadig bliver hængende på `/onboarding` på mobil, er de mest sandsynlige forklaringer:
+Upload af årsrapport fejler med fejlen:
+```
+new row for relation "financial_report_facts" violates check constraint "financial_report_facts_source_type_check"
+```
 
-1. Mobilen kører en ældre bundle/webview-version
-- Især på iPhone/hjemskærms-app kan en gammel JS-bundle leve videre lidt længere end forventet.
-- Der er PWA-manifest og standalone-mode, så installeret app/webview kan opføre sig mere “sticky” end desktop-browseren.
+`financial_report_facts.source_type` har en CHECK constraint der kun tillader `canonical`, `manual`, `canonical_v2`. Vores edge function forsøger at indsætte rækker med `source_type = 'annual_report'` — som blive afvist. Det er derfor de 12 månedsfacts aldrig dukkede op, og UI ikke viser noget.
 
-2. Mobilen genåbner sidste route
-- iOS standalone eller mobilbrowser kan genoptage sidste side (`/onboarding`) ved app-åbning.
-- Med den nye kode bør den straks sende videre til `/`, men kun hvis den faktisk kører den nyeste bundle.
+## Løsning
 
-3. Der findes stadig et edge-case i auth/opstart
-- `useAuth` sætter `loading=false` efter `fetchUserData`.
-- Hvis mobil-sessionen genoptages under særlige timing-forhold, kan en gammel route blive vist længere end ønsket, eller redirect-logikken kan blive for sen.
+### Trin 1: Migration der udvider constraint
+Opdatér `financial_report_facts_source_type_check` til at acceptere de tre ekstra typer vi bruger til årsrapporter og baselines:
+```sql
+ALTER TABLE public.financial_report_facts 
+  DROP CONSTRAINT financial_report_facts_source_type_check;
 
-Plan for at afklare og lukke hullet helt:
+ALTER TABLE public.financial_report_facts 
+  ADD CONSTRAINT financial_report_facts_source_type_check 
+  CHECK (source_type = ANY (ARRAY[
+    'canonical'::text,
+    'canonical_v2'::text,
+    'manual'::text,
+    'annual_report'::text,
+    'manual_baseline'::text,
+    'baseline'::text
+  ]));
+```
 
-1. Verificér om problemet er “gammel klient” eller reel kodefejl
-- Sammenlign adfærden på:
-  - mobil i browser
-  - mobil fra hjemskærm
-  - desktop
-- Hvis kun hjemskærms-versionen rammes, peger det stærkt på gammel klient/webview-state.
+### Trin 2: Ryd op i de 2 fejlede rapporter
+De to rapporter (`35d654af...` for 2025 og `47793782...` for 2024) står med `status='error'` og er aldrig blevet processed korrekt. Vi soft-deleter dem så brugeren har en ren start:
+```sql
+UPDATE financial_reports 
+  SET deleted_at = now() 
+  WHERE id IN ('35d654af-b1c3-470c-a08a-dbf09fe3a846', '47793782-920c-404b-8273-fa41f001662b');
+```
 
-2. Instrumentér onboarding-redirects midlertidigt
-- Tilføj let debug-logging eller telemetry i:
-  - `OnboardingRoute`
-  - `Onboarding.tsx`
-  - `useAuth.tsx`
-- Log:
-  - nuværende path
-  - `loading`
-  - `user`
-  - `needsOnboarding`
-  - `isAdvisor`
-  - om redirect blev trigget
-- Så kan vi se, om mobilen faktisk kører den nye guard, eller om den aldrig rammer den.
+### Trin 3: Bekræft at edge function virker
+Når constraint er udvidet, kan brugeren genuploade. Edge function-koden er allerede korrekt — den fejlede kun på databaselaget.
 
-3. Hærd redirecten mod “last route restore”
-- Tilføj en ekstra klient-sikring tidligt i app-opstart:
-  - hvis path er `/onboarding`
-  - og brugeren er logget ind
-  - og profil viser `onboarded_at`
-  - så redirect straks til `/`
-- Målet er at gøre redirect mere aggressiv helt tidligt i lifecycle, så mobil restore ikke føles som en landing på onboarding.
+## Hvad brugeren skal gøre efter migrationen
 
-4. Tilføj versions-/build-markør for at afsløre stale klienter
-- Indbyg en lille build-version i frontend.
-- Ved app-start kan klienten sammenligne loaded version med seneste deploy-version.
-- Hvis version er gammel, vis “Appen er opdateret – genindlæs” eller tvungen reload.
-- Det er den mest robuste måde at eliminere tvivl om cache/stale bundle på mobil.
+1. Gå til Rapportering → "Historiske årsrapporter"
+2. Vælg år (2024 eller 2025)
+3. Upload PDF'en igen — nu indsættes de 12 månedlige facts korrekt
+4. Tallene vil dukke op på Dashboard, KPI-grafer og i AI-chat-konteksten
 
-5. Hærd installeret mobil-app specifikt
-- Hvis appen kører i standalone, tilføj et ekstra reload-check ved resume/visibility:
-  - lyt på `visibilitychange` / `pageshow`
-  - hvis appen genåbnes på `/onboarding` og brugeren ikke behøver onboarding, redirect direkte
-- Det matcher eksisterende mobil/PWA-mønstre i projektet.
+## Tekniske detaljer
 
-6. Bekræft domæne-konsistens
-- Sikr at både `app.theboardroom.dk` og `www.app.theboardroom.dk` peger på samme aktuelle buildoplevelse.
-- Der er allerede redirect fra `topix.lovable.app`, men ikke tilsvarende klient-redirect mellem `www.app...` og `app...`.
-- Hvis mobilen åbner en anden host end forventet, kan det forklare oplevet “gammel” adfærd.
+**Filer der ændres:**
+- Ny migration: `supabase/migrations/<timestamp>_extend_facts_source_type.sql`
 
-Filer der mest sandsynligt skal opdateres
-- `src/hooks/useAuth.tsx` — ekstra early-state/redirect robustness eller debug
-- `src/App.tsx` — tidlig guard/hærdning omkring `/onboarding`
-- `src/pages/Onboarding.tsx` — stærkere mount-redirect eller telemetry
-- `src/main.tsx` — evt. build-version check og/eller host-normalisering
-- evt. `index.html` — version-markør hvis vi vælger cache-diagnostik
+**Hvorfor edge function-koden ikke skal ændres:**
+Logikken i `extract-annual-report/index.ts` er korrekt — den kalder AI, beregner månedstal (1/12), beskytter committede måneder og indsætter med `source_type='annual_report'`. Den eneste blokering var DB-constraint.
 
-Forventet resultat
-- Vi kan afgøre, om det er gammel mobilklient eller reel bug
-- Installeret mobil-app og mobilbrowser holder op med at “lande” på `/onboarding`
-- Allerede onboardede brugere bliver sendt videre konsekvent, også efter resume/genåbning på mobil
+**Effektkæde efter fix:**
+```text
+Upload PDF
+   → AI ekstraktion (Gemini)
+   → Insert 12 facts med source_type='annual_report'  ← virker nu
+   → useCompanyFacts henter dem
+   → Synlige i Dashboard, KPI'er, AI-chat
+```
+
