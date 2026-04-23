@@ -241,11 +241,19 @@ VIGTIGT:
   const protected_count = 12 - rows.length;
 
   // ── STEP 7: Update report record (clear any prior error_log) ──
+  const success_log = {
+    year,
+    inserted_count: inserted,
+    protected_count,
+    total_months: 12,
+    completed_at: new Date().toISOString(),
+    metrics_keys: Object.keys(metrics),
+  };
   await adminClient
     .from("financial_reports")
     .update({
       status: "processed",
-      extracted_data: extracted,
+      extracted_data: { ...extracted, success_log } as any,
       normalized_data: metrics as any,
       report_period: `Årsrapport ${year}`,
     } as any)
