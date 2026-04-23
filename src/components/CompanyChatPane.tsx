@@ -1625,7 +1625,7 @@ const CompanyChatPane = () => {
               })()}
             </div>
             {/* Internal note — fixed at sidebar bottom */}
-            {isAdvisor && activeConvId && !activeConvId.startsWith("group_") && !(isMobile && !showMessages) && (
+            {isAdvisor && activeConvId && !activeConvId.startsWith("group_") && !isMobile && (
               <div className="border-t border-border bg-amber-500/5 flex-shrink-0">
                 <div className="px-3 py-2 flex items-center gap-2">
                   <StickyNote className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
