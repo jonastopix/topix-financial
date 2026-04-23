@@ -36,6 +36,9 @@ const RevenueChart = () => {
   }, [facts, mode]);
 
   const hasData = chartData.length > 0;
+  const hasEstimateData = facts.some(
+    (f) => f.source_type === "annual_report" || f.source_type === "manual_baseline"
+  );
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in">
@@ -137,6 +140,11 @@ const RevenueChart = () => {
           </div>
         )}
       </div>
+      {hasEstimateData && hasData && (
+        <p className="text-[10px] text-muted-foreground mt-2 text-center">
+          * Stiplet linje = estimat fra årsrapport (årstal ÷ 12)
+        </p>
+      )}
     </div>
   );
 };

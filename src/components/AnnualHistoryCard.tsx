@@ -12,17 +12,19 @@ export default function AnnualHistoryCard() {
     const annualFacts = facts.filter((f) => f.source_type === "annual_report");
     if (annualFacts.length === 0) return null;
 
-    const byYear = new Map<string, { revenue: number; result: number; months: number }>();
+    const byYear = new Map<string, { revenue: number; gross_profit: number; result: number; months: number }>();
 
     for (const fact of annualFacts) {
       const year = fact.period_key.split("-")[0];
       const kf = factsToDanishMetrics(fact.metrics);
       const rev = kf.omsaetning ?? 0;
+      const grossProfit = kf.daekningsbidrag ?? null;
       const res = kf.resultat_foer_skat ?? 0;
 
-      const existing = byYear.get(year) || { revenue: 0, result: 0, months: 0 };
+      const existing = byYear.get(year) || { revenue: 0, gross_profit: 0, result: 0, months: 0 };
       byYear.set(year, {
         revenue: existing.revenue + rev,
+        gross_profit: (existing.gross_profit ?? 0) + (grossProfit ?? 0),
         result: existing.result + res,
         months: existing.months + 1,
       });
@@ -32,6 +34,7 @@ export default function AnnualHistoryCard() {
       .map(([year, data]) => ({
         year,
         revenue: data.revenue,
+        gross_profit: data.gross_profit,
         result: data.result,
       }))
       .sort((a, b) => a.year.localeCompare(b.year));
@@ -84,9 +87,11 @@ export default function AnnualHistoryCard() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[10px] text-muted-foreground">Omsætning</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {yr.revenue === 0 && yr.gross_profit !== 0 ? "Bruttoresultat" : "Omsætning"}
+                  </p>
                   <p className="text-xs font-medium text-foreground">
-                    {formatCompact(yr.revenue)} kr.
+                    {formatCompact(yr.revenue === 0 && yr.gross_profit !== 0 ? yr.gross_profit : yr.revenue)} kr.
                   </p>
                 </div>
                 <div>
