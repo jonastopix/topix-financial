@@ -254,26 +254,21 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   useEffect(() => { editorRef.current = editor; }, [editor]);
   useEffect(() => { if (editor) editor.setEditable(!disabled); }, [disabled, editor]);
 
-  // Robust keyboard-aware composer using visualViewport API (iOS Safari compatible)
+  // On mobile, when the editor is focused, ensure the composer is visible.
+  // With interactive-widget=resizes-content the viewport shrinks automatically,
+  // but we still need a small nudge for iOS Safari timing.
   useEffect(() => {
-    if (!isMobile || !wrapperRef.current) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let lastHeight = vv.height;
-    const onViewportResize = () => {
-      const newHeight = vv.height;
-      const keyboardVisible = newHeight < lastHeight - 50;
-      lastHeight = newHeight;
-      if (keyboardVisible && wrapperRef.current) {
-        // Push composer above keyboard
-        requestAnimationFrame(() => {
-          wrapperRef.current?.scrollIntoView({ block: "end", behavior: "instant" as ScrollBehavior });
-        });
-      }
+    if (!isMobile || !wrapperRef.current || !editor) return;
+    const el = wrapperRef.current;
+    const onFocus = () => {
+      // Delay to let iOS finish keyboard animation
+      setTimeout(() => {
+        el.scrollIntoView({ block: "end", behavior: "smooth" });
+      }, 300);
     };
-    vv.addEventListener("resize", onViewportResize);
-    return () => vv.removeEventListener("resize", onViewportResize);
-  }, [isMobile]);
+    el.addEventListener("focusin", onFocus);
+    return () => el.removeEventListener("focusin", onFocus);
+  }, [isMobile, editor]);
 
   const submitFromEditor = useCallback(() => {
     if (!editor) return;

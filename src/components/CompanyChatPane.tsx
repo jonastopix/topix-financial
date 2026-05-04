@@ -2280,11 +2280,9 @@ const CompanyChatPane = () => {
 
                 {/* Input with topic selector — sticky at bottom of message column */}
                 <div
-                  className={`sticky bottom-0 ${isMobile ? "px-2 pt-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
+                  className={`${isMobile ? "px-2 pt-2 pb-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
                   style={{
                     paddingBottom: isMobile ? "calc(0.5rem + env(safe-area-inset-bottom))" : undefined,
-                    position: isMobile ? "sticky" : undefined,
-                    bottom: isMobile ? 0 : undefined,
                   }}
                 >
                   {!isGroupThread && isAdvisor && (

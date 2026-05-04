@@ -52,7 +52,7 @@ const GroupChatInline = () => {
 
           {/* Input — sticky at bottom of scroll column, safe-area aware */}
           <div
-            className="sticky bottom-0 px-3 pt-2 sm:px-4 sm:pt-3 border-t border-border bg-background shrink-0 z-10"
+            className="px-3 pt-2 pb-2 sm:px-4 sm:pt-3 border-t border-border bg-background shrink-0 z-10"
             style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
           >
             <ChatRichInput
