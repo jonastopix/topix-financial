@@ -130,7 +130,8 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     { label: "Pulse", path: "/pulse", icon: Zap, badge: showPulseBadge ? -1 : 0 },
   ];
 
-  const mobileBottomNav = isMobile && !isAdvisor ? (
+  const isOnChat = location.pathname === "/chat";
+  const mobileBottomNav = isMobile && !isAdvisor && !isOnChat ? (
     <>
       {showMoreMenu && (
         <div
