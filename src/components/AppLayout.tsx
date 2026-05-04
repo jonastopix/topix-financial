@@ -336,7 +336,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         {mobileShell}
         {desktopBanners}
-        <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor && location.pathname !== "/chat" ? "pb-20" : ""}`}>
+        <div className={`flex-1 min-h-0 flex flex-col overflow-x-hidden ${isMobile && !isAdvisor && !isOnChat ? "pb-20" : ""}`}>
           {children}
         </div>
         <AddToHomescreenPrompt />
@@ -353,7 +353,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
         <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isStandalone={isStandalone} />
         <main className="flex-1 min-h-0 flex flex-col overflow-x-hidden">
           {mobileShell}
-          <div className={`flex-1 min-h-0 min-w-0 flex flex-col px-4 ${!isAdvisor && location.pathname !== "/chat" ? "pb-20" : "pb-6"}`}>
+          <div className={`flex-1 min-h-0 min-w-0 flex flex-col px-4 ${!isAdvisor && !isOnChat ? "pb-20" : "pb-6"}`}>
             {children}
           </div>
         </main>
