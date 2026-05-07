@@ -41,7 +41,19 @@ Workflow ved nye eller ændrede functions:
 
 UI-quirk ved verifikation: feltet "Last updated" på function-listen er IKKE pålideligt — det kan vise forældet timestamp efter en fersk deploy. "Deployments"-tælleren eller den faktiske source-kode i "View code" er sandheden. Hvis "Deployments"-tælleren heller ikke synes at opdatere pålideligt, er "View code" det definitive bevis. Brug aldrig "Last updated" til at konkludere om en deploy er gået igennem.
 
-**Asymmetri-note**: Edge functions auto-deployer; migrationer gør IKKE. Migrationer skal stadig manuelt køres i Lovable → SQL editor (se afsnit ovenfor). Glem ikke det manuelle migration-trin selvom function-deploys er automatiske.
+**Asymmetri-note**: De tre deploy-lag har forskellige kanaler — glem ingen af dem:
+
+- **Edge functions** (`supabase/functions/`): auto fra git-merge til main.
+- **Migrationer** (`supabase/migrations/`): manuel via Lovable → SQL editor (se afsnit ovenfor).
+- **Frontend** (`src/`): manuel via Lovable "Update"-knap (se afsnit nedenfor).
+
+## Deployment af frontend
+
+Frontend-koden under `src/` (Vite-build til `app.theboardroom.dk`) deployes IKKE automatisk fra git-merge. Lovable's UI viser en "Update"-knap når der er en ny version klar — klik den for at re-builde og publish'e den nye frontend-build.
+
+"Update"-knappen er den eneste kanal for frontend-ændringer. Et merge til main lægger koden i repoet, men prod-builden på `app.theboardroom.dk` opdateres først efter klikket.
+
+**Note**: Indtil vi har bekræftet ved empirisk test om "Update" også re-deployer edge functions eller kører migrationer, betragter vi knappen som frontend-only. Edge functions auto-deployer fra git-merge uafhængigt; migrationer kræver fortsat SQL editor-trinnet. Se BACKLOG.md for det udestående test-punkt.
 
 ## Stack
 
