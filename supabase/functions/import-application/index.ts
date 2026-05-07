@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
 
   // 5. Send invitation email
   const signupUrl = `https://app.theboardroom.dk/auth?mode=signup&invite=${invitation.token}`;
-  const { error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
+  const { data: _emailData, error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
     body: {
       email,
       company_name: companyName,
@@ -337,7 +337,15 @@ Deno.serve(async (req) => {
   });
 
   if (emailErr) {
-    console.warn("Failed to send invitation email (non-blocking):", emailErr);
+    let bodyText: string | null = null;
+    let status: number | undefined;
+    try {
+      status = emailErr.context?.status;
+      bodyText = (await emailErr.context?.text()) ?? null;
+    } catch (readErr) {
+      console.warn("[import-application] Failed to read send-invitation-email error body:", readErr);
+    }
+    console.warn("[import-application] Failed to send invitation email (non-blocking):", { status, body: bodyText, error: emailErr });
   }
 
   console.log(`[import-application] Invitation created: company=${companyId}, email=${email}, token=${invitation.token}, email_sent=${!emailErr}`);
