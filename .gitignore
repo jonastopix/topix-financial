@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code local settings
 .claude/
+
+# Supabase CLI local artifacts
+supabase/.temp/
