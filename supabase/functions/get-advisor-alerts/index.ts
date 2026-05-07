@@ -1,4 +1,3 @@
-// canary: deploy-channel test 2026-05-07
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
