@@ -20,6 +20,8 @@ udskudt strukturel gæld).
 
 **Verifikation (manuel)**: Authenticated test-bruger uden advisor-rolle kalder `supabase.rpc("get_users_last_login", { user_ids: [<vilkårligt UUID>] })` → 0 rækker. Advisor kalder med samme UUID → 1 række. Members-siden i UI'et viser fortsat last-login-data for advisor som før.
 
+**Verificeret 2026-05-07**: Funktionen blev deployet manuelt via Lovable SQL editor (CLI-push var ikke muligt pga. Lovable Cloud-ejerskab). Post-deploy `SELECT pg_get_functiondef(...)` bekræfter `STABLE` + advisor-gate i prod-funktionen.
+
 ---
 
 ### [P1] `esm.sh`-imports uden version-pinning
