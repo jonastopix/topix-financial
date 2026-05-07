@@ -10,15 +10,15 @@ udskudt strukturel gæld).
 
 ---
 
-### [P0] `get_users_last_login` lækker auth-metadata til alle authenticated
+### [P0] ✅ Løst i PR #4 — `get_users_last_login` lækkede auth-metadata til alle authenticated
 
-**Risiko**: SECURITY DEFINER-funktionen `get_users_last_login(uuid[])` er `GRANT EXECUTE TO authenticated` uden adgangstjek på input-listen (migration `20260421071533`). Enhver authenticated bruger kan kalde den med vilkårlige UUIDs og får `last_sign_in_at` + `email_confirmed_at` retur for de UUIDs der findes. UUIDs lækker fra UI'et — rådgivere ser member-IDs, gruppe-medlemmer ser hinandens. Sandsynlighed for utilsigtet aggregering høj; sandsynlighed for ondsindet probing lav i et lukket B2B-produkt, men ikke nul. Eneste aktive informationslæk i recon'en.
+**Status**: Løst. Bodyen gater nu på `has_role(auth.uid(), 'advisor'::app_role)` — non-advisor callers får 0 rækker. EXECUTE-grant til `authenticated` bevaret; sikkerheden ligger i bodyen. Hardened i `supabase/migrations/20260507120000_harden_get_users_last_login.sql`. Funktionen er tilføjet til `SECURITY_BASELINE.md` afsnit 1 og 8.
 
-**Indsats**: S–M. Ny migration der wrapper SQL'en med en WHERE-klausul: `WHERE id = ANY(user_ids) AND (has_role(auth.uid(), 'advisor') OR id IN (SELECT user_id FROM company_members WHERE company_id = user_company_id(auth.uid())))`. SECURITY DEFINER bevares.
+**Note om timestamp**: BACKLOG'ens oprindelige reference til migration `20260421071533` var en typo i recon-rapporten. Den faktiske migration der oprettede funktionen er `20260421212827_015bcc8b-edd0-4031-bf7c-cb5a6732b8f6.sql`.
 
-**Afhængigheder**: Rører kun `public`-skemaet (læser fra `auth.users` men ændrer ingen trigger eller policy der). Ikke i FORBIDDEN-zonen — det er en ny migration der strammer en eksisterende RPC. Skal noteres i `SECURITY_BASELINE.md` afsnit 1 fordi funktionen ikke er listet der i dag.
+**Oprindelig risiko**: SECURITY DEFINER-funktionen `get_users_last_login(uuid[])` var `GRANT EXECUTE TO authenticated` uden adgangstjek på input-listen. Enhver authenticated bruger kunne kalde den med vilkårlige UUIDs og få `last_sign_in_at` + `email_confirmed_at` retur for de UUIDs der findes. UUIDs lækker fra UI'et — rådgivere ser member-IDs, gruppe-medlemmer ser hinandens.
 
-**Verifikation**: pgTAP- eller Deno-test: member-A kalder funktionen med member-B's UUID (anden company) → 0 rækker. Advisor kalder med samme UUID → 1 række. Manuel verifikation via Supabase SQL editor med rolle-skifte.
+**Verifikation (manuel)**: Authenticated test-bruger uden advisor-rolle kalder `supabase.rpc("get_users_last_login", { user_ids: [<vilkårligt UUID>] })` → 0 rækker. Advisor kalder med samme UUID → 1 række. Members-siden i UI'et viser fortsat last-login-data for advisor som før.
 
 ---
 
