@@ -22,6 +22,14 @@ to the entire access-control model.
 - Used in every company-scoped RLS policy
 - SECURITY DEFINER with `search_path = public`
 
+### `get_users_last_login(user_ids uuid[]) → TABLE (user_id uuid, last_sign_in_at timestamptz, email_confirmed_at timestamptz)`
+- Returns `last_sign_in_at` and `email_confirmed_at` from `auth.users` for the provided UUIDs
+- **Advisor-only**: body enforces `has_role(auth.uid(), 'advisor'::app_role)` — returns 0 rows when caller is not an advisor
+- Grant: `EXECUTE TO authenticated` (security lives in the body, not the grant)
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Only known caller: `src/pages/Members.tsx` (advisor-route)
+- Hardened in migration `20260507120000_harden_get_users_last_login.sql` (BACKLOG.md punkt #1)
+
 ---
 
 ## 2. Auth Trigger
@@ -177,6 +185,7 @@ When squashing migrations into a clean baseline:
 - [ ] `protect_message_immutable_fields()` trigger
 - [ ] `protect_handout_immutable_fields()` trigger
 - [ ] `trg_normalize_invitation_email` trigger
+- [ ] `get_users_last_login()` body's advisor-gate (`has_role(auth.uid(), 'advisor'::app_role)`) — gate must remain in the body, not in the grant
 - [ ] All RESTRICTIVE RLS policies (exact policy names and expressions)
 - [ ] `app_role` enum values: `member`, `advisor`, `admin`
 - [ ] UNIQUE constraint on `handouts(user_id, module)`
