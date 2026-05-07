@@ -5,7 +5,7 @@
  * Sends each founder a summary: KPI movement, upcoming milestones, unread advisor messages.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SENDER_DOMAIN = "boardroom.topix.dk";

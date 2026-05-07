@@ -24,15 +24,25 @@ udskudt strukturel gæld).
 
 ---
 
-### [P1] `esm.sh`-imports uden version-pinning
+### [P1] ✅ Løst i PR #11 — `esm.sh`-imports uden version-pinning
 
-**Risiko**: Alle 55 edge functions importerer fra `https://esm.sh/@supabase/supabase-js@2` (og lignende `@2`-pinning andre steder). Hvis esm.sh kompromitteres, eller hvis en patch-version udgives med malware, kører den i alle edge functions ved næste cold start. Blast radius: total — service-role-adgang til hele databasen. Sandsynlighed lav, men ikke spekulativ (esm.sh-incidenter er sket før).
+**Status**: Løst. Alle 54 imports af `@supabase/supabase-js` på tværs af edge functions er nu pinnet til eksakt `@2.97.0` (matcher `package.json`). Dækker både esm.sh-imports (52 linjer, statiske + dynamiske, single- og double-quote) og `npm:@supabase/supabase-js@2`-imports i `auth-email-hook` og `process-email-queue` (2 linjer). Ingen funktionel ændring — pinning-only.
 
-**Indsats**: M. Find/replace alle `esm.sh`-imports på tværs af `_shared/` og 55 function-mapper, pinn til eksakt version (matchende `package.json`'s `@supabase/supabase-js` på `2.97.0`). Én PR uden funktionel ændring.
+**Verificeret 2026-05-07**: `grep -rE "esm\.sh/[^@]+@[0-9]+(\"|')" supabase/functions/ | grep -v "@2\.97\.0"` returnerer 0 hits efter merge. Edge functions auto-deployer fra git-merge til main (bekræftet i canary PR #7), så fixet er live i prod inden for få minutter.
 
-**Afhængigheder**: Ingen FORBIDDEN-overlap. CLAUDE.md kræver allerede pinning for nye functions — dette retro-fitter de eksisterende.
+**Oprindelig risiko**: Alle 55 edge functions importerede fra `https://esm.sh/@supabase/supabase-js@2` (og lignende `@2`-pinning andre steder). Hvis esm.sh kompromitteredes, eller hvis en patch-version udgaves med malware, ville den køre i alle edge functions ved næste cold start. Blast radius: total — service-role-adgang til hele databasen. Sandsynlighed lav, men ikke spekulativ (esm.sh-incidenter er sket før).
 
-**Verifikation**: `grep -rE "esm\.sh/[^@]+@[0-9]+(\"|$)" supabase/functions` returnerer 0 hits. Deploy én function og smoke-test at den stadig svarer.
+---
+
+### [P1] @lovable.dev npm-imports uden version-pinning
+
+**Risiko**: `auth-email-hook` og `process-email-queue` importerer `npm:@lovable.dev/email-js` og `npm:@lovable.dev/webhooks-js` uden version-strenge. Samme supply-chain-risiko som esm.sh-pinningen adresserede, men på en anden specifier-form.
+
+**Indsats**: S, men kræver først check af npm registry for aktuel stable-version.
+
+**Afhængigheder**: Ingen FORBIDDEN-overlap.
+
+**Verifikation**: `grep -rE "npm:@lovable\.dev/[^@]+($|\")" supabase/functions/` returnerer 0 hits.
 
 ---
 

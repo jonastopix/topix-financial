@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       if (body?.test_email) testEmail = body.test_email;
     } catch { /* no body — normal cron flow */ }
 
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.97.0");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 

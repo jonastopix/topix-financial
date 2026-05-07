@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 
 // HMAC-SHA256 verification for Monday.com webhook JWT
 async function verifyMondayJwt(authHeader: string | null, signingSecret: string): Promise<boolean> {

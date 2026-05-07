@@ -12,7 +12,7 @@
  * - Anti-spam: max 20 emails/day per user
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 function parseJwtClaims(token: string): Record<string, unknown> | null {

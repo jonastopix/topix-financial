@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boardroom — en platform der hjælper danske iværksættere med at drive bedre virksomheder.

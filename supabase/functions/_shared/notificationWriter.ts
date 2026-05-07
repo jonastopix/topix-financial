@@ -8,7 +8,7 @@
  * NO database triggers. Edge functions are the sole writers.
  */
 
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 
 export interface NotificationPayload {
   user_id: string;
