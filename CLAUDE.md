@@ -9,8 +9,6 @@ bun install
 bun dev
 bun test
 bun lint
-supabase db push
-supabase functions deploy <name>
 ```
 
 ## Deployment af migrationer
@@ -28,6 +26,22 @@ Workflow ved nye migrationer:
 4. Verificér med `SELECT pg_get_functiondef(...)` eller anden passende query.
 
 Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den faktiske eksekverings-kanal.
+
+## Deployment af edge functions
+
+Edge functions auto-deployer fra git-merge til main. Bekræftet empirisk via canary PR #7 (2026-05-07): kommentar-ændring i `get-advisor-alerts` var live i prod-koden inden for få minutter efter merge — verificeret via Lovable → Edge functions → "View code".
+
+CLI-kanalen (`supabase functions deploy <name>`, `supabase functions list`) fejler med 403/privileges, samme klasse af fejl som `supabase db push`. Lovable Cloud hoster Supabase-projektet, og udviklerens egen CLI-konto har ikke management-rettigheder. CLI er ikke deploy-kanalen.
+
+Workflow ved nye eller ændrede functions:
+1. Skriv/redigér function-fil under `supabase/functions/<name>/`.
+2. Commit + PR + merge til main (almindeligt git-flow).
+3. Vent få minutter — Lovable auto-deployer.
+4. Verificér i Lovable → Edge functions → vælg function → "View code".
+
+UI-quirk ved verifikation: feltet "Last updated" på function-listen er IKKE pålideligt — det kan vise forældet timestamp efter en fersk deploy. "Deployments"-tælleren eller den faktiske source-kode i "View code" er sandheden. Hvis "Deployments"-tælleren heller ikke synes at opdatere pålideligt, er "View code" det definitive bevis. Brug aldrig "Last updated" til at konkludere om en deploy er gået igennem.
+
+**Asymmetri-note**: Edge functions auto-deployer; migrationer gør IKKE. Migrationer skal stadig manuelt køres i Lovable → SQL editor (se afsnit ovenfor). Glem ikke det manuelle migration-trin selvom function-deploys er automatiske.
 
 ## Stack
 
