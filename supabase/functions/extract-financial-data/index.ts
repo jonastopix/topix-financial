@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { buildCanonicalOutput, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
 import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, tryDeterministicPdfStructuralExtraction, trySemanticExcelExtraction, trySemanticCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_shared/sourceFingerprint.ts";
@@ -1694,7 +1694,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       if (typeof reportId === "string" && reportId) {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.97.0");
         const fallbackClient = createClient(supabaseUrl, supabaseServiceKey);
         await fallbackClient
           .from("financial_reports")
