@@ -13,6 +13,22 @@ supabase db push
 supabase functions deploy <name>
 ```
 
+## Deployment af migrationer
+
+Dette projekt kører på Lovable Cloud — Lovable ejer Supabase-projektet (ref: `loiavmastgeieqyiwyyr`). Det betyder:
+
+- `supabase db push` virker IKKE. CLI fejler med "necessary privileges"-fejl fordi udviklerens konto ikke ejer projektet.
+- `supabase link --project-ref ...` fejler af samme årsag.
+- Migrationer skrevet i `supabase/migrations/` deployes ved at køre SQL'en manuelt i Lovable → SQL editor.
+
+Workflow ved nye migrationer:
+1. Skriv migration-fil i `supabase/migrations/<timestamp>_<navn>.sql`.
+2. Commit + PR + merge til main (almindeligt git-flow).
+3. Efter merge: åbn Lovable → SQL editor, paste migrationens SQL-body (uden migration-kommentaren øverst hvis ønsket), kør Run.
+4. Verificér med `SELECT pg_get_functiondef(...)` eller anden passende query.
+
+Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den faktiske eksekverings-kanal.
+
 ## Stack
 
 Vite + React 18 + TypeScript + shadcn-ui + Tailwind på frontend.
@@ -57,6 +73,7 @@ Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 - Ændring af `handle_new_user()` eller andre triggers på `auth.users`.
 - Ændring af `protect_*_immutable_fields`-triggers.
 - Migration-squash. Afvent 2–4 ugers prod-validering iht. SECURITY_BASELINE.md afsnit 8.
+- Forsøg på `supabase db push` eller `supabase link` (vil fejle pga. Lovable Cloud-ejerskab).
 - Sætte `verify_jwt = true` på edge functions uden verificering af alle kald-stier.
 - Ændre tsconfig strict-flags i denne PR. Skal være dedikeret refactor.
 
