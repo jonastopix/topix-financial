@@ -28,7 +28,7 @@ udskudt strukturel gæld).
 
 **Status**: Løst. Alle 54 imports af `@supabase/supabase-js` på tværs af edge functions er nu pinnet til eksakt `@2.97.0` (matcher `package.json`). Dækker både esm.sh-imports (52 linjer, statiske + dynamiske, single- og double-quote) og `npm:@supabase/supabase-js@2`-imports i `auth-email-hook` og `process-email-queue` (2 linjer). Ingen funktionel ændring — pinning-only.
 
-**Verificeret 2026-05-07**: `grep -rE "esm\.sh/[^@]+@[0-9]+(\"|')" supabase/functions/ | grep -v "@2\.97\.0"` returnerer 0 hits efter merge. Edge functions auto-deployer fra git-merge til main (bekræftet i canary PR #7), så fixet er live i prod inden for få minutter.
+**Verificeret 2026-05-07**: `grep -rE "esm\.sh/[^@]+@[0-9]+(\"|')" supabase/functions/ | grep -v "@2\.97\.0"` returnerer 0 hits efter merge. Per den pragmatiske default i CLAUDE.md (klik altid "Update" efter merge) skal "Update" klikkes i Lovable for at sikre at fixet er publish'et til prod-runtime. Deploy-modellen er pt. uafklaret (se P3 nedenfor).
 
 **Oprindelig risiko**: Alle 55 edge functions importerede fra `https://esm.sh/@supabase/supabase-js@2` (og lignende `@2`-pinning andre steder). Hvis esm.sh kompromitteredes, eller hvis en patch-version udgaves med malware, ville den køre i alle edge functions ved næste cold start. Blast radius: total — service-role-adgang til hele databasen. Sandsynlighed lav, men ikke spekulativ (esm.sh-incidenter er sket før).
 
@@ -146,11 +146,11 @@ udskudt strukturel gæld).
 
 **Risiko**: CLAUDE.md's afsnit "Deployment af frontend" antager pt. at Lovable's "Update"-knap kun re-bygger frontend (Vite-build til `app.theboardroom.dk`). Hvis knappen i virkeligheden også genimplementerer edge functions eller kører migrationer, kan en frontend-only-deploy utilsigtet rulle backend-ændringer ud — eller omvendt: en backend-only-flow kan blive blokeret af frontend-builden. Indtil testet er antagelsen ubekræftet.
 
-**Indsats**: S. Lille canary-test svarende til edge-function-canary i PR #7. Forslag: tilføj én harmless kommentar-linje i en `src/`-fil + én i en `supabase/functions/`-fil (på branch). Merge → klik "Update" → observer hvilke af de tre lag der opdateres. Frontend-canary'en skal blive synlig i app'en efter klik (DOM-bevis); function-canary'en skal allerede være live fra auto-deploy ved merge — registrér om "Update" trigger en RE-deploy af function (ny "Deployments"-tæller-bump), eller om den lader functions urørt.
+**Indsats**: S. Lille canary-test svarende til edge-function-canary i PR #7. Forslag: tilføj én harmless kommentar-linje i en `src/`-fil + én i en `supabase/functions/`-fil (på branch). Observer hvilke af de tre lag der opdateres ved hver handling: (a) ved merge alene — bliver function-canary'en synlig i "View code"? (det var PR #7's observation). Er der DOM-bevis for frontend-canary'en? (forventet nej før klik). (b) ved "Update"-klik — bumper "Deployments"-tælleren for functions? bliver frontend-canary'en synlig i app'en? Resultatet afgør om "Update" er publish-kanal for alle tre lag eller kun frontend.
 
 **Afhængigheder**: Ingen FORBIDDEN-overlap.
 
-**Verifikation**: Resultatet dokumenteres i CLAUDE.md's "Deployment af frontend"-afsnit (erstatter den nuværende "Note: indtil vi har bekræftet…"-passage med konkret afgørelse).
+**Verifikation**: Resultatet dokumenteres i CLAUDE.md's edge functions-afsnit og asymmetri-note (erstatter den nuværende hypotese-formulering med en bekræftet model).
 
 ---
 
