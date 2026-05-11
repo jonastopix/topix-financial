@@ -34,15 +34,15 @@ udskudt strukturel gæld).
 
 ---
 
-### [P1] @lovable.dev npm-imports uden version-pinning
+### [P1] ✅ Løst i PR #14 — @lovable.dev npm-imports uden version-pinning
 
-**Risiko**: `auth-email-hook` og `process-email-queue` importerer `npm:@lovable.dev/email-js` og `npm:@lovable.dev/webhooks-js` uden version-strenge. Samme supply-chain-risiko som esm.sh-pinningen adresserede, men på en anden specifier-form.
+**Status**: Løst. De 3 imports af `npm:@lovable.dev/*` uden version-streng er nu pinnet: `@lovable.dev/email-js@0.0.4` (2 linjer i `auth-email-hook` og `process-email-queue`) og `@lovable.dev/webhooks-js@0.0.1` (1 linje i `auth-email-hook`). Versioner valgt som "latest" fra npm registry per 2026-05-11. Ingen funktionel ændring — pinning-only.
 
-**Indsats**: S, men kræver først check af npm registry for aktuel stable-version.
+**Verificeret 2026-05-11**: `grep -rE 'npm:@lovable\.dev/[^@]+(\s|$|"|'"'"')' supabase/functions/` returnerer 0 hits efter merge. Per den pragmatiske default i CLAUDE.md (klik altid "Update" efter merge) skal "Update" klikkes i Lovable for at sikre at fixet er publish'et til prod-runtime. Deploy-modellen er pt. uafklaret (se P3 nedenfor).
 
-**Afhængigheder**: Ingen FORBIDDEN-overlap.
+**Accepterede caveats**: Begge pakker er pre-1.0 (`0.0.x`), så fremtidige patch-fixes kræver bevidst version-bump. `webhooks-js` har kun én udgivet version (`0.0.1`) — hvis Lovable upublicerer, bryder vores edge functions. Risiko lav men ikke nul; afvejet mod den supply-chain-eksponering pinningen lukker.
 
-**Verifikation**: `grep -rE "npm:@lovable\.dev/[^@]+($|\")" supabase/functions/` returnerer 0 hits.
+**Oprindelig risiko**: `auth-email-hook` og `process-email-queue` importerede `npm:@lovable.dev/email-js` og `npm:@lovable.dev/webhooks-js` uden version-strenge. Samme supply-chain-risiko som esm.sh-pinningen adresserede, men på en anden specifier-form.
 
 ---
 
