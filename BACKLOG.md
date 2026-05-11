@@ -68,15 +68,13 @@ udskudt strukturel gæld).
 
 ---
 
-### [P2] Klient-side onboarding-flag kan drifte fra server-state
+### [P2] ✅ Løst i PR #20 — Klient-side onboarding-flag kan drifte fra server-state
 
-**Risiko**: `App.tsx:121` læser `localStorage.getItem("tbr.onboarded")` for at force-redirecte væk fra `/onboarding` ved iOS-PWA-resume. Hvis localStorage og server-side `needsOnboarding` divergerer (ny enhed, server-reset, support-handling), kan brugeren havne i forkert state. Ikke sikkerhed; UX-bug for kantsager.
+**Status**: Løst. localStorage-flag'et fungerer nu rent som optimistisk cache for pre-React redirects (`main.tsx` + `App.tsx` resume-handler) og er IKKE længere tie-breaker i `computedNeedsOnboarding`. Server-state (`profiles.onboarded_at`) er nu eneste sandhedskilde for React-routing-beslutninger. Stale flag invalideres automatisk i `fetchUserData` ved divergens med server.
 
-**Indsats**: S–M. Erstat localStorage-tjekket med en frisk query mod onboarding-state ved resume, eller invalidér localStorage-flag når server-state modsiger det.
+**Verifikation**: Manuel test. (a) Sæt `onboarded_at = NULL` på server (SQL editor) mens bruger har localStorage = "1". Reload app → bruger redirectes til `/onboarding` inden for 1-2 sek, localStorage fjernes. (b) Normal iOS PWA-resume-flow virker fortsat: backgroundet på `/`, resume → ingen flash.
 
-**Afhængigheder**: Ingen FORBIDDEN-overlap.
-
-**Verifikation**: Manuel test på iOS-PWA: ryd onboarding-state server-side, resume app — skal lande på `/onboarding`, ikke `/`.
+**Oprindelig risiko**: localStorage var tie-breaker i `computedNeedsOnboarding`, hvilket betød at en stale "1"-flag kunne overskrive server-state'n inden for samme session — ikke kun ved iOS PWA-resume. En utilstrækkeligt onboarded bruger med stale flag kunne komme ind på fx `/reports` og møde en delvist-konfigureret konto-state. Forvirrende men ikke destruktivt. iOS PWA-standalone "last route restore"-scenariet var den oprindelige motivation for flag'et (`App.tsx:115-132` + `main.tsx:21-34` pre-React redirect).
 
 ---
 
