@@ -29,28 +29,22 @@ Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den fa
 
 ## Deployment af edge functions
 
-**Note**: Indtil deploy-modellen er empirisk afklaret (se BACKLOG P3 + "Update"-canary), klik altid "Update" efter merge. Dette afsnits beskrivelse af auto-deploy er en hypotese baseret på canary PR #7, ikke en bekræftet model.
-
-Canary PR #7 (2026-05-07) viste at en kommentar-ændring i `get-advisor-alerts` var synlig i Lovable → Edge functions → "View code" inden for få minutter efter merge. Det blev oprindeligt tolket som auto-deploy fra git-merge til main, men senere observation gav modstridende signal (se Asymmetri-note nedenfor). "View code" viser måske deploy-kandidaten frem for prod-runtime — det er ikke verificeret.
+Edge functions auto-deployer fra git-merge til main. Bekræftet empirisk via canary-eksperimentet i PR #15/16 (2026-05-11): kommentar-ændring i `get-advisor-alerts` var live i prod-koden ("View code") efter merge, FØR "Update"-knap blev klikket. Frontend-canary samme PR krævede derimod Update-klik for at blive synlig.
 
 CLI-kanalen (`supabase functions deploy <name>`, `supabase functions list`) fejler med 403/privileges, samme klasse af fejl som `supabase db push`. Lovable Cloud hoster Supabase-projektet, og udviklerens egen CLI-konto har ikke management-rettigheder. CLI er ikke deploy-kanalen.
 
 Workflow ved nye eller ændrede functions:
 1. Skriv/redigér function-fil under `supabase/functions/<name>/`.
 2. Commit + PR + merge til main (almindeligt git-flow).
-3. Klik "Update" i Lovable for at publish'e.
+3. Hvis PR'en også rører `src/`-filer: klik "Update" i Lovable for at publish'e frontend-builden.
 4. Verificér i Lovable → Edge functions → vælg function → "View code".
 
 UI-quirk ved verifikation: feltet "Last updated" på function-listen er IKKE pålideligt — det kan vise forældet timestamp efter en fersk deploy. "Deployments"-tælleren eller den faktiske source-kode i "View code" er sandheden. Hvis "Deployments"-tælleren heller ikke synes at opdatere pålideligt, er "View code" det definitive bevis. Brug aldrig "Last updated" til at konkludere om en deploy er gået igennem.
 
-**Asymmetri-note** (sandhedstilstand ubekræftet): De eksisterende observationer er modstridende:
-- Canary PR #7 viste at edge function-kode er synlig i "View code" efter merge uden eksplicit "Update"-klik, hvilket pegede mod auto-deploy.
-- Senere observation viste at "Update"-knappen lyser op efter merge og at brugeren er sikker på at intet rammer prod-runtime før klikket.
-- "View code" viser måske deploy-kandidaten, ikke prod-runtime — det er ikke verificeret.
-
-Pragmatisk default indtil entydigt testet: KLIK ALWAYS "Update" i Lovable efter merge til main. Det er sikker adfærd uanset hvilken model der viser sig at være korrekt.
-
-Migrationer kører fortsat manuelt i Lovable → SQL editor uanset Update-knappen.
+**Asymmetri-note** (bekræftet 2026-05-11): De tre deploy-lag har forskellige kanaler:
+- **Edge functions** (`supabase/functions/`): auto fra git-merge til main. Ingen manuel handling påkrævet.
+- **Frontend** (`src/`): manuel via Lovable "Update"-knap. Et merge alene aktiverer Update-knappen men ændrer ikke prod-builden på `app.theboardroom.dk` før klikket.
+- **Migrationer** (`supabase/migrations/`): manuel via Lovable → SQL editor. Hverken merge eller Update trigger migrations-deploy.
 
 ## Deployment af frontend
 

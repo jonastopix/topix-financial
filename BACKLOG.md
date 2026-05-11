@@ -28,7 +28,7 @@ udskudt strukturel gæld).
 
 **Status**: Løst. Alle 54 imports af `@supabase/supabase-js` på tværs af edge functions er nu pinnet til eksakt `@2.97.0` (matcher `package.json`). Dækker både esm.sh-imports (52 linjer, statiske + dynamiske, single- og double-quote) og `npm:@supabase/supabase-js@2`-imports i `auth-email-hook` og `process-email-queue` (2 linjer). Ingen funktionel ændring — pinning-only.
 
-**Verificeret 2026-05-07**: `grep -rE "esm\.sh/[^@]+@[0-9]+(\"|')" supabase/functions/ | grep -v "@2\.97\.0"` returnerer 0 hits efter merge. Per den pragmatiske default i CLAUDE.md (klik altid "Update" efter merge) skal "Update" klikkes i Lovable for at sikre at fixet er publish'et til prod-runtime. Deploy-modellen er pt. uafklaret (se P3 nedenfor).
+**Verificeret 2026-05-07**: `grep -rE "esm\.sh/[^@]+@[0-9]+(\"|')" supabase/functions/ | grep -v "@2\.97\.0"` returnerer 0 hits efter merge. Edge functions auto-deployer fra git-merge (bekræftet i PR #15/16, se P3), så fixet er live i prod-runtime. (Frontend-ændringer kræver fortsat "Update"-klik i Lovable.)
 
 **Oprindelig risiko**: Alle 55 edge functions importerede fra `https://esm.sh/@supabase/supabase-js@2` (og lignende `@2`-pinning andre steder). Hvis esm.sh kompromitteredes, eller hvis en patch-version udgaves med malware, ville den køre i alle edge functions ved næste cold start. Blast radius: total — service-role-adgang til hele databasen. Sandsynlighed lav, men ikke spekulativ (esm.sh-incidenter er sket før).
 
@@ -38,7 +38,7 @@ udskudt strukturel gæld).
 
 **Status**: Løst. De 3 imports af `npm:@lovable.dev/*` uden version-streng er nu pinnet: `@lovable.dev/email-js@0.0.4` (2 linjer i `auth-email-hook` og `process-email-queue`) og `@lovable.dev/webhooks-js@0.0.1` (1 linje i `auth-email-hook`). Versioner valgt som "latest" fra npm registry per 2026-05-11. Ingen funktionel ændring — pinning-only.
 
-**Verificeret 2026-05-11**: `grep -rE 'npm:@lovable\.dev/[^@]+(\s|$|"|'"'"')' supabase/functions/` returnerer 0 hits efter merge. Per den pragmatiske default i CLAUDE.md (klik altid "Update" efter merge) skal "Update" klikkes i Lovable for at sikre at fixet er publish'et til prod-runtime. Deploy-modellen er pt. uafklaret (se P3 nedenfor).
+**Verificeret 2026-05-11**: `grep -rE 'npm:@lovable\.dev/[^@]+(\s|$|"|'"'"')' supabase/functions/` returnerer 0 hits efter merge. Edge functions auto-deployer fra git-merge (bekræftet i PR #15/16, se P3), så fixet er live i prod-runtime. (Frontend-ændringer kræver fortsat "Update"-klik i Lovable.)
 
 **Accepterede caveats**: Begge pakker er pre-1.0 (`0.0.x`), så fremtidige patch-fixes kræver bevidst version-bump. `webhooks-js` har kun én udgivet version (`0.0.1`) — hvis Lovable upublicerer, bryder vores edge functions. Risiko lav men ikke nul; afvejet mod den supply-chain-eksponering pinningen lukker.
 
@@ -142,15 +142,17 @@ udskudt strukturel gæld).
 
 ---
 
-### [P3] Bekræft "Update"-knappens scope ved empirisk test
+### [P3] ✅ Løst i PR #15/16 — Bekræft "Update"-knappens scope ved empirisk test
 
-**Risiko**: CLAUDE.md's afsnit "Deployment af frontend" antager pt. at Lovable's "Update"-knap kun re-bygger frontend (Vite-build til `app.theboardroom.dk`). Hvis knappen i virkeligheden også genimplementerer edge functions eller kører migrationer, kan en frontend-only-deploy utilsigtet rulle backend-ændringer ud — eller omvendt: en backend-only-flow kan blive blokeret af frontend-builden. Indtil testet er antagelsen ubekræftet.
+**Status**: Løst. Canary-eksperimentet bekræftede Scenario A: edge functions auto-deployer fra git-merge til main, frontend kræver Lovable "Update"-klik for at publish'es, migrationer kræver fortsat SQL editor. CLAUDE.md's edge functions-afsnit og asymmetri-note opdateret med bekræftet model.
 
-**Indsats**: S. Lille canary-test svarende til edge-function-canary i PR #7. Forslag: tilføj én harmless kommentar-linje i en `src/`-fil + én i en `supabase/functions/`-fil (på branch). Observer hvilke af de tre lag der opdateres ved hver handling: (a) ved merge alene — bliver function-canary'en synlig i "View code"? (det var PR #7's observation). Er der DOM-bevis for frontend-canary'en? (forventet nej før klik). (b) ved "Update"-klik — bumper "Deployments"-tælleren for functions? bliver frontend-canary'en synlig i app'en? Resultatet afgør om "Update" er publish-kanal for alle tre lag eller kun frontend.
+**Bevis** (2026-05-11):
+- Trin 1 (efter merge, FØR Update-klik): canary-kommentar i `get-advisor-alerts` var synlig i "View code". Frontend-canary i `NotFound.tsx` var IKKE i DOM på `app.theboardroom.dk/canary-2026-05-11`. Update-knap aktiv (blå).
+- Trin 3 (efter Update-klik): begge canaries live. Update-knap tilbage til "Up to date".
 
-**Afhængigheder**: Ingen FORBIDDEN-overlap.
+**Cleanup**: Canary-markører fjernet via PR #16 (revert). Ingen testartefakter tilbage i prod efter merge + Update-klik.
 
-**Verifikation**: Resultatet dokumenteres i CLAUDE.md's edge functions-afsnit og asymmetri-note (erstatter den nuværende hypotese-formulering med en bekræftet model).
+**Oprindelig risiko**: CLAUDE.md's afsnit "Deployment af frontend" antog at Lovable's "Update"-knap kun re-byggede frontend (Vite-build til `app.theboardroom.dk`). Hvis knappen i virkeligheden også genimplementerede edge functions eller kørte migrationer, kunne en frontend-only-deploy utilsigtet rulle backend-ændringer ud — eller omvendt: en backend-only-flow kunne blive blokeret af frontend-builden. Indtil testet var antagelsen ubekræftet.
 
 ---
 
