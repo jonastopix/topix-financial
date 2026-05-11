@@ -58,15 +58,13 @@ udskudt strukturel gæld).
 
 ---
 
-### [P2] README er Lovable-default-placeholder
+### [P2] ✅ Løst i PR #19 — README er Lovable-default-placeholder
 
-**Risiko**: `REPLACE_WITH_PROJECT_ID` står på linje 5, 13 og 65 i `README.md`. Ny udvikler får ingen projekt-specifik onboarding fra README og skal gætte sig frem til CLAUDE.md og `SECURITY_BASELINE.md`. Ingen sikkerhedseffekt; rent dokumentations-gæld.
+**Status**: Løst. Lovable-template-README erstattet med projekt-specifik indhold på dansk. Peger nu til `CLAUDE.md` (arkitektur/deploy), `BACKLOG.md` (arbejdsliste) og `supabase/SECURITY_BASELINE.md` (security-checklist). Setup-instruktioner bruger Bun (matcher CLAUDE.md). Lovable-URL'er fjernet (terminal-fokuseret onboarding). Tre-lags deploy-asymmetri kort opsummeret med henvisning til CLAUDE.md for fulde detaljer.
 
-**Indsats**: S. Erstat med kort projekt-beskrivelse, peger til CLAUDE.md (arkitektur), `SECURITY_BASELINE.md` (security-checklist), og dokumenter Bun + Supabase CLI-setup.
+**Verifikation**: README læses ende-til-ende og giver nok til at klone, installere og starte dev-serveren. Bun-kommandoer matcher CLAUDE.md's "Kommandoer"-afsnit.
 
-**Afhængigheder**: Ingen.
-
-**Verifikation**: README læses ende-til-ende og giver nok til at klone, installere og starte dev-serveren.
+**Oprindelig risiko**: `REPLACE_WITH_PROJECT_ID` stod på linje 5, 13 og 65 i `README.md`. Ny udvikler fik ingen projekt-specifik onboarding fra README og skulle gætte sig frem til CLAUDE.md og `SECURITY_BASELINE.md`. Ingen sikkerhedseffekt; rent dokumentations-gæld.
 
 ---
 
