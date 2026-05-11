@@ -170,7 +170,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const profileData = profileRes.data as any;
     const legatActive = !isAdv && !!legatRow;
     const profileOnboarded = !!(profileData?.onboarded_at);
-    const computedNeedsOnboarding = !isAdv && !legatActive && (!profileData || !profileData.onboarded_at) && !localStorage.getItem("tbr.onboarded");
+
+    // Invalidate stale localStorage flag if server has been reset. Without this,
+    // a stale "1" could mask a server-side onboarding reset within the same
+    // session before the persist block below runs.
+    const localFlag = localStorage.getItem("tbr.onboarded");
+    const serverOnboarded = isAdv || profileOnboarded || legatActive;
+    if (localFlag === "1" && !serverOnboarded) {
+      try { localStorage.removeItem("tbr.onboarded"); } catch { /* ignore */ }
+    }
+
+    const computedNeedsOnboarding = !isAdv && !legatActive && !profileOnboarded;
     setNeedsOnboarding(computedNeedsOnboarding);
 
     // Persist a "known onboarded" flag for the pre-React redirect in main.tsx,
