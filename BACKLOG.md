@@ -82,27 +82,23 @@ udskudt strukturel gæld).
 
 ---
 
-### [P2] `Auth.tsx` omgår den genererede Supabase-klient
+### [P2] ✅ Løst i PR #18 — `Auth.tsx` omgår den genererede Supabase-klient
 
-**Risiko**: `Auth.tsx:46-55` laver rå `fetch` mod `${VITE_SUPABASE_URL}/rest/v1/legat_enrollments?...` med apikey + Bearer for at detektere legat-brugere. Fungerer under RLS, men er typesvag, har ingen retry/fejlhåndtering, og duplikerer adgangsvej der allerede er løst af `supabase.from()`. Vedligeholdelses-gæld.
+**Status**: Løst. Rå fetch mod `/rest/v1/legat_enrollments` erstattet med `supabase.from("legat_enrollments")...maybeSingle()` — matcher eksisterende usages i `LegatDashboard`, `AdminLegat`, `Handouts` og `useAuth`.
 
-**Indsats**: S. Erstat med `supabase.from("legat_enrollments").select("id").eq("user_id", userId).eq("status", "active").limit(1).maybeSingle()`.
+**Verifikation**: Manuel test. Login som legat-bruger → redirect til `/legat`. Login som almindelig bruger → redirect til `/` eller `returnUrl`.
 
-**Afhængigheder**: Ingen.
-
-**Verifikation**: Login som legat-bruger redirectes til `/legat`. Login som almindelig bruger redirectes til `/` eller `returnUrl`.
+**Oprindelig risiko**: `Auth.tsx:46-55` lavede rå `fetch` mod `${VITE_SUPABASE_URL}/rest/v1/legat_enrollments?...` med apikey + Bearer for at detektere legat-brugere. Fungerede under RLS, men var typesvag, havde ingen retry/fejlhåndtering, og duplikerede adgangsvej der allerede er løst af `supabase.from()`. Vedligeholdelses-gæld.
 
 ---
 
-### [P2] Inkonsistent password-floor
+### [P2] ✅ Løst i PR #18 — Inkonsistent password-floor
 
-**Risiko**: `Auth.tsx:376` har `minLength={6}` (HTML), men `handleSignup` afviser med `getPasswordScore(password) < 2` (linje 109). To forskellige sandheder. Lille sikkerhedseffekt; primært UX-inkonsistens — brugeren får forskellige fejlbeskeder afhængigt af hvilken vej de støder på.
+**Status**: Løst. HTML `minLength` bumpet fra 6 til 8 så den matcher den eksisterende `ResetPassword.tsx`-floor. JS-validering `getPasswordScore < 2` bevaret. Komplementær validering — HTML enforcer længde, JS enforcer kompleksitet.
 
-**Indsats**: S. Vælg én floor (sandsynligvis JS-score-baseret), opdater både HTML-attribut og JS-validering så de matcher. Afstem evt. med Supabase Auth-dashboardets egne password-krav.
+**Verifikation**: Manuel test. 6-tegns-password afvises ved HTML-gate. 8-tegns trivielt password (kun små bogstaver) afvises ved JS-gate med besked om at vælge stærkere kode. 8-tegns kompleks accepteres.
 
-**Afhængigheder**: Ingen.
-
-**Verifikation**: Trivielt 6-tegns password afvises med samme begrundelse fra både HTML og JS.
+**Oprindelig risiko**: `Auth.tsx:376` havde `minLength={6}` (HTML), men `handleSignup` afviste med `getPasswordScore(password) < 2` (linje 109). To forskellige sandheder. Lille sikkerhedseffekt; primært UX-inkonsistens — brugeren fik forskellige fejlbeskeder afhængigt af hvilken vej de stødte på.
 
 ---
 
@@ -139,6 +135,18 @@ udskudt strukturel gæld).
 **Afhængigheder**: At fjerne det kan bryde Lovable-integrationen. Vurdér først om Lovable stadig kan redigere komponenter uden tagger.
 
 **Verifikation**: Hvis fjernet — bekræft at Lovable-dashboardet stadig fungerer på en testkonto. Hvis ikke, rul tilbage.
+
+---
+
+### [P3] Tilføj test-infrastruktur for form-validering
+
+**Risiko**: `Auth.tsx` (og lignende form-tunge sider) har ingen automatiseret regression-guard. Password-floor og validerings-logik kan brydes utilsigtet ved fremtidige refactors. CLAUDE.md kræver test for security-kritiske stier, men test-infrastruktur (React Testing Library + form-rendering) findes ikke i repo'et endnu.
+
+**Indsats**: M. Setup vitest + React Testing Library, skriv første test-suite for `Auth.tsx` password-validering og legat-redirect. Bagefter kan flere komponenter teste tilsvarende.
+
+**Afhængigheder**: Ingen FORBIDDEN-overlap.
+
+**Verifikation**: `bun test` viser nye `Auth.tsx`-tests passere; tests fanger en bevidst regression-test af `minLength`.
 
 ---
 

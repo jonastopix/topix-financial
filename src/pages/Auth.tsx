@@ -40,26 +40,15 @@ const Auth = () => {
         }
 
         // Check if user is a legat user and redirect accordingly
-        const userId = session.user.id;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        try {
-          const res = await fetch(
-            `${supabaseUrl}/rest/v1/legat_enrollments?user_id=eq.${userId}&status=eq.active&select=id&limit=1`,
-            {
-              headers: {
-                apikey: anonKey,
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            }
-          );
-          const rows = await res.json();
-          if (rows?.length > 0) {
-            navigate("/legat", { replace: true });
-            return;
-          }
-        } catch (e) {
-          // ignore — fall through to default redirect
+        const { data: legatRow } = await (supabase as any)
+          .from("legat_enrollments")
+          .select("id")
+          .eq("user_id", session.user.id)
+          .eq("status", "active")
+          .maybeSingle();
+        if (legatRow) {
+          navigate("/legat", { replace: true });
+          return;
         }
 
         navigate(returnUrl || "/", { replace: true });
@@ -373,7 +362,7 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
                 className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="••••••••"
               />
