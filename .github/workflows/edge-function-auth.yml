@@ -1,0 +1,44 @@
+name: Edge Function Auth Guardrail
+
+# Runs on BOTH pull_request and push-to-main. The push-to-main trigger
+# is essential: Lovable Cloud writes directly to main outside of any PR
+# flow, so a PR-only workflow would miss exactly the path most likely
+# to introduce a new edge function without an auth gate. With push, the
+# guardrail acts as a post-hoc alarm on direct writes — fail-loud
+# rather than silent.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'scripts/check-edge-function-auth.ts'
+      - '.github/workflows/edge-function-auth.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'scripts/check-edge-function-auth.ts'
+      - '.github/workflows/edge-function-auth.yml'
+
+jobs:
+  check:
+    # This name appears as the check label in the PR UI.
+    name: Edge Function Auth Guardrail
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned to the exact version we run locally. Reproducibility
+          # over convenience — a green-to-red shift caused by a Bun
+          # release we didn't choose is exactly the kind of unexplained
+          # CI flakiness that teaches teams to bypass checks. Bumping
+          # this version is a deliberate, reviewed commit.
+          bun-version: 1.3.13
+
+      - name: Run guardrail
+        run: bun run scripts/check-edge-function-auth.ts

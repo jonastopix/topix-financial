@@ -46,15 +46,13 @@ udskudt strukturel gæld).
 
 ---
 
-### [P1] Ingen håndhævelse af edge function-auth-buckets
+### [P1] ✅ Løst i PR #22 — CI-håndhævelse af edge function-auth-buckets
 
-**Risiko**: CLAUDE.md og `_shared/edgeFunctionAuth.ts` kræver `authenticateUser` eller `authenticateServiceRole` FØR første service-role-handling, men intet i CI/lint stopper en udvikler i at glemme det. Da `verify_jwt = false` på alle functions, betyder en glemsel = åben service-role endpoint. Privilegieeskalering uden auth-gate.
+**Status**: Løst i to skridt. PR #21 (2026-05-22) lukkede det konkrete hul i `auto-create-baseline-budget` (manglende `authenticateUser` + company-membership-tjek før service-role-handling). PR #22 (denne) tilføjer det permanente CI-værn: `scripts/check-edge-function-auth.ts` håndhævet via GitHub Actions (`.github/workflows/edge-function-auth.yml`) på både `pull_request` mod main OG `push` direkte til main, med path-filter på `supabase/functions/**` + scriptet selv + workflow-filen. Bun pinnet til `1.3.13` for reproducerbarhed. Værnet bruger en EKSISTENS-invariant uden exit-kobling: triggered functions (HTTP-overflade + `createClient(..., SUPABASE_SERVICE_ROLE_KEY)`) skal indeholde mindst ét auth-prædikat fra union: `authenticateUser`, `authenticateServiceRole`, `.getClaims`, `.getUser`, `parseJwtClaims`, `verifyStripeSignature`, `verifyMondayJwt`, `verifyWebhookRequest`, samt shape-baseret `Bearer ${...}`-compare. Cron-only functions skippes. Push-til-main-triggeren er specifikt designet til Lovable-deploys: en PR-only workflow ville misse direkte writes til main, som er præcis hvor et fremtidigt hul mest sandsynligt opstår.
 
-**Indsats**: M. Custom ESLint-regel eller regex-baseret CI-tjek på `supabase/functions/*/index.ts`: hvis `createClient(..., SUPABASE_SERVICE_ROLE_KEY)` forekommer, skal `authenticateUser(` eller `authenticateServiceRole(` forekomme tidligere i filen. Webhook-functions (Bucket C) flagges manuelt via en kort allowlist eller en kommentar-marker.
+**Verifikation (2026-05-22)**: Sanity-kørsel viser 0 fails: 54 scannet, 44 triggered, 8 skip-no-sr, 2 skip-no-http (`legat-reminder-cron`, `run-weekly-agent`). Verbose mode bekræfter at shape-diskriminatoren skelner inbound auth-compares fra outbound fetch-headers korrekt — `run-company-agent` med både inbound (linje 819) og outbound (linjer 568, 960) Bearer-templates matcher via 819, ikke via 568/960. Lokal kørsel: `bun run check:edge-auth`. Negativ-test: hvis auth-prædikatet fjernes fra en triggered function, fejler scriptet med eksplicit fil:linje for SR-konstruktionen og listen af accepterede prædikater. Workflow vises i PR-checks som "Edge Function Auth Guardrail".
 
-**Afhængigheder**: Bygger oven på eksisterende `_shared/edgeFunctionAuth.ts`. Ingen FORBIDDEN-overlap.
-
-**Verifikation**: Negativ-test: bevidst dårlig function fejler CI. Positiv-test: alle 55 eksisterende functions passerer.
+**Oprindelig risiko**: CLAUDE.md og `_shared/edgeFunctionAuth.ts` krævede `authenticateUser` eller `authenticateServiceRole` FØR første service-role-handling, men intet i CI/lint stoppede en udvikler i at glemme det. Da `verify_jwt = false` på alle 54 functions, betød en glemsel = åben service-role endpoint. Privilegieeskalering uden auth-gate. Materialiseret én gang i `auto-create-baseline-budget` (lukket af PR #21) — dette værn forhindrer gentagelse.
 
 ---
 
