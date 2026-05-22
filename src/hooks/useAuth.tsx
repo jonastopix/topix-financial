@@ -4,6 +4,7 @@ import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
 import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
+import { computeMembershipTier } from "@/lib/membershipTier";
 
 interface AuthContext {
   user: User | null;
@@ -246,26 +247,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .eq("id", cm.company_id)
           .maybeSingle();
 
-        if (!companyTierData || !companyTierData.contract_end_date) {
-          // No end date set — treat as active full member (legacy or manually managed)
+        if (!companyTierData) {
           setMembershipTier("full");
         } else {
-          const now = new Date();
-          const contractEnd = new Date(companyTierData.contract_end_date);
-          const subEnd = companyTierData?.subscription_current_period_end
-            ? new Date(companyTierData.subscription_current_period_end)
-            : null;
-
-          if (contractEnd > now) {
-            setMembershipTier("full");
-          } else if (
-            companyTierData?.subscription_status === "active" &&
-            subEnd && subEnd > now
-          ) {
-            setMembershipTier("subscriber");
-          } else {
-            setMembershipTier("expired");
-          }
+          // no_date → "full" preserves pre-existing UX: legacy or manually managed
+          // companies appear as full to their own users. Members.tsx renders no_date
+          // as a distinct badge — that drift is intentional, not fixed here.
+          const tier = computeMembershipTier(companyTierData);
+          setMembershipTier(tier === "no_date" ? "full" : tier);
         }
       }
 
