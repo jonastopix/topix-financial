@@ -107,6 +107,8 @@ Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 - **Bucket C**: signaturverifikation før parsing af payload.
 - Pinn altid versioner i `esm.sh`-imports. Ingen `@2` — brug `@2.97.0`.
 
+**CI-værn**: GitHub Actions kører `scripts/check-edge-function-auth.ts` på alle PR'er mod main OG direkte push til main (Lovable-deploys). Værnet kræver at functions med HTTP-overflade + service-role-konstruktion indeholder mindst ét auth-prædikat fra unionen (helpers, `.getClaims`, `.getUser`, `parseJwtClaims`, webhook-signaturer, `Bearer ${...}`-compare). Cron-only functions skippes. Kør lokalt før push: `bun run check:edge-auth`.
+
 ## Nye migrations
 
 - Filnavn: `<YYYYMMDDHHMMSS>_<beskrivelse>.sql`.
