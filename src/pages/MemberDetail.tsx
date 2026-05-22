@@ -9,6 +9,7 @@ import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import AdvisorAIChat from "@/components/AdvisorAIChat";
+import { computeMembershipTier } from "@/lib/membershipTier";
 import {
   ArrowLeft,
   FileText,
@@ -96,6 +97,8 @@ interface CompanyContext {
   contract_start_date: string | null;
   contract_end_date: string | null;
   onboarding_completed: boolean | null;
+  subscription_status: string | null;
+  subscription_current_period_end: string | null;
 }
 
 interface Report {
@@ -303,7 +306,7 @@ const MemberDetail = () => {
     if (!userId) return;
     const { data: cmData } = await supabase
       .from("company_members" as any)
-      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status)" as any)
+      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end)" as any)
       .eq("user_id", userId)
       .limit(1)
       .maybeSingle();
@@ -432,7 +435,7 @@ const MemberDetail = () => {
         // Fetch company context via company_members
         const { data: cmData } = await supabase
           .from("company_members" as any)
-          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed)" as any)
+          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end)" as any)
           .eq("user_id", userId)
           .limit(1)
           .maybeSingle();
@@ -1251,7 +1254,7 @@ const MemberDetail = () => {
           </div>
 
           {/* ───── AI Sparring-assistent ───── */}
-          {memberFacts.length > 0 && memberCompanyId && (
+          {memberFacts.length > 0 && memberCompanyId && companyCtx && computeMembershipTier(companyCtx) !== "expired" && (
             <div className="mb-8">
               <AdvisorAIChat
                 companyId={memberCompanyId}
