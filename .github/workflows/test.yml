@@ -1,0 +1,42 @@
+name: Tests
+
+# Runs the vitest suite on PRs against main AND direct push to main. The
+# push-to-main trigger mirrors edge-function-auth.yml: Lovable Cloud writes
+# directly to main outside of any PR flow, so a PR-only workflow would miss
+# the path most likely to introduce a regression silently.
+#
+# No paths filter — tests live under src/ but a dependency upgrade, a vitest
+# config change, or a tsconfig tweak can also break them. Run on every change.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned to match edge-function-auth.yml. Reproducibility over
+          # convenience — a green-to-red shift from an unchosen Bun release
+          # is exactly the kind of CI flakiness that teaches teams to bypass
+          # checks. Bumping this version is a deliberate, reviewed commit.
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        # --frozen-lockfile honors bun.lockb verbatim. Deterministic install.
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        # `bun run test` invokes the package.json `test` script (vitest run).
+        # NOT `bun test` — that runs Bun's built-in test runner, which does
+        # not understand vitest's API and silently passes nothing.
+        run: bun run test
