@@ -26,6 +26,7 @@ import MembersStatsBar from "@/components/members/MembersStatsBar";
 import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
 import MemberCompanyRow from "@/components/members/MemberCompanyRow";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
+import { computeMembershipTier } from "@/lib/membershipTier";
 
 async function parseApplicationExcel(file: File): Promise<Partial<{
   email: string; company_name: string; cvr_number: string; contact_name: string;
@@ -505,18 +506,11 @@ const Members = () => {
             contract_start_date: c.contract_start_date || null,
             contract_end_date: c.contract_end_date || null,
             subscription_status: c.subscription_status || null,
-            membershipTier: (() => {
-              if (!c.contract_end_date) return "no_date";
-              const now = new Date();
-              const end = new Date(c.contract_end_date);
-              if (end > now) return "full";
-              if (
-                c.subscription_status === "active" &&
-                c.subscription_current_period_end &&
-                new Date(c.subscription_current_period_end) > now
-              ) return "subscriber";
-              return "expired";
-            })(),
+            membershipTier: computeMembershipTier({
+              contract_end_date: c.contract_end_date,
+              subscription_status: c.subscription_status,
+              subscription_current_period_end: c.subscription_current_period_end,
+            }),
           } as any;
         });
 

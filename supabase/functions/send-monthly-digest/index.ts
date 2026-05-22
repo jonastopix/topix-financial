@@ -18,6 +18,7 @@ const DANISH_MONTHS = [
 ];
 
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
+import { computeMembershipTier } from "../_shared/membershipTier.ts";
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
@@ -120,13 +121,9 @@ Deno.serve(async (req) => {
 
   const _now = new Date();
   const activeMembershipIds = new Set<string>(
-    (companiesMeta || []).filter((c: any) => {
-      if (!c.contract_end_date) return true;
-      if (new Date(c.contract_end_date) > _now) return true;
-      return c.subscription_status === "active" &&
-        c.subscription_current_period_end &&
-        new Date(c.subscription_current_period_end) > _now;
-    }).map((c: any) => c.id)
+    (companiesMeta || [])
+      .filter((c: any) => computeMembershipTier(c, _now) !== "expired")
+      .map((c: any) => c.id)
   );
 
   if (!members?.length) {

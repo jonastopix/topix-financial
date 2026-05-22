@@ -35,6 +35,7 @@ function resolveSenderFromTemplate(
 // Hardcoded fallback if no template exists in DB
 const FALLBACK_SUBJECT = 'Påmindelse: Din rapport for {{period}} mangler';
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
+import { computeMembershipTier } from "../_shared/membershipTier.ts";
 
 const FALLBACK_HTML = `<!DOCTYPE html>
 <html>
@@ -286,12 +287,7 @@ Deno.serve(async (req) => {
       const start = new Date(c.start_date || c.created_at);
       const earliest = new Date(start.getFullYear(), start.getMonth() - 1, 1);
       if (prevMonth.getTime() < earliest.getTime()) return false;
-      if (c.contract_end_date && new Date(c.contract_end_date) <= _nowR) {
-        const hasActiveSub = c.subscription_status === "active" &&
-          c.subscription_current_period_end &&
-          new Date(c.subscription_current_period_end) > _nowR;
-        if (!hasActiveSub) return false;
-      }
+      if (computeMembershipTier(c, _nowR) === "expired") return false;
       return true;
     });
 

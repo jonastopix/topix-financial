@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { computeMembershipTier } from "../_shared/membershipTier.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -8,26 +9,16 @@ Deno.cron("weekly-company-agent", "0 7 * * 1", async () => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const now = new Date().toISOString();
+  const nowDate = new Date();
   const { data: companies, error } = await adminClient
     .from("companies")
     .select("id, name, contract_end_date, subscription_status, subscription_current_period_end")
     .eq("status", "active");
 
   // Filter to only companies with valid membership
-  const activeCompanies = (companies ?? []).filter(c => {
-    // No end date set = legacy full member, always include
-    if (!c.contract_end_date) return true;
-    // Active contract
-    if (new Date(c.contract_end_date) > new Date(now)) return true;
-    // Active self-serve subscription
-    if (
-      c.subscription_status === "active" &&
-      c.subscription_current_period_end &&
-      new Date(c.subscription_current_period_end) > new Date(now)
-    ) return true;
-    return false;
-  });
+  const activeCompanies = (companies ?? []).filter(c =>
+    computeMembershipTier(c, nowDate) !== "expired",
+  );
 
   if (error || !companies?.length) {
     console.error("Weekly agent: failed to fetch companies", error?.message);
