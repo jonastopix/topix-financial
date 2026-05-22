@@ -18,6 +18,7 @@ import InlineEditInput from "@/components/InlineEditInput";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
+import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
@@ -71,6 +72,7 @@ interface ConversationWithProfile {
   companyName?: string;
   companyLogoUrl?: string;
   isLegat?: boolean;
+  membershipTier?: MembershipTier;
   profile: { full_name: string; company_name: string; avatar_url: string } | null;
   unreadCount: number;
   lastMessage?: string;
@@ -318,7 +320,7 @@ const CompanyChatPane = () => {
     const loadConversations = async () => {
       let convsQuery = supabase
         .from("conversations")
-        .select("*, companies:company_id(id, name, logo_url, is_legat)")
+        .select("*, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
         .order("last_message_at", { ascending: false });
       
       if (isCompanyOverride && companyId) {
@@ -408,6 +410,13 @@ const CompanyChatPane = () => {
         const companyData = c.companies as any;
         const cid = c.company_id || undefined;
         const report = cid ? reportsByCompany.get(cid) : undefined;
+        const membershipTier = companyData
+          ? computeMembershipTier({
+              contract_end_date: companyData.contract_end_date,
+              subscription_status: companyData.subscription_status,
+              subscription_current_period_end: companyData.subscription_current_period_end,
+            })
+          : undefined;
 
         return {
           id: c.id,
@@ -417,6 +426,7 @@ const CompanyChatPane = () => {
           companyName: companyData?.name || undefined,
           companyLogoUrl: companyData?.logo_url || undefined,
           isLegat: !!companyData?.is_legat,
+          membershipTier,
           profile: profile
             ? { full_name: profile.full_name, company_name: profile.company_name || "", avatar_url: profile.avatar_url || "" }
             : null,
@@ -733,8 +743,15 @@ const CompanyChatPane = () => {
     // Split legat from regular conversations immediately
     const regularConvs = conversations.filter(c => !c.isLegat);
     const legatConvs = conversations.filter(c => c.isLegat);
+    // Partition regular conversations on membership state. Expired ones are
+    // excluded from KRÆVER SVAR / TJEK IND / ALLE — they only surface via
+    // the search-reveal path. `undefined` tier (orphan conversations with no
+    // company join) falls through as active (fail open against accidentally
+    // hiding live conversations).
+    const activeConvs = regularConvs.filter(c => c.membershipTier !== "expired");
+    const expiredConvs = regularConvs.filter(c => c.membershipTier === "expired");
     // KRÆVER SVAR: all conversations awaiting any advisor reply, not acknowledged, not snoozed
-    const needsReply = regularConvs.filter(c => {
+    const needsReply = activeConvs.filter(c => {
       if (c.conversation_status === 'resolved') return false;
       if (c.awaiting_reply_from !== 'advisor') return false;
       const hasExpiredSnooze = !!c.follow_up_at && new Date(c.follow_up_at) <= now;
@@ -746,7 +763,7 @@ const CompanyChatPane = () => {
     });
     const needsReplyIds = new Set(needsReply.map(c => c.id));
     // TJEK IND: all conversations where no advisor has written in 14+ days
-    const needsCheckin = regularConvs.filter(c => {
+    const needsCheckin = activeConvs.filter(c => {
       if (needsReplyIds.has(c.id)) return false;
       if (c.conversation_status === 'resolved') return false;
       const lastAdvisor = c.last_advisor_reply_at
@@ -760,7 +777,7 @@ const CompanyChatPane = () => {
     });
     const checkinIds = new Set(needsCheckin.map(c => c.id));
     // ALLE ANDRE: everything not in the two groups above, sorted by latest activity
-    const rest = regularConvs.filter(c => {
+    const rest = activeConvs.filter(c => {
       return !needsReplyIds.has(c.id) && !checkinIds.has(c.id);
     }).sort((a, b) =>
       new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
@@ -769,7 +786,11 @@ const CompanyChatPane = () => {
     const legat = legatConvs.sort((a, b) =>
       new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
     );
-    return { needsReply, needsCheckin, rest, legat };
+    // Expired: sorted by latest message; only surfaced through search-reveal.
+    const expired = expiredConvs.sort((a, b) =>
+      new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
+    return { needsReply, needsCheckin, rest, legat, expired };
   }, [conversations, user?.id]);
 
   // Load messages for active conversation
@@ -955,6 +976,15 @@ const CompanyChatPane = () => {
 
     if (trimmed.length > MAX_MESSAGE_LENGTH) return;
 
+    // Defense in depth: composer is also hidden in the UI when this is true,
+    // but a stale `conversations` snapshot or a race could still leave it
+    // mounted. The toast surfaces why nothing happened.
+    const activeConvForSend = conversations.find(c => c.id === activeConvId);
+    if (activeConvForSend?.membershipTier === "expired") {
+      toast.error("Denne virksomhed er udløbet — beskeder kan ikke sendes");
+      return;
+    }
+
     setSending(true);
 
     // Upload attachments if any
@@ -1052,7 +1082,7 @@ const CompanyChatPane = () => {
     }
 
     setSending(false);
-  }, [activeConvId, user, selectedTopic]);
+  }, [activeConvId, user, selectedTopic, conversations]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const isGroupThread = activeConv?.threadType === "group";
@@ -1442,7 +1472,11 @@ const CompanyChatPane = () => {
                 const checkinList = filterConvs(groupedConversations.needsCheckin);
                 const restList = filterConvs(groupedConversations.rest);
                 const legatList = filterConvs(groupedConversations.legat);
-                const total = replyList.length + checkinList.length + restList.length + legatList.length;
+                // Expired conversations are hidden by default. They only appear
+                // in search results so advisors can still pull up historical
+                // threads by typing the company name.
+                const expiredList = q ? filterConvs(groupedConversations.expired) : [];
+                const total = replyList.length + checkinList.length + restList.length + legatList.length + expiredList.length;
 
                 if (q && total === 0) {
                   return (
@@ -1491,6 +1525,9 @@ const CompanyChatPane = () => {
                               {conv.companyName || conv.profile?.full_name || "Ukendt"}
                               {conv.isLegat && (
                                 <span className="ml-1.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Legat</span>
+                              )}
+                              {conv.membershipTier === "expired" && (
+                                <span className="ml-1.5 text-[9px] font-semibold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">Udløbet</span>
                               )}
                             </p>
                             <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
@@ -1613,8 +1650,23 @@ const CompanyChatPane = () => {
                       </div>
                     )}
 
+                    {/* Section: Udløbede (search-reveal only) */}
+                    {expiredList.length > 0 && (
+                      <div className={(replyList.length > 0 || checkinList.length > 0 || restList.length > 0 || legatList.length > 0) ? "border-t-2 border-border mt-1" : ""}>
+                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            Udløbede
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {expiredList.length}
+                          </span>
+                        </div>
+                        {expiredList.map(c => renderConvCard(c, 'normal'))}
+                      </div>
+                    )}
+
                     {/* Empty state */}
-                    {replyList.length === 0 && checkinList.length === 0 && restList.length === 0 && legatList.length === 0 && !q && (
+                    {replyList.length === 0 && checkinList.length === 0 && restList.length === 0 && legatList.length === 0 && expiredList.length === 0 && !q && (
                       <div className="p-8 text-center">
                         <CheckCheck className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
                         <p className="text-xs text-muted-foreground">Alt er i orden 🎉</p>
@@ -2285,6 +2337,15 @@ const CompanyChatPane = () => {
                     paddingBottom: isMobile ? "calc(0.5rem + env(safe-area-inset-bottom))" : undefined,
                   }}
                 >
+                  {activeConv?.membershipTier === "expired" ? (
+                    <div className="flex items-center gap-2 px-3 py-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+                      <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                      <span>
+                        Denne virksomhed er <span className="font-semibold text-foreground">udløbet</span> — beskeder kan ikke sendes. Historik er stadig læsbar.
+                      </span>
+                    </div>
+                  ) : (
+                  <>
                   {!isGroupThread && isAdvisor && (
                     <div
                       className={`flex items-center gap-1.5 mb-2 overflow-x-auto ${isMobile ? "-mx-2 px-2" : ""}`}
@@ -2336,6 +2397,8 @@ const CompanyChatPane = () => {
                     )}
                   </div>
                   {!isMobile && <div className="safe-bottom-spacer" />}
+                  </>
+                  )}
                 </div>
               </>
             ) : (
