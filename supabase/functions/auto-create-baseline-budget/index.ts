@@ -1,26 +1,42 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const DANISH_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  // ── Auth (Bucket A) — must precede any service-role construction ──
+  const auth = await authenticateUser(req);
+  if (auth instanceof Response) return auth;
+  const { callerId, callerClient } = auth;
 
-  const { company_id, period_key, metrics, user_id } = await req.json();
+  const { company_id, period_key, metrics } = await req.json();
 
   if (!company_id || !period_key || !metrics) {
     return new Response(JSON.stringify({ ok: false, reason: "missing_params" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  // ── Membership check via callerClient (JWT-scoped) before service-role ──
+  const { data: membership } = await callerClient
+    .from("company_members")
+    .select("id")
+    .eq("user_id", callerId)
+    .eq("company_id", company_id)
+    .maybeSingle();
+  if (!membership) {
+    return new Response(JSON.stringify({ ok: false, reason: "forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // ── Service-role client (only after auth + membership check) ──
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   const year = period_key.slice(0, 4);
   const revenue = metrics.revenue ?? null;
@@ -84,7 +100,7 @@ Deno.serve(async (req) => {
       .from("financial_reports")
       .insert({
         company_id,
-        user_id,
+        user_id: callerId,
         file_name: sentinelFileName,
         file_path: "_sentinel",
         report_type: "andet",
@@ -117,7 +133,7 @@ Deno.serve(async (req) => {
       source_report_id: sentinelId,
       source_type: "manual_baseline",
       metrics: m,
-      committed_by: user_id,
+      committed_by: callerId,
       committed_at: new Date().toISOString(),
     };
   });
@@ -164,7 +180,7 @@ Deno.serve(async (req) => {
   // Insert monthly budget rows
   const budgetRows = budgetCategories.flatMap(({ category, annual }) =>
     Array.from({ length: 12 }, (_, i) => ({
-      user_id,
+      user_id: callerId,
       company_id,
       category,
       budget_amount: Math.round(annual / 12),
