@@ -68,7 +68,10 @@ to the entire access-control model.
 
 ## 5. Key RLS Policy Patterns
 
-All policies are **RESTRICTIVE** (not permissive) — they stack with AND logic.
+All policies on tables in the `public` schema are **RESTRICTIVE** (not
+permissive) — they stack with AND logic. Note: `storage.objects` policies
+are PERMISSIVE (Supabase default for the storage schema) and OR-stack —
+see section 9 for the storage-specific policy map.
 
 ### Company-scoped access
 ```sql
@@ -187,6 +190,68 @@ When squashing migrations into a clean baseline:
 - [ ] `trg_normalize_invitation_email` trigger
 - [ ] `get_users_last_login()` body's advisor-gate (`has_role(auth.uid(), 'advisor'::app_role)`) — gate must remain in the body, not in the grant
 - [ ] All RESTRICTIVE RLS policies (exact policy names and expressions)
+- [ ] All storage.objects PERMISSIVE policies listed in section 9 (in particular the advisor INSERT branch for `financial-documents`, without which advisor uploads false-deny)
 - [ ] `app_role` enum values: `member`, `advisor`, `admin`
 - [ ] UNIQUE constraint on `handouts(user_id, module)`
 - [ ] All foreign key relationships
+
+---
+
+## 9. Storage Bucket Policies
+
+Storage uses **PERMISSIVE** policies (Supabase default for the `storage`
+schema). Multiple INSERT or SELECT policies for the same `cmd` OR-stack:
+a row passes if ANY policy passes. This is the opposite of the public
+schema's RESTRICTIVE/AND model — adding a "stricter" policy alongside a
+loose one does NOT tighten access. The loose one always wins.
+
+### Bucket: `financial-documents` (private)
+
+**Path convention**: `{company_id}/...`
+- Main flow: `{company_id}/{report_id}/{sanitized_filename}` — set by
+  `buildStoragePath()` in `src/lib/reportFileAccess.ts`
+- Annual flow: `{company_id}/annual/{year}_{ts}_{sanitized_filename}` —
+  set inline in `src/pages/Reports.tsx:260`
+- Legacy paths starting with `uploads/...` exist in the bucket but are
+  refused by the frontend (`isLegacyPath()` short-circuits openers)
+
+**Policies on `storage.objects` for this bucket** (after migration
+`20260523183330_fix_financial_documents_storage_rls`):
+
+| cmd | policy | clause |
+|---|---|---|
+| INSERT | `Members can upload to own company` | `(storage.foldername(name))[1] = public.user_company_id(auth.uid())::text` |
+| INSERT | `Advisors can upload to any company` | `public.has_role(auth.uid(), 'advisor')` |
+| SELECT | `Members can view own company files` | `(storage.foldername(name))[1] = public.user_company_id(auth.uid())::text` |
+| SELECT | `Advisors can view all files` | `public.has_role(auth.uid(), 'advisor')` |
+| DELETE | `Members can delete own company files` | `(storage.foldername(name))[1] = public.user_company_id(auth.uid())::text` |
+| DELETE | `Advisors can delete any files` | `public.has_role(auth.uid(), 'advisor')` |
+
+All policies above also gate on `bucket_id = 'financial-documents'`.
+
+**Why advisor branches are required (not optional)**: in advisor sessions,
+`useAuth.tsx:113` resolves `companyId` to the customer's UUID via
+`overrideCompanyId`, so the upload path is `{customer_company_id}/...`,
+but `auth.uid()` is the advisor (typically not a `company_members` row).
+`user_company_id(auth.uid())` returns NULL, so the members-branch
+false-denies every advisor upload. The advisor-branch is what keeps the
+flow working. Same logic applies to advisor permanent-delete in the
+trash UI (`Reports.tsx:1743`).
+
+### Bucket: `chat-attachments` (public)
+
+**Known issues**: bucket is `public = true`, SELECT policy is `TO public`
+with no path or membership check, INSERT policy lacks a tenant/path
+check. Public-bucket flag means files are served via
+`/storage/v1/object/public/...` which bypasses RLS entirely — tightening
+the SELECT policy alone would not close the read exposure. Remediation
+requires making the bucket private, replacing `getPublicUrl` with signed
+URLs in `src/lib/chatAttachments.ts`, and migrating existing
+`message.context_meta.attachments[].url` data. **Tracked separately —
+not in scope for the financial-documents migration.**
+
+### Other buckets (not security-critical at this time)
+
+- `avatars` (public): user-id-scoped path, OK for the use case
+- `company-logos` (public): logos are intentionally public
+- `feedback-screenshots`: internal-only feedback feature
