@@ -154,11 +154,21 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
 
-  // Fetch all companies for advisor picker
+  // Fetch all companies for advisor picker.
+  // Select must stay in sync with AdvisorCompanyPrompt.tsx — both share
+  // the ["all-companies-picker"] cache, and AdvisorCompanyPrompt filters
+  // on the three tier-fields. If this select drops them, the cache
+  // entry that AdvisorCompanyPrompt reads will be missing them and the
+  // expired-hide filter silently no-ops. This dropdown itself does not
+  // filter on tier — it is the search-reveal escape-hatch to historical
+  // data for expired customers.
   const { data: allCompanies } = useQuery({
     queryKey: ["all-companies-picker"],
     queryFn: async () => {
-      const { data } = await supabase.from("companies").select("id, name").order("name");
+      const { data } = await supabase
+        .from("companies")
+        .select("id, name, contract_end_date, subscription_status, subscription_current_period_end")
+        .order("name");
       return data || [];
     },
     enabled: isAdvisor,

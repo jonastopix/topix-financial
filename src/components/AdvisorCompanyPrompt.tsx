@@ -2,6 +2,7 @@ import { Building2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { computeMembershipTier } from "@/lib/membershipTier";
 
 const AdvisorCompanyPrompt = () => {
   const { isAdvisor, setCompanyOverride } = useAuth();
@@ -9,11 +10,26 @@ const AdvisorCompanyPrompt = () => {
   const { data: companies, isLoading } = useQuery({
     queryKey: ["all-companies-picker"],
     queryFn: async () => {
-      const { data } = await supabase.from("companies").select("id, name").order("name");
+      const { data } = await supabase
+        .from("companies")
+        .select("id, name, contract_end_date, subscription_status, subscription_current_period_end")
+        .order("name");
       return data || [];
     },
     enabled: isAdvisor,
   });
+
+  // Hide expired companies from the in-page picker (Reports, Handouts,
+  // Milestones, KPIs). `no_date` and any undefined-tier rows fall through
+  // as visible — fail open, never hide silently. Advisors can still reach
+  // expired customers via AppSidebar "Se som member" (search-reveal path).
+  const visibleCompanies = (companies ?? []).filter(
+    (c) => computeMembershipTier({
+      contract_end_date: c.contract_end_date,
+      subscription_status: c.subscription_status,
+      subscription_current_period_end: c.subscription_current_period_end,
+    }) !== "expired",
+  );
 
   if (!isAdvisor) return null;
 
@@ -33,7 +49,7 @@ const AdvisorCompanyPrompt = () => {
         <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       ) : (
         <div className="grid gap-2 w-full max-w-sm">
-          {companies?.map((c) => (
+          {visibleCompanies.map((c) => (
             <button
               key={c.id}
               onClick={() => setCompanyOverride(c.id, c.name)}
@@ -45,7 +61,7 @@ const AdvisorCompanyPrompt = () => {
               <span className="text-sm font-medium text-foreground truncate">{c.name}</span>
             </button>
           ))}
-          {companies?.length === 0 && (
+          {visibleCompanies.length === 0 && (
             <p className="text-xs text-muted-foreground text-center">Ingen virksomheder fundet.</p>
           )}
         </div>
