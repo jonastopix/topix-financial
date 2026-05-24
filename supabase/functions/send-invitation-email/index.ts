@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
     const isServiceRole = token === serviceRoleKey;
 
+    let callerId: string | null = null;
     if (!isServiceRole) {
       const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
       const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
@@ -88,15 +89,69 @@ Deno.serve(async (req) => {
       if (userErr || !userData?.user?.id) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
+      callerId = userData.user.id;
     }
 
-    const { email, company_name, signup_url } = await req.json();
-
-    if (!email || !company_name || !signup_url) {
-      return new Response(JSON.stringify({ error: "Missing required fields: email, company_name, signup_url" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const body = await req.json();
+    const rawEmail = body?.email;
+    if (!rawEmail || typeof rawEmail !== 'string') {
+      return new Response(JSON.stringify({ error: "Missing required field: email" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
+
+    let email: string;
+    let company_name: string;
+    let signup_url: string;
+
+    if (isServiceRole) {
+      if (!body?.company_name || !body?.signup_url) {
+        return new Response(JSON.stringify({ error: "Missing required fields: company_name, signup_url" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      email = rawEmail;
+      company_name = body.company_name;
+      signup_url = body.signup_url;
+    } else {
+      // Authority-resolution: caller must have authority over an invitation row
+      // for this email. company_name and signup_url are server-derived from the
+      // canonical row so the function cannot be used as a phishing relay.
+      const normalizedEmail = rawEmail.trim().toLowerCase();
+
+      const { data: candidates, error: lookupErr } = await adminSupabase
+        .from('company_invitations')
+        .select('id, token, company_id, invited_by, companies(name)')
+        .ilike('email', normalizedEmail)
+        .order('created_at', { ascending: false });
+
+      if (lookupErr) {
+        console.error('[send-invitation-email] invitation lookup failed:', lookupErr);
+        return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (!candidates || candidates.length === 0) {
+        console.warn(`[send-invitation-email] denied: no invitation row for email=${normalizedEmail} caller=${callerId}`);
+        return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: isAdvisor } = await adminSupabase.rpc('has_role', { _user_id: callerId, _role: 'advisor' });
+      const { data: callerCompanyId } = await adminSupabase.rpc('user_company_id', { _user_id: callerId });
+
+      const authorized =
+        candidates.find((row: any) => row.invited_by === callerId) ??
+        (callerCompanyId ? candidates.find((row: any) => row.company_id === callerCompanyId) : undefined) ??
+        (isAdvisor === true ? candidates[0] : undefined);
+
+      if (!authorized) {
+        console.warn(`[send-invitation-email] denied: caller=${callerId} not authorized over invitation(s) for email=${normalizedEmail}`);
+        return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const companyRel = (authorized as any).companies;
+      const resolvedName = Array.isArray(companyRel) ? companyRel[0]?.name : companyRel?.name;
+      email = normalizedEmail;
+      company_name = resolvedName ?? 'The Boardroom';
+      signup_url = `https://app.theboardroom.dk/auth?mode=signup&invite=${(authorized as any).token}`;
+    }
 
     let subjectTpl = FALLBACK_SUBJECT;
     let bodyTpl = FALLBACK_HTML;
