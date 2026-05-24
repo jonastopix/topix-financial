@@ -9,10 +9,7 @@ Deno.serve(async (req) => {
 
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceKey);
+  const { callerId, callerClient } = auth;
 
   const { report_id, file_path, year, company_id, user_id } = await req.json();
   if (!report_id || !file_path || !year || !company_id) {
@@ -20,6 +17,30 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  // Authority check (member of target company OR advisor) — via callerClient so
+  // RLS gives defense-in-depth. Must pass before service-role client is built.
+  const { data: isAdvisor } = await callerClient.rpc('has_role', { _user_id: callerId, _role: 'advisor' });
+  let authorized = isAdvisor === true;
+  if (!authorized) {
+    const { data: membership } = await callerClient
+      .from('company_members')
+      .select('id')
+      .eq('user_id', callerId)
+      .eq('company_id', company_id)
+      .maybeSingle();
+    authorized = !!membership;
+  }
+  if (!authorized) {
+    console.warn(`[extract-annual-report] denied: caller=${callerId} not authorized for company=${company_id}`);
+    return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const adminClient = createClient(supabaseUrl, serviceKey);
 
   // Helper: persist error details to the report record so UI can show them
   const failReport = async (step: string, message: string, extra?: Record<string, unknown>) => {
