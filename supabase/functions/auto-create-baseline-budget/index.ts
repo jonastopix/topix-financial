@@ -19,14 +19,23 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ── Membership check via callerClient (JWT-scoped) before service-role ──
-  const { data: membership } = await callerClient
-    .from("company_members")
-    .select("id")
-    .eq("user_id", callerId)
-    .eq("company_id", company_id)
-    .maybeSingle();
-  if (!membership) {
+  // ── Authority check (member of target company OR advisor) via callerClient ──
+  // before service-role. Advisor bypass is required because advisors trigger
+  // this flow on customer pages via overrideCompanyId (body.company_id is the
+  // customer's UUID; advisor has no company_members row for them).
+  const { data: isAdvisor } = await callerClient.rpc('has_role', { _user_id: callerId, _role: 'advisor' });
+  let authorized = isAdvisor === true;
+  if (!authorized) {
+    const { data: membership } = await callerClient
+      .from("company_members")
+      .select("id")
+      .eq("user_id", callerId)
+      .eq("company_id", company_id)
+      .maybeSingle();
+    authorized = !!membership;
+  }
+  if (!authorized) {
+    console.warn(`[auto-create-baseline-budget] denied: caller=${callerId} not authorized for company=${company_id}`);
     return new Response(JSON.stringify({ ok: false, reason: "forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
