@@ -136,13 +136,6 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
   });
 }
 
-interface CircleInfo {
-  circle_member_id: number;
-  name: string;
-  last_seen_at: string | null;
-  recent_activity_count: number;
-}
-
 const Members = () => {
   const { user, isAdvisor: rawAdvisor, isAdmin, loading: authLoading } = useAuth();
   const { viewingAsMember } = useViewMode();
@@ -258,14 +251,12 @@ const Members = () => {
 
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-      const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, circleMembersRes, circleActivityRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
+      const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
         supabase.from("companies" as any).select("*, is_legat").limit(500),
         supabase.from("company_members" as any).select("company_id, user_id, role").limit(2000),
         supabase.from("profiles").select("user_id, full_name, avatar_url"),
         supabase.from("conversations").select("id, company_id, last_message_at"),
         (supabase.from("financial_reports").select("company_id, id, extracted_data, report_period") as any).is("deleted_at", null).limit(1000),
-        supabase.from("circle_members").select("id, circle_id, email, name, last_seen_at, user_id"),
-        supabase.from("circle_activity").select("circle_member_id, activity_type").limit(1000),
         supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
         supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
         supabase.from("financial_report_facts" as any).select("company_id, period_key"),
@@ -279,8 +270,6 @@ const Members = () => {
       const allProfiles = (profilesRes.data || []) as any[];
       const allConvs = (convsRes.data || []) as any[];
       const allReports = (reportsRes.data || []) as any[];
-      const allCircleMembers = (circleMembersRes.data || []) as any[];
-      const allCircleActivity = (circleActivityRes.data || []) as any[];
       const allInvitations = (invitationsRes.data || []) as any[];
       const allLoginLogs = (loginLogsRes.data || []) as any[];
       const allMemberUserIds = (allMembers as any[]).map((m: any) => m.user_id);
@@ -425,30 +414,6 @@ const Members = () => {
         unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
       });
 
-      const circleByUserId = new Map<string, any>();
-      allCircleMembers.forEach((cm: any) => {
-        if (cm.user_id) circleByUserId.set(cm.user_id, cm);
-      });
-      const activityByCircleMember = new Map<number, number>();
-      allCircleActivity.forEach((a: any) => {
-        activityByCircleMember.set(a.circle_member_id, (activityByCircleMember.get(a.circle_member_id) || 0) + 1);
-      });
-      const circleInfoByCompany = new Map<string, CircleInfo[]>();
-      allMembers.forEach((cm: any) => {
-        const circleMember = circleByUserId.get(cm.user_id);
-        if (circleMember) {
-          const activityCount = activityByCircleMember.get(circleMember.circle_id) || 0;
-          const arr = circleInfoByCompany.get(cm.company_id) || [];
-          arr.push({
-            circle_member_id: circleMember.circle_id,
-            name: circleMember.name,
-            last_seen_at: circleMember.last_seen_at,
-            recent_activity_count: activityCount,
-          });
-          circleInfoByCompany.set(cm.company_id, arr);
-        }
-      });
-
       const enriched: CompanyData[] = regularCompanies
         .filter((c: any) => c.status === "active" || !c.status)
         .map((c: any) => {
@@ -479,7 +444,6 @@ const Members = () => {
             committedCount: committedByCompany.get(c.id) || 0,
             unreadCount: conv ? (unreadByConv.get(conv.id) || 0) : 0,
             conversationId: conv?.id || null,
-            circleInfo: circleInfoByCompany.get(c.id) || [],
             logo_url: c.logo_url || null,
             pendingInvitationEmail: pendingInvitationByCompany.get(c.id) || null,
             invitationStatus: (() => {

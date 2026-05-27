@@ -37,8 +37,6 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.send-template-email]
     verify_jwt = false
-  [functions.sync-circle]
-    verify_jwt = false
   [functions.send-slack-handout-notification]
     verify_jwt = false
   [functions.send-slack-feedback-notification]
@@ -54,8 +52,6 @@ project_id = "loiavmastgeieqyiwyyr"
   [functions.generate-financial-commentary]
     verify_jwt = false
   [functions.owner-add-company-to-group]
-    verify_jwt = false
-  [functions.circle-oauth]
     verify_jwt = false
   [functions.process-email-queue]
     verify_jwt = true

@@ -52,26 +52,7 @@ const AdminConfig = () => {
   const { branding, performanceScore, gamification, meetings, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const [testingWeeklyFocus, setTestingWeeklyFocus] = useState(false);
-
-  const handleCircleSync = async () => {
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("sync-circle", {
-        body: { action: "sync" },
-      });
-      if (error) {
-        toast.error("Synkronisering fejlede");
-      } else {
-        toast.success(`Synkronisering færdig — ${data?.stats?.members_synced ?? 0} medlemmer opdateret`);
-      }
-    } catch {
-      toast.error("Synkronisering fejlede");
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const handleTestWeeklyFocus = async () => {
     setTestingWeeklyFocus(true);
@@ -265,24 +246,13 @@ const AdminConfig = () => {
       </div>
 
       <div className="grid gap-6 max-w-3xl">
-        {/* ─── Circle ────────────────────────────────── */}
+        {/* ─── Test & Debug ────────────────────────────────── */}
         <section className="glass-card rounded-xl p-6 animate-fade-in">
           <div className="flex items-center gap-2 mb-1">
             <RefreshCw className="h-4 w-4 text-primary" />
-            <h2 className="font-display font-semibold text-foreground">Circle synkronisering</h2>
+            <h2 className="font-display font-semibold text-foreground">Test & Debug</h2>
           </div>
-          <p className="text-sm text-muted-foreground mb-4">
-            Synkroniserer medlemmer, opslag og events fra Circle til platformen.
-          </p>
           <div className="flex gap-2">
-            <button
-              onClick={handleCircleSync}
-              disabled={syncing}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Synkroniserer..." : "Synkroniser nu"}
-            </button>
             <button
               onClick={handleTestWeeklyFocus}
               disabled={testingWeeklyFocus}

@@ -10,13 +10,6 @@ export interface CompanyMember {
   avatar_url: string | null;
 }
 
-export interface CircleInfo {
-  circle_member_id: number;
-  name: string;
-  last_seen_at: string | null;
-  recent_activity_count: number;
-}
-
 export interface CompanyData {
   id: string;
   name: string;
@@ -42,7 +35,6 @@ export interface CompanyData {
   committedCount: number;
   unreadCount: number;
   conversationId: string | null;
-  circleInfo: CircleInfo[];
   logo_url: string | null;
   pendingInvitationEmail: string | null;
   invitationStatus: 'pending' | 'accepted' | null;
