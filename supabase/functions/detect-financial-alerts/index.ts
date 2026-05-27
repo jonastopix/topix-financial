@@ -11,9 +11,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Authenticate caller
+  // ── Auth (Bucket A) — must precede any service-role construction ──
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
+  const { callerId, callerClient } = auth;
 
   const { company_id, period_key, report_id } = await req.json();
   if (!company_id || !period_key || !report_id) {
@@ -23,10 +24,57 @@ Deno.serve(async (req) => {
     );
   }
 
+  // ── Authority check (member of target company OR advisor) via callerClient ──
+  // before service-role. Advisor bypass is required because advisors trigger
+  // this flow on customer pages via overrideCompanyId (body.company_id is the
+  // customer's UUID; advisor has no company_members row for them).
+  const { data: isAdvisor } = await callerClient.rpc('has_role', { _user_id: callerId, _role: 'advisor' });
+  let authorized = isAdvisor === true;
+  if (!authorized) {
+    const { data: membership } = await callerClient
+      .from("company_members")
+      .select("id")
+      .eq("user_id", callerId)
+      .eq("company_id", company_id)
+      .maybeSingle();
+    authorized = !!membership;
+  }
+  if (!authorized) {
+    console.warn(`[detect-financial-alerts] denied: caller=${callerId} not authorized for company=${company_id}`);
+    return new Response(
+      JSON.stringify({ error: "forbidden" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   // Service-role client for cross-RLS reads and notification writes
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // ── Defence-in-depth: verify report_id belongs to company_id ──
+  // Prevents reference_id pollution (linking notifications to reports of
+  // other companies). Existence check only — authz already passed above.
+  const { data: reportRow, error: reportErr } = await adminClient
+    .from("financial_reports")
+    .select("id")
+    .eq("id", report_id)
+    .eq("company_id", company_id)
+    .maybeSingle();
+  if (reportErr) {
+    console.error(`[detect-financial-alerts] report lookup failed:`, reportErr);
+    return new Response(
+      JSON.stringify({ error: "report lookup failed" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  if (!reportRow) {
+    console.warn(`[detect-financial-alerts] report_id ${report_id} does not belong to company ${company_id} (caller=${callerId})`);
+    return new Response(
+      JSON.stringify({ error: "report_id does not belong to company_id" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
   // 1. Get the committed fact for the current period
   const { data: currentFact } = await adminClient
