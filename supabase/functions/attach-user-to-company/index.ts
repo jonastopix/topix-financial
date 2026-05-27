@@ -6,6 +6,21 @@ Deno.serve(async (req) => {
 
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
+  const { callerId, callerClient } = auth;
+
+  // Caller-authz: must be advisor (admin inherits via has_role). The frontend
+  // route is AdvisorRoute-guarded, but a valid JWT can hit this edge function
+  // directly — server-side gate closes that path.
+  const { data: callerIsAdvisor, error: callerRoleError } = await callerClient.rpc(
+    "has_role",
+    { _user_id: callerId, _role: "advisor" }
+  );
+  if (callerRoleError || !callerIsAdvisor) {
+    console.warn("[attach-user-to-company] caller not advisor", { callerId });
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -47,14 +62,50 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Check not already a member of any company
-  const { data: existing } = await adminClient
+  // Target-protection: never attach an advisor/admin to a company. A
+  // company_members row makes user_company_id() resolve to that company for
+  // the advisor, which breaks the advisor-bypass model — ownCompanyId in
+  // useAuth.tsx:113 falls back from null to the injected company, and the
+  // `if (isAdvisor && !companyId)` advisor-view guards across 6 routes
+  // (Index, Milestones, Reports, KPIs, Handouts, Budget) start sending
+  // advisors into member-view. Advisors are never the legitimate target of
+  // this flow — customer accounts are.
+  const { data: targetRoles, error: targetRoleError } = await adminClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", ["advisor", "admin"]);
+  if (targetRoleError) {
+    console.error("[attach-user-to-company] target role lookup failed:", targetRoleError);
+    return new Response(JSON.stringify({ ok: false, error: "Role lookup failed" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (targetRoles && targetRoles.length > 0) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Cannot attach an advisor or admin to a company" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Check not already a member of any company. Use .limit(1) instead of
+  // .maybeSingle() so 2+ existing rows can't fall through to INSERT —
+  // maybeSingle returns data=null on PGRST116 (multi-row), which the prior
+  // code misread as "no existing membership".
+  const { data: existing, error: existingError } = await adminClient
     .from("company_members")
     .select("id")
     .eq("user_id", userId)
-    .maybeSingle();
+    .limit(1);
 
-  if (existing) {
+  if (existingError) {
+    console.error("[attach-user-to-company] membership check failed:", existingError);
+    return new Response(JSON.stringify({ ok: false, error: "Membership check failed" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (existing && existing.length > 0) {
     return new Response(JSON.stringify({ ok: false, error: "User already has a company" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
