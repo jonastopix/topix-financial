@@ -52,13 +52,10 @@
     --chart-warning: 38 92% 50%;
     --chart-info: 217 91% 60%;
     --chart-neutral: 170 15% 40%;
-
-    --glass: 0 0% 100% / 0.7;
-    --glass-border: 40 5% 87% / 0.5;
   }
 
   .dark {
-    --background: 170 30% 5%;
+    --background: 170 30% 8%;
     --foreground: 40 5% 91%;
 
     --card: 170 22% 10%;
@@ -101,9 +98,6 @@
     --chart-warning: 38 80% 52%;
     --chart-info: 217 75% 62%;
     --chart-neutral: 170 10% 46%;
-
-    --glass: 170 22% 10% / 0.7;
-    --glass-border: 170 18% 18% / 0.5;
   }
 }
 
@@ -132,7 +126,8 @@
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/70 backdrop-blur-xl border border-border/50 shadow-lg;
+    @apply bg-card/95 backdrop-blur-xl border border-border shadow-lg;
+    box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.04), 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -4px hsl(0 0% 0% / 0.3);
   }
 
   .glow-primary {
