@@ -16,7 +16,6 @@ import DashboardMilestones from "@/components/DashboardMilestones";
 import DashboardHandouts from "@/components/DashboardHandouts";
 import DashboardActivity from "@/components/DashboardActivity";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
-import PulseCheckinModal from "@/components/PulseCheckinModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,7 +66,6 @@ const Dashboard = () => {
   }, [subscriptionResult]);
 
   const [tourDismissed, setTourDismissed] = useState(false);
-  const [showPulseModal, setShowPulseModal] = useState(false);
   const queryClient = useQueryClient();
 
   const shouldShowTour = !rawAdvisor && profile && !profile.tour_completed_at;
@@ -463,13 +461,6 @@ const Dashboard = () => {
       )}
 
 
-      {/* Pulse modal */}
-      <PulseCheckinModal
-        open={showPulseModal}
-        onOpenChange={setShowPulseModal}
-        onComplete={() => queryClient.invalidateQueries({ queryKey: ["pulse-this-month", companyId] })}
-      />
-
       {/* Unified action center */}
       {!isAdvisor && companyId && (
         <DashboardActionCenter
@@ -477,6 +468,7 @@ const Dashboard = () => {
           hasPulseThisMonth={hasPulseThisMonth}
           hasReports={hasReports}
           hasMilestoneProgressThisMonth={hasMilestoneProgressThisMonth}
+          committedPeriodKeys={new Set(facts.map(f => f.period_key))}
         />
       )}
 
