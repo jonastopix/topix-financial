@@ -102,6 +102,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Check-in gemt!");
     queryClient.invalidateQueries({ queryKey: ["mobile-pulse-this-month"] });
+    queryClient.invalidateQueries({ queryKey: ["pulse-this-month"] });
     supabase.functions.invoke("send-slack-report-notification", {
       body: { event: "pulse_checkin_received", companyId, periodKey },
     }).catch((err) => console.error("[PulseCheckin] Slack notification failed:", err));
