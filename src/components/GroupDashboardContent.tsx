@@ -183,7 +183,7 @@ const GroupDashboardContent = ({
 
           {/* ── Historical Chart ── */}
           {historicalData && historicalData.length >= 2 && (
-            <div className="rounded-xl border border-border bg-card p-5">
+            <div className="glass-card rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-sm font-semibold text-foreground">Udvikling over tid</p>
