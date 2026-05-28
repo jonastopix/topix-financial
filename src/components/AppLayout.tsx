@@ -72,7 +72,9 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     queryKey: ["mobile-pulse-this-month", companyId],
     queryFn: async () => {
       if (!companyId) return true;
-      const periodKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+      const prev = new Date();
+      prev.setMonth(prev.getMonth() - 1);
+      const periodKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
       const { data } = await supabase
         .from("pulse_checkins")
         .select("id")
