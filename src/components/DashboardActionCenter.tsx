@@ -48,6 +48,7 @@ interface DashboardActionCenterProps {
   hasPulseThisMonth: boolean;
   hasReports: boolean;
   hasMilestoneProgressThisMonth: boolean;
+  committedPeriodKeys?: Set<string>;
 }
 
 export default function DashboardActionCenter({
@@ -55,6 +56,7 @@ export default function DashboardActionCenter({
   hasPulseThisMonth,
   hasReports,
   hasMilestoneProgressThisMonth,
+  committedPeriodKeys,
 }: DashboardActionCenterProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -109,9 +111,31 @@ export default function DashboardActionCenter({
         .eq("company_id", companyId).is("deleted_at", null).eq("status", "processed");
 
       const reportKeys = new Set((reports || []).map((r: any) => getEffectiveReportPeriodKey(r as ReportData)).filter(Boolean));
-      if (!reportKeys.has(prevKey)) {
+      const hasUpload = reportKeys.has(prevKey);
+      // Fallback: if committedPeriodKeys is not provided, treat hasUpload as committed
+      // so existing callers without the prop keep their current behavior.
+      const isCommitted = committedPeriodKeys?.has(prevKey) ?? hasUpload;
+
+      if (!hasUpload) {
         const daysSince = now.getDate();
-        items.push({ id: "missing-report", type: "report", title: `${DANISH_MONTHS[prevMonth]}-rapport mangler`, description: `Upload din saldobalance for ${DANISH_MONTHS[prevMonth]} ${prevYear}`, urgency: daysSince >= 15 ? "high" : "medium", link: "/reports", daysLeft: daysSince });
+        items.push({
+          id: "missing-report",
+          type: "report",
+          title: `${DANISH_MONTHS[prevMonth]}-rapport mangler`,
+          description: `Upload dine tal for ${DANISH_MONTHS[prevMonth]} ${prevYear}`,
+          urgency: daysSince >= 15 ? "high" : "medium",
+          link: "/reports",
+          daysLeft: daysSince,
+        });
+      } else if (!isCommitted) {
+        items.push({
+          id: "report-pending-approval",
+          type: "report",
+          title: `${DANISH_MONTHS[prevMonth]}-rapport afventer din godkendelse`,
+          description: `Du har uploadet tal for ${DANISH_MONTHS[prevMonth]} ${prevYear} men har ikke godkendt dem endnu. Færdiggør for at få dem i drift.`,
+          urgency: "medium",
+          link: "/reports",
+        });
       }
 
       const { data: milestones } = await (supabase.from("milestones").select("id, title, deadline, progress") as any)
@@ -139,11 +163,19 @@ export default function DashboardActionCenter({
         }
       }
 
-      if (!hasPulseThisMonth) {
-        items.push({ id: "pulse-checkin", type: "pulse", title: "Månedlig pulse — 2 minutter", description: "Fortæl os hvad der gik godt og hvad der er din største udfordring", urgency: "low", link: "/pulse" });
+      // Pulse-nudge gated bag committed rapport: rapport først, så pulse som stillingtagen.
+      if (isCommitted && !hasPulseThisMonth) {
+        items.push({
+          id: "pulse-checkin",
+          type: "pulse",
+          title: "Tag stilling til dine tal",
+          description: `Du har afleveret ${DANISH_MONTHS[prevMonth]}-rapporten. Har du taget stilling til tallene?`,
+          urgency: "low",
+          link: "/pulse",
+        });
       }
 
-      if (hasPulseThisMonth) {
+      if (isCommitted && hasPulseThisMonth) {
         items.push({ id: "pulse-done", type: "pulse", title: "Pulse check-in er sendt ✓", description: "Vil du opdatere dit check-in for denne måned?", urgency: "low", link: "/pulse" });
       }
 
