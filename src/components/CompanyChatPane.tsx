@@ -2226,7 +2226,7 @@ const CompanyChatPane = () => {
                                   {msg.content !== "📎" && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
-                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} />
+                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source={activeConvId?.startsWith("group_") ? "group_messages" : "messages"} />
                                   <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                     {(msg as any).edited_at && (
                                       <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
@@ -2280,7 +2280,7 @@ const CompanyChatPane = () => {
                                   {msg.content !== "📎" && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
-                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} />
+                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source={activeConvId?.startsWith("group_") ? "group_messages" : "messages"} />
                                   <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                     {(msg as any).edited_at && (
                                       <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
