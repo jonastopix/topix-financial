@@ -71,3 +71,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.admin-cleanup-test-data]
     verify_jwt = false
+  [functions.get-chat-attachment-url]
+    verify_jwt = false
