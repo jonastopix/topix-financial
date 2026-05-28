@@ -1197,7 +1197,7 @@ const Members = () => {
           <button onClick={() => toggleSort("latest_report")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Seneste rapport <ArrowUpDown className="h-3 w-3" />
           </button>
-          <span>Pulse</span>
+          <span>Refleksion</span>
           <span>Chat</span>
           <button onClick={() => toggleSort("reportCount")} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
             Status <ArrowUpDown className="h-3 w-3" />

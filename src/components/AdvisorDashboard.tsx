@@ -141,7 +141,7 @@ function MemberCard({
           )}
           {hasPulse && (
             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
-              Pulse ✓
+              Refleksion ✓
             </span>
           )}
         </div>
@@ -732,7 +732,7 @@ const AdvisorDashboard = () => {
           const hasPulseThisMonth = c.latestPulse != null &&
             new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
           if (!hasPulseThisMonth && dayOfMonth > 15 && c.has_verified_metrics) {
-            reasons.push({ label: "Ingen pulse check-in denne måned", urgency: "medium" });
+            reasons.push({ label: "Ingen refleksion denne måned", urgency: "medium" });
             score += 25;
           }
 
@@ -787,12 +787,12 @@ const AdvisorDashboard = () => {
               });
             } else if (c.latestPulse?.biggest_challenge) {
               signals.push({
-                label: "Pulse udfyldt",
+                label: "Refleksion udfyldt",
                 hint: `Største udfordring: "${c.latestPulse.biggest_challenge.slice(0, 60)}${c.latestPulse.biggest_challenge.length > 60 ? "..." : ""}"`,
               });
             } else {
               signals.push({
-                label: "Pulse udfyldt",
+                label: "Refleksion udfyldt",
                 hint: "Founder har tjekket ind — god anledning til at følge op",
               });
             }
@@ -818,8 +818,8 @@ const AdvisorDashboard = () => {
           // Pulse ikke udfyldt efter den 15.
           if (!pulseThisMonth && now.getDate() > 15 && c.has_verified_metrics) {
             signals.push({
-              label: "Pulse ikke udfyldt endnu",
-              hint: "Vi er efter den 15. — god anledning til at rykke for check-in",
+              label: "Refleksion ikke udfyldt endnu",
+              hint: "Vi er efter den 15. — god anledning til at rykke for en refleksion",
             });
           }
 
@@ -854,11 +854,11 @@ const AdvisorDashboard = () => {
             let n = 0;
             if (s.signals.some(x => x.label === "Beder om hjælp")) n += 40;
             if (s.signals.some(x => x.label === "Ny rapport godkendt")) n += 30;
-            if (s.signals.some(x => x.label === "Pulse udfyldt")) n += 25;
+            if (s.signals.some(x => x.label === "Refleksion udfyldt")) n += 25;
             if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 20;
             if (s.signals.some(x => x.label === "Milestone nået")) n += 15;
             if (s.signals.some(x => x.label.startsWith("Ingen kontakt i"))) n += 10;
-            if (s.signals.some(x => x.label === "Pulse ikke udfyldt endnu")) n += 5;
+            if (s.signals.some(x => x.label === "Refleksion ikke udfyldt endnu")) n += 5;
             // "Ingen milestones" gets 0 — always shown last
             return n;
           };

@@ -96,7 +96,7 @@ export default function GroupLeaderboard({ companies }: GroupLeaderboardProps) {
       </div>
 
       <p className="text-[10px] text-muted-foreground mt-4">
-        Baseret på: rapport uploadet (40p), pulse check-in (20p), positivt resultat (20p), omsætning registreret (20p). Andre virksomheder er anonymiserede.
+        Baseret på: rapport uploadet (40p), refleksion (20p), positivt resultat (20p), omsætning registreret (20p). Andre virksomheder er anonymiserede.
       </p>
     </div>
   );

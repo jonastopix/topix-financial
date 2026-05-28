@@ -1016,7 +1016,7 @@ const Settings = () => {
                     { key: "important", label: "Opdateringer", desc: "Svar fra rådgiver, rapport behandlet, ny AI-analyse klar" },
                     { key: "report_reminders", label: "Rapport-påmindelser", desc: "Automatisk reminder hvis du ikke har uploadet inden dag 7, 15 og 20 i måneden" },
                     { key: "monthly_digest", label: "Månedlig digest", desc: "Personligt overblik den 5. i måneden med dine KPI-tal, milestones og beskeder" },
-                    { key: "pulse_reminders", label: "Pulse-påmindelser", desc: "Månedlig reminder den 10. i måneden om at udfylde dit pulse check-in" },
+                    { key: "pulse_reminders", label: "Påmindelser om refleksion", desc: "Månedlig påmindelse den 10. i måneden om at udfylde din refleksion" },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-start justify-between gap-4">
                       <div>
@@ -1065,7 +1065,7 @@ const Settings = () => {
                   <p className="text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">In-app notifikationer</span>
                     {" "}— Direkte beskeder fra members vises som vigtige. 
-                    Rapporter, pulse og handouts vises som aktivitet uden badge.
+                    Rapporter, refleksion og handouts vises som aktivitet uden badge.
                   </p>
                 </div>
               </div>

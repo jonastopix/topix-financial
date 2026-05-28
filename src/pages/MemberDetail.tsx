@@ -1163,7 +1163,7 @@ const MemberDetail = () => {
             <div className="glass-card rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
-                Pulse check-in
+                Refleksion
                 {latestPulse && (
                   <span className="text-xs font-normal text-muted-foreground ml-auto">
                     {(() => {
@@ -1175,7 +1175,7 @@ const MemberDetail = () => {
                 )}
               </h3>
               {!latestPulse ? (
-                <p className="text-xs text-muted-foreground">Ingen pulse endnu. Bed member om at udfylde månedlig check-in.</p>
+                <p className="text-xs text-muted-foreground">Ingen refleksion endnu. Bed medlemmet om at udfylde sin månedlige refleksion.</p>
               ) : (
                 <div className="space-y-3">
                   {latestPulse.went_well && (

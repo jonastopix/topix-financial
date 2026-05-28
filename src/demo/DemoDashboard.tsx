@@ -72,7 +72,7 @@ export default function DemoDashboard() {
             <Target className="h-4 w-4 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">Månedlig pulse — 2 minutter</p>
+            <p className="text-sm font-semibold text-foreground">Månedens refleksion — 2 minutter</p>
             <p className="text-xs text-muted-foreground">Fortæl os hvad der gik godt og hvad der er din største udfordring</p>
           </div>
         </div>

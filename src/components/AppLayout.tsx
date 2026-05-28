@@ -18,7 +18,7 @@ const CURRENT_ANNOUNCEMENT = {
   id: "v2026-04-platform-update",
   title: "Nyheder i The Boardroom",
   items: [
-    "Pulse check-in viser nu automatisk dine milestone-fremskridt",
+    "Din refleksion viser nu automatisk dine milestone-fremskridt",
     "Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data",
     "AI-chefen genererer nyt ugesfokus hver mandag — se det øverst på dit dashboard",
   ],
@@ -129,7 +129,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
   const bottomTabs = [
     { label: "Hjem", path: "/", icon: Home, badge: 0 },
     { label: "Chat", path: "/chat", icon: MessageCircle, badge: unreadLoading ? 0 : unreadCount },
-    { label: "Pulse", path: "/pulse", icon: Zap, badge: showPulseBadge ? -1 : 0 },
+    { label: "Refleksion", path: "/pulse", icon: Zap, badge: showPulseBadge ? -1 : 0 },
   ];
 
   const isOnChat = location.pathname === "/chat";
