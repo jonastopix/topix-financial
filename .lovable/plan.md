@@ -1,23 +1,16 @@
-## Ændringer i src/index.css
+## Mørkt tema: spred flade-lagene mere
 
-Tre kirurgiske edits, ingen andre filer røres.
+### src/index.css (.dark-blokken)
+- `--background`: `170 30% 8%` → `170 30% 6%`
+- `--card`: `170 22% 10%` → `170 22% 15%`
+- `--border`: `170 18% 18%` → `170 18% 26%`
 
-### 1. Mørkere kort-kontrast
-I `.dark`-blokken (linje ~62):
-- `--background: 170 30% 5%;` → `--background: 170 30% 8%;`
+Alle andre tokens og `.glass-card`-utility røres ikke.
 
-### 2. Stærkere `.glass-card`
-Erstat nuværende utility (linje ~125-127):
-```css
-.glass-card {
-  @apply bg-card/95 backdrop-blur-xl border border-border shadow-lg;
-  box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.04), 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -4px hsl(0 0% 0% / 0.3);
-}
-```
+### src/components/GroupDashboardContent.tsx (~linje 349)
+Skift containerens className fra:
+`rounded-xl border border-border bg-card p-5`
+til:
+`glass-card rounded-xl p-5`
 
-### 3. Fjern ubrugte glass-tokens
-Slet fire linjer i alt:
-- `:root`-blok: `--glass: 0 0% 100% / 0.7;` og `--glass-border: 40 5% 87% / 0.5;`
-- `.dark`-blok: `--glass: 170 22% 10% / 0.7;` og `--glass-border: 170 18% 18% / 0.5;`
-
-Ingen øvrige tokens eller filer ændres. `:root` forbliver ellers urørt.
+Ingen andre ændringer.
