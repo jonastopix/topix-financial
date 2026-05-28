@@ -158,6 +158,18 @@ udskudt strukturel gæld).
 
 ---
 
+### [P4] Accepteret — `log_user_login` NULL-guard (vurderet 2026-05-28, ikke fixet)
+
+**Status**: Vurderet og bevidst ikke fixet. SECURITY DEFINER-funktionen `public.log_user_login()` (defineret i `supabase/migrations/20260302213733_*.sql`) har Postgres-default `EXECUTE TO PUBLIC` — dvs. både `anon` og `authenticated` kan kalde den. Bodyen er `INSERT INTO public.user_login_log (user_id) VALUES (auth.uid())`. En anon-kalder giver `auth.uid() = NULL`, men `user_login_log.user_id` er `NOT NULL` — Postgres afviser INSERT på constraint. **Ingen NULL-rækker lander, ingen data-konsekvens, ingen escalation.** Eneste tilbageværende effekt er potentiel Postgres error-log-støj ved RPC-spam udefra. Constraint'en er forsvaret.
+
+**Hvorfor ikke fixet**: En fix (body-gate: `INSERT ... SELECT auth.uid() WHERE auth.uid() IS NOT NULL`) ville være en SECDEF-migration (FORBIDDEN-zone iht. CLAUDE.md) + irreversibel manuel SQL i Lovable, alt sammen for ren log-hygiejne på et angreb der allerede fejler ved constraint-laget. Omkostning/gevinst er forkert. Triagens oprindelige formulering "anon kan indsætte NULL-rækker" var teknisk forkert — constraint'en blokerer det.
+
+**Revurder hvis**: `user_id NOT NULL`-constraint nogensinde fjernes fra `user_login_log` (fx ved tabel-refactor eller hvis nogen tilføjer en `DEFAULT`). Så ville NULL-rækker reelt kunne lande, og denne risikovurdering vendes om. Constraint-ændring → genåbn denne post.
+
+**Legitime kalder**: kun `src/hooks/useAuth.tsx:332` på `SIGNED_IN`-event, hvor `auth.uid()` altid har værdi. Ingen edge functions kalder den.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
