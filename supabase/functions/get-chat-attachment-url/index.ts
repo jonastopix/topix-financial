@@ -1,3 +1,9 @@
+// Deploy-nudge 2026-05-28: PR #39 (commit b6619f8c) merged uden
+// at Lovable auto-deployede denne nye edge function — verificeret
+// fraværende i Lovable Edge functions-listen. Denne minimale
+// ændring tvinger en ny deploy-cyklus. Funktionens logik er
+// uændret.
+
 // Mints a short-lived signed URL for a chat attachment after verifying the
 // caller can see the underlying message row via RLS.
 //
