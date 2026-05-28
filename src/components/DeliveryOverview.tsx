@@ -15,6 +15,7 @@ interface ReportSlim {
 interface DeliveryOverviewProps {
   reports: ReportSlim[];
   onUploadClick?: () => void;
+  committedReportIds?: Set<string>;
 }
 
 type MonthSlot = { key: string; month: number; year: string; report?: ReportSlim };
@@ -26,7 +27,7 @@ interface YearGroup {
   total: number;
 }
 
-const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => {
+const DeliveryOverview = ({ reports, onUploadClick, committedReportIds }: DeliveryOverviewProps) => {
   const reportsByMonth = useMemo(() => {
     const map: Record<string, ReportSlim> = {};
     [...reports]
@@ -67,12 +68,17 @@ const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => 
           report: reportsByMonth[key],
         });
       }
-      const delivered = months.filter(s => s.report?.status === "processed").length;
+      const delivered = months.filter(s => {
+        if (s.report?.status !== "processed") return false;
+        // If committedReportIds is not provided, fall back to old behavior (processed = delivered).
+        if (!committedReportIds) return true;
+        return committedReportIds.has(s.report.id);
+      }).length;
       groups.push({ year: yearStr, months, delivered, total: months.length });
     }
 
     return groups;
-  }, [reportsByMonth]);
+  }, [reportsByMonth, committedReportIds]);
 
   if (yearGroups.length === 0) return null;
 
@@ -105,15 +111,26 @@ const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => 
                 const isPast = slotYear < now.getFullYear() ||
                   (slotYear === now.getFullYear() && slotMonth < now.getMonth() + 1);
                 const status = report?.status;
+                // Pending-approval: processed but not yet committed. Falls back to old
+                // behavior (processed = delivered/green) when committedReportIds is undefined.
+                const isPendingApproval = status === "processed"
+                  && committedReportIds !== undefined
+                  && report !== undefined
+                  && !committedReportIds.has(report.id);
+                const statusLabel = isPendingApproval
+                  ? "Afventer godkendelse"
+                  : reportStatusConfig[status || "processing"]?.label;
                 return (
                   <div
                     key={key}
-                    title={!report && isPast && onUploadClick ? `Klik for at uploade rapport for ${DANISH_MONTHS[month]} ${year}` : `${DANISH_MONTHS[month]} ${year}${report ? ` — ${reportStatusConfig[status || "processing"]?.label}` : ""}`}
+                    title={!report && isPast && onUploadClick ? `Klik for at uploade rapport for ${DANISH_MONTHS[month]} ${year}` : `${DANISH_MONTHS[month]} ${year}${report ? ` — ${statusLabel}` : ""}`}
                     onClick={!report && isPast && onUploadClick ? onUploadClick : undefined}
                     className={`flex flex-col items-center justify-center rounded-lg p-2 border transition-all ${
                       !report && isPast && onUploadClick ? "cursor-pointer hover:bg-primary/5 hover:border-primary/20" : "cursor-default"
                     } ${
-                      status === "processed"
+                      isPendingApproval
+                        ? "bg-chart-info/15 border-chart-info/50"
+                        : status === "processed"
                         ? "bg-primary/10 border-primary/30"
                         : status === "processing"
                         ? "bg-chart-warning/10 border-chart-warning/30"
@@ -124,7 +141,9 @@ const DeliveryOverview = ({ reports, onUploadClick }: DeliveryOverviewProps) => 
                         : "bg-secondary/20 border-border/20"
                     }`}
                   >
-                    {status === "processed" ? (
+                    {isPendingApproval ? (
+                      <Clock className="h-4 w-4 text-chart-info" />
+                    ) : status === "processed" ? (
                       <div className="relative">
                         <CheckCircle2 className="h-4 w-4 text-primary" />
                         {report && hasManualOverride(report as any) && (
