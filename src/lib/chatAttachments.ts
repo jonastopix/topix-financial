@@ -41,15 +41,3 @@ export async function uploadChatAttachments(
 
   return { attachments: results, failedCount };
 }
-
-// PR 1: passthrough. PR 3 swapper denne til at kalde
-// get-chat-attachment-url edge function via signed URL. Holder
-// kald-signaturen stabil så render-sites ikke skal røres igen i PR 3.
-export function getChatAttachmentDisplayUrl(params: {
-  source: "messages" | "group_messages";
-  messageId: string;
-  attachmentIndex: number;
-  legacyUrl: string;
-}): string {
-  return params.legacyUrl;
-}

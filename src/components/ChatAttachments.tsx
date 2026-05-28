@@ -1,5 +1,5 @@
-import { FileText, Download, X, Image as ImageIcon } from "lucide-react";
-import { getChatAttachmentDisplayUrl } from "@/lib/chatAttachments";
+import { FileText, Download, X, Image as ImageIcon, Loader2, AlertTriangle } from "lucide-react";
+import { useChatAttachmentUrl } from "@/hooks/useChatAttachmentUrl";
 
 export interface ChatAttachment {
   name: string;
@@ -66,6 +66,127 @@ export function AttachmentPreviewStrip({
   );
 }
 
+/** Single attachment row/image — fetches its own signed URL via the hook. */
+function ChatAttachmentItem({
+  attachment,
+  attachmentIndex,
+  messageId,
+  source,
+  isMine,
+}: {
+  attachment: ChatAttachment;
+  attachmentIndex: number;
+  messageId: string;
+  source: "messages" | "group_messages";
+  isMine: boolean;
+}) {
+  const { url, isLoading, isError, refetch } = useChatAttachmentUrl({
+    source,
+    messageId,
+    attachmentIndex,
+  });
+  const isImage = IMAGE_TYPES.includes(attachment.type);
+
+  if (isImage) {
+    if (isLoading) {
+      return (
+        <div
+          className="max-w-[280px] h-[160px] bg-muted animate-pulse rounded-lg"
+          aria-label="Indlæser billede"
+        />
+      );
+    }
+    if (isError || !url) {
+      return (
+        <div className="max-w-[280px] h-[160px] rounded-lg border border-border bg-muted/40 flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          <AlertTriangle className="h-4 w-4" />
+          <span>Kunne ikke indlæse billede</span>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="text-[11px] underline hover:text-foreground"
+          >
+            Prøv igen
+          </button>
+        </div>
+      );
+    }
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-lg overflow-hidden max-w-[280px]"
+      >
+        <img
+          src={url}
+          alt={attachment.name}
+          className="w-full h-auto max-h-[200px] object-cover rounded-lg"
+          loading="lazy"
+        />
+      </a>
+    );
+  }
+
+  // File variant — render row with known name/size immediately; only the
+  // trailing icon reflects URL load state.
+  const baseRow = `flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+    isMine
+      ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground"
+      : "bg-muted hover:bg-muted/80 text-foreground"
+  }`;
+
+  if (isError) {
+    return (
+      <button
+        type="button"
+        onClick={() => refetch()}
+        title="Kunne ikke hente vedhæftning — klik for at prøve igen"
+        className={`${baseRow} w-full text-left`}
+      >
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="truncate flex-1">{attachment.name}</span>
+        <span className="text-[10px] opacity-60 shrink-0">
+          {formatFileSize(attachment.size)}
+        </span>
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 opacity-70" />
+      </button>
+    );
+  }
+
+  if (isLoading || !url) {
+    return (
+      <div
+        className={`${baseRow} opacity-80`}
+        aria-label="Indlæser vedhæftning"
+      >
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="truncate flex-1">{attachment.name}</span>
+        <span className="text-[10px] opacity-60 shrink-0">
+          {formatFileSize(attachment.size)}
+        </span>
+        <Loader2 className="h-3.5 w-3.5 shrink-0 opacity-60 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={baseRow}
+    >
+      <FileText className="h-4 w-4 shrink-0" />
+      <span className="truncate flex-1">{attachment.name}</span>
+      <span className="text-[10px] opacity-60 shrink-0">
+        {formatFileSize(attachment.size)}
+      </span>
+      <Download className="h-3.5 w-3.5 shrink-0 opacity-60" />
+    </a>
+  );
+}
+
 /** Renders attachments inside a sent message bubble */
 export function MessageAttachments({
   attachments,
@@ -82,55 +203,16 @@ export function MessageAttachments({
 
   return (
     <div className="flex flex-col gap-1.5 mt-1.5">
-      {attachments.map((att, i) => {
-        const isImage = IMAGE_TYPES.includes(att.type);
-        const displayUrl = getChatAttachmentDisplayUrl({
-          source,
-          messageId,
-          attachmentIndex: i,
-          legacyUrl: att.url,
-        });
-
-        if (isImage) {
-          return (
-            <a
-              key={i}
-              href={displayUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg overflow-hidden max-w-[280px]"
-            >
-              <img
-                src={displayUrl}
-                alt={att.name}
-                className="w-full h-auto max-h-[200px] object-cover rounded-lg"
-                loading="lazy"
-              />
-            </a>
-          );
-        }
-
-        return (
-          <a
-            key={i}
-            href={displayUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-              isMine
-                ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground"
-                : "bg-muted hover:bg-muted/80 text-foreground"
-            }`}
-          >
-            <FileText className="h-4 w-4 shrink-0" />
-            <span className="truncate flex-1">{att.name}</span>
-            <span className="text-[10px] opacity-60 shrink-0">
-              {formatFileSize(att.size)}
-            </span>
-            <Download className="h-3.5 w-3.5 shrink-0 opacity-60" />
-          </a>
-        );
-      })}
+      {attachments.map((att, i) => (
+        <ChatAttachmentItem
+          key={i}
+          attachment={att}
+          attachmentIndex={i}
+          messageId={messageId}
+          source={source}
+          isMine={isMine}
+        />
+      ))}
     </div>
   );
 }
