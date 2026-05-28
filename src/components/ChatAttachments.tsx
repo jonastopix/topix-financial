@@ -1,4 +1,5 @@
 import { FileText, Download, X, Image as ImageIcon } from "lucide-react";
+import { getChatAttachmentDisplayUrl } from "@/lib/chatAttachments";
 
 export interface ChatAttachment {
   name: string;
@@ -69,9 +70,13 @@ export function AttachmentPreviewStrip({
 export function MessageAttachments({
   attachments,
   isMine,
+  messageId,
+  source,
 }: {
   attachments: ChatAttachment[];
   isMine: boolean;
+  messageId: string;
+  source: "messages" | "group_messages";
 }) {
   if (!attachments || attachments.length === 0) return null;
 
@@ -79,18 +84,24 @@ export function MessageAttachments({
     <div className="flex flex-col gap-1.5 mt-1.5">
       {attachments.map((att, i) => {
         const isImage = IMAGE_TYPES.includes(att.type);
+        const displayUrl = getChatAttachmentDisplayUrl({
+          source,
+          messageId,
+          attachmentIndex: i,
+          legacyUrl: att.url,
+        });
 
         if (isImage) {
           return (
             <a
               key={i}
-              href={att.url}
+              href={displayUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-lg overflow-hidden max-w-[280px]"
             >
               <img
-                src={att.url}
+                src={displayUrl}
                 alt={att.name}
                 className="w-full h-auto max-h-[200px] object-cover rounded-lg"
                 loading="lazy"
@@ -102,7 +113,7 @@ export function MessageAttachments({
         return (
           <a
             key={i}
-            href={att.url}
+            href={displayUrl}
             target="_blank"
             rel="noopener noreferrer"
             className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${

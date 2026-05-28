@@ -193,7 +193,7 @@ const GroupChatMessageList: React.FC<Props> = ({
                             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                           )
                         )}
-                        <MessageAttachments attachments={attachments} isMine={isMine} />
+                        <MessageAttachments attachments={attachments} isMine={isMine} messageId={msg.id} source="group_messages" />
                         {(msg as any).edited_at && (
                           <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
                             (redigeret)
@@ -220,7 +220,7 @@ const GroupChatMessageList: React.FC<Props> = ({
                             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                           )
                         )}
-                        <MessageAttachments attachments={attachments} isMine={isMine} />
+                        <MessageAttachments attachments={attachments} isMine={isMine} messageId={msg.id} source="group_messages" />
                         {(msg as any).edited_at && (
                           <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
                             (redigeret)
