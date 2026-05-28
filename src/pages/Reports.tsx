@@ -50,6 +50,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -224,6 +225,13 @@ const Reports = () => {
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  useEffect(() => {
+    if (uploadExpanded) {
+      const el = document.getElementById("upload");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [uploadExpanded]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -714,22 +722,27 @@ const Reports = () => {
 
   return (
     <AppLayout>
-      <div className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
-          Rapportering
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Upload regnskaber og følg virksomhedens udvikling
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+            Rapportering
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Upload regnskaber og følg virksomhedens udvikling
+          </p>
+        </div>
+        {reportCount >= 1 && (
+          <Button onClick={() => setUploadExpanded(true)} className="flex-shrink-0 gap-2">
+            <Upload className="h-4 w-4" />
+            Upload ny rapport
+          </Button>
+        )}
       </div>
 
       {/* ── Member-Centric Delivery Overview ── */}
       {reportCount >= 1 && (
         <div className="mb-6">
-          <DeliveryOverview reports={dbReports} onUploadClick={() => {
-            const uploadZone = document.getElementById("file-upload-zone");
-            if (uploadZone) uploadZone.scrollIntoView({ behavior: "smooth", block: "center" });
-          }} />
+          <DeliveryOverview reports={dbReports} onUploadClick={() => setUploadExpanded(true)} />
         </div>
       )}
 
@@ -782,13 +795,14 @@ const Reports = () => {
         </div>
       ) : (
         <div id="upload" data-tour="upload-zone">
-          <button
-            onClick={() => setUploadExpanded(v => !v)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
-          >
-            <Upload className="h-4 w-4" />
-            {uploadExpanded ? "Luk upload" : "+ Upload ny rapport"}
-          </button>
+          {uploadExpanded && (
+            <button
+              onClick={() => setUploadExpanded(false)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+            >
+              Luk upload
+            </button>
+          )}
           {uploadExpanded && (
             <div className="mb-8">
               <FileUploadZone
