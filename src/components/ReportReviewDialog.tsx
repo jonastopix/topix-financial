@@ -31,6 +31,7 @@ interface ReportReviewDialogProps {
   cardState: string; // 'ready' | 'update_available'
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCommitted?: (periodKey: string | null, periodLabel: string | null) => void;
 }
 
 interface QualitySignal {
@@ -94,6 +95,7 @@ export default function ReportReviewDialog({
   cardState,
   open,
   onOpenChange,
+  onCommitted,
 }: ReportReviewDialogProps) {
   const { user, isAdvisor, isAdmin, companyId } = useAuth();
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -351,6 +353,7 @@ export default function ReportReviewDialog({
         }
       }).catch(() => {});
 
+      onCommitted?.(preview?.period_key ?? null, preview?.period_label ?? null);
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fejl ved commit", { description: err.message || "Ukendt fejl" });
