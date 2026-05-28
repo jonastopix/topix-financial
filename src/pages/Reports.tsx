@@ -709,7 +709,7 @@ const Reports = () => {
     );
   };
 
-  const processedReports = dbReports.filter(r => r.status === "processed");
+  const processedReports = dbReports.filter(r => r.status === "processed" && r.file_path !== "_sentinel");
   const reportCount = processedReports.length;
   const committedReportIds = new Set(companyFacts.map(f => f.source_report_id));
   const uncommittedProcessed = processedReports.filter(r => !committedReportIds.has(r.id));
