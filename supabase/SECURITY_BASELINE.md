@@ -104,8 +104,6 @@ Applied to: `profiles`, `financial_reports` (owner ops), `handouts` (owner ops)
 - `slack_notification_log`
 - `slack_handout_notification_log`
 - `slack_report_notification_log`
-- `circle_activity`
-- `circle_course_progress`
 
 ---
 
