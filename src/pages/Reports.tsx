@@ -711,6 +711,8 @@ const Reports = () => {
 
   const processedReports = dbReports.filter(r => r.status === "processed");
   const reportCount = processedReports.length;
+  const committedReportIds = new Set(companyFacts.map(f => f.source_report_id));
+  const uncommittedProcessed = processedReports.filter(r => !committedReportIds.has(r.id));
 
   if (isAdvisor && !companyId) {
     return (
@@ -739,10 +741,60 @@ const Reports = () => {
         )}
       </div>
 
+      {/* Awaiting-approval banner: uploads not yet committed */}
+      {uncommittedProcessed.length > 0 && (
+        <div className="rounded-lg border border-blue-300/50 bg-blue-50/50 dark:border-blue-500/30 dark:bg-blue-950/20 p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-blue-700 dark:text-blue-300">
+                {uncommittedProcessed.length === 1
+                  ? "1 rapport afventer din godkendelse"
+                  : `${uncommittedProcessed.length} rapporter afventer din godkendelse`}
+              </p>
+              <p className="text-sm text-blue-600/80 dark:text-blue-400/80 mt-0.5">
+                Du har uploadet tal der endnu ikke er godkendt. Færdiggør for at få dem i drift, eller annuller uploaden.
+              </p>
+              <div className="space-y-2 mt-3">
+                {uncommittedProcessed.map((report) => {
+                  const label = getEffectiveReportPeriod(report) || report.file_name;
+                  return (
+                    <div key={report.id} className="flex items-center justify-between gap-3 rounded-md bg-blue-100/40 dark:bg-blue-900/20 px-3 py-2">
+                      <span className="text-sm text-blue-800 dark:text-blue-200 truncate">{label}</span>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={() => setReviewDialogState({ open: true, reportId: report.id, reportLabel: label, cardState: "ready" })}
+                        >
+                          Færdiggør
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
+                            queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
+                            queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+                            queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+                            setRefreshKey(k => k + 1);
+                          }}
+                          className="text-xs text-blue-700/80 dark:text-blue-300/70 hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                        >
+                          Annuller upload
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Member-Centric Delivery Overview ── */}
       {reportCount >= 1 && (
         <div className="mb-6">
-          <DeliveryOverview reports={dbReports} onUploadClick={() => setUploadExpanded(true)} />
+          <DeliveryOverview reports={dbReports} committedReportIds={committedReportIds} onUploadClick={() => setUploadExpanded(true)} />
         </div>
       )}
 
