@@ -15,6 +15,7 @@ import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import PeriodSelector, { usePeriodFilter } from "@/components/PeriodSelector";
 import ReportManualOverride from "@/components/ReportManualOverride";
+import PulseCheckinModal from "@/components/PulseCheckinModal";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
 import {
   FileText,
@@ -165,6 +166,7 @@ const Reports = () => {
 
   // RP-1: Review dialog + server-driven card states
   const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
+  const [pulseState, setPulseState] = useState<{ open: boolean; periodKey?: string; periodLabel?: string }>({ open: false });
   const commitStatesQuery = useReportCommitStates(companyId || undefined);
   const [pendingReviewReportId, setPendingReviewReportId] = useState<string | null>(null);
 
@@ -1844,6 +1846,17 @@ const Reports = () => {
             setRefreshKey(k => k + 1);
           }
         }}
+        onCommitted={(periodKey, periodLabel) => {
+          setTimeout(() => {
+            setPulseState({ open: true, periodKey: periodKey || undefined, periodLabel: periodLabel || undefined });
+          }, 250);
+        }}
+      />
+      <PulseCheckinModal
+        open={pulseState.open}
+        onOpenChange={(open) => setPulseState(prev => ({ ...prev, open }))}
+        periodKeyOverride={pulseState.periodKey}
+        periodLabelOverride={pulseState.periodLabel}
       />
     </AppLayout>
   );

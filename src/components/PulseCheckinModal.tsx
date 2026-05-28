@@ -12,9 +12,11 @@ interface PulseCheckinModalProps {
   onOpenChange: (open: boolean) => void;
   onComplete?: () => void;
   inline?: boolean;
+  periodKeyOverride?: string;
+  periodLabelOverride?: string;
 }
 
-export default function PulseCheckinModal({ open, onOpenChange, onComplete, inline }: PulseCheckinModalProps) {
+export default function PulseCheckinModal({ open, onOpenChange, onComplete, inline, periodKeyOverride, periodLabelOverride }: PulseCheckinModalProps) {
   const { user, companyId } = useAuth();
   const queryClient = useQueryClient();
   const { viewingAsMember } = useViewMode();
@@ -61,8 +63,8 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const periodKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
-  const periodLabel = prevMonth.toLocaleDateString("da-DK", { month: "long", year: "numeric" });
+  const periodKey = periodKeyOverride ?? `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+  const periodLabel = periodLabelOverride ?? prevMonth.toLocaleDateString("da-DK", { month: "long", year: "numeric" });
 
   useEffect(() => {
     if (!user || !companyId || !open) return;
