@@ -100,7 +100,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
       }, { onConflict: "company_id,period_key" });
     setSaving(false);
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
-    toast.success("Check-in gemt!");
+    toast.success("Din refleksion er gemt!");
     queryClient.invalidateQueries({ queryKey: ["mobile-pulse-this-month"] });
     queryClient.invalidateQueries({ queryKey: ["pulse-this-month"] });
     supabase.functions.invoke("send-slack-report-notification", {
@@ -127,7 +127,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
         <CheckCircle2 className="h-8 w-8 text-primary" />
       </div>
       <h2 className="text-xl font-display font-bold text-foreground mb-2">
-        Check-in for {periodLabel} er sendt
+        Tak, din refleksion for {periodLabel} er sendt
       </h2>
       <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">
         Dine rådgivere kan nu se din opdatering og vil tage den med i deres sparring med dig.
@@ -141,7 +141,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
       {history && history.length > 1 && (
         <div className="mt-6 text-left space-y-3">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Tidligere check-ins
+            Tidligere refleksioner
           </p>
           {history.slice(1, 4).map((h) => (
             <div key={h.period_key} className="rounded-lg bg-secondary/50 p-3 space-y-1">
@@ -172,12 +172,12 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
       <div className={inline ? "mb-4" : ""}>
         {inline ? (
           <div className="mb-1">
-            <h2 className="text-lg font-semibold leading-none tracking-tight">Månedlig check-in · {periodLabel}</h2>
+            <h2 className="text-lg font-semibold leading-none tracking-tight">Hvordan gik {periodLabel}?</h2>
             <p className="text-sm text-muted-foreground mt-1.5">2 minutter der hjælper os med at give dig den bedste sparring.</p>
           </div>
         ) : (
           <DialogHeader>
-            <DialogTitle>Månedlig check-in · {periodLabel}</DialogTitle>
+            <DialogTitle>Hvordan gik {periodLabel}?</DialogTitle>
             <DialogDescription>
               2 minutter der hjælper os med at give dig den bedste sparring.
             </DialogDescription>
@@ -293,7 +293,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
         {saving ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> Gemmer...</>
         ) : (
-          <>Send check-in til rådgiverne <ChevronRight className="h-4 w-4" /></>
+          <>Send til dine rådgivere <ChevronRight className="h-4 w-4" /></>
         )}
       </button>
       <p className="text-center text-[11px] text-muted-foreground mt-1">

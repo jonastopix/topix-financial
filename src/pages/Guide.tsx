@@ -78,14 +78,14 @@ const founderFeatures = [
 
 const founderTimeline = [
   { week: "Månedligt", title: "Upload rapport", desc: "Eksportér saldobalance fra e-conomic, Dinero eller Billy og upload den under Rapportering. Systemet genkender typen automatisk og AI trækker tallene ud.", icon: Upload, color: "bg-primary/10 text-primary", link: "/reports#upload" },
-  { week: "Månedligt", title: "Pulse check-in", desc: "Brug 2 minutter på at fortælle os hvad der gik godt og hvad der er svært. Det er den hurtigste måde at give rådgiverne kontekst til god sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
+  { week: "Månedligt", title: "Refleksion", desc: "Brug 2 minutter på at fortælle os hvad der gik godt og hvad der er svært. Det er den hurtigste måde at give rådgiverne kontekst til god sparring.", icon: Heart, color: "bg-chart-warning/10 text-chart-warning", link: "/pulse" },
   { week: "Løbende", title: "Chat med rådgiver", desc: "Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og er klar til sparring.", icon: MessageCircle, color: "bg-chart-info/10 text-chart-info", link: "/chat" },
   { week: "Én gang", title: "Upload årsrapporter", desc: "Upload din årsrapport fra revisor (PDF) under Rapportering → Historiske årsrapporter. Giver dine grafer historisk kontekst fra dag ét.", icon: BookMarked, color: "bg-primary/10 text-primary", link: "/reports#annual-reports" },
 ];
 
 const founderTips: { text: string; link?: string }[] = [
   { text: "Upload din rapport inden den 7. i måneden — så undgår du påmindelser og rådgiverne har dine tal tidligt", link: "/reports#upload" },
-  { text: "Udfyld Pulse check-in hver måned — det er den hurtigste måde at give rådgiverne kontekst på", link: "/pulse" },
+  { text: "Udfyld din refleksion hver måned — det er den hurtigste måde at give rådgiverne kontekst på", link: "/pulse" },
   { text: "Brug chatten aktivt — dine rådgivere læser dine tal og svarer hurtigt", link: "/chat" },
   { text: "Sæt KPI-mål én gang om året — det gør din fremgang målbar og konkret", link: "/kpis#goals" },
   { text: "Gennemfør Handouts i rækkefølge — hvert modul bygger ovenpå det forrige", link: "/handouts" },

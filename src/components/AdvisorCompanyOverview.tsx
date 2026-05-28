@@ -505,7 +505,7 @@ const AdvisorCompanyOverview = () => {
         {/* Pulse */}
         <div className="glass-card rounded-xl p-4">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Pulse check-in
+            Refleksion
             {latestPulse?.period_key && (() => {
               const [year, month] = latestPulse.period_key.split("-");
               const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
@@ -534,7 +534,7 @@ const AdvisorCompanyOverview = () => {
               )}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground/60 italic">Ingen check-in denne måned</p>
+            <p className="text-xs text-muted-foreground/60 italic">Ingen refleksion denne måned</p>
           )}
         </div>
 

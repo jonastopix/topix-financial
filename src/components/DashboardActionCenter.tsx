@@ -176,7 +176,7 @@ export default function DashboardActionCenter({
       }
 
       if (isCommitted && hasPulseThisMonth) {
-        items.push({ id: "pulse-done", type: "pulse", title: "Pulse check-in er sendt ✓", description: "Vil du opdatere dit check-in for denne måned?", urgency: "low", link: "/pulse" });
+        items.push({ id: "pulse-done", type: "pulse", title: "Din refleksion er sendt ✓", description: "Vil du opdatere din refleksion for denne måned?", urgency: "low", link: "/pulse" });
       }
 
       // ⚠️ HUSK: Opdatér også AppLayout.tsx når du skifter announcement
@@ -185,7 +185,7 @@ export default function DashboardActionCenter({
         id: "v2026-04-platform-update",
         type: "info",
         title: "Platform opdateret — hvad er nyt",
-        description: "Pulse check-in viser nu automatisk dine milestone-fremskridt. Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data. AI-chefen genererer nyt ugesfokus hver mandag.",
+        description: "Din refleksion viser nu automatisk dine milestone-fremskridt. Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data. AI-chefen genererer nyt ugesfokus hver mandag.",
         urgency: "low",
         link: "/guide",
       });
