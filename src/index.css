@@ -52,9 +52,6 @@
     --chart-warning: 38 92% 50%;
     --chart-info: 217 91% 60%;
     --chart-neutral: 170 15% 40%;
-
-    --glass: 0 0% 100% / 0.7;
-    --glass-border: 40 5% 87% / 0.5;
   }
 
   .dark {
