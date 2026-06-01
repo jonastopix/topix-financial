@@ -907,6 +907,23 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Pulse-refleksion: advisor faar en deterministisk template-notifikation fra
+  // send-slack-report-notification, saa agenten skal IKKE have notify_advisor.
+  // Arkitektonisk haandhaevelse - prompt-instruktion alene virkede ikke (Gemini
+  // kaldte notify_advisor alligevel trods eksplicit forbud i PR #63).
+  // write_company_action og create_milestone fjernes ogsaa - refleksion er
+  // founderens stille check-in, ikke en handlings-trigger.
+  const POOL_BLOCKLIST: Record<string, string[]> = {
+    pulse_submitted: ["notify_advisor", "write_company_action", "create_milestone"],
+  };
+  const blocked = POOL_BLOCKLIST[trigger] ?? [];
+  const activeTools = blocked.length
+    ? tools.filter((t) => !blocked.includes(t.function.name))
+    : tools;
+  if (blocked.length) {
+    console.log(`[run-company-agent] trigger=${trigger} blocking tools: ${blocked.join(", ")} (${activeTools.length}/${tools.length} tools available)`);
+  }
+
   // Verify caller has RLS access to this company before any admin operations
   if (!isServiceRole) {
     const { data: accessCheck } = await callerClient
@@ -1012,7 +1029,7 @@ ${trigger === "pulse_submitted"
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages,
-          tools,
+          tools: activeTools,
           tool_choice: "auto",
         }),
       });
