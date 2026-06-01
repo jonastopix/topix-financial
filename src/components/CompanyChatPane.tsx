@@ -1811,17 +1811,17 @@ const CompanyChatPane = () => {
                         const hasFutureSnooze = activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > now;
                         if (isActionable) {
                           return (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex-shrink-0">
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-1.5 sm:px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex-shrink-0">
                               <Clock className="h-3.5 w-3.5" />
-                              Afventer dit svar
+                              <span className="hidden sm:inline">Afventer dit svar</span>
                             </span>
                           );
                         }
                         if (hasFutureSnooze) {
                           return (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex-shrink-0">
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-1.5 sm:px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex-shrink-0">
                               <Clock className="h-3.5 w-3.5" />
-                              Følger op {format(new Date(activeConv!.follow_up_at!), "d. MMM", { locale: da })}
+                              <span className="hidden sm:inline">Følger op {format(new Date(activeConv!.follow_up_at!), "d. MMM", { locale: da })}</span>
                             </span>
                           );
                         }
