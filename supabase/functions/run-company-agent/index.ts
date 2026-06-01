@@ -3,7 +3,7 @@ import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boardroom — en platform der hjælper danske iværksættere med at drive bedre virksomheder.
 
-Du handler autonomt når en founder committer en ny rapport. Dit job er at levere én kort, præcis og handlingsorienteret besked der føles personlig og værdifuld — ikke generisk AI-output.
+Du handler autonomt når et event sker for en founder (rapport-commit, pulse-refleksion, anomali, onboarding eller ugentlig gennemgang). Dit job er at levere én kort, præcis og handlingsorienteret besked der føles personlig og værdifuld — ikke generisk AI-output. Brug ALTID den korrekte terminologi for det aktuelle event (rapport, refleksion, etc.) — bland aldrig event-typer.
 
 DATAKVALITET — VIGTIGT: Når du kalder get_company_facts, vil hvert fact have et 'data_quality' felt:
 - 'rigtig_månedlig_rapport': Rigtige tal fra founders uploadede rapport — brug frit til analyse
@@ -50,7 +50,22 @@ FORTEGN PÅ TAL (vigtigt):
 
 - revenue, gross_profit, ebt, net_result: positiv = godt, negativ = tab
 - cash: positiv = penge i banken, negativ = overtræk
-- cogs, payroll, admin_costs: positive tal = omkostninger (højere = dyrere)`;
+- cogs, payroll, admin_costs: positive tal = omkostninger (højere = dyrere)
+
+REGLER FOR notify_advisor (KRITISK):
+
+- Beskeden er en NEUTRAL OPSUMMERING + KONKRET FORSLAG, ikke en fortælling.
+- ALDRIG skriv i første person om handlinger du har udført. Du foreslår, du udfører ikke. Skriv ALDRIG "Jeg har bedt ham...", "Jeg har anbefalet...", "Jeg har sat...". Skriv i stedet "Foreslår at..." eller "Det kunne være relevant at...".
+- ALDRIG forveksle event-typer. Hvis trigger er pulse_submitted, brug ordet "refleksion" eller "pulse". Brug ALDRIG ordet "rapport" om en refleksion.
+- ALDRIG citer specifikke finansielle tal (omsætning, resultat, debitorer, procenter) medmindre founder eksplicit nævnte dem i deres refleksion. Du har adgang til tallene via get_company_facts, men det betyder ikke de hører hjemme i en notifikation om en refleksion.
+- Format: [hvad founder rapporterede i denne event] + [konkret forslag til advisor].
+
+Eksempel på KORREKT notify_advisor besked for pulse_submitted:
+"Founder Jonas har afleveret refleksion for maj og nævner kunde-relationer som største udfordring. Foreslår at I drøfter konkrete tiltag i jeres næste session."
+
+Eksempel på FORKERT notify_advisor besked for pulse_submitted:
+"Jonas har sendt aprils rapport. Omsætning faldt med 59%. Jeg har bedt ham kontakte ubetalte kunder."
+(Forkert af tre grunde: rapport vs refleksion, fabrikerede tal der ikke var i refleksionen, første person om handling der ikke er udført.)`;
 
 const tools = [
   {
@@ -249,7 +264,7 @@ const tools = [
     function: {
       name: "notify_advisor",
       description:
-        "Sender en kort Slack-notifikation til virksomhedens tildelte advisor. Skriv en actionable besked på maks 2 sætninger.",
+        "Notificerer den tildelte advisor (in-app + Slack) om det aktuelle event. Maks 2 sætninger. Format: [neutral opsummering af hvad founder rapporterede i dette specifikke event] + [konkret forslag til opfølgning]. ALDRIG i første person om udførte handlinger. ALDRIG forveksle event-typer (refleksion vs rapport). ALDRIG citer tal der ikke var i founders input.",
       parameters: {
         type: "object",
         properties: {
@@ -543,13 +558,31 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       const advisorId = conv?.assigned_advisor_id;
       const memberId = conv?.member_id;
 
+      // Company name + trigger-aware title so the notification reflects the
+      // actual event (not always "ny rapport") and Slack carries context.
+      const { data: company } = await adminClient
+        .from("companies")
+        .select("name")
+        .eq("id", args.company_id)
+        .maybeSingle();
+      const companyName = company?.name || "Virksomhed";
+
+      const titleByTrigger: Record<string, string> = {
+        pulse_submitted: "AI-agent har reageret på refleksion",
+        weekly_cron: "AI-agents ugentlige gennemgang",
+        anomaly_detected: "AI-agent har detekteret anomali",
+        onboarding: "AI-agent har modtaget ny founder",
+        report_committed: "AI-agent har analyseret ny rapport",
+      };
+      const notificationTitle = titleByTrigger[trigger] || "AI-agent har analyseret ny rapport";
+
       // In-app notification (always, regardless of Slack)
       if (advisorId) {
         await adminClient
           .from("advisor_notifications")
           .insert({
             type: "agent_insight",
-            title: "AI-agent har analyseret ny rapport",
+            title: notificationTitle,
             body: args.message,
             company_id: args.company_id,
             member_id: memberId || advisorId,
@@ -568,7 +601,7 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
             Authorization: `Bearer ${slackToken}`,
             "Content-Type": "application/json; charset=utf-8",
           },
-          body: JSON.stringify({ channel: slackChannel, text: args.message }),
+          body: JSON.stringify({ channel: slackChannel, text: `*${companyName}*: ${args.message}` }),
         });
         const data = await resp.json();
         if (!data.ok) console.warn("Slack notification failed:", data.error);
@@ -932,7 +965,7 @@ Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDa
 Virksomhedens alder: ${companyData.start_date ? (() => { const months = Math.floor((Date.now() - new Date(companyData.start_date).getTime()) / (1000 * 60 * 60 * 24 * 30)); return months < 6 ? `${months} måneder (tidlig fase)` : months < 18 ? `${months} måneder (vækstfase)` : `${Math.floor(months/12)} år (moden fase)`; })() : "ukendt"}
 
 ${trigger === "pulse_submitted" 
-  ? `Founder har netop afleveret månedlig pulse check-in for ${period_label}.\n\nHent pulse-svaret med get_pulse_checkins og de seneste facts med get_company_facts. Skriv en kort personlig respons i chatten der tager udgangspunkt i hvad founder selv har skrevet — særligt deres største udfordring. Foreslå ét konkret næste skridt. Opdatér weekly focus. Notificér advisor.`
+  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport.\n\nHent refleksions-svaret med get_pulse_checkins. Skriv en kort personlig respons i founderens chat med write_chat_message og **as_advisor: true** (så beskeden vises som fra rådgiveren, ikke som grå system-boks). Tag udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION — særligt deres største udfordring. Foreslå ét konkret næste skridt. Opdatér weekly focus.\n\nNotificér advisor med en NEUTRAL opsummering af hvad founder skrev + ét konkret forslag til opfølgning. Brug ordet 'refleksion'. Skriv IKKE i første person om handlinger. Citer IKKE finansielle tal medmindre founder selv nævnte dem.`
   : trigger === "weekly_cron"
   ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nHent facts, pulse, milestones og KPI-mål. Skriv én kort motiverende besked i chatten der opsummerer hvad der er vigtigst at fokusere på denne uge. Opdatér weekly focus. Notificér advisor kun hvis der er noget konkret at handle på.`
   : trigger === "anomaly_detected"
