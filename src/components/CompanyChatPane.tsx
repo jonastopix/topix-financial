@@ -26,7 +26,7 @@ import {
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2, Loader2,
+  CalendarIcon, StickyNote, MoreHorizontal, Layers, Building2, Loader2, AlertTriangle,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,8 @@ import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useKpiTargets } from "@/hooks/useKpiTargets";
 import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { deriveKpiMetrics, getTargetStatus } from "@/lib/kpiDefs";
+import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
+import type { AnalysisData } from "@/components/AIFinancialAnalysis";
 import { format, formatDistanceToNow, startOfDay, addDays, nextMonday, setHours, setMinutes, setSeconds } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -1105,6 +1107,10 @@ const CompanyChatPane = () => {
     [drawerFacts, drawerTargets, drawerBenchmarks],
   );
   const latestPeriodLabel = drawerFacts.at(-1)?.period_label ?? "";
+  const { data: drawerCommentaries = [] } = useCompanyCommentary(companyIdForDrawer);
+  const latestCommentary = drawerCommentaries[0]; // nyeste, sorteret descending
+  const drawerAnalysis = latestCommentary?.analysis as AnalysisData | undefined;
+  const drawerIsStale = latestCommentary?.is_stale ?? false;
 
   // Pulse context for advisor chat banner — only show if from last 30 days
   const { data: latestPulse } = useQuery({
@@ -2527,6 +2533,61 @@ const CompanyChatPane = () => {
                 </div>
               </>
             )}
+
+            {/* AI-analyse: kompakt visning (read-only) */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium">AI-analyse</h3>
+                {drawerIsStale && (
+                  <span className="inline-flex items-center gap-1 text-xs text-chart-warning">
+                    <AlertTriangle className="h-3 w-3" />
+                    Muligvis forældet
+                  </span>
+                )}
+              </div>
+
+              {!drawerAnalysis ? (
+                <div className="py-4 text-sm text-muted-foreground">
+                  Ingen AI-analyse endnu. Generér den fra Reports-siden på desktop.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {drawerAnalysis.overview && (
+                    <p className={`text-sm leading-relaxed ${drawerIsStale ? "opacity-60" : ""}`}>
+                      {drawerAnalysis.overview}
+                    </p>
+                  )}
+
+                  {drawerAnalysis.key_findings && drawerAnalysis.key_findings.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Nøglefund
+                      </h4>
+                      <div className="space-y-1.5">
+                        {drawerAnalysis.key_findings.map((finding, idx) => {
+                          const severityColor =
+                            finding.severity === "kritisk" ? "bg-destructive/10 text-destructive border-destructive/30" :
+                            finding.severity === "advarsel" ? "bg-chart-warning/10 text-chart-warning border-chart-warning/30" :
+                            "bg-primary/10 text-primary border-primary/30";
+                          return (
+                            <div
+                              key={idx}
+                              className={`text-sm px-3 py-2 rounded-md border ${severityColor} ${drawerIsStale ? "opacity-60" : ""}`}
+                            >
+                              {finding.title}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Se fuld analyse på Reports-siden.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </DrawerContent>
       </Drawer>

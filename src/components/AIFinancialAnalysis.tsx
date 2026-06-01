@@ -35,7 +35,7 @@ interface TrendItem {
   period: string;
 }
 
-interface AnalysisData {
+export interface AnalysisData {
   overview: string;
   key_findings: KeyFinding[];
   positive_trends: TrendItem[];
