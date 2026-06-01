@@ -309,7 +309,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-out ${
+        className={`fixed left-0 top-0 z-50 h-screen-safe w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-out ${
           isMobile
             ? isOpen ? "translate-x-0" : "-translate-x-full"
             : "translate-x-0"
