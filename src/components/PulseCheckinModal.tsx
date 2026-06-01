@@ -87,6 +87,16 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
   useEffect(() => {
     if (!user || !companyId || !open) return;
+    // Reset before (re)loading so stale state from a previous period/open never
+    // lingers (the modal instance is reused across opens in Reports.tsx).
+    setAlreadyDone(false);
+    setExistingAuthorId(null);
+    setWentWell("");
+    setChallenge("");
+    setHelpNeeded("");
+    // Guard against an out-of-order resolve: a slow query for an earlier period
+    // must not overwrite a faster query started after it (re-open/period switch).
+    let cancelled = false;
     supabase
       .from("pulse_checkins")
       .select("id, user_id, went_well, biggest_challenge, help_needed")
@@ -94,6 +104,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
       .eq("period_key", periodKey)
       .maybeSingle()
       .then(({ data }) => {
+        if (cancelled) return;
         if (data) {
           setAlreadyDone(true);
           setExistingAuthorId(data.user_id ?? null);
@@ -102,24 +113,35 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           setHelpNeeded(data.help_needed || "");
         }
       });
+    return () => { cancelled = true; };
   }, [user, companyId, periodKey, open]);
 
   const handleSubmit = async () => {
     if (!user) { toast.error("Du skal være logget ind for at gemme din refleksion."); return; }
     if (!companyId) { toast.error("Din konto er ikke knyttet til en virksomhed endnu. Genindlæs siden og prøv igen."); return; }
     setSaving(true);
-    const { error } = await supabase
-      .from("pulse_checkins")
-      .upsert({
-        company_id: companyId,
-        user_id: user.id,
-        period_key: periodKey,
-        went_well: wentWell.trim() || null,
-        biggest_challenge: challenge.trim() || null,
-        help_needed: helpNeeded.trim() || null,
-        milestone_progress: autoProgress ?? null,
-      }, { onConflict: "company_id,period_key" });
-    setSaving(false);
+    let error: unknown = null;
+    try {
+      const res = await supabase
+        .from("pulse_checkins")
+        .upsert({
+          company_id: companyId,
+          user_id: user.id,
+          period_key: periodKey,
+          went_well: wentWell.trim() || null,
+          biggest_challenge: challenge.trim() || null,
+          help_needed: helpNeeded.trim() || null,
+          milestone_progress: autoProgress ?? null,
+        }, { onConflict: "company_id,period_key" });
+      error = res.error;
+    } catch (e) {
+      // Network-level rejection (not a returned {error}) would otherwise strand
+      // the button on "Gemmer…" — catch it so we always clear saving + notify.
+      console.error("[PulseCheckin] upsert threw:", e);
+      error = e;
+    } finally {
+      setSaving(false);
+    }
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Din refleksion er gemt!");
     queryClient.invalidateQueries({ queryKey: ["mobile-pulse-this-month"] });
