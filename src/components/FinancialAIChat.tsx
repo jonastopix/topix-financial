@@ -179,7 +179,7 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[80%] rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap ${
+              className={`max-w-[80%] rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap [overflow-wrap:anywhere] ${
                 m.role === "user"
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-foreground"

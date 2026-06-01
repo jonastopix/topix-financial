@@ -148,6 +148,11 @@
 }
 
 /* Chat rich-text content inside message bubbles */
+.chat-html-content {
+  /* Break long unbroken tokens (URLs, emails) only when they would overflow the
+     bubble — keeps normal text flow. Inherited, so it applies to p/li children. */
+  overflow-wrap: anywhere;
+}
 .chat-html-content p {
   margin: 0;
 }
