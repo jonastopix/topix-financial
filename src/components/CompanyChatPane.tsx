@@ -34,6 +34,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
 } from "@/components/ui/drawer";
@@ -151,6 +152,7 @@ const CompanyChatPane = () => {
   const [noteMeta, setNoteMeta] = useState<{ updated_at: string; updated_by: string } | null>(null);
   const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [noteExpanded, setNoteExpanded] = useState(false);
+  const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
   const [conversationNoteIds, setConversationNoteIds] = useState<Set<string>>(new Set());
 
   // Fetch all advisors for member header (independent of conversation participation)
@@ -1763,6 +1765,18 @@ const CompanyChatPane = () => {
                           </div>
                         )}
                       </div>
+                      {/* Se tal — mobil-rådgiver: hurtig adgang til virksomhedens nøgletal */}
+                      {isMobile && isAdvisor && !isGroupThread && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowCompanyDrawer(true)}
+                          className="h-8 px-2 gap-1.5 flex-shrink-0"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          <span className="text-xs">Se tal</span>
+                        </Button>
+                      )}
                       {/* Primary contextual action */}
                       {(() => {
                         const now = new Date();
@@ -2437,6 +2451,18 @@ const CompanyChatPane = () => {
           </div>
         )}
       </div>
+
+      {/* Se tal-drawer (mobil-rådgiver) — indhold tilføjes i næste skridt */}
+      <Drawer open={showCompanyDrawer} onOpenChange={setShowCompanyDrawer}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>{activeConv?.companyName || "Virksomhed"}</DrawerTitle>
+          </DrawerHeader>
+          <div className="p-4 text-sm text-muted-foreground">
+            Indhold kommer i næste skridt.
+          </div>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 };
