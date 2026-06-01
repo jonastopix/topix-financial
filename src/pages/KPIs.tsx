@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -46,23 +46,16 @@ import type { GaugeEntry } from "@/components/IndustryBenchmarkGauge";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
-import { KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
+import { INDUSTRY_TEMPLATES } from "@/lib/appConfig";
 import type { BenchmarkTemplate } from "@/lib/appConfig";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
 import { KPI_DEFS, VALUE_EXTRACTORS, getTargetStatus, deriveKpiMetrics } from "@/lib/kpiDefs";
 import type { KpiMetric } from "@/lib/kpiDefs";
 import { useKpiTargets } from "@/hooks/useKpiTargets";
+import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 
-interface KPIBenchmarkRow {
-  kpi_key: string;
-  benchmark_value: number;
-  benchmark_label: string;
-  source_label: string;
-}
-
-// Re-exported from central config (KPI_DEFS, VALUE_EXTRACTORS, getTargetStatus,
-// deriveKpiMetrics now live in @/lib/kpiDefs — shared with the advisor-mobile drawer)
-const DEFAULT_BENCHMARKS = KPI_DEFAULT_BENCHMARKS;
+// KPI_DEFS, VALUE_EXTRACTORS, getTargetStatus, deriveKpiMetrics live in @/lib/kpiDefs;
+// targets/benchmarks (with fallback) come from useKpiTargets / useKpiBenchmarks.
 
 const tooltipStyle = {
   background: "hsl(var(--popover))",
@@ -114,8 +107,7 @@ const KPIs = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
   const { targets, isLoading: targetsLoading, setTargets } = useKpiTargets(companyId);
-  const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});
-  const [loading, setLoading] = useState(true);
+  const { benchmarks: benchmarksResolved, isLoading: benchmarksLoading, setBenchmarks } = useKpiBenchmarks(companyId);
   const [selectedKPI, setSelectedKPI] = useState<string>("omsaetning");
   const [editingTargets, setEditingTargets] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, { value: string; label: string }>>({});
@@ -221,25 +213,6 @@ const KPIs = () => {
     return { revenue: Math.round(revenue), ebitda: Math.round(ebitda) };
   }, [budgetData]);
 
-  useEffect(() => {
-    if (!user || !companyId) return;
-    const load = async () => {
-      // Targets are fetched via useKpiTargets; this effect loads benchmarks only.
-      const benchmarksRes = await supabase
-        .from("kpi_benchmarks")
-        .select("kpi_key, benchmark_value, benchmark_label, source_label")
-        .eq("company_id", companyId);
-
-      const bMap: Record<string, KPIBenchmarkRow> = {};
-      (benchmarksRes.data || []).forEach((b: any) => {
-        bMap[b.kpi_key] = b;
-      });
-      setUserBenchmarks(bMap);
-      setLoading(false);
-    };
-    load();
-  }, [user, companyId]);
-
   // Resolve target for a KPI key (targets already merged with fallback by useKpiTargets)
   const getTarget = (key: string) => targets[key] ?? { value: 0, label: "—" };
 
@@ -254,18 +227,6 @@ const KPIs = () => {
     });
     // Already sorted by period_key from useCompanyFacts
   }, [facts]);
-
-  // Resolve benchmarks per KPI key (DB value or fallback) — mirrors getBenchmark.
-  const benchmarksResolved = useMemo(() => {
-    const out: Record<string, { value: number; label: string; source: string }> = {};
-    KPI_DEFS.forEach((def) => {
-      const ub = userBenchmarks[def.key];
-      out[def.key] = ub
-        ? { value: Number(ub.benchmark_value), label: ub.benchmark_label, source: ub.source_label }
-        : DEFAULT_BENCHMARKS[def.key] || { value: 0, label: "—", source: "" };
-    });
-    return out;
-  }, [userBenchmarks]);
 
   // Derive KPI metrics (pure — see @/lib/kpiDefs)
   const kpiMetrics: KpiMetric[] = useMemo(
@@ -327,17 +288,11 @@ const KPIs = () => {
     setSaving(false);
   };
 
-  // Benchmark editing
-  const getBenchmark = (key: string) => {
-    const ub = userBenchmarks[key];
-    if (ub) return { value: Number(ub.benchmark_value), label: ub.benchmark_label, source: ub.source_label };
-    return DEFAULT_BENCHMARKS[key] || { value: 0, label: "—", source: "" };
-  };
-
+  // Benchmark editing (benchmarks already merged with fallback by useKpiBenchmarks)
   const startEditingBenchmarks = () => {
     const vals: Record<string, { value: string; label: string; source: string }> = {};
     KPI_DEFS.forEach((def) => {
-      const b = getBenchmark(def.key);
+      const b = benchmarksResolved[def.key] ?? { value: 0, label: "—", source: "" };
       vals[def.key] = { value: String(b.value), label: b.label, source: b.source };
     });
     setEditBenchmarkValues(vals);
@@ -374,11 +329,12 @@ const KPIs = () => {
       toast.error("Kunne ikke gemme benchmarks");
       console.error(error);
     } else {
-      const bMap: Record<string, KPIBenchmarkRow> = {};
+      // Update the cached benchmarks directly (instant, no refetch) via setQueryData.
+      const merged: Record<string, { value: number; label: string; source: string }> = {};
       upserts.forEach((u) => {
-        bMap[u.kpi_key] = u;
+        merged[u.kpi_key] = { value: u.benchmark_value, label: u.benchmark_label, source: u.source_label };
       });
-      setUserBenchmarks(bMap);
+      setBenchmarks(merged);
       toast.success("Benchmarks gemt");
     }
 
@@ -395,7 +351,7 @@ const KPIs = () => {
     );
   }
 
-  if (loading || factsLoading || targetsLoading) {
+  if (factsLoading || targetsLoading || benchmarksLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
