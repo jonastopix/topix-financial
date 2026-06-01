@@ -158,7 +158,26 @@ Deno.serve(async (req) => {
         .maybeSingle();
       const pulseMemberUserId = pulseCompanyMember?.user_id;
 
-      const companyName = company?.name || "Et member";
+      // Founder name for the Slack template
+      let founderName = "Founder";
+      if (pulseMemberUserId) {
+        const { data: founderProfile } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", pulseMemberUserId)
+          .maybeSingle();
+        founderName = founderProfile?.full_name || "Founder";
+      }
+
+      // Reflection content for the Slack template
+      const { data: pulseRow } = await admin
+        .from("pulse_checkins")
+        .select("went_well, biggest_challenge, help_needed")
+        .eq("company_id", pulseCompanyId)
+        .eq("period_key", pulsePeriodKey)
+        .maybeSingle();
+
+      const companyName = company?.name || "Virksomhed";
       const months = ["Januar","Februar","Marts","April","Maj","Juni",
         "Juli","August","September","Oktober","November","December"];
       const periodLabel = pulsePeriodKey
@@ -176,7 +195,7 @@ Deno.serve(async (req) => {
         await writeNotificationToMany(admin, advisorIds, {
           type: "pulse_checkin_received",
           priority: "info",
-          title: `${companyName} har udfyldt pulse check-in for ${periodLabel}`,
+          title: `${companyName} har afleveret refleksion for ${periodLabel}`,
           body: `Læs hvad der gik godt og hvad der er den største udfordring — så I kan give dem den bedste sparring.`,
           reference_type: "pulse",
           company_id: pulseCompanyId,
@@ -185,6 +204,59 @@ Deno.serve(async (req) => {
             : `/members?companyId=${pulseCompanyId}`,
           dedup_key: `pulse_checkin:${pulseCompanyId}:${pulsePeriodKey || "unknown"}`,
         });
+      }
+
+      // ── Slack template post (best effort — never blocks the in-app result) ──
+      const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+      const SLACK_CHANNEL = Deno.env.get("SLACK_ADVISOR_CHANNEL_ID");
+      if (!SLACK_BOT_TOKEN || !SLACK_CHANNEL) {
+        console.log("[pulse_checkin] Slack ikke konfigureret — springer Slack over (in-app sendt)");
+      } else if (!pulseRow) {
+        console.log("[pulse_checkin] Ingen refleksions-række fundet — springer Slack over (in-app sendt)");
+      } else {
+        const appUrl =
+          Deno.env.get("PUBLIC_APP_URL") ||
+          Deno.env.get("APP_URL") ||
+          "https://app.theboardroom.dk";
+        const reflectionLink = pulseMemberUserId
+          ? `${appUrl}/members/${pulseMemberUserId}`
+          : `${appUrl}/members?companyId=${pulseCompanyId}`;
+        const wentWell = pulseRow.went_well?.trim() || "Ingen kommentar";
+        const challenge = pulseRow.biggest_challenge?.trim() || "Ingen kommentar";
+        const helpNeeded = pulseRow.help_needed?.trim() || "Ingen specifik hjælp ønsket";
+
+        const blocks = [
+          {
+            type: "header",
+            text: { type: "plain_text", text: `📝 ${companyName} · ${founderName} · ${periodLabel}`, emoji: true },
+          },
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `*Hvad gik godt*\n${wentWell}` },
+          },
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `*Største udfordring*\n${challenge}` },
+          },
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `*Hjælp ønsket*\n${helpNeeded}` },
+          },
+          {
+            type: "context",
+            elements: [{ type: "mrkdwn", text: `<${reflectionLink}|Åbn refleksion →>` }],
+          },
+        ];
+
+        try {
+          await postToSlack(SLACK_BOT_TOKEN, {
+            channel: SLACK_CHANNEL,
+            text: `${companyName} - ${founderName} har afleveret refleksion for ${periodLabel}`,
+            blocks,
+          });
+        } catch (e) {
+          console.error("[pulse_checkin] Slack-post fejlede:", e);
+        }
       }
 
       return json({ ok: true, notified: advisorIds.length });
