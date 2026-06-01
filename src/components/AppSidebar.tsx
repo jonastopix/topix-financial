@@ -409,23 +409,31 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                 </a>
               </div>
             </>
-          ) : [
-            ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
-            ...(isGroupUser && !effectiveAdvisor ? [
-              { icon: Layers, label: "Koncern", path: "/group" },
-              { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
-            ] : []),
-            ...(effectiveAdvisor && hasGroupAccess ? [
-              { icon: Layers, label: "Koncerner", path: "/groups" },
-            ] : []),
-            { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
-            ...(effectiveAdvisor ? advisorNavItems : []),
-            
-            ...(isAdmin && effectiveAdvisor ? [
-              { icon: null as any, label: "Admin", path: "__admin_header__", isHeader: true },
-              ...adminNavItems,
-            ] : []),
-          ].map((item: any) => {
+          ) : (
+            (isMobile && effectiveAdvisor)
+              // Mobil-rådgiver: chat-først — kun Chat + Indstillinger, alt øvrigt skjult.
+              ? [
+                  baseNavItems.find((item) => item.path === "/chat"),
+                  { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
+                ].filter(Boolean)
+              : [
+                  ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
+                  ...(isGroupUser && !effectiveAdvisor ? [
+                    { icon: Layers, label: "Koncern", path: "/group" },
+                    { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
+                  ] : []),
+                  ...(effectiveAdvisor && hasGroupAccess ? [
+                    { icon: Layers, label: "Koncerner", path: "/groups" },
+                  ] : []),
+                  { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
+                  ...(effectiveAdvisor ? advisorNavItems : []),
+
+                  ...(isAdmin && effectiveAdvisor ? [
+                    { icon: null as any, label: "Admin", path: "__admin_header__", isHeader: true },
+                    ...adminNavItems,
+                  ] : []),
+                ]
+          ).map((item: any) => {
             if (item.isHeader) {
               return (
                 <div key={item.path} className="px-3 pt-3 pb-1">
