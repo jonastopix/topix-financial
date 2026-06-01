@@ -9,15 +9,12 @@ import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
   Target,
-  Flame,
   BarChart3,
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  Users,
   Pencil,
   Save,
   X,
@@ -43,40 +40,18 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { formatCompact, calcTotalExpenses, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
+import { formatCompact, calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
 import IndustryBenchmarkGauge from "@/components/IndustryBenchmarkGauge";
 import type { GaugeEntry } from "@/components/IndustryBenchmarkGauge";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { toast } from "sonner";
-import { KPI_FALLBACK_TARGETS, KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
+import { KPI_DEFAULT_BENCHMARKS, INDUSTRY_TEMPLATES } from "@/lib/appConfig";
 import type { BenchmarkTemplate } from "@/lib/appConfig";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
-
-interface KPIMetric {
-  key: string;
-  label: string;
-  value: string;
-  numValue: number;
-  target: string;
-  targetNum: number;
-  change: string;
-  changePct: number;
-  trend: "up" | "down";
-  unit: string;
-  icon: any;
-  description: string;
-  lowerIsBetter: boolean;
-  history: { month: string; periodKey: string; value: number }[];
-  benchmark: { value: number; label: string; source: string };
-}
-
-interface KPITargetRow {
-  kpi_key: string;
-  target_value: number;
-  target_label: string;
-  lower_is_better: boolean;
-}
+import { KPI_DEFS, VALUE_EXTRACTORS, getTargetStatus, deriveKpiMetrics } from "@/lib/kpiDefs";
+import type { KpiMetric } from "@/lib/kpiDefs";
+import { useKpiTargets } from "@/hooks/useKpiTargets";
 
 interface KPIBenchmarkRow {
   kpi_key: string;
@@ -85,27 +60,9 @@ interface KPIBenchmarkRow {
   source_label: string;
 }
 
-// Re-exported from central config
-const FALLBACK_TARGETS = KPI_FALLBACK_TARGETS;
+// Re-exported from central config (KPI_DEFS, VALUE_EXTRACTORS, getTargetStatus,
+// deriveKpiMetrics now live in @/lib/kpiDefs — shared with the advisor-mobile drawer)
 const DEFAULT_BENCHMARKS = KPI_DEFAULT_BENCHMARKS;
-
-const KPI_DEFS = [
-  { key: "omsaetning", label: "Omsætning", unit: "DKK", icon: DollarSign, description: "Månedlig omsætning", lowerIsBetter: false },
-  { key: "db_margin", label: "DB Margin", unit: "%", icon: TrendingUp, description: "Dækningsgrad (Omsætning − direkte omk.)", lowerIsBetter: false },
-  { key: "loenninger", label: "Lønninger", unit: "DKK", icon: Users, description: "Månedlige lønomkostninger", lowerIsBetter: true },
-  { key: "resultat", label: "Resultat", unit: "DKK", icon: Target, description: "Resultat før skat", lowerIsBetter: false },
-  { key: "omkostninger", label: "Omk. total", unit: "DKK", icon: Flame, description: "Samlede omkostninger", lowerIsBetter: true },
-  { key: "ebitda_margin", label: "Resultat Margin", unit: "%", icon: BarChart3, description: "Resultat før skat i % af omsætning", lowerIsBetter: false },
-];
-
-const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number | null> = {
-  omsaetning: (kf) => kf.omsaetning ?? null,
-  db_margin: (kf) => calcDbMargin(kf) ?? null,
-  loenninger: (kf) => kf.loenninger != null ? Math.abs(kf.loenninger) : null,
-  resultat: (kf) => kf.resultat_foer_skat ?? null,
-  omkostninger: (kf) => { const v = calcTotalExpenses(kf); return v > 0 ? v : null; },
-  ebitda_margin: (kf) => calcResultMargin(kf) ?? null,
-};
 
 const tooltipStyle = {
   background: "hsl(var(--popover))",
@@ -156,7 +113,7 @@ const KPIs = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
-  const [userTargets, setUserTargets] = useState<Record<string, KPITargetRow>>({});
+  const { targets, isLoading: targetsLoading, setTargets } = useKpiTargets(companyId);
   const [userBenchmarks, setUserBenchmarks] = useState<Record<string, KPIBenchmarkRow>>({});
   const [loading, setLoading] = useState(true);
   const [selectedKPI, setSelectedKPI] = useState<string>("omsaetning");
@@ -267,22 +224,11 @@ const KPIs = () => {
   useEffect(() => {
     if (!user || !companyId) return;
     const load = async () => {
-      const [targetsRes, benchmarksRes] = await Promise.all([
-        supabase
-          .from("kpi_targets")
-          .select("kpi_key, target_value, target_label, lower_is_better")
-          .eq("company_id", companyId),
-        supabase
-          .from("kpi_benchmarks")
-          .select("kpi_key, benchmark_value, benchmark_label, source_label")
-          .eq("company_id", companyId),
-      ]);
-
-      const tMap: Record<string, KPITargetRow> = {};
-      (targetsRes.data || []).forEach((t: any) => {
-        tMap[t.kpi_key] = t;
-      });
-      setUserTargets(tMap);
+      // Targets are fetched via useKpiTargets; this effect loads benchmarks only.
+      const benchmarksRes = await supabase
+        .from("kpi_benchmarks")
+        .select("kpi_key, benchmark_value, benchmark_label, source_label")
+        .eq("company_id", companyId);
 
       const bMap: Record<string, KPIBenchmarkRow> = {};
       (benchmarksRes.data || []).forEach((b: any) => {
@@ -294,12 +240,8 @@ const KPIs = () => {
     load();
   }, [user, companyId]);
 
-  // Resolve target for a KPI key
-  const getTarget = (key: string) => {
-    const ut = userTargets[key];
-    if (ut) return { value: Number(ut.target_value), label: ut.target_label };
-    return FALLBACK_TARGETS[key] || { value: 0, label: "—" };
-  };
+  // Resolve target for a KPI key (targets already merged with fallback by useKpiTargets)
+  const getTarget = (key: string) => targets[key] ?? { value: 0, label: "—" };
 
   // Build sorted monthly data points from facts
   const monthlyData = useMemo(() => {
@@ -313,56 +255,23 @@ const KPIs = () => {
     // Already sorted by period_key from useCompanyFacts
   }, [facts]);
 
-  // Derive KPI metrics
-  const kpiMetrics: KPIMetric[] = useMemo(() => {
-    if (monthlyData.length === 0) return [];
-    const latest = monthlyData[monthlyData.length - 1].kf;
-    const prev = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2].kf : null;
-
-    return KPI_DEFS.map((def) => {
-      const extract = VALUE_EXTRACTORS[def.key];
-      const currentVal = extract(latest);
-      if (currentVal == null) return null;
-      const prevVal = prev ? extract(prev) : null;
-      const changePct = prevVal != null && currentVal != null && prevVal !== 0
-        ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : 0;
-      const trendIsGood = def.lowerIsBetter ? changePct <= 0 : changePct >= 0;
-      const target = getTarget(def.key);
-
-      const history = monthlyData.map((d) => ({
-        month: d.month,
-        periodKey: d.sortKey,
-        value: Math.round(extract(d.kf) ?? 0),
-      }));
-
-      const formatted = Math.abs(currentVal) >= 1000
-        ? currentVal.toLocaleString("da-DK", { maximumFractionDigits: 0 })
-        : currentVal.toFixed(1);
-
+  // Resolve benchmarks per KPI key (DB value or fallback) — mirrors getBenchmark.
+  const benchmarksResolved = useMemo(() => {
+    const out: Record<string, { value: number; label: string; source: string }> = {};
+    KPI_DEFS.forEach((def) => {
       const ub = userBenchmarks[def.key];
-      const benchmark = ub
+      out[def.key] = ub
         ? { value: Number(ub.benchmark_value), label: ub.benchmark_label, source: ub.source_label }
         : DEFAULT_BENCHMARKS[def.key] || { value: 0, label: "—", source: "" };
+    });
+    return out;
+  }, [userBenchmarks]);
 
-      return {
-        key: def.key,
-        label: def.label,
-        value: formatted,
-        numValue: currentVal,
-        target: target.label,
-        targetNum: target.value,
-        change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`,
-        changePct,
-        trend: trendIsGood ? "up" : "down",
-        unit: def.unit,
-        icon: def.icon,
-        description: def.description,
-        lowerIsBetter: def.lowerIsBetter,
-        history,
-        benchmark,
-      };
-    }).filter(Boolean) as KPIMetric[];
-  }, [monthlyData, userTargets, userBenchmarks]);
+  // Derive KPI metrics (pure — see @/lib/kpiDefs)
+  const kpiMetrics: KpiMetric[] = useMemo(
+    () => deriveKpiMetrics(facts, targets, benchmarksResolved),
+    [facts, targets, benchmarksResolved],
+  );
 
   // Target editing
   const startEditingTargets = () => {
@@ -404,12 +313,12 @@ const KPIs = () => {
       toast.error("Kunne ikke gemme targets");
       console.error(error);
     } else {
-      // Update local state
-      const tMap: Record<string, KPITargetRow> = {};
+      // Update the cached targets directly (instant, no refetch) via setQueryData.
+      const merged: Record<string, { value: number; label: string }> = {};
       upserts.forEach((u) => {
-        tMap[u.kpi_key] = u;
+        merged[u.kpi_key] = { value: u.target_value, label: u.target_label };
       });
-      setUserTargets(tMap);
+      setTargets(merged);
       toast.success("KPI-targets gemt");
     }
 
@@ -486,7 +395,7 @@ const KPIs = () => {
     );
   }
 
-  if (loading || factsLoading) {
+  if (loading || factsLoading || targetsLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
@@ -579,17 +488,6 @@ const KPIs = () => {
       .eq("kpi_key", selectedKPI) as any);
     refetchComments();
   };
-
-  function getTargetStatus(metric: KPIMetric): { hit: boolean; pct: number } {
-    if (!metric.targetNum) return { hit: false, pct: 0 };
-    const hit = metric.lowerIsBetter
-      ? metric.numValue <= metric.targetNum
-      : metric.numValue >= metric.targetNum;
-    const pct = metric.lowerIsBetter
-      ? Math.min((metric.targetNum / Math.max(metric.numValue, 1)) * 100, 100)
-      : Math.min((metric.numValue / metric.targetNum) * 100, 100);
-    return { hit, pct };
-  }
 
   const targetStatus = getTargetStatus(activeMetric);
   const hitsCount = kpiMetrics.filter((m) => getTargetStatus(m).hit).length;
