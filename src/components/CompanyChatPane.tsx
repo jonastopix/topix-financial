@@ -1730,7 +1730,7 @@ const CompanyChatPane = () => {
 
         {/* ─── MESSAGE AREA ─── */}
         {showMessageArea && (
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-w-0">
             {activeConvId ? (
               <>
                 {/* Header */}
@@ -1987,7 +1987,7 @@ const CompanyChatPane = () => {
                 )}
 
                 {/* Messages list */}
-                <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
+                <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
                   {messages.length === 0 && !activeConvId?.startsWith("group_") && (
                     <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
                       <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
@@ -2439,7 +2439,7 @@ const CompanyChatPane = () => {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col min-w-0">
                 {!isAdvisor && companyName && (
                   <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
