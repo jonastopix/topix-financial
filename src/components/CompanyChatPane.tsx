@@ -38,6 +38,11 @@ import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
 } from "@/components/ui/drawer";
+import KPICard from "@/components/KPICard";
+import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { useKpiTargets } from "@/hooks/useKpiTargets";
+import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
+import { deriveKpiMetrics, getTargetStatus } from "@/lib/kpiDefs";
 import { format, formatDistanceToNow, startOfDay, addDays, nextMonday, setHours, setMinutes, setSeconds } from "date-fns";
 import { da } from "date-fns/locale";
 
@@ -1088,6 +1093,18 @@ const CompanyChatPane = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const isGroupThread = activeConv?.threadType === "group";
+
+  // "Se tal"-drawer data (advisor-mobil). Hooks cache via react-query og fyrer
+  // ogsaa naar drawer er lukket — fint for nu; kan gates paa showCompanyDrawer senere.
+  const companyIdForDrawer = activeConv?.company_id;
+  const { data: drawerFacts = [] } = useCompanyFacts(companyIdForDrawer);
+  const { targets: drawerTargets } = useKpiTargets(companyIdForDrawer);
+  const { benchmarks: drawerBenchmarks } = useKpiBenchmarks(companyIdForDrawer);
+  const drawerMetrics = useMemo(
+    () => deriveKpiMetrics(drawerFacts, drawerTargets, drawerBenchmarks),
+    [drawerFacts, drawerTargets, drawerBenchmarks],
+  );
+  const latestPeriodLabel = drawerFacts.at(-1)?.period_label ?? "";
 
   // Pulse context for advisor chat banner — only show if from last 30 days
   const { data: latestPulse } = useQuery({
@@ -2452,14 +2469,64 @@ const CompanyChatPane = () => {
         )}
       </div>
 
-      {/* Se tal-drawer (mobil-rådgiver) — indhold tilføjes i næste skridt */}
+      {/* Se tal-drawer (mobil-rådgiver) — kerne-tal + KPI-grid (kompakt, ingen sparkline) */}
       <Drawer open={showCompanyDrawer} onOpenChange={setShowCompanyDrawer}>
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>{activeConv?.companyName || "Virksomhed"}</DrawerTitle>
+            {latestPeriodLabel && (
+              <p className="text-xs text-muted-foreground">{latestPeriodLabel}</p>
+            )}
           </DrawerHeader>
-          <div className="p-4 text-sm text-muted-foreground">
-            Indhold kommer i næste skridt.
+
+          {/* Scroll-wrapper: drawer-indhold kan være højere end skærm */}
+          <div className="overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] max-h-[70vh]">
+            {drawerMetrics.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                Ingen tal endnu. Når virksomheden har godkendte rapporter, vises tallene her.
+              </div>
+            ) : (
+              <>
+                {/* Kerne-tal: omsætning, resultat, resultat margin */}
+                <div className="grid grid-cols-1 gap-2 mb-4">
+                  {["omsaetning", "resultat", "ebitda_margin"].map((key) => {
+                    const m = drawerMetrics.find((x) => x.key === key);
+                    if (!m) return null;
+                    const status = getTargetStatus(m);
+                    return (
+                      <KPICard
+                        key={m.key}
+                        title={m.label}
+                        value={`${m.value}${m.unit === "%" ? "%" : ""}${m.unit === "DKK" ? " kr" : ""}`}
+                        change={m.change}
+                        trend={m.trend}
+                        accentColor={status.hit ? "emerald" : "amber"}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Adskiller + KPI-grid: alle seks */}
+                <div className="border-t pt-4 mb-2">
+                  <h3 className="text-sm font-medium mb-2">Alle KPI'er</h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    {drawerMetrics.map((m) => {
+                      const status = getTargetStatus(m);
+                      return (
+                        <KPICard
+                          key={m.key}
+                          title={m.label}
+                          value={`${m.value}${m.unit === "%" ? "%" : ""}${m.unit === "DKK" ? " kr" : ""}`}
+                          change={m.change}
+                          trend={m.trend}
+                          accentColor={status.hit ? "emerald" : "amber"}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </DrawerContent>
       </Drawer>
