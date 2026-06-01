@@ -44,6 +44,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     : null;
   const [saving, setSaving] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState(false);
+  const [existingAuthorId, setExistingAuthorId] = useState<string | null>(null);
 
   const { data: history } = useQuery({
     queryKey: ["pulse-history", companyId],
@@ -61,6 +62,24 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     staleTime: 5 * 60_000,
   });
 
+  // Model B: the reflection is shared per company. If a colleague wrote/updated
+  // the current period's row, resolve their name so we can tell the viewer.
+  const isColleagueAuthored = !!existingAuthorId && existingAuthorId !== user?.id;
+  const { data: authorName } = useQuery({
+    queryKey: ["pulse-author", existingAuthorId],
+    queryFn: async () => {
+      if (!existingAuthorId) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", existingAuthorId)
+        .maybeSingle();
+      return data?.full_name ?? null;
+    },
+    enabled: isColleagueAuthored,
+    staleTime: 5 * 60_000,
+  });
+
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const periodKey = periodKeyOverride ?? `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
@@ -68,37 +87,61 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
   useEffect(() => {
     if (!user || !companyId || !open) return;
+    // Reset before (re)loading so stale state from a previous period/open never
+    // lingers (the modal instance is reused across opens in Reports.tsx).
+    setAlreadyDone(false);
+    setExistingAuthorId(null);
+    setWentWell("");
+    setChallenge("");
+    setHelpNeeded("");
+    // Guard against an out-of-order resolve: a slow query for an earlier period
+    // must not overwrite a faster query started after it (re-open/period switch).
+    let cancelled = false;
     supabase
       .from("pulse_checkins")
-      .select("id, went_well, biggest_challenge, help_needed")
+      .select("id, user_id, went_well, biggest_challenge, help_needed")
       .eq("company_id", companyId)
       .eq("period_key", periodKey)
       .maybeSingle()
       .then(({ data }) => {
+        if (cancelled) return;
         if (data) {
           setAlreadyDone(true);
+          setExistingAuthorId(data.user_id ?? null);
           setWentWell(data.went_well || "");
           setChallenge(data.biggest_challenge || "");
           setHelpNeeded(data.help_needed || "");
         }
       });
+    return () => { cancelled = true; };
   }, [user, companyId, periodKey, open]);
 
   const handleSubmit = async () => {
-    if (!user || !companyId) return;
+    if (!user) { toast.error("Du skal være logget ind for at gemme din refleksion."); return; }
+    if (!companyId) { toast.error("Din konto er ikke knyttet til en virksomhed endnu. Genindlæs siden og prøv igen."); return; }
     setSaving(true);
-    const { error } = await supabase
-      .from("pulse_checkins")
-      .upsert({
-        company_id: companyId,
-        user_id: user.id,
-        period_key: periodKey,
-        went_well: wentWell.trim() || null,
-        biggest_challenge: challenge.trim() || null,
-        help_needed: helpNeeded.trim() || null,
-        milestone_progress: autoProgress ?? null,
-      }, { onConflict: "company_id,period_key" });
-    setSaving(false);
+    let error: unknown = null;
+    try {
+      const res = await supabase
+        .from("pulse_checkins")
+        .upsert({
+          company_id: companyId,
+          user_id: user.id,
+          period_key: periodKey,
+          went_well: wentWell.trim() || null,
+          biggest_challenge: challenge.trim() || null,
+          help_needed: helpNeeded.trim() || null,
+          milestone_progress: autoProgress ?? null,
+        }, { onConflict: "company_id,period_key" });
+      error = res.error;
+    } catch (e) {
+      // Network-level rejection (not a returned {error}) would otherwise strand
+      // the button on "Gemmer…" — catch it so we always clear saving + notify.
+      console.error("[PulseCheckin] upsert threw:", e);
+      error = e;
+    } finally {
+      setSaving(false);
+    }
     if (error) { toast.error("Noget gik galt. Prøv igen."); return; }
     toast.success("Din refleksion er gemt!");
     queryClient.invalidateQueries({ queryKey: ["mobile-pulse-this-month"] });
@@ -127,10 +170,14 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
         <CheckCircle2 className="h-8 w-8 text-primary" />
       </div>
       <h2 className="text-xl font-display font-bold text-foreground mb-2">
-        Tak, din refleksion for {periodLabel} er sendt
+        {isColleagueAuthored
+          ? `Jeres refleksion for ${periodLabel} er sendt`
+          : `Tak, din refleksion for ${periodLabel} er sendt`}
       </h2>
       <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">
-        Dine rådgivere kan nu se din opdatering og vil tage den med i deres sparring med dig.
+        {isColleagueAuthored
+          ? `${authorName || "En kollega"} har skrevet virksomhedens refleksion. Du kan opdatere den, hvis du vil tilføje noget.`
+          : "Dine rådgivere kan nu se din opdatering og vil tage den med i deres sparring med dig."}
       </p>
       <button
         onClick={() => setAlreadyDone(false)}
@@ -184,6 +231,17 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           </DialogHeader>
         )}
       </div>
+
+      {/* Colleague-authored notice (shared company reflection) */}
+      {isColleagueAuthored && (
+        <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2.5 mb-4 text-xs text-muted-foreground">
+          <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+          <span>
+            <span className="font-medium text-foreground">{authorName || "En kollega"}</span>{" "}
+            har allerede skrevet virksomhedens refleksion for {periodLabel}. Du redigerer den fælles refleksion.
+          </span>
+        </div>
+      )}
 
       {/* Field 1 */}
       <div className="rounded-xl border border-border p-4 mb-3">
@@ -287,7 +345,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
       <button
         onClick={handleSubmit}
-        disabled={saving || (!wentWell.trim() && !challenge.trim())}
+        disabled={saving || (!wentWell.trim() && !challenge.trim() && !helpNeeded.trim())}
         className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
       >
         {saving ? (
