@@ -304,7 +304,11 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
 
     // Strong: ALL-CAPS Danish subtotal pattern — Dinero uses uppercase section totals
     // like "OMSÆTNING I ALT", "DÆKNINGSBIDRAG I ALT", "LØNNINGER MV. I ALT", "RESULTAT FØR SKAT"
-    const capsSubtotals = text.match(/^[A-ZÆØÅ][A-ZÆØÅ\s,.&]+(?:I ALT|MV\.|FØR SKAT|EFTER SKAT)\s*[-\d.,]*$/gm);
+    // NOTE: trailing \s* before $ — Dinero PDF-eksport efterlader et trailing mellemrum
+    // efter beløbet (hasEOL-baseret tekstudtræk), hvilket brækkede $-anchoren og forhindrede
+    // dette +20-signal i at fyre → generic scorede 75 < 80 → no_match → AI-fallback læste
+    // salg/admin forkert. Tolerér trailing whitespace.
+    const capsSubtotals = text.match(/^[A-ZÆØÅ][A-ZÆØÅ\s,.&]+(?:I ALT|MV\.|FØR SKAT|EFTER SKAT)\s*[-\d.,]*\s*$/gm);
     if (capsSubtotals && capsSubtotals.length >= 3) score += 20;
 
     // Structural supplement: 4-digit account numbers in non-CSV layout
