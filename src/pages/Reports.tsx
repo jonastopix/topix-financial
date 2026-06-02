@@ -834,6 +834,7 @@ const Reports = () => {
             conversationId={conversationId}
             userId={user?.id || null}
             companyId={companyId || null}
+            guideDefaultOpen={reportCount === 0}
             onPipelineComplete={handlePipelineComplete}
           />
            <p className="text-center text-xs text-muted-foreground mt-3">
@@ -866,6 +867,7 @@ const Reports = () => {
                 conversationId={conversationId}
                 userId={user?.id || null}
                 companyId={companyId || null}
+                guideDefaultOpen={reportCount === 0}
                 onPipelineComplete={handlePipelineComplete}
               />
             </div>

@@ -1,6 +1,7 @@
 import { useCallback, useState, useRef, useEffect, Fragment } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Check, Target, Info, AlertTriangle } from "lucide-react";
+import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Check, Target, Info, AlertTriangle, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -205,6 +206,7 @@ interface FileUploadZoneProps {
   companyId?: string | null;
   companyName?: string | null;
   adminMode?: boolean;
+  guideDefaultOpen?: boolean;
   onExtracted?: (data: ExtractedData) => void;
   onPipelineComplete?: (reportId?: string) => void;
 }
@@ -342,6 +344,7 @@ const FileUploadZone = ({
   companyId,
   companyName,
   adminMode = false,
+  guideDefaultOpen = false,
   onExtracted,
   onPipelineComplete,
 }: FileUploadZoneProps) => {
@@ -1011,12 +1014,15 @@ const FileUploadZone = ({
       )}
 
       {/* Upload guide */}
-      <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
-        <div className="mt-4 text-left">
-          <p className="text-xs font-medium text-muted-foreground mb-3">
+      <Collapsible defaultOpen={guideDefaultOpen} className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4">
+        <CollapsibleTrigger className="group flex w-full items-center justify-between text-left">
+          <span className="text-xs font-medium text-muted-foreground">
             Sådan eksporterer du
-          </p>
-          <div className="space-y-2 text-xs">
+          </span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3">
+          <div className="mt-3 space-y-2 text-xs">
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
               <p className="font-medium text-foreground mb-1">e-conomic</p>
               <p className="text-muted-foreground">
@@ -1044,14 +1050,14 @@ const FileUploadZone = ({
               </p>
             </div>
           </div>
-        </div>
-        <div className="flex items-start gap-2 pt-1">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Custom-formaterede Excel-rapporter kan give upræcise resultater. Brug standardeksport fra dit regnskabsprogram for bedste resultat.
-          </p>
-        </div>
-      </div>
+          <div className="flex items-start gap-2 pt-1">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Custom-formaterede Excel-rapporter kan give upræcise resultater. Brug standardeksport fra dit regnskabsprogram for bedste resultat.
+            </p>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <AlertDialog open={overwriteDialog.open} onOpenChange={(open) => !open && handleCancelOverwrite()}>
         <AlertDialogContent>
