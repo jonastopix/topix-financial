@@ -21,8 +21,13 @@ export const REPORT_TYPES = [
 // ── Field definitions ──
 export const PNL_FIELDS = [
   "omsaetning",
+  "direkte_omkostninger",
   "daekningsbidrag",
   "loenninger",
+  "salgsomkostninger",
+  "lokaleomkostninger",
+  "administrationsomkostninger",
+  "afskrivninger",
   "ebitda",
   "resultat_foer_skat",
   "resultat_efter_skat",
@@ -39,8 +44,13 @@ export const ALL_FIELDS = [...PNL_FIELDS, ...BALANCE_FIELDS];
 
 export const FIELD_LABELS: Record<string, string> = {
   omsaetning: "Omsætning",
+  direkte_omkostninger: "Direkte omkostninger",
   daekningsbidrag: "Dækningsbidrag",
   loenninger: "Lønomkostninger",
+  salgsomkostninger: "Salgsomkostninger",
+  lokaleomkostninger: "Lokaleomkostninger",
+  administrationsomkostninger: "Administrationsomkostninger",
+  afskrivninger: "Afskrivninger",
   ebitda: "EBITDA / Driftsresultat",
   resultat_foer_skat: "Resultat f. skat",
   resultat_efter_skat: "Resultat efter skat",
