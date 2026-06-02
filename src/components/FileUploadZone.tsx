@@ -997,7 +997,7 @@ const FileUploadZone = ({
               </div>
 
               {/* Prominent fremdriftsindikator for de aktive tilstande */}
-              {(file.status === "uploading" || file.status === "processing" || file.status === "analyzing") && (
+              {(file.status === "uploading" || file.status === "processing") && (
                 <ParsingProgress status={file.status} />
               )}
 
@@ -1216,13 +1216,12 @@ function MiniStat({ label, value, sub }: { label: string; value: string; sub?: s
 
 // Tre-trins fremdriftsindikator for de aktive parsing-tilstande.
 // Ren præsentation af status der allerede findes — skriver aldrig status.
-const PARSING_STEPS: { key: "uploading" | "processing" | "analyzing"; label: string }[] = [
+const PARSING_STEPS: { key: "uploading" | "processing"; label: string }[] = [
   { key: "uploading", label: "Uploader filen" },
   { key: "processing", label: "Læser tallene i dit regnskab" },
-  { key: "analyzing", label: "Laver din AI-analyse" },
 ];
 
-function ParsingProgress({ status }: { status: "uploading" | "processing" | "analyzing" }) {
+function ParsingProgress({ status }: { status: "uploading" | "processing" }) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
