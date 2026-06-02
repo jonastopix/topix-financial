@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DANISH_MONTHS } from "@/lib/financialUtils";
+import { DANISH_MONTHS, isCompletedMonth } from "@/lib/financialUtils";
 import {
   REPORT_TYPES,
   PNL_FIELDS,
@@ -117,7 +117,13 @@ export default function OverrideFormFields({
               </SelectTrigger>
               <SelectContent>
                 {DANISH_MONTHS.map((name, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>{name}</SelectItem>
+                  <SelectItem
+                    key={i + 1}
+                    value={String(i + 1)}
+                    disabled={!isCompletedMonth(`${year}-${String(i + 1).padStart(2, "0")}`)}
+                  >
+                    {name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

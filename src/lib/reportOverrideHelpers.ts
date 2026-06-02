@@ -9,7 +9,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { DANISH_MONTHS, type ReportData, hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriodKey } from "@/lib/financialUtils";
+import { DANISH_MONTHS, type ReportData, hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriodKey, isCompletedMonth } from "@/lib/financialUtils";
 
 // ── Report types ──
 export const REPORT_TYPES = [
@@ -155,14 +155,8 @@ export function validateForApply(params: ValidateForApplyParams): string | null 
   if (year < 2000 || year > 2100) return "Ugyldigt årstal";
 
   // Block current month and future months — a month is only reportable once it's complete
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // 1-indexed
-  const isCurrentOrFuture =
-    year > currentYear ||
-    (year === currentYear && month >= currentMonth);
-
-  if (isCurrentOrFuture) {
+  const periodKey = `${year}-${String(month).padStart(2, "0")}`;
+  if (!isCompletedMonth(periodKey)) {
     const monthNames = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
     return `${monthNames[month - 1]} ${year} er ikke afsluttet endnu — du kan kun rapportere for afsluttede måneder`;
   }

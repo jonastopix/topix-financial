@@ -26,6 +26,19 @@ export function parseReportPeriodToKey(period: string | null): string | null {
   return null;
 }
 
+/**
+ * En måned er kun rapporterbar når den er HELT afsluttet — dvs. periode-key'en
+ * ligger STRENGT før indeværende måned. Spejler server-RPC'en
+ * resolve_report_commit_candidate (period_key >= to_char(now(),'YYYY-MM') blokeres).
+ *
+ * "YYYY-MM" sorterer leksikografisk = kronologisk, så streng-sammenligning er nok
+ * og har ingen årsskifte-bug. `now` er valgfri for testbarhed.
+ */
+export function isCompletedMonth(periodKey: string, now: Date = new Date()): boolean {
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return periodKey < currentKey;
+}
+
 // ── Key figures extraction ──
 export interface ReportData {
   report_type?: string;
