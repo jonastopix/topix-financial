@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
@@ -124,6 +125,10 @@ const Reports = () => {
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
   const trendPeriod = usePeriodFilter();
   const { data: companyFacts = [] } = useCompanyFacts();
+  // Controlled periode-valg løftet hertil, så historik-listen kan styre hvilken periode AI-analysen viser
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string | null>(null);
+  const { data: commentaries = [] } = useCompanyCommentary(companyId || undefined);
+  const aiAnalysisRef = useRef<HTMLDivElement>(null);
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMsg[]>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
   const [advisorProfiles, setAdvisorProfiles] = useState<Record<string, string>>({});
@@ -165,6 +170,21 @@ const Reports = () => {
         return key?.startsWith(yearFilter);
       })
     : dbReports.filter(r => r.file_path !== "_sentinel");
+
+  // Analyser hvis periode ikke har en synlig rapport-række (fx årsbaseline-måneder
+  // hvis eneste "rapport" er den skjulte _sentinel). Beregnes mod ALLE synlige
+  // rapporter (ikke displayedReports), så år-filteret ikke påvirker mængden.
+  const orphanCommentaries = useMemo(() => {
+    const visibleKeys = new Set(
+      dbReports
+        .filter(r => r.file_path !== "_sentinel")
+        .map(r => getEffectiveReportPeriodKey(r as unknown as ReportData))
+        .filter(Boolean)
+    );
+    return commentaries
+      .filter(c => !visibleKeys.has(c.period_key))
+      .sort((a, b) => b.period_key.localeCompare(a.period_key));
+  }, [dbReports, commentaries]);
 
   // RP-1: Review dialog + server-driven card states
   const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
@@ -1063,16 +1083,22 @@ const Reports = () => {
       })()}
 
       {/* AI Financial Analysis */}
-      {processedReports.length > 0 && (
-        <div className="mb-10">
-          <AIFinancialAnalysis conversationId={conversationId} companyId={companyId} userId={user?.id || null} />
+      {(processedReports.length > 0 || orphanCommentaries.length > 0) && (
+        <div className="mb-10" ref={aiAnalysisRef}>
+          <AIFinancialAnalysis
+            conversationId={conversationId}
+            companyId={companyId}
+            userId={user?.id || null}
+            selectedPeriodKey={selectedPeriodKey}
+            onSelectPeriod={setSelectedPeriodKey}
+          />
         </div>
       )}
 
       {/* Real DB Reports */}
       <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
         <FileText className="h-5 w-5 text-primary" />
-        Rapporter
+        Din historik
       </h2>
 
       {dbReports.length === 0 ? (
@@ -1129,6 +1155,10 @@ const Reports = () => {
             const msgs = chatMessages[report.id] || [];
             const aiMsgs = msgs.filter((m) => m.message_type === "ai");
             const userMsgs = msgs.filter((m) => m.message_type === "user");
+            // Analyse-status for rækkens periode (overtaget fra den tidligere periode-liste)
+            const rowPeriodKey = getEffectiveReportPeriodKey(report as unknown as ReportData);
+            const rowCommentary = rowPeriodKey ? commentaries.find(c => c.period_key === rowPeriodKey) : null;
+            const rowAnalysisStale = rowCommentary?.is_stale ?? false;
 
             return (
               <div key={report.id} ref={(el) => { if (el) reportCardRefs.current.set(report.id, el); }} className={`bg-card border shadow-sm rounded-xl animate-fade-in overflow-hidden transition-all duration-300 ${needsManualEntry ? "border-amber-300/50 dark:border-amber-500/30" : isUnrecoverableError ? "border-destructive/30" : "border-border"}`}>
@@ -1206,6 +1236,15 @@ const Reports = () => {
                         }
                         return null;
                       })()}
+                      {rowCommentary && (
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                          rowAnalysisStale
+                            ? "bg-chart-warning/10 text-chart-warning"
+                            : "bg-primary/10 text-primary"
+                        }`}>
+                          {rowAnalysisStale ? "Forældet" : "Analyse klar"}
+                        </span>
+                      )}
                       {aiMsgs.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full bg-primary/10 text-primary">
                           <Sparkles className="h-3 w-3" />
@@ -1333,6 +1372,19 @@ const Reports = () => {
                           }
                           return null;
                         })()}
+                        {rowCommentary && rowPeriodKey && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPeriodKey(rowPeriodKey);
+                              aiAnalysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors"
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Se analysen
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1460,6 +1512,46 @@ const Reports = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Analyser uden tilknyttet rapport (fx årsbaseline-måneder hvis eneste "rapport" er den skjulte sentinel) */}
+      {orphanCommentaries.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-1">Analyser uden tilknyttet rapport</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Disse analyser er lavet ud fra dine årsregnskabstal og har ingen måneds-rapport.
+          </p>
+          <div className="space-y-3">
+            {orphanCommentaries.map((c) => {
+              const label = companyFacts.find(f => f.period_key === c.period_key)?.period_label ?? c.period_key;
+              return (
+                <div key={c.id} className="bg-card border border-border shadow-sm rounded-xl p-5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2.5 rounded-lg bg-muted flex-shrink-0">
+                      <Sparkles className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">{label}</p>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                      c.is_stale ? "bg-chart-warning/10 text-chart-warning" : "bg-primary/10 text-primary"
+                    }`}>
+                      {c.is_stale ? "Forældet" : "Analyse klar"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedPeriodKey(c.period_key);
+                      aiAnalysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors flex-shrink-0"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Se analysen
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
