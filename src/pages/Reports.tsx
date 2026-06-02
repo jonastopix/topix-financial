@@ -151,6 +151,7 @@ const Reports = () => {
   const availableYears = useMemo(() => {
     const years = new Set<string>();
     dbReports.forEach(r => {
+      if (r.file_path === "_sentinel") return; // skjul systemfil (annual baseline sentinel)
       const key = getEffectiveReportPeriodKey(r as any);
       if (key) years.add(key.split("-")[0]);
     });
@@ -159,10 +160,11 @@ const Reports = () => {
 
   const displayedReports = yearFilter
     ? dbReports.filter(r => {
+        if (r.file_path === "_sentinel") return false; // skjul systemfil (annual baseline sentinel)
         const key = getEffectiveReportPeriodKey(r as any);
         return key?.startsWith(yearFilter);
       })
-    : dbReports;
+    : dbReports.filter(r => r.file_path !== "_sentinel");
 
   // RP-1: Review dialog + server-driven card states
   const [reviewDialogState, setReviewDialogState] = useState<{ open: boolean; reportId: string; reportLabel: string; cardState: string }>({ open: false, reportId: "", reportLabel: "", cardState: "ready" });
