@@ -1,6 +1,6 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useEffect, Fragment } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Sparkles, Target, Info, AlertTriangle } from "lucide-react";
+import { Upload, FileSpreadsheet, X, CheckCircle2, Loader2, Check, Target, Info, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -992,50 +992,39 @@ const FileUploadZone = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {file.status === "uploading" && "Opretter rapport..."}
-                    {file.status === "processing" && (
-                      <span>Udtrækker nøgletal… <span className="text-muted-foreground/70">(typisk 20-40 sek.)</span></span>
-                    )}
-                    {file.status === "analyzing" && (
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="h-3 w-3 text-primary" />
-                        Genererer AI-analyse og milestones...
-                      </span>
-                    )}
-                    {file.status === "done" && (
-                      <span className="flex items-center gap-2">
-                        {formatFileSize(file.size)}
-                        {file.milestonesCreated ? (
-                          <span className="inline-flex items-center gap-1 text-primary">
-                            <Target className="h-3 w-3" />
-                            {file.milestonesCreated} milestones
-                          </span>
-                        ) : null}
-                      </span>
-                    )}
-                    {file.status === "error" && (
-                      <span className="leading-snug">
-                        {file.errorMessage?.includes("ikke genkendt") ? (
-                          <span className="text-destructive">{file.errorMessage}</span>
-                        ) : (
-                          <span className="text-amber-600 dark:text-amber-400">
-                            {file.errorMessage || "Vi kunne ikke læse filen automatisk."}{" "}
-                            <a
-                              href="/reports"
-                              className="underline font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200"
-                            >
-                              Gå til Rapportering for at indtaste tallene manuelt →
-                            </a>
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </p>
+                  {(file.status === "done" || file.status === "error") && (
+                    <p className="text-xs text-muted-foreground">
+                      {file.status === "done" && (
+                        <span className="flex items-center gap-2">
+                          {formatFileSize(file.size)}
+                          {file.milestonesCreated ? (
+                            <span className="inline-flex items-center gap-1 text-primary">
+                              <Target className="h-3 w-3" />
+                              {file.milestonesCreated} milestones
+                            </span>
+                          ) : null}
+                        </span>
+                      )}
+                      {file.status === "error" && (
+                        <span className="leading-snug">
+                          {file.errorMessage?.includes("ikke genkendt") ? (
+                            <span className="text-destructive">{file.errorMessage}</span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400">
+                              {file.errorMessage || "Vi kunne ikke læse filen automatisk."}{" "}
+                              <a
+                                href="/reports"
+                                className="underline font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200"
+                              >
+                                Gå til Rapportering for at indtaste tallene manuelt →
+                              </a>
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
-                {(file.status === "uploading" || file.status === "processing" || file.status === "analyzing") && (
-                  <Loader2 className="h-4 w-4 text-primary animate-spin flex-shrink-0" />
-                )}
                 {file.status === "done" && (
                   <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
                 )}
@@ -1049,6 +1038,11 @@ const FileUploadZone = ({
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
+
+              {/* Prominent fremdriftsindikator for de aktive tilstande */}
+              {(file.status === "uploading" || file.status === "processing" || file.status === "analyzing") && (
+                <ParsingProgress status={file.status} />
+              )}
 
               {/* Show extracted data inline */}
               {file.status === "done" && file.extractedData && (
@@ -1216,6 +1210,81 @@ function MiniStat({ label, value, sub }: { label: string; value: string; sub?: s
       </p>
       <p className="text-sm font-display font-semibold text-foreground">{value}</p>
       {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// Tre-trins fremdriftsindikator for de aktive parsing-tilstande.
+// Ren præsentation af status der allerede findes — skriver aldrig status.
+const PARSING_STEPS: { key: "uploading" | "processing" | "analyzing"; label: string }[] = [
+  { key: "uploading", label: "Uploader filen" },
+  { key: "processing", label: "Læser tallene i dit regnskab" },
+  { key: "analyzing", label: "Laver din AI-analyse" },
+];
+
+function ParsingProgress({ status }: { status: "uploading" | "processing" | "analyzing" }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const currentIndex = PARSING_STEPS.findIndex((s) => s.key === status);
+
+  return (
+    <div className="mt-2 p-4 rounded-lg border border-border bg-card/50">
+      <div className="flex items-start">
+        {PARSING_STEPS.map((step, i) => {
+          const isDone = i < currentIndex;
+          const isActive = i === currentIndex;
+          return (
+            <Fragment key={step.key}>
+              <div className="flex flex-col items-center gap-1.5 text-center w-24 flex-shrink-0">
+                <div
+                  className={`flex items-center justify-center h-9 w-9 rounded-full border-2 transition-colors ${
+                    isDone
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : isActive
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-transparent text-muted-foreground"
+                  }`}
+                >
+                  {isDone ? (
+                    <Check className="h-4 w-4" />
+                  ) : isActive ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <span className="text-xs font-medium">{i + 1}</span>
+                  )}
+                </div>
+                <span
+                  className={`text-[11px] leading-tight ${
+                    isActive
+                      ? "text-foreground font-medium"
+                      : isDone
+                      ? "text-muted-foreground"
+                      : "text-muted-foreground/60"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+              {i < PARSING_STEPS.length - 1 && (
+                <div
+                  className={`h-0.5 flex-1 mt-[17px] rounded transition-colors ${
+                    i < currentIndex ? "bg-primary" : "bg-border"
+                  }`}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground text-center">
+        {elapsed} sek. <span className="text-muted-foreground/70">(typisk 20-40 sek.)</span>
+      </p>
     </div>
   );
 }
