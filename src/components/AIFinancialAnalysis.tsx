@@ -12,7 +12,6 @@ import {
   Target,
   Loader2,
   RefreshCw,
-  Calendar,
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -72,20 +71,21 @@ interface AIFinancialAnalysisProps {
   conversationId?: string | null;
   companyId?: string | null;
   userId?: string | null;
+  /** Controlled valgt periode (parent ejer den; null = auto-vælg seneste herinde) */
+  selectedPeriodKey?: string | null;
+  onSelectPeriod?: (key: string) => void;
 }
 
 const CORE_FIELDS = ["revenue", "gross_profit", "ebt"] as const;
 
-const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialAnalysisProps) => {
+const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriodKey = null, onSelectPeriod }: AIFinancialAnalysisProps) => {
   const queryClient = useQueryClient();
   const { data: facts = [] } = useCompanyFacts(companyId ?? undefined);
   const { data: commentaries = [], isLoading: commentariesLoading } = useCompanyCommentary(companyId ?? undefined);
 
-  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const [showAllTrends, setShowAllTrends] = useState(false);
-  const [expandedYear, setExpandedYear] = useState<string | null>(() => String(new Date().getFullYear()));
   const [needsMoreData, setNeedsMoreData] = useState(false);
 
   // Available periods from committed facts (sorted descending)
@@ -135,17 +135,6 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
     return p?.period_label || effectivePeriodKey || "";
   }, [availablePeriods, effectivePeriodKey]);
 
-  // Group periods by year
-  const periodsByYear = useMemo(() => {
-    const groups: Record<string, typeof availablePeriods> = {};
-    availablePeriods.forEach(p => {
-      const year = p.period_key.slice(0, 4);
-      if (!groups[year]) groups[year] = [];
-      groups[year].push(p);
-    });
-    return groups;
-  }, [availablePeriods]);
-
   const handleGenerate = async (periodKey?: string) => {
     const targetPeriod = periodKey || effectivePeriodKey;
     if (!targetPeriod || !companyId) {
@@ -155,7 +144,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
 
     setLoading(true);
     setNeedsMoreData(false);
-    if (periodKey) setSelectedPeriodKey(periodKey);
+    if (periodKey) onSelectPeriod?.(periodKey);
 
     try {
       const result = await generateCommentary(companyId, targetPeriod);
@@ -450,83 +439,6 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId }: AIFinancialA
             </div>
           </div>
         </>
-      )}
-
-      {/* Period History */}
-      {Object.keys(periodsByYear).length > 0 && (
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            Perioder med committed facts
-          </h3>
-
-          <div className="space-y-2">
-            {Object.entries(periodsByYear)
-              .sort(([a], [b]) => b.localeCompare(a))
-              .map(([year, periods]) => (
-                <div key={year}>
-                  <button
-                    onClick={() => setExpandedYear(expandedYear === year ? null : year)}
-                    className="w-full flex items-center justify-between py-2 px-1 text-sm font-semibold text-foreground hover:text-primary transition-colors"
-                  >
-                    <span>{year}</span>
-                    {expandedYear === year ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-
-                  {expandedYear === year && (
-                    <div className="space-y-1 ml-2 mb-3">
-                      {periods.map(p => {
-                        const commentary = commentaries.find(c => c.period_key === p.period_key);
-                        const hasAnalysis = !!commentary;
-                        const isSelected = p.period_key === effectivePeriodKey;
-                        const periodIsStale = commentary?.is_stale ?? false;
-
-                        return (
-                          <button
-                            key={p.period_key}
-                            onClick={() => {
-                              setSelectedPeriodKey(p.period_key);
-                              setExpandedFinding(0);
-                            }}
-                            className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg text-left transition-all ${
-                              isSelected
-                                ? "bg-primary/10 border border-primary/20"
-                                : "hover:bg-secondary/50 border border-transparent"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-sm text-foreground">{p.period_label || p.period_key}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {hasAnalysis ? (
-                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                                  periodIsStale
-                                    ? "bg-chart-warning/10 text-chart-warning"
-                                    : "bg-primary/10 text-primary"
-                                }`}>
-                                  {periodIsStale ? "Forældet" : "Analyse klar"}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground">
-                                  Vælg for at analysere
-                                </span>
-                              )}
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
       )}
 
       {/* Empty state */}
