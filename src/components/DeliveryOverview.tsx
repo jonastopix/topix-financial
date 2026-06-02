@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { CheckCircle2, Clock, AlertCircle, Pencil } from "lucide-react";
 import {
-  DANISH_MONTHS, SHORT_MONTHS, getEffectiveReportPeriodKey, hasManualOverride, reportStatusConfig,
+  DANISH_MONTHS, SHORT_MONTHS, getEffectiveReportPeriodKey, hasManualOverride, reportStatusConfig, isCompletedMonth,
 } from "@/lib/financialUtils";
 
 interface ReportSlim {
@@ -74,7 +74,7 @@ const DeliveryOverview = ({ reports, onUploadClick, committedReportIds }: Delive
         if (!committedReportIds) return true;
         return committedReportIds.has(s.report.id);
       }).length;
-      groups.push({ year: yearStr, months, delivered, total: months.length });
+      groups.push({ year: yearStr, months, delivered, total: months.filter(s => isCompletedMonth(s.key)).length });
     }
 
     return groups;
@@ -106,10 +106,7 @@ const DeliveryOverview = ({ reports, onUploadClick, committedReportIds }: Delive
             <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
               {group.months.map(({ key, month, year, report }) => {
                 // A month is past only when we're in a later month — consistent with commit blocking
-                const [slotYear, slotMonth] = key.split("-").map(Number);
-                const now = new Date();
-                const isPast = slotYear < now.getFullYear() ||
-                  (slotYear === now.getFullYear() && slotMonth < now.getMonth() + 1);
+                const isPast = isCompletedMonth(key);
                 const status = report?.status;
                 // Pending-approval: processed but not yet committed. Falls back to old
                 // behavior (processed = delivered/green) when committedReportIds is undefined.
