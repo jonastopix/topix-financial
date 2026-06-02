@@ -938,49 +938,6 @@ const FileUploadZone = ({
         </p>
       </div>
 
-      {/* Upload guide */}
-      <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
-        <div className="mt-4 text-left">
-          <p className="text-xs font-medium text-muted-foreground mb-3">
-            Sådan eksporterer du
-          </p>
-          <div className="space-y-2 text-xs">
-            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-              <p className="font-medium text-foreground mb-1">e-conomic</p>
-              <p className="text-muted-foreground">
-                <strong className="text-foreground">Balance Excel</strong> — Regnskab → Rapporter → Balance → Excel (anbefalet)<br />
-                <strong className="text-foreground">Saldobalance Excel</strong> — Regnskab → Rapporter → Saldobalance → Excel<br />
-                <strong className="text-foreground">Resultatopgørelse PDF</strong> — Regnskab → Rapporter → Resultatopgørelse → PDF
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-              <p className="font-medium text-foreground mb-1">Dinero</p>
-              <p className="text-muted-foreground">
-                Rapporter → Resultatopgørelse → Eksportér som CSV eller PDF.
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-              <p className="font-medium text-foreground mb-1">Billy</p>
-              <p className="text-muted-foreground">
-                Rapporter → Resultatopgørelse → Download Excel.
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-              <p className="font-medium text-foreground mb-1">Andre systemer</p>
-              <p className="text-muted-foreground">
-                Upload en resultatopgørelse eller saldobalance som PDF eller Excel. Kan vi ikke læse filen automatisk, guider vi dig til at indtaste de vigtigste tal manuelt.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-start gap-2 pt-1">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Custom-formaterede Excel-rapporter kan give upræcise resultater. Brug standardeksport fra dit regnskabsprogram for bedste resultat.
-          </p>
-        </div>
-      </div>
-
       {/* Uploaded files */}
       {uploadedFiles.length > 0 && (
         <div className="mt-4 space-y-2">
@@ -1052,6 +1009,49 @@ const FileUploadZone = ({
           ))}
         </div>
       )}
+
+      {/* Upload guide */}
+      <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
+        <div className="mt-4 text-left">
+          <p className="text-xs font-medium text-muted-foreground mb-3">
+            Sådan eksporterer du
+          </p>
+          <div className="space-y-2 text-xs">
+            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+              <p className="font-medium text-foreground mb-1">e-conomic</p>
+              <p className="text-muted-foreground">
+                <strong className="text-foreground">Balance Excel</strong> — Regnskab → Rapporter → Balance → Excel (anbefalet)<br />
+                <strong className="text-foreground">Saldobalance Excel</strong> — Regnskab → Rapporter → Saldobalance → Excel<br />
+                <strong className="text-foreground">Resultatopgørelse PDF</strong> — Regnskab → Rapporter → Resultatopgørelse → PDF
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+              <p className="font-medium text-foreground mb-1">Dinero</p>
+              <p className="text-muted-foreground">
+                Rapporter → Resultatopgørelse → Eksportér som CSV eller PDF.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+              <p className="font-medium text-foreground mb-1">Billy</p>
+              <p className="text-muted-foreground">
+                Rapporter → Resultatopgørelse → Download Excel.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+              <p className="font-medium text-foreground mb-1">Andre systemer</p>
+              <p className="text-muted-foreground">
+                Upload en resultatopgørelse eller saldobalance som PDF eller Excel. Kan vi ikke læse filen automatisk, guider vi dig til at indtaste de vigtigste tal manuelt.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-start gap-2 pt-1">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Custom-formaterede Excel-rapporter kan give upræcise resultater. Brug standardeksport fra dit regnskabsprogram for bedste resultat.
+          </p>
+        </div>
+      </div>
 
       <AlertDialog open={overwriteDialog.open} onOpenChange={(open) => !open && handleCancelOverwrite()}>
         <AlertDialogContent>
