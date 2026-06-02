@@ -1552,6 +1552,52 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         ? canonical.cvr
         : extractedData.cvr_number;
 
+      // ── Periode-gate: afvis igangværende/fremtidig måned FØR rapporten markeres processed ──
+      // En måned er kun rapporterbar når den er HELT afsluttet (period_key strengt før indeværende måned).
+      // Reglen er bevidst replikeret inline her, fordi denne Deno edge-funktion ikke kan importere
+      // frontendens isCompletedMonth (src/lib/financialUtils). Den SKAL holdes identisk med
+      // klient-helperen og commit-RPC'en resolve_report_commit_candidate
+      // (period_key >= to_char(now(),'YYYY-MM') afvises).
+      if (dbReportPeriod) {
+        const DK_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
+        const monthIdx = DK_MONTHS.findIndex(m => dbReportPeriod.toLowerCase().includes(m.toLowerCase()));
+        const yearMatch = dbReportPeriod.match(/\d{4}/);
+        // Kun hvis BÅDE måned og år kan udledes; ellers springes gaten over (afvis ikke på usikker periode).
+        if (monthIdx >= 0 && yearMatch) {
+          const periodKey = `${yearMatch[0]}-${String(monthIdx + 1).padStart(2, "0")}`;
+          const now = new Date();
+          const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          if (periodKey >= currentKey) {
+            console.log(`[PeriodGate] Rejecting non-completed month: period_key=${periodKey} >= current=${currentKey}`);
+            await supabase
+              .from("financial_reports")
+              .update({
+                status: "error",
+                processed_at: new Date().toISOString(),
+                report_period: dbReportPeriod,
+                validation_status: "FAIL",
+                validation_errors: ["Periode ikke afsluttet"],
+                quality_signals: {
+                  needs_manual_entry: false,
+                  validation_status: "FAIL",
+                  validation_errors: ["Periode ikke afsluttet"],
+                  routing_branch: "period_not_completed",
+                },
+              })
+              .eq("id", reportId);
+
+            return new Response(
+              JSON.stringify({
+                error: `${dbReportPeriod} er ikke afsluttet endnu. Upload rapporten når måneden er slut.`,
+                status: "period_not_completed",
+                report_period: dbReportPeriod,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      }
+
       const updatePayload: any = {
         report_type: dbReportType,
         report_period: dbReportPeriod,

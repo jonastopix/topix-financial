@@ -317,6 +317,10 @@ function getFriendlyErrorMessage(data: any): string {
     : s === "dinero" ? "Dinero"
     : s === "combined_dk" ? "e-conomic"
     : s || "dit regnskabsprogram";
+  // Periode-gate fra server: vis den klare besked uændret i stedet for den generiske default
+  if (status === "period_not_completed" && err) {
+    return err;
+  }
   if (err.includes("Known source without supported template") || status === "error" && source) {
     return `Vi kan se at filen kommer fra ${systemLabel(source)}, men denne rapporttype understøttes ikke endnu. Prøv at eksportere en standard resultatopgørelse eller saldobalance fra ${systemLabel(source)}.`;
   }
