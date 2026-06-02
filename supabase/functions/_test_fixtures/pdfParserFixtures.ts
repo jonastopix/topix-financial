@@ -158,3 +158,69 @@ export const fixture_dinero_pnl_parser: ParserOutputFixture = {
     { name_pattern: "Resultat før skat", section: null, is_subtotal: true, period_amount: -75000 },
   ],
 };
+
+// ── Dinero-eksport med TRAILING WHITESPACE (UNGARBEJDE.DK ApS, CVR 32075479) ──
+//
+// Reproducerer Oles faktiske prod-tekst 1:1 fra app.theboardroom.dk-uploadet
+// (FileUploadZone.extractTextFromFile bygger teksten hasEOL-baseret, hvilket
+// efterlader ÉT trailing mellemrum efter hvert beløb). Det trailing mellemrum
+// brækkede $-anchoren i generic-templatens ALL-CAPS-subtotal-regex, så +20-signalet
+// ikke fyrede → detect=75 < 80 → no_match → AI-fallback læste salg/admin forkert.
+//
+// VIGTIGT: byg ALTID via withTrailingSpace() — en rå template-literal ville få
+// editor/lint til at strippe de afsluttende mellemrum og dermed maskere bug-betingelsen.
+function withTrailingSpace(lines: string[]): string {
+  return lines.map((l) => l + " ").join("\n");
+}
+
+export const DINERO_UNGARBEJDE_MAR_TEXT = withTrailingSpace([
+  "--- Side 1 ---",
+  "Hentet: 01/06-2026 Kl. 07.08   UNGARBEJDE.DK ApS (CVR-nr. 32075479)",
+  "Resultatopgørelse 01/03-2026 - 31/03-2026",
+  "Omsætning",
+  "Salg af varer/ydelser m/moms   -92.113,67",
+  "OMSÆTNING I ALT   -92.113,67",
+  "Variable omkostninger",
+  "Valutakursdifferencer, import   34,94",
+  "VAREFORBRUG   34,94",
+  "VAREFORBRUG OG FREMMED ARBEJDE   34,94",
+  "DÆKNINGSBIDRAG I ALT   -92.078,73",
+  "Salgsfremmende omkostninger",
+  "Annoncer og reklame   10.016,44",
+  "SALGSOMKOSTNINGER   10.016,44",
+  "Administration",
+  "Porto og gebyrer   794,56",
+  "Internet og webhotel   17.625,00",
+  "Køb af software   835,82",
+  "ADMINISTRATION   19.255,38",
+  "RESULTAT FØR SKAT   -62.806,91",
+  "RESULTAT EFTER SKAT   -62.806,91",
+]);
+
+export const DINERO_UNGARBEJDE_APR_TEXT = withTrailingSpace([
+  "--- Side 1 ---",
+  "Hentet: 01/06-2026 Kl. 07.09   UNGARBEJDE.DK ApS (CVR-nr. 32075479)",
+  "Resultatopgørelse 01/04-2026 - 30/04-2026",
+  "Omsætning",
+  "Salg af varer/ydelser m/moms   -91.601,52",
+  "OMSÆTNING I ALT   -91.601,52",
+  "Variable omkostninger",
+  "Valutakursdifferencer, import   14,68",
+  "VAREFORBRUG   14,68",
+  "VAREFORBRUG OG FREMMED ARBEJDE   14,68",
+  "DÆKNINGSBIDRAG I ALT   -91.586,84",
+  "Personaleomkostninger",
+  "Mad under kursus/møder mv., fuldt fradrag   43,60",
+  "LØNNINGER MV. I ALT   43,60",
+  "Salgsfremmende omkostninger",
+  "Annoncer og reklame   7.815,51",
+  "SALGSOMKOSTNINGER   7.815,51",
+  "Administration",
+  "Konsulentbistand   40.000,00",
+  "Porto og gebyrer   59,81",
+  "Internet og webhotel   24.845,50",
+  "Køb af software   826,49",
+  "ADMINISTRATION   65.731,80",
+  "RESULTAT FØR SKAT   -17.995,93",
+  "RESULTAT EFTER SKAT   -17.995,93",
+]);
