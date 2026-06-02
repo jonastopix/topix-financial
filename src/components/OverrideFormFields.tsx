@@ -20,8 +20,13 @@ import {
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
   omsaetning: "Eks. 1250000",
+  direkte_omkostninger: "Eks. -600000",
   daekningsbidrag: "Eks. 650000",
   loenninger: "Eks. -320000",
+  salgsomkostninger: "Eks. -45000",
+  lokaleomkostninger: "Eks. -60000",
+  administrationsomkostninger: "Eks. -85000",
+  afskrivninger: "Eks. -40000",
   ebitda: "Eks. 180000",
   resultat_foer_skat: "Eks. 120000",
   resultat_efter_skat: "Eks. 90000",
