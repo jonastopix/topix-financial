@@ -56,10 +56,31 @@ export const FIELD_LABELS: Record<string, string> = {
   resultat_efter_skat: "Resultat efter skat",
   bank_balance: "Bank / Likvider",
   debitorer: "Debitorer",
-  kreditorer: "Kreditorer",
+  kreditorer: "Kortfristet gæld",
   egenkapital: "Egenkapital",
   aktiver_i_alt: "Aktiver i alt",
   gaeld_i_alt: "Gæld i alt",
+};
+
+// ── Field descriptions (vist som tooltip ved hvert felt) ──
+export const FIELD_DESCRIPTIONS: Record<string, string> = {
+  omsaetning: "Virksomhedens samlede salg i perioden, før omkostninger. Indgår i beregningen af din dækningsgrad og resultatgrad.",
+  direkte_omkostninger: "Vareforbrug og andre omkostninger direkte knyttet til salget (COGS).",
+  daekningsbidrag: "Omsætning minus direkte omkostninger. Indgår i beregningen af din dækningsgrad.",
+  loenninger: "Personaleomkostninger i perioden, inkl. løn, pension og feriepenge.",
+  salgsomkostninger: "Omkostninger til salg og markedsføring, fx annoncering og provision.",
+  lokaleomkostninger: "Husleje, el, varme og andre omkostninger til virksomhedens lokaler.",
+  administrationsomkostninger: "Generelle driftsomkostninger som ikke hører under de øvrige, fx kontor, IT og revisor.",
+  afskrivninger: "Periodens værdiforringelse på aktiver som maskiner, inventar og biler.",
+  ebitda: "Resultat før renter, skat og afskrivninger. Et mål for den løbende drifts indtjening.",
+  resultat_foer_skat: "Periodens resultat efter alle omkostninger og renter, men før skat. Indgår i beregningen af din resultatgrad.",
+  resultat_efter_skat: "Periodens endelige resultat efter skat (bundlinjen).",
+  bank_balance: "Virksomhedens likvide beholdning på bankkonti på opgørelsestidspunktet.",
+  debitorer: "Tilgodehavender fra kunder, altså penge du har faktureret men endnu ikke modtaget. Indgår i vurderingen af din arbejdskapital.",
+  kreditorer: "Den gæld der forfalder inden for et år, som den står i dit regnskab. Bruges som kontekst i AI-analysen.",
+  egenkapital: "Virksomhedens værdi efter al gæld er trukket fra. Bruges til at beregne din soliditetsgrad, et af de mest værdifulde balancetal at udfylde.",
+  aktiver_i_alt: "Den samlede værdi af alt virksomheden ejer. Bruges sammen med egenkapital til at beregne din soliditetsgrad.",
+  gaeld_i_alt: "Virksomhedens samlede gæld, kort- og langfristet. Bruges som kontekst i AI-analysen.",
 };
 
 // ── EN ↔ DA canonical key mapping ──
