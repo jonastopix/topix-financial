@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { propagateReportCommit } from "@/lib/reportCommit";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
@@ -249,6 +250,71 @@ const Reports = () => {
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  // Godkend = commit: når en manuel rettelse gemmes med "Gem og anvend"
+  // (status='applied'), committes perioden ind i alle tal med det samme — intet
+  // separat "Opdater committed data"-trin. 'draft' (Gem kladde) committer aldrig.
+  const handleAppliedCommit = useCallback(async (reportId: string) => {
+    try {
+      // Frisk eligibility (rapporten ændrede sig lige ved gem).
+      const { data, error } = await supabase.rpc("get_report_commit_preview", {
+        p_report_id: reportId,
+      });
+      if (error) throw error;
+      const preview = data as unknown as {
+        can_commit: boolean;
+        ownership_state: string | null;
+        period_key: string | null;
+        period_label: string | null;
+        metrics_preview: Record<string, number> | null;
+        state_reason: string | null;
+        eligibility_reason: string | null;
+      } | null;
+
+      if (preview?.can_commit) {
+        const { error: commitError } = await supabase.rpc("commit_report_facts", {
+          p_report_id: reportId,
+        });
+        if (commitError) throw commitError;
+
+        toast.success("✓ Dine tal er opdateret", {
+          description: `${preview?.period_label || "Perioden"} er nu en del af dit dashboard.`,
+          action: {
+            label: "Se KPI'er →",
+            onClick: () => window.location.href = "/kpis",
+          },
+        });
+
+        // Nøjagtig samme invalideringer + downstream-invokes som et normalt commit.
+        propagateReportCommit({
+          queryClient,
+          companyId,
+          reportId,
+          periodKey: preview?.period_key ?? null,
+          periodLabel: preview?.period_label ?? null,
+          metricsPreview: preview?.metrics_preview ?? {},
+        });
+        setRefreshKey(k => k + 1);
+      } else if (preview?.ownership_state === "other_report") {
+        // Perioden ejes af en anden rapport — commit ALDRIG blindt. Led til det
+        // eksisterende "Erstat gammel data"-flow i ReportReviewDialog.
+        const report = dbReports.find(r => r.id === reportId);
+        const label = (report ? getEffectiveReportPeriod(report) || report.file_name : null)
+          || preview?.period_label || reportId;
+        toast.info("Perioden ejes af en anden rapport", {
+          description: "Vælg om du vil erstatte de gamle data.",
+        });
+        setReviewDialogState({ open: true, reportId, reportLabel: label, cardState: "update_available" });
+      } else {
+        // Afsluttet/fremtidig måned eller anden ikke-eligibility: vis klar besked.
+        toast.error("Kan ikke godkende endnu", {
+          description: preview?.state_reason || preview?.eligibility_reason || "Perioden er ikke klar til godkendelse.",
+        });
+      }
+    } catch (err: any) {
+      toast.error("Fejl ved godkendelse", { description: err.message || "Kunne ikke godkende rettelsen." });
+    }
+  }, [queryClient, companyId, dbReports]);
 
   useEffect(() => {
     if (uploadExpanded) {
@@ -1926,6 +1992,7 @@ const Reports = () => {
           open={!!overrideReport}
           onOpenChange={(open) => { if (!open) setOverrideReport(null); }}
           onSaved={() => setRefreshKey(k => k + 1)}
+          onApplied={handleAppliedCommit}
         />
       )}
       {/* RP-1: Review Dialog */}
