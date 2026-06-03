@@ -28,9 +28,15 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  /**
+   * Fired only after a successful "Gem og anvend" (status='applied') save.
+   * The parent commits the period immediately (godkend = commit). 'draft'
+   * saves never call this — they remain a deliberate, uncommitted staging.
+   */
+  onApplied?: (reportId: string) => void;
 }
 
-export default function ReportManualOverride({ report, open, onOpenChange, onSaved }: Props) {
+export default function ReportManualOverride({ report, open, onOpenChange, onSaved, onApplied }: Props) {
   const { user, isAdvisor, isAdmin } = useAuth();
   const isApplied = hasManualOverride(report);
   const existingPeriodKey = getEffectiveReportPeriodKey(report);
@@ -91,14 +97,19 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         status,
       });
 
-      toast.success(status === "draft" ? "Kladde gemt" : "Korrektion anvendt", {
-        description: status === "applied"
-          ? `Effektiv periode: ${month}/${year}`
-          : "Kladde gemt — den bruges ikke i dashboards endnu.",
-      });
-
       onSaved();
       onOpenChange(false);
+
+      if (status === "applied") {
+        // Godkend = commit: anvend committer perioden ind i alle tal med det samme.
+        // Parent håndterer commit + propagering (eller leder til erstat-flow ved
+        // ejerskabskonflikt) og viser success-kvitteringen.
+        onApplied?.(report.id);
+      } else {
+        toast.success("Kladde gemt", {
+          description: "Kladde gemt — den bruges ikke i dashboards endnu.",
+        });
+      }
     } catch (err: any) {
       console.error("Manual override save error:", err);
       toast.error("Fejl", { description: "Kunne ikke gemme korrektionen." });
