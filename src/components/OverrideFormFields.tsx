@@ -9,12 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import { DANISH_MONTHS, isCompletedMonth } from "@/lib/financialUtils";
 import {
   REPORT_TYPES,
   PNL_FIELDS,
   BALANCE_FIELDS,
   FIELD_LABELS,
+  FIELD_DESCRIPTIONS,
   parseMetricValue,
 } from "@/lib/reportOverrideHelpers";
 
@@ -37,14 +40,6 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   aktiver_i_alt: "Eks. 1800000",
   gaeld_i_alt: "Eks. 1050000",
 };
-
-const REQUIRED_FIELDS = new Set([
-  "omsaetning",
-  "daekningsbidrag",
-  "resultat_foer_skat",
-  "egenkapital",
-  "aktiver_i_alt",
-]);
 
 export interface OverrideFormFieldsProps {
   reportType: string;
@@ -71,6 +66,30 @@ export default function OverrideFormFields({
   const dbVal = parseMetricValue(metricInputs["daekningsbidrag"] ?? "");
   const resVal = parseMetricValue(metricInputs["resultat_foer_skat"] ?? "");
   const ebitdaVal = parseMetricValue(metricInputs["ebitda"] ?? "");
+
+  // Vis kun felter der hører til den uploadede rapporttype. Fail-open ved tvivl:
+  // resultatopgørelse -> kun P&L, balance -> kun balance, alt andet -> begge.
+  const t = (reportType || "").toLowerCase().trim();
+  const isPnlOnly = t === "resultatopgørelse" || t === "resultatopgoerelse";
+  const isBalanceOnly = t === "balance";
+  const showPnl = !isBalanceOnly;
+  const showBalance = !isPnlOnly;
+
+  const fieldLabel = (field: string): JSX.Element => (
+    <Label className="w-40 text-xs flex-shrink-0 flex items-center gap-1">
+      <span>{FIELD_LABELS[field]}</span>
+      {FIELD_DESCRIPTIONS[field] && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info className="h-3 w-3 text-muted-foreground/50 cursor-help shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-xs">
+            {FIELD_DESCRIPTIONS[field]}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </Label>
+  );
 
   const fieldWarning = (field: string): JSX.Element | null => {
     if (field === "omsaetning" && typeof omsVal === "number" && omsVal < 0) {
@@ -157,6 +176,9 @@ export default function OverrideFormFields({
 
       {/* Section B: Key figures */}
       <div className="space-y-4">
+        <p className="text-[11px] text-muted-foreground">
+          Ingen af felterne er nødvendige for at lave en rapportering. Jo flere du udfylder, jo mere præcis bliver din AI-analyse, men du bestemmer selv hvor mange du vil med.
+        </p>
         <p className="text-[10px] text-muted-foreground">
           Brug tal i hele kroner uden punktum som tusindtalsseparator. Negative tal angives med minus: -50000
         </p>
@@ -164,16 +186,37 @@ export default function OverrideFormFields({
           Tomt felt = ingen manuel korrektion (bruger parserens værdi).
         </p>
 
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Driftsnøgletal</h3>
-          <div className="grid grid-cols-1 gap-3">
-            {PNL_FIELDS.map(field => (
-              <div key={field}>
-                <div className="flex items-center gap-3">
-                  <Label className="w-40 text-xs flex-shrink-0">
-                    {FIELD_LABELS[field]}
-                    {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
-                  </Label>
+        {showPnl && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Driftsnøgletal</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {PNL_FIELDS.map(field => (
+                <div key={field}>
+                  <div className="flex items-center gap-3">
+                    {fieldLabel(field)}
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={metricInputs[field] ?? ""}
+                      onChange={e => onMetricChange(field, e.target.value)}
+                      placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
+                      className="flex-1"
+                    />
+                  </div>
+                  {fieldWarning(field)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showBalance && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Balancenøgletal</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {BALANCE_FIELDS.map(field => (
+                <div key={field} className="flex items-center gap-3">
+                  {fieldLabel(field)}
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -183,35 +226,10 @@ export default function OverrideFormFields({
                     className="flex-1"
                   />
                 </div>
-                {fieldWarning(field)}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Balancenøgletal</h3>
-          <div className="grid grid-cols-1 gap-3">
-            {BALANCE_FIELDS.map(field => (
-              <div key={field} className="flex items-center gap-3">
-                <Label className="w-40 text-xs flex-shrink-0">
-                  {FIELD_LABELS[field]}
-                  {REQUIRED_FIELDS.has(field) && <span className="text-destructive ml-0.5">*</span>}
-                </Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={metricInputs[field] ?? ""}
-                  onChange={e => onMetricChange(field, e.target.value)}
-                  placeholder={FIELD_PLACEHOLDERS[field] ?? "—"}
-                  className="flex-1"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-[10px] text-muted-foreground italic">* Obligatorisk for AI-analyse</p>
+        )}
       </div>
     </div>
   );
