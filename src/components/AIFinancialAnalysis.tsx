@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import {
   Sparkles,
   TrendingUp,
@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   AlertCircle,
-  ChevronRight,
   ChevronDown,
   Lightbulb,
   Target,
@@ -84,9 +83,23 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
   const { data: commentaries = [], isLoading: commentariesLoading } = useCompanyCommentary(companyId ?? undefined);
 
   const [loading, setLoading] = useState(false);
-  const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
+  // Nøglefund kan have flere åbne samtidig (alle kritiske åbnes som standard)
+  const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
   const [showAllTrends, setShowAllTrends] = useState(false);
   const [needsMoreData, setNeedsMoreData] = useState(false);
+  // De tre tunge sektioner er foldet sammen ved start
+  const [openSections, setOpenSections] = useState({ trends: false, questions: false, nextSteps: false });
+
+  const toggleFinding = (i: number) => {
+    setExpandedFindings(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+  const toggleSection = (key: "trends" | "questions" | "nextSteps") => {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Available periods from committed facts (sorted descending)
   const availablePeriods = useMemo(() => {
@@ -117,6 +130,30 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
     if (!currentCommentary?.analysis) return null;
     return currentCommentary.analysis as unknown as AnalysisData;
   }, [currentCommentary]);
+
+  // Sorteret KOPI af nøglefund efter alvor (kritisk → advarsel → positiv).
+  // Rører aldrig originalen; index som tie-breaker sikrer stabil rækkefølge
+  // inden for samme alvor.
+  const sortedFindings = useMemo(() => {
+    if (!analysis?.key_findings) return [];
+    const order: Record<string, number> = { kritisk: 0, advarsel: 1, positiv: 2 };
+    return [...analysis.key_findings]
+      .map((f, i) => ({ f, i }))
+      .sort((a, b) => ((order[a.f.severity] ?? 9) - (order[b.f.severity] ?? 9)) || (a.i - b.i))
+      .map(x => x.f);
+  }, [analysis]);
+
+  // Default-fold: åbn alle kritiske fund (eller det første hvis ingen kritiske).
+  useEffect(() => {
+    if (sortedFindings.length === 0) {
+      setExpandedFindings(new Set());
+      return;
+    }
+    const criticalIdx = sortedFindings
+      .map((f, i) => (f.severity === "kritisk" ? i : -1))
+      .filter(i => i >= 0);
+    setExpandedFindings(new Set(criticalIdx.length > 0 ? criticalIdx : [0]));
+  }, [sortedFindings]);
 
   const isStale = currentCommentary?.is_stale ?? false;
 
@@ -159,7 +196,7 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
 
-      setExpandedFinding(0);
+      // (default-fold for nøglefund styres af useEffect på sortedFindings)
 
       // Post to chat
       if (conversationId && userId && result.analysis) {
@@ -320,18 +357,22 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
               Nøglefund
             </h3>
             <div className="grid grid-cols-1 gap-3">
-              {analysis.key_findings.map((finding, i) => {
+              {sortedFindings.map((finding, i) => {
                 const config = severityConfig[finding.severity];
                 const Icon = config.icon;
-                const isExpanded = expandedFinding === i;
+                const isExpanded = expandedFindings.has(i);
 
                 return (
                   <div
                     key={i}
-                    className={`rounded-xl border ${config.border} ${config.bg} transition-all cursor-pointer`}
-                    onClick={() => setExpandedFinding(isExpanded ? null : i)}
+                    className={`rounded-xl border ${config.border} ${config.bg} transition-all`}
                   >
-                    <div className="flex items-start gap-3 p-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleFinding(i)}
+                      aria-expanded={isExpanded}
+                      className="w-full flex items-start gap-3 p-4 text-left"
+                    >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Icon className={`h-4 w-4 shrink-0 ${config.text}`} />
                         <p className="text-sm font-semibold text-foreground">{finding.title}</p>
@@ -340,9 +381,9 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
                         <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>
                           {config.label}
                         </span>
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
                       </div>
-                    </div>
+                    </button>
 
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-border/30 pt-3 space-y-3">
@@ -362,12 +403,13 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
             </div>
           </div>
 
-          {/* Trend Analysis */}
-          <div className="glass-card rounded-xl p-6">
-            <h3 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Trend-Analyse
-            </h3>
+          {/* Trend Analysis (foldet som standard) */}
+          <CollapsibleSection
+            icon={<TrendingUp className="h-4 w-4 text-primary" />}
+            title={`Trend-Analyse (${analysis.positive_trends.length} fokus, ${analysis.challenges.length} udfordringer)`}
+            isOpen={openSections.trends}
+            onToggle={() => toggleSection("trends")}
+          >
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-4">
               Erkendelser, fokusområder og udfordringer
             </p>
@@ -404,40 +446,41 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
                 {showAllTrends ? "Vis færre" : "Vis alle trends"}
               </button>
             )}
-          </div>
+          </CollapsibleSection>
 
-          {/* Strategic Questions & Next Steps */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="glass-card rounded-xl p-6">
-              <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-chart-warning" />
-                Spørgsmål til teamet
-              </h3>
-              <div className="space-y-3">
-                {analysis.strategic_questions.map((q, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
-                    <span className="text-xs font-bold text-chart-warning shrink-0 mt-0.5">{i + 1}.</span>
-                    <p className="text-sm text-foreground leading-relaxed">{q}</p>
-                  </div>
-                ))}
-              </div>
+          {/* Spørgsmål til teamet (foldet som standard) */}
+          <CollapsibleSection
+            icon={<AlertCircle className="h-4 w-4 text-chart-warning" />}
+            title={`Spørgsmål til teamet (${analysis.strategic_questions.length})`}
+            isOpen={openSections.questions}
+            onToggle={() => toggleSection("questions")}
+          >
+            <div className="space-y-3">
+              {analysis.strategic_questions.map((q, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
+                  <span className="text-xs font-bold text-chart-warning shrink-0 mt-0.5">{i + 1}.</span>
+                  <p className="text-sm text-foreground leading-relaxed">{q}</p>
+                </div>
+              ))}
             </div>
+          </CollapsibleSection>
 
-            <div className="glass-card rounded-xl p-6">
-              <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
-                Anbefalede næste skridt
-              </h3>
-              <div className="space-y-3">
-                {analysis.next_steps.map((step, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <p className="text-sm text-foreground leading-relaxed">{step}</p>
-                  </div>
-                ))}
-              </div>
+          {/* Anbefalede næste skridt (foldet som standard) */}
+          <CollapsibleSection
+            icon={<Target className="h-4 w-4 text-primary" />}
+            title={`Anbefalede næste skridt (${analysis.next_steps.length})`}
+            isOpen={openSections.nextSteps}
+            onToggle={() => toggleSection("nextSteps")}
+          >
+            <div className="space-y-3">
+              {analysis.next_steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <p className="text-sm text-foreground leading-relaxed">{step}</p>
+                </div>
+              ))}
             </div>
-          </div>
+          </CollapsibleSection>
         </>
       )}
 
@@ -454,6 +497,40 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
     </div>
   );
 };
+
+function CollapsibleSection({
+  icon,
+  title,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="glass-card rounded-xl">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between gap-2 p-6 text-left"
+      >
+        <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
+          {icon}
+          {title}
+        </h3>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? "" : "-rotate-90"}`}
+        />
+      </button>
+      {isOpen && <div className="px-6 pb-6">{children}</div>}
+    </div>
+  );
+}
 
 function TrendCard({ trend, type }: { trend: TrendItem; type: "positive" | "challenge" }) {
   const isPositive = type === "positive";
