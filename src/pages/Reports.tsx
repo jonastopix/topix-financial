@@ -831,26 +831,26 @@ const Reports = () => {
         )}
       </div>
 
-      {/* Awaiting-approval banner: uploads not yet committed */}
+      {/* Awaiting-approval nudge: uploads not yet committed (dæmpet, token-baseret) */}
       {uncommittedProcessed.length > 0 && (
-        <div className="rounded-lg border border-blue-300/50 bg-blue-50/50 dark:border-blue-500/30 dark:bg-blue-950/20 p-4 mb-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+        <div className="rounded-lg border border-chart-info/25 bg-chart-info/5 px-3 py-2.5 mb-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-chart-info mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-blue-700 dark:text-blue-300">
+              <p className="text-sm font-medium text-foreground">
                 {uncommittedProcessed.length === 1
                   ? "1 rapport afventer din godkendelse"
                   : `${uncommittedProcessed.length} rapporter afventer din godkendelse`}
               </p>
-              <p className="text-sm text-blue-600/80 dark:text-blue-400/80 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Du har uploadet tal der endnu ikke er godkendt. Færdiggør for at få dem i drift, eller annuller uploaden.
               </p>
-              <div className="space-y-2 mt-3">
+              <div className="space-y-1.5 mt-2.5">
                 {uncommittedProcessed.map((report) => {
                   const label = getEffectiveReportPeriod(report) || report.file_name;
                   return (
-                    <div key={report.id} className="flex items-center justify-between gap-3 rounded-md bg-blue-100/40 dark:bg-blue-900/20 px-3 py-2">
-                      <span className="text-sm text-blue-800 dark:text-blue-200 truncate">{label}</span>
+                    <div key={report.id} className="flex items-center justify-between gap-3 rounded-md bg-chart-info/5 px-3 py-1.5">
+                      <span className="text-sm text-foreground truncate">{label}</span>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <Button
                           size="sm"
@@ -867,7 +867,7 @@ const Reports = () => {
                             queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
                             setRefreshKey(k => k + 1);
                           }}
-                          className="text-xs text-blue-700/80 dark:text-blue-300/70 hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                         >
                           Annuller upload
                         </button>
@@ -881,36 +881,36 @@ const Reports = () => {
         </div>
       )}
 
-      {/* ── Member-Centric Delivery Overview ── */}
-      {reportCount >= 1 && (
-        <div className="mb-6">
-          <DeliveryOverview reports={dbReports} committedReportIds={committedReportIds} onUploadClick={() => setUploadExpanded(true)} />
-        </div>
-      )}
-
-      {/* Manual entry banner */}
+      {/* Manual-entry nudge (dæmpet, token-baseret), grupperet med øvrige nudges, før Leveringsoverblik */}
       {(() => {
         const pendingManualEntryCount = dbReports.filter(r =>
           (r.quality_signals as any)?.needs_manual_entry === true || r.status === "error"
         ).length;
         if (pendingManualEntryCount === 0) return null;
         return (
-          <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-4 mb-4 flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="rounded-lg border border-chart-warning/25 bg-chart-warning/5 px-3 py-2.5 mb-3 flex items-start gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-chart-warning mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-medium text-amber-700 dark:text-amber-300">
+              <p className="text-sm font-medium text-foreground">
                 {pendingManualEntryCount === 1
                   ? "1 rapport afventer dine nøgletal"
                   : `${pendingManualEntryCount} rapporter afventer dine nøgletal`}
               </p>
-              <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Vi kunne ikke læse disse dokumenter automatisk. Det tager kun 2 minutter at
-                indtaste tallene manuelt — det sikrer at din AI-analyse bliver korrekt.
+                indtaste tallene manuelt. Det sikrer at din AI-analyse bliver korrekt.
               </p>
             </div>
           </div>
         );
       })()}
+
+      {/* ── Member-Centric Delivery Overview ── */}
+      {reportCount >= 1 && (
+        <div className="mb-6">
+          <DeliveryOverview reports={dbReports} committedReportIds={committedReportIds} onUploadClick={() => setUploadExpanded(true)} />
+        </div>
+      )}
 
       {/* Upload section — primary action after delivery status */}
       {reportCount === 0 ? (
@@ -1161,11 +1161,16 @@ const Reports = () => {
         </div>
       )}
 
-      {/* Real DB Reports */}
-      <h2 className="font-display font-semibold text-foreground text-lg mb-4 flex items-center gap-2">
-        <FileText className="h-5 w-5 text-primary" />
-        Din historik
-      </h2>
+      {/* Real DB Reports — Månedsrapporteringer */}
+      <div className="mb-4">
+        <h2 className="font-display font-semibold text-foreground text-lg flex items-center gap-2">
+          <FileText className="h-5 w-5 text-primary" />
+          Månedsrapporteringer
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Din løbende rapportering, én måned ad gangen. Upload kun den enkelte måneds tal, ikke år til dato.
+        </p>
+      </div>
 
       {dbReports.length === 0 ? (
         <div className="bg-card border border-border shadow-sm rounded-xl p-12 text-center">
@@ -1646,15 +1651,15 @@ const Reports = () => {
 
       {/* ── Annual Reports Section ── */}
       {!isAdvisor && (
-        <div id="annual-reports" className="bg-card border border-border shadow-sm rounded-xl p-6 mb-8 scroll-mt-24">
+        <div id="annual-reports" className="bg-muted/30 border border-border/60 rounded-xl p-6 mb-8 mt-12 scroll-mt-24">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
-                <BookMarked className="h-5 w-5 text-primary" />
-                Historiske årsrapporter
+                <BookMarked className="h-5 w-5 text-muted-foreground" />
+                Årsregnskaber fra revisor
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload din årsrapport fra revisor (PDF) for at berige dine historiske data. Tallene fordeles jævnt over årets 12 måneder.
+                Quick start: upload sidste års regnskab, så fordeles tallene jævnt over årets 12 måneder. Det giver et hurtigt fundament. For præcise tal måned for måned, brug Månedsrapporteringer ovenfor.
               </p>
             </div>
           </div>
@@ -1687,10 +1692,10 @@ const Reports = () => {
                 return (
                   <div
                     key={r.id}
-                    className={`rounded-lg border ${
+                    className={`rounded-xl border shadow-sm ${
                       isError
                         ? "bg-destructive/5 border-destructive/30"
-                        : "bg-secondary/30 border-border/50"
+                        : "bg-card border-border"
                     }`}
                   >
                     <div className="flex items-center gap-3 p-3">
