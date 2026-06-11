@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
@@ -677,6 +678,52 @@ const AdvisorDashboard = () => {
         alertsByCompany.get(alert.company_id)!.push({ type: alert.type, title: alert.title });
       }
 
+      // ── Holdbar, virksomheds-bred kvittering (advisor_company_acknowledgments) ──
+      // Hent denne advisors kvitteringer. RLS scoper allerede til auth.uid; eksplicit
+      // .eq for klarhed. Gælder VIRKSOMHEDEN, så den dækker alle action-bunker.
+      const { data: acksData } = await (supabase
+        .from("advisor_company_acknowledgments" as any)
+        .select("company_id, snoozed_until, basis_at")
+        .eq("advisor_id", user!.id) as any);
+      const ackByCompany = new Map<string, { snoozed_until: string | null; basis_at: string }>();
+      for (const a of ((acksData as any[]) || [])) {
+        ackByCompany.set(a.company_id, { snoozed_until: a.snoozed_until, basis_at: a.basis_at });
+      }
+
+      // Nyeste signal-tidsstempel pr. virksomhed (til "klaret indtil noget nyt").
+      // max af: seneste medlems-besked, ny committed fact, ny upload, ny alert.
+      // (Agent-beskeder hentes uden created_at; deres friskhed proxies af committed_at,
+      // da AI-indsigt genereres ved commit.)
+      const newestSignalAtByCompany = new Map<string, number>();
+      const bumpSignal = (companyId: string | null | undefined, ts: string | null | undefined) => {
+        if (!companyId || !ts) return;
+        const ms = new Date(ts).getTime();
+        if (Number.isNaN(ms)) return;
+        const cur = newestSignalAtByCompany.get(companyId);
+        if (cur == null || ms > cur) newestSignalAtByCompany.set(companyId, ms);
+      };
+      for (const c of conversations) bumpSignal(c.company_id, c.last_member_message_at);
+      for (const f of ((recentFactsRes.data as any[]) || [])) bumpSignal(f.company_id, f.committed_at);
+      for (const r of ((recentReportsRes.data as any[]) || [])) bumpSignal(r.company_id, r.uploaded_at);
+      for (const a of ((alertsData as any[]) || [])) bumpSignal(a.company_id, a.created_at);
+
+      // Skjul-gate: en virksomhed skjules fra action-bunkerne hvis (a) snooze-vinduet
+      // er aktivt, eller (b) den er "klaret" og intet signal er NYERE end basis_at.
+      // Rører IKKE unreadMessages/awaiting_reply_from, kun action-bunkerne gates.
+      const acknowledgedHiddenCompanyIds = new Set<string>();
+      for (const [companyId, ack] of ackByCompany) {
+        if (ack.snoozed_until && new Date(ack.snoozed_until).getTime() > now.getTime()) {
+          acknowledgedHiddenCompanyIds.add(companyId); // "Påmind"-vindue aktivt
+          continue;
+        }
+        if (!ack.snoozed_until) {
+          const newest = newestSignalAtByCompany.get(companyId) ?? 0;
+          if (newest <= new Date(ack.basis_at).getTime()) {
+            acknowledgedHiddenCompanyIds.add(companyId); // "Klaret", intet nyt sket
+          }
+        }
+      }
+
       // Priority queue — score each company
       const priorityItems = investorSummaries
         .map(c => {
@@ -749,6 +796,7 @@ const AdvisorDashboard = () => {
           };
         })
         .filter(item => item.score > 0)
+        .filter(item => !acknowledgedHiddenCompanyIds.has(item.company.company_id))
         .sort((a, b) => b.score - a.score)
         .slice(0, 20);
 
@@ -849,6 +897,7 @@ const AdvisorDashboard = () => {
         })
         .filter(item => item.signals.length > 0)
         .filter(item => !priorityItems.some(p => p.company.company_id === item.company.company_id))
+        .filter(item => !acknowledgedHiddenCompanyIds.has(item.company.company_id))
         .sort((a, b) => {
           const score = (s: typeof a) => {
             let n = 0;
@@ -941,7 +990,7 @@ const AdvisorDashboard = () => {
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
-        investorSummaries, companyMap, activityFeed, convByCompany,
+        investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany,
         priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
         allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
@@ -1112,17 +1161,34 @@ const AdvisorDashboard = () => {
     setDismissedItems(prev => new Set([...prev, companyId]));
   };
 
-  const snoozeItem = async (companyId: string, days: number) => {
-    const conv = convByCompany?.get(companyId)?.[0];
-    if (conv?.id) {
-      const followUpAt = new Date(Date.now() + days * 86400000).toISOString();
-      await supabase
-        .from("conversations")
-        .update({ follow_up_at: followUpAt, acknowledged_at: new Date().toISOString() } as any)
-        .eq("id", conv.id);
-      queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+  // Holdbar, virksomheds-bred kvittering. Afløser den kosmetiske dismissItem som
+  // sandhed (dismissItem beholdes kun som optimistisk umiddelbar skjul).
+  //   mode "cleared"   → "Klaret indtil noget nyt" (snoozed_until = null)
+  //   mode { days: N } → "Påmind om N dage" (snoozed_until = nu + N dage)
+  // basis_at = nyeste signal-tidsstempel netop nu, så "klaret" slipper virksomheden
+  // fri igen når et NYERE signal opstår.
+  const acknowledgeCompany = async (companyId: string, mode: "cleared" | { days: number }) => {
+    if (!user) return;
+    const basisMs = data?.newestSignalAtByCompany?.get(companyId);
+    const basis_at = basisMs ? new Date(basisMs).toISOString() : new Date().toISOString();
+    const snoozed_until = mode === "cleared"
+      ? null
+      : new Date(Date.now() + mode.days * 86400000).toISOString();
+    dismissItem(companyId); // optimistisk: skjul straks; DB er sandheden
+    const { error } = await (supabase
+      .from("advisor_company_acknowledgments" as any)
+      .upsert({
+        advisor_id: user.id,
+        company_id: companyId,
+        snoozed_until,
+        basis_at,
+        acknowledged_at: new Date().toISOString(),
+      } as any, { onConflict: "advisor_id,company_id" }) as any);
+    if (error) {
+      toast.error("Kunne ikke gemme kvitteringen", { description: error.message });
+      return;
     }
-    dismissItem(companyId);
+    queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
   };
 
   const filteredMembers = useMemo(() => {
@@ -1294,13 +1360,13 @@ const AdvisorDashboard = () => {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => dismissItem(item.company.company_id)} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                          ✓ Kvitter — ser det
+                        <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, "cleared")} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                          ✓ Klaret, indtil noget nyt
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => snoozeItem(item.company.company_id, 2)} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                        <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 2 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
                           ⏰ Påmind om 2 dage
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => snoozeItem(item.company.company_id, 7)} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                        <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 7 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
                           ⏰ Påmind om 7 dage
                         </DropdownMenuItem>
                       </DropdownMenuContent>
