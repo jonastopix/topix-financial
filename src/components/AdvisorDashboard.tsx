@@ -1214,14 +1214,15 @@ const AdvisorDashboard = () => {
           const filterItems = (items: any[]) => (items as any[]).filter(it => !dismissedItems.has(it.company.company_id));
           // Accent pr. bunke efter hastighed, token-baseret (ingen hardcodede farver).
           // Venstre kolonne = kræver opmærksomhed; højre = muligheder + blødt vedligehold.
+          // primary = den fremhævede handling pr. bunke (dialog -> chat, tal -> se virksomhed).
           const LEFT = [
-            { key: "waiting", title: "Venter på dit svar", items: filterItems(buckets.waiting), Icon: MessageSquare, border: "border-l-destructive", head: "bg-destructive/10 text-destructive", icon: "text-destructive" },
-            { key: "standsOut", title: "Noget stikker ud i tallene", items: filterItems(buckets.standsOut), Icon: AlertTriangle, border: "border-l-chart-warning", head: "bg-chart-warning/10 text-chart-warning", icon: "text-chart-warning" },
+            { key: "waiting", title: "Venter på dit svar", items: filterItems(buckets.waiting), Icon: MessageSquare, border: "border-l-destructive", head: "bg-destructive/10 text-destructive", icon: "text-destructive", primary: "chat" },
+            { key: "standsOut", title: "Noget stikker ud i tallene", items: filterItems(buckets.standsOut), Icon: AlertTriangle, border: "border-l-chart-warning", head: "bg-chart-warning/10 text-chart-warning", icon: "text-chart-warning", primary: "company" },
           ];
           const RIGHT = [
-            { key: "fresh", title: "Friske tal, fortjener sparring", items: filterItems(buckets.fresh), Icon: FileText, border: "border-l-chart-positive", head: "bg-chart-positive/10 text-chart-positive", icon: "text-chart-positive" },
-            { key: "positive", title: "Positive muligheder", items: filterItems(buckets.positive), Icon: Sparkles, border: "border-l-chart-positive/60", head: "bg-chart-positive/5 text-chart-positive", icon: "text-chart-positive" },
-            { key: "stale", title: "Ikke hørt fra længe", items: filterItems(buckets.stale), Icon: Clock, border: "border-l-border", head: "bg-muted text-muted-foreground", icon: "text-muted-foreground" },
+            { key: "fresh", title: "Friske tal, fortjener sparring", items: filterItems(buckets.fresh), Icon: FileText, border: "border-l-chart-positive", head: "bg-chart-positive/10 text-chart-positive", icon: "text-chart-positive", primary: "company" },
+            { key: "positive", title: "Positive muligheder", items: filterItems(buckets.positive), Icon: Sparkles, border: "border-l-chart-positive/60", head: "bg-chart-positive/5 text-chart-positive", icon: "text-chart-positive", primary: "company" },
+            { key: "stale", title: "Ikke hørt fra længe", items: filterItems(buckets.stale), Icon: Clock, border: "border-l-border", head: "bg-muted text-muted-foreground", icon: "text-muted-foreground", primary: "chat" },
           ];
           const totalItems = [...LEFT, ...RIGHT].reduce((n, b) => n + b.items.length, 0);
           if (totalItems === 0) {
@@ -1244,6 +1245,15 @@ const AdvisorDashboard = () => {
                   const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
                   const userId = data?.companyToUser?.get(item.company.company_id);
                   const isGroup = !!item.isGroup;
+                  // Fremhæv bunkens primære handling; fald tilbage til den anden hvis
+                  // den ønskede knap ikke findes, så ingen række står uden primær.
+                  const chatOK = !!convId;
+                  const companyOK = !!userId && !isGroup;
+                  let chatPrimary = false, companyPrimary = false;
+                  if (b.primary === "chat") { chatPrimary = chatOK; companyPrimary = !chatOK && companyOK; }
+                  else { companyPrimary = companyOK; chatPrimary = !companyOK && chatOK; }
+                  const PRIMARY_CLS = "text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors";
+                  const SECONDARY_CLS = "text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground";
                   return (
                     <div key={`${b.key}-${item.company.company_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
                       <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
@@ -1265,7 +1275,7 @@ const AdvisorDashboard = () => {
                         {convId && (
                           <button
                             onClick={() => navigate(`/chat?conversationId=${convId}`)}
-                            className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                            className={chatPrimary ? PRIMARY_CLS : SECONDARY_CLS}
                           >
                             Åbn chat
                           </button>
@@ -1273,7 +1283,7 @@ const AdvisorDashboard = () => {
                         {userId && !isGroup && (
                           <button
                             onClick={() => navigate(`/members/${userId}`)}
-                            className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
+                            className={companyPrimary ? PRIMARY_CLS : SECONDARY_CLS}
                           >
                             Se virksomhed
                           </button>
