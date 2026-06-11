@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
+import { computeMembershipTier } from "@/lib/membershipTier";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
@@ -287,7 +288,7 @@ const AdvisorDashboard = () => {
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
-          .select("id, name, logo_url, is_legat")
+          .select("id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end")
           .order("name"),
         (supabase
           .from("financial_reports")
@@ -724,6 +725,21 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Udløbs-gate: skjul tier === "expired" fra dagligt arbejde (display-niveau).
+      // Selvstændigt Set, ortogonalt til acknowledgedHiddenCompanyIds; rører ikke
+      // kilden, så investorSummaries/companyMap/tællere forbliver hele. no_date/full/
+      // subscriber beholdes (fail-open, test !== "expired").
+      const expiredCompanyIds = new Set<string>();
+      for (const c of (companies as any[])) {
+        if (computeMembershipTier({
+          contract_end_date: c.contract_end_date,
+          subscription_status: c.subscription_status,
+          subscription_current_period_end: c.subscription_current_period_end,
+        }) === "expired") {
+          expiredCompanyIds.add(c.id);
+        }
+      }
+
       // Priority queue — score each company
       const priorityItems = investorSummaries
         .map(c => {
@@ -797,6 +813,7 @@ const AdvisorDashboard = () => {
         })
         .filter(item => item.score > 0)
         .filter(item => !acknowledgedHiddenCompanyIds.has(item.company.company_id))
+        .filter(item => !expiredCompanyIds.has(item.company.company_id))
         .sort((a, b) => b.score - a.score)
         .slice(0, 20);
 
@@ -898,6 +915,7 @@ const AdvisorDashboard = () => {
         .filter(item => item.signals.length > 0)
         .filter(item => !priorityItems.some(p => p.company.company_id === item.company.company_id))
         .filter(item => !acknowledgedHiddenCompanyIds.has(item.company.company_id))
+        .filter(item => !expiredCompanyIds.has(item.company.company_id))
         .sort((a, b) => {
           const score = (s: typeof a) => {
             let n = 0;
@@ -990,7 +1008,7 @@ const AdvisorDashboard = () => {
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
-        investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany,
+        investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany, expiredCompanyIds,
         priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
         allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
@@ -1005,6 +1023,7 @@ const AdvisorDashboard = () => {
   const overdueFollowUps = data?.overdueFollowUps || [];
   const upcomingFollowUps = data?.upcomingFollowUps || [];
   const investorSummaries = data?.investorSummaries || [];
+  const expiredCompanyIds: Set<string> = data?.expiredCompanyIds || new Set<string>();
   const companyMap = data?.companyMap || new Map();
   const activityFeed = data?.activityFeed || [];
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
@@ -1196,6 +1215,9 @@ const AdvisorDashboard = () => {
     if (memberSearch.trim()) {
       const q = memberSearch.toLowerCase();
       list = list.filter(c => c.company_name.toLowerCase().includes(q));
+    } else {
+      // Skjul udløbede fra den u-søgte default-liste; aktiv søgning afslører dem.
+      list = list.filter(c => !expiredCompanyIds.has(c.company_id));
     }
     if (memberFilter === "ubesvaret") {
       list = list.filter(c => c.unreadMessages > 0);
@@ -1226,7 +1248,7 @@ const AdvisorDashboard = () => {
       if (scoreB !== scoreA) return scoreB - scoreA;
       return a.company_name.localeCompare(b.company_name, "da");
     });
-  }, [investorSummaries, memberSearch, memberFilter]);
+  }, [investorSummaries, memberSearch, memberFilter, expiredCompanyIds]);
 
   const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
