@@ -8,7 +8,7 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
-  MoreHorizontal, FileText,
+  MoreHorizontal, FileText, Sprout,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -30,6 +30,16 @@ import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return "";
   return formatDistanceToNow(new Date(dateStr), { locale: da, addSuffix: true });
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
 }
 
 function getMissingReportKey(): string {
@@ -1439,22 +1449,21 @@ const AdvisorDashboard = () => {
             <thead>
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left py-2 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Virksomhed</th>
-                <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Person</th>
-                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Rapport</th>
-                <th className="text-center py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Signal</th>
-                <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Advisor</th>
+                <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Rapportering og refleksion</th>
+                <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Onboarding</th>
+                <th className="text-left py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Sidst aktiv</th>
+                <th className="text-right py-2 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Udløber</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/20">
               {filteredMembers.map(c => {
-                const hasCurrentReport = c.effective_period_key != null && !c.missing_current_period;
-                const hasPulse30 = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
-                const hasChat = !!convByCompany.get(c.company_id)?.[0]?.last_member_message_at;
-                const hasMilestones = c.milestones.length > 0;
-                const hasKpiTargets = c.kpiTargets.length > 0;
                 const userId = data?.companyToUser?.get(c.company_id);
                 const conv = allConvsByCompany.get(c.company_id);
                 const assignedName = advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name;
+                const personName = data?.companyMemberNameMap?.get(c.company_id) || null;
+                const lastActiveDays = c.lastActiveAt ? Math.floor((Date.now() - new Date(c.lastActiveAt).getTime()) / 86400000) : null;
+                const milestonesWithDeadline = c.milestones.filter(m => m.deadline).length;
+                const expDays = daysUntil(c.expiresAt);
 
                 return (
                   <tr
@@ -1471,6 +1480,7 @@ const AdvisorDashboard = () => {
                       if (userId) navigate(`/members/${userId}`);
                     }}
                   >
+                    {/* Kolonne 1: Virksomhed + person + advisor-badge */}
                     <td className="py-2.5 px-4">
                       <div className="flex items-center gap-2.5">
                         <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
@@ -1479,58 +1489,80 @@ const AdvisorDashboard = () => {
                             : <span className="text-[9px] font-bold text-muted-foreground">{c.company_name.slice(0, 2).toUpperCase()}</span>
                           }
                         </div>
-                        <p className="text-xs font-medium text-foreground truncate max-w-[140px]">{c.company_name}</p>
-                        {c.unreadMessages > 0 && (
-                          <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                            {c.unreadMessages}
-                          </span>
-                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-foreground truncate max-w-[140px]">{c.company_name}</p>
+                            {c.unreadMessages > 0 && (
+                              <span className="h-4 min-w-[16px] px-1 rounded-full bg-chart-warning text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                                {c.unreadMessages}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[160px]">
+                            {personName || "Ingen kontaktperson"}
+                            {assignedName && <span className="text-muted-foreground/70"> · {assignedName.split(" ")[0]}</span>}
+                          </p>
+                        </div>
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 hidden sm:table-cell">
-                      <p className="text-[11px] text-foreground truncate max-w-[110px]">
-                        {data?.companyMemberNameMap?.get(c.company_id) || "—"}
-                      </p>
-                      {convByCompany.get(c.company_id)?.[0]?.last_message_at && (
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {timeAgo(convByCompany.get(c.company_id)?.[0]?.last_message_at ?? null)}
-                        </p>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-center hidden sm:table-cell">
-                      {hasCurrentReport ? (
-                        <span className="text-[10px] text-primary font-medium">{c.effective_period_label}</span>
-                      ) : (
-                        <span className="text-[10px] text-amber-600 font-medium">Mangler</span>
-                      )}
-                    </td>
+                    {/* Kolonne 2: Rapportering og refleksion */}
                     <td className="py-2.5 px-3">
-                      <div className="flex items-center justify-center gap-1">
-                        {c.unreadMessages > 0 && (
-                          <span className="h-4 min-w-[16px] px-1 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center" title="Ulæste beskeder">
-                            {c.unreadMessages}
-                          </span>
-                        )}
-                        {!hasCurrentReport && (
-                          <span className="text-[9px] font-medium text-amber-600 px-1.5 py-0.5 rounded bg-amber-500/10" title="Mangler rapport">
-                            !
-                          </span>
-                        )}
-                        {hasCurrentReport && hasPulse30 && c.revenueTrendPct != null && (
-                          <span className={`text-[10px] font-semibold ${c.revenueTrendPct > 5 ? "text-primary" : c.revenueTrendPct < -5 ? "text-destructive" : "text-muted-foreground"}`}>
-                            {c.revenueTrendPct > 0 ? "↑" : c.revenueTrendPct < 0 ? "↓" : "→"}{Math.min(200, Math.abs(c.revenueTrendPct)).toFixed(0)}%
-                          </span>
-                        )}
-                        {!c.unreadMessages && hasCurrentReport && !hasPulse30 && (
-                          <span className="text-[9px] text-muted-foreground/40">OK</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-right hidden sm:table-cell">
-                      {assignedName ? (
-                        <span className="text-[10px] font-medium text-muted-foreground">{assignedName.split(" ")[0]}</span>
+                      {c.reflectionStatus === "with_reflection" ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-chart-positive shrink-0" />
+                          <span className="text-[11px] text-foreground truncate">{c.effective_period_label}, reflekteret</span>
+                        </div>
+                      ) : c.reflectionStatus === "report_no_reflection" ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-chart-warning shrink-0" />
+                          <span className="text-[11px] text-chart-warning truncate">{c.effective_period_label}, mangler refleksion</span>
+                        </div>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground/30">—</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />
+                          <span className="text-[11px] text-destructive truncate">Mangler rapportering</span>
+                        </div>
+                      )}
+                    </td>
+                    {/* Kolonne 3: Onboarding (kun nye medlemmer) */}
+                    <td className="py-2.5 px-3 hidden md:table-cell">
+                      {c.isNewMember ? (
+                        <div className="flex items-start gap-1.5">
+                          <Sprout className="h-3.5 w-3.5 text-chart-positive shrink-0 mt-0.5" />
+                          <div className="text-[10px] leading-tight">
+                            <p className={c.goalHandoutDone ? "text-chart-positive" : "text-destructive"}>
+                              {c.goalHandoutDone ? "Målsætning udfyldt" : "Mangler målsætning"}
+                            </p>
+                            <p className={milestonesWithDeadline >= 2 ? "text-chart-positive" : "text-chart-warning"}>
+                              {milestonesWithDeadline} af 2 milestones
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/50">Etableret</span>
+                      )}
+                    </td>
+                    {/* Kolonne 4: Sidst aktiv (ægte login) */}
+                    <td className="py-2.5 px-3 hidden sm:table-cell">
+                      {c.lastActiveAt && lastActiveDays != null ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${lastActiveDays < 7 ? "bg-chart-positive" : lastActiveDays <= 21 ? "bg-chart-warning" : "bg-destructive"}`} />
+                          <span className="text-[11px] text-muted-foreground truncate">{timeAgo(c.lastActiveAt)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground/50">Aldrig</span>
+                      )}
+                    </td>
+                    {/* Kolonne 5: Udløber */}
+                    <td className="py-2.5 px-3 text-right hidden sm:table-cell">
+                      {!c.expiresAt ? (
+                        <span className="text-[11px] text-muted-foreground/40">-</span>
+                      ) : expDays != null && expDays < 30 ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-chart-warning">
+                          <Clock className="h-3 w-3" /> {formatDate(c.expiresAt)}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">{formatDate(c.expiresAt)}</span>
                       )}
                     </td>
                   </tr>
