@@ -939,8 +939,10 @@ const AdvisorDashboard = () => {
 
   const groupedCompanyIds = data?.groupedCompanyIds || new Set<string>();
 
-  // Count assigned conversations per advisor (companies + groups)
+  // Count assigned conversations per advisor (companies + groups).
+  // Udløbede virksomheder ekskluderes (samme gate som bunker + portefølje).
   const latestConvs = investorSummaries
+    .filter((company) => !expiredCompanyIds.has(company.company_id))
     .map((company) => allConvsByCompany.get(company.company_id))
     .filter((conv): conv is ConversationRow => !!conv);
 
@@ -963,6 +965,7 @@ const AdvisorDashboard = () => {
   // Unassigned: company convs without advisor (excluding grouped companies) + group convs without advisor
   const unassignedCompanies = investorSummaries.filter(c =>
     !groupedCompanyIds.has(c.company_id) &&
+    !expiredCompanyIds.has(c.company_id) &&
     !allConvsByCompany.get(c.company_id)?.assigned_advisor_id
   ).length;
 
@@ -1134,7 +1137,7 @@ const AdvisorDashboard = () => {
     });
   }, [investorSummaries, memberSearch, memberFilter, expiredCompanyIds]);
 
-  const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0).length;
+  const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0 && !expiredCompanyIds.has(c.company_id)).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
 
