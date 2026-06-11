@@ -972,6 +972,10 @@ const Members = () => {
 
   const filtered = useMemo(() => {
     let result = companies;
+    if (!search.trim()) {
+      // Skjul udløbede fra den u-søgte default-liste; aktiv søgning afslører dem.
+      result = result.filter((c) => c.membershipTier !== "expired");
+    }
     if (filterIndustry !== "all") {
       result = result.filter((c) => c.industry_label === filterIndustry);
     }
