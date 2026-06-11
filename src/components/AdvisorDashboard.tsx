@@ -22,10 +22,8 @@ import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import KPICard from "@/components/KPICard";
-import AdvisorPriorityQueue from "@/components/AdvisorPriorityQueue";
 import AdvisorBroadcast from "@/components/AdvisorBroadcast";
 import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
-import AdvisorSparringQueue from "@/components/AdvisorSparringQueue";
 
 // ── Helpers ──
 
@@ -280,7 +278,7 @@ const AdvisorDashboard = () => {
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
-        unreadAgentMsgsRes,
+        unreadAgentMsgsRes, recentHandoutsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -359,6 +357,14 @@ const AdvisorDashboard = () => {
           .eq("message_type", "system")
           .eq("context_type", "agent")
           .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString()),
+        // Bunke 5: nyligt fuldførte handouts (status='completed', completed_at >= 14 dage)
+        (supabase
+          .from("handouts")
+          .select("user_id, module, completed_at")
+          .eq("status", "completed")
+          .gte("completed_at", twoWeeksAgo)
+          .order("completed_at", { ascending: false })
+          .limit(100) as any),
       ]);
 
       // Map group conversations into the same shape as company conversations
@@ -463,6 +469,16 @@ const AdvisorDashboard = () => {
         const companyId = m.company_id;
         if (companyId && !recentlyCompletedMilestones.has(companyId)) {
           recentlyCompletedMilestones.set(companyId, m.title);
+        }
+      }
+
+      // Recently completed handouts (last 14 days) by company. Handouts er user-nøglede,
+      // så vi mapper user_id -> company_id via det eksisterende userToCompany. Nyeste pr. company.
+      const recentlyCompletedHandoutsByCompany = new Map<string, { module: string; completed_at: string }>();
+      for (const h of ((recentHandoutsRes as any)?.data || []) as any[]) {
+        const companyId = userToCompany.get(h.user_id);
+        if (companyId && !recentlyCompletedHandoutsByCompany.has(companyId)) {
+          recentlyCompletedHandoutsByCompany.set(companyId, { module: h.module, completed_at: h.completed_at });
         }
       }
 
@@ -741,264 +757,115 @@ const AdvisorDashboard = () => {
       }
 
       // Priority queue — score each company
-      const priorityItems = investorSummaries
-        .map(c => {
-          const reasons: { label: string; urgency: "high" | "medium" }[] = [];
-          let score = 0;
+      // ── Fem handlingsbunker (afløser den ene scorede liste + proaktiv sparring) ──
+      // ÉN gennemløbning af investorSummaries udleder bunke-medlemskab pr. virksomhed
+      // (kan stå i FLERE). Begge gates anvendes ÉN gang på virksomheds-sættet, så en
+      // kvitteret/udløbet virksomhed forsvinder fra ALLE fem bunker.
+      const MODULE_LABELS: Record<string, string> = {
+        overordnet: "Overordnet", bogholderi: "Bogholderi", administration: "Administration",
+        salg: "Salg", marketing: "Marketing",
+      };
+      type BucketItem = {
+        company: { company_id: string; company_name: string; logo_url: string | null };
+        subtext: string;
+        assigned_advisor_id: string | null;
+        assigned_advisor_name: string | null;
+        sortValue: number;
+        isGroup?: boolean;
+      };
+      const bWaiting: BucketItem[] = [];
+      const bFresh: BucketItem[] = [];
+      const bStale: BucketItem[] = [];
+      const bStandsOut: BucketItem[] = [];
+      const bPositive: BucketItem[] = [];
 
-          if (c.unreadMessages > 0) {
-            reasons.push({ label: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, urgency: "high" });
-            score += 100;
+      for (const c of investorSummaries) {
+        // Gates: spring kvitterede + udløbede over (dækker alle fem bunker)
+        if (acknowledgedHiddenCompanyIds.has(c.company_id)) continue;
+        if (expiredCompanyIds.has(c.company_id)) continue;
+
+        const conv = convByCompany.get(c.company_id)?.[0];
+        const base = {
+          company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
+          assigned_advisor_id: conv?.assigned_advisor_id ?? null,
+          assigned_advisor_name: advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name ?? null,
+        };
+
+        // Bunke 1: Venter på dit svar (ulæst besked ELLER opfølgning forfalden)
+        if (c.unreadMessages > 0) {
+          bWaiting.push({ ...base, subtext: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, sortValue: c.unreadMessages });
+        } else if (conv?.follow_up_at && new Date(conv.follow_up_at) <= now) {
+          const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+          bWaiting.push({ ...base, subtext: `Opfølgning forfalden (${d})`, sortValue: 0 });
+        }
+
+        // Bunke 2: Friske tal (committet rapport inden for 14 dage, T8)
+        const freshFact = (recentFactsRes.data || []).find((f: any) => f.company_id === c.company_id && f.committed_at >= twoWeeksAgo);
+        if (freshFact) {
+          bFresh.push({ ...base, subtext: `Ny rapport for ${c.effective_period_label || "seneste periode"}`, sortValue: new Date(freshFact.committed_at).getTime() });
+        }
+
+        // Bunke 3: Ikke hørt fra længe (>21 dage, kun virksomheder med data, T12)
+        const lastContact = conv?.last_message_at;
+        const daysSinceContact = lastContact ? Math.floor((now.getTime() - new Date(lastContact).getTime()) / 86400000) : 999;
+        if (c.has_verified_metrics && lastContact && daysSinceContact > 21) {
+          bStale.push({ ...base, subtext: `Ingen dialog i ${daysSinceContact} dage`, sortValue: daysSinceContact });
+        }
+
+        // Bunke 4: Stikker ud i tallene (bankovertræk / omsætningsdyk / alerts)
+        {
+          const reasons: string[] = [];
+          let severity = 0;
+          if (c.cash != null && c.cash < 0) { reasons.push("Bankovertræk"); severity = Math.max(severity, 90); }
+          if (c.revenueTrendPct != null && c.revenueTrendPct <= -15) { reasons.push(`Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`); severity = Math.max(severity, 80); }
+          const alerts = alertsByCompany.get(c.company_id) ?? [];
+          if (alerts.some(a => a.type === "alert_result_negative")) { reasons.push("Negativt resultat"); severity = Math.max(severity, 60); }
+          if (reasons.length === 0 && alerts.some(a => a.type === "alert_revenue_drop")) { reasons.push("Omsætningsfald detekteret"); severity = Math.max(severity, 75); }
+          if (reasons.length > 0) {
+            bStandsOut.push({ ...base, subtext: reasons.join(" · "), sortValue: severity });
           }
-          if (c.unreadAgentMessages > 0) {
-            reasons.push({ label: "AI-indsigt klar til opfølgning", urgency: "medium" });
-            score += 35;
+        }
+
+        // Bunke 5: Positive muligheder (opnået milestone / nyt handout / kraftig vækst)
+        {
+          const positives: string[] = [];
+          let freshness = 0;
+          const ms = recentlyCompletedMilestones.get(c.company_id);
+          if (ms) { positives.push(`Milestone nået: ${ms}`); freshness = Math.max(freshness, 1); }
+          const ho = recentlyCompletedHandoutsByCompany.get(c.company_id);
+          if (ho) { positives.push(`Udfyldte handout: ${MODULE_LABELS[ho.module] || ho.module}`); freshness = Math.max(freshness, new Date(ho.completed_at).getTime()); }
+          if (c.revenueTrendPct != null && c.revenueTrendPct >= 10) { positives.push(`Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`); freshness = Math.max(freshness, 1); }
+          if (positives.length > 0) {
+            bPositive.push({ ...base, subtext: positives.join(" · "), sortValue: freshness });
           }
-          if (c.cash != null && c.cash < 0) {
-            reasons.push({ label: "Bankovertræk", urgency: "high" });
-            score += 90;
-          }
-          if (c.revenueTrendPct != null && c.revenueTrendPct <= -15) {
-            reasons.push({ label: `Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`, urgency: "high" });
-            score += 80;
-          }
-          const hasRecentUpload = (recentReportsRes.data || []).some((r: any) => r.company_id === c.company_id);
-          const alreadyCommitted = !c.missing_current_period && c.has_verified_metrics;
-          if (hasRecentUpload && !alreadyCommitted) {
-            reasons.push({ label: "Rapport klar til godkendelse", urgency: "high" });
-            score += 70;
-          }
-          const conv = convByCompany.get(c.company_id)?.[0];
-          if (conv?.follow_up_at && new Date(conv.follow_up_at) <= now) {
-            const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-            reasons.push({ label: `Opfølgning forfalden (${d})`, urgency: "medium" });
-            score += 50;
-          }
+        }
+      }
 
-          const companyAlerts = alertsByCompany.get(c.company_id) ?? [];
-          for (const alert of companyAlerts) {
-            if (alert.type === "alert_negative_cash") {
-              // already handled above
-            } else if (alert.type === "alert_revenue_drop") {
-              if (!reasons.find(r => r.label.includes("Omsætning faldt"))) {
-                reasons.push({ label: "Omsætningsfald detekteret", urgency: "high" as const });
-                score += 75;
-              }
-            } else if (alert.type === "alert_result_negative") {
-              reasons.push({ label: "Negativt resultat", urgency: "high" as const });
-              score += 60;
-            }
-          }
+      // Koncern-samtaler → bunke 1 (venter). Company-gates gælder ikke koncerner.
+      for (const gc of groupConvsMapped as any[]) {
+        const groupName = groupNameMap.get(gc.group_id) || "Koncern";
+        const gBase = {
+          company: { company_id: `group_${gc.group_id}`, company_name: groupName, logo_url: null },
+          assigned_advisor_id: gc.assigned_advisor_id ?? null,
+          assigned_advisor_name: advisorProfiles.find((a: any) => a.user_id === gc.assigned_advisor_id)?.full_name ?? null,
+          isGroup: true,
+        };
+        if (gc.awaiting_reply_from === "advisor") {
+          bWaiting.push({ ...gBase, subtext: "Ulæst besked fra koncern", sortValue: 1 });
+        } else if (gc.follow_up_at && new Date(gc.follow_up_at) <= now) {
+          const d = new Date(gc.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+          bWaiting.push({ ...gBase, subtext: `Opfølgning forfalden (${d})`, sortValue: 0 });
+        }
+      }
 
-          // Signal: No pulse check-in this month (after day 15)
-          const dayOfMonth = now.getDate();
-          const hasPulseThisMonth = c.latestPulse != null &&
-            new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
-          if (!hasPulseThisMonth && dayOfMonth > 15 && c.has_verified_metrics) {
-            reasons.push({ label: "Ingen refleksion denne måned", urgency: "medium" });
-            score += 25;
-          }
-
-           // Milestone-signal moved to sparring queue
-
-          const primaryConv = convByCompany.get(c.company_id)?.[0];
-          const assignedAdvisor = advisorProfiles.find((advisor) => advisor.user_id === primaryConv?.assigned_advisor_id);
-          return {
-            company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
-            reasons,
-            score,
-            assigned_advisor_id: primaryConv?.assigned_advisor_id ?? null,
-            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
-          };
-        })
-        .filter(item => item.score > 0)
-        .filter(item => !acknowledgedHiddenCompanyIds.has(item.company.company_id))
-        .filter(item => !expiredCompanyIds.has(item.company.company_id))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 20);
-
-      // Sparring items — proactive signals for companies NOT in priority queue
-      const sparringItems = investorSummaries
-        .map(c => {
-          const signals: { label: string; hint: string }[] = [];
-
-          // T8: Rapport committet inden for 14 dage
-          const hasCommit14 = (recentFactsRes.data || []).some((f: any) =>
-            f.company_id === c.company_id && f.committed_at >= twoWeeksAgo
-          );
-          if (hasCommit14) {
-            signals.push({
-              label: "Ny rapport godkendt",
-              hint: "God tid til at gennemgå tallene og give sparring mens de er friske",
-            });
-          }
-
-          // T9: Positiv momentum — sænket til >5%
-          if (c.revenueTrendPct != null && c.revenueTrendPct >= 5) {
-            signals.push({
-              label: `Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`,
-              hint: "Hvad driver væksten? Kan vi skalere det?",
-            });
-          }
-
-          // T10: Pulse udfyldt denne måned — med ELLER uden help_needed
-          const pulseThisMonth = c.latestPulse != null &&
-            new Date(c.latestPulse.created_at) > new Date(now.getFullYear(), now.getMonth(), 1);
-          if (pulseThisMonth) {
-            if (c.latestPulse?.help_needed) {
-              signals.push({
-                label: "Beder om hjælp",
-                hint: c.latestPulse.help_needed,
-              });
-            } else if (c.latestPulse?.biggest_challenge) {
-              signals.push({
-                label: "Refleksion udfyldt",
-                hint: `Største udfordring: "${c.latestPulse.biggest_challenge.slice(0, 60)}${c.latestPulse.biggest_challenge.length > 60 ? "..." : ""}"`,
-              });
-            } else {
-              signals.push({
-                label: "Refleksion udfyldt",
-                hint: "Founder har tjekket ind — god anledning til at følge op",
-              });
-            }
-          }
-
-          // T11: Milestone fuldført inden for 14 dage
-          const completedTitle = recentlyCompletedMilestones.get(c.company_id);
-          if (completedTitle) {
-            signals.push({
-              label: `Milestone nået`,
-              hint: `"${completedTitle}" — anerkend fremgangen og sæt næste mål`,
-            });
-          }
-
-          // Ingen milestones sat
-          if (c.milestones.length === 0 && c.has_verified_metrics) {
-            signals.push({
-              label: "Ingen milestones",
-              hint: "Founder har data men ingen mål — hjælp med at sætte den første milestone",
-            });
-          }
-
-          // Pulse ikke udfyldt efter den 15.
-          if (!pulseThisMonth && now.getDate() > 15 && c.has_verified_metrics) {
-            signals.push({
-              label: "Refleksion ikke udfyldt endnu",
-              hint: "Vi er efter den 15. — god anledning til at rykke for en refleksion",
-            });
-          }
-
-          // T12: Ingen kontakt i over 21 dage — fires uafhængigt af andre signals
-          {
-            const sparConv = convByCompany.get(c.company_id)?.[0];
-            const lastContact = sparConv?.last_message_at;
-            const daysSinceContact = lastContact
-              ? Math.floor((now.getTime() - new Date(lastContact).getTime()) / 86400000)
-              : 999;
-            if (daysSinceContact > 21 && c.has_verified_metrics) {
-              signals.push({
-                label: `Ingen kontakt i ${daysSinceContact} dage`,
-                hint: "God anledning til at tjekke ind — upload din seneste tanke om tallene",
-              });
-            }
-          }
-
-          const conv = convByCompany.get(c.company_id)?.[0];
-          const assignedAdvisor = advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id);
-          return {
-            company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
-            signals,
-            assigned_advisor_id: conv?.assigned_advisor_id ?? null,
-            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
-          };
-        })
-        .filter(item => item.signals.length > 0)
-        .filter(item => !priorityItems.some(p => p.company.company_id === item.company.company_id))
-        .filter(item => !acknowledgedHiddenCompanyIds.has(item.company.company_id))
-        .filter(item => !expiredCompanyIds.has(item.company.company_id))
-        .sort((a, b) => {
-          const score = (s: typeof a) => {
-            let n = 0;
-            if (s.signals.some(x => x.label === "Beder om hjælp")) n += 40;
-            if (s.signals.some(x => x.label === "Ny rapport godkendt")) n += 30;
-            if (s.signals.some(x => x.label === "Refleksion udfyldt")) n += 25;
-            if (s.signals.some(x => x.label.startsWith("Omsætning steg"))) n += 20;
-            if (s.signals.some(x => x.label === "Milestone nået")) n += 15;
-            if (s.signals.some(x => x.label.startsWith("Ingen kontakt i"))) n += 10;
-            if (s.signals.some(x => x.label === "Refleksion ikke udfyldt endnu")) n += 5;
-            // "Ingen milestones" gets 0 — always shown last
-            return n;
-          };
-          return score(b) - score(a);
-        })
-        .slice(0, 10);
-
-      // Group priority items — same logic as companies but from group_conversations
-      const groupPriorityItems = groupConvsMapped
-        .map((gc: any) => {
-          const reasons: { label: string; urgency: "high" | "medium" }[] = [];
-          let score = 0;
-          const groupName = groupNameMap.get(gc.group_id) || "Koncern";
-
-          if (gc.awaiting_reply_from === "advisor") {
-            reasons.push({ label: "Ulæst besked fra koncern", urgency: "high" });
-            score += 100;
-          }
-          if (gc.follow_up_at && new Date(gc.follow_up_at) <= now) {
-            const d = new Date(gc.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-            reasons.push({ label: `Opfølgning forfalden (${d})`, urgency: "medium" });
-            score += 50;
-          }
-
-          if (score === 0) return null;
-
-          const assignedAdvisor = advisorProfiles.find((a: any) => a.user_id === gc.assigned_advisor_id);
-          return {
-            company: {
-              company_id: `group_${gc.group_id}`,
-              company_name: groupName,
-              logo_url: null,
-            },
-            reasons,
-            score,
-            assigned_advisor_id: gc.assigned_advisor_id ?? null,
-            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
-          };
-        })
-        .filter(Boolean) as typeof priorityItems;
-
-      // Group sparring items
-      const groupSparringItems = groupConvsMapped
-        .filter((gc: any) => !groupPriorityItems.some(p => p.company.company_id === `group_${gc.group_id}`))
-        .map((gc: any) => {
-          const signals: { label: string; hint: string }[] = [];
-          const groupName = groupNameMap.get(gc.group_id) || "Koncern";
-
-          const monthKey = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate() / 7)}`;
-          const hash = (gc.group_id + monthKey).split("").reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0);
-          if (hash % 4 === 0) {
-            signals.push({
-              label: "Proaktiv sparring",
-              hint: "Ingen akutte signaler — god anledning til at tjekke ind med koncernen",
-            });
-          }
-
-          if (signals.length === 0) return null;
-          const assignedAdvisor = advisorProfiles.find(a => a.user_id === gc.assigned_advisor_id);
-          return {
-            company: { company_id: `group_${gc.group_id}`, company_name: groupName, logo_url: null },
-            signals,
-            assigned_advisor_id: gc.assigned_advisor_id ?? null,
-            assigned_advisor_name: assignedAdvisor?.full_name ?? null,
-          };
-        })
-        .filter(Boolean) as typeof sparringItems;
-
-      const allPriorityItems = [...priorityItems, ...groupPriorityItems]
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 20);
-
-      const allSparringItems = [...sparringItems, ...groupSparringItems].slice(0, 15);
+      const bySortDesc = (a: BucketItem, b: BucketItem) => b.sortValue - a.sortValue;
+      const buckets = {
+        waiting: bWaiting.sort(bySortDesc),
+        fresh: bFresh.sort(bySortDesc),
+        stale: bStale.sort(bySortDesc),
+        standsOut: bStandsOut.sort(bySortDesc),
+        positive: bPositive.sort(bySortDesc),
+      };
 
       const groupedCompanyIds = new Set<string>(
         ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
@@ -1009,7 +876,7 @@ const AdvisorDashboard = () => {
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany, expiredCompanyIds,
-        priorityItems: allPriorityItems, advisorProfiles, sparringItems: allSparringItems,
+        buckets, advisorProfiles,
         allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
         recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
@@ -1027,9 +894,8 @@ const AdvisorDashboard = () => {
   const companyMap = data?.companyMap || new Map();
   const activityFeed = data?.activityFeed || [];
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
-  const priorityItems = data?.priorityItems || [];
+  const buckets = data?.buckets || { waiting: [], fresh: [], stale: [], standsOut: [], positive: [] };
   const advisorProfiles = data?.advisorProfiles || [];
-  const sparringItems = data?.sparringItems || [];
 
   const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
@@ -1172,8 +1038,6 @@ const AdvisorDashboard = () => {
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
   const [memberView, setMemberView] = useState<"table" | "cards">("table");
   const [showAllQueue, setShowAllQueue] = useState(false);
-  const [showAllPriority, setShowAllPriority] = useState(false);
-  const [showAllSparring, setShowAllSparring] = useState(false);
   const [dismissedItems, setDismissedItems] = useState(() => new Set<string>());
 
   const dismissItem = (companyId: string) => {
@@ -1300,173 +1164,100 @@ const AdvisorDashboard = () => {
             )}
           </div>
         </div>
-        {priorityItems.length === 0 ? (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/30 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-            Ingen virksomheder kræver handling lige nu
-          </div>
-        ) : (
-          <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
-            {(showAllPriority ? priorityItems : priorityItems.slice(0, 5))
-              .filter(item => !dismissedItems.has(item.company.company_id))
-              .map(item => {
-              const primaryReason = item.reasons[0];
-              const label = primaryReason?.label || "";
-              const isDirectChatReason = label.includes("besked") || label.includes("Opfølgning") || label.includes("pulse");
-              const isReportReason = label.includes("godkendelse");
-              const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
-              const userId = data?.companyToUser?.get(item.company.company_id);
-              const recentReportId = (data?.recentReportsData || []).find((r: any) => r.company_id === item.company.company_id)?.id;
-              return (
-                <div key={item.company.company_id} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
-                  <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                    {item.company.logo_url
-                      ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
-                      : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
-                    <p className={`text-[11px] truncate ${primaryReason?.urgency === "high" ? "text-destructive" : "text-chart-warning"}`}>
-                      {primaryReason?.label}
-                    </p>
-                  </div>
-                  {item.assigned_advisor_name && (
-                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
-                      {item.assigned_advisor_name.split(" ")[0]}
-                    </span>
-                  )}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {isDirectChatReason && convId && (
-                      <button
-                        onClick={() => navigate(`/chat?conversationId=${convId}`)}
-                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                      >
-                        Åbn chat
-                      </button>
-                    )}
-                    {isReportReason && userId && (
-                      <button
-                        onClick={() => navigate(
-                          recentReportId
-                            ? `/members/${userId}?reportId=${recentReportId}&section=reports`
-                            : `/members/${userId}?section=reports`
-                        )}
-                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                      >
-                        Se rapport
-                      </button>
-                    )}
-                    {!isDirectChatReason && !isReportReason && convId && (
-                      <button
-                        onClick={() => navigate(`/chat?conversationId=${convId}`)}
-                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
-                      >
-                        Åbn chat
-                      </button>
-                    )}
-                    {userId && (
-                      <button
-                        onClick={() => navigate(`/members/${userId}`)}
-                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
-                      >
-                        Se virksomhed
-                      </button>
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground"
-                        >
-                          <MoreHorizontal className="h-3 w-3" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, "cleared")} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                          ✓ Klaret, indtil noget nyt
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 2 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                          ⏰ Påmind om 2 dage
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 7 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                          ⏰ Påmind om 7 dage
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+        {(() => {
+          const BUCKET_DEFS = [
+            { key: "waiting", title: "Venter på dit svar", items: buckets.waiting },
+            { key: "fresh", title: "Friske tal, fortjener sparring", items: buckets.fresh },
+            { key: "stale", title: "Ikke hørt fra længe", items: buckets.stale },
+            { key: "standsOut", title: "Noget stikker ud i tallene", items: buckets.standsOut },
+            { key: "positive", title: "Positive muligheder", items: buckets.positive },
+          ].map(b => ({ ...b, items: (b.items as any[]).filter(it => !dismissedItems.has(it.company.company_id)) }));
+          const totalItems = BUCKET_DEFS.reduce((n, b) => n + b.items.length, 0);
+          if (totalItems === 0) {
+            return (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/30 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                Ingen virksomheder kræver handling lige nu
+              </div>
+            );
+          }
+          // Enkel funktionel rendering; det visuelle pass kommer separat.
+          return (
+            <div className="space-y-4">
+              {BUCKET_DEFS.filter(b => b.items.length > 0).map(b => (
+                <div key={b.key}>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                    {b.title} ({b.items.length})
+                  </p>
+                  <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
+                    {b.items.map((item: any) => {
+                      const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
+                      const userId = data?.companyToUser?.get(item.company.company_id);
+                      const isGroup = !!item.isGroup;
+                      return (
+                        <div key={`${b.key}-${item.company.company_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
+                          <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                            {item.company.logo_url
+                              ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
+                              : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
+                            }
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{item.subtext}</p>
+                          </div>
+                          {item.assigned_advisor_name && (
+                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                              {item.assigned_advisor_name.split(" ")[0]}
+                            </span>
+                          )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {convId && (
+                              <button
+                                onClick={() => navigate(`/chat?conversationId=${convId}`)}
+                                className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                              >
+                                Åbn chat
+                              </button>
+                            )}
+                            {userId && !isGroup && (
+                              <button
+                                onClick={() => navigate(`/members/${userId}`)}
+                                className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
+                              >
+                                Se virksomhed
+                              </button>
+                            )}
+                            {!isGroup && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground">
+                                    <MoreHorizontal className="h-3 w-3" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, "cleared")} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                                    ✓ Klaret, indtil noget nyt
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 2 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                                    ⏰ Påmind om 2 dage
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 7 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                                    ⏰ Påmind om 7 dage
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-        {priorityItems.length > 5 && (
-          <button
-            onClick={() => setShowAllPriority(v => !v)}
-            className="w-full mt-1.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showAllPriority ? "Vis færre ↑" : `+ ${priorityItems.length - 5} mere kræver handling`}
-          </button>
-        )}
-        {/* Proaktiv sparring */}
-        {sparringItems.length > 0 && (
-          <div className="mt-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
-              Proaktiv sparring
-            </p>
-            <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
-              {(showAllSparring ? sparringItems : sparringItems.slice(0, 5)).map(item => {
-                const primarySignal = item.signals[0];
-                const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
-                const userId = data?.companyToUser?.get(item.company.company_id);
-                return (
-                  <div key={item.company.company_id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/20 transition-colors">
-                    <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                      {item.company.logo_url
-                        ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
-                        : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
-                      {primarySignal && (
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          <span className="text-primary/80">{primarySignal.label}</span>
-                          {primarySignal.hint && <span> — {primarySignal.hint}</span>}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {convId && (
-                        <button
-                          onClick={() => navigate(`/chat?conversationId=${convId}`)}
-                          className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
-                        >
-                          Åbn chat
-                        </button>
-                      )}
-                      {userId && (
-                        <button
-                          onClick={() => navigate(`/members/${userId}`)}
-                          className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
-                        >
-                          Se virksomhed
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              ))}
             </div>
-            {sparringItems.length > 5 && (
-              <button
-                onClick={() => setShowAllSparring(v => !v)}
-                className="w-full mt-1.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showAllSparring ? "Vis færre ↑" : `+ ${sparringItems.length - 5} mere`}
-              </button>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Section 2: Portfolio table */}
