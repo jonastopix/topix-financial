@@ -294,7 +294,7 @@ const AdvisorDashboard = () => {
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
-        unreadAgentMsgsRes, recentHandoutsRes,
+        unreadAgentMsgsRes, recentHandoutsRes, companyInvitationsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -381,6 +381,12 @@ const AdvisorDashboard = () => {
           .gte("completed_at", twoWeeksAgo)
           .order("completed_at", { ascending: false })
           .limit(100) as any),
+        // Pending-gate: virksomheder med hængende (ikke-accepterede) invitationer.
+        (supabase
+          .from("company_invitations")
+          .select("company_id, status")
+          .eq("status", "pending")
+          .limit(2000) as any),
       ]);
 
       // Map group conversations into the same shape as company conversations
@@ -772,6 +778,20 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Pending-gate: skjul virksomheder der KUN har en hængende invitation og INGEN
+      // accepteret/aktiv bruger (samme display-niveau-mønster som expiredCompanyIds;
+      // spejler Members.tsx' invitationStatus === 'pending'). En virksomhed med mindst
+      // ét aktivt company_members-medlem er ALDRIG pending (selv med hængende invite).
+      const companiesWithActiveMembers = new Set<string>(
+        ((companyMembersRes.data || []) as any[]).map(m => m.company_id)
+      );
+      const pendingCompanyIds = new Set<string>();
+      for (const inv of (((companyInvitationsRes as any)?.data || []) as any[])) {
+        if (inv.company_id && !companiesWithActiveMembers.has(inv.company_id)) {
+          pendingCompanyIds.add(inv.company_id);
+        }
+      }
+
       // Priority queue — score each company
       // ── Fem handlingsbunker (afløser den ene scorede liste + proaktiv sparring) ──
       // ÉN gennemløbning af investorSummaries udleder bunke-medlemskab pr. virksomhed
@@ -796,9 +816,9 @@ const AdvisorDashboard = () => {
       const bPositive: BucketItem[] = [];
 
       for (const c of investorSummaries) {
-        // Gates: spring kvitterede + udløbede over (dækker alle fem bunker)
+        // Gates: spring kvitterede + udløbede + pending over (dækker alle fem bunker)
         if (acknowledgedHiddenCompanyIds.has(c.company_id)) continue;
-        if (expiredCompanyIds.has(c.company_id)) continue;
+        if (expiredCompanyIds.has(c.company_id) || pendingCompanyIds.has(c.company_id)) continue;
 
         const conv = convByCompany.get(c.company_id)?.[0];
         const base = {
@@ -895,7 +915,7 @@ const AdvisorDashboard = () => {
 
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
-        investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany, expiredCompanyIds,
+        investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany, expiredCompanyIds, pendingCompanyIds,
         buckets, advisorProfiles,
         allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
@@ -911,6 +931,9 @@ const AdvisorDashboard = () => {
   const upcomingFollowUps = data?.upcomingFollowUps || [];
   const investorSummaries = data?.investorSummaries || [];
   const expiredCompanyIds: Set<string> = data?.expiredCompanyIds || new Set<string>();
+  const pendingCompanyIds: Set<string> = data?.pendingCompanyIds || new Set<string>();
+  // Fælles skjul-gate: holder expired + pending synkrone, så intet tæller/visning glemmes.
+  const isHiddenCompany = (id: string) => expiredCompanyIds.has(id) || pendingCompanyIds.has(id);
   const companyMap = data?.companyMap || new Map();
   const activityFeed = data?.activityFeed || [];
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
@@ -940,9 +963,9 @@ const AdvisorDashboard = () => {
   const groupedCompanyIds = data?.groupedCompanyIds || new Set<string>();
 
   // Count assigned conversations per advisor (companies + groups).
-  // Udløbede virksomheder ekskluderes (samme gate som bunker + portefølje).
+  // Udløbede + pending virksomheder ekskluderes (samme gate som bunker + portefølje).
   const latestConvs = investorSummaries
-    .filter((company) => !expiredCompanyIds.has(company.company_id))
+    .filter((company) => !isHiddenCompany(company.company_id))
     .map((company) => allConvsByCompany.get(company.company_id))
     .filter((conv): conv is ConversationRow => !!conv);
 
@@ -965,7 +988,7 @@ const AdvisorDashboard = () => {
   // Unassigned: company convs without advisor (excluding grouped companies) + group convs without advisor
   const unassignedCompanies = investorSummaries.filter(c =>
     !groupedCompanyIds.has(c.company_id) &&
-    !expiredCompanyIds.has(c.company_id) &&
+    !isHiddenCompany(c.company_id) &&
     !allConvsByCompany.get(c.company_id)?.assigned_advisor_id
   ).length;
 
@@ -1103,8 +1126,8 @@ const AdvisorDashboard = () => {
       const q = memberSearch.toLowerCase();
       list = list.filter(c => c.company_name.toLowerCase().includes(q));
     } else {
-      // Skjul udløbede fra den u-søgte default-liste; aktiv søgning afslører dem.
-      list = list.filter(c => !expiredCompanyIds.has(c.company_id));
+      // Skjul udløbede + pending fra den u-søgte default-liste; aktiv søgning afslører dem.
+      list = list.filter(c => !isHiddenCompany(c.company_id));
     }
     if (memberFilter === "ubesvaret") {
       list = list.filter(c => c.unreadMessages > 0);
@@ -1135,9 +1158,9 @@ const AdvisorDashboard = () => {
       if (scoreB !== scoreA) return scoreB - scoreA;
       return a.company_name.localeCompare(b.company_name, "da");
     });
-  }, [investorSummaries, memberSearch, memberFilter, expiredCompanyIds]);
+  }, [investorSummaries, memberSearch, memberFilter, expiredCompanyIds, pendingCompanyIds]);
 
-  const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0 && !expiredCompanyIds.has(c.company_id)).length;
+  const unbesvaredCount = investorSummaries.filter(c => c.unreadMessages > 0 && !isHiddenCompany(c.company_id)).length;
   const showKpiColumn = filteredMembers.filter(c => c.kpiTargets.length > 0).length / Math.max(1, filteredMembers.length) >= 0.2;
 
 
