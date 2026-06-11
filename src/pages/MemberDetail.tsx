@@ -1031,6 +1031,53 @@ const MemberDetail = () => {
             </div>
           )}
 
+          {/* ───── Refleksion (founderens egne ord, øverst) ───── */}
+          <div className="glass-card rounded-2xl p-5 mb-6">
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Refleksion
+              {latestPulse && (
+                <span className="text-xs font-normal text-muted-foreground ml-auto">
+                  {(() => {
+                    const [y, m] = (latestPulse.period_key || "").split("-");
+                    const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
+                    return `${months[parseInt(m, 10) - 1] || m} ${y}`;
+                  })()}
+                </span>
+              )}
+            </h3>
+            {!latestPulse ? (
+              <p className="text-xs text-muted-foreground">Ingen refleksion endnu. Bed medlemmet om at udfylde sin månedlige refleksion.</p>
+            ) : (
+              <div className="space-y-3">
+                {latestPulse.biggest_challenge && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Største udfordring</p>
+                    <p className="text-sm leading-relaxed text-foreground">{latestPulse.biggest_challenge}</p>
+                  </div>
+                )}
+                {(latestPulse as any).help_needed && (
+                  <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
+                    <p className="text-[10px] text-primary uppercase tracking-wider mb-0.5 font-semibold">Søger hjælp til</p>
+                    <p className="text-sm leading-relaxed text-foreground">{(latestPulse as any).help_needed}</p>
+                  </div>
+                )}
+                {latestPulse.went_well && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Hvad gik godt</p>
+                    <p className="text-sm leading-relaxed text-foreground">{latestPulse.went_well}</p>
+                  </div>
+                )}
+                {latestPulse.milestone_progress != null && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Milestone fremgang</p>
+                    <p className="text-sm font-medium text-foreground">{latestPulse.milestone_progress}%</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* ───── Hvad stikker ud (advisor-overblik, kun læste eksisterende signaler) ───── */}
           <section className="bg-card border border-border shadow-sm rounded-xl p-5 mb-6">
             <div className="mb-4">
@@ -1304,57 +1351,8 @@ const MemberDetail = () => {
             );
           })()}
 
-          {/* ───── Pulse + talking points ───── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-            {/* Pulse */}
-            <div className="glass-card rounded-2xl p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                Refleksion
-                {latestPulse && (
-                  <span className="text-xs font-normal text-muted-foreground ml-auto">
-                    {(() => {
-                      const [y, m] = (latestPulse.period_key || "").split("-");
-                      const months = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Aug","Sep","Okt","Nov","Dec"];
-                      return `${months[parseInt(m, 10) - 1] || m} ${y}`;
-                    })()}
-                  </span>
-                )}
-              </h3>
-              {!latestPulse ? (
-                <p className="text-xs text-muted-foreground">Ingen refleksion endnu. Bed medlemmet om at udfylde sin månedlige refleksion.</p>
-              ) : (
-                <div className="space-y-3">
-                  {latestPulse.biggest_challenge && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Største udfordring</p>
-                      <p className="text-sm leading-relaxed text-foreground">{latestPulse.biggest_challenge}</p>
-                    </div>
-                  )}
-                  {(latestPulse as any).help_needed && (
-                    <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
-                      <p className="text-[10px] text-primary uppercase tracking-wider mb-0.5 font-semibold">Søger hjælp til</p>
-                      <p className="text-sm leading-relaxed text-foreground">{(latestPulse as any).help_needed}</p>
-                    </div>
-                  )}
-                  {latestPulse.went_well && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Hvad gik godt</p>
-                      <p className="text-sm leading-relaxed text-foreground">{latestPulse.went_well}</p>
-                    </div>
-                  )}
-                  {latestPulse.milestone_progress != null && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Milestone fremgang</p>
-                      <p className="text-sm font-medium text-foreground">{latestPulse.milestone_progress}%</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Talking points */}
-            <div className="glass-card rounded-2xl p-5">
+          {/* ───── Samtaleemner ───── */}
+          <div className="glass-card rounded-2xl p-5 mb-8">
               <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-primary" />
                 Samtaleemner
@@ -1404,7 +1402,6 @@ const MemberDetail = () => {
                   )}
               </div>
             </div>
-          </div>
 
           {/* ───── AI Sparring-assistent ───── */}
           {memberFacts.length > 0 && memberCompanyId && companyCtx && computeMembershipTier(companyCtx) !== "expired" && (
