@@ -87,6 +87,13 @@ has_role(auth.uid(), 'advisor'::app_role)
 ```
 Applied to: all data tables for SELECT; most tables for INSERT/UPDATE/DELETE
 
+`pulse_checkins` (member reflections) carries this broad advisor SELECT policy
+too, named "Advisors can view all checkins" (migration
+`20260611140000_advisor_read_pulse_checkins.sql`). It is read-only for advisors
+(members remain the only writers via "Members manage company checkins") and is
+required because the older group-scoped advisor policy returned 0 rows for
+standalone companies, hiding their reflections from advisors.
+
 ### Admin access
 ```sql
 has_role(auth.uid(), 'admin'::app_role)
