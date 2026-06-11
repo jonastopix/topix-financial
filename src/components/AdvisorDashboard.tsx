@@ -94,13 +94,20 @@ interface InvestorCompanySummary extends GroupCompanySummary {
   ebitdaMargin: number | null;
   budgetRevenue: number | null;
   budgetVsActualPct: number | null;
-  latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string } | null;
+  latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string; period_key: string | null } | null;
   needsAttention: boolean;
   unreadMessages: number;
   unreadAgentMessages: number;
   milestones: MilestoneData[];
   kpiTargets: KpiTargetData[];
   hasWeeklyFocus: boolean;
+  // ── Spor 2-overblik (additivt datalag) ──
+  lastActiveAt: string | null;
+  reflectionStatus: "with_reflection" | "report_no_reflection" | "no_report";
+  goalHandoutDone: boolean;
+  memberSince: string | null;
+  isNewMember: boolean;
+  expiresAt: string | null;
 }
 
 // ── MemberCard ──
@@ -294,7 +301,7 @@ const AdvisorDashboard = () => {
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
-        unreadAgentMsgsRes, recentHandoutsRes, companyInvitationsRes,
+        unreadAgentMsgsRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -302,7 +309,7 @@ const AdvisorDashboard = () => {
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
-          .select("id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end")
+          .select("id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end, created_at")
           .order("name"),
         (supabase
           .from("financial_reports")
@@ -318,9 +325,9 @@ const AdvisorDashboard = () => {
           .like("period", `${currentYear}-base-%`),
         supabase
           .from("pulse_checkins")
-          .select("company_id, went_well, biggest_challenge, help_needed, created_at")
+          .select("company_id, period_key, went_well, biggest_challenge, help_needed, created_at")
           .order("created_at", { ascending: false })
-          .limit(100),
+          .limit(2000),
         (supabase
           .from("financial_reports")
           .select("id, company_id, uploaded_at, status, report_period")
@@ -386,6 +393,13 @@ const AdvisorDashboard = () => {
           .from("company_invitations")
           .select("company_id, status")
           .eq("status", "pending")
+          .limit(2000) as any),
+        // Spor 2: virksomheder der har udfyldt målsætnings-handoutet (modul 'overordnet').
+        (supabase
+          .from("handouts")
+          .select("company_id, status")
+          .eq("module", "overordnet")
+          .eq("status", "completed")
           .limit(2000) as any),
       ]);
 
@@ -473,7 +487,7 @@ const AdvisorDashboard = () => {
       }
 
       // Latest pulse by company
-      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string }>();
+      const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string; period_key: string | null }>();
       for (const p of (pulseRes.data || []) as any[]) {
         if (!latestPulseByCompany.has(p.company_id)) {
           latestPulseByCompany.set(p.company_id, {
@@ -481,6 +495,7 @@ const AdvisorDashboard = () => {
             biggest_challenge: p.biggest_challenge || "",
             help_needed: p.help_needed || null,
             created_at: p.created_at,
+            period_key: p.period_key ?? null,
           });
         }
       }
@@ -606,6 +621,44 @@ const AdvisorDashboard = () => {
         .filter(c => c.follow_up_at && new Date(c.follow_up_at) > now && new Date(c.follow_up_at) <= weekFromNow)
         .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
 
+      // ── Spor 2-datalag (additivt) ──
+      // Målsætnings-handout udfyldt pr. virksomhed (modul 'overordnet', completed).
+      const goalHandoutDoneCompanyIds = new Set<string>(
+        (((goalHandoutRes as any)?.data || []) as any[]).map(h => h.company_id).filter(Boolean)
+      );
+
+      // Sidst aktiv pr. virksomhed = MAX(last_sign_in_at) over virksomhedens medlemmer
+      // (ægte login via get_users_last_login-RPC). Fejl-robust: hvis RPC fejler/tom,
+      // forbliver mappet tomt og feltet bliver null; resten af dashboardet braekker ikke.
+      const usersByCompany = new Map<string, string[]>();
+      for (const m of ((companyMembersRes.data || []) as any[])) {
+        if (!m.company_id || !m.user_id) continue;
+        const arr = usersByCompany.get(m.company_id) || [];
+        arr.push(m.user_id);
+        usersByCompany.set(m.company_id, arr);
+      }
+      const lastActiveByCompany = new Map<string, string>();
+      try {
+        const allMemberUserIds = [...new Set(((companyMembersRes.data || []) as any[]).map(m => m.user_id).filter(Boolean))];
+        if (allMemberUserIds.length > 0) {
+          const { data: loginRows } = await supabase.rpc("get_users_last_login" as any, { user_ids: allMemberUserIds });
+          const loginByUser = new Map<string, string>();
+          for (const row of ((loginRows || []) as any[])) {
+            if (row.last_sign_in_at) loginByUser.set(row.user_id, row.last_sign_in_at);
+          }
+          for (const [companyId, userIds] of usersByCompany) {
+            let maxLogin: string | null = null;
+            for (const uid of userIds) {
+              const ll = loginByUser.get(uid);
+              if (ll && (maxLogin === null || ll > maxLogin)) maxLogin = ll; // ISO-strenge sorterer korrekt
+            }
+            if (maxLogin) lastActiveByCompany.set(companyId, maxLogin);
+          }
+        }
+      } catch (e) {
+        console.warn("[advisor-dashboard] get_users_last_login fejlede", e);
+      }
+
       // Build InvestorCompanySummary[]
       const monthsElapsed = new Date().getMonth() + 1;
 
@@ -619,6 +672,27 @@ const AdvisorDashboard = () => {
         const revenueTrendPct = revenueTrendByCompany.get(c.id) ?? null;
         const budgetRevenue = budgetRevenueByCompany.get(c.id) ?? null;
         const pulse = latestPulseByCompany.get(c.id) ?? null;
+
+        // ── Spor 2-felter (additivt) ──
+        // reflectionStatus: "no_report" når der slet ingen committet rapport er
+        // (effective_period_key == null, sandeste "ingen rapport"-test). Ellers
+        // sammenlignes pulse.period_key med rapportens periode (rent YYYY-MM-match).
+        const reflectionStatus: "with_reflection" | "report_no_reflection" | "no_report" =
+          latestKey == null
+            ? "no_report"
+            : (pulse?.period_key === latestKey ? "with_reflection" : "report_no_reflection");
+        const memberSince = (c as any).created_at ?? null;
+        const isNewMember = memberSince != null && (now.getTime() - new Date(memberSince).getTime()) < 30 * 86400000;
+        const tier = computeMembershipTier({
+          contract_end_date: (c as any).contract_end_date,
+          subscription_status: (c as any).subscription_status,
+          subscription_current_period_end: (c as any).subscription_current_period_end,
+        });
+        const expiresAt = tier === "full"
+          ? ((c as any).contract_end_date ?? null)
+          : tier === "subscriber"
+            ? ((c as any).subscription_current_period_end ?? null)
+            : null;
 
         const ebitdaMargin = revenue != null && revenue > 0 && ebt != null
           ? (ebt / revenue) * 100 : null;
@@ -659,6 +733,12 @@ const AdvisorDashboard = () => {
           milestones: milestonesByCompany.get(c.id) || [],
           kpiTargets: kpiByCompany.get(c.id) || [],
           hasWeeklyFocus: weeklyFocusCompanies.has(c.id),
+          lastActiveAt: lastActiveByCompany.get(c.id) ?? null,
+          reflectionStatus,
+          goalHandoutDone: goalHandoutDoneCompanyIds.has(c.id),
+          memberSince,
+          isNewMember,
+          expiresAt,
         };
       });
 
