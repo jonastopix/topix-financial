@@ -41,6 +41,22 @@ function getMissingReportKey(): string {
   return `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
 }
 
+// Friskhed: er tallene (perioden YYYY-MM) inden for de seneste 3 måneder fra nu?
+// Bruger første-i-måneden-sammenligning, så fx "2026-03" tæller hele marts.
+// Null-safe: manglende/uparsbar periode behandles som IKKE frisk, så vi fejler til
+// at SKJULE gamle/ukendte afvigelser frem for at vise dem.
+function isFiguresFresh(periodKey: string | null | undefined, now: Date = new Date()): boolean {
+  if (!periodKey) return false;
+  const m = /^(\d{4})-(\d{2})$/.exec(periodKey);
+  if (!m) return false;
+  const year = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10); // 1-12
+  if (!year || month < 1 || month > 12) return false;
+  const periodStart = new Date(year, month - 1, 1);
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  return periodStart >= cutoff;
+}
+
 // ── Types ──
 
 interface ConversationRow {
@@ -816,8 +832,11 @@ const AdvisorDashboard = () => {
         {
           const reasons: string[] = [];
           let severity = 0;
-          if (c.cash != null && c.cash < 0) { reasons.push("Bankovertræk"); severity = Math.max(severity, 90); }
-          if (c.revenueTrendPct != null && c.revenueTrendPct <= -15) { reasons.push(`Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`); severity = Math.max(severity, 80); }
+          // Bankovertræk + omsætningsdyk tæller kun hvis fact-perioden er nylig (~3 mdr).
+          // Alerts nedenfor er allerede friske via 30-dages-fetch og gates IKKE her.
+          const figuresFresh = isFiguresFresh(c.effective_period_key, now);
+          if (figuresFresh && c.cash != null && c.cash < 0) { reasons.push("Bankovertræk"); severity = Math.max(severity, 90); }
+          if (figuresFresh && c.revenueTrendPct != null && c.revenueTrendPct <= -15) { reasons.push(`Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`); severity = Math.max(severity, 80); }
           const alerts = alertsByCompany.get(c.company_id) ?? [];
           if (alerts.some(a => a.type === "alert_result_negative")) { reasons.push("Negativt resultat"); severity = Math.max(severity, 60); }
           if (reasons.length === 0 && alerts.some(a => a.type === "alert_revenue_drop")) { reasons.push("Omsætningsfald detekteret"); severity = Math.max(severity, 75); }
@@ -834,7 +853,8 @@ const AdvisorDashboard = () => {
           if (ms) { positives.push(`Milestone nået: ${ms}`); freshness = Math.max(freshness, 1); }
           const ho = recentlyCompletedHandoutsByCompany.get(c.company_id);
           if (ho) { positives.push(`Udfyldte handout: ${MODULE_LABELS[ho.module] || ho.module}`); freshness = Math.max(freshness, new Date(ho.completed_at).getTime()); }
-          if (c.revenueTrendPct != null && c.revenueTrendPct >= 10) { positives.push(`Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`); freshness = Math.max(freshness, 1); }
+          // Kraftig vækst tæller kun hvis fact-perioden er nylig (~3 mdr).
+          if (isFiguresFresh(c.effective_period_key, now) && c.revenueTrendPct != null && c.revenueTrendPct >= 10) { positives.push(`Omsætning steg ${Math.round(c.revenueTrendPct)}% MoM`); freshness = Math.max(freshness, 1); }
           if (positives.length > 0) {
             bPositive.push({ ...base, subtext: positives.join(" · "), sortValue: freshness });
           }
