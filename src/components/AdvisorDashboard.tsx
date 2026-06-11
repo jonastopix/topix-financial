@@ -8,7 +8,7 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
-  MoreHorizontal,
+  MoreHorizontal, FileText,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -1185,14 +1185,19 @@ const AdvisorDashboard = () => {
           </div>
         </div>
         {(() => {
-          const BUCKET_DEFS = [
-            { key: "waiting", title: "Venter på dit svar", items: buckets.waiting },
-            { key: "fresh", title: "Friske tal, fortjener sparring", items: buckets.fresh },
-            { key: "stale", title: "Ikke hørt fra længe", items: buckets.stale },
-            { key: "standsOut", title: "Noget stikker ud i tallene", items: buckets.standsOut },
-            { key: "positive", title: "Positive muligheder", items: buckets.positive },
-          ].map(b => ({ ...b, items: (b.items as any[]).filter(it => !dismissedItems.has(it.company.company_id)) }));
-          const totalItems = BUCKET_DEFS.reduce((n, b) => n + b.items.length, 0);
+          const filterItems = (items: any[]) => (items as any[]).filter(it => !dismissedItems.has(it.company.company_id));
+          // Accent pr. bunke efter hastighed, token-baseret (ingen hardcodede farver).
+          // Venstre kolonne = kræver opmærksomhed; højre = muligheder + blødt vedligehold.
+          const LEFT = [
+            { key: "waiting", title: "Venter på dit svar", items: filterItems(buckets.waiting), Icon: MessageSquare, border: "border-l-destructive", head: "bg-destructive/10 text-destructive", icon: "text-destructive" },
+            { key: "standsOut", title: "Noget stikker ud i tallene", items: filterItems(buckets.standsOut), Icon: AlertTriangle, border: "border-l-chart-warning", head: "bg-chart-warning/10 text-chart-warning", icon: "text-chart-warning" },
+          ];
+          const RIGHT = [
+            { key: "fresh", title: "Friske tal, fortjener sparring", items: filterItems(buckets.fresh), Icon: FileText, border: "border-l-chart-positive", head: "bg-chart-positive/10 text-chart-positive", icon: "text-chart-positive" },
+            { key: "positive", title: "Positive muligheder", items: filterItems(buckets.positive), Icon: Sparkles, border: "border-l-chart-positive/60", head: "bg-chart-positive/5 text-chart-positive", icon: "text-chart-positive" },
+            { key: "stale", title: "Ikke hørt fra længe", items: filterItems(buckets.stale), Icon: Clock, border: "border-l-border", head: "bg-muted text-muted-foreground", icon: "text-muted-foreground" },
+          ];
+          const totalItems = [...LEFT, ...RIGHT].reduce((n, b) => n + b.items.length, 0);
           if (totalItems === 0) {
             return (
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/30 text-sm text-muted-foreground">
@@ -1201,80 +1206,83 @@ const AdvisorDashboard = () => {
               </div>
             );
           }
-          // Enkel funktionel rendering; det visuelle pass kommer separat.
+          const renderBucket = (b: any) => (
+            <div key={b.key} className={`glass-card rounded-xl overflow-hidden border-l-2 ${b.border}`}>
+              <div className={`flex items-center gap-2 px-4 py-2.5 ${b.head}`}>
+                <b.Icon className={`h-4 w-4 shrink-0 ${b.icon}`} />
+                <h3 className="text-xs font-semibold uppercase tracking-wider flex-1 min-w-0 truncate">{b.title}</h3>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-background/60">{b.items.length}</span>
+              </div>
+              <div className="divide-y divide-border/30">
+                {b.items.map((item: any) => {
+                  const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
+                  const userId = data?.companyToUser?.get(item.company.company_id);
+                  const isGroup = !!item.isGroup;
+                  return (
+                    <div key={`${b.key}-${item.company.company_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
+                      <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                        {item.company.logo_url
+                          ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
+                          : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{item.subtext}</p>
+                      </div>
+                      {item.assigned_advisor_name && (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                          {item.assigned_advisor_name.split(" ")[0]}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {convId && (
+                          <button
+                            onClick={() => navigate(`/chat?conversationId=${convId}`)}
+                            className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                          >
+                            Åbn chat
+                          </button>
+                        )}
+                        {userId && !isGroup && (
+                          <button
+                            onClick={() => navigate(`/members/${userId}`)}
+                            className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
+                          >
+                            Se virksomhed
+                          </button>
+                        )}
+                        {!isGroup && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground">
+                                <MoreHorizontal className="h-3 w-3" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, "cleared")} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                                ✓ Klaret, indtil noget nyt
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 2 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                                ⏰ Påmind om 2 dage
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 7 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
+                                ⏰ Påmind om 7 dage
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
           return (
-            <div className="space-y-4">
-              {BUCKET_DEFS.filter(b => b.items.length > 0).map(b => (
-                <div key={b.key}>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
-                    {b.title} ({b.items.length})
-                  </p>
-                  <div className="glass-card rounded-xl divide-y divide-border/30 overflow-hidden">
-                    {b.items.map((item: any) => {
-                      const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
-                      const userId = data?.companyToUser?.get(item.company.company_id);
-                      const isGroup = !!item.isGroup;
-                      return (
-                        <div key={`${b.key}-${item.company.company_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors">
-                          <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                            {item.company.logo_url
-                              ? <img src={item.company.logo_url} alt="" className="h-full w-full object-contain" />
-                              : <span className="text-[9px] font-bold text-muted-foreground">{item.company.company_name.slice(0, 2).toUpperCase()}</span>
-                            }
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{item.company.company_name}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">{item.subtext}</p>
-                          </div>
-                          {item.assigned_advisor_name && (
-                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
-                              {item.assigned_advisor_name.split(" ")[0]}
-                            </span>
-                          )}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {convId && (
-                              <button
-                                onClick={() => navigate(`/chat?conversationId=${convId}`)}
-                                className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                              >
-                                Åbn chat
-                              </button>
-                            )}
-                            {userId && !isGroup && (
-                              <button
-                                onClick={() => navigate(`/members/${userId}`)}
-                                className="text-[10px] font-medium px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-muted-foreground"
-                              >
-                                Se virksomhed
-                              </button>
-                            )}
-                            {!isGroup && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground">
-                                    <MoreHorizontal className="h-3 w-3" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, "cleared")} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                                    ✓ Klaret, indtil noget nyt
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 2 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                                    ⏰ Påmind om 2 dage
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 7 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                                    ⏰ Påmind om 7 dage
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <div className="space-y-4">{LEFT.filter(b => b.items.length > 0).map(renderBucket)}</div>
+              <div className="space-y-4">{RIGHT.filter(b => b.items.length > 0).map(renderBucket)}</div>
             </div>
           );
         })()}
