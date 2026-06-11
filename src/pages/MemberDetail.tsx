@@ -53,7 +53,7 @@ import {
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
-import { reportStatusConfig, getEffectiveReportPeriod, getEffectiveKeyFigures, hasManualOverride, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
+import { reportStatusConfig, getEffectiveReportPeriod, getEffectiveKeyFigures, hasManualOverride, REPORT_OVERRIDE_SELECT, pctChange, type ReportData } from "@/lib/financialUtils";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -300,6 +300,30 @@ const MemberDetail = () => {
       return data || [];
     },
     enabled: !!memberCompanyId,
+  });
+
+  // Persisterede finansielle alerts for DETTE selskab. RLS scoper til auth.uid()
+  // (advisor har egne kopier, skrevet af detect-financial-alerts til alle advisors);
+  // vi filtrerer STRENGT til memberCompanyId, så vi aldrig viser andre selskabers
+  // alerts. Samme 60-dages vindue og 3 alert-typer som get-advisor-alerts.
+  const { data: financialAlerts = [] } = useQuery({
+    queryKey: ["member-financial-alerts", memberCompanyId],
+    queryFn: async () => {
+      if (!memberCompanyId) return [] as any[];
+      const since = new Date(Date.now() - 60 * 86400000).toISOString();
+      const { data } = await (supabase
+        .from("notifications") as any)
+        .select("id, type, priority, title, body, deep_link, company_id, created_at")
+        .eq("company_id", memberCompanyId)
+        .in("type", ["alert_revenue_drop", "alert_negative_cash", "alert_result_negative"])
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      // Forsvar i dybden: aldrig vis et andet selskabs alert, selv hvis RLS ændres.
+      return ((data as any[]) || []).filter(n => n.company_id === memberCompanyId);
+    },
+    enabled: !!memberCompanyId,
+    staleTime: 5 * 60_000,
   });
 
   const refetch = async () => {
@@ -740,6 +764,89 @@ const MemberDetail = () => {
     });
   })();
 
+  // ── "Hvad stikker ud": saml eksisterende signaler, prioriteret efter alvor.
+  // Kun læsning af allerede hentet data + financialAlerts. Genbruger pctChange
+  // (MoM, 15%-tærskel), budget-variance-formel + 10%-tærskel (jf. varianceColor),
+  // overdue-filter og handout-levers. Ingen ny logik, ingen mutation.
+  const standsOut = (() => {
+    const fmtKr = (n?: number | null) =>
+      n != null ? `${Math.round(n).toLocaleString("da-DK")} kr.` : "—";
+    type Sev = "action_required" | "important" | "muted";
+    type Row = { severity: Sev; kind: "alert" | "mom" | "budget" | "reflection" | "lever"; badge: string; title: string; detail?: string };
+    const rows: Row[] = [];
+
+    // 1) Persisterede alerts (dedup pr. type, nyeste først)
+    const seenTypes = new Set<string>();
+    for (const a of (financialAlerts as any[])) {
+      if (seenTypes.has(a.type)) continue;
+      seenTypes.add(a.type);
+      rows.push({
+        severity: a.priority === "action_required" ? "action_required" : "important",
+        kind: "alert", badge: "Alert", title: a.title, detail: a.body || undefined,
+      });
+    }
+
+    // 2) MoM-bevægelse (genbrug pctChange; tærskel 15% begge veje)
+    if (latestKf && prevKf) {
+      const mom = (label: string, curr?: number, prev?: number) => {
+        const pct = pctChange(curr, prev);
+        if (pct == null || Math.abs(pct) < 15) return;
+        rows.push({
+          severity: "important", kind: "mom", badge: "MoM",
+          title: `${label} ${pct < 0 ? "falder" : "stiger"} ${Math.abs(pct).toFixed(0)}% på en måned`,
+          detail: `${fmtKr(prev)} → ${fmtKr(curr)}`,
+        });
+      };
+      mom("Omsætning", latestKf.omsaetning, prevKf.omsaetning);
+      mom("Resultat f. skat", latestKf.resultat_foer_skat, prevKf.resultat_foer_skat);
+    }
+
+    // 3) Budgetafvigelse (seneste måneds faktiske omsætning vs budget; tærskel 10%)
+    if (latestFact && latestKf?.omsaetning != null && budgets.length) {
+      const [y, m] = latestFact.period_key.split("-");
+      const baseKey = `${y}-base-${parseInt(m, 10) - 1}`;
+      const budgetRevenue = budgets.find(b => b.period === baseKey && b.category === "omsaetning")?.budget_amount ?? null;
+      if (budgetRevenue != null && budgetRevenue !== 0) {
+        const pct = ((latestKf.omsaetning - budgetRevenue) / Math.abs(budgetRevenue)) * 100;
+        if (Math.abs(pct) > 10) {
+          rows.push({
+            severity: "important", kind: "budget", badge: "Budget",
+            title: `Omsætning ${pct < 0 ? `${Math.abs(pct).toFixed(0)}% under` : `${pct.toFixed(0)}% over`} budgetteret`,
+            detail: `Faktisk ${fmtKr(latestKf.omsaetning)} mod budget ${fmtKr(budgetRevenue)}`,
+          });
+        }
+      }
+    }
+
+    // 4) Refleksion (kontekst, dæmpet) hvis nylig
+    if (latestPulse && (latestPulse.went_well || latestPulse.biggest_challenge)) {
+      const recent = !!latestPulse.created_at && (Date.now() - new Date(latestPulse.created_at).getTime()) < 75 * 86400000;
+      if (recent) {
+        const bits: string[] = [];
+        if (latestPulse.biggest_challenge) bits.push(`Udfordring: ${latestPulse.biggest_challenge}`);
+        if (latestPulse.went_well) bits.push(`Gik godt: ${latestPulse.went_well}`);
+        rows.push({ severity: "muted", kind: "reflection", badge: "Refleksion", title: "Medlemmets seneste refleksion", detail: bits.join(" · ") || undefined });
+      }
+    }
+
+    // 5) Løftestænger: forfaldne milestones (overdue-filter) + handout-levers (dæmpet)
+    const overdue = milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed");
+    const levers = handoutSummaries.flatMap(h => h.levers);
+    if (overdue.length > 0 || levers.length > 0) {
+      const parts: string[] = [];
+      if (overdue.length > 0) parts.push(`${overdue.length} forfalden${overdue.length > 1 ? "e" : ""} milestone${overdue.length > 1 ? "s" : ""}`);
+      if (levers.length > 0) parts.push(levers.length === 1 ? "1 løftestang fra handouts" : `${levers.length} løftestænger fra handouts`);
+      rows.push({
+        severity: "muted", kind: "lever", badge: "Løftestang",
+        title: parts.join(" · "),
+        detail: [...overdue.slice(0, 3).map(m => m.title), ...levers.slice(0, 3)].join(" · ") || undefined,
+      });
+    }
+
+    const rank: Record<Sev, number> = { action_required: 0, important: 1, muted: 2 };
+    return rows.sort((a, b) => rank[a.severity] - rank[b.severity]);
+  })();
+
   return (
     <AppLayout>
       {/* Back link */}
@@ -932,6 +1039,55 @@ const MemberDetail = () => {
               </button>
             </div>
           )}
+
+          {/* ───── Hvad stikker ud (advisor-overblik, kun læste eksisterende signaler) ───── */}
+          <section className="bg-card border border-border shadow-sm rounded-xl p-5 mb-6">
+            <div className="mb-4">
+              <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Hvad stikker ud
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Det vigtigste for sparringen lige nu. Kun det der faktisk afviger.
+              </p>
+            </div>
+            {standsOut.length === 0 ? (
+              <div className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Ingen tydelige afvigelser denne periode.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {standsOut.map((row, i) => {
+                  const sev = {
+                    action_required: { box: "border-destructive/30 bg-destructive/5", icon: "text-destructive", badge: "bg-destructive/10 text-destructive" },
+                    important: { box: "border-chart-warning/30 bg-chart-warning/5", icon: "text-chart-warning", badge: "bg-chart-warning/10 text-chart-warning" },
+                    muted: { box: "border-border/50 bg-muted/20", icon: "text-muted-foreground", badge: "bg-muted text-muted-foreground" },
+                  }[row.severity];
+                  const Icon =
+                    row.kind === "alert" ? AlertCircle :
+                    row.kind === "mom" ? (row.title.includes("falder") ? TrendingDown : TrendingUp) :
+                    row.kind === "budget" ? AlertTriangle :
+                    row.kind === "reflection" ? MessageSquare :
+                    Target;
+                  return (
+                    <div key={i} className={`flex items-start gap-3 rounded-lg border ${sev.box} px-3 py-2.5`}>
+                      <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${sev.icon}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-foreground">{row.title}</p>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${sev.badge}`}>
+                            {row.badge}
+                          </span>
+                        </div>
+                        {row.detail && <p className="text-xs text-muted-foreground mt-0.5 break-words">{row.detail}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
 
           {/* ───── Application context panel ───── */}
           {(companyCtx as any)?.application_context && (
