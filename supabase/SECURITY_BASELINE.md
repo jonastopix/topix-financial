@@ -99,6 +99,18 @@ auth.uid() = user_id
 ```
 Applied to: `profiles`, `financial_reports` (owner ops), `handouts` (owner ops)
 
+### Advisor-owned rows (own acknowledgements)
+```sql
+advisor_id = auth.uid() AND has_role(auth.uid(), 'advisor'::app_role)
+```
+Applied to: `advisor_company_acknowledgments`. Durable, company-wide advisor
+"Kvitter" state for the dashboard action queues: `snoozed_until` null means
+cleared until a newer signal appears, a future value is a remind window, and
+`basis_at` snapshots the newest signal timestamp at acknowledgement time. Each
+advisor sees and writes only their own rows (owner-scoped); members have no
+access (no policy matches them). Contains no member PII, only `advisor_id`,
+`company_id` and timestamps.
+
 ### Service-role-only tables (no client INSERT/UPDATE/DELETE)
 - `slack_conversation_threads`
 - `slack_notification_log`
