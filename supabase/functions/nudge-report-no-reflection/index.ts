@@ -7,13 +7,16 @@
 // kalder ingen notifikation. Foerst naar cron'en i snit 3 sender { "dry_run": false }
 // skriver den rigtigt. Manuelle test-kald uden body er derfor sikre.
 //
-// Betingelse (alle skal vaere sande for samme periode P = rapportens period_key):
-//   (a) financial_report_facts.committed_at < now() - 3 dage,
+// Betingelse (alle skal vaere sande for samme periode P = virksomhedens SENESTE
+// rapporterede periode):
+//   (a) P er virksomhedens seneste committede periode OG ligger inden for de sidste
+//       2 maaneder, og committed_at < now() - 3 dage,
 //   (b) ingen pulse_checkins-raekke for (company_id, P),
 //   (c) conversation.assigned_advisor_id IS NOT NULL (ellers skip, ingen falsk afsender),
 //   (d) nudgen ikke allerede sendt for (company_id, P) (eksisterende reflection-nudge-besked).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,13 +84,22 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const cutoffIso = new Date(Date.now() - NUDGE_AGE_DAYS * 86400000).toISOString();
+  const cutoffMs = Date.now() - NUDGE_AGE_DAYS * 86400000;
 
-  // (a) committede rapporter aeldre end 3 dage.
+  // FEJL 1-fix: kun hver virksomheds SENESTE rapporterede periode, og kun hvis den
+  // ligger inden for de sidste 2 maaneder. Foer rettelsen behandlede funktionen HVER
+  // committet periode i historikken (200+ beskeder tilbage i tid).
+  const nowDate = new Date();
+  const minDate = new Date(nowDate.getFullYear(), nowDate.getMonth() - 2, 1);
+  const minPeriodKey = `${minDate.getFullYear()}-${String(minDate.getMonth() + 1).padStart(2, "0")}`;
+
+  // Hent kun facts fra de seneste 2 maaneder (period_key er YYYY-MM, leksikografisk
+  // sorterbar). En virksomhed hvis seneste periode er aeldre end det, har ingen raekker
+  // her og udelades dermed korrekt.
   const { data: facts, error: factsErr } = await supabase
     .from("financial_report_facts")
     .select("company_id, period_key, committed_at")
-    .lt("committed_at", cutoffIso);
+    .gte("period_key", minPeriodKey);
 
   if (factsErr) {
     console.error("[nudge] kunne ikke hente financial_report_facts:", factsErr.message);
@@ -96,13 +108,33 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Reducer til seneste periode pr. virksomhed (distinct on company_id, period_key desc).
+  const latestByCompany = new Map<string, { period_key: string; committed_at: string }>();
+  for (const f of facts || []) {
+    const cid = f.company_id as string;
+    const pk = f.period_key as string;
+    const cur = latestByCompany.get(cid);
+    if (!cur || pk > cur.period_key) {
+      latestByCompany.set(cid, { period_key: pk, committed_at: f.committed_at as string });
+    }
+  }
+
+  // Kandidater: seneste periode er inden for 2 maaneder (sikret af query'en ovenfor)
+  // OG committet for mindst 3 dage siden.
+  const candidates: Array<{ companyId: string; P: string }> = [];
+  for (const [cid, info] of latestByCompany.entries()) {
+    if (new Date(info.committed_at).getTime() < cutoffMs) {
+      candidates.push({ companyId: cid, P: info.period_key });
+    }
+  }
+
   const previews: Array<{ company_id: string; advisor: string; period: string; preview: string }> = [];
   let sent = 0;
   let skipped = 0;
 
-  for (const fact of facts || []) {
-    const companyId = fact.company_id as string;
-    const P = fact.period_key as string;
+  for (const cand of candidates) {
+    const companyId = cand.companyId;
+    const P = cand.P;
     try {
       // (b) ingen refleksion for (company_id, P).
       const { data: pulse } = await supabase
@@ -174,18 +206,33 @@ Deno.serve(async (req) => {
         .update({ last_message_at: new Date().toISOString(), awaiting_reply_from: "company" })
         .eq("id", conv.id);
 
-      // Notifikation til medlemmet (in-app + mail-fallback) via notify-chat-reply.
-      // BEMAERK (skal verificeres i snit 3 foer live): notify-chat-reply bruger
-      // authenticateUser (Bucket A) og forventer et bruger-JWT med sub-claim. Et
-      // service-role-kald herfra har ikke et sub, saa kaldet kan svare 401. Naar vi
-      // slaar live til, skal vi enten give notify-chat-reply en service-role-sti
-      // eller skrive notifikationen direkte via writeNotificationToMany.
+      // Notifikation til medlemmet (in-app + mail-fallback) skrives DIREKTE via husets
+      // writeNotification-moenster (samme som send-report-reminder), IKKE via
+      // notify-chat-reply. Sidstnaevnte bruger authenticateUser (Bucket A) og kraever et
+      // bruger-JWT med sub-claim, saa et service-role-kald herfra ville svare 401.
+      // Vi saetter IKKE email_sent_at, saa send-notification-email sender mail-fallback
+      // efter 15 min uset, praecis som ved en normal advisor-besked.
       try {
-        await supabase.functions.invoke("notify-chat-reply", {
-          body: { conversation_id: conv.id, message_id: inserted.id },
-        });
+        const { data: memberRows } = await supabase
+          .from("company_members")
+          .select("user_id")
+          .eq("company_id", companyId);
+        const memberIds = (memberRows || []).map((m: { user_id: string }) => m.user_id);
+        if (memberIds.length > 0) {
+          await writeNotificationToMany(supabase, memberIds, {
+            type: "chat_reply",
+            priority: "important",
+            title: "Ny besked fra din rådgiver",
+            body: "Din rådgiver har skrevet til dig om din refleksion.",
+            reference_type: "message",
+            reference_id: inserted.id,
+            deep_link: "/chat",
+            company_id: companyId,
+            dedup_key: `reflection_nudge:${companyId}:${P}`,
+          });
+        }
       } catch (notifyErr) {
-        console.error(`[nudge] notify-chat-reply fejlede for virksomhed=${companyId}:`, notifyErr);
+        console.error(`[nudge] notifikation fejlede for virksomhed=${companyId}:`, notifyErr);
       }
 
       console.log(`[nudge][live] sendt -> virksomhed=${companyId} advisor="${advisorName}" periode=${P}`);
@@ -198,7 +245,7 @@ Deno.serve(async (req) => {
 
   const summary = {
     dry_run: dryRun,
-    candidates_examined: (facts || []).length,
+    candidates_examined: candidates.length,
     nudges: dryRun ? previews.length : sent,
     skipped,
     previews: dryRun ? previews : undefined,
