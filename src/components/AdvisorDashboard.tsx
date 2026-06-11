@@ -510,6 +510,17 @@ const AdvisorDashboard = () => {
         }
       }
 
+      // Alle refleksions-perioder pr. virksomhed (ikke kun den nyeste pulse), så
+      // reflectionStatus kan spørge "findes en refleksion for RAPPORTENS periode",
+      // uafhængigt af hvilken pulse der er nyest (rapport/refleksion er forskudt i takt).
+      const pulsePeriodsByCompany = new Map<string, Set<string>>();
+      for (const p of (pulseRes.data || []) as any[]) {
+        if (!p.company_id || !p.period_key) continue;
+        let set = pulsePeriodsByCompany.get(p.company_id);
+        if (!set) { set = new Set<string>(); pulsePeriodsByCompany.set(p.company_id, set); }
+        set.add(p.period_key);
+      }
+
       // Recently completed milestones (last 7 days)
       const recentlyCompletedMilestones = new Map<string, string>();
       for (const m of (recentMilestonesRes.data || []) as any[]) {
@@ -685,12 +696,13 @@ const AdvisorDashboard = () => {
 
         // ── Spor 2-felter (additivt) ──
         // reflectionStatus: "no_report" når der slet ingen committet rapport er
-        // (effective_period_key == null, sandeste "ingen rapport"-test). Ellers
-        // sammenlignes pulse.period_key med rapportens periode (rent YYYY-MM-match).
+        // (effective_period_key == null, sandeste "ingen rapport"-test). Ellers spørges
+        // om der findes en refleksion for RAPPORTENS periode blandt ALLE virksomhedens
+        // pulses (set-opslag), ikke om den NYESTE pulse tilfældigvis er for den periode.
         const reflectionStatus: "with_reflection" | "report_no_reflection" | "no_report" =
           latestKey == null
             ? "no_report"
-            : (pulse?.period_key === latestKey ? "with_reflection" : "report_no_reflection");
+            : (pulsePeriodsByCompany.get(c.id)?.has(latestKey) ? "with_reflection" : "report_no_reflection");
         const memberSince = (c as any).created_at ?? null;
         const isNewMember = memberSince != null && (now.getTime() - new Date(memberSince).getTime()) < 30 * 86400000;
         const tier = computeMembershipTier({
