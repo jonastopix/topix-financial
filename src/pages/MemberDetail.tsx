@@ -269,7 +269,7 @@ const MemberDetail = () => {
       if (!memberCompanyId) return null;
       const { data } = await supabase
         .from("pulse_checkins")
-        .select("went_well, biggest_challenge, milestone_progress, created_at, period_key")
+        .select("went_well, biggest_challenge, help_needed, milestone_progress, created_at, period_key")
         .eq("company_id", memberCompanyId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -818,16 +818,7 @@ const MemberDetail = () => {
       }
     }
 
-    // 4) Refleksion (kontekst, dæmpet) hvis nylig
-    if (latestPulse && (latestPulse.went_well || latestPulse.biggest_challenge)) {
-      const recent = !!latestPulse.created_at && (Date.now() - new Date(latestPulse.created_at).getTime()) < 75 * 86400000;
-      if (recent) {
-        const bits: string[] = [];
-        if (latestPulse.biggest_challenge) bits.push(`Udfordring: ${latestPulse.biggest_challenge}`);
-        if (latestPulse.went_well) bits.push(`Gik godt: ${latestPulse.went_well}`);
-        rows.push({ severity: "muted", kind: "reflection", badge: "Refleksion", title: "Medlemmets seneste refleksion", detail: bits.join(" · ") || undefined });
-      }
-    }
+    // (Refleksionen vises i sit eget dedikerede kort nedenfor, ikke som en blob her.)
 
     // 5) Løftestænger: forfaldne milestones (overdue-filter) + handout-levers (dæmpet)
     const overdue = milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed");
@@ -1334,16 +1325,22 @@ const MemberDetail = () => {
                 <p className="text-xs text-muted-foreground">Ingen refleksion endnu. Bed medlemmet om at udfylde sin månedlige refleksion.</p>
               ) : (
                 <div className="space-y-3">
-                  {latestPulse.went_well && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Hvad gik godt</p>
-                      <p className="text-sm text-foreground">{latestPulse.went_well}</p>
-                    </div>
-                  )}
                   {latestPulse.biggest_challenge && (
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Største udfordring</p>
-                      <p className="text-sm text-foreground">{latestPulse.biggest_challenge}</p>
+                      <p className="text-sm leading-relaxed text-foreground">{latestPulse.biggest_challenge}</p>
+                    </div>
+                  )}
+                  {(latestPulse as any).help_needed && (
+                    <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
+                      <p className="text-[10px] text-primary uppercase tracking-wider mb-0.5 font-semibold">Søger hjælp til</p>
+                      <p className="text-sm leading-relaxed text-foreground">{(latestPulse as any).help_needed}</p>
+                    </div>
+                  )}
+                  {latestPulse.went_well && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Hvad gik godt</p>
+                      <p className="text-sm leading-relaxed text-foreground">{latestPulse.went_well}</p>
                     </div>
                   )}
                   {latestPulse.milestone_progress != null && (
