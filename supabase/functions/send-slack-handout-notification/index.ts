@@ -133,11 +133,10 @@ Deno.serve(async (req) => {
     // ── Post Slack message ──
     const blocks = [
       {
-        type: "header",
+        type: "section",
         text: {
-          type: "plain_text",
-          text: `📝 Handout udfyldt: ${moduleTitle}`,
-          emoji: true,
+          type: "mrkdwn",
+          text: `✅  *${companyName}*  ·  handout udfyldt: ${moduleTitle}`,
         },
       },
       {

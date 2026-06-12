@@ -9,7 +9,7 @@ const corsHeaders = {
 const categoryLabels: Record<string, { emoji: string; label: string }> = {
   bug: { emoji: "🐛", label: "Ny bug-rapport" },
   suggestion: { emoji: "💡", label: "Nyt forslag" },
-  other: { emoji: "💬", label: "Ny feedback" },
+  other: { emoji: "📣", label: "Ny feedback" },
 };
 
 Deno.serve(async (req) => {
@@ -133,11 +133,10 @@ Deno.serve(async (req) => {
 
     const blocks = [
       {
-        type: "header",
+        type: "section",
         text: {
-          type: "plain_text",
-          text: `${cat.emoji} ${cat.label}`,
-          emoji: true,
+          type: "mrkdwn",
+          text: `${cat.emoji}  *${companyName}*  ·  ${cat.label.toLowerCase()}: ${feedback.title}`,
         },
       },
       {

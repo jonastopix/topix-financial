@@ -163,12 +163,10 @@ Deno.serve(async (req) => {
         ? ` • ${contextType.charAt(0).toUpperCase() + contextType.slice(1)}`
         : "";
 
-      const emoji = chatEmoji(contextType);
-
       const rootBlocks = [
         {
-          type: "header",
-          text: { type: "plain_text", text: `${emoji} Ny chat fra ${companyName}`, emoji: true },
+          type: "section",
+          text: { type: "mrkdwn", text: `💬  *${companyName}*  ·  ny chat-besked` },
         },
         {
           type: "section",
@@ -240,7 +238,7 @@ Deno.serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `💬 *${senderName}* fra ${companyName}\n>${preview}`,
+            text: `💬  *${companyName}*  ·  svar fra ${senderName}\n>${preview}`,
           },
         },
         {
@@ -312,16 +310,6 @@ Deno.serve(async (req) => {
     return json({ error: "Internal server error" }, 500);
   }
 });
-
-function chatEmoji(contextType: string | null): string {
-  switch (contextType) {
-    case "report": return "📊";
-    case "handout": return "📝";
-    case "milestone": return "🎯";
-    case "file": return "📎";
-    default: return "💬";
-  }
-}
 
 function json(data: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(data), {
