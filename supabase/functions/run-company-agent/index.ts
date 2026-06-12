@@ -574,15 +574,8 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       const advisorId = conv?.assigned_advisor_id;
       const memberId = conv?.member_id;
 
-      // Company name + trigger-aware title so the notification reflects the
-      // actual event (not always "ny rapport") and Slack carries context.
-      const { data: company } = await adminClient
-        .from("companies")
-        .select("name")
-        .eq("id", args.company_id)
-        .maybeSingle();
-      const companyName = company?.name || "Virksomhed";
-
+      // Trigger-aware title so the notification reflects the actual event
+      // (not always "ny rapport").
       const titleByTrigger: Record<string, string> = {
         pulse_submitted: "AI-agent har reageret på refleksion",
         weekly_cron: "AI-agents ugentlige gennemgang",
@@ -607,23 +600,8 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
           });
       }
 
-      // Slack notification (best effort)
-      const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
-      const slackChannel = Deno.env.get("SLACK_ADVISOR_CHANNEL_ID");
-      if (slackToken && slackChannel) {
-        const resp = await fetch("https://slack.com/api/chat.postMessage", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${slackToken}`,
-            "Content-Type": "application/json; charset=utf-8",
-          },
-          body: JSON.stringify({ channel: slackChannel, text: `*${companyName}*: ${args.message}` }),
-        });
-        const data = await resp.json();
-        if (!data.ok) console.warn("Slack notification failed:", data.error);
-      }
-
-      return { ok: true, in_app: !!advisorId, slack: !!(slackToken && slackChannel) };
+      // Agent insight stays in-app only (advisor bell + company chat). No Slack post.
+      return { ok: true, in_app: !!advisorId, slack: false };
     }
 
     case "update_weekly_focus": {
