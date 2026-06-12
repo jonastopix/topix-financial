@@ -357,7 +357,7 @@ const tools = [
   },
 ];
 
-async function executeTool(name: string, args: any, adminClient: any, trigger: string): Promise<any> {
+async function executeTool(name: string, args: any, adminClient: any, trigger: string, period_key: string): Promise<any> {
   switch (name) {
     case "get_company_facts": {
       const limit = args.limit ?? 6;
@@ -480,7 +480,7 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       let senderId: string = conv.member_id;
       let messageType = "system";
       let contextType: string | null = "agent";
-      let contextMeta: Record<string, unknown> | null = { source: "run-company-agent", trigger };
+      let contextMeta: Record<string, unknown> | null = { source: "run-company-agent", trigger, period_key };
 
       if (asAdvisor) {
         let advisorId: string | null = conv.assigned_advisor_id ?? null;
@@ -498,6 +498,28 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         messageType = "user";
         contextType = null;
         contextMeta = null;
+      }
+
+      // Dedup: kun EEN rapport-drevet observation pr. (virksomhed, periode). Rammer
+      // KUN report_committed + anomaly_detected (samme commit kan ellers give to
+      // observationer, og en overskrivning endnu en). Alle andre triggere er
+      // uaendrede. Den foerste observation pr. periode postes altid; kun efterfoelgende
+      // dubletter springes over.
+      if (
+        contextType === "agent" &&
+        (trigger === "report_committed" || trigger === "anomaly_detected")
+      ) {
+        const { data: existingObs } = await adminClient
+          .from("messages")
+          .select("id")
+          .eq("conversation_id", conv.id)
+          .eq("context_type", "agent")
+          .eq("context_meta->>period_key", period_key)
+          .limit(1)
+          .maybeSingle();
+        if (existingObs) {
+          return { ok: true, skipped: "dup_report_observation_for_period" };
+        }
       }
 
       const { data: msg, error: msgErr } = await adminClient
@@ -1054,7 +1076,7 @@ ${trigger === "pulse_submitted"
 
         let toolResult: any;
         try {
-          toolResult = await executeTool(toolName, toolArgs, adminClient, trigger);
+          toolResult = await executeTool(toolName, toolArgs, adminClient, trigger, period_key);
         } catch (err) {
           console.error(`Tool ${toolName} failed:`, err);
           toolResult = { error: err instanceof Error ? err.message : "Tool execution failed" };
