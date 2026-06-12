@@ -79,6 +79,57 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ── Slack: EEN "ny rapport klar"-besked pr. commit (advisor-kanalen) ──
+      // Dette er nu det eneste rapport-event der poster til Slack; raa upload goer
+      // det ikke laengere. Idempotens: reportId genbruges som message_id (UNIQUE),
+      // saa en gen-commit / dobbelt-invoke af samme rapport poster hoejst een gang.
+      const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+      const SLACK_CHANNEL = Deno.env.get("SLACK_ADVISOR_CHANNEL_ID");
+      if (SLACK_BOT_TOKEN && SLACK_CHANNEL) {
+        const { data: existingSlack } = await admin
+          .from("slack_report_notification_log")
+          .select("id")
+          .eq("message_id", reportId)
+          .maybeSingle();
+
+        if (!existingSlack) {
+          const appUrl =
+            Deno.env.get("PUBLIC_APP_URL") ||
+            Deno.env.get("APP_URL") ||
+            "https://app.theboardroom.dk";
+          const reportLink = `${appUrl}/members/${report.user_id}?reportId=${reportId}`;
+
+          const blocks = [
+            {
+              type: "header",
+              text: { type: "plain_text", text: `📊 Ny rapport klar: ${companyName}`, emoji: true },
+            },
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: `*${period}*\nTallene er gennemgået og låst, klar til sparring.` },
+            },
+            {
+              type: "context",
+              elements: [{ type: "mrkdwn", text: `<${reportLink}|Åbn rapport →>` }],
+            },
+          ];
+
+          const slackRes = await postToSlack(SLACK_BOT_TOKEN, {
+            channel: SLACK_CHANNEL,
+            text: `Ny rapport klar fra ${companyName}: ${period}`,
+            blocks,
+          });
+
+          await admin.from("slack_report_notification_log").insert({
+            report_id: reportId,
+            message_id: reportId,
+            company_id: report.company_id,
+            slack_channel_id: SLACK_CHANNEL,
+            slack_ts: slackRes?.ts || null,
+          });
+        }
+      }
+
       return json({ ok: true, notified: advisorIds.length });
     }
     // ── END report_committed ──
@@ -366,69 +417,31 @@ Deno.serve(async (req) => {
     }
 
     // ── Fetch context ──
-    const [companyRes, profileRes] = await Promise.all([
-      admin.from("companies").select("name").eq("id", report.company_id).single(),
-      admin.from("profiles").select("full_name").eq("user_id", report.user_id).single(),
-    ]);
+    const { data: companyData } = await admin
+      .from("companies").select("name").eq("id", report.company_id).single();
 
-    const companyName = companyRes.data?.name || "Ukendt virksomhed";
-    const uploaderName = profileRes.data?.full_name || "Ukendt bruger";
+    const companyName = companyData?.name || "Ukendt virksomhed";
     const reportPeriod = report.report_period || "Ukendt periode";
     const reportLabel = report.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
 
-    // ── Slack config ──
-    const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+    // ── Raa upload poster IKKE laengere til Slack ──
+    // Advisor-Slack-beskeden er flyttet til report_committed-stien ("ny rapport
+    // klar"). Vi beholder log-raekken som idempotens-markoer, saa de in-app-skriv
+    // nedenfor (legacy advisor_notifications + nye notifications) forbliver praecis
+    // lige saa idempotente som foer (top-tjekket ovenfor laeser denne tabel).
     const SLACK_CHANNEL = Deno.env.get("SLACK_ADVISOR_CHANNEL_ID");
-    if (!SLACK_BOT_TOKEN || !SLACK_CHANNEL) {
-      console.error("Missing SLACK_BOT_TOKEN or SLACK_ADVISOR_CHANNEL_ID");
+    if (!SLACK_CHANNEL) {
+      console.error("Missing SLACK_ADVISOR_CHANNEL_ID");
       return json({ ok: false, error: "slack_not_configured" }, 500);
     }
 
-    const appUrl =
-      Deno.env.get("PUBLIC_APP_URL") ||
-      Deno.env.get("APP_URL") ||
-      "https://app.theboardroom.dk";
-
-    const reportLink = `${appUrl}/reports?reportId=${report.id}`;
-    const uploadTime = new Date(report.uploaded_at).toLocaleString("da-DK", { timeZone: "Europe/Copenhagen" });
-
-    // ── Post Slack message (mrkdwn only, no buttons) ──
-    const blocks = [
-      {
-        type: "header",
-        text: { type: "plain_text", text: `📊 Ny rapport fra ${companyName}`, emoji: true },
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*${reportLabel}* · ${reportPeriod}\nFil: \`${report.file_name}\`\nUploadet af ${uploaderName} · ${uploadTime}`,
-        },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `<${reportLink}|Åbn rapport →>`,
-          },
-        ],
-      },
-    ];
-
-    const slackRes = await postToSlack(SLACK_BOT_TOKEN, {
-      channel: SLACK_CHANNEL,
-      text: `Ny ${reportLabel.toLowerCase()} fra ${companyName}: ${reportPeriod}`,
-      blocks,
-    });
-
-    // ── Log notification ──
+    // ── Log notification (idempotens-markoer, ingen Slack-post ved upload) ──
     await admin.from("slack_report_notification_log").insert({
       report_id: report.id,
       message_id,
       company_id: report.company_id,
       slack_channel_id: SLACK_CHANNEL,
-      slack_ts: slackRes?.ts || null,
+      slack_ts: null,
     });
 
     // ── Create advisor notification (legacy — dual write) ──
