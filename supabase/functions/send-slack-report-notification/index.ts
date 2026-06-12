@@ -101,8 +101,8 @@ Deno.serve(async (req) => {
 
           const blocks = [
             {
-              type: "header",
-              text: { type: "plain_text", text: `📊 Ny rapport klar: ${companyName}`, emoji: true },
+              type: "section",
+              text: { type: "mrkdwn", text: `📊  *${companyName}*  ·  ny rapport klar` },
             },
             {
               type: "section",
@@ -278,8 +278,8 @@ Deno.serve(async (req) => {
 
         const blocks = [
           {
-            type: "header",
-            text: { type: "plain_text", text: `📝 ${companyName} · ${founderName} · ${periodLabel}`, emoji: true },
+            type: "section",
+            text: { type: "mrkdwn", text: `💭  *${companyName}*  ·  ny refleksion` },
           },
           {
             type: "section",
