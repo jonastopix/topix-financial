@@ -1,0 +1,26 @@
+-- Sluk pulse-reminder-mailen (cron-jobbet 'send-pulse-reminder').
+--
+-- HVORFOR: send-pulse-reminder beder om refleksion paa fast dato (dag 10) uanset
+-- hvor founderen er i sin rapporterings-cyklus. Det er forkert raekkefoelge: en
+-- refleksion giver foerst mening EFTER maanedens rapport er committet. Den nye
+-- nudge-report-no-reflection afloeser den korrekt (rapport foerst, derefter en
+-- maalrettet refleksions-nudge fra den tildelte advisor for netop den rapporterede
+-- periode). Derfor pensioneres den faste pulse-mail.
+--
+-- VIGTIGT: AKTIVÉR MANUELT. Ligesom husets oevrige cron-aendringer koeres denne
+-- migration manuelt i Lovable -> SQL editor. Filen er kanonisk historik +
+-- klar-til-koersel; et git-merge alene aendrer ikke cron-skemaet i prod.
+--
+-- Vi UNSCHEDULER kun jobbet. Selve edge-funktionen send-pulse-reminder slettes
+-- IKKE (den er single-purpose og uroert), saa cron'en let kan taendes igen via
+-- migration 20260331063447 hvis vi fortryder.
+--
+-- KOSMETISKE LOOSE ENDS (roeres IKKE her, ufarlige, kan ryddes senere):
+--   - Settings-toggle 'pulse_reminders' (src/pages/Settings.tsx) beskriver nu en
+--     mail der ikke laengere sender.
+--   - AdminEmailLog-label "pulse-reminder" (src/pages/AdminEmailLog.tsx) bliver
+--     kun relevant for historiske log-raekker.
+--
+-- To revert (gen-aktiver): koer migration 20260331063447 igen (cron.schedule).
+
+SELECT cron.unschedule('send-pulse-reminder');
