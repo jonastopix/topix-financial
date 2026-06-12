@@ -44,7 +44,7 @@ const ActivityFeed = () => {
         activity.push({
           id: `report-${r.id}`,
           type: "report",
-          description: `Rapport uploadet: ${effectivePeriod || "ukendt periode"}`,
+          description: effectivePeriod ? `Rapport uploadet: ${effectivePeriod}` : "Rapport uploadet",
           timestamp: r.uploaded_at,
           link: "/reports",
         });
