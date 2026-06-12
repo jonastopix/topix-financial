@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
           ? new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short" })
           : "";
         const målInfo = m.target_value && m.unit
-          ? ` — ${m.current_value ?? 0}/${m.target_value} ${m.unit}`
+          ? `: ${m.current_value ?? 0}/${m.target_value} ${m.unit}`
           : ` (${m.progress}%)`;
         return `• ${m.title}${målInfo}${d ? `, deadline ${d}` : ""}`;
       });

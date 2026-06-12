@@ -50,7 +50,7 @@ const FALLBACK_HTML = `<!DOCTYPE html>
   <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
     <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Rapportering · {{period}}</p>
     <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">{{subject_line}}</h1>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Hej {{first_name}} — {{intro}}</p>
+    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Hej {{first_name}}, {{intro}}</p>
     <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0">
       <p style="color:#166534;font-size:13px;margin:0;font-weight:500">Eksportér direkte fra e-conomic, Dinero eller Billy og upload filen.</p>
     </div>
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     const subjectLines: Record<Urgency, string> = {
       gentle: `Husk at uploade din rapport`,
       urgent: `Din rapport mangler stadig`,
-      critical: `Vigtigt — rapporten er forsinket`,
+      critical: `Vigtigt: rapporten er forsinket`,
     };
     const intros: Record<Urgency, string> = {
       gentle: `vi har endnu ikke modtaget din rapport for <strong>{{period}}</strong>. Det tager under 2 minutter, og vi trækker tallene ud automatisk.`,
@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
             title: dayOfMonth >= 15
               ? `Rapport for ${expectedPeriod} mangler stadig`
               : `Husk: Upload din rapport for ${expectedPeriod}`,
-            body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram — det tager under 2 minutter.`,
+            body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram. Det tager under 2 minutter.`,
             reference_type: "report",
             deep_link: "/reports",
             company_id: company.id,
