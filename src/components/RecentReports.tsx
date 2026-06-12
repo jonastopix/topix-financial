@@ -67,7 +67,7 @@ const RecentReports = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                    {report.report_period || "Ukendt periode"}
+                    {report.report_period || "Rapport"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Uploadet {format(new Date(report.uploaded_at), "d. MMM yyyy", { locale: da })}

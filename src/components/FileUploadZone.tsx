@@ -5,7 +5,6 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { postActivityMessage } from "@/lib/chatActivity";
 import { notifyReportUpload } from "@/lib/reportNotify";
 import { sanitizeFileName, buildStoragePath } from "@/lib/reportFileAccess";
 import { detectTemplate, extractKJAutoTemplate, templateResultToExtractedData } from "@/lib/excelTemplates";
@@ -610,38 +609,12 @@ const FileUploadZone = ({
         updateFile(fileId, { extractedData });
         onExtracted?.(extractedData);
 
-        // Post compact activity: report uploaded (skip in admin mode)
+        // Founder-kvitteringen i chatten er fjernet (rapport-oejeblikket bygges
+        // separat). Advisor-upload-notifikationen bevares uaendret; den faar et
+        // selvstaendigt id, IKKE reportRecord.id, som commit-Slack-stien bruger som
+        // idempotens-noegle i samme log-tabel.
         if (!adminMode && conversationId && userId) {
-          const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-          const period = extractedData.report_period || "ukendt periode";
-          const omsaetning = (extractedData as any)?.normalized_data?.omsaetning ?? (extractedData as any)?.extracted_data?.omsaetning ?? null;
-          const resultat = (extractedData as any)?.normalized_data?.resultat_foer_skat ?? (extractedData as any)?.extracted_data?.resultat_foer_skat ?? null;
-          const lines = [`📄 **${reportLabel}** uploadet for **${period}**`];
-          if (omsaetning != null) {
-            lines.push(`Omsætning: ${Number(omsaetning).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
-          }
-          if (resultat != null) {
-            const sign = Number(resultat) >= 0 ? "+" : "";
-            lines.push(`Resultat: ${sign}${Number(resultat).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
-          }
-          const content = lines.join("\n");
-          const messageId = await postActivityMessage({
-            conversationId,
-            senderId: userId,
-            content,
-            contextType: "report",
-            contextId: reportRecord.id,
-            contextMeta: {
-              title: `${reportLabel} · ${period}`,
-              report_id: reportRecord.id,
-              report_period: period,
-              file_path: storagePath,
-              file_name: file.name,
-            },
-          });
-          if (messageId) {
-            notifyReportUpload(reportRecord.id, messageId);
-          }
+          notifyReportUpload(reportRecord.id, crypto.randomUUID());
         }
 
         // === STEP 3: Post-extraction pipeline (RP-2: no auto-AI) ===
@@ -835,38 +808,10 @@ const FileUploadZone = ({
       updateFile(pendingFileId, { extractedData });
       onExtracted?.(extractedData);
 
-      // Post compact activity (skip in admin mode)
+      // Founder-kvitteringen i chatten er fjernet (rapport-oejeblikket bygges
+      // separat). Advisor-upload-notifikationen bevares uaendret med et selvstaendigt id.
       if (!adminMode && conversationId && userId) {
-        const reportLabel = extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse";
-        const period = extractedData.report_period || "ukendt periode";
-        const omsaetning = (extractedData as any)?.normalized_data?.omsaetning ?? (extractedData as any)?.extracted_data?.omsaetning ?? null;
-        const resultat = (extractedData as any)?.normalized_data?.resultat_foer_skat ?? (extractedData as any)?.extracted_data?.resultat_foer_skat ?? null;
-        const lines = [`📄 Rapport overskrevet: **${reportLabel}** for **${period}**`];
-        if (omsaetning != null) {
-          lines.push(`Omsætning: ${Number(omsaetning).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
-        }
-        if (resultat != null) {
-          const sign = Number(resultat) >= 0 ? "+" : "";
-          lines.push(`Resultat: ${sign}${Number(resultat).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`);
-        }
-        const content = lines.join("\n");
-        const messageId = await postActivityMessage({
-          conversationId,
-          senderId: userId,
-          content,
-          contextType: "report",
-          contextId: reportRecord.id,
-          contextMeta: {
-            title: `${reportLabel} · ${period}`,
-            report_id: reportRecord.id,
-            report_period: period,
-            file_path: overwriteStoragePath,
-            file_name: pendingFile.name,
-          },
-        });
-        if (messageId) {
-          notifyReportUpload(reportRecord.id, messageId);
-        }
+        notifyReportUpload(reportRecord.id, crypto.randomUUID());
       }
 
       // === Post-extraction pipeline (AI + milestones + done) ===
