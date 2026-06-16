@@ -102,24 +102,29 @@ export async function postReportCardMessage(params: PostReportCardParams): Promi
 }
 
 /**
- * Suppresses the "report_review_ready" email fallback once a report is committed.
+ * Suppresses the report review email fallback once a report is committed.
  *
- * That notification is written at upload time (extract-financial-data) as an
- * action_required item; a 15-minute pg_cron emails it ("Dine tal er klar /
- * gennemgaa dine tal") IF it is still unseen and un-emailed. When the founder
- * reviews and commits the report, that ask is already done, so the fallback mail
- * is pure noise. We set email_sent_at to mark the email side handled.
+ * At upload time extract-financial-data writes an action_required notification
+ * asking the founder to review and approve the extracted numbers. A 15-minute
+ * pg_cron emails it if it is still unseen and un-emailed. There are TWO variants
+ * for the same report, distinguished by dedup_key:
+ *   report_review_ready:<reportId>  ("gennemgaa dine tal", numbers auto-extracted)
+ *   report_manual_entry:<reportId>  ("indtast tal manuelt", extraction failed)
+ * Once the report is committed, both ask for something the founder has just done,
+ * so both fallback mails are pure noise. We mark the email side handled on both.
  *
  * We deliberately set email_sent_at (NOT seen_at): it suppresses ONLY the
  * fallback mail and leaves the in-app notification state untouched. The reminder
  * still fires for reports the founder has NOT committed (deferred approval,
- * advisor-upload) because we set the field only on an actual commit.
+ * advisor-upload) because we set the field only on an actual commit. Other
+ * notification types for the same report (report_error, financial alerts) are
+ * untouched.
  *
  * Owner-scoped + idempotent: RLS ("Users update own notifications") limits the
- * update to the committing founder's own row; the dedup_key targets exactly this
- * report's review notification, and `email_sent_at IS NULL` makes a re-commit a
- * no-op. Non-blocking: a failure never breaks the commit. Frontend-only, no
- * RLS / migration change.
+ * update to the committing founder's own rows; the dedup_key list targets exactly
+ * this report's two review notifications, and `email_sent_at IS NULL` makes a
+ * re-commit a no-op. Non-blocking: a failure never breaks the commit. Frontend
+ * only, no RLS or migration change.
  */
 export async function clearReportReviewNotification(reportId: string): Promise<void> {
   if (!reportId) return;
@@ -127,7 +132,10 @@ export async function clearReportReviewNotification(reportId: string): Promise<v
     await supabase
       .from("notifications")
       .update({ email_sent_at: new Date().toISOString() } as never)
-      .eq("dedup_key", `report_review_ready:${reportId}`)
+      .in("dedup_key", [
+        `report_review_ready:${reportId}`,
+        `report_manual_entry:${reportId}`,
+      ])
       .is("email_sent_at", null);
   } catch (err) {
     console.warn("[reportCommit] clearReportReviewNotification failed (non-blocking):", err);
