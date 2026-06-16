@@ -50,6 +50,47 @@ export type Database = {
         }
         Relationships: []
       }
+      advisor_company_acknowledgments: {
+        Row: {
+          acknowledged_at: string
+          advisor_id: string
+          basis_at: string
+          company_id: string
+          created_at: string
+          id: string
+          note: string | null
+          snoozed_until: string | null
+        }
+        Insert: {
+          acknowledged_at?: string
+          advisor_id: string
+          basis_at: string
+          company_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          snoozed_until?: string | null
+        }
+        Update: {
+          acknowledged_at?: string
+          advisor_id?: string
+          basis_at?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          snoozed_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_company_acknowledgments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       advisor_financial_actions: {
         Row: {
           actioned_at: string
