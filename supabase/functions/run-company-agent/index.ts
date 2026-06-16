@@ -26,10 +26,10 @@ HVAD DU GØR (i rækkefølge):
 1. Hent fakta, pulse, milestones, handouts og KPI-mål
 2. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned og med mål.
 3. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering
-4. Skriv én besked til founder i chatten — fokusér på ét nøglefund, ikke fem
+4. Saml din vigtigste indsigt i advisor-forberedelses-sporet med write_session_prep. Founderen ser den ikke. Fokusér på ét nøglefund, ikke fem. (Undtagelse: ved onboarding skriver du i stedet en velkomst til founder som beskrevet i onboarding-instruktionen.)
 5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
 6. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
-7. Notificér advisor med 2 konkrete observationer og ét spørgsmål til næste møde
+7. Notificér KUN advisoren med notify_advisor ved onboarding (engangs-besked om en ny aktiv member). Ved report, anomali, pulse og ugentlig gennemgang skubber du ALDRIG til advisoren; al din indsigt samles i write_session_prep (trin 4)
 8. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
 9. Kald finish
 
@@ -664,8 +664,32 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .maybeSingle();
       if (!conv) return { ok: false, reason: "no_conversation" };
 
-      // Store as a pinned system message so advisor sees it in chat
+      // System-besked; founderen filtreres fra i UI'en (CompanyChatPane), saa kun
+      // advisoren ser forberedelsen.
       const content = `**Forbered til næste session:**\n${points.map((p, i) => `${i + 1}. ${p}`).join("\n")}`;
+      const contextMeta = { source: "run-company-agent", points, period_key, generated_at: now.toISOString() };
+
+      // Idempotent pr. (virksomhed, periode): EET opdateret forberedelses-billede pr.
+      // periode, aldrig en stak. Findes der allerede en session_prep for denne periode,
+      // saa overskriv den med nyeste syntese; ellers indsaet. Spejler report-dedup'en
+      // i write_chat_message (samme (conversation, context_type, period_key)-noegle).
+      const { data: existingPrep } = await adminClient
+        .from("messages")
+        .select("id")
+        .eq("conversation_id", conv.id)
+        .eq("context_type", "session_prep")
+        .eq("context_meta->>period_key", period_key)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPrep) {
+        const { error: updErr } = await adminClient
+          .from("messages")
+          .update({ content, context_meta: contextMeta })
+          .eq("id", existingPrep.id);
+        if (updErr) throw new Error(updErr.message);
+        return { ok: true, points_count: points.length, updated: true };
+      }
 
       const { error } = await adminClient
         .from("messages")
@@ -675,11 +699,11 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
           content,
           message_type: "system",
           context_type: "session_prep",
-          context_meta: { source: "run-company-agent", points, generated_at: now.toISOString() },
+          context_meta: contextMeta,
         });
 
       if (error) throw new Error(error.message);
-      return { ok: true, points_count: points.length };
+      return { ok: true, points_count: points.length, updated: false };
     }
 
     case "update_milestone_progress": {
@@ -907,14 +931,26 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Pulse-refleksion: advisor faar en deterministisk template-notifikation fra
-  // send-slack-report-notification, saa agenten skal IKKE have notify_advisor.
-  // Arkitektonisk haandhaevelse - prompt-instruktion alene virkede ikke (Gemini
-  // kaldte notify_advisor alligevel trods eksplicit forbud i PR #63).
-  // write_company_action og create_milestone fjernes ogsaa - refleksion er
-  // founderens stille check-in, ikke en handlings-trigger.
+  // Agenten poster ALDRIG uopfordret i founderens chat for rutine-triggers.
+  // write_chat_message fjernes derfor fra pool'en for report_committed,
+  // anomaly_detected, pulse_submitted og weekly_cron. Indsigten samles i stedet
+  // i advisor-forberedelses-sporet (write_session_prep, founder-skjult).
+  // KUN onboarding beholder write_chat_message - til den bevarede velkomstbesked.
+  // Arkitektonisk haandhaevelse, ikke kun prompt: prompt-forbud alene virkede ikke
+  // (Gemini kaldte blokerede tools alligevel, PR #63).
+  //
+  // Intet skubbes mod advisoren ved rutine-koersler: notify_advisor (klokken) er fjernet
+  // fra pool'en for ALLE fire rutine-triggers. Advisoren gaar selv ind og laeser
+  // forberedelsen i write_session_prep. KUN onboarding beholder notify_advisor - til den
+  // oenskede engangs-besked om en ny aktiv member.
+  // Pulse-refleksion: advisor faar i forvejen en deterministisk template-notifikation fra
+  // send-slack-report-notification; write_company_action og create_milestone fjernes ogsaa
+  // - refleksion er founderens stille check-in, ikke en handlings-trigger.
   const POOL_BLOCKLIST: Record<string, string[]> = {
-    pulse_submitted: ["notify_advisor", "write_company_action", "create_milestone"],
+    report_committed: ["write_chat_message", "notify_advisor"],
+    anomaly_detected: ["write_chat_message", "notify_advisor"],
+    pulse_submitted: ["write_chat_message", "notify_advisor", "write_company_action", "create_milestone"],
+    weekly_cron: ["write_chat_message", "notify_advisor"],
   };
   const blocked = POOL_BLOCKLIST[trigger] ?? [];
   const activeTools = blocked.length
@@ -998,14 +1034,14 @@ Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDa
 Virksomhedens alder: ${companyData.start_date ? (() => { const months = Math.floor((Date.now() - new Date(companyData.start_date).getTime()) / (1000 * 60 * 60 * 24 * 30)); return months < 6 ? `${months} måneder (tidlig fase)` : months < 18 ? `${months} måneder (vækstfase)` : `${Math.floor(months/12)} år (moden fase)`; })() : "ukendt"}
 
 ${trigger === "pulse_submitted" 
-  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis du vil knytte dem til chat-svaret til founder.\n\nSkriv en kort personlig respons i founderens chat med write_chat_message og **as_advisor: true** (så beskeden vises som fra rådgiveren, ikke som grå system-boks). Tag udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION — særligt deres største udfordring. Foreslå ét konkret næste skridt. Opdatér weekly focus.\n\nKALD IKKE notify_advisor for denne trigger. Advisor får automatisk en separat template-notifikation med refleksionens fulde indhold (sendes af send-slack-report-notification), så din opgave her er KUN at give founder en god chat-respons og opdatere weekly focus. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner — pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
+  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder, med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring. Founderen ser IKKE denne forberedelse. Opdatér weekly focus.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
   : trigger === "weekly_cron"
-  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nHent facts, pulse, milestones og KPI-mål. Skriv én kort motiverende besked i chatten der opsummerer hvad der er vigtigst at fokusere på denne uge. Opdatér weekly focus. Notificér advisor kun hvis der er noget konkret at handle på.`
+  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nHent facts, pulse, milestones og KPI-mål. Saml det vigtigste at fokusere på denne uge i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter til næste session med founder. Founderen ser IKKE denne forberedelse. Opdatér weekly focus. Du må IKKE skrive i founderens chat.`
   : trigger === "anomaly_detected"
-  ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Skriv en kort, direkte besked til founder der forklarer hvad der er sket og hvad de skal gøre NU. Maks 3 sætninger. Opdatér IKKE weekly focus med negativ information — brug kun chat. Notificér advisor med høj prioritet.`
+  ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Saml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter der forklarer hvad der er sket og hvad der bør handles på, så advisoren kan tage det op med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"
   ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten med write_chat_message og **as_advisor: true** (så den vises som besked fra rådgiveren med navn og avatar — IKKE som system-boks). Beskeden skal:\n   - Bruge fornavnet\n   - Referere specifikt til hvad de selv har skrevet om deres situation og mål\n   - Være varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
-  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din besked.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret ×12 med jævn fordeling). Nævn dette i din besked og opfordr founder til at justere budgetmånederne der afviger fra gennemsnittet — fx høj- og lavsæson.\n\nHvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau — fx 'Sammenlignet med jeres årsregnskab for 2024 viser denne rapport...'`
+  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din forberedelse.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér weekly focus.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i forberedelsen som noget advisoren kan drøfte med founder, fx at justere budgetmånederne der afviger fra gennemsnittet. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
 }`,
       },
     ];
@@ -1013,7 +1049,8 @@ ${trigger === "pulse_submitted"
     const MAX_ITERATIONS = 12;
     let iterations = 0;
     let done = false;
-    let messageWritten = false;
+    let messageWritten = false;   // KUN write_chat_message; styrer onboarding_completed
+    let producedOutput = false;   // write_chat_message ELLER write_session_prep; styrer success-gaten
     let lastError: string | null = null;
     let stopReason: string | null = null;
 
@@ -1084,6 +1121,12 @@ ${trigger === "pulse_submitted"
 
         if (toolName === "write_chat_message" && toolResult?.ok === true) {
           messageWritten = true;
+          producedOutput = true;
+        }
+        // Advisor-only-koersler (de fire rutine-triggers) lykkes naar agenten har
+        // samlet sin indsigt i forberedelses-sporet, selv uden en founder-chat-besked.
+        if (toolName === "write_session_prep" && toolResult?.ok === true) {
+          producedOutput = true;
         }
 
         if (toolName === "finish") {
@@ -1100,14 +1143,14 @@ ${trigger === "pulse_submitted"
       messages.push(...toolResults);
     }
 
-    if (!messageWritten) {
+    if (!producedOutput) {
       return new Response(
         JSON.stringify({
           ok: false,
           done,
           iterations,
-          error: lastError || "Agent fuldførte uden at skrive en chat-besked",
-          diagnostics: { stop_reason: stopReason || "max_iterations_reached", message_written: false },
+          error: lastError || "Agent fuldførte uden at producere output (hverken chat-besked eller session-forberedelse)",
+          diagnostics: { stop_reason: stopReason || "max_iterations_reached", produced_output: false },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -1122,7 +1165,7 @@ ${trigger === "pulse_submitted"
     }
 
     return new Response(
-      JSON.stringify({ ok: true, iterations, done, message_written: true }),
+      JSON.stringify({ ok: true, iterations, done, produced_output: true, message_written: messageWritten }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
