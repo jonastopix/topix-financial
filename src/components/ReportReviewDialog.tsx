@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { postReportCardMessage } from "@/lib/reportCommit";
+import { postReportCardMessage, clearReportReviewNotification } from "@/lib/reportCommit";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -255,6 +255,8 @@ export default function ReportReviewDialog({
 
       // Founder-facing report card in chat — idempotent per (company, period).
       postReportCardMessage({ companyId, reportId, periodKey: preview?.period_key });
+      // Report committed: suppress the "report_review_ready" email fallback.
+      clearReportReviewNotification(reportId);
 
       toast.success("✓ Dine tal er opdateret", {
         description: `${preview?.period_label || "Perioden"} er nu en del af dit dashboard.`,
@@ -386,6 +388,8 @@ export default function ReportReviewDialog({
 
       // Founder-facing report card in chat — idempotent per (company, period).
       postReportCardMessage({ companyId, reportId, periodKey: preview?.period_key });
+      // Report committed: suppress the "report_review_ready" email fallback.
+      clearReportReviewNotification(reportId);
 
       toast.success("✓ Tallene er opdateret", {
         description: `${preview?.period_label || "Den nye periode"} vises nu på dit dashboard.`,
