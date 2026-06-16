@@ -23,6 +23,84 @@ export interface PropagateReportCommitParams {
   metricsPreview: Record<string, number> | null | undefined;
 }
 
+export interface PostReportCardParams {
+  companyId: string | null | undefined;
+  reportId: string;
+  periodKey: string | null | undefined;
+}
+
+/**
+ * Posts (or refreshes) the founder-facing report card in the company chat.
+ *
+ * Idempotent per (company conversation, period_key): there is at most ONE
+ * report_card message per period. A re-commit / overwrite of the same period
+ * does NOT create a duplicate — it only points the existing card at the newest
+ * report (so "Åbn rapportfil" and the key figures always resolve to the latest
+ * data for that period).
+ *
+ * The card itself carries the content (file link + key figures + trend); the
+ * stored message text is a short neutral line. `context_meta.kind ===
+ * "report_card"` is the discriminator the chat render uses so ONLY this card
+ * gets the rich render — the AI analysis message (no `kind`) is untouched.
+ *
+ * Fully non-blocking and self-contained: any failure is swallowed with a warn,
+ * exactly like the other downstream invokes in `propagateReportCommit`.
+ *
+ * Frontend-only — relies on the existing messages RLS (the committing user can
+ * already post to their company conversation). No RLS / storage / migration.
+ */
+export async function postReportCardMessage(params: PostReportCardParams): Promise<void> {
+  const { companyId, reportId, periodKey } = params;
+  // Require a period_key: it is both the idempotency key and the card's period.
+  // No period -> skip silently (never render an "ukendt periode" card).
+  if (!companyId || !reportId || !periodKey) return;
+
+  try {
+    // The company conversation is 1:1 with the company.
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!conv?.id) return;
+
+    // Idempotency: one report_card per (conversation, period_key).
+    const { data: existing } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", conv.id)
+      .eq("context_type", "report")
+      .eq("context_meta->>kind", "report_card")
+      .eq("context_meta->>period_key", periodKey)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      // Re-commit / overwrite: keep the single card, point it at the newest report.
+      await supabase
+        .from("messages")
+        .update({ context_id: reportId } as never)
+        .eq("id", (existing[0] as { id: string }).id);
+      return;
+    }
+
+    const { data: auth } = await supabase.auth.getUser();
+    const senderId = auth.user?.id;
+    if (!senderId) return;
+
+    await supabase.from("messages").insert({
+      conversation_id: conv.id,
+      sender_id: senderId,
+      content: "Ny rapport er klar i dit dashboard.",
+      message_type: "system",
+      context_type: "report",
+      context_id: reportId,
+      context_meta: { kind: "report_card", period_key: periodKey },
+    } as never);
+  } catch (err) {
+    console.warn("[reportCommit] postReportCardMessage failed (non-blocking):", err);
+  }
+}
+
 export function propagateReportCommit(params: PropagateReportCommitParams): void {
   const { queryClient, companyId, reportId, periodKey, periodLabel, metricsPreview } = params;
 
@@ -32,6 +110,12 @@ export function propagateReportCommit(params: PropagateReportCommitParams): void
   queryClient.invalidateQueries({ queryKey: ["financial-reports-chart"] });
   queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+
+  // Post / refresh the founder-facing report card in chat — idempotent per
+  // (company, period), so a re-commit never duplicates it. Non-blocking.
+  postReportCardMessage({ companyId, reportId, periodKey }).catch((err) =>
+    console.warn("[reportCommit] report card post failed (non-blocking):", err)
+  );
 
   // Notify advisors that member has approved their report — non-blocking
   supabase.functions.invoke("send-slack-report-notification", {
