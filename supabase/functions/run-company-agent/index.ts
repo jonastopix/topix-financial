@@ -1112,11 +1112,22 @@ ${trigger === "pulse_submitted"
         }
 
         let toolResult: any;
-        try {
-          toolResult = await executeTool(toolName, toolArgs, adminClient, trigger, period_key);
-        } catch (err) {
-          console.error(`Tool ${toolName} failed:`, err);
-          toolResult = { error: err instanceof Error ? err.message : "Tool execution failed" };
+        if (blocked.includes(toolName)) {
+          // Haandhaev POOL_BLOCKLIST ogsaa ved EKSEKVERING, ikke kun ved annoncering.
+          // Modellen kan finde paa at kalde et blokeret tool alligevel (den kender det
+          // fra historik/traening), saa filtreringen af activeTools er ikke nok.
+          // Afvis kaldet her, saa write_chat_message / notify_advisor aldrig naar
+          // founder-chatten eller klokken for de fire rutine-triggers. Svaret fortaeller
+          // modellen at kaldet blev afvist, saa den kan vaelge et tilladt tool naeste gang.
+          console.log(`[run-company-agent] trigger=${trigger} BLOCKED tool call afvist: ${toolName}`);
+          toolResult = { ok: false, blocked: true, reason: `tool '${toolName}' ikke tilladt for trigger '${trigger}'` };
+        } else {
+          try {
+            toolResult = await executeTool(toolName, toolArgs, adminClient, trigger, period_key);
+          } catch (err) {
+            console.error(`Tool ${toolName} failed:`, err);
+            toolResult = { error: err instanceof Error ? err.message : "Tool execution failed" };
+          }
         }
 
         if (toolName === "write_chat_message" && toolResult?.ok === true) {
