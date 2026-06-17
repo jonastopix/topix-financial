@@ -173,20 +173,78 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 5. Write notifications
-  for (const alert of alerts) {
-    for (const userId of userIds) {
+  // 5. Write notifications (split: advisors keep the three separate alerts,
+  //    members get one calm consolidated message instead of a burst).
+  if (alerts.length > 0) {
+    // A) ADVISORS: unchanged. One notification per alert per advisor, with the
+    //    existing types and dedup_keys. The advisor dashboard, get-advisor-alerts
+    //    feed and panels all filter on these three specific types, so this
+    //    behaviour must stay exactly as before.
+    for (const alert of alerts) {
+      for (const advisorUserId of advisorUserIds) {
+        await writeNotification(adminClient, {
+          user_id: advisorUserId,
+          type: alert.type,
+          priority: alert.priority,
+          title: alert.title,
+          body: alert.body,
+          deep_link: alert.deep_link,
+          company_id: company_id,
+          reference_type: "report",
+          reference_id: report_id,
+          dedup_key: `${alert.type}:${company_id}:${alert.dedup_suffix}`,
+        });
+      }
+    }
+
+    // B) MEMBERS: one consolidated, calm message. The founder just uploaded and
+    //    approved these figures, so the tone is informative, not alarming.
+    const hasNegativeCash = alerts.some((a) => a.type === "alert_negative_cash");
+    const summaryPriority: "important" | "action_required" = hasNegativeCash
+      ? "action_required"
+      : "important";
+
+    let summaryTitle: string;
+    let summaryBody: string;
+    let summaryDeepLink: string;
+
+    if (alerts.length === 1) {
+      // Single condition: reuse the alert's own title, body and deep link.
+      summaryTitle = alerts[0].title;
+      summaryBody = alerts[0].body;
+      summaryDeepLink = alerts[0].deep_link;
+    } else {
+      // Several conditions: gather the concrete numbers into one calm text
+      //    and close with a single, lasting call to action.
+      summaryTitle = `Et par tal værd at se på i ${currentFact.period_label}`;
+      const details = alerts.map((a) => {
+        switch (a.type) {
+          case "alert_revenue_drop":
+            return `Omsætningen faldt fra ${formatDKK(prev!.revenue!)} til ${formatDKK(cur.revenue!)}.`;
+          case "alert_negative_cash":
+            return `Likviditeten er negativ med ${formatDKK(cur.cash!)}.`;
+          case "alert_result_negative":
+            return `Resultatet vendte fra ${formatDKK(prev!.ebt!)} til ${formatDKK(cur.ebt!)}.`;
+          default:
+            return a.body;
+        }
+      });
+      summaryBody = `${details.join(" ")} Du kan se de fulde tal på dine KPI'er, når du har tid.`;
+      summaryDeepLink = "/kpis";
+    }
+
+    for (const memberUserId of memberUserIds) {
       await writeNotification(adminClient, {
-        user_id: userId,
-        type: alert.type,
-        priority: alert.priority,
-        title: alert.title,
-        body: alert.body,
-        deep_link: alert.deep_link,
+        user_id: memberUserId,
+        type: "alert_financial_summary",
+        priority: summaryPriority,
+        title: summaryTitle,
+        body: summaryBody,
+        deep_link: summaryDeepLink,
         company_id: company_id,
         reference_type: "report",
         reference_id: report_id,
-        dedup_key: `${alert.type}:${company_id}:${alert.dedup_suffix}`,
+        dedup_key: `alert_financial_summary:${company_id}:${period_key}`,
       });
     }
   }
