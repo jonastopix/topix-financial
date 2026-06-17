@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 
 const DEPLOY_STAMP = "run-company-agent v1 (2026-06-17)";
 
@@ -1066,19 +1067,30 @@ ${trigger === "pulse_submitted"
     while (!done && iterations < MAX_ITERATIONS) {
       iterations++;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages,
-          tools: activeTools,
-          tool_choice: "auto",
-        }),
-      });
+      // Timeout only, NO retry: the loop writes via tools mid-iteration, so a
+      // naive retry of a whole iteration could double-write. A thrown timeout
+      // is handled below exactly like a non-ok gateway response: graceful break.
+      let response: Response;
+      try {
+        response = await aiGatewayFetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages,
+            tools: activeTools,
+            tool_choice: "auto",
+          }),
+        }, { timeoutMs: 60000, retries: 0 });
+      } catch (err) {
+        console.error("AI gateway timeout/network error", err);
+        lastError = `AI gateway timeout/network error: ${err instanceof Error ? err.message : String(err)}`;
+        stopReason = "ai_gateway_timeout";
+        break;
+      }
 
       if (!response.ok) {
         const errText = await response.text();

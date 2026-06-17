@@ -16,6 +16,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -149,7 +150,10 @@ Deno.serve(async (req) => {
     // 6. Call ai-financial-feedback edge function (server-to-server with caller's auth)
     const aiFeedbackUrl = `${supabaseUrl}/functions/v1/ai-financial-feedback`;
 
-    const aiResponse = await fetch(aiFeedbackUrl, {
+    // Single background call: a generous timeout plus retries on transient
+    // gateway failures (429/5xx/network). Persist happens only after .ok, so a
+    // retry cannot double-write.
+    const aiResponse = await aiGatewayFetch(aiFeedbackUrl, {
       method: "POST",
       headers: {
         "Authorization": authHeader,
@@ -165,7 +169,7 @@ Deno.serve(async (req) => {
         budgetContext,
         historicalCanonical: historicalCanonical.length > 0 ? historicalCanonical : undefined,
       }),
-    });
+    }, { timeoutMs: 60000, retries: 2 });
 
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
