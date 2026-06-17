@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
+const DEPLOY_STAMP = "run-company-agent v1 (2026-06-17)";
+
 const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boardroom — en platform der hjælper danske iværksættere med at drive bedre virksomheder.
 
 Du handler autonomt når et event sker for en founder (rapport-commit, pulse-refleksion, anomali, onboarding eller ugentlig gennemgang). Dit job er at levere én kort, præcis og handlingsorienteret besked der føles personlig og værdifuld — ikke generisk AI-output. Brug ALTID den korrekte terminologi for det aktuelle event (rapport, refleksion, etc.) — bland aldrig event-typer.
@@ -885,6 +887,13 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (new URL(req.url).searchParams.get("meta") === "version") {
+    return new Response(
+      JSON.stringify({ stamp: DEPLOY_STAMP, now: new Date().toISOString() }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
