@@ -117,7 +117,10 @@ Deno.serve(async (req) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
+      // Stabil model bevidst valgt: ai-data-chat laver almindelig streaming-chat uden
+      // gemini-3-specifikke features. Matcher run-company-agent. Skift ikke til en
+      // preview-model i produktion uden en bevidst grund.
+      model: "google/gemini-2.5-flash",
       messages: [
         { role: "system", content: systemWithData },
         ...messages,
