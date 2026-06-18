@@ -26,8 +26,11 @@ export function useMessageActions(
     setEditContent("");
   }, []);
 
-  const saveEdit = useCallback(async (messageId: string) => {
-    const trimmed = editContent.trim();
+  const saveEdit = useCallback(async (messageId: string, contentOverride?: string) => {
+    // contentOverride lader en rig edit-dialog gemme editorens HTML direkte uden
+    // at gaa gennem editContent-state (loeser state-timing). Kaldere uden 2. arg
+    // opfoerer sig praecis som foer og bruger editContent.
+    const trimmed = (contentOverride ?? editContent).trim();
     if (!trimmed || !currentUserId) {
       cancelEdit();
       return false;

@@ -14,7 +14,7 @@ import { ReactionBar, ReactionPicker } from "@/components/MessageReactions";
 import { useMessageActions } from "@/hooks/useMessageActions";
 import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
 import MessageActionMenu from "@/components/MessageActionMenu";
-import InlineEditInput from "@/components/InlineEditInput";
+import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { openReportFile } from "@/lib/reportFileAccess";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
@@ -1410,12 +1410,15 @@ const CompanyChatPane = () => {
     latestMsgId
   );
 
-  const handleEditSave = async (messageId: string) => {
-    const trimmed = editContent.trim();
-    const ok = await saveEditAction(messageId);
+  const handleEditSave = async (html: string) => {
+    // editingId kan nulstilles af saveEdit ved success, saa fang id'et foer await.
+    const id = editingId;
+    if (!id) return false;
+    const ok = await saveEditAction(id, html);
     if (ok) {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: trimmed, edited_at: new Date().toISOString() } as any : m));
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, content: html, edited_at: new Date().toISOString() } as any : m));
     }
+    return ok;
   };
 
   const handleDeleteMsg = async (messageId: string) => {
@@ -2314,14 +2317,7 @@ const CompanyChatPane = () => {
                                 />
                               </div>
                             )}
-                            {isEditingThis ? (
-                              <InlineEditInput
-                                value={editContent}
-                                onChange={setEditContent}
-                                onSave={() => handleEditSave(msg.id)}
-                                onCancel={cancelEdit}
-                              />
-                            ) : isMobile ? (
+                            {isMobile ? (
                               <MobileMessageActionDrawer
                                 canEdit={canEditCheck(msg.sender_id, msg.created_at)}
                                 canDelete={canDeleteCheck(msg.sender_id)}
@@ -2690,6 +2686,13 @@ const CompanyChatPane = () => {
           </div>
         </DrawerContent>
       </Drawer>
+
+      <MessageEditDialog
+        open={editingId !== null}
+        onOpenChange={(o) => { if (!o) cancelEdit(); }}
+        initialHTML={editContent}
+        onSave={handleEditSave}
+      />
     </>
   );
 };
