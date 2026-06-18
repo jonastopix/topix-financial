@@ -12,7 +12,8 @@
  * the caller asks for retries. Retries fire only on transient conditions:
  * HTTP 429, 500, 502, 503, 504 and network/abort errors. Client errors
  * (400, 401, 403, 404 and any other 4xx) are returned immediately, never
- * retried.
+ * retried. A timeout (abort) is retried by default; pass retryOnTimeout: false
+ * to fail fast on a timeout (network errors still retry).
  */
 
 export interface AiGatewayFetchOpts {
@@ -20,6 +21,13 @@ export interface AiGatewayFetchOpts {
   timeoutMs?: number;
   /** Number of EXTRA attempts after the first. Default 0 (retry disabled). */
   retries?: number;
+  /**
+   * Retry a timeout (abort) when attempts remain. Default true, which keeps the
+   * existing behaviour. Set false for a user-blocking caller that should fail
+   * fast on a timeout instead of waiting another full timeout window. Network
+   * errors (not aborts) and transient status retries are unaffected.
+   */
+  retryOnTimeout?: boolean;
 }
 
 /** HTTP statuses worth retrying: transient server and rate-limit conditions. */
@@ -42,6 +50,7 @@ export async function aiGatewayFetch(
 ): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? 60000;
   const retries = opts.retries ?? 0;
+  const retryOnTimeout = opts.retryOnTimeout ?? true;
 
   let lastNetworkError: unknown = null;
 
@@ -64,13 +73,16 @@ export async function aiGatewayFetch(
       // after retries) is returned as-is so the caller keeps its .ok handling.
       return response;
     } catch (err) {
-      // Network error or timeout (abort). Retry while attempts remain.
+      // Network error or timeout (abort).
       lastNetworkError = err;
-      if (attempt < retries) {
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      // Retry while attempts remain. A timeout is retried only when the caller
+      // opted in (default); network errors retry regardless. Status retries are
+      // handled above and are unaffected.
+      if (attempt < retries && (retryOnTimeout || !isAbort)) {
         await sleep(backoffMs(attempt));
         continue;
       }
-      const isAbort = err instanceof DOMException && err.name === "AbortError";
       throw new Error(
         isAbort
           ? `aiGatewayFetch: request timed out after ${timeoutMs}ms`
