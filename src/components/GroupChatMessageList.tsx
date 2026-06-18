@@ -186,7 +186,7 @@ const GroupChatMessageList: React.FC<Props> = ({
                         {msg.content !== "📎" && (
                           msg.content.startsWith("<") ? (
                             <div
-                              className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
+                              className="chat-html-content"
                               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
                             />
                           ) : (
@@ -213,7 +213,7 @@ const GroupChatMessageList: React.FC<Props> = ({
                         {msg.content !== "📎" && (
                           msg.content.startsWith("<") ? (
                             <div
-                              className="prose prose-sm max-w-none [&_a]:underline [&_a]:text-inherit"
+                              className="chat-html-content"
                               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content) }}
                             />
                           ) : (

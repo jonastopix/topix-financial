@@ -164,6 +164,14 @@
   padding-left: 1.25rem;
   margin: 0.25rem 0;
 }
+/* Tailwind preflight nulstiller list-style til none. Gendan markoererne, ellers
+   bliver bruger-skrevne <ul><li> til indrykkede linjer uden bullets. */
+.chat-html-content ul {
+  list-style: disc;
+}
+.chat-html-content ol {
+  list-style: decimal;
+}
 .chat-html-content li {
   margin: 0;
 }
