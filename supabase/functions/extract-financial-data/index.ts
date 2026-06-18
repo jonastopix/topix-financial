@@ -5,6 +5,7 @@ import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDetermini
 import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_shared/sourceFingerprint.ts";
 import { validatePdfStructuralPayload, computeSha256Deno } from "../_shared/pdfStructuralValidator.ts";
 import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
+import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1097,7 +1098,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         console.log("Sending text-only content to AI (no images available)");
       }
 
-      const response = await fetch(
+      const response = await aiGatewayFetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
@@ -1227,7 +1228,11 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
             function: { name: "extract_financial_data" },
           },
         }),
-      }
+      },
+      // pro+vision er langsom og bruger-blokerende: generoes timeout, retry paa
+      // forbigaaende status (429/5xx), men IKKE paa timeout (undgaa dobbelt
+      // ventetid + platform-graense). En kastet timeout fanges af det ydre catch.
+      { timeoutMs: 120000, retries: 2, retryOnTimeout: false }
     );
 
     if (!response.ok) {
