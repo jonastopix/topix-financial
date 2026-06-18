@@ -36,8 +36,8 @@ const InlineEditInput: React.FC<Props> = ({ value, onChange, onSave, onCancel })
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="w-full min-h-[40px] max-h-[120px] px-3 py-2 rounded-xl text-sm bg-background border border-primary/30 text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
-        rows={Math.min(4, value.split("\n").length)}
+        className="w-full min-h-[40px] max-h-[300px] px-3 py-2 rounded-xl text-sm bg-background border border-primary/30 text-foreground resize-y focus:outline-none focus:ring-1 focus:ring-primary/50"
+        rows={Math.min(12, value.split("\n").length || 1)}
       />
       <div className="flex items-center gap-1 mt-1">
         <button
