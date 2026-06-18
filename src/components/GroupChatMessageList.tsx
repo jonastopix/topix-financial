@@ -9,7 +9,7 @@ import { ReactionBar, ReactionPicker } from "@/components/MessageReactions";
 import { useMessageActions } from "@/hooks/useMessageActions";
 import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
 import MessageActionMenu from "@/components/MessageActionMenu";
-import InlineEditInput from "@/components/InlineEditInput";
+import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -79,10 +79,13 @@ const GroupChatMessageList: React.FC<Props> = ({
     if (ok) onMessageDeleted?.(messageId);
   };
 
-  const handleSaveEdit = async (messageId: string) => {
-    const trimmed = editContent.trim();
-    const ok = await saveEdit(messageId);
-    if (ok) onMessageEdited?.(messageId, trimmed, new Date().toISOString());
+  const handleSaveEdit = async (html: string) => {
+    // editingId kan nulstilles af saveEdit ved success, saa fang id'et foer await.
+    const id = editingId;
+    if (!id) return false;
+    const ok = await saveEdit(id, html);
+    if (ok) onMessageEdited?.(id, html, new Date().toISOString());
+    return ok;
   };
 
   let lastDateKey = "";
@@ -104,7 +107,6 @@ const GroupChatMessageList: React.FC<Props> = ({
 
         const attachments = msg.context_meta?.attachments;
         const aggregated = getAggregated(msg.id);
-        const isEditing = editingId === msg.id;
 
         // Unread divider: show AFTER last-seen message
         let showUnreadDivider = false;
@@ -161,14 +163,7 @@ const GroupChatMessageList: React.FC<Props> = ({
                   </p>
                 )}
                 <div className="relative">
-                  {isEditing ? (
-                    <InlineEditInput
-                      value={editContent}
-                      onChange={setEditContent}
-                      onSave={() => handleSaveEdit(msg.id)}
-                      onCancel={cancelEdit}
-                    />
-                  ) : isMobile ? (
+                  {isMobile ? (
                     <MobileMessageActionDrawer
                       canEdit={canEdit(msg.sender_id, msg.created_at)}
                       canDelete={canDelete(msg.sender_id)}
@@ -258,6 +253,13 @@ const GroupChatMessageList: React.FC<Props> = ({
         );
       })}
       <div ref={endRef} />
+
+      <MessageEditDialog
+        open={editingId !== null}
+        onOpenChange={(o) => { if (!o) cancelEdit(); }}
+        initialHTML={editContent}
+        onSave={handleSaveEdit}
+      />
     </div>
   );
 };
