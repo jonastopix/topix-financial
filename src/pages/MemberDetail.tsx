@@ -99,6 +99,7 @@ interface CompanyContext {
   onboarding_completed: boolean | null;
   subscription_status: string | null;
   subscription_current_period_end: string | null;
+  intro_session_used_at: string | null;
 }
 
 interface Report {
@@ -258,7 +259,8 @@ const MemberDetail = () => {
     industry_label: string;
     website: string;
     slack_channel: string;
-  }>({ contract_start_date: "", contract_end_date: "", subscription_status: "", cvr_number: "", industry_label: "", website: "", slack_channel: "" });
+    intro_session_used: boolean;
+  }>({ contract_start_date: "", contract_end_date: "", subscription_status: "", cvr_number: "", industry_label: "", website: "", slack_channel: "", intro_session_used: false });
   const [savingCompany, setSavingCompany] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
@@ -330,7 +332,7 @@ const MemberDetail = () => {
     if (!userId) return;
     const { data: cmData } = await supabase
       .from("company_members" as any)
-      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end)" as any)
+      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end, intro_session_used_at)" as any)
       .eq("user_id", userId)
       .limit(1)
       .maybeSingle();
@@ -353,6 +355,13 @@ const MemberDetail = () => {
         website: companyEditForm.website || null,
         slack_channel: companyEditForm.slack_channel || null,
       };
+      // Gratis intro-session: map afkrydsning til timestamp, men bevar et eksisterende
+      // tidspunkt saa en almindelig gem aldrig overskriver "hvornaar brugt".
+      if (companyEditForm.intro_session_used) {
+        updates.intro_session_used_at = companyCtx.intro_session_used_at || new Date().toISOString();
+      } else {
+        updates.intro_session_used_at = null;
+      }
       const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyCtx.company_id) as any);
       if (error) throw error;
       toast.success("Virksomhedsdata gemt");
@@ -459,7 +468,7 @@ const MemberDetail = () => {
         // Fetch company context via company_members
         const { data: cmData } = await supabase
           .from("company_members" as any)
-          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end)" as any)
+          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end, intro_session_used_at)" as any)
           .eq("user_id", userId)
           .limit(1)
           .maybeSingle();
@@ -1021,6 +1030,7 @@ const MemberDetail = () => {
                     industry_label: (companyCtx as any).industry_label || "",
                     website: (companyCtx as any).website || "",
                     slack_channel: (companyCtx as any).slack_channel || "",
+                    intro_session_used: !!(companyCtx as any).intro_session_used_at,
                   });
                   setEditingCompany(true);
                 }}
@@ -1848,6 +1858,17 @@ const MemberDetail = () => {
                 <option value="cancelled">cancelled</option>
                 <option value="past_due">past_due</option>
               </select>
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={companyEditForm.intro_session_used}
+                  onChange={(e) => setCompanyEditForm(f => ({ ...f, intro_session_used: e.target.checked }))}
+                  className="h-4 w-4 rounded border-border"
+                />
+                Gratis intro-session brugt
+              </label>
             </div>
           </div>
           <DialogFooter>
