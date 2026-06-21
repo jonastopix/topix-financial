@@ -225,14 +225,15 @@ export default function BookSession() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto py-10 px-4">
+      <div className={`mx-auto py-10 px-4 ${showMortenCard ? "max-w-5xl" : "max-w-2xl"}`}>
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-foreground mb-2">Book en 1:1 session</h1>
           <p className="text-muted-foreground">Få fokuseret sparring direkte med en rådgiver</p>
         </div>
 
+        <div className={showMortenCard ? "grid grid-cols-1 md:grid-cols-2 gap-6 items-start" : ""}>
         {showMortenCard && (
-          <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-8 mb-6">
+          <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-8">
 
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-full overflow-hidden shrink-0">
@@ -388,6 +389,7 @@ export default function BookSession() {
               Du modtager et personligt booking-link via email og i platformen efter betaling.
             </p>
           </div>
+        </div>
         </div>
       </div>
     </AppLayout>
