@@ -232,7 +232,7 @@ export default function BookSession() {
         </div>
 
         {showMortenCard && (
-          <div className="bg-card border border-green-500/30 rounded-2xl p-8 shadow-sm space-y-8 mb-6">
+          <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-8 mb-6">
 
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-full overflow-hidden shrink-0">
@@ -244,8 +244,8 @@ export default function BookSession() {
                     const el = e.currentTarget;
                     el.style.display = "none";
                     const parent = el.parentElement!;
-                    parent.classList.add("bg-green-500/10", "flex", "items-center", "justify-center");
-                    parent.innerHTML = '<span class="text-xl font-bold text-green-600">ML</span>';
+                    parent.classList.add("bg-primary/10", "flex", "items-center", "justify-center");
+                    parent.innerHTML = '<span class="text-xl font-bold text-primary">ML</span>';
                   }}
                 />
               </div>
@@ -258,17 +258,17 @@ export default function BookSession() {
 
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center p-4 rounded-xl bg-secondary/50">
-                <Clock className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                <Clock className="h-5 w-5 mx-auto mb-2 text-primary" />
                 <p className="text-sm font-medium text-foreground">30 minutter</p>
                 <p className="text-xs text-muted-foreground">Personlig sparring</p>
               </div>
               <div className="text-center p-4 rounded-xl bg-secondary/50">
-                <Video className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                <Video className="h-5 w-5 mx-auto mb-2 text-primary" />
                 <p className="text-sm font-medium text-foreground">Online</p>
                 <p className="text-xs text-muted-foreground">Google Meet</p>
               </div>
               <div className="text-center p-4 rounded-xl bg-secondary/50">
-                <Calendar className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                <Calendar className="h-5 w-5 mx-auto mb-2 text-primary" />
                 <p className="text-sm font-medium text-foreground">Fleksibelt</p>
                 <p className="text-xs text-muted-foreground">Vælg selv tid</p>
               </div>
@@ -295,7 +295,7 @@ export default function BookSession() {
               </div>
               <Button
                 size="lg"
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                className="w-full"
                 onClick={handleBookFree}
                 disabled={loadingFree}
               >
