@@ -250,9 +250,9 @@ export default function BookSession() {
                 />
               </div>
               <div>
-                <h2 className="font-semibold text-foreground">Morten</h2>
-                <p className="text-sm text-muted-foreground">Rådgiver, The Boardroom</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Din gratis intro-session</p>
+                <h2 className="font-semibold text-foreground">Morten Larsen</h2>
+                <p className="text-sm text-muted-foreground">Investor og rådgiver, The Boardroom</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Din personlige 1:1 strategi-session</p>
               </div>
             </div>
 
@@ -260,7 +260,7 @@ export default function BookSession() {
               <div className="text-center p-4 rounded-xl bg-secondary/50">
                 <Clock className="h-5 w-5 mx-auto mb-2 text-green-600" />
                 <p className="text-sm font-medium text-foreground">30 minutter</p>
-                <p className="text-xs text-muted-foreground">Uforpligtende intro</p>
+                <p className="text-xs text-muted-foreground">Personlig sparring</p>
               </div>
               <div className="text-center p-4 rounded-xl bg-secondary/50">
                 <Video className="h-5 w-5 mx-auto mb-2 text-green-600" />
@@ -277,8 +277,10 @@ export default function BookSession() {
             <div>
               <h3 className="font-semibold text-foreground mb-2">Det kan du få ud af det</h3>
               <p className="text-sm text-muted-foreground">
-                En uforpligtende snak hvor du kan vende dine vigtigste udfordringer og få et frisk
-                blik udefra. Ingen binding, ingen betaling, kun sparring.
+                Som nyt medlem får du én personlig 1:1 strategi-session med Morten. Du bestemmer
+                selv hvad den skal bruges til. Det kan være en strategisk gennemgang, sparring på
+                en konkret beslutning, et regnskab du vil have øjne på, eller noget helt fjerde.
+                Du sidder for bordenden.
               </p>
             </div>
 
@@ -286,8 +288,8 @@ export default function BookSession() {
               <div className="flex items-baseline justify-between mb-4">
                 <div>
                   <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-bold text-foreground">Gratis</p>
-                    <p className="text-sm text-muted-foreground">én gang per virksomhed</p>
+                    <p className="text-lg font-bold text-foreground">Inkluderet i dit medlemskab</p>
+                    <p className="text-sm text-muted-foreground">én session per virksomhed</p>
                   </div>
                 </div>
               </div>
@@ -300,7 +302,7 @@ export default function BookSession() {
                 {loadingFree ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Henter dit link...</>
                 ) : (
-                  <>Book gratis intro med Morten</>
+                  <>Book din session med Morten</>
                 )}
               </Button>
             </div>
