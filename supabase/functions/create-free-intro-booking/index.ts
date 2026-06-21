@@ -135,21 +135,36 @@ Deno.serve(async (req: Request) => {
       return json(503, { error: "Gratis intro-session er ikke konfigureret endnu. Din gratis intro er ikke brugt." });
     }
 
-    // 8. Generér Mortens Calendly single-use link. Enhver fejl -> rollback + 502.
+    // 8. Generér bookingens id FOER linket, saa vi kan indlejre det i booking_url'en og senere
+    //    matche en Calendly-webhook tilbage til praecis denne raekke. crypto.randomUUID() er
+    //    synkron og kaster ikke; den throwbare del (URL-append nedenfor) ligger inde i try'en,
+    //    saa rollback stadig daekker en evt. fejl.
+    const bookingId = crypto.randomUUID();
+
+    // 9. Generér Mortens Calendly single-use link og indlejr id'et. Enhver fejl -> rollback + 502.
     let bookingUrl: string;
     try {
       const eventTypeUri = await getCalendlyEventTypeUri(mortenApiKey, mortenSlug);
       bookingUrl = await createCalendlySingleUseLink(mortenApiKey, eventTypeUri);
+
+      // Indlejr id'et i linket. salesforce_uuid er Calendlys dedikerede pass-through-felt;
+      // utm_content er en redundant fallback. URL-API'et haandterer ? vs & og encoding selv.
+      const u = new URL(bookingUrl);
+      u.searchParams.set("salesforce_uuid", bookingId);
+      u.searchParams.set("utm_content", bookingId);
+      bookingUrl = u.toString();
     } catch (calErr) {
       console.error("[create-free-intro-booking] Calendly link generation failed:", calErr);
       await rollback();
       return json(502, { error: "Kunne ikke hente en tid hos Morten. Proev igen. Din gratis intro er ikke brugt." });
     }
 
-    // 9. Opret bookingen. Gratis: advisor='morten', amount_dkk=0, ingen Stripe-session.
+    // 10. Opret bookingen med det faste id (DB-defaulten gaelder kun ved udeladelse).
+    //     Gratis: advisor='morten', amount_dkk=0, ingen Stripe-session.
     const { error: insertError } = await admin
       .from("session_bookings")
       .insert({
+        id: bookingId,
         user_id: callerId,
         company_id: companyId,
         advisor: "morten",
@@ -165,7 +180,7 @@ Deno.serve(async (req: Request) => {
       return json(500, { error: "Kunne ikke oprette bookingen. Proev igen. Din gratis intro er ikke brugt." });
     }
 
-    // 10. Samme returform som create-stripe-checkout.
+    // 11. Samme returform som create-stripe-checkout.
     return json(200, { url: bookingUrl });
   } catch (err) {
     console.error("create-free-intro-booking error:", err);
