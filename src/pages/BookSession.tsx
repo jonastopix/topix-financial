@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Calendar, Clock, Video, CheckCircle2, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const TOPICS = [
   { title: "Procesoptimering", desc: "Find flaskehalsene i din forretning og fjern dem" },
@@ -16,9 +16,12 @@ const TOPICS = [
 ];
 
 export default function BookSession() {
-  const { user, isAdvisor, membershipTier } = useAuth();
+  const { user, isAdvisor, membershipTier, companyId } = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [loadingFree, setLoadingFree] = useState(false);
+  const [freeUrl, setFreeUrl] = useState<string | null>(null);
   const success = searchParams.get("success") === "true";
   const sessionId = searchParams.get("session_id");
 
@@ -76,6 +79,37 @@ export default function BookSession() {
     refetchInterval: (query) => (!query.state.data?.calendly_booking_url ? 2000 : false),
   });
 
+  // Gratis intro-status. Henter ogsaa contract_end_date, saa Morten-kortets gating kan
+  // matche backend'ens "full" praecist (kontrakt i fremtiden), uafhaengigt af at useAuth
+  // remapper no_date til "full".
+  const { data: company } = useQuery({
+    queryKey: ["company-intro-session", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("companies")
+        .select("intro_session_used_at, contract_end_date")
+        .eq("id", companyId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!companyId,
+  });
+
+  const introUsed = !!(company as any)?.intro_session_used_at;
+  const contractInFuture =
+    !!(company as any)?.contract_end_date &&
+    new Date((company as any).contract_end_date) > new Date();
+  // Vis KUN Morten naar backend ville acceptere: ikke raadgiver, fuldt medlem med kontrakt i
+  // fremtiden (ikke no_date), company-data hentet, og gratis ikke brugt.
+  const showMortenCard =
+    !isAdvisor &&
+    membershipTier === "full" &&
+    !!companyId &&
+    !!company &&
+    contractInFuture &&
+    !introUsed;
+
   const handleBook = async () => {
     if (!user) return;
     setLoading(true);
@@ -91,6 +125,66 @@ export default function BookSession() {
       setLoading(false);
     }
   };
+
+  const handleBookFree = async () => {
+    if (!user) return;
+    setLoadingFree(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-free-intro-booking");
+      if (error) throw error;
+      if (data?.url) {
+        setFreeUrl(data.url);
+        queryClient.invalidateQueries({ queryKey: ["company-intro-session", companyId] });
+      } else {
+        toast.error("Ingen URL modtaget. Prøv igen.");
+      }
+    } catch (err: any) {
+      console.error("Free booking error:", err);
+      // Vis edge function'ens danske besked (503/409/403) ved at parse svar-body'en.
+      let message = err?.message || "Noget gik galt. Prøv igen.";
+      if (err?.context && typeof err.context.json === "function") {
+        try {
+          const payload = await err.context.json();
+          if (payload?.error) message = payload.error;
+        } catch {
+          // ignorer parse-fejl og brug fallback-beskeden
+        }
+      }
+      toast.error(message);
+    } finally {
+      setLoadingFree(false);
+    }
+  };
+
+  if (freeUrl) {
+    return (
+      <AppLayout>
+        <div className="max-w-xl mx-auto py-16 px-4 text-center">
+          <div className="bg-card border border-border rounded-2xl p-10 shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-3">Din gratis intro er klar!</h1>
+            <p className="text-muted-foreground mb-8">
+              Vælg et tidspunkt der passer dig, så er du booket ind hos Morten.
+            </p>
+            <div className="space-y-4">
+              <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-4">
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">Dit personlige booking-link er klar</p>
+                <p className="text-xs text-muted-foreground mt-1">Linket kan kun bruges én gang.</p>
+              </div>
+              <a href={freeUrl} target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="w-full">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Vælg tidspunkt
+                </Button>
+              </a>
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (success && sessionId) {
     return (
@@ -133,9 +227,85 @@ export default function BookSession() {
     <AppLayout>
       <div className="max-w-2xl mx-auto py-10 px-4">
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Book 1:1 session med Jonas</h1>
-          <p className="text-muted-foreground">Få fokuseret sparring direkte med Jonas Herlev</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Book en 1:1 session</h1>
+          <p className="text-muted-foreground">Få fokuseret sparring direkte med en rådgiver</p>
         </div>
+
+        {showMortenCard && (
+          <div className="bg-card border border-green-500/30 rounded-2xl p-8 shadow-sm space-y-8 mb-6">
+
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full overflow-hidden shrink-0">
+                <img
+                  src="/morten-larsen.png"
+                  alt="Morten"
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    el.style.display = "none";
+                    const parent = el.parentElement!;
+                    parent.classList.add("bg-green-500/10", "flex", "items-center", "justify-center");
+                    parent.innerHTML = '<span class="text-xl font-bold text-green-600">ML</span>';
+                  }}
+                />
+              </div>
+              <div>
+                <h2 className="font-semibold text-foreground">Morten</h2>
+                <p className="text-sm text-muted-foreground">Rådgiver, The Boardroom</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Din gratis intro-session</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-4 rounded-xl bg-secondary/50">
+                <Clock className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                <p className="text-sm font-medium text-foreground">30 minutter</p>
+                <p className="text-xs text-muted-foreground">Uforpligtende intro</p>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-secondary/50">
+                <Video className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                <p className="text-sm font-medium text-foreground">Online</p>
+                <p className="text-xs text-muted-foreground">Google Meet</p>
+              </div>
+              <div className="text-center p-4 rounded-xl bg-secondary/50">
+                <Calendar className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                <p className="text-sm font-medium text-foreground">Fleksibelt</p>
+                <p className="text-xs text-muted-foreground">Vælg selv tid</p>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-foreground mb-2">Det kan du få ud af det</h3>
+              <p className="text-sm text-muted-foreground">
+                En uforpligtende snak hvor du kan vende dine vigtigste udfordringer og få et frisk
+                blik udefra. Ingen binding, ingen betaling, kun sparring.
+              </p>
+            </div>
+
+            <div className="border-t border-border pt-6">
+              <div className="flex items-baseline justify-between mb-4">
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-2xl font-bold text-foreground">Gratis</p>
+                    <p className="text-sm text-muted-foreground">én gang per virksomhed</p>
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="lg"
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleBookFree}
+                disabled={loadingFree}
+              >
+                {loadingFree ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Henter dit link...</>
+                ) : (
+                  <>Book gratis intro med Morten</>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-8">
 
