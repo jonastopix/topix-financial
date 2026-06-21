@@ -25,6 +25,7 @@ import type { CompanyData, CompanyMember, LoginInfo, UnassignedUser, SortKey, So
 import MembersStatsBar from "@/components/members/MembersStatsBar";
 import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
 import MemberCompanyRow from "@/components/members/MemberCompanyRow";
+import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
 import { computeMembershipTier } from "@/lib/membershipTier";
 
@@ -166,6 +167,10 @@ const Members = () => {
   const [renamingCompany, setRenamingCompany] = useState<{ id: string; currentName: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
+
+  // Edit company data state (delt dialog, aabnes in-place fra raekken)
+  const [editCompanyId, setEditCompanyId] = useState<string | null>(null);
+  const [editCompanyOpen, setEditCompanyOpen] = useState(false);
 
   // Group/Koncern state (admin-only)
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -1240,6 +1245,7 @@ const Members = () => {
                 onRemoveMember={handleRemoveMember}
                 onDelete={(c) => { setDeleteTarget(c); setDeleteDialogOpen(true); }}
                 onCreateGroup={(id, name) => { setWizardAnchor({ id, name }); setWizardOpen(true); }}
+                onEditCompany={(id) => { setEditCompanyId(id); setEditCompanyOpen(true); }}
                 onEnrich={(companyId) => { setEnrichCompanyId(companyId); setShowImportDialog(true); }}
                 getDisplayRevenue={getDisplayRevenue}
                 getInitials={getInitials}
@@ -1792,6 +1798,13 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditCompanyDialog
+        open={editCompanyOpen}
+        onOpenChange={setEditCompanyOpen}
+        companyId={editCompanyId}
+        onSaved={refetchMembers}
+      />
     </AppLayout>
   );
 };

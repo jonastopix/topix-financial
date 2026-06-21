@@ -42,14 +42,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import HandoutDetail from "@/components/HandoutDetail";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
@@ -251,17 +244,6 @@ const MemberDetail = () => {
   const [showAgentLog, setShowAgentLog] = useState(false);
   const [forecast, setForecast] = useState<any[] | null>(null);
   const [editingCompany, setEditingCompany] = useState(false);
-  const [companyEditForm, setCompanyEditForm] = useState<{
-    contract_start_date: string;
-    contract_end_date: string;
-    subscription_status: string;
-    cvr_number: string;
-    industry_label: string;
-    website: string;
-    slack_channel: string;
-    intro_session_used: boolean;
-  }>({ contract_start_date: "", contract_end_date: "", subscription_status: "", cvr_number: "", industry_label: "", website: "", slack_channel: "", intro_session_used: false });
-  const [savingCompany, setSavingCompany] = useState(false);
   const memberCompanyId = companyCtx?.company_id ?? null;
   const { data: memberFacts = [] } = useCompanyFacts(memberCompanyId ?? undefined);
 
@@ -342,37 +324,6 @@ const MemberDetail = () => {
     }
   };
 
-  const handleSaveCompany = async () => {
-    if (!companyCtx?.company_id) return;
-    setSavingCompany(true);
-    try {
-      const updates: Record<string, any> = {
-        contract_start_date: companyEditForm.contract_start_date || null,
-        contract_end_date: companyEditForm.contract_end_date || null,
-        subscription_status: companyEditForm.subscription_status || null,
-        cvr_number: companyEditForm.cvr_number || null,
-        industry_label: companyEditForm.industry_label || null,
-        website: companyEditForm.website || null,
-        slack_channel: companyEditForm.slack_channel || null,
-      };
-      // Gratis intro-session: map afkrydsning til timestamp, men bevar et eksisterende
-      // tidspunkt saa en almindelig gem aldrig overskriver "hvornaar brugt".
-      if (companyEditForm.intro_session_used) {
-        updates.intro_session_used_at = companyCtx.intro_session_used_at || new Date().toISOString();
-      } else {
-        updates.intro_session_used_at = null;
-      }
-      const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyCtx.company_id) as any);
-      if (error) throw error;
-      toast.success("Virksomhedsdata gemt");
-      setEditingCompany(false);
-      refetch();
-    } catch (err: any) {
-      toast.error("Kunne ikke gemme", { description: err.message });
-    } finally {
-      setSavingCompany(false);
-    }
-  };
 
   // Clear deep-link params after consuming
   useEffect(() => {
@@ -1021,19 +972,7 @@ const MemberDetail = () => {
             <div className="mb-3 flex justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  setCompanyEditForm({
-                    contract_start_date: (companyCtx as any).contract_start_date?.slice(0, 10) || "",
-                    contract_end_date: (companyCtx as any).contract_end_date?.slice(0, 10) || "",
-                    subscription_status: (companyCtx as any).subscription_status || "",
-                    cvr_number: (companyCtx as any).cvr_number || "",
-                    industry_label: (companyCtx as any).industry_label || "",
-                    website: (companyCtx as any).website || "",
-                    slack_channel: (companyCtx as any).slack_channel || "",
-                    intro_session_used: !!(companyCtx as any).intro_session_used_at,
-                  });
-                  setEditingCompany(true);
-                }}
+                onClick={() => setEditingCompany(true)}
                 className="text-xs text-primary hover:underline flex items-center gap-1"
               >
                 <Pencil className="h-3 w-3" /> Rediger virksomhedsdata
@@ -1782,103 +1721,12 @@ const MemberDetail = () => {
         </>
       )}
 
-      <Dialog open={editingCompany} onOpenChange={setEditingCompany}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Rediger virksomhedsdata</DialogTitle>
-            <DialogDescription>Ændringer gemmes direkte på virksomheden i databasen.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Kontraktstart</label>
-              <input
-                type="date"
-                value={companyEditForm.contract_start_date}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, contract_start_date: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Kontraktslut</label>
-              <input
-                type="date"
-                value={companyEditForm.contract_end_date}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, contract_end_date: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">CVR-nummer</label>
-              <input
-                type="text"
-                value={companyEditForm.cvr_number}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, cvr_number: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                placeholder="12345678"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Branche</label>
-              <input
-                type="text"
-                value={companyEditForm.industry_label}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, industry_label: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Website</label>
-              <input
-                type="text"
-                value={companyEditForm.website}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, website: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                placeholder="https://"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Slack-kanal</label>
-              <input
-                type="text"
-                value={companyEditForm.slack_channel}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, slack_channel: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                placeholder="#virksomhed"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Abonnementsstatus</label>
-              <select
-                value={companyEditForm.subscription_status}
-                onChange={(e) => setCompanyEditForm(f => ({ ...f, subscription_status: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              >
-                <option value="">— Ingen (kontraktmedlem) —</option>
-                <option value="active">active (self-serve abonnent)</option>
-                <option value="cancelled">cancelled</option>
-                <option value="past_due">past_due</option>
-              </select>
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-xs font-medium text-foreground">
-                <input
-                  type="checkbox"
-                  checked={companyEditForm.intro_session_used}
-                  onChange={(e) => setCompanyEditForm(f => ({ ...f, intro_session_used: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border"
-                />
-                Gratis intro-session brugt
-              </label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingCompany(false)}>Annullér</Button>
-            <Button onClick={handleSaveCompany} disabled={savingCompany}>
-              {savingCompany ? "Gemmer..." : "Gem ændringer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditCompanyDialog
+        open={editingCompany}
+        onOpenChange={setEditingCompany}
+        companyId={companyCtx?.company_id ?? null}
+        onSaved={refetch}
+      />
     </AppLayout>
   );
 };
