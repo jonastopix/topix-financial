@@ -32,6 +32,7 @@ interface MemberCompanyRowProps {
   onRemoveMember: (company: CompanyData, member: CompanyMember) => void;
   onDelete: (company: CompanyData) => void;
   onCreateGroup: (id: string, name: string) => void;
+  onEditCompany: (companyId: string) => void;
   onEnrich?: (companyId: string) => void;
   getDisplayRevenue: (c: CompanyData) => { value: number; source: string } | null;
   getInitials: (name: string) => string;
@@ -54,6 +55,7 @@ const MemberCompanyRow = ({
   onRemoveMember,
   onDelete,
   onCreateGroup,
+  onEditCompany,
   onEnrich,
   getDisplayRevenue,
   getInitials,
@@ -522,6 +524,14 @@ const MemberCompanyRow = ({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-chart-warning/10 text-chart-warning text-xs font-medium hover:bg-chart-warning/20 transition-colors border border-chart-warning/30 disabled:opacity-50"
                   >
                     {resendingInvitation === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Nulstil & gensend
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEditCompany(c.id); }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border"
+                  >
+                    <Pencil className="h-3 w-3" /> Rediger virksomhed
                   </button>
                 )}
                 {isAdmin && !groupedCompanyIds.has(c.id) && (
