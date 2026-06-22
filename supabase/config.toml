@@ -77,3 +77,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.get-chat-attachment-url]
     verify_jwt = false
+  [functions.calendly-webhook]
+    verify_jwt = false
