@@ -94,13 +94,14 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
 
   const parseExcelAsText = useCallback(async (file: File): Promise<string> => {
     if (file.name.endsWith(".csv")) return file.text();
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
+    const XLSX = await import("xlsx");
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: "array" });
+    const sheetParts = workbook.SheetNames.map((name) => {
+      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: "\t", RS: "\n" });
+      return `=== Ark: ${name} ===\n${csv}`;
+    });
+    return sheetParts.join("\n\n");
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
@@ -115,10 +116,9 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
 
     try {
       const fileContent = await parseExcelAsText(file);
-      const isExcel = file.name.match(/\.(xlsx|xls)$/i);
 
       const { data, error } = await supabase.functions.invoke("import-budget-excel", {
-        body: { fileContent, fileName: file.name, isBase64: !!isExcel },
+        body: { fileContent, fileName: file.name },
       });
 
       if (error) throw error;
