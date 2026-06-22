@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -49,6 +49,7 @@ const Budget = () => {
   const [changingTemplate, setChangingTemplate] = useState(false);
   const [showImportDirect, setShowImportDirect] = useState(false);
   const [confirmTemplateChange, setConfirmTemplateChange] = useState(false);
+  const autoYearAdjustedFor = useRef<string | null>(null);
 
   // Navigation reset
   const resetKey = useNavigationReset();
@@ -80,6 +81,33 @@ const Budget = () => {
           return;
         }
 
+        // Derive which years actually have budget data (value rows only)
+        const availableYears = Array.from(new Set(
+          data
+            .filter(d => !d.category.startsWith("__"))
+            .map(d => d.period.split("-")[0])
+            .filter(y => /^\d{4}$/.test(y))
+        )).sort();
+
+        // Fallback: if the selected year has no data but another year does,
+        // jump once to the newest year that has data. Guarded per-company so the
+        // user can still navigate to an empty year (e.g. to create a new budget).
+        if (
+          availableYears.length > 0 &&
+          !availableYears.includes(year) &&
+          autoYearAdjustedFor.current !== companyId
+        ) {
+          autoYearAdjustedFor.current = companyId;
+          setYear(availableYears[availableYears.length - 1]);
+          return;
+        }
+
+        // Value rows for the selected year only
+        const yearValueRows = data.filter(d =>
+          !d.category.startsWith("__") &&
+          d.period.split("-")[0] === year
+        );
+
         // Detect template
         const templateMarker = data.find(d => d.category === "__template__");
         let template: BudgetTemplate | undefined;
@@ -101,20 +129,20 @@ const Budget = () => {
 
         setSelectedTemplate(template);
 
-        // Collect all unique category keys
-        const allCatKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
+        // Collect all unique category keys (selected year's value rows only)
+        const allCatKeys = new Set(yearValueRows.map(d => d.category));
 
         const templateKeys = new Set(template.categories.map(c => c.key));
         const extraKeys = [...allCatKeys].filter(k => !templateKeys.has(k));
 
         const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
         const extraGroupMap: Record<string, string> = {};
-        groupMarkers.forEach(g => {
-          const key = g.category
-            .replace(/__group__\d{4}_/, "")
-            .replace("__group__", "");
-          extraGroupMap[key] = g.period;
-        });
+        groupMarkers
+          .filter(g => g.category.startsWith(`__group__${year}_`))
+          .forEach(g => {
+            const key = g.category.replace(`__group__${year}_`, "");
+            extraGroupMap[key] = g.period;
+          });
 
         const extraCategories: BudgetCategory[] = extraKeys.map(key => ({
           key,
@@ -133,12 +161,12 @@ const Budget = () => {
         // Load label overrides
         const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
         const loadedLabels: Record<string, string> = {};
-        labelMarkers.forEach(m => {
-          const key = m.category
-            .replace(/__label__\d{4}_/, "")
-            .replace("__label__", "");
-          loadedLabels[key] = m.period;
-        });
+        labelMarkers
+          .filter(m => m.category.startsWith(`__label__${year}_`))
+          .forEach(m => {
+            const key = m.category.replace(`__label__${year}_`, "");
+            loadedLabels[key] = m.period;
+          });
         setLabelOverrides(loadedLabels);
 
         // Apply labels
@@ -157,6 +185,7 @@ const Budget = () => {
           if (item.category === "__template__" || item.category.startsWith("__label__") || item.category.startsWith("__group__")) return;
           const parts = item.period.split("-");
           if (parts.length < 3) return;
+          if (parts[0] !== year) return;
           const [, scenario, monthIdxStr] = parts;
           const monthIdx = parseInt(monthIdxStr, 10);
           if (isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return;
