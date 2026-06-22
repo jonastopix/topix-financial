@@ -104,6 +104,7 @@ const AUTH_PREDICATES: Predicate[] = [
   { name: "verifyStripeSignature()",      pattern: /\bverifyStripeSignature\s*\(/ },
   { name: "verifyMondayJwt()",            pattern: /\bverifyMondayJwt\s*\(/ },
   { name: "verifyWebhookRequest()",       pattern: /\bverifyWebhookRequest\s*\(/ },
+  { name: "verifyCalendlySignature()",    pattern: /\bverifyCalendlySignature\s*\(/ },
 
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments
