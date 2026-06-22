@@ -96,19 +96,62 @@ export default function BookSession() {
     enabled: !!companyId,
   });
 
+  // Brugerens egen Morten-booking (RLS: "Users can view own session bookings" -> user_id =
+  // auth.uid()). Nyeste raekke. Status saettes af create-free-intro-booking (booking_sent) og
+  // af calendly-webhook (booked/cancelled). Per-bruger, ikke per-firma.
+  const { data: mortenBooking, isLoading: mortenBookingLoading } = useQuery({
+    queryKey: ["my-morten-booking", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await (supabase as any)
+        .from("session_bookings")
+        .select("status, calendly_booking_url, created_at")
+        .eq("user_id", user.id)
+        .eq("advisor", "morten")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && !isAdvisor && membershipTier === "full",
+    // Mens vi venter paa webhooken: poll hvert 10. sekund saa "booked" dukker op live. Stop
+    // saa snart status er afgjort (booked/cancelled) eller der ingen booking er.
+    refetchInterval: (query) =>
+      (query.state.data as any)?.status === "booking_sent" ? 10000 : false,
+  });
+
   const introUsed = !!(company as any)?.intro_session_used_at;
   const contractInFuture =
     !!(company as any)?.contract_end_date &&
     new Date((company as any).contract_end_date) > new Date();
-  // Vis KUN Morten naar backend ville acceptere: ikke raadgiver, fuldt medlem med kontrakt i
-  // fremtiden (ikke no_date), company-data hentet, og gratis ikke brugt.
-  const showMortenCard =
+
+  // Mortens kolonne har fem synlige tilstande plus skjult. baseEligible = backend ville
+  // acceptere (ikke raadgiver, fuldt medlem med kontrakt i fremtiden, company-data hentet).
+  // book-kortet kraever fortsat !introUsed; de fire brugt-tilstande afledes af booking-status.
+  const baseEligible =
     !isAdvisor &&
     membershipTier === "full" &&
     !!companyId &&
     !!company &&
-    contractInFuture &&
-    !introUsed;
+    contractInFuture;
+  const mortenState: "hidden" | "book" | "loading" | "none" | "booked" | "cancelled" | "link-ready" =
+    !baseEligible
+      ? "hidden"
+      : !introUsed
+        ? "book"
+        : mortenBookingLoading
+          ? "loading"
+          : !mortenBooking
+            ? "none"
+            : (mortenBooking as any).status === "booked"
+              ? "booked"
+              : (mortenBooking as any).status === "cancelled"
+                ? "cancelled"
+                : "link-ready";
+  // Kolonnen faar plads (to-kolonne-layout + max-w-5xl) i alle synlige tilstande. "hidden" og
+  // "none" falder rent tilbage til én kolonne (kun Jonas, max-w-2xl).
+  const showMortenColumn =
+    mortenState !== "hidden" && mortenState !== "none";
 
   const handleBook = async () => {
     if (!user) return;
@@ -225,16 +268,17 @@ export default function BookSession() {
 
   return (
     <AppLayout>
-      <div className={`mx-auto py-10 px-4 ${showMortenCard ? "max-w-5xl" : "max-w-2xl"}`}>
+      <div className={`mx-auto py-10 px-4 ${showMortenColumn ? "max-w-5xl" : "max-w-2xl"}`}>
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-foreground mb-2">Book en 1:1 session</h1>
           <p className="text-muted-foreground">Få fokuseret sparring direkte med en rådgiver</p>
         </div>
 
-        <div className={showMortenCard ? "grid grid-cols-1 md:grid-cols-2 gap-6 items-start" : ""}>
-        {showMortenCard && (
+        <div className={showMortenColumn ? "grid grid-cols-1 md:grid-cols-2 gap-6 items-start" : ""}>
+        {showMortenColumn && (
           <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-8">
 
+            {/* Avatar-header: konstant i alle tilstande. */}
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-full overflow-hidden shrink-0">
                 <img
@@ -257,56 +301,104 @@ export default function BookSession() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 rounded-xl bg-secondary/50">
-                <Clock className="h-5 w-5 mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium text-foreground">30 minutter</p>
-                <p className="text-xs text-muted-foreground">Personlig sparring</p>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-secondary/50">
-                <Video className="h-5 w-5 mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium text-foreground">Online</p>
-                <p className="text-xs text-muted-foreground">Google Meet</p>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-secondary/50">
-                <Calendar className="h-5 w-5 mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium text-foreground">Fleksibelt</p>
-                <p className="text-xs text-muted-foreground">Vælg selv tid</p>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-foreground mb-2">Det kan du få ud af det</h3>
-              <p className="text-sm text-muted-foreground">
-                Som nyt medlem får du én personlig 1:1 strategi-session med Morten. Du bestemmer
-                selv hvad den skal bruges til. Det kan være en strategisk gennemgang, sparring på
-                en konkret beslutning, et regnskab du vil have øjne på, eller noget helt fjerde.
-                Du sidder for bordenden.
-              </p>
-            </div>
-
-            <div className="border-t border-border pt-6">
-              <div className="flex items-baseline justify-between mb-4">
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-lg font-bold text-foreground">Inkluderet i dit medlemskab</p>
-                    <p className="text-sm text-muted-foreground">én session per virksomhed</p>
+            {/* "book": uaendret book-kort-indhold (3-grid, beskrivelse, book-knap). */}
+            {mortenState === "book" && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 rounded-xl bg-secondary/50">
+                    <Clock className="h-5 w-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm font-medium text-foreground">30 minutter</p>
+                    <p className="text-xs text-muted-foreground">Personlig sparring</p>
+                  </div>
+                  <div className="text-center p-4 rounded-xl bg-secondary/50">
+                    <Video className="h-5 w-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm font-medium text-foreground">Online</p>
+                    <p className="text-xs text-muted-foreground">Google Meet</p>
+                  </div>
+                  <div className="text-center p-4 rounded-xl bg-secondary/50">
+                    <Calendar className="h-5 w-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm font-medium text-foreground">Fleksibelt</p>
+                    <p className="text-xs text-muted-foreground">Vælg selv tid</p>
                   </div>
                 </div>
+
+                <div>
+                  <h3 className="font-semibold text-foreground mb-2">Det kan du få ud af det</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Som nyt medlem får du én personlig 1:1 strategi-session med Morten. Du bestemmer
+                    selv hvad den skal bruges til. Det kan være en strategisk gennemgang, sparring på
+                    en konkret beslutning, et regnskab du vil have øjne på, eller noget helt fjerde.
+                    Du sidder for bordenden.
+                  </p>
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <div className="flex items-baseline justify-between mb-4">
+                    <div>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-lg font-bold text-foreground">Inkluderet i dit medlemskab</p>
+                        <p className="text-sm text-muted-foreground">én session per virksomhed</p>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={handleBookFree}
+                    disabled={loadingFree}
+                  >
+                    {loadingFree ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Henter dit link...</>
+                    ) : (
+                      <>Book din session med Morten</>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* "loading": holder kolonnen aaben saa book-kortet aldrig blinker. */}
+            {mortenState === "loading" && (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
               </div>
-              <Button
-                size="lg"
-                className="w-full"
-                onClick={handleBookFree}
-                disabled={loadingFree}
-              >
-                {loadingFree ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Henter dit link...</>
-                ) : (
-                  <>Book din session med Morten</>
-                )}
-              </Button>
-            </div>
+            )}
+
+            {/* "link-ready": gratis brugt, booking_sent -> vis det personlige link igen. */}
+            {mortenState === "link-ready" && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Din session med Morten er klar. Åbn dit personlige link og vælg en tid der passer dig.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Linket er personligt og kan kun bruges én gang.
+                </p>
+                <a href={(mortenBooking as any).calendly_booking_url} target="_blank" rel="noopener noreferrer">
+                  <Button size="lg" className="w-full">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Åbn dit booking-link
+                  </Button>
+                </a>
+              </div>
+            )}
+
+            {/* "booked": moedet er booket -> bekraeftelse, INTET link. */}
+            {mortenState === "booked" && (
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  Din session med Morten er booket. Du har fået en bekræftelse på mail med tid og
+                  link til mødet.
+                </p>
+              </div>
+            )}
+
+            {/* "cancelled": aegte aflysning -> venlig besked, ingen hardcoded kontakt-vej. */}
+            {mortenState === "cancelled" && (
+              <p className="text-sm text-muted-foreground">
+                Din session med Morten blev aflyst. Skriv til os, så finder vi en ny tid sammen.
+              </p>
+            )}
           </div>
         )}
 
