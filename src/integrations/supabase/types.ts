@@ -381,6 +381,7 @@ export type Database = {
           industry: string | null
           industry_code: string | null
           industry_label: string | null
+          intro_reminder_last_sent_at: string | null
           intro_session_used_at: string | null
           is_demo: boolean | null
           is_legat: boolean
@@ -417,6 +418,7 @@ export type Database = {
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
+          intro_reminder_last_sent_at?: string | null
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
@@ -453,6 +455,7 @@ export type Database = {
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
+          intro_reminder_last_sent_at?: string | null
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
