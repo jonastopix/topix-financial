@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     await adminSupabase.from('email_send_log').insert({
       message_id: messageId,
-      template_id: template.id,
+      template_name: 'template-test',
       recipient_email: test_email,
       subject: finalSubject,
       status: 'pending',
@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
         text: finalSubject,
         purpose: 'transactional',
         label: 'template-test',
+        is_test: true,
         queued_at: new Date().toISOString(),
       },
     })
@@ -115,7 +116,7 @@ Deno.serve(async (req) => {
       console.error('[send-template-email] Enqueue failed:', enqueueError)
       await adminSupabase.from('email_send_log').insert({
         message_id: messageId,
-        template_id: template.id,
+        template_name: 'template-test',
         recipient_email: test_email,
         subject: finalSubject,
         status: 'failed',
