@@ -137,12 +137,28 @@ export function canonicalPreviewToDanishInputs(
 
 /** Parse a metric input: empty/blank → null, number → number, invalid → undefined (error) */
 export function parseMetricValue(raw: string): number | null | undefined {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  const cleaned = trimmed.replace(/\./g, "").replace(",", ".");
+  let s = raw.trim();
+  if (s === "") return null;
+
+  // Normaliser typografiske minustegn (unicode-minus, en-dash, em-dash) til ASCII
+  s = s.replace(/[\u2212\u2013\u2014]/g, "-");
+
+  // Regnskaber skriver negative tal i parentes: (2.500.000)
+  let negative = false;
+  if (/^\(.*\)$/.test(s)) {
+    negative = true;
+    s = s.slice(1, -1).trim();
+  }
+
+  // Fjern whitespace (alm., NBSP, thin space) brugt som tusindtalsseparator
+  s = s.replace(/[\s\u00A0\u202F]/g, "");
+
+  // Dansk format: punktum = tusind, komma = decimal
+  const cleaned = s.replace(/\./g, "").replace(",", ".");
+  if (cleaned === "") return undefined;   // forhindrer Number("")=0 ved fx "()"
   const num = Number(cleaned);
   if (isNaN(num)) return undefined;
-  return num;
+  return negative ? -num : num;
 }
 
 /** Parse a period key string to month/year */
