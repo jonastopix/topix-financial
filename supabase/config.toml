@@ -79,3 +79,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.calendly-webhook]
     verify_jwt = false
+  [functions.setup-calendly-webhook]
+    verify_jwt = false
