@@ -209,12 +209,16 @@ function TemplateList({
   onDuplicate,
   onDelete,
   onToggle,
+  onSendTest,
+  sendingTestId,
 }: {
   templates: EmailTemplate[];
   onEdit: (t: EmailTemplate) => void;
   onDuplicate: (t: EmailTemplate) => void;
   onDelete: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
+  onSendTest: (t: EmailTemplate) => void;
+  sendingTestId: string | null;
 }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
 
@@ -264,6 +268,19 @@ function TemplateList({
               </Button>
               <Button variant="ghost" size="icon" onClick={() => onDuplicate(t)} title="Duplikér">
                 <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onSendTest(t)}
+                disabled={sendingTestId === t.id}
+                title="Send testmail til mig"
+              >
+                {sendingTestId === t.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
               <Button
                 variant="ghost"
@@ -323,6 +340,7 @@ export default function EmailTemplates() {
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [sendingDigest, setSendingDigest] = useState(false);
+  const [sendingTestId, setSendingTestId] = useState<string | null>(null);
 
   const handleSendDigest = async () => {
     if (sendingDigest) return;
@@ -337,6 +355,28 @@ export default function EmailTemplates() {
       toast.error("Digest kunne ikke sendes");
     }
     setSendingDigest(false);
+  };
+
+  const handleSendTest = async (t: EmailTemplate) => {
+    if (sendingTestId) return;
+    const email = user?.email;
+    if (!email) {
+      toast.error("Kunne ikke finde din email");
+      return;
+    }
+    setSendingTestId(t.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-template-email", {
+        body: { template_id: t.id, test_email: email },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Testmail sendt til ${email}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Testmail kunne ikke sendes");
+    } finally {
+      setSendingTestId(null);
+    }
   };
 
   const { data: templates = [], isLoading } = useQuery({
@@ -622,6 +662,8 @@ export default function EmailTemplates() {
               if (confirm("Slet denne skabelon?")) deleteMutation.mutate(id);
             }}
             onToggle={toggleEnabled}
+            onSendTest={handleSendTest}
+            sendingTestId={sendingTestId}
           />
         )}
 
