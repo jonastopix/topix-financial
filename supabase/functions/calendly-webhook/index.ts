@@ -117,22 +117,40 @@ Deno.serve(async (req: Request) => {
         return json(200, { received: true, skipped: "flytning" });
       }
 
-      // AEgte aflysning -> status 'cancelled'. VIGTIGT: roer IKKE companies.intro_session_used_at;
-      // den gratis forbliver brugt. Genaabning er en bevidst admin-handling via fluebenet (etape 4+).
-      const { error } = await admin
+      // AEgte aflysning. Hvem der aflyste afgoer den gratis:
+      //   host (Morten) -> genaabn den gratis, det er ikke medlemmets skyld.
+      //   invitee (medlemmet) eller ukendt -> den gratis forbliver brugt; genaabning er en admin-handling.
+      const cancelerType = event?.payload?.cancellation?.canceler_type;
+
+      const { data: cancelled, error } = await admin
         .from("session_bookings")
         .update({ status: "cancelled" })
         .eq("id", bookingId)
         .eq("advisor", "morten")
-        .select("id");
+        .select("id, company_id");
 
       if (error) {
-        // AEgte DB-fejl: returnér 500 saa Calendly proever igen.
         console.error("[calendly-webhook] DB-fejl ved cancelled-opdatering, Calendly proever igen:", error);
         return json(500, { error: "db error" });
       }
-      // 0 rows (ukendt id ved aflysning) ignoreres bevidst -> 200.
-      console.log(`[calendly-webhook] invitee.canceled (aegte): booking ${bookingId} -> cancelled. intro_session_used_at uroert.`);
+
+      // Host-aflysning: genaabn den gratis paa virksomheden, saa medlemmet kan booke igen.
+      if (cancelerType === "host" && cancelled && cancelled.length > 0 && cancelled[0].company_id) {
+        const { error: reopenError } = await admin
+          .from("companies")
+          .update({ intro_session_used_at: null })
+          .eq("id", cancelled[0].company_id);
+        if (reopenError) {
+          console.error("[calendly-webhook] Host-aflysning: genaabning fejlede, Calendly proever igen:", reopenError);
+          return json(500, { error: "reopen error" });
+        }
+        console.log(`[calendly-webhook] invitee.canceled (host): booking ${bookingId} -> cancelled, gratis genaabnet.`);
+        return json(200, { received: true });
+      }
+
+      // Invitee-aflysning eller ukendt afsender: status cancelled, gratis forbliver brugt.
+      // 0 rows (ukendt id) ignoreres bevidst -> 200.
+      console.log(`[calendly-webhook] invitee.canceled (invitee): booking ${bookingId} -> cancelled. intro_session_used_at uroert.`);
       return json(200, { received: true });
     }
 
