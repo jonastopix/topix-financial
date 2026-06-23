@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Upload, FileSpreadsheet, Check, X, Loader2, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -82,6 +82,10 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const workbookRef = useRef<any>(null);        // parset workbook (null for CSV)
+  const pendingFileRef = useRef<File | null>(null);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
 
   const preview: ImportResult | null =
     multiYear && selectedYear
@@ -92,30 +96,32 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
         }
       : null;
 
-  const parseExcelAsText = useCallback(async (file: File): Promise<string> => {
-    if (file.name.endsWith(".csv")) return file.text();
+  const buildSheetsText = async (workbook: any, names: string[]): Promise<string> => {
     const XLSX = await import("xlsx");
-    const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: "array" });
-    const sheetParts = workbook.SheetNames.map((name) => {
-      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: "\t", RS: "\n" });
-      return `=== Ark: ${name} ===\n${csv}`;
-    });
-    return sheetParts.join("\n\n");
-  }, []);
+    return names
+      .map((name) => {
+        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: "\t", RS: "\n" });
+        return `=== Ark: ${name} ===\n${csv}`;
+      })
+      .join("\n\n");
+  };
 
-  const handleFile = useCallback(async (file: File) => {
-    if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
-      toast.error("Upload venligst en Excel-fil (.xlsx, .xls) eller CSV");
-      return;
-    }
+  const runImport = useCallback(async (sheets?: string[]) => {
+    const file = pendingFileRef.current;
+    if (!file) return;
 
     setParsing(true);
     setMultiYear(null);
     setSelectedYear(null);
 
     try {
-      const fileContent = await parseExcelAsText(file);
+      let fileContent: string;
+      if (workbookRef.current) {
+        const names = sheets ?? workbookRef.current.SheetNames;
+        fileContent = await buildSheetsText(workbookRef.current, names);
+      } else {
+        fileContent = await file.text(); // CSV
+      }
 
       const { data, error } = await supabase.functions.invoke("import-budget-excel", {
         body: { fileContent, fileName: file.name },
@@ -143,7 +149,38 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
     } finally {
       setParsing(false);
     }
-  }, [parseExcelAsText]);
+  }, []);
+
+  const handleFile = useCallback(async (file: File) => {
+    if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
+      toast.error("Upload venligst en Excel-fil (.xlsx, .xls) eller CSV");
+      return;
+    }
+
+    pendingFileRef.current = file;
+
+    if (file.name.endsWith(".csv")) {
+      workbookRef.current = null;
+      setSheetNames([]);
+      runImport();
+      return;
+    }
+
+    const XLSX = await import("xlsx");
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    workbookRef.current = wb;
+    setSheetNames(wb.SheetNames);
+
+    if (wb.SheetNames.length === 1) {
+      runImport(wb.SheetNames);
+      return;
+    }
+
+    // Flere ark: forudvælg budget-arket og vis ark-vælgeren
+    const guess = wb.SheetNames.find((n: string) => /budget/i.test(n)) ?? wb.SheetNames[0];
+    setSelectedSheets([guess]);
+  }, [runImport]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -214,6 +251,71 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
       setSaving(false);
     }
   };
+
+  // Sheet picker when the uploaded file has multiple sheets (before the model is called)
+  if (sheetNames.length > 1 && !multiYear && !parsing) {
+    const toggleSheet = (name: string) =>
+      setSelectedSheets((prev) =>
+        prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+      );
+    return (
+      <div className="glass-card rounded-xl p-6 animate-fade-in">
+        <div className="flex items-center gap-2 mb-4">
+          <FileSpreadsheet className="h-5 w-5 text-primary" />
+          <h3 className="font-display font-semibold text-foreground">Vælg ark</h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Vælg det ark der indeholder din budget-oversigt. Vælg gerne flere, hvis dit budget er
+          fordelt over flere ark.
+        </p>
+        <div className="space-y-2">
+          {sheetNames.map((name) => {
+            const checked = selectedSheets.includes(name);
+            return (
+              <button
+                key={name}
+                onClick={() => toggleSheet(name)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                  checked
+                    ? "border-primary bg-primary/5"
+                    : "border-border/30 hover:border-primary/50"
+                }`}
+              >
+                <span
+                  className={`flex h-4 w-4 items-center justify-center rounded border ${
+                    checked ? "bg-primary border-primary" : "border-border"
+                  }`}
+                >
+                  {checked && <Check className="h-3 w-3 text-primary-foreground" />}
+                </span>
+                <span className="text-sm font-medium text-foreground">{name}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3 mt-4">
+          <button
+            onClick={() => runImport(selectedSheets)}
+            disabled={selectedSheets.length === 0}
+            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            Fortsæt
+          </button>
+          <button
+            onClick={() => {
+              setSheetNames([]);
+              setSelectedSheets([]);
+              workbookRef.current = null;
+              pendingFileRef.current = null;
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Upload en anden fil
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Year picker when multiple years found
   if (multiYear && multiYear.years.length > 1 && !selectedYear) {
