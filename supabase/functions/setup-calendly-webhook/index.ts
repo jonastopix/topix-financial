@@ -27,6 +27,9 @@ Deno.serve(async (req) => {
   const token = Deno.env.get("MORTEN_CALENDLY_API_KEY");
   if (!token) return json({ error: "MORTEN_CALENDLY_API_KEY mangler" }, 500);
 
+  const signingKey = Deno.env.get("CALENDLY_WEBHOOK_SIGNING_KEY");
+  if (!signingKey) return json({ error: "CALENDLY_WEBHOOK_SIGNING_KEY skal saettes foer denne koeres" }, 500);
+
   // 1. Hent Mortens bruger-uri + organisation
   const meRes = await fetch("https://api.calendly.com/users/me", {
     headers: { Authorization: `Bearer ${token}` },
@@ -38,7 +41,20 @@ Deno.serve(async (req) => {
   const orgUri = me.resource?.current_organization;
   if (!userUri || !orgUri) return json({ step: "users/me", error: "uri/organization mangler", detail: me }, 502);
 
-  // 2. Opret webhook-abonnement paa Mortens konto
+  // 2. Slet eksisterende abonnementer for vores URL (idempotent oprydning, fjerner ogsaa det signing-loese)
+  const listUrl = `https://api.calendly.com/webhook_subscriptions?organization=${encodeURIComponent(orgUri)}&user=${encodeURIComponent(userUri)}&scope=user&count=100`;
+  const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
+  const listText = await listRes.text();
+  if (!listRes.ok) return json({ step: "list", status: listRes.status, detail: listText }, 502);
+  const list = JSON.parse(listText);
+  const existing = (list.collection || []).filter((s: any) => s.callback_url === WEBHOOK_URL);
+  let deleted = 0;
+  for (const s of existing) {
+    const delRes = await fetch(s.uri, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (delRes.ok) deleted++;
+  }
+
+  // 3. Opret nyt abonnement MED signing key
   const subRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -48,6 +64,7 @@ Deno.serve(async (req) => {
       organization: orgUri,
       user: userUri,
       scope: "user",
+      signing_key: signingKey,
     }),
   });
   const subText = await subRes.text();
@@ -56,8 +73,8 @@ Deno.serve(async (req) => {
 
   return json({
     ok: true,
-    signing_key: sub.resource?.signing_key,
+    deleted,
     subscription_uri: sub.resource?.uri,
-    next: "Saet signing_key som CALENDLY_WEBHOOK_SIGNING_KEY i secrets. Fjern derefter denne funktion + CALENDLY_SETUP_SECRET.",
+    next: "Webhooken er nu aktiv med signing key. Fjern denne funktion + CALENDLY_SETUP_SECRET ved naeste oprydning.",
   });
 });
