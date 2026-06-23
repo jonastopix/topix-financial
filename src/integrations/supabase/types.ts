@@ -381,6 +381,7 @@ export type Database = {
           industry: string | null
           industry_code: string | null
           industry_label: string | null
+          intro_session_used_at: string | null
           is_demo: boolean | null
           is_legat: boolean
           logo_url: string | null
@@ -416,6 +417,7 @@ export type Database = {
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
+          intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
           logo_url?: string | null
@@ -451,6 +453,7 @@ export type Database = {
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
+          intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
           logo_url?: string | null
@@ -2048,6 +2051,7 @@ export type Database = {
       }
       session_bookings: {
         Row: {
+          advisor: string
           amount_dkk: number
           calendly_booking_url: string | null
           calendly_event_uri: string | null
@@ -2056,11 +2060,12 @@ export type Database = {
           id: string
           status: string
           stripe_payment_intent_id: string | null
-          stripe_session_id: string
+          stripe_session_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          advisor?: string
           amount_dkk: number
           calendly_booking_url?: string | null
           calendly_event_uri?: string | null
@@ -2069,11 +2074,12 @@ export type Database = {
           id?: string
           status?: string
           stripe_payment_intent_id?: string | null
-          stripe_session_id: string
+          stripe_session_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          advisor?: string
           amount_dkk?: number
           calendly_booking_url?: string | null
           calendly_event_uri?: string | null
@@ -2082,7 +2088,7 @@ export type Database = {
           id?: string
           status?: string
           stripe_payment_intent_id?: string | null
-          stripe_session_id?: string
+          stripe_session_id?: string | null
           updated_at?: string
           user_id?: string
         }
