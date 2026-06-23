@@ -85,24 +85,25 @@ Deno.serve(async (req: Request) => {
   switch (event.event) {
     case "invitee.created": {
       // advisor='morten' = sikkerhedsnet (denne webhook er Mortens konto).
-      // neq booked = idempotent (gentagelse/retry bliver no-op).
+      // neq cancelled lader en flytning opdatere det nye tidspunkt paa en allerede-booket
+      // raekke, mens en aflyst booking ikke genoplives af en forsinket created.
       const { data: updated, error } = await admin
         .from("session_bookings")
         .update({ status: "booked", calendly_event_uri: event.payload.event })
         .eq("id", bookingId)
         .eq("advisor", "morten")
-        .neq("status", "booked")
+        .neq("status", "cancelled")
         .select("id");
 
       if (error) {
-        // AEgte DB-fejl: returnér 500 saa Calendly proever igen. Idempotensen via .neq booked
-        // goer en retry sikker (en allerede-booket raekke matcher ikke anden gang).
+        // AEgte DB-fejl: returnér 500 saa Calendly proever igen. En retry er sikker: created
+        // skriver de samme vaerdier (status booked + samme event_uri), saa gentagelse er harmloes.
         console.error("[calendly-webhook] DB-fejl ved booked-opdatering, Calendly proever igen:", error);
         return json(500, { error: "db error" });
       }
       if (!updated || updated.length === 0) {
-        console.log("[calendly-webhook] invitee.created: ukendt id eller allerede booked.");
-        return json(200, { received: true, skipped: "ukendt id eller allerede booked" });
+        console.log("[calendly-webhook] invitee.created: ukendt id eller aflyst.");
+        return json(200, { received: true, skipped: "ukendt id eller aflyst" });
       }
       console.log(`[calendly-webhook] invitee.created: booking ${bookingId} -> booked.`);
       return json(200, { received: true });
