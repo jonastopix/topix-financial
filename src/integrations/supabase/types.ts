@@ -740,30 +740,36 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          is_test: boolean
           message_id: string | null
           metadata: Json | null
           recipient_email: string
           status: string
+          subject: string | null
           template_name: string
         }
         Insert: {
           created_at?: string
           error_message?: string | null
           id?: string
+          is_test?: boolean
           message_id?: string | null
           metadata?: Json | null
           recipient_email: string
           status: string
+          subject?: string | null
           template_name: string
         }
         Update: {
           created_at?: string
           error_message?: string | null
           id?: string
+          is_test?: boolean
           message_id?: string | null
           metadata?: Json | null
           recipient_email?: string
           status?: string
+          subject?: string | null
           template_name?: string
         }
         Relationships: []
