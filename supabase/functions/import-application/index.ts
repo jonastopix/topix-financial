@@ -89,7 +89,21 @@ Deno.serve(async (req) => {
 
   const auth = await authenticateUser(req);
   if (auth instanceof Response) return auth;
-  const { callerId } = auth;
+  const { callerId, callerClient } = auth;
+
+  // Caller-authz: must be advisor (admin inherits via has_role). The frontend
+  // route is AdvisorRoute-guarded, but a valid JWT can hit this edge function
+  // directly — server-side gate closes that path.
+  const { data: callerIsAdvisor, error: callerRoleError } = await callerClient.rpc(
+    "has_role",
+    { _user_id: callerId, _role: "advisor" }
+  );
+  if (callerRoleError || !callerIsAdvisor) {
+    console.warn("[import-application] caller not advisor", { callerId });
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
