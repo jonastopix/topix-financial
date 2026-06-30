@@ -65,7 +65,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip as RechartsTooltip, LineChart, Line } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, LineChart, Line } from "recharts";
 import type { Json } from "@/integrations/supabase/types";
 
 interface MemberProfile {
@@ -1245,23 +1245,39 @@ const MemberDetail = () => {
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
                         <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                       </linearGradient>
-                      <linearGradient id="resGradMD" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-info))" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-info))" stopOpacity={0} />
-                      </linearGradient>
                     </defs>
                     <XAxis dataKey="period" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      yAxisId="kr"
+                      width={48}
+                      tickFormatter={(v: number) => `${Math.round(v / 1000)} t`}
+                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="res"
+                      orientation="right"
+                      width={48}
+                      tickFormatter={(v: number) => `${Math.round(v / 1000)} t`}
+                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <RechartsTooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
                       formatter={(v: number, name: string) => [
                         `${Number(v).toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`,
-                        name === "omsaetning" ? "Omsætning" : "Resultat f. skat"
+                        name === "omsaetning" ? "Omsætning"
+                          : name === "budget" ? "Budget"
+                          : "Resultat f. skat",
                       ]}
                     />
-                    <Area type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revGradMD)" dot={false} />
-                    <Area type="monotone" dataKey="resultat" stroke="hsl(var(--chart-info))" strokeWidth={2} fill="url(#resGradMD)" dot={false} />
+                    <Area yAxisId="kr" type="monotone" dataKey="omsaetning" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revGradMD)" dot={false} />
+                    <Line yAxisId="res" type="monotone" dataKey="resultat" stroke="hsl(var(--chart-info))" strokeWidth={2} dot={false} />
                     {budgetChartData.some(b => b.budgetRevenue != null) && (
                       <Line
+                        yAxisId="kr"
                         type="monotone"
                         dataKey="budget"
                         stroke="hsl(var(--chart-warning))"
