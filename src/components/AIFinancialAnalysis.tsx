@@ -18,6 +18,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary, generateCommentary, type Commentary } from "@/hooks/useCompanyCommentary";
 import { postActivityMessage } from "@/lib/chatActivity";
+import { parseReportPeriodToKey } from "@/lib/financialUtils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface KeyFinding {
   title: string;
@@ -212,14 +214,44 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
             summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
           });
         }
-        await postActivityMessage({
-          conversationId,
-          senderId: userId,
-          content: summaryParts.join("\n"),
-          contextType: "report",
-          contextId: result.id,
-          contextMeta: { title: `AI Analyse · ${label}` },
-        });
+        const content = summaryParts.join("\n");
+
+        // Periodenøgle for den analyserede periode. targetPeriod ER allerede en
+        // kanonisk YYYY-MM-nøgle (fra committede facts); fald tilbage til at parse
+        // labelen. Uden en nøgle har vi intet idempotens-anker → spring kortet over
+        // (aldrig en "ukendt periode"-dublet).
+        const periodKey = targetPeriod || parseReportPeriodToKey(label);
+        if (periodKey) {
+          const contextMeta = { kind: "ai_analysis", period_key: periodKey, title: `AI Analyse · ${label}` };
+
+          // Idempotent pr. (samtale, periode): EET ai_analysis-kort pr. periode, aldrig
+          // en stak. Findes et → opdatér content + peg på nyeste commentary; ellers
+          // indsæt nyt. Samme mønster som reportCommit.ts' report_card.
+          const { data: existing } = await supabase
+            .from("messages")
+            .select("id")
+            .eq("conversation_id", conversationId)
+            .eq("context_type", "report")
+            .eq("context_meta->>kind", "ai_analysis")
+            .eq("context_meta->>period_key", periodKey)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            await supabase
+              .from("messages")
+              .update({ content, context_id: result.id } as never)
+              .eq("id", (existing[0] as { id: string }).id);
+          } else {
+            await postActivityMessage({
+              conversationId,
+              senderId: userId,
+              content,
+              contextType: "report",
+              contextId: result.id,
+              contextMeta,
+            });
+          }
+        }
       }
 
       toast.success("Analyse genereret");
