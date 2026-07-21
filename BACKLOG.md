@@ -170,6 +170,36 @@ udskudt strukturel gæld).
 
 ---
 
+### [P3] Float-artefakter i `financial_report_facts.metrics`-jsonb (udskudt fra ×100-fix, PR fix/ret-data-x100)
+
+**Status**: Bevidst ikke fixet i ×100-PR'en. Committede nøgletal i `metrics`-jsonb indeholder flydende-komma-artefakter, fx `16984.829999999998` i stedet for `16984.83` (observeret i Topix' produktionsdata 2026-07-21). ×100-fixet **bevarer** disse værdier eksakt (round-trip uden korruption) — det renser dem ikke.
+
+**Hvorfor ikke fixet her**: Artefakterne stammer fra et andet lag (parse/normalisering før commit), ikke fra visning→gem-round-trippet som ×100-buggen. Anden rodårsag ⇒ andet fix. En oprydning ville kræve enten en normaliserings-/afrundingsbeslutning (hvor mange decimaler er kanoniske for øre?) eller en migration af eksisterende committede facts — begge udenfor scope for en målrettet korruptions-fix.
+
+**Revurder**: sammen med et review af parse-/commit-laget (`commit_report_facts` + normaliseringen der producerer `metrics`). Afklar kanonisk decimalpræcision og om historiske facts skal migreres.
+
+---
+
+### [P3] Varierende metrics-nøglesæt pr. `source_type` (udskudt fra ×100-fix)
+
+**Status**: Noteret, ikke adresseret. `source_type = 'manual'` mangler nøgler som `ebit`/`ebitda` i `metrics`-jsonb, hvor `canonical`/`canonical_v2` har dem (observeret 2026-07-21). Konsumenter må ikke antage et fast nøglesæt.
+
+**Hvorfor ikke fixet her**: Uafhængigt af ×100-buggen (ingen delt rodårsag). Kræver en beslutning om et kanonisk nøgle-skema på tværs af `source_type` — en datakontrakt-opgave, ikke en konverterings-fix.
+
+**Revurder**: ved næste arbejde på metrics-kontrakten (fx MCP Tool 3 `get_financial_metrics`, som læser `metrics` direkte og vil eksponere inkonsistensen).
+
+---
+
+### [P3] Inline-validerings-dublet i `ReportReviewDialog.tsx:201` (udskudt fra ×100-fix)
+
+**Status**: Noteret, ikke konsolideret. `handleSaveEdits` har en egen inline-parse (`trimmed.replace(/\./g, "").replace(",", ".")` + `isNaN`-tjek) der dublerer `parseMetricValue`s dansk-logik, brugt **kun** til validering før gem. Den påvirker ikke den gemte værdi (som går gennem `saveManualOverride` → `parseMetricValue`), så den var ikke en del af ×100-rodårsagen.
+
+**Hvorfor ikke fixet her**: ×100-fixet var målrettet serializer/parser-mismatchen; at rydde en validerings-dublet er en separat, ikke-adfærdsændrende oprydning. Holdt ude for at bevare et minimalt, review-bart diff.
+
+**Revurder**: erstat inline-parsen med et kald til `parseMetricValue` (og behandl `undefined` som valideringsfejl), så der er én kilde til parse-sandhed. Lav, isoleret oprydning.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

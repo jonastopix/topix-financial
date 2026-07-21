@@ -127,7 +127,9 @@ export function canonicalPreviewToDanishInputs(
   for (const [enKey, value] of Object.entries(metricsPreview)) {
     const daKey = CANONICAL_TO_DANISH[enKey];
     if (daKey && ALL_FIELDS.includes(daKey) && value != null) {
-      inputs[daKey] = String(value);
+      // Danish serializer, exact inverse of parseMetricValue (was String(value),
+      // whose "." parseMetricValue stripped as a thousands separator → ×100).
+      inputs[daKey] = formatMetricValue(value);
     }
   }
   return inputs;
@@ -159,6 +161,22 @@ export function parseMetricValue(raw: string): number | null | undefined {
   const num = Number(cleaned);
   if (isNaN(num)) return undefined;
   return negative ? -num : num;
+}
+
+/**
+ * Serialize a metric number back to a Danish-format input string — the exact
+ * INVERSE of parseMetricValue. JS number stringification (String(n)) never emits
+ * a thousands separator and uses "." only as the decimal point, so swapping that
+ * single "." for a Danish decimal comma yields a string parseMetricValue round-
+ * trips exactly. null/undefined/NaN → "" (empty input).
+ *
+ * This closes the ×100 corruption: previously the form was populated with
+ * String(value), whose "." parseMetricValue stripped as a thousands separator,
+ * multiplying every untouched decimal value by 10^(decimals) on save.
+ */
+export function formatMetricValue(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "";
+  return String(value).replace(".", ",");
 }
 
 /** Parse a period key string to month/year */
