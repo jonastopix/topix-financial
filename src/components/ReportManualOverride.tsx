@@ -16,6 +16,7 @@ import {
   ALL_FIELDS,
   parseMonth,
   parseMetricValue,
+  formatMetricValue,
   validateForApply,
   getOverrideSource,
   saveManualOverride,
@@ -61,7 +62,9 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
         const manualVal = manualMetrics?.[f];
         const existingVal = existingMetrics[f];
         const val = manualVal ?? existingVal;
-        initMetrics[f] = val != null ? String(val) : "";
+        // Danish serializer, exact inverse of parseMetricValue (was String(val),
+        // whose "." parseMetricValue stripped as a thousands separator → ×100).
+        initMetrics[f] = formatMetricValue(val);
       }
       setMetricInputs(initMetrics);
       setReportType(report.manual_report_type || report.report_type || "andet");
