@@ -40,3 +40,29 @@ jobs:
         # NOT `bun test` — that runs Bun's built-in test runner, which does
         # not understand vitest's API and silently passes nothing.
         run: bun run test
+
+  mcp-test:
+    # Additive job for the standalone mcp/ package (its own package.json +
+    # lockfile + node_modules). Kept separate from the root `test` job because
+    # the MCP SDK is not in the root node_modules — see docs/mcp/RECON.md §6
+    # and mcp/vitest.config.ts.
+    name: MCP Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies (frozen)
+        # --frozen-lockfile pins to mcp/bun.lock verbatim, so CI cannot drift
+        # from the reviewed lockfile.
+        working-directory: mcp
+        run: bun install --frozen-lockfile
+
+      - name: Run MCP tests
+        working-directory: mcp
+        run: bun run test
