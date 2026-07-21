@@ -52,6 +52,20 @@ export const FINANCIAL_REPORT_FACTS_COLUMNS = [
   "metrics",
 ] as const;
 
+/**
+ * Narrow projection of financial_report_facts for get_company_overview: only the
+ * tenant key and the period identity needed to compute the latest committed
+ * period_key (= max(period_key), §3.3: YYYY-MM sorts chronologically) and the
+ * committed-period count. Deliberately EXCLUDES `metrics` (the KPI jsonb) so the
+ * cross-tenant scan stays tiny (Tool 1 design (1)). `committed_at` is excluded
+ * too: the "latest by committed_at" alternative was rejected against real data
+ * (Brick Works divergence), so it is dead weight here.
+ */
+export const COMPANY_OVERVIEW_FACTS_COLUMNS = [
+  "company_id",
+  "period_key",
+] as const;
+
 export type CompaniesColumn = (typeof COMPANIES_COLUMNS)[number];
 export type FinancialReportsColumn = (typeof FINANCIAL_REPORTS_COLUMNS)[number];
 export type FinancialReportFactsColumn =
