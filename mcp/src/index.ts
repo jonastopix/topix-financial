@@ -1,14 +1,14 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createServiceRoleContext } from "./access/accessContext";
+import { createAdvisorContext } from "./access/accessContext";
 import { buildServer } from "./server";
 
 /**
- * Phase 1 entrypoint: stdio transport for local Claude Code / Desktop. Phase 3
- * swaps StdioServerTransport for StreamableHTTPServerTransport + OAuth HERE —
- * buildServer() and every tool stay unchanged.
+ * Phase 1 entrypoint: stdio transport for local Claude Code / Desktop. Auth
+ * pivots to advisor login (signInWithPassword) because the Lovable-owned prod
+ * instance exposes no service-role key; RLS is the real enforcement.
  */
 async function main(): Promise<void> {
-  const ctx = createServiceRoleContext(); // throws clearly if env is missing
+  const ctx = await createAdvisorContext(); // throws clearly if env is missing or login fails
   const server = buildServer(ctx);
   const transport = new StdioServerTransport();
   await server.connect(transport);

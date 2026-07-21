@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadEnv, type McpEnv } from "../env";
-import { createServiceRoleClient } from "../supabase/client";
+import { createAdvisorClient, createServiceRoleClient } from "../supabase/client";
 
 export type AccessMode = "service-role" | "user";
 
@@ -53,8 +53,9 @@ function assertCompanyAccess(scope: CompanyScope, companyId: string): void {
 }
 
 /**
- * Internal builder shared by the phase-1 (service-role) and future phase-3
- * (user OAuth) factories. Because tools depend only on AccessContext, the
+ * Internal builder shared by every factory — the phase-1 advisor login
+ * (createAdvisorContext) and the preserved service-role path
+ * (createServiceRoleContext). Because tools depend only on AccessContext, the
  * factory can change without touching any tool.
  */
 export function createContext(opts: CreateContextOptions): AccessContext {
@@ -74,13 +75,66 @@ export function createContext(opts: CreateContextOptions): AccessContext {
 }
 
 /**
- * Phase 1: full-access context built from the service-role key. `dbFor` allows
- * any company (scope "all") but still routes through the same gate a phase-3
- * user context will enforce, so tools are identical across phases. Phase 3 adds
- * a `createUserContext(jwt)` factory here that derives actor/scope/client from
- * validated OAuth claims — without changing this interface or any tool.
+ * Phase-1 auth (pivoted): logs in as the advisor via signInWithPassword using
+ * the publishable key, then wraps the caller-scoped client in an AccessContext.
+ *
+ * Because the client carries a real advisor JWT, **RLS is the true enforcement**
+ * (advisor policies → SELECT on all tenant tables, RECON.md §3). `companyScope:
+ * "all"` lets the dbFor gate pass every company_id through — that gate is
+ * defence-in-depth layered on top of RLS, not the primary control.
+ *
+ * Session handling (Sprint 2, choice (a)): the access token is refreshed in the
+ * background by the SDK (autoRefreshToken). A hard session loss (refresh token
+ * expired) is handled by RESTARTING the server — login happens on startup. The
+ * ensureSession()/retry layer for in-flight JWT-expiry is deferred to Tool 1.
+ *
+ * NOTE (pre-Sprint-4 decision point): this authenticates as Jonas' personal
+ * advisor account. Acceptable for read-only Sprint 2, but before the writing
+ * tools (Sprint 4) switch to a dedicated MCP-advisor user for auditability,
+ * independent rotation, and a separate kill switch.
+ */
+export async function createAdvisorContext(
+  env: McpEnv = loadEnv(),
+): Promise<AccessContext> {
+  const client = createAdvisorClient(env.supabaseUrl, env.publishableKey);
+
+  const { data, error } = await client.auth.signInWithPassword({
+    email: env.advisorEmail,
+    password: env.advisorPassword,
+  });
+
+  if (error || !data?.user) {
+    // Raw detail (which may echo the attempted email) goes to stderr only; the
+    // thrown message is neutral and never carries the email or password.
+    console.error(
+      `[boardroom-mcp] advisor sign-in failed: ${error?.message ?? "no user returned"}`,
+    );
+    throw new Error("Advisor authentication failed");
+  }
+
+  return createContext({
+    actor: `user:${data.user.id}`,
+    mode: "user",
+    companyScope: "all",
+    client,
+  });
+}
+
+/**
+ * UNUSABLE against the Lovable-owned production instance (ref
+ * loiavmastgeieqyiwyyr): the service-role key is not available to us, so
+ * env.serviceRoleKey is absent and this throws. Kept for the hypothetical future
+ * where the instance is migrated to our own Supabase — the gate and every tool
+ * stay identical, so only the factory would be swapped back. Phase-1 uses
+ * createAdvisorContext instead.
  */
 export function createServiceRoleContext(env: McpEnv = loadEnv()): AccessContext {
+  if (!env.serviceRoleKey) {
+    throw new Error(
+      "createServiceRoleContext is unavailable: no service-role key (the " +
+        "production instance is Lovable-owned). Use createAdvisorContext.",
+    );
+  }
   const client = createServiceRoleClient(env.supabaseUrl, env.serviceRoleKey);
   return createContext({
     actor: "service-role:local",
