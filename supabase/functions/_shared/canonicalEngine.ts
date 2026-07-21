@@ -180,6 +180,12 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     corrections.push({ field, source: "key_figure", raw_value: raw, normalized_value: normalized, rule, reason, confidence });
   }
 
+  // tech_software folds into admin_costs, but the fold is DEFERRED to a
+  // reconciliation-guarded step after the loop (see below) — merging inline
+  // double-counts when software already sits inside the admin section total.
+  let techSoftwareRaw: number | null = null;
+  let techSoftwareValue: number | null = null;
+
   // Process each key_figure
   for (const [dkField, value] of Object.entries(kf)) {
     if (value == null || typeof value !== "number") continue;
@@ -277,23 +283,11 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
         `Saldobalance equity inverted: ${value} → ${normalized} (credit convention)`, "HIGH");
     }
 
-    // tech_software merges into admin_costs
+    // tech_software: capture the (sign-normalized) value and defer the fold into
+    // admin_costs to the reconciliation-guarded step after the loop.
     if (dkField === "tech_software") {
-      if (metrics.admin_costs != null) {
-        const oldAdmin = metrics.admin_costs;
-        metrics.admin_costs += normalized;
-        corrections.push({
-          field: "tech_software",
-          source: "key_figure",
-          raw_value: value,
-          normalized_value: metrics.admin_costs,
-          rule: "tech_software_merged_into_admin",
-          reason: `tech_software (${normalized}) merged into admin_costs (${oldAdmin} → ${metrics.admin_costs})`,
-          confidence: "HIGH",
-        });
-      } else {
-        metrics[canonicalField] = (metrics[canonicalField] || 0) + normalized;
-      }
+      techSoftwareRaw = value;
+      techSoftwareValue = normalized;
       continue;
     }
 
@@ -301,6 +295,75 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     // Equity: keep sign (negative equity possible)
 
     metrics[canonicalField] = normalized;
+  }
+
+  // ── tech_software → admin_costs: reconciliation-guarded fold ──
+  // Some layouts (e.g. e-conomic) place software accounts INSIDE the admin
+  // section, so kf.admin already includes them; other layouts report software as
+  // a separate group. A blind add double-counts the former (the ×dobbelttal bug).
+  // Decide per report by COMPARATIVE reconciliation against the stated P&L result:
+  // fold only if including tech_software brings the reconstructed operating result
+  // CLOSER to the stated result than leaving it out. Financial items and rounding
+  // pollute both branches equally (the two differ by exactly tech_software), so no
+  // absolute tolerance is needed. Fallback (missing GP or stated result) keeps the
+  // legacy fold so unreconcilable reports behave exactly as before.
+  if (techSoftwareValue != null) {
+    if (metrics.admin_costs == null) {
+      // No admin total to fold into — tech_software becomes the admin figure.
+      metrics.admin_costs = techSoftwareValue;
+    } else {
+      const gp = metrics.gross_profit;
+      const statedResult = metrics.ebt;
+      const canReconcile = gp != null && statedResult != null;
+
+      const opexWithoutTech =
+        (metrics.payroll || 0) + (metrics.sales_costs || 0) +
+        (metrics.facility_costs || 0) + (metrics.admin_costs || 0) +
+        (metrics.vehicle_costs || 0);
+      const depreciation = metrics.depreciation || 0;
+
+      let deltaWithout: number | null = null;
+      let deltaWith: number | null = null;
+      let shouldMerge: boolean;
+
+      if (canReconcile) {
+        const expectedWithout = (gp as number) - opexWithoutTech - depreciation;
+        const expectedWith = expectedWithout - techSoftwareValue;
+        deltaWithout = Math.abs(expectedWithout - (statedResult as number));
+        deltaWith = Math.abs(expectedWith - (statedResult as number));
+        shouldMerge = deltaWith < deltaWithout;
+      } else {
+        shouldMerge = true; // fallback: preserve legacy merge behaviour
+      }
+
+      const deltaStr = canReconcile
+        ? `delta_med ${deltaWith} vs delta_uden ${deltaWithout}`
+        : "reconciliation unavailable (missing gross_profit or stated result) — legacy fold kept";
+
+      if (shouldMerge) {
+        const oldAdmin = metrics.admin_costs;
+        metrics.admin_costs += techSoftwareValue;
+        corrections.push({
+          field: "tech_software",
+          source: "key_figure",
+          raw_value: techSoftwareRaw ?? techSoftwareValue,
+          normalized_value: metrics.admin_costs,
+          rule: "tech_software_merged_into_admin",
+          reason: `tech_software (${techSoftwareValue}) merged into admin_costs (${oldAdmin} → ${metrics.admin_costs}); ${deltaStr}`,
+          confidence: canReconcile ? "HIGH" : "MEDIUM",
+        });
+      } else {
+        corrections.push({
+          field: "tech_software",
+          source: "key_figure",
+          raw_value: techSoftwareRaw ?? techSoftwareValue,
+          normalized_value: metrics.admin_costs,
+          rule: "tech_software_merge_skipped_double_count",
+          reason: `tech_software (${techSoftwareValue}) already included in admin_costs section total (${metrics.admin_costs}); merge skipped — ${deltaStr}`,
+          confidence: "HIGH",
+        });
+      }
+    }
   }
 
   // Prefer explicit bank/likvider line-item sign over key_figures when available
