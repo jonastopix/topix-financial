@@ -28,7 +28,6 @@ export const PNL_FIELDS = [
   "lokaleomkostninger",
   "administrationsomkostninger",
   "afskrivninger",
-  "ebitda",
   "resultat_foer_skat",
   "resultat_efter_skat",
 ];
@@ -51,7 +50,6 @@ export const FIELD_LABELS: Record<string, string> = {
   lokaleomkostninger: "Lokaleomkostninger",
   administrationsomkostninger: "Administrationsomkostninger",
   afskrivninger: "Afskrivninger",
-  ebitda: "EBITDA / Driftsresultat",
   resultat_foer_skat: "Resultat f. skat",
   resultat_efter_skat: "Resultat efter skat",
   bank_balance: "Bank / Likvider",
@@ -72,7 +70,6 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = {
   lokaleomkostninger: "Husleje, el, varme og andre omkostninger til virksomhedens lokaler.",
   administrationsomkostninger: "Generelle driftsomkostninger som ikke hører under de øvrige, fx kontor, IT og revisor.",
   afskrivninger: "Periodens værdiforringelse på aktiver som maskiner, inventar og biler.",
-  ebitda: "Resultat før renter, skat og afskrivninger. Et mål for den løbende drifts indtjening.",
   resultat_foer_skat: "Periodens resultat efter alle omkostninger og renter, men før skat. Indgår i beregningen af din resultatgrad.",
   resultat_efter_skat: "Periodens endelige resultat efter skat (bundlinjen).",
   bank_balance: "Virksomhedens likvide beholdning på bankkonti på opgørelsestidspunktet.",
@@ -91,7 +88,6 @@ export const CANONICAL_TO_DANISH: Record<string, string> = {
   revenue: "omsaetning",
   gross_profit: "daekningsbidrag",
   payroll: "loenninger",
-  ebitda: "ebitda",
   ebt: "resultat_foer_skat",
   net_result: "resultat_efter_skat",
   assets_total: "aktiver_i_alt",
@@ -258,6 +254,44 @@ export function validateForApply(params: ValidateForApplyParams): string | null 
   return null;
 }
 
+// ── Afledte størrelser ──
+
+/**
+ * EBITDA/EBIT er beregnede tal og round-trippes ikke gennem formularen (de har
+ * ingen inputfelter). Ved gem afledes de fra de redigerede grundfelter med SAMME
+ * formler som canonicalEngine.ts:468-480 (ebitda = daekningsbidrag − opex,
+ * ebit = ebitda − afskrivninger), afrundet til 2 decimaler — manual-stiens
+ * float-artefakter afskæres her; parse-sidens forbliver BACKLOG P3.
+ *
+ * Komponent-guard (ærlig udeladelse): mangler daekningsbidrag, eller er opex ≤ 0
+ * (fx tomme felter, eller omkostninger tastet i negativ konvention), beregnes
+ * intet — nøglerne udelades frem for at gætte. Spejler canonicalEngines
+ * `opex > 0`-guard.
+ */
+export function computeDerivedMetrics(
+  metrics: Record<string, number | null>
+): { ebitda?: number; ebit?: number } {
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const derived: { ebitda?: number; ebit?: number } = {};
+
+  const db = metrics.daekningsbidrag;
+  if (typeof db === "number") {
+    const opex =
+      (metrics.loenninger || 0) +
+      (metrics.salgsomkostninger || 0) +
+      (metrics.lokaleomkostninger || 0) +
+      (metrics.administrationsomkostninger || 0);
+    if (opex > 0) derived.ebitda = round2(db - opex);
+  }
+
+  const afskrivninger = metrics.afskrivninger;
+  if (derived.ebitda != null && typeof afskrivninger === "number") {
+    derived.ebit = round2(derived.ebitda - afskrivninger);
+  }
+
+  return derived;
+}
+
 // ── Override source ──
 export function getOverrideSource(isAdmin: boolean, isAdvisor: boolean): string {
   if (isAdmin) return "admin";
@@ -291,8 +325,12 @@ export async function saveManualOverride(params: SaveManualOverrideParams): Prom
     metricsObj[f] = parsed === undefined ? null : parsed;
   }
 
+  // Afledte nøgler beregnes fra grundfelterne (aldrig round-trippet); udelades
+  // når komponent-guarden i computeDerivedMetrics ikke er opfyldt.
+  const derived = computeDerivedMetrics(metricsObj);
+
   const manualNormalizedData = {
-    metrics: metricsObj,
+    metrics: { ...metricsObj, ...derived },
     override_source: "manual_correction",
   };
 

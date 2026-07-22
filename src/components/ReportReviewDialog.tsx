@@ -76,6 +76,8 @@ const METRIC_LABELS: Record<string, string> = {
   facility_costs: "Lokaleomkostninger",
   admin_costs: "Administrationsomkostninger",
   depreciation: "Afskrivninger",
+  ebitda: "EBITDA",
+  ebit: "EBIT (driftsresultat)",
   ebt: "Resultat før skat",
   net_result: "Resultat efter skat",
   assets_total: "Aktiver i alt",
