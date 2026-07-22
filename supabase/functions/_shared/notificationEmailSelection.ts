@@ -29,7 +29,16 @@ export const REPORT_NOTIFICATION_TYPES = new Set([
 /** Udskudte mails sendes kun i dette vindue (dansk tid, DST-sikkert via Intl). */
 const SEND_WINDOW_START_HOUR = 7; // inklusiv
 const SEND_WINDOW_END_HOUR = 20; // eksklusiv
-/** Notifikationer yngre end dette er "friske" og sendes straks døgnet rundt. */
+/**
+ * Notifikationer yngre end dette er "friske" og sendes straks døgnet rundt.
+ *
+ * ACCEPTERET RANDCASE (godkendt 2026-07-22, se BACKLOG.md P4): en notifikation
+ * oprettet efter ca. kl. 21 dansk hos en bruger med opbrugt dagskvote er
+ * stadig "frisk" (<6t) ved kvote-nulstillingen kl. 02 dansk (UTC-midnat) og
+ * sendes derfor om natten. Kræver både opbrugt kvote (5 sends samme dag) og
+ * sen-aftens-notifikation — sjælden kombination, og alternativet (lavere
+ * tærskel) ville forsinke legitime aftenmails. Bevidst afvejning.
+ */
 const DEFER_THRESHOLD_MS = 6 * 60 * 60 * 1000;
 
 export interface ReportJoin {

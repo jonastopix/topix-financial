@@ -170,6 +170,16 @@ udskudt strukturel gæld).
 
 ---
 
+### [P4] Accepteret — sen-aftens-notifikation ved opbrugt kvote kan stadig maile om natten (vurderet 2026-07-22, ikke fixet)
+
+**Status**: Accepteret randcase i afsendelsesvinduet fra PR #152 (`_shared/notificationEmailSelection.ts`). Vindues-guarden holder kun **udskudte** kandidater (> `DEFER_THRESHOLD_MS` = 6 timer gamle) tilbage til kl. 07-20 dansk. En notifikation oprettet efter ca. **kl. 21 dansk** hos en bruger med **opbrugt dagskvote** (5 sends) er stadig "frisk" (<6t) ved kvote-nulstillingen kl. 02 dansk (UTC-midnat) og sendes derfor ved første cron-kørsel efter reset — om natten.
+
+**Hvorfor ikke fixet**: Kræver sammenfald af to sjældne betingelser (kvote opbrugt samme dag OG notifikation oprettet sent på aftenen). En lavere friskheds-tærskel ville forsinke legitime aftenmails (upload kl. 23 → mail 23:15 er ønsket adfærd), og en hårdere regel ("alle sends kun i vinduet") var eksplicit fravalgt i fixdesignet. Omkostning/gevinst er forkert for et hjørne der i praksis forudsætter en usædvanligt mail-aktiv dag.
+
+**Revurder hvis**: dagskvoten sænkes, `DEFER_THRESHOLD_MS` ændres, eller kvote-vinduet flyttes væk fra UTC-midnat (fx til dansk midnat eller rullende 24t) — enhver af de tre ændrer randcasens hyppighed. Genåbn også hvis natlige sends observeres i `email_send_log` med denne signatur (created_at aften, sent 00:00-02:00 UTC).
+
+---
+
 ### [P3] Float-artefakter i `financial_report_facts.metrics`-jsonb (udskudt fra ×100-fix, PR fix/ret-data-x100)
 
 **Status**: Bevidst ikke fixet i ×100-PR'en. Committede nøgletal i `metrics`-jsonb indeholder flydende-komma-artefakter, fx `16984.829999999998` i stedet for `16984.83` (observeret i Topix' produktionsdata 2026-07-21). ×100-fixet **bevarer** disse værdier eksakt (round-trip uden korruption) — det renser dem ikke.
