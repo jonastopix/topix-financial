@@ -1,6 +1,6 @@
 # Email- og notifikationsflows omkring rapportering
 
-**Kortlagt**: 2026-07-22, kode-evidens fra main + PR #152 (`fix/report-review-email-flow`, in-flight).
+**Kortlagt**: 2026-07-22, kode-evidens fra main + PR #152 (`fix/report-review-email-flow`, merged 2026-07-22).
 **Metode**: recon af `supabase/functions/`, `supabase/migrations/` (cron-definitioner), `src/lib/reportCommit.ts`, `src/pages/Reports.tsx`, `src/components/ReportReviewDialog.tsx` og `CompanyChatPane.tsx`, afstemt mod prod-observationer (email_send_log 08/7 + 22/7, cron.job-opslag).
 
 > **Cron-forbehold**: cron-migrationer deployes manuelt i Lovable og kan afvige fra repoet. Prod-opslag 22/7 bekræftede repo-cronerne + **to prod-only jobs** der ikke findes i repoet: `process-notification-emails` (*/5) og `daily-circle-sync` (03:00). Se §Strukturproblemer.
@@ -84,7 +84,11 @@ Trigger: `propagateReportCommit` → `send-slack-report-notification` → Slack 
 
 Note: `commit_report_facts` sætter **ikke** `financial_reports.reviewed_at` — det felt er advisorens "markér som læst"-flag i chatten (`CompanyChatPane`). Godkendelses-sandheden er `financial_report_facts.source_report_id`. Enhver logik der bruger `reviewed_at` som godkendelses-proxy er forkert.
 
-**Efter PR #152**: server-gaten disposer alle kandidater hvis rapport er committet/slettet/forsvundet, uanset hvilken sti der fejlede. **Afstemning med Jonas' SQL** (notifications × financial_reports for historiske sends): forventningen er at hver historisk "efter godkendelse"-send falder i sti 1, 2 eller 3 — hvis der findes sends der IKKE matcher nogen af stierne, er der en ukendt femte sti, og kortet skal revideres.
+**Efter PR #152**: server-gaten disposer alle kandidater hvis rapport er committet/slettet/forsvundet, uanset hvilken sti der fejlede.
+
+**Empirisk bekræftet (2026-07-22, korrigeret test — join mod `financial_report_facts.committed_at`)**: **60+ post-godkendelses-mails siden marts** — `report_review_ready`-mails sendt EFTER at rapportens periode var committet. Klassen var altså langt mere udbredt end fejlsporets to natlige mails antydede. Bulk-serier: **Brick Works 23-29/4** (op til 5 natlige mails i op til 6 på hinanden følgende nætter) og **Fjeldgaardshop 14-18/4**. 5-per-nat-mønsteret er kvote-mekanikken i aktion: dagskvoten (5) flushede ved hver UTC-midnat, og backloggen af forældreløse notifikationer drænede med 5/nat indtil den var tom. Afstemningen bekræfter sti-modellen ovenfor — ingen ukendt femte sti observeret.
+
+**Levende bevis for fixet (2026-07-22, efter merge + deploy af PR #152)**: frontend-dispose ved sletning målt til **110 ms** (notifikationen markeret håndteret i samme øjeblik rapporten slettes), og server-gate-dispose bekræftet ved cron-kørslen **09:10:05Z** — kandidaten disposet uden mail. Begge ender af defence-in-depth verificeret i prod.
 
 ---
 
