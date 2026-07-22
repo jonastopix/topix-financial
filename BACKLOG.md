@@ -198,13 +198,15 @@ udskudt strukturel gæld).
 
 **Revurder**: sammen med et review af parse-/commit-laget (`commit_report_facts` + normaliseringen der producerer `metrics`). Afklar kanonisk decimalpræcision og om historiske facts skal migreres.
 
+**Delvis afgrænsning 2026-07-22** (PR `fix/ret-data-ebitda-loss`): manual-stiens AFLEDTE nøgler (`ebitda`/`ebit`) beregnes nu med 2-decimals afrunding i `computeDerivedMetrics` — dén delmængde kan ikke længere bære artefakter. Parse-sidens artefakter (JS-derivering i `canonicalEngine.ts:468-480` og øvrige beregnede felter) består uændret og er fortsat denne posts scope.
+
 ---
 
 ### [P3] Varierende metrics-nøglesæt pr. `source_type` (udskudt fra ×100-fix)
 
-**Status**: Noteret, ikke adresseret. `source_type = 'manual'` mangler nøgler som `ebit`/`ebitda` i `metrics`-jsonb, hvor `canonical`/`canonical_v2` har dem (observeret 2026-07-21). Konsumenter må ikke antage et fast nøglesæt.
+**Status — opdateret 2026-07-22**: Det konkrete `ebit`/`ebitda`-hul er rodårsagsforklaret og fixet i PR `fix/ret-data-ebitda-loss`: manual-gemmestien BEREGNER nu begge nøgler fra grundfelterne (Mulighed A, `computeDerivedMetrics` i `reportOverrideHelpers.ts`), og migration `20260722130000` udvider resolver-CASEn så nøglerne bærer igennem til facts. Symptomet fra 2026-07-21 (manual mangler ebit/ebitda) var netop dette tab. **Restproblemet består**: der findes stadig intet håndhævet kanonisk nøgle-skema på tværs af `source_type` (fx kan manual mangle nøgler når komponent-guarden udelader dem ærligt, og canonical har nøgler som `gross_margin_pct` uden manual-modstykke). Konsumenter må fortsat ikke antage et fast nøglesæt.
 
-**Hvorfor ikke fixet her**: Uafhængigt af ×100-buggen (ingen delt rodårsag). Kræver en beslutning om et kanonisk nøgle-skema på tværs af `source_type` — en datakontrakt-opgave, ikke en konverterings-fix.
+**Hvorfor ikke fixet fuldt her**: Uafhængigt af ×100-buggen (ingen delt rodårsag). Kræver en beslutning om et kanonisk nøgle-skema på tværs af `source_type` — en datakontrakt-opgave, ikke en konverterings-fix.
 
 **Revurder**: ved næste arbejde på metrics-kontrakten (fx MCP Tool 3 `get_financial_metrics`, som læser `metrics` direkte og vil eksponere inkonsistensen).
 

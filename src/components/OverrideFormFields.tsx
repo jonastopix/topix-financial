@@ -30,7 +30,6 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   lokaleomkostninger: "Eks. -60000",
   administrationsomkostninger: "Eks. -85000",
   afskrivninger: "Eks. -40000",
-  ebitda: "Eks. 180000",
   resultat_foer_skat: "Eks. 120000",
   resultat_efter_skat: "Eks. 90000",
   bank_balance: "Eks. 480000",
@@ -65,7 +64,6 @@ export default function OverrideFormFields({
   const omsSafe = typeof omsVal === "number" ? omsVal : null;
   const dbVal = parseMetricValue(metricInputs["daekningsbidrag"] ?? "");
   const resVal = parseMetricValue(metricInputs["resultat_foer_skat"] ?? "");
-  const ebitdaVal = parseMetricValue(metricInputs["ebitda"] ?? "");
 
   // Vis kun felter der hører til den uploadede rapporttype. Fail-open ved tvivl:
   // resultatopgørelse -> kun P&L, balance -> kun balance, alt andet -> begge.
@@ -100,9 +98,6 @@ export default function OverrideFormFields({
     }
     if (field === "resultat_foer_skat" && typeof resVal === "number" && omsSafe !== null && omsSafe > 0 && Math.abs(resVal) > omsSafe * 1.5) {
       return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">Resultatet er usædvanligt stort ift. omsætningen</p>;
-    }
-    if (field === "ebitda" && typeof ebitdaVal === "number" && omsSafe !== null && omsSafe > 0 && ebitdaVal > omsSafe) {
-      return <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 ml-[10.5rem]">EBITDA kan ikke overstige omsætningen</p>;
     }
     return null;
   };
