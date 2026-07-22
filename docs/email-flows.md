@@ -9,7 +9,7 @@
 
 ## 0. Fælles infrastruktur (læses først)
 
-**To lag**: (1) *producenter* skriver `notifications`-rækker og/eller enqueue'r mails direkte; (2) *afsendelseskæden* er `enqueue_email` (pgmq) → `process-email-queue` (cron hvert **5. sekund**) → Resend. En mail lander typisk sekunder efter enqueue. `email_send_state.retry_after_until` er **kun** Resend-429-cooldown — den er IKKE midnats-mekanismen (afkræftet mistanke, se §Strukturproblemer pkt. 1).
+**To lag**: (1) *producenter* skriver `notifications`-rækker og/eller enqueue'r mails direkte; (2) *afsendelseskæden* er `enqueue_email` (pgmq) → `process-email-queue` → Resend. Repo-migrationen (20260402084424) schedulerer `process-email-queue` hvert 5. sekund, men **jobbet findes IKKE i prod-cron-opslaget 22/7** — noget dræner køen på ~4-5 s (empirisk: pending→sent 00:00:07→00:00:11-12), men mekanismen er **uverificeret** (cron-forbeholdet ovenfor gælder; afklaring føjet til P2 i §4). `email_send_state.retry_after_until` er **kun** Resend-429-cooldown — den er IKKE midnats-mekanismen (afkræftet mistanke, se §Strukturproblemer pkt. 1).
 
 **`notifications`-tabellen**: `dedup_key` UNIQUE per user (idempotens), `seen_at` (in-app set), `email_sent_at` (mail-siden "håndteret" — **dobbeltbetydning**, se §Strukturproblemer pkt. 4).
 
@@ -127,8 +127,8 @@ Note: `commit_report_facts` sætter **ikke** `financial_reports.reviewed_at` —
 ### Prioriteret anbefalingsliste
 | Prio | Anbefaling | Status/omkostning |
 |---|---|---|
-| **P1** | Merge + deploy PR #152 (edge auto ved merge; `src/` kræver Lovable Update-klik). Levende bevis: næste nats kørsel uden slettet/dublet/godkendt-mails. | Klar |
-| **P2** | Afklar `process-notification-emails` (*/5) i Lovable; deaktivér dublet-afsender eller dokumentér som inert. Deaktivér `daily-circle-sync`. | Prod-handling, 15 min |
+| **P1** | Merge + deploy PR #152 | UDFØRT 22/7 — merget, deployet (eksplicit build-chat-deploy) og bevist i prod: frontend-dispose 110 ms, server-gate-dispose ved cron 09:10:05Z uden mail. |
+| **P2** | Afklar `process-notification-emails` (*/5) i Lovable; deaktivér dublet-afsender eller dokumentér som inert. Deaktivér `daily-circle-sync`. Afklar også hvad der faktisk dræner `transactional_emails`-køen (~4-5 s empirisk) — `process-email-queue` findes ikke i prod-cron-opslaget 22/7, se §0. | Prod-handling, 15 min |
 | **P3** | Migration: eksplicit `email_state`/`disposed_at` på notifications — afliv `email_sent_at`-dobbeltbetydningen. Ærlig kvote + telemetri. | Lille migration + motor-tilpasning |
 | **P4** | Flyt cron-tider til bevidste danske tidspunkter (reminder/nudge til dansk morgen; DST-robust). | Cron-ændring i Lovable |
 | **P5** | Policy-beslutning om reflection-nudgens persona (system-afsender med advisor-signatur vs. status quo) — jf. princippet der nedlagde engagement-nudgen. | Beslutning + lille ændring |
