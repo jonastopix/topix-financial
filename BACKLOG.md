@@ -180,6 +180,16 @@ udskudt strukturel gæld).
 
 ---
 
+### [P4] Udskudt — cash-reglens matching aggregerer ikke flere likvidkonti (udskudt fra balance=ÅTD-fixet, PR fix/balance-column-selection)
+
+**Status**: Noteret, bevidst ikke adresseret i balance=ÅTD-fixet. Cash-håndhævelsen i `canonicalEngine.ts` (`cash_balance_ytd_enforced`) bruger uændret matching-semantik fra den gamle regel: FØRSTE line item hvis navn indeholder "bank"/"likvid" bliver autoritativ. Konti som Pleo og Stripe matcher ikke mønstret og indgår ikke, selv når de reelt er likvide midler. Prod-evidens 21/7-2026 (rapport f53ee049): AI'ens key_figure aggregerede Bankkonto+Pleo+Stripe til 157.290,98, mens håndhævelsen følger Bankkonto-linjens ÅTD 128.984,64 — som er det facit Jonas har fastlagt for sagen.
+
+**Hvorfor ikke fixet her**: Fixets scope var kolonnevalget (Perioden vs. ÅTD), ikke kontoafgrænsningen af "likvider". En aggregeringsregel kræver en selvstændig definition af hvilke konti der tæller som likvide (kontonummer-interval? klasse? navneliste?) og har sin egen fejlflade — den skal designes og testes separat, ikke smugles med i et kolonnefix.
+
+**Revurder hvis**: en kunde med flere likvidkonti (fx Pleo/Stripe/valutakonti) rapporterer at platformens likviditet afviger fra deres samlede bankindestående — eller når likviditetstal skal bruges til rådgivning på tværs af konti. Design-input: den deterministiske template (`dkEconomicSaldobalancePdfV1.ts`) har samme enkelt-linje-semantik for `likvider`; en løsning bør dække begge stier.
+
+---
+
 ### [P3] Float-artefakter i `financial_report_facts.metrics`-jsonb (udskudt fra ×100-fix, PR fix/ret-data-x100)
 
 **Status**: Bevidst ikke fixet i ×100-PR'en. Committede nøgletal i `metrics`-jsonb indeholder flydende-komma-artefakter, fx `16984.829999999998` i stedet for `16984.83` (observeret i Topix' produktionsdata 2026-07-21). ×100-fixet **bevarer** disse værdier eksakt (round-trip uden korruption) — det renser dem ikke.

@@ -366,7 +366,13 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     }
   }
 
-  // Prefer explicit bank/likvider line-item sign over key_figures when available
+  // Cash from bank line: BALANCE=ÅTD — a saldo is cumulative, so the bank
+  // line's YTD column IS the saldo; the period column is only the month's
+  // movement (prod evidence 21/7-2026, report f53ee049: period -44551.32 vs
+  // saldo 128984.64). Raw YTD sign is kept (overdraft stays negative).
+  // period_amount is fallback for single-column documents where the AI leaves
+  // ytd_amount empty. Line matching semantics unchanged from the previous rule
+  // (first "bank"/"likvid" match) — multi-account aggregation is BACKLOG P4.
   if (!isDeterministic && cashFields.some((f) => kf[f] != null)) {
     const bankLine = lineItems.find((li: any) => {
       const label = (li?.name || "").toString().toLowerCase();
@@ -374,7 +380,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     });
 
     if (bankLine) {
-      const lineVal = bankLine.period_amount ?? bankLine.ytd_amount;
+      const lineVal = bankLine.ytd_amount ?? bankLine.period_amount;
       if (typeof lineVal === "number" && metrics.cash !== lineVal) {
         const prev = metrics.cash;
         metrics.cash = lineVal;
@@ -383,11 +389,71 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
           source: "line_item",
           raw_value: prev,
           normalized_value: lineVal,
-          rule: "cash_prefers_bank_line_sign",
-          reason: `Cash overridden from key_figure (${prev}) to bank line (${lineVal}) to preserve raw sign`,
+          rule: "cash_balance_ytd_enforced",
+          reason: `Cash enforced from bank line "${bankLine.name}" YTD column (period=${bankLine.period_amount ?? "null"}, ytd=${bankLine.ytd_amount ?? "null"}): balance posts read from ÅTD, raw YTD sign kept; was key_figure ${prev}`,
           confidence: "HIGH",
         });
       }
+    }
+  }
+
+  // ── BALANCE=ÅTD enforcement for remaining balance posts (saldobalance, AI path) ──
+  // Evidence-gated: only corrects a PROVEN period-column pick — the kf value
+  // matches a matching line's period_amount while its ytd_amount (the saldo)
+  // differs. kf values can be legitimate AI aggregates across several accounts
+  // (not re-derivable from one line), so without this evidence nothing is
+  // touched. Sign handling mirrors each field's existing rule (abs for totals
+  // and kreditorer, credit-flip for negative egenkapital, raw sign for
+  // debitorer/varelager as in dkEconomicSaldobalancePdfV1).
+  if (!isDeterministic && isSaldobalance) {
+    const balanceYtdFields: Array<{
+      dkField: string;
+      canonical: keyof CanonicalMetrics;
+      patterns: string[];
+      normalize: (ytd: number) => number;
+    }> = [
+      { dkField: "debitorer", canonical: "trade_receivables", patterns: ["debitor"], normalize: (v) => v },
+      { dkField: "varelager", canonical: "inventory", patterns: ["varelager", "lagerbeholdning"], normalize: (v) => v },
+      { dkField: "kreditorer", canonical: "current_liabilities", patterns: ["kreditor"], normalize: (v) => Math.abs(v) },
+      { dkField: "egenkapital", canonical: "equity_total", patterns: ["egenkapital"], normalize: (v) => (v < 0 ? Math.abs(v) : v) },
+      { dkField: "aktiver_i_alt", canonical: "assets_total", patterns: ["aktiver i alt"], normalize: (v) => Math.abs(v) },
+      { dkField: "passiver_i_alt", canonical: "liabilities_total", patterns: ["passiver i alt"], normalize: (v) => Math.abs(v) },
+    ];
+
+    for (const spec of balanceYtdFields) {
+      const rawKf = kf[spec.dkField];
+      if (typeof rawKf !== "number") continue;
+
+      const line = lineItems.find((li: any) => {
+        const label = (li?.name || "").toString().toLowerCase();
+        return spec.patterns.some((p) => label.includes(p));
+      });
+      if (!line) continue;
+
+      const period = line.period_amount;
+      const ytd = line.ytd_amount;
+      if (typeof period !== "number" || typeof ytd !== "number" || period === ytd) continue;
+
+      // Evidence gate on magnitude (the AI may already have sign-normalized the
+      // key_figure). Ambiguous when kf matches BOTH columns → leave untouched.
+      const matchesPeriod = Math.abs(Math.abs(rawKf) - Math.abs(period)) <= 0.01;
+      const matchesYtd = Math.abs(Math.abs(rawKf) - Math.abs(ytd)) <= 0.01;
+      if (!matchesPeriod || matchesYtd) continue;
+
+      const normalized = spec.normalize(ytd);
+      if (metrics[spec.canonical] === normalized) continue;
+
+      const prev = metrics[spec.canonical];
+      metrics[spec.canonical] = normalized;
+      corrections.push({
+        field: spec.dkField,
+        source: "line_item",
+        raw_value: prev ?? rawKf,
+        normalized_value: normalized,
+        rule: "balance_ytd_enforced",
+        reason: `Balance post ${spec.dkField} matched line "${line.name}" period column (period=${period}, ytd=${ytd}): balance posts read from ÅTD, enforced ${prev} → ${normalized}`,
+        confidence: "HIGH",
+      });
     }
   }
 
