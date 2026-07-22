@@ -9,11 +9,23 @@
  * - important: send email (mandatory default, no preferences in phase 2)
  * - info: never send email
  * - report_reminder: skip (already emailed by send-report-reminder)
- * - Anti-spam: max 20 emails/day per user
+ * - Anti-spam: max MAX_EMAILS_PER_DAY (5) emails/day per user, talt mod
+ *   email_send_log (faktiske sends) — IKKE notifications.email_sent_at, som
+ *   også sættes af commit-suppress/dispose og derfor ville æde kvoten.
+ * - Rapport-notifikationer udvælges via selectNotificationEmails
+ *   (_shared/notificationEmailSelection.ts): slettede/committede rapporter
+ *   disposes, dubletter per (company, periode) kollapses, og kvote-udskudte
+ *   mails sendes kun kl. 07-20 dansk tid (aldrig ved midnats-kvotereset).
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import {
+  REPORT_NOTIFICATION_TYPES,
+  parseDkReportPeriodKey,
+  selectNotificationEmails,
+  type ReportJoin,
+} from "../_shared/notificationEmailSelection.ts";
 
 function parseJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
@@ -127,7 +139,7 @@ Deno.serve(async (req) => {
     // Fetch unseen notifications eligible for email
     const { data: pending, error: fetchErr } = await admin
       .from("notifications")
-      .select("id, user_id, type, priority, title, body, deep_link")
+      .select("id, user_id, type, priority, title, body, deep_link, reference_id, company_id, created_at")
       .is("email_sent_at", null)
       .is("seen_at", null)
       .in("priority", ["action_required", "important"])
@@ -208,21 +220,37 @@ Deno.serve(async (req) => {
       (profileRows || []).map((p: any) => [p.user_id, p.notification_email_prefs])
     );
 
-    // Fetch daily email counts per user
+    // Resolve user emails up front (needed for both quota count and sending)
+    const userEmailMap = new Map<string, string>();
+    for (const uid of userIds) {
+      const { data: userData } = await admin.auth.admin.getUserById(uid);
+      if (userData?.user?.email) userEmailMap.set(uid, userData.user.email);
+    }
+
+    // Fetch daily email counts per user — counted against email_send_log
+    // (actual send attempts). notifications.email_sent_at is ALSO set by
+    // commit-suppress and delete-dispose without any mail being sent, so
+    // counting that column would let suppressions eat the daily quota and
+    // defer legitimate mails to the next quota window.
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayIso = today.toISOString();
 
-    const { data: dailyCounts } = await admin
-      .from("notifications")
-      .select("user_id")
-      .not("email_sent_at", "is", null)
-      .gte("email_sent_at", todayIso)
-      .in("user_id", userIds);
-
+    const emailToUser = new Map(
+      [...userEmailMap.entries()].map(([uid, email]) => [email, uid]),
+    );
     const countMap: Record<string, number> = {};
-    for (const row of dailyCounts || []) {
-      countMap[row.user_id] = (countMap[row.user_id] || 0) + 1;
+    if (emailToUser.size > 0) {
+      const { data: dailyCounts } = await admin
+        .from("email_send_log")
+        .select("recipient_email")
+        .gte("created_at", todayIso)
+        .like("template_name", "notification-%")
+        .in("recipient_email", [...emailToUser.keys()]);
+      for (const row of dailyCounts || []) {
+        const uid = emailToUser.get(row.recipient_email);
+        if (uid) countMap[uid] = (countMap[uid] || 0) + 1;
+      }
     }
 
     const ctaLabels: Record<string, string> = {
@@ -259,6 +287,60 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Rapport-tilstandsjoin: financial_reports + committed-state ──
+    // Udvælgelsen (pure function) afgør mail/dispose/vent — se fejlspor
+    // 2026-07-22 (natlige mails for slettede/duplikerede rapporter).
+    const reportIds = [
+      ...new Set(
+        nonChatNotifs
+          .filter((n: any) => REPORT_NOTIFICATION_TYPES.has(n.type) && n.reference_id)
+          .map((n: any) => n.reference_id as string),
+      ),
+    ];
+    const reportJoinMap = new Map<string, ReportJoin>();
+    if (reportIds.length > 0) {
+      const { data: reportRows } = await admin
+        .from("financial_reports")
+        .select("id, deleted_at, report_period, manual_report_period_key")
+        .in("id", reportIds);
+      const { data: factRows } = await admin
+        .from("financial_report_facts")
+        .select("source_report_id")
+        .in("source_report_id", reportIds);
+      const committedIds = new Set((factRows || []).map((f: any) => f.source_report_id));
+      for (const r of reportRows || []) {
+        reportJoinMap.set(r.id, {
+          deleted_at: r.deleted_at,
+          committed: committedIds.has(r.id),
+          period_key: r.manual_report_period_key ?? parseDkReportPeriodKey(r.report_period),
+        });
+      }
+    }
+
+    const candidates = nonChatNotifs.map((n: any) => ({
+      ...n,
+      report:
+        REPORT_NOTIFICATION_TYPES.has(n.type) && n.reference_id
+          ? reportJoinMap.get(n.reference_id) ?? null // null = rapport findes ikke længere
+          : undefined,
+    }));
+
+    const { toEmail, toDispose } = selectNotificationEmails(candidates);
+
+    // Dispose: marker email_sent_at UDEN at sende — samme mekanisme som
+    // commit-suppress. Rapporten er slettet/committet eller mailen er en
+    // dublet for samme (company, periode).
+    for (const notif of toDispose) {
+      await admin
+        .from("notifications")
+        .update({ email_sent_at: new Date().toISOString() })
+        .eq("id", notif.id);
+      console.log(
+        `[dispose] ${notif.type} ${notif.id} (report=${notif.reference_id}) — slettet/committet/dublet, ingen mail`,
+      );
+      skipped++;
+    }
+
     // ── Process aggregated chat notifications (one email per user) ──
     for (const [userId, chatNotifs] of chatNotifsByUser.entries()) {
       const userDailyCount = countMap[userId] || 0;
@@ -287,8 +369,8 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const { data: userData } = await admin.auth.admin.getUserById(userId);
-      if (!userData?.user?.email) {
+      const userEmail = userEmailMap.get(userId);
+      if (!userEmail) {
         skipped += chatNotifs.length;
         continue;
       }
@@ -318,7 +400,7 @@ Deno.serve(async (req) => {
       await admin.from("email_send_log").insert({
         message_id: messageId,
         template_name: `notification-chat_aggregated`,
-        recipient_email: userData.user.email,
+        recipient_email: userEmail,
         status: "pending",
       });
 
@@ -327,7 +409,7 @@ Deno.serve(async (req) => {
         payload: {
           message_id: messageId,
           idempotency_key: messageId,
-          to: userData.user.email,
+          to: userEmail,
           from: SENDER_FROM,
           sender_domain: SENDER_DOMAIN,
           subject,
@@ -354,8 +436,8 @@ Deno.serve(async (req) => {
       sent++;
     }
 
-    // ── Process non-chat notifications (one email per notification) ──
-    for (const notif of nonChatNotifs) {
+    // ── Process non-chat notifications (én mail per udvalgt kandidat) ──
+    for (const notif of toEmail) {
       const userDailyCount = countMap[notif.user_id] || 0;
       if (userDailyCount >= MAX_EMAILS_PER_DAY) {
         console.log(`[anti-spam] Skipping user ${notif.user_id} (${userDailyCount} emails today)`);
@@ -391,8 +473,8 @@ Deno.serve(async (req) => {
       }
 
       // Get user email
-      const { data: userData } = await admin.auth.admin.getUserById(notif.user_id);
-      if (!userData?.user?.email) {
+      const userEmail = userEmailMap.get(notif.user_id);
+      if (!userEmail) {
         skipped++;
         continue;
       }
@@ -438,7 +520,7 @@ Deno.serve(async (req) => {
       await admin.from("email_send_log").insert({
         message_id: messageId,
         template_name: `notification-${notif.type}`,
-        recipient_email: userData.user.email,
+        recipient_email: userEmail,
         status: "pending",
       });
 
@@ -448,7 +530,7 @@ Deno.serve(async (req) => {
         payload: {
           message_id: messageId,
           idempotency_key: messageId,
-          to: userData.user.email,
+          to: userEmail,
           from: senderFrom,
           sender_domain: SENDER_DOMAIN,
           subject,
