@@ -380,6 +380,10 @@ export default function ReportReviewDialog({
         .eq("id", preview.existing_owner_id) as any);
       if (delErr) throw delErr;
 
+      // Den gamle (nu slettede) rapports review-mail er også meningsløs —
+      // dispose den (best-effort; server-side gate er autoritativ).
+      clearReportReviewNotification(preview.existing_owner_id);
+
       // Now commit the new report
       const { error: commitError } = await supabase.rpc("commit_report_facts", {
         p_report_id: reportId,

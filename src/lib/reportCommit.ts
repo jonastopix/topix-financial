@@ -113,6 +113,13 @@ export async function postReportCardMessage(params: PostReportCardParams): Promi
  * Once the report is committed, both ask for something the founder has just done,
  * so both fallback mails are pure noise. We mark the email side handled on both.
  *
+ * SAMME mekanisme bruges ved SLETNING af en rapport (alle soft-delete-sites i
+ * Reports.tsx + ReportReviewDialog.handleReplace): en slettet rapports
+ * review-mail er lige så meningsløs som en committets. Bemærk at dette er
+ * best-effort/RLS-scoped (fejlspor 2026-07-22: advisor-sletning af andres
+ * rapporter rammer 0 rækker) — den autoritative gate er server-side i
+ * send-notification-email via notificationEmailSelection (defence-in-depth).
+ *
  * We deliberately set email_sent_at (NOT seen_at): it suppresses ONLY the
  * fallback mail and leaves the in-app notification state untouched. The reminder
  * still fires for reports the founder has NOT committed (deferred approval,

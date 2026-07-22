@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
-import { propagateReportCommit } from "@/lib/reportCommit";
+import { propagateReportCommit, clearReportReviewNotification } from "@/lib/reportCommit";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
@@ -363,6 +363,8 @@ const Reports = () => {
         await supabase.from("financial_reports")
           .update({ deleted_at: new Date().toISOString() } as any)
           .eq("id", existing.id);
+        // Slettet rapport: dispose ventende review-mail (best-effort; server-side gate i send-notification-email er autoritativ)
+        clearReportReviewNotification(existing.id);
       }
 
       // Upload file
@@ -443,6 +445,8 @@ const Reports = () => {
       await supabase.from("financial_reports")
         .update({ deleted_at: new Date().toISOString() } as any)
         .eq("id", reportId);
+      // Slettet rapport: dispose ventende review-mail (best-effort; server-side gate er autoritativ)
+      clearReportReviewNotification(reportId);
       await (supabase.from("financial_report_facts" as any) as any)
         .delete()
         .eq("company_id", companyId!)
@@ -661,6 +665,9 @@ const Reports = () => {
       const { error } = await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
       if (error) throw error;
 
+      // Slettet rapport: dispose ventende review-mail (best-effort; server-side gate er autoritativ)
+      clearReportReviewNotification(report.id);
+
       setDbReports((prev) => prev.filter((r) => r.id !== report.id));
       setDeleteDialog({ open: false, report: null });
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
@@ -862,6 +869,8 @@ const Reports = () => {
                           type="button"
                           onClick={async () => {
                             await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
+                            // Annulleret upload: dispose ventende review-mail (best-effort; server-side gate er autoritativ)
+                            clearReportReviewNotification(report.id);
                             queryClient.invalidateQueries({ queryKey: ["financial-reports"] });
                             queryClient.invalidateQueries({ queryKey: ["company-facts"] });
                             queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
