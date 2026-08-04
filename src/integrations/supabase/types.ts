@@ -614,134 +614,6 @@ export type Database = {
           },
         ]
       }
-      conversation_last_seen: {
-        Row: {
-          conversation_id: string
-          conversation_type: string
-          id: string
-          last_seen_at: string
-          last_seen_message_id: string | null
-          user_id: string
-        }
-        Insert: {
-          conversation_id: string
-          conversation_type?: string
-          id?: string
-          last_seen_at?: string
-          last_seen_message_id?: string | null
-          user_id: string
-        }
-        Update: {
-          conversation_id?: string
-          conversation_type?: string
-          id?: string
-          last_seen_at?: string
-          last_seen_message_id?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      conversation_notes: {
-        Row: {
-          content: string
-          conversation_id: string
-          id: string
-          updated_at: string
-          updated_by: string
-        }
-        Insert: {
-          content?: string
-          conversation_id: string
-          id?: string
-          updated_at?: string
-          updated_by: string
-        }
-        Update: {
-          content?: string
-          conversation_id?: string
-          id?: string
-          updated_at?: string
-          updated_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversation_notes_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: true
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      conversations: {
-        Row: {
-          acknowledged_at: string | null
-          acknowledged_by_advisor_id: string | null
-          assigned_advisor_id: string | null
-          awaiting_reply_from: string | null
-          company_id: string | null
-          conversation_status: string
-          created_at: string
-          follow_up_at: string | null
-          id: string
-          last_advisor_reply_at: string | null
-          last_member_message_at: string | null
-          last_message_at: string | null
-          member_id: string
-          resolved_at: string | null
-          resolved_by_advisor_id: string | null
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          acknowledged_by_advisor_id?: string | null
-          assigned_advisor_id?: string | null
-          awaiting_reply_from?: string | null
-          company_id?: string | null
-          conversation_status?: string
-          created_at?: string
-          follow_up_at?: string | null
-          id?: string
-          last_advisor_reply_at?: string | null
-          last_member_message_at?: string | null
-          last_message_at?: string | null
-          member_id: string
-          resolved_at?: string | null
-          resolved_by_advisor_id?: string | null
-        }
-        Update: {
-          acknowledged_at?: string | null
-          acknowledged_by_advisor_id?: string | null
-          assigned_advisor_id?: string | null
-          awaiting_reply_from?: string | null
-          company_id?: string | null
-          conversation_status?: string
-          created_at?: string
-          follow_up_at?: string | null
-          id?: string
-          last_advisor_reply_at?: string | null
-          last_member_message_at?: string | null
-          last_message_at?: string | null
-          member_id?: string
-          resolved_at?: string | null
-          resolved_by_advisor_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversations_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      // HÅNDTILFØJET (Hjemmebane C1, D1-beslutning): content_collections,
-      // content_items, event_registrations, events, member_progress og partners
-      // er skrevet i hånden i eksakt genereret format, fordi Lovables
-      // regenerering ikke er kørt siden migrationen 20260804120000.
-      // Ved fremtidig Lovable-regenerering er den genererede fil sandheden —
-      // disse tilføjelser gen-afstemmes mod den (forventet konvergens: samme
-      // skema giver samme output, minus disse kommentarer).
       content_collections: {
         Row: {
           area: string
@@ -884,6 +756,127 @@ export type Database = {
             columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_last_seen: {
+        Row: {
+          conversation_id: string
+          conversation_type: string
+          id: string
+          last_seen_at: string
+          last_seen_message_id: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          conversation_type?: string
+          id?: string
+          last_seen_at?: string
+          last_seen_message_id?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          conversation_type?: string
+          id?: string
+          last_seen_at?: string
+          last_seen_message_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conversation_notes: {
+        Row: {
+          content: string
+          conversation_id: string
+          id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          content?: string
+          conversation_id: string
+          id?: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_notes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by_advisor_id: string | null
+          assigned_advisor_id: string | null
+          awaiting_reply_from: string | null
+          company_id: string | null
+          conversation_status: string
+          created_at: string
+          follow_up_at: string | null
+          id: string
+          last_advisor_reply_at: string | null
+          last_member_message_at: string | null
+          last_message_at: string | null
+          member_id: string
+          resolved_at: string | null
+          resolved_by_advisor_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by_advisor_id?: string | null
+          assigned_advisor_id?: string | null
+          awaiting_reply_from?: string | null
+          company_id?: string | null
+          conversation_status?: string
+          created_at?: string
+          follow_up_at?: string | null
+          id?: string
+          last_advisor_reply_at?: string | null
+          last_member_message_at?: string | null
+          last_message_at?: string | null
+          member_id: string
+          resolved_at?: string | null
+          resolved_by_advisor_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by_advisor_id?: string | null
+          assigned_advisor_id?: string | null
+          awaiting_reply_from?: string | null
+          company_id?: string | null
+          conversation_status?: string
+          created_at?: string
+          follow_up_at?: string | null
+          id?: string
+          last_advisor_reply_at?: string | null
+          last_member_message_at?: string | null
+          last_message_at?: string | null
+          member_id?: string
+          resolved_at?: string | null
+          resolved_by_advisor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1062,7 +1055,6 @@ export type Database = {
         }
         Relationships: []
       }
-      // HÅNDTILFØJET (Hjemmebane C1, D1) — se kommentaren ved content_collections.
       event_registrations: {
         Row: {
           cancelled_at: string | null
@@ -2000,7 +1992,6 @@ export type Database = {
           },
         ]
       }
-      // HÅNDTILFØJET (Hjemmebane C1, D1) — se kommentaren ved content_collections.
       member_progress: {
         Row: {
           acknowledged_at: string | null
@@ -2256,7 +2247,6 @@ export type Database = {
         }
         Relationships: []
       }
-      // HÅNDTILFØJET (Hjemmebane C1, D1) — se kommentaren ved content_collections.
       partners: {
         Row: {
           category: string
