@@ -132,6 +132,24 @@ it is filtered in the app layer (C0 decision B6, accepted as a P4 note in
 `BACKLOG.md`). RLS enforcement would require a new SECURITY DEFINER helper,
 which is forbidden without explicit approval.
 
+**Parent-gated variant** (`content_item_attachments`, migration
+`20260804210000_content_item_attachments.sql`): attachments deliberately have
+no `status` column of their own — they follow their parent item. The member
+SELECT policy therefore gates on the PARENT's publication status via EXISTS:
+
+```sql
+EXISTS (
+  SELECT 1 FROM public.content_items i
+  WHERE i.id = content_item_attachments.item_id
+    AND i.status = 'published'
+)
+```
+
+No draft attachments leak. Double bottom: the subquery runs as the calling
+user, so `content_items`' own RLS also applies inside the EXISTS. Writes
+remain advisor-only + service-role FOR ALL (exact mirror of the
+content_items policies).
+
 ### Advisor-owned rows (own acknowledgements)
 ```sql
 advisor_id = auth.uid() AND has_role(auth.uid(), 'advisor'::app_role)
@@ -297,7 +315,9 @@ ONLY via signed URLs with expiry (`createSignedUrl()` requires the SELECT
 policy below). Videos never touch this bucket — they live in Bunny Stream.
 
 **Path convention**: `covers/<item-uuid>/...`,
-`templates/<item-uuid>/<filnavn>`, `partners/<partner-uuid>/...`
+`templates/<item-uuid>/<filnavn>`, `partners/<partner-uuid>/...`,
+`attachments/<item-uuid>/<filnavn>` (item materials, added with
+`content_item_attachments` — same bucket, same policies, no new grants)
 
 **Policies on `storage.objects` for this bucket**:
 

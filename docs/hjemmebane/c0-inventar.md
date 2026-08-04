@@ -81,12 +81,14 @@
 
 Screenshot-metoden dækker dokumentation — disse fem kræver aktiv handling/afklaring:
 
-- **(a) `[ ]` Hvor bor undervisningsvideoerne?** Åbn et par lektioner i Classroom og
+- **(a) `[x]` Hvor bor undervisningsvideoerne?** Åbn et par lektioner i Classroom og
   Academy og se på playeren: Circle-hostet player eller YouTube/Vimeo-embed?
   **Hvis Circle-hostet: videoerne forsvinder ved lukning — der skal laves en
   downloadliste og downloades FØR lukning.** Svar + konsekvens noteres her:
 
-  **Svar:** ________________________________________
+  **Svar:** Circle-hostet (bekræftet af Jonas 2026-08-04) — konsekvensen er
+  aktiveret: fuld download af alle ~106-108 videoer er i gang (originaler);
+  inventaret står i afsnit 3.
 
 - **(b) `[ ]` Rabat-opslag åbnes og screenshottes ENKELTVIS.** Oversigts-screenshots af
   "Rabatter & aftaler" er ikke nok — koder, unikke links og indløsningsdetaljer står
@@ -116,9 +118,15 @@ der skal være tom eller reddet før lukning:
 
 | # | Hvad | Space | Handling (download/screenshot/eksport) | Reddet? |
 |---|---|---|---|---|
-| 1 | | | | `[ ]` |
+| 1 | Affiliate Marketing + Content produktion | Topix Academy | Downloades og gemmes lokalt af Jonas; **BEVIDST UDELADT af migreringen** — kan genoptages senere | `[ ]` |
 | 2 | | | | `[ ]` |
 | 3 | | | | `[ ]` |
+
+> **Videoinventar pr. 2026-08-04** (optalt under download-arbejdet): **~106-108
+> videoer** i alt — 40 i grundforløbet (fordelt på 6 moduler), 10-12 ekstra
+> (Morten), 11 Emailmarketing, 39 PR & Kommunikation (fordelt på 9 moduler),
+> 2 Skat, moms og regnskab, 4 Tracking. Originalerne er Circle-hostede
+> (jf. spørgsmål 2a — de forsvinder ved lukning); download er i gang.
 
 Husk kandidaterne fra godkendelsen: Leaderboard-/gamification-data (Circle-topbaren har et
 Leaderboard — skal noget bevares?) og eksterne steder der linker IND til Circle
