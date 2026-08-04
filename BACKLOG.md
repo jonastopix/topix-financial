@@ -230,6 +230,12 @@ udskudt strukturel gæld).
 
 ---
 
+### [P3] Self-host fonte frem for Google Fonts-@import (noteret 2026-08-04, Hjemmebane V0)
+
+Alle fonte (Manrope, Space Grotesk, Inter, Parkinsans i `src/index.css` samt Fraunces i `src/styles/hjemmebane.css`) loades via Google Fonts-`@import`. Skal på sigt self-hostes (woff2 i `public/fonts/` + `@font-face`) af hensyn til hastighed (ingen tredjeparts-roundtrip, ingen FOUT-kaskade) og GDPR (ingen IP-videregivelse til Google ved sideload). Tages som samlet, isoleret PR for alle fem familier.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

@@ -17,6 +17,7 @@ export default {
         display: ["Manrope", "Space Grotesk", "system-ui", "sans-serif"],
         body: ["Manrope", "Inter", "system-ui", "sans-serif"],
         brand: ["Parkinsans", "Space Grotesk", "system-ui", "sans-serif"],
+        editorial: ["Fraunces", "Georgia", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -70,11 +71,26 @@ export default {
           info: "hsl(var(--chart-info))",
           neutral: "hsl(var(--chart-neutral))",
         },
+        // Hjemmebane (V0) — variablerne er scoped til .theme-hjemmebane
+        hb: {
+          paper: "hsl(var(--hb-paper))",
+          surface: "hsl(var(--hb-surface))",
+          ink: "hsl(var(--hb-ink))",
+          "ink-soft": "hsl(var(--hb-ink-soft))",
+          evergreen: "hsl(var(--hb-evergreen))",
+          rust: "hsl(var(--hb-rust))",
+          sage: "hsl(var(--hb-sage))",
+          line: "hsl(var(--hb-line))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        hb: "var(--hb-radius)",
+      },
+      boxShadow: {
+        "hb-hover": "0 8px 30px hsl(170 30% 12% / 0.06)",
       },
       keyframes: {
         "accordion-down": {

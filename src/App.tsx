@@ -51,6 +51,9 @@ const AdvisorGroupList = lazy(() => import("./pages/AdvisorGroupList"));
 const AdvisorGroupDashboard = lazy(() => import("./pages/AdvisorGroupDashboard"));
 const LegatDashboard = lazy(() => import("./pages/LegatDashboard"));
 
+// Lazy — designprøve (Projekt Hjemmebane V0)
+const PreviewHjemmebane = lazy(() => import("./pages/PreviewHjemmebane"));
+
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
 const DemoDashboard = lazy(() => import("./demo/DemoDashboard"));
@@ -209,6 +212,8 @@ const App = () => (
               <Route path="/group/chat" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
+              {/* Designprøve (Hjemmebane V0) — standalone, bag login */}
+              <Route path="/preview/hjemmebane" element={<ProtectedRoute><PreviewHjemmebane /></ProtectedRoute>} />
               {/* Demo routes — no auth required */}
               <Route path="/demo" element={<DemoLayout />}>
                 <Route index element={<Navigate to="/demo/dashboard" replace />} />
