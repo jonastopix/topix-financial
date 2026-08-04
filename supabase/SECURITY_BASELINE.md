@@ -206,6 +206,10 @@ access (no policy matches them). Contains no member PII, only `advisor_id`,
 - `bunny-content-admin` — Bucket A + advisor gate (`has_role` via callerClient)
   before any Bunny Stream operation; returns only a time-boxed, video-scoped
   TUS upload signature — the Bunny API key never reaches the frontend
+- `get-video-embed` — Bucket A; access control is the RLS published-gate via
+  callerClient + a server-side drip check (C1 decision D5, advisors bypass,
+  fail-closed without a membership anchor); signs Bunny embed URLs server-side
+  (`BUNNY_STREAM_TOKEN_AUTH_KEY` never reaches the frontend, TTL 1h)
 - `auth-email-hook` — system webhook, signature-verified
 - `monday-webhook` — HMAC-SHA256 with `MONDAY_SIGNING_SECRET`
 - `send-report-reminder` — service-role-only gate

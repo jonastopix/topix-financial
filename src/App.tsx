@@ -33,6 +33,7 @@ const Community = lazy(() => import("./pages/Community"));
 const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
 const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
+const Akademiet = lazy(() => import("./pages/Akademiet"));
 
 // Lazy — admin-only routes
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
@@ -217,6 +218,10 @@ const App = () => (
               <Route path="/group/chat" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats" element={<Navigate to="/chat" replace />} />
               <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
+              {/* Hjemmebane C1 trin 3 — Akademiet (medlemsvisning, standalone Hb-skal) */}
+              <Route path="/akademiet" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
+              <Route path="/akademiet/:area" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
+              <Route path="/akademiet/:area/:slug" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               {/* Designprøve (Hjemmebane V0) — standalone, bag login */}
               <Route path="/preview/hjemmebane" element={<ProtectedRoute><PreviewHjemmebane /></ProtectedRoute>} />
               {/* Demo routes — no auth required */}
