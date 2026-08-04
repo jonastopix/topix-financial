@@ -105,7 +105,9 @@ const PreviewHjemmebane = () => {
                 </div>
               </HbSection>
 
-              {/* Række 1: Dit næste skridt (1/3) — den ene handling som fokuspunkt */}
+              {/* Række 1: Dit næste skridt (1/3) — den ene handling som fokuspunkt.
+                  Demonstrerer det dynamiske felt: rapportering først, forløbet som
+                  diskret alternativ under knappen. Stadig ét kort, én primær handling. */}
               <HbSection eyebrow="Dit næste skridt" className="lg:col-span-2">
                 <HbCard className="flex flex-col items-start gap-4 p-6">
                   <h3 className="font-editorial text-2xl font-medium leading-snug text-hb-ink">Upload dine juli-tal</h3>
@@ -113,11 +115,16 @@ const PreviewHjemmebane = () => {
                     Så er halvåret komplet, og din rådgiver kan se efteråret med dig — inden det starter.
                   </p>
                   <HbButton>Upload tallene</HbButton>
+                  <a
+                    href="#"
+                    className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
+                  >
+                    Eller fortsæt dit forløb: Lektion 11 — Automatisér og spar tid
+                  </a>
                 </HbCard>
               </HbSection>
 
-              {/* Række 2: Iværksætterlivet (2/3) — mediet får bredden.
-                  Rytme-cue nederst — en headerlinje ville bryde den ensartede header-højde. */}
+              {/* Række 2: Iværksætterlivet (2/3) — mediet får bredden */}
               <HbSection eyebrow="Iværksætterlivet" linkLabel="Alle episoder" linkTo="#" className="lg:col-span-4">
                 <HbVideoCard
                   image="/morten-larsen.jpg"
@@ -129,7 +136,6 @@ const PreviewHjemmebane = () => {
                   <HbEpisodeRow number={11} title="Moms, skat og de skjulte deadlines" duration="19 min" />
                   <HbEpisodeRow number={10} title="Budgettet som styringsværktøj — ikke et gæt" duration="22 min" />
                 </div>
-                <p className="mt-4 text-[13px] text-hb-ink-soft">Ny episode hver torsdag</p>
               </HbSection>
 
               {/* Række 2: LinkedIn-highlight (1/3) — pull quote ved siden af mediet */}
