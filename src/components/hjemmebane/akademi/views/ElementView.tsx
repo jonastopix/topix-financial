@@ -1,12 +1,64 @@
 import * as React from "react";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock, Undo2 } from "lucide-react";
 import { AREAS, ITEM_TYPES, getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
+import { listItemAttachments } from "@/lib/hjemmebane/akademiApi";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbVideoEmbed } from "../HbVideoEmbed";
 import { isTrackedEntry, useAkademiData } from "../useAkademiData";
+
+/** Materialer-listen (c3-vedhaeftninger-design.md §6): rolig sektion under
+    medie + body, kun når der ER materialer. Storage-bilag åbnes via signeret
+    URL; links eksternt. Ingen fremdriftssporing på bilag (B1 urørt). */
+const MaterialsSection = ({ itemId, unlocked }: { itemId: string; unlocked: boolean }) => {
+  const query = useQuery({
+    queryKey: ["akademi", "attachments", itemId],
+    queryFn: () => listItemAttachments(itemId),
+    enabled: unlocked,
+  });
+  const attachments = query.data ?? [];
+  if (attachments.length === 0) return null;
+
+  const openStorage = async (path: string) => {
+    const url = await getAssetPreviewUrl(path);
+    window.open(url, "_blank", "noopener");
+  };
+
+  return (
+    <section className="mt-8">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Materialer</p>
+      <ul className="mt-3 space-y-1">
+        {attachments.map((attachment) => (
+          <li key={attachment.id}>
+            {attachment.kind === "storage" && attachment.storage_path ? (
+              <button
+                type="button"
+                onClick={() => void openStorage(attachment.storage_path as string)}
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[15px] text-hb-ink transition-colors hover:bg-hb-sage/25"
+              >
+                <Download className="h-4 w-4 shrink-0 text-hb-ink-soft" />
+                {attachment.label}
+              </button>
+            ) : attachment.external_url ? (
+              <a
+                href={attachment.external_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[15px] text-hb-ink transition-colors hover:bg-hb-sage/25"
+              >
+                <ExternalLink className="h-4 w-4 shrink-0 text-hb-ink-soft" />
+                {attachment.label}
+              </a>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }) => {
   const data = useAkademiData();
@@ -136,6 +188,8 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
             dangerouslySetInnerHTML={{ __html: item.body }}
           />
         )}
+
+        <MaterialsSection itemId={item.id} unlocked={drip.unlocked} />
 
         <div className="mt-10 flex flex-wrap items-center gap-3 border-t border-hb-line pt-6">
           {tracked && (

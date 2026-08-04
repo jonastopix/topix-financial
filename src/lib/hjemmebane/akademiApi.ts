@@ -4,7 +4,7 @@
     member_progress (self-only RLS). Dryp filtreres i app-laget via drip.ts. */
 
 import { supabase } from "@/integrations/supabase/client";
-import type { ContentCollection, ContentItem } from "./adminContentApi";
+import type { ContentCollection, ContentItem, ContentItemAttachment } from "./adminContentApi";
 
 export type MemberProgress = {
   id: string;
@@ -93,6 +93,20 @@ export function itemProgressState(progress: MemberProgress | undefined): ItemPro
   if (progress.skipped_at) return "skipped";
   if (progress.seen_at) return "started";
   return "untouched";
+}
+
+/** Materialer på et element (kun element-siden henter dem). RLS gater:
+    medlemmer ser kun bilag på published items (forælder-gated EXISTS-policy);
+    ingen fremdriftssporing på bilag. */
+export async function listItemAttachments(itemId: string): Promise<ContentItemAttachment[]> {
+  return throwIfError(
+    await supabase
+      .from("content_item_attachments")
+      .select("*")
+      .eq("item_id", itemId)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+  );
 }
 
 /** Signeret Bunny-embed fra get-video-embed (Bucket A). Token-signering sker

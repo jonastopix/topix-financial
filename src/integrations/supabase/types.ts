@@ -667,6 +667,56 @@ export type Database = {
           },
         ]
       }
+      // HÅNDTILFØJET (Hjemmebane C3-forberedelse, D1-mønstret):
+      // content_item_attachments er skrevet i hånden i eksakt genereret format,
+      // fordi Lovables regenerering ikke er kørt siden migrationen
+      // 20260804210000. Ved fremtidig Lovable-regenerering er den genererede
+      // fil sandheden — tilføjelsen gen-afstemmes mod den (konvergensen er
+      // tidligere bekræftet for de seks C1-tabeller).
+      content_item_attachments: {
+        Row: {
+          created_at: string
+          external_url: string | null
+          id: string
+          item_id: string
+          kind: string
+          label: string
+          position: number
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_url?: string | null
+          id?: string
+          item_id: string
+          kind: string
+          label: string
+          position?: number
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_url?: string | null
+          id?: string
+          item_id?: string
+          kind?: string
+          label?: string
+          position?: number
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_item_attachments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_items: {
         Row: {
           area: string

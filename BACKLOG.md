@@ -293,6 +293,37 @@ migration.
 
 ---
 
+### [P4] PDF-strukturtestens 5s-timeout er load-følsom (noteret 2026-08-04)
+
+**Fund**: `src/lib/__tests__/pdfStructuralExtractor.test.ts` (de to binærtests mod
+Resultat_6.pdf) ramte sin default-timeout på 5000 ms i tre fulde suite-kørsler,
+mens maskinen kørte video-download med load average 42; grøn ved load 5.
+Testens reelle arbejde er ~2,2 s normalt (1,3-2,4 s observeret) — under høj
+belastning og med 13 testfiler i parallel når den ikke i mål. Standalone var den
+grøn i SAMTLIGE kørsler, også under load. Ren falsk-negativ-flakiness; ingen
+produktrisiko.
+
+**Kandidat-fix** (ikke implementeret): eksplicit hævet `testTimeout` på de to
+tests (fx 30 000 ms — de tester korrekthed, ikke hastighed) eller en
+load-agnostisk gate (skip/warn ved ekstrem load). Lille, isoleret testfil-ændring.
+
+---
+
+### [P4] CI-install-flake: bun install fejler på xlsx-tarball (noteret 2026-08-04)
+
+**Fund**: GitHub Actions-jobbet "Tests" fejlede to gange samme aften i "Install
+dependencies"-steppet — `bun install --frozen-lockfile` → `error: Fail extracting
+tarball for "xlsx"` — på PR #166 (run 30941610047) og PR #167 (run 30949047881).
+Begge PRs rørte ingen dependencies; begge blev grønne ved simpelt re-run
+(`gh run rerun <id> --failed`). Testene nås aldrig — ren infra-støj i
+download/ekstraktion.
+
+**Kandidat-fix** (ikke implementeret): bun-cache i workflowet
+(actions/cache på `~/.bun/install/cache`) eller retry på install-steppet.
+Genåbn med prioritet hvis tredje forekomst rammer.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
