@@ -212,6 +212,14 @@ udskudt strukturel gæld).
 
 ---
 
+### [P3] Kandidat — `equity_total` skifter fortegn mellem historiske committede perioder (fund fra MCP Tool 3-verifikation)
+
+**Status**: Noteret 2026-08-04 under live-verifikationen af MCP Tool 3 (`get_financial_metrics`). Topix' committede facts viser `equity_total` = **-293865.63** i 2026-04 og **+267650.77** i 2026-05 — fortegnsskift med sammenlignelig størrelse, hvilket ligner inkonsistent fortegns-normalisering på tværs af historiske commits snarere end en reel egenkapitalbevægelse. Samme familie som PR #154's balance-regler (kolonnevalg/fortegn på AI-stien). Toolet returnerer værdierne råt som designet — ingen handling i MCP-laget.
+
+**Revurder**: ved parse-/commit-lags-reviewet (samme anledning som float-artefakt-posten ovenfor). Afklar kanonisk fortegnskonvention for balanceposter og om historiske facts skal re-committes.
+
+---
+
 ### [P3] Inline-validerings-dublet i `ReportReviewDialog.tsx:201` (udskudt fra ×100-fix)
 
 **Status**: Noteret, ikke konsolideret. `handleSaveEdits` har en egen inline-parse (`trimmed.replace(/\./g, "").replace(",", ".")` + `isNaN`-tjek) der dublerer `parseMetricValue`s dansk-logik, brugt **kun** til validering før gem. Den påvirker ikke den gemte værdi (som går gennem `saveManualOverride` → `parseMetricValue`), så den var ikke en del af ×100-rodårsagen.
