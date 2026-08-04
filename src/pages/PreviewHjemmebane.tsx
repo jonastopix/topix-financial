@@ -56,9 +56,9 @@ const PreviewHjemmebane = () => {
             {/* Dine tal — kompakt Mola-strip mellem hero og grid: markedsdata-båndet.
                 Ingen alarm-farver; "Dine tal"-miljøet tager sig af alvoren. */}
             <HbCard className="mt-10 flex flex-col gap-6 p-6 md:mt-12 md:flex-row md:items-center">
-              <div className="shrink-0 md:w-44">
+              <div className="shrink-0 md:w-48">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine tal</p>
-                <p className="mt-1 text-sm text-hb-ink-soft">Juni 2026 · seneste godkendte</p>
+                <p className="mt-1 whitespace-nowrap text-sm text-hb-ink-soft">Senest godkendt: juni 2026</p>
               </div>
               <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center md:justify-around md:gap-6">
                 <div>
@@ -69,7 +69,7 @@ const PreviewHjemmebane = () => {
                   <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                     Resultat f. skat
                   </p>
-                  <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">-459 kr</p>
+                  <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">−459 kr</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Bank</p>
@@ -86,7 +86,7 @@ const PreviewHjemmebane = () => {
 
             {/* Blok-grid: 6 kolonner (konceptuelt 3), samme asymmetri i begge rækker.
                 items-start: ingen celle arver rækkens højde (grid-greb A). */}
-            <div className="mt-14 grid grid-cols-1 items-start gap-6 md:mt-16 lg:grid-cols-6">
+            <div className="mt-14 grid grid-cols-1 items-start gap-6 md:mt-16 lg:grid-cols-6 lg:gap-x-8 lg:gap-y-10">
               {/* Række 1: Kommende events (2/3) — øverst i grid'et */}
               <HbSection eyebrow="Kommende events" className="lg:col-span-4">
                 <div className="grid gap-6 md:grid-cols-2">
@@ -139,13 +139,14 @@ const PreviewHjemmebane = () => {
               </HbSection>
 
               {/* Række 2: LinkedIn-highlight (1/3) — pull quote ved siden af mediet */}
+              {/* Citatet ER spaltens indhold — stor bevidst typografi, ingen strækning */}
               <HbSection eyebrow="Fra LinkedIn" className="lg:col-span-2">
-                <HbCard className="p-6">
-                  <blockquote className="font-editorial text-lg font-medium leading-snug text-hb-ink">
+                <HbCard className="p-8">
+                  <blockquote className="font-editorial text-2xl font-medium leading-snug text-hb-ink">
                     “De fleste SMV’er styrer ikke efter tallene — de styrer efter fornemmelsen og håber, tallene er
                     enige.”
                   </blockquote>
-                  <div className="mt-6 flex items-center gap-3">
+                  <div className="mt-8 flex items-center gap-3">
                     <img
                       src="/morten-larsen.jpg"
                       alt="Morten Larsen"

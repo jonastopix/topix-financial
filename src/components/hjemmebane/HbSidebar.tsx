@@ -46,7 +46,9 @@ const SidebarContent = ({ avatarSrc, avatarAlt = "Profil", userName = "Medlem" }
         <React.Fragment key={item.label}>
           <NavItem label={item.label} active={item.active} />
           {item.children && (
-            <div className="mb-3 ml-4 border-l border-hb-line pl-4">
+            /* Gren-hairline lokalt mørknet: hb-line (L88) drukner som fritstående
+               1px-streg direkte på papiret (L97). Tokenen er urørt. */
+            <div className="mb-3 ml-4 border-l border-hb-ink/15 pl-4">
               {item.children.map((child) => (
                 <a
                   key={child}
