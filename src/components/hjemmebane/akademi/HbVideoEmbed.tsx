@@ -16,15 +16,28 @@ interface HbVideoEmbedProps {
 }
 
 /** Signeret Bunny-embed + player.js-integration (D4): position skrives
-    throttled hvert 10. sek. og straks ved pause; ≥90 % eller 'ended' =
-    auto-gennemført. Ærlig fallback: fejler player.js-koblingen, afspiller
+    throttled hvert 10. sek. og straks ved pause; auto-gennemført ved 90 %
+    eller 'ended'. Ærlig fallback: fejler player.js-koblingen, afspiller
     videoen stadig — kun auto-position/auto-gennemført degraderer (manuel
-    kvittering består). */
+    kvittering består).
+
+    KRYDSNINGS-SPÆRRE (Model B1-video): auto-kvittering udløser KUN når
+    90 %-grænsen krydses NEDEFRA under reel afspilning i den aktuelle
+    player-session (forrige observerede fraktion < 90 % → nuværende ≥ 90 %).
+    Starter sessionen allerede ≥ 90 % (fx fortryd + genbesøg med genoptag nær
+    slutningen), sker der INTET før medlemmet reelt spoler tilbage og afspiller
+    hen over grænsen. 'ended' kvitterer kun efter observeret fremadrettet
+    afspilning i sessionen — et fortryd overskrives aldrig af en ren
+    genindlæsning eller et genbesøg. */
 export const HbVideoEmbed = ({ itemId, resumeAt, onPosition, onCompleted }: HbVideoEmbedProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lastWriteRef = useRef(0);
   const positionRef = useRef(0);
   const completedRef = useRef(false);
+  /** Seneste observerede fraktion i sessionen — null indtil første timeupdate. */
+  const prevFractionRef = useRef<number | null>(null);
+  /** Reel fremadrettet afspilning observeret i sessionen (gater 'ended'-ack). */
+  const hasPlaybackRef = useRef(false);
   const callbacksRef = useRef({ onPosition, onCompleted });
   callbacksRef.current = { onPosition, onCompleted };
 
@@ -50,13 +63,23 @@ export const HbVideoEmbed = ({ itemId, resumeAt, onPosition, onCompleted }: HbVi
       player.on("ready", () => {
         player?.on("timeupdate", ({ seconds, duration }) => {
           positionRef.current = Math.floor(seconds);
-          if (
-            !completedRef.current &&
-            duration > 0 &&
-            seconds / duration >= AUTO_COMPLETE_FRACTION
-          ) {
-            completedRef.current = true;
-            callbacksRef.current.onCompleted();
+          if (duration > 0) {
+            const fraction = seconds / duration;
+            const previous = prevFractionRef.current;
+            prevFractionRef.current = fraction;
+            if (previous !== null && fraction > previous) hasPlaybackRef.current = true;
+            // Kryds nedefra: forrige < 90 % OG nuværende ≥ 90 % — en session
+            // der STARTER ≥ 90 % (previous === null eller allerede over) kan
+            // ikke udløse ack uden reel afspilning hen over grænsen.
+            if (
+              !completedRef.current &&
+              previous !== null &&
+              previous < AUTO_COMPLETE_FRACTION &&
+              fraction >= AUTO_COMPLETE_FRACTION
+            ) {
+              completedRef.current = true;
+              callbacksRef.current.onCompleted();
+            }
           }
           const now = Date.now();
           if (now - lastWriteRef.current >= POSITION_WRITE_INTERVAL_MS) {
@@ -69,7 +92,8 @@ export const HbVideoEmbed = ({ itemId, resumeAt, onPosition, onCompleted }: HbVi
           callbacksRef.current.onPosition(positionRef.current);
         });
         player?.on("ended", () => {
-          if (!completedRef.current) {
+          // Kun efter reel afspilning i sessionen — aldrig ved ren genindlæsning.
+          if (!completedRef.current && hasPlaybackRef.current) {
             completedRef.current = true;
             callbacksRef.current.onCompleted();
           }

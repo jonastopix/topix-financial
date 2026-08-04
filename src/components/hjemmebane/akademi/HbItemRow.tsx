@@ -4,7 +4,7 @@ import { Check, Lock, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ITEM_TYPES } from "@/lib/hjemmebane/adminContentApi";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
-import type { AkademiItem } from "./useAkademiData";
+import { isTrackedEntry, type AkademiItem } from "./useAkademiData";
 
 /** Tilstandsprik: ● gennemført · ◐ påbegyndt · ○ urørt · − sprunget over. */
 const StateDot = ({ entry }: { entry: AkademiItem }) => {
@@ -41,7 +41,10 @@ export const HbItemRow = ({ entry }: { entry: AkademiItem }) => {
 
   const inner = (
     <>
-      <StateDot entry={entry} />
+      {/* Model B1-video: fremdriftsprikken findes kun på video-items —
+          bibliotek (tekst/dokumenter/eksternt) renderes rent. Spacer holder
+          titlerne på linje i blandede lister. */}
+      {isTrackedEntry(entry) ? <StateDot entry={entry} /> : <span className="w-5 shrink-0" />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] text-hb-ink">{item.title}</p>
         <p className="truncate text-xs text-hb-ink-soft">{meta}</p>

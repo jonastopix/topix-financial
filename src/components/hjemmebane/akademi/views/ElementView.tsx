@@ -1,12 +1,12 @@
 import * as React from "react";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock, Undo2 } from "lucide-react";
 import { AREAS, ITEM_TYPES, getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbVideoEmbed } from "../HbVideoEmbed";
-import { useAkademiData } from "../useAkademiData";
+import { isTrackedEntry, useAkademiData } from "../useAkademiData";
 
 export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }) => {
   const data = useAkademiData();
@@ -59,8 +59,17 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   const index = ordered.findIndex((candidate) => candidate.item.id === item.id);
   const next = index >= 0 ? ordered.slice(index + 1).find((candidate) => candidate.drip.unlocked) : undefined;
 
+  // Model B1-video: sporings-UI (Gennemført/Spring over + prik) findes kun på
+  // video-items; øvrige items er bibliotek. seen_at-skrivningen består for alle
+  // (harmløs, kan få rolle senere) — afgrænsningen er ren UI. Prædikatet er
+  // det delte isTrackedEntry (samme dom som prik, nævner og fortsæt/næste).
+  const tracked = isTrackedEntry(entry);
+
   const acknowledge = () =>
     data.writeProgress(item.id, { acknowledged_at: new Date().toISOString() });
+  /** Fortryd: nulstil kvitteringen — tilstanden falder automatisk tilbage
+      (skipped → started → untouched), og genoptag-positionen genopstår. */
+  const unacknowledge = () => data.writeProgress(item.id, { acknowledged_at: null });
   const skip = () => data.writeProgress(item.id, { skipped_at: new Date().toISOString() });
 
   const openStorageFile = async () => {
@@ -129,29 +138,43 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
         )}
 
         <div className="mt-10 flex flex-wrap items-center gap-3 border-t border-hb-line pt-6">
-          {done ? (
-            <span className="inline-flex items-center gap-2 rounded-full bg-hb-sage px-4 py-2 text-sm font-medium text-hb-ink">
-              <Check className="h-4 w-4" />
-              Gennemført
-            </span>
-          ) : (
-            <HbButton onClick={acknowledge}>
-              <Check className="h-4 w-4" />
-              Markér som gennemført
-            </HbButton>
-          )}
+          {tracked && (
+            <>
+              {done ? (
+                /* Toggle: klik på aktiv "Gennemført" fortryder (acknowledged_at
+                   → null). Samme rolige pill-udtryk, diskret hover-cue. */
+                <button
+                  type="button"
+                  onClick={unacknowledge}
+                  title="Klik for at fortryde"
+                  aria-label="Gennemført — klik for at fortryde"
+                  className="group inline-flex items-center gap-2 rounded-full bg-hb-sage px-4 py-2 text-sm font-medium text-hb-ink transition-colors hover:bg-hb-sage/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen/60"
+                >
+                  {/* Diskret hover-cue: flueben → fortryd-pil; bredden er stabil. */}
+                  <Check className="h-4 w-4 group-hover:hidden" />
+                  <Undo2 className="hidden h-4 w-4 group-hover:block" />
+                  Gennemført
+                </button>
+              ) : (
+                <HbButton onClick={acknowledge}>
+                  <Check className="h-4 w-4" />
+                  Markér som gennemført
+                </HbButton>
+              )}
 
-          {!done && !skipped && (
-            <button
-              type="button"
-              onClick={skip}
-              className="px-2 text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
-            >
-              Spring over
-            </button>
-          )}
-          {skipped && !done && (
-            <span className="text-sm text-hb-ink-soft">Sprunget over</span>
+              {!done && !skipped && (
+                <button
+                  type="button"
+                  onClick={skip}
+                  className="px-2 text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
+                >
+                  Spring over
+                </button>
+              )}
+              {skipped && !done && (
+                <span className="text-sm text-hb-ink-soft">Sprunget over</span>
+              )}
+            </>
           )}
 
           {next && (
