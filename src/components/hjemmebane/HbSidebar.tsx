@@ -6,12 +6,13 @@ import { cn } from "@/lib/utils";
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
 const NAV: { label: string; active?: boolean; children?: string[] }[] = [
   { label: "Dit Boardroom", active: true },
-  { label: "Dine tal", children: ["Rapportering", "KPI'er", "Budget", "Milestones"] },
+  { label: "Dine tal", children: ["Rapportering", "KPI'er", "Budget", "Milestones", "Handouts"] },
+  { label: "Din rådgiver", children: ["Chat", "Book session"] },
   { label: "Akademiet" },
   { label: "Community" },
   { label: "Events" },
   { label: "Podcast & Talks" },
-  { label: "Ressourcer" },
+  { label: "Ressourcer", children: ["Skabeloner", "Rabataftaler"] },
 ];
 
 interface HbSidebarProps {
@@ -76,9 +77,12 @@ const SidebarContent = ({ avatarSrc, avatarAlt = "Profil", userName = "Medlem" }
   </>
 );
 
-/** Desktop-sidebar: papir, ikke en flade — samme baggrund som siden, adskilt af én hairline. */
+/** Desktop-sidebar: papir, ikke en flade — samme baggrund som siden, adskilt af én hairline.
+    Ingen sticky: previewens layout-skal er sin egen scroll-container på lg
+    (indholdskolonnen scroller), fordi #root's globale overflow-x-regel gør
+    sticky virkningsløs. overflow-y-auto så strukturen ikke klippes på lave skærme. */
 const HbSidebar = (props: HbSidebarProps) => (
-  <aside className="sticky top-0 hidden h-screen w-[272px] shrink-0 flex-col border-r border-hb-line bg-hb-paper px-7 py-8 lg:flex">
+  <aside className="hidden h-screen w-[272px] shrink-0 flex-col overflow-y-auto border-r border-hb-line bg-hb-paper px-7 py-8 lg:flex">
     <SidebarContent {...props} />
   </aside>
 );
