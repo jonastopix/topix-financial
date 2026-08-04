@@ -1,7 +1,8 @@
-# Boardroom MCP-server (fase 1 — skelet)
+# Boardroom MCP-server (fase 1)
 
-MCP-server til The Boardroom-platformen. **Fase 1** er et skelet: stdio-transport
-og ét `ping`-tool. Databehandlings-tools kommer i senere sprints.
+MCP-server til The Boardroom-platformen. **Fase 1**: stdio-transport med fire tools —
+`ping`, `get_company_overview`, `get_parse_status` og `get_financial_metrics`
+(read-only; skrivende tools kommer i Sprint 4).
 
 Bygget efter beslutningerne i [`docs/mcp/RECON.md`](../docs/mcp/RECON.md) — selvstændig
 Bun/Node-pakke (ikke edge function), egen streng `tsconfig` (`strict: true`), og et
@@ -10,12 +11,25 @@ Bun/Node-pakke (ikke edge function), egen streng `tsconfig` (`strict: true`), og
 ## Forudsætninger
 
 - Bun `1.3.13` (samme pin som repoets CI).
-- Miljøvariabler (læses ved opstart, aldrig committet):
+- Miljøvariabler (læses ved opstart, aldrig committet). Fase 1-auth er advisor-login
+  (`signInWithPassword`, se `src/access/accessContext.ts`) — RLS er den reelle
+  håndhævelse:
   - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_ROLE_KEY` — bypasser RLS; hentes fra Supabase/Lovable-dashboardet.
+  - `SUPABASE_PUBLISHABLE_KEY` — publishable (anon) key; bærer ingen rettigheder selv,
+    advisor-JWT'en gør.
+  - `MCP_ADVISOR_EMAIL` / `MCP_ADVISOR_PASSWORD` — advisor-login.
+  - `SUPABASE_SERVICE_ROLE_KEY` — **valgfri og normalt fraværende**: prod-instansen er
+    Lovable-ejet, så nøglen er ikke tilgængelig. Læses kun passivt hvis sat.
 
 Kopiér `.env.example` til `mcp/.env` (gitignored) og udfyld værdierne. Serveren fejler
 tydeligt ved opstart hvis en nøgle mangler — og skriver aldrig værdien i output.
+
+> ⚠️ **`.env`-autoload er cwd-bundet.** Bun læser kun `.env` fra den aktuelle
+> arbejdsmappe. Startes serveren med absolut sti fra en anden mappe, findes `mcp/.env`
+> IKKE (verificeret empirisk 2026-08-04: fra repo-roden fejler opstart med manglende
+> `MCP_ADVISOR_*`, mens rodens tracked `.env` delvist skygger). Brug altid `cd mcp`
+> eller `bun run --cwd <sti>/mcp` — og bemærk at flag-rækkefølgen er signifikant:
+> `--cwd` skal stå EFTER `run` (`bun --cwd … run` afvises af Buns CLI-parser).
 
 ## Installation
 
@@ -38,37 +52,32 @@ Testene er tilkoblet CI via et dedikeret job i `.github/workflows/test.yml`.
 
 ```sh
 cd mcp
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... bun run start
+bun run start
 ```
 
-Serveren taler MCP over **stdio**. Den logger kun til stderr (stdout er
-protokol-kanalen) og skriver `[boardroom-mcp] connected via stdio as service-role:local`
-når forbindelsen er oppe.
+`cd mcp` er obligatorisk — Bun autoloader `mcp/.env` fra arbejdsmappen (se
+cwd-advarslen under Forudsætninger). Serveren taler MCP over **stdio**. Den logger
+kun til stderr (stdout er protokol-kanalen) og skriver
+`[boardroom-mcp] connected via stdio as user:<advisor-uuid>` når forbindelsen er oppe.
 
 ## Tilslut til Claude Code
 
-Registrér serveren som en lokal stdio-MCP-server:
+Registrér serveren som en lokal stdio-MCP-server. `--cwd` EFTER `run` sætter
+arbejdsmappen før `.env`-autoload, så `mcp/.env` læses uanset hvor klienten spawner
+processen fra — credentials skal derfor ikke stå i klient-konfigurationen:
 
 ```sh
-claude mcp add boardroom \
-  --env SUPABASE_URL=... \
-  --env SUPABASE_SERVICE_ROLE_KEY=... \
-  -- bun run /ABSOLUT/STI/TIL/mcp/src/index.ts
+claude mcp add boardroom -- bun run --cwd /ABSOLUT/STI/TIL/mcp start
 ```
 
-Eller i en MCP-klient-konfiguration (fx `.mcp.json`). Brug env-ekspansion — så
-leveres værdierne fra shell-miljøet og står aldrig i klartekst i filen:
+Eller i en MCP-klient-konfiguration (fx `.mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "boardroom": {
       "command": "bun",
-      "args": ["run", "/ABSOLUT/STI/TIL/mcp/src/index.ts"],
-      "env": {
-        "SUPABASE_URL": "${SUPABASE_URL}",
-        "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
-      }
+      "args": ["run", "--cwd", "/ABSOLUT/STI/TIL/mcp", "start"]
     }
   }
 }
@@ -89,9 +98,14 @@ Kald derefter `ping`-toolet — det returnerer serverens navn, version og den ak
   eneste vej til tenant-tabeller og kører tenant-gaten internt; `dbGlobal()` er kun til
   tabeller uden `company_id` (kræver manuel scoping i kaldet). Ingen tool rører `env` eller
   `createClient` direkte.
-- **`src/supabase/client.ts`** — service-role-klient efter RECON §2-mønstret.
-- **`src/tools/ping.ts`** — `ping`-toolet + en ren `runPing`-handler der afvises uden
-  gyldig kontekst.
+- **`src/supabase/client.ts`** — klient-fabrikker (advisor + service-role) efter
+  RECON §2-mønstret; **`src/supabase/session.ts`** — `queryWithReauth` (ét retry ved
+  JWT-udløb midt i et kald).
+- **`src/schema/columns.ts`** — kanoniske kolonnelister fra RECON §3; tools bygger
+  select-lister herfra og skriver aldrig `select *`.
+- **`src/tools/`** — `ping` + de tre read-tools (`getCompanyOverview`,
+  `getParseStatus`, `getFinancialMetrics`); alle med rene `run*`-handlers der afvises
+  uden gyldig kontekst.
 
 ## Kendte forhold
 
