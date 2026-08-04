@@ -31,6 +31,11 @@
 3. **Region/replication:** vælg KUN europæiske regioner (fx Falkenstein/Tyskland som
    primær + evt. London/Stockholm som replikering). **Vælg ingen US/APAC-regioner** —
    GDPR-hensynet er hele pointen, og primærregionen kan ikke ændres bagefter.
+
+   > ⚠️ **Fund fra den faktiske opsætning (2026-08-04):** Bunny FORHÅNDSVÆLGER
+   > replikeringsregioner uden for EU (Los Angeles, New York, Singapore) — de SKAL
+   > fravælges manuelt FØR library'et oprettes. Primærregionen hedder
+   > **"Frankfurt (DE)"** i UI'et — guidens "Falkenstein" dækker samme valg.
 4. Klik **Add/Create**.
 5. Notér **Library ID** (tallet i URL'en/oversigten — bruges i embed-URL'er og API-kald).
 
@@ -40,15 +45,34 @@
 
 1. **Embed View Token Authentication: TIL.** Dette er kernen — uden token kan
    embed-URL'en ikke afspilles, heller ikke hvis nogen deler linket. Når den slås til,
-   vises en **Token Authentication Key** (kan hedde "Security Key") — den skal gemmes
-   som secret i trin 4, og den må ALDRIG ende i frontend-kode eller git.
-2. **Block Direct URL File Access: TIL** (hvis den findes som separat toggle) — blokerer
+   vises en **Token Authentication Key** — den skal gemmes som secret i trin 4, og den
+   må ALDRIG ende i frontend-kode eller git.
+
+   > ⚠️ **Forvekslingsfælde (fund 2026-08-04 — kostede et fejlsøgningsloop):** I
+   > Bunnys nuværende UI bærer det maskerede felt nederst på **Security → General**
+   > labelen **"API key"** — men det ER Token Authentication Key (den, der signerer
+   > embed-URL'er og skal i `BUNNY_STREAM_TOKEN_AUTH_KEY`). Den må IKKE forveksles
+   > med library'ets rigtige API Key under **API-fanen** (som skal i
+   > `BUNNY_STREAM_API_KEY`). Forvekslingsrisikoen er reel.
+2. **"Enable direct play" (Security → General): FRA.** Fund fra den faktiske opsætning
+   (2026-08-04): Bunny har den **TIL som default**, og den omgår token-kravet —
+   Bunnys egen tekst: "anyone with the URL or video ID" kan afspille. Token-
+   beskyttelsen er reelt slået fra, indtil denne toggle slås FRA.
+3. **Block Direct URL File Access: TIL** (hvis den findes som separat toggle) — blokerer
    direkte hentning af videofiler uden om playeren.
-3. **MP4 Fallback: FRA** (medmindre vi konkret får brug for den) — MP4-fallback
-   genererer direkte-downloadbare filer, som underminerer token-beskyttelsen.
-4. **Allowed Referrers:** tilføj `app.theboardroom.dk`. Det er et ekstra lag oven på
-   tokens (ikke en erstatning). Lad være med at tilføje `*`.
-5. Under library'ets **API**-fane: notér **API Key** (library-scoped AccessKey — bruges
+4. **MP4 Fallback: FRA** — genererer direkte-downloadbare filer, som underminerer
+   token-beskyttelsen. Fund fra opsætningen: togglen bor under **Encoding-fanen**
+   (ikke Security); den stod FRA som default.
+5. **"Early-Play" (Encoding): FRA** — eksponerer originalfiler offentligt under
+   encoding og skal stå fra.
+6. **"Keep original files" (Encoding): TIL — bevidst.** Re-encode-forsikring
+   (originalen kan re-processeres ved codec-/kvalitetsskift). Originalerne er
+   utilgængelige udefra, når punkt 2 + 5 er FRA og direct file access er blokeret.
+7. **Allowed Referrers:** tilføj `app.theboardroom.dk`. Det er et ekstra lag oven på
+   tokens (ikke en erstatning). Lad være med at tilføje `*`. Bemærk konsekvensen for
+   testmetoden i afsnit 6: en nøgen browser-åbning uden referrer viser 403 uanset
+   gyldigt token.
+8. Under library'ets **API**-fane: notér **API Key** (library-scoped AccessKey — bruges
    til upload/administration via API senere i migreringssprintet).
 
 ## 4. Nøgler → Lovable secrets (navngivning følger husets stil)
@@ -83,6 +107,21 @@ https://iframe.mediadelivery.net/embed/{LIBRARY_ID}/{VIDEO_GUID}?token={TOKEN}&e
 
 ## 6. Verifikations-test (skal gennemføres før C0 lukkes)
 
+> **Metodenote — sådan aflæses testen (fund 2026-08-04):** Embed-endpointet svarer
+> **HTTP 200 på ALT** — statuskoden er ubrugelig som dommer. Dommeren er `<title>` i
+> svar-kroppen: en 403-fejlside (`<title>403</title>`) vs. en player-side (markører:
+> `hls.min.js` / Plyr). "Allowed domains"-låsen (afsnit 3.7) betyder desuden, at en
+> nøgen browser-åbning UDEN referrer viser 403 uanset gyldigt token — den negative
+> browsertest i b) er derfor fortsat gyldig, men positivt bevis køres med curl og
+> referrer:
+>
+> ```sh
+> curl -s -e "https://app.theboardroom.dk/" "$URL" | tr -d '\n' | grep -o '<title>[^<]*</title>'
+> ```
+>
+> 403-titel = afvist; ingen 403-titel + hls-markør i kroppen = player leveret.
+> Alternativt: afspilning i appen (/akademiet), som er det endelige bevis.
+
 **a. Upload testvideo:** Stream → `boardroom-hjemmebane` → **Upload** → vælg en lille
 video (30 sek. er fint). Vent til status er **Finished** (encoding). Klik videoen og
 notér dens **Video GUID**.
@@ -95,39 +134,70 @@ https://iframe.mediadelivery.net/embed/<LIBRARY_ID>/<VIDEO_GUID>
 er Embed View Token Authentication ikke slået til — tilbage til trin 3.1.
 
 **c. Positiv test (signeret URL):** Kør i Terminal — nøglen indtastes skjult ved runtime
-og gemmes ingen steder:
+og gemmes ingen steder. **Fremgangsmåden er zsh-kompatibel** (macOS' default-shell er
+zsh, hvor bash-formen `read -s -p "…"` fejler med `read: -p: no coprocess` — og en
+fejlet read giver en TOM nøgle, så tokenet signeres med tom streng og testen fejler
+uforklarligt). Tre trin:
+
+**Trin 1 — variabler uden hemmeligheder:**
 
 ```sh
-read -s -p "Token Auth Key: " BUNNY_KEY; echo
-read -p "Video GUID: " VIDEO_GUID
-read -p "Library ID: " LIBRARY_ID
+VIDEO_GUID="<GUID>"
+LIBRARY_ID="<ID>"
 EXPIRES=$(( $(date +%s) + 3600 ))
+```
+
+**Trin 2 — nøglen, i præcis denne rækkefølge:** Kør `read -s BUNNY_KEY` **ALENE** og
+lad markøren vente. Hent FØRST DEREFTER nøglen i Bunny (Security → General,
+kopiér-ikonet) og indsæt + Enter. Rækkefølgen er afgørende: **kopieres nøglen FØR
+read venter, overskrives udklipsholderen af kommandoteksten**, og du indsætter
+kommandoen i stedet for nøglen.
+
+```sh
+read -s BUNNY_KEY
+```
+
+**Trin 3 — signér, udskriv, ryd op:**
+
+```sh
 TOKEN=$(printf '%s%s%s' "$BUNNY_KEY" "$VIDEO_GUID" "$EXPIRES" | shasum -a 256 | cut -d' ' -f1)
 echo "https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${VIDEO_GUID}?token=${TOKEN}&expires=${EXPIRES}"
 unset BUNNY_KEY
 ```
 
-Åbn den udskrevne URL i inkognito. **Forventet: videoen afspiller.**
+Verificér URL'en med curl-metoden fra metodenoten (referrer påkrævet — nøgen
+inkognito-åbning viser 403 pga. Allowed domains). **Forventet: player-side leveres /
+videoen afspiller i appen.**
 
 **d. Udløbs-test (valgfri men hurtig):** Kør snippet'en igen med `EXPIRES=$(( $(date +%s) - 60 ))`
 (udløbet for et minut siden) — URL'en skal nægtes.
 
-**e. Ryd op:** Slet testvideoen, eller behold den som permanent "kanarievideo" til at
-teste signerings-edge-functionen i senere sprints (anbefalet — omdøb den til `_canary`).
+**e. Ryd op:** Udgår — testvideoen viste sig at være reelt produktionsindhold og
+beholdes med sit rigtige navn (se noten i afsnit 7). `_canary`-omdøbningen fra den
+oprindelige guide er dermed bortfaldet; videoen fungerer alligevel som permanent
+kanarie til fremtidige signeringstests.
 
 **Testen er bestået når b) nægter, c) spiller og d) nægter.** Skriv resultatet + dato i
 denne fil under afsnit 7.
 
-## 7. Testresultat (udfyldes af Jonas)
+## 7. Testresultat (gennemført af Jonas)
 
 | Trin | Resultat | Dato |
 |---|---|---|
-| b) Usigneret embed nægtes | | |
-| c) Signeret embed spiller | | |
-| d) Udløbet token nægtes | | |
-| Secrets oprettet i Lovable (alle 3) | | |
-| 2FA aktiveret | | |
-| Auto-recharge slået til | | |
+| b) Usigneret embed nægtes | BESTÅET — 403 i browser + `<title>403</title>` via curl | 2026-08-04 |
+| c) Signeret embed spiller | BESTÅET — player-side m. `hls.min.js`/Plyr via curl m. referrer; visuelt bevist i `/akademiet` | 2026-08-04 |
+| d) Udløbet token nægtes | BESTÅET — `<title>403</title>` via curl m. referrer | 2026-08-04 |
+| Secrets oprettet i Lovable (alle 3) | JA | 2026-08-04 |
+| 2FA aktiveret | JA | 2026-08-04 |
+| Auto-recharge slået til | JA | 2026-08-04 |
+
+> **Note om testvideoen:** Testen blev kørt mod reelt produktionsindhold —
+> **"0. Admin - Introduktion.mp4"**, GUID `5c6191a2-c148-470a-b5d2-e9740a25fac7`,
+> Library ID `720547` — og videoen beholdes som den er. Den fungerer samtidig som
+> **permanent kanarie** til fremtidige signeringstests (fx efter nøgle-rotation
+> eller ændringer i `get-video-embed`); §6e's `_canary`-omdøbning er udgået.
+> (GUID og Library ID er ikke hemmeligheder — de indgår i klartekst i enhver
+> embed-URL; nøglerne bor fortsat KUN i Bunny-dashboardet og Lovable secrets.)
 
 ---
 

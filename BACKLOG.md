@@ -248,6 +248,16 @@ Alle fonte (Manrope, Space Grotesk, Inter, Parkinsans i `src/index.css` samt Fra
 
 ---
 
+### Beslutningsnote — fremdriftsmodel i Akademiet (2026-08-04)
+
+**Fremdriftsmodel Akademiet: Model A (tillidsbaseret manuel "Gennemført") valgt af
+Jonas 2026-08-04.** Fortryd (af-markering af "Gennemført") er en del af modellen og
+bygges i denne PR. Ingen %-gate; automatisk detektion via player-events er bevidst
+fravalgt for nu. Revurderes hvis fremdriftsdata skal bære noget hårdere end
+medlemmets eget overblik (fx certificering eller rådgiver-opfølgning på tal-niveau).
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
