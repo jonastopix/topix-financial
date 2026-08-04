@@ -1,0 +1,24 @@
+/* Hjemmebane (V0) — tokens for det lyse, premium-redaktionelle miljø.
+   Additivt og scoped: variablerne findes kun under .theme-hjemmebane og
+   importeres kun af preview-siden. App-temaet (:root/.dark i index.css)
+   er urørt — PDF-eksporten afhænger af det. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap');
+
+.theme-hjemmebane {
+  /* Flader */
+  --hb-paper: 40 33% 97%;      /* sidebaggrund — varmt papir */
+  --hb-surface: 0 0% 100%;     /* kort/flader — rent hvidt mod papiret */
+
+  /* Tekst */
+  --hb-ink: 170 30% 12%;       /* primær — næsten-sort m. grøn undertone */
+  --hb-ink-soft: 170 12% 38%;  /* sekundær — metadata, varigheder */
+
+  /* Accenter */
+  --hb-evergreen: 170 46% 14%; /* brandgrøn — handling; identisk med --primary (lys) */
+  --hb-rust: 18 60% 45%;       /* redaktionel accent — eyebrows, links */
+  --hb-sage: 155 30% 88%;      /* blid grøn tint — tags, hover-flader */
+
+  /* Streger & form */
+  --hb-line: 40 12% 88%;       /* hairline-borders — varm taupe */
+  --hb-radius: 1rem;
+}
