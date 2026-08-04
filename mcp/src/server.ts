@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SERVER_NAME, SERVER_VERSION } from "./version";
 import { registerPing } from "./tools/ping";
 import { registerGetCompanyOverview } from "./tools/getCompanyOverview";
+import { registerGetParseStatus } from "./tools/getParseStatus";
 import type { AccessContext } from "./access/accessContext";
 
 /**
@@ -13,5 +14,6 @@ export function buildServer(ctx: AccessContext): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   registerPing(server, ctx);
   registerGetCompanyOverview(server, ctx);
+  registerGetParseStatus(server, ctx);
   return server;
 }
