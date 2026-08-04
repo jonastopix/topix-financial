@@ -102,10 +102,48 @@ export function useAkademiData() {
     return { collections, orderedByArea, byId, bySlug };
   }, [collectionsQuery.data, itemsQuery.data, progressQuery.data, joinedQuery.data, isAdvisor]);
 
+  // Optimistisk for ALLE progress-skrivninger (kvittér, fortryd, spring,
+  // position): cache-patch i onMutate, rollback ved fejl, invalidate i
+  // onSettled — fortryd/kvittér skal føles øjeblikkelig.
   const progressMutation = useMutation({
     mutationFn: ({ itemId, patch }: { itemId: string; patch: ProgressPatch }) =>
       upsertProgress(userId, itemId, patch),
-    onSuccess: () => {
+    onMutate: async ({ itemId, patch }) => {
+      const queryKey = ["akademi", "progress", userId];
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<MemberProgress[]>(queryKey);
+      const now = new Date().toISOString();
+      queryClient.setQueryData<MemberProgress[]>(queryKey, (old = []) => {
+        const existing = old.find((row) => row.content_item_id === itemId);
+        if (existing) {
+          return old.map((row) =>
+            row.content_item_id === itemId ? { ...row, ...patch, updated_at: now } : row,
+          );
+        }
+        return [
+          ...old,
+          {
+            id: `optimistic-${itemId}`,
+            user_id: userId,
+            content_item_id: itemId,
+            seen_at: null,
+            acknowledged_at: null,
+            skipped_at: null,
+            last_position_seconds: null,
+            created_at: now,
+            updated_at: now,
+            ...patch,
+          },
+        ];
+      });
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["akademi", "progress", userId], context.previous);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["akademi", "progress", userId] });
     },
   });
@@ -125,10 +163,18 @@ export function useAkademiData() {
   };
 }
 
-/** Samlings-/områdefremdrift: gennemførte af de ELEMENTER man faktisk kan nå
-    (låste tæller ikke med i nævneren — "3 af 8" er altid handlingsbart). */
+/** Model B1-video (BACKLOG-beslutningsnote 2026-08-04): fremdrift spores KUN
+    på video-items — øvrige items er bibliotek uden sporings-UI. Kræver både
+    bunny-provider OG et faktisk video-ID (ét prædikat, delt af alle views). */
+export function isTrackedEntry(entry: AkademiItem): boolean {
+  return entry.item.media_provider === "bunny" && Boolean(entry.item.bunny_video_id);
+}
+
+/** Samlings-/områdefremdrift: gennemførte af de VIDEOER man faktisk kan nå.
+    Låste tæller ikke med i nævneren, og bibliotek (ikke-video) tæller slet
+    ikke — "3 af 8" er altid handlingsbart og altid opnåeligt (B1-video). */
 export function progressSummary(entries: AkademiItem[]): { done: number; total: number } {
-  const reachable = entries.filter((entry) => entry.drip.unlocked);
+  const reachable = entries.filter((entry) => entry.drip.unlocked && isTrackedEntry(entry));
   return {
     done: reachable.filter((entry) => entry.state === "done").length,
     total: reachable.length,

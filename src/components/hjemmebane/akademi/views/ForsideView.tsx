@@ -6,7 +6,7 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbProgressBar } from "../HbProgressBar";
-import { progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
+import { isTrackedEntry, progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
 
 /** Forsidens store genoptagelses-kort — forsiden ER genoptagelsen. */
 const ContinueCard = ({ entry }: { entry: AkademiItem }) => {
@@ -73,16 +73,23 @@ export const ForsideView = () => {
     return <p className="text-sm text-hb-ink-soft">Henter Akademiet…</p>;
   }
 
-  // Seneste påbegyndte (nyeste progress-aktivitet, ulåst, ikke gennemført).
+  // Model B1-video: fortsæt/næste peger kun på video-items — bibliotek
+  // (tekst/dokumenter) bærer ingen fremdrift og skal ikke "genoptages".
+  // Seneste påbegyndte video (nyeste progress-aktivitet, ulåst, ikke gennemført).
   const continueEntry = [...data.progressRows]
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .map((row) => data.byId.get(row.content_item_id))
-    .find((entry) => entry && entry.drip.unlocked && entry.state !== "done");
+    .find(
+      (entry) => entry && isTrackedEntry(entry) && entry.drip.unlocked && entry.state !== "done",
+    );
 
-  // Første urørte element i forløbsrækkefølgen (områdernes rækkefølge).
+  // Første urørte video i forløbsrækkefølgen (områdernes rækkefølge).
   const nextEntry = AREAS.flatMap((area) => data.orderedByArea.get(area.key) ?? []).find(
     (entry) =>
-      entry.drip.unlocked && entry.state === "untouched" && entry.item.id !== continueEntry?.item.id,
+      isTrackedEntry(entry) &&
+      entry.drip.unlocked &&
+      entry.state === "untouched" &&
+      entry.item.id !== continueEntry?.item.id,
   );
 
   const started = Boolean(continueEntry);

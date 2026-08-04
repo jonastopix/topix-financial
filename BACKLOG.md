@@ -248,6 +248,26 @@ Alle fonte (Manrope, Space Grotesk, Inter, Parkinsans i `src/index.css` samt Fra
 
 ---
 
+### Beslutningsnote — fremdriftsmodel i Akademiet (2026-08-04)
+
+**Fremdriftsmodel Akademiet: Model B1-video** (besluttet af Jonas 2026-08-04, efter
+korrigeret status quo — auto-kvittering fandtes allerede i trin 3):
+
+1. Fremdrift spores KUN på video-items; øvrige items er bibliotek uden sporing
+   (UI-afgrænsning; evt. tekst-lektioner som pensum genåbner med rolle-markering
+   pr. item — backlog).
+2. Auto-kvittering ved ≥90 %/ended bevares som bekvemmelighed, med
+   krydsnings-spærre så fortryd ikke overskrives uden reel afspilning hen over
+   grænsen.
+3. Den manuelle Gennemført-knap er FRI (ingen %-gate) — fremdriften bærer kun
+   medlemmets eget overblik.
+4. Fortryd er en toggle.
+
+Tidligere note (Model A) annulleret — den byggede på en forkert beskrivelse af
+status quo.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
