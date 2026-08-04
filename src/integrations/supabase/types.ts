@@ -735,6 +735,159 @@ export type Database = {
           },
         ]
       }
+      // HÅNDTILFØJET (Hjemmebane C1, D1-beslutning): content_collections,
+      // content_items, event_registrations, events, member_progress og partners
+      // er skrevet i hånden i eksakt genereret format, fordi Lovables
+      // regenerering ikke er kørt siden migrationen 20260804120000.
+      // Ved fremtidig Lovable-regenerering er den genererede fil sandheden —
+      // disse tilføjelser gen-afstemmes mod den (forventet konvergens: samme
+      // skema giver samme output, minus disse kommentarer).
+      content_collections: {
+        Row: {
+          area: string
+          cover_path: string | null
+          created_at: string
+          description: string | null
+          drip_after_days: number | null
+          id: string
+          parent_id: string | null
+          position: number
+          slug: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          drip_after_days?: number | null
+          id?: string
+          parent_id?: string | null
+          position?: number
+          slug: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          drip_after_days?: number | null
+          id?: string
+          parent_id?: string | null
+          position?: number
+          slug?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_collections_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "content_collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_items: {
+        Row: {
+          area: string
+          body: string | null
+          bunny_video_id: string | null
+          collection_id: string | null
+          cover_path: string | null
+          created_at: string
+          description: string | null
+          drip_after_days: number | null
+          duration_seconds: number | null
+          external_url: string | null
+          id: string
+          media_provider: string
+          metadata: Json
+          partner_id: string | null
+          position: number
+          published_at: string | null
+          slug: string
+          status: string
+          storage_path: string | null
+          tier_visibility: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          body?: string | null
+          bunny_video_id?: string | null
+          collection_id?: string | null
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          drip_after_days?: number | null
+          duration_seconds?: number | null
+          external_url?: string | null
+          id?: string
+          media_provider?: string
+          metadata?: Json
+          partner_id?: string | null
+          position?: number
+          published_at?: string | null
+          slug: string
+          status?: string
+          storage_path?: string | null
+          tier_visibility?: string
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          body?: string | null
+          bunny_video_id?: string | null
+          collection_id?: string | null
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          drip_after_days?: number | null
+          duration_seconds?: number | null
+          external_url?: string | null
+          id?: string
+          media_provider?: string
+          metadata?: Json
+          partner_id?: string | null
+          position?: number
+          published_at?: string | null
+          slug?: string
+          status?: string
+          storage_path?: string | null
+          tier_visibility?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "content_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -908,6 +1061,92 @@ export type Database = {
           used_at?: string | null
         }
         Relationships: []
+      }
+      // HÅNDTILFØJET (Hjemmebane C1, D1) — se kommentaren ved content_collections.
+      event_registrations: {
+        Row: {
+          cancelled_at: string | null
+          event_id: string
+          id: string
+          registered_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          event_id: string
+          id?: string
+          registered_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          event_id?: string
+          id?: string
+          registered_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          capacity: number | null
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          id: string
+          kind: string
+          meet_url: string | null
+          recording_item_id: string | null
+          starts_at: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          meet_url?: string | null
+          recording_item_id?: string | null
+          starts_at: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          meet_url?: string | null
+          recording_item_id?: string | null
+          starts_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_recording_item_id_fkey"
+            columns: ["recording_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feedback: {
         Row: {
@@ -1761,6 +2000,51 @@ export type Database = {
           },
         ]
       }
+      // HÅNDTILFØJET (Hjemmebane C1, D1) — se kommentaren ved content_collections.
+      member_progress: {
+        Row: {
+          acknowledged_at: string | null
+          content_item_id: string
+          created_at: string
+          id: string
+          last_position_seconds: number | null
+          seen_at: string | null
+          skipped_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          content_item_id: string
+          created_at?: string
+          id?: string
+          last_position_seconds?: number | null
+          seen_at?: string | null
+          skipped_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          content_item_id?: string
+          created_at?: string
+          id?: string
+          last_position_seconds?: number | null
+          seen_at?: string | null
+          skipped_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_progress_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           created_at: string
@@ -1969,6 +2253,64 @@ export type Database = {
           title?: string
           type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      // HÅNDTILFØJET (Hjemmebane C1, D1) — se kommentaren ved content_collections.
+      partners: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          discount_text: string
+          id: string
+          logo_path: string | null
+          name: string
+          position: number
+          redemption_code: string | null
+          redemption_contact: string | null
+          redemption_type: string
+          redemption_url: string | null
+          status: string
+          updated_at: string
+          valid_until: string | null
+          website_url: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          discount_text: string
+          id?: string
+          logo_path?: string | null
+          name: string
+          position?: number
+          redemption_code?: string | null
+          redemption_contact?: string | null
+          redemption_type: string
+          redemption_url?: string | null
+          status?: string
+          updated_at?: string
+          valid_until?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          discount_text?: string
+          id?: string
+          logo_path?: string | null
+          name?: string
+          position?: number
+          redemption_code?: string | null
+          redemption_contact?: string | null
+          redemption_type?: string
+          redemption_url?: string | null
+          status?: string
+          updated_at?: string
+          valid_until?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }

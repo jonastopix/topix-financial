@@ -32,6 +32,7 @@ const AnnualBaseline = lazy(() => import("./pages/AnnualBaseline"));
 const Community = lazy(() => import("./pages/Community"));
 const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
 const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
+const AdminContent = lazy(() => import("./pages/AdminContent"));
 
 // Lazy — admin-only routes
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
@@ -196,6 +197,10 @@ const App = () => (
               <Route path="/admin/email-log" element={<AdminRoute><AdminEmailLog /></AdminRoute>} />
               <Route path="/admin/import" element={<AdminRoute><BulkImport /></AdminRoute>} />
               <Route path="/admin/review-queue" element={<AdvisorRoute><ReportReviewQueue /></AdvisorRoute>} />
+              {/* Hjemmebane C1 — indholdsstyring (advisor-only, standalone Hb-skal) */}
+              <Route path="/admin/indhold" element={<AdvisorRoute><AdminContent view="content" /></AdvisorRoute>} />
+              <Route path="/admin/indhold/partnere" element={<AdvisorRoute><AdminContent view="partners" /></AdvisorRoute>} />
+              <Route path="/admin/indhold/events" element={<AdvisorRoute><AdminContent view="events" /></AdvisorRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
               <Route path="/admin/groups" element={<AdminRoute><AdminGroups /></AdminRoute>} />
