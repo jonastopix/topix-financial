@@ -104,7 +104,33 @@ Applied to: `app_config` management, `user_roles` management
 ```sql
 auth.uid() = user_id
 ```
-Applied to: `profiles`, `financial_reports` (owner ops), `handouts` (owner ops)
+Applied to: `profiles`, `financial_reports` (owner ops), `handouts` (owner ops),
+`member_progress` (FOR ALL, USING + WITH CHECK), `event_registrations`
+(SELECT/INSERT/UPDATE only — no member DELETE; cancellation is a
+`cancelled_at` UPDATE, preserving capacity history)
+
+### Platform-global content (authenticated read published)
+```sql
+status = 'published'   -- member SELECT gate; no company_id predicate
+```
+Applied to: `content_collections`, `content_items`, `partners`, `events`
+(events use `status IN ('published', 'cancelled', 'completed')` so members
+can see cancellations and links to recordings). Introduced in migration
+`20260804120000_hjemmebane_content_layer.sql` (Projekt Hjemmebane, C0
+datamodel decision B1).
+
+This is a deliberate break with the company-scoped pattern: the content
+layer is shared across ALL companies (Circle-exit content), so member read
+access gates on publication status only, never on `user_company_id()`.
+Writes remain advisor-only (`has_role(auth.uid(), 'advisor')`) plus a
+service-role FOR ALL policy. Members have NO write access to content
+tables; their only writes are `member_progress` and `event_registrations`
+(self-only, above).
+
+Drip pacing (`drip_after_days`) is deliberately NOT enforced in RLS in V1 —
+it is filtered in the app layer (C0 decision B6, accepted as a P4 note in
+`BACKLOG.md`). RLS enforcement would require a new SECURITY DEFINER helper,
+which is forbidden without explicit approval.
 
 ### Advisor-owned rows (own acknowledgements)
 ```sql
@@ -254,6 +280,30 @@ but `auth.uid()` is the advisor (typically not a `company_members` row).
 false-denies every advisor upload. The advisor-branch is what keeps the
 flow working. Same logic applies to advisor permanent-delete in the
 trash UI (`Reports.tsx:1743`).
+
+### Bucket: `content-assets` (private)
+
+Created in migration `20260804120000_hjemmebane_content_layer.sql` (Projekt
+Hjemmebane). **Private from day one** (`public = false`) — the deliberate
+opposite of the `chat-attachments` mistake below. Member delivery happens
+ONLY via signed URLs with expiry (`createSignedUrl()` requires the SELECT
+policy below). Videos never touch this bucket — they live in Bunny Stream.
+
+**Path convention**: `covers/<item-uuid>/...`,
+`templates/<item-uuid>/<filnavn>`, `partners/<partner-uuid>/...`
+
+**Policies on `storage.objects` for this bucket**:
+
+| cmd | policy | clause |
+|---|---|---|
+| SELECT | `Members can read content assets` | `bucket_id = 'content-assets'` (TO authenticated) |
+| INSERT | `Advisors can upload content assets` | `bucket_id = 'content-assets' AND public.has_role(auth.uid(), 'advisor')` |
+| UPDATE | `Advisors can update content assets` | `bucket_id = 'content-assets' AND public.has_role(auth.uid(), 'advisor')` |
+| DELETE | `Advisors can delete content assets` | `bucket_id = 'content-assets' AND public.has_role(auth.uid(), 'advisor')` |
+
+Because `storage.objects` policies are PERMISSIVE and OR-stack, every
+policy carries the bucket check inside its own predicate — a policy
+without a bucket check must NEVER be created for this schema.
 
 ### Bucket: `chat-attachments` (public)
 
