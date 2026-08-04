@@ -10,19 +10,22 @@ import { HbEpisodeRow } from "@/components/hjemmebane/HbEpisodeRow";
 import { HbEventCard } from "@/components/hjemmebane/HbEventCard";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 
-/** V0.1 designprøve — "Dit Boardroom": sidebar-navigation + hero i fuld bredde
-    + blok-grid (to 2/3+1/3-rækker, fuldbredde-community). Standalone route
-    (ingen AppLayout), scoped via .theme-hjemmebane så appen er upåvirket.
-    Mobil-rækkefølgen = DOM-rækkefølgen (ingen CSS-order). */
+/** V0.2 designprøve — "Dit Boardroom": sidebar-navigation, hero i fuld bredde,
+    Dine tal-strip, blok-grid (to 2/3+1/3-rækker, fuldbredde-community).
+    Standalone route (ingen AppLayout), scoped via .theme-hjemmebane så appen
+    er upåvirket. Mobil-rækkefølgen = DOM-rækkefølgen (ingen CSS-order). */
 const PreviewHjemmebane = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased">
-      <div className="flex">
+      {/* lg: previewen er sin egen scroll-container (indholdskolonnen scroller) —
+          #root's globale overflow-x-regel gør sticky virkningsløs, så sidebaren
+          står i stedet fast som fuldhøjde-flexkolonne. Mobil: normal dokument-scroll. */}
+      <div className="flex lg:h-screen lg:overflow-hidden">
         <HbSidebar avatarSrc="/jonas-herlev.png" avatarAlt="Jonas Herlev" userName="Jonas Herlev" />
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 lg:overflow-y-auto">
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc="/jonas-herlev.png" avatarAlt="Jonas Herlev" />
 
           <main className="mx-auto max-w-[1200px] px-6 py-12 md:py-16">
@@ -50,8 +53,40 @@ const PreviewHjemmebane = () => {
               </div>
             </section>
 
-            {/* Blok-grid: 6 kolonner (konceptuelt 3), samme asymmetri i begge rækker */}
-            <div className="mt-14 grid grid-cols-1 gap-6 md:mt-16 lg:grid-cols-6">
+            {/* Dine tal — kompakt Mola-strip mellem hero og grid: markedsdata-båndet.
+                Ingen alarm-farver; "Dine tal"-miljøet tager sig af alvoren. */}
+            <HbCard className="mt-10 flex flex-col gap-6 p-6 md:mt-12 md:flex-row md:items-center">
+              <div className="shrink-0 md:w-44">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine tal</p>
+                <p className="mt-1 text-sm text-hb-ink-soft">Juni 2026 · seneste godkendte</p>
+              </div>
+              <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center md:justify-around md:gap-6">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Omsætning</p>
+                  <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">102.440 kr</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                    Resultat f. skat
+                  </p>
+                  <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">-459 kr</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Bank</p>
+                  <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">128.985 kr</p>
+                </div>
+              </div>
+              <a
+                href="#"
+                className="shrink-0 whitespace-nowrap text-sm text-hb-rust underline-offset-4 hover:underline"
+              >
+                Se dine tal
+              </a>
+            </HbCard>
+
+            {/* Blok-grid: 6 kolonner (konceptuelt 3), samme asymmetri i begge rækker.
+                items-start: ingen celle arver rækkens højde (grid-greb A). */}
+            <div className="mt-14 grid grid-cols-1 items-start gap-6 md:mt-16 lg:grid-cols-6">
               {/* Række 1: Kommende events (2/3) — øverst i grid'et */}
               <HbSection eyebrow="Kommende events" className="lg:col-span-4">
                 <div className="grid gap-6 md:grid-cols-2">
@@ -72,17 +107,18 @@ const PreviewHjemmebane = () => {
 
               {/* Række 1: Dit næste skridt (1/3) — den ene handling som fokuspunkt */}
               <HbSection eyebrow="Dit næste skridt" className="lg:col-span-2">
-                <HbCard className="flex h-full flex-col items-start gap-4 p-6">
+                <HbCard className="flex flex-col items-start gap-4 p-6">
                   <h3 className="font-editorial text-2xl font-medium leading-snug text-hb-ink">Upload dine juli-tal</h3>
                   <p className="text-sm leading-relaxed text-hb-ink-soft">
                     Så er halvåret komplet, og din rådgiver kan se efteråret med dig — inden det starter.
                   </p>
-                  <HbButton className="mt-auto">Upload tallene</HbButton>
+                  <HbButton>Upload tallene</HbButton>
                 </HbCard>
               </HbSection>
 
-              {/* Række 2: Seneste episode (2/3) — mediet får bredden */}
-              <HbSection eyebrow="Seneste episode" linkLabel="Alle episoder" linkTo="#" className="lg:col-span-4">
+              {/* Række 2: Iværksætterlivet (2/3) — mediet får bredden.
+                  Rytme-cue nederst — en headerlinje ville bryde den ensartede header-højde. */}
+              <HbSection eyebrow="Iværksætterlivet" linkLabel="Alle episoder" linkTo="#" className="lg:col-span-4">
                 <HbVideoCard
                   image="/morten-larsen.jpg"
                   imageAlt="Episode 12 — still"
@@ -93,16 +129,17 @@ const PreviewHjemmebane = () => {
                   <HbEpisodeRow number={11} title="Moms, skat og de skjulte deadlines" duration="19 min" />
                   <HbEpisodeRow number={10} title="Budgettet som styringsværktøj — ikke et gæt" duration="22 min" />
                 </div>
+                <p className="mt-4 text-[13px] text-hb-ink-soft">Ny episode hver torsdag</p>
               </HbSection>
 
               {/* Række 2: LinkedIn-highlight (1/3) — pull quote ved siden af mediet */}
               <HbSection eyebrow="Fra LinkedIn" className="lg:col-span-2">
-                <HbCard className="flex h-full flex-col p-6">
-                  <blockquote className="font-editorial text-xl font-medium leading-snug text-hb-ink">
+                <HbCard className="p-6">
+                  <blockquote className="font-editorial text-lg font-medium leading-snug text-hb-ink">
                     “De fleste SMV’er styrer ikke efter tallene — de styrer efter fornemmelsen og håber, tallene er
                     enige.”
                   </blockquote>
-                  <div className="mt-auto flex items-center gap-3 pt-6">
+                  <div className="mt-6 flex items-center gap-3">
                     <img
                       src="/morten-larsen.jpg"
                       alt="Morten Larsen"
