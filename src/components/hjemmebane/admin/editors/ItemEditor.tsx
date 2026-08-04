@@ -14,6 +14,7 @@ import {
 import { slugify } from "@/lib/hjemmebane/slug";
 import { HbField, HbInput, HbSelect, HbTextarea } from "../HbField";
 import { HbMediaPicker } from "../HbMediaPicker";
+import { HbMaterials } from "../HbMaterials";
 import { HbEditorRichtext } from "../HbEditorRichtext";
 import { HbUploadZone } from "../HbUploadZone";
 import {
@@ -231,6 +232,13 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
             externalUrl={form.external_url}
             onChange={(patch) => onDraftChange(patch)}
           />
+        </HbField>
+
+        <HbField
+          label="Materialer"
+          help="Filer og links der følger elementet — gemmes straks, uafhængigt af ⌘S. Synlige for medlemmer når elementet publiceres."
+        >
+          <HbMaterials itemId={item.id} />
         </HbField>
 
         <div className="grid gap-6 md:grid-cols-2">
