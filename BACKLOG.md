@@ -268,6 +268,31 @@ status quo.
 
 ---
 
+### [P3] Data-drevne områder i Akademiet — bevidst udskudt (noteret 2026-08-04, C3-forberedelse)
+
+**Status**: De seks områder (Start her, Grundforløbet, Kurser, Skabeloner, Talks,
+Quick Wins) er i dag kode: en hardcoded `AREAS`-konstant i
+`src/lib/hjemmebane/adminContentApi.ts` + TEXT-CHECK-constraints på
+`content_collections.area` (6 værdier) og `content_items.area` (8 værdier, inkl.
+fremtidssikringerne `rabataftaler`/`push`). Bevidst udskudt — forløb/moduler UNDER
+områderne er allerede fuldt data-drevne i admin, og C3-migreringen kan gennemføres
+med de faste flader.
+
+**Opskrift når det tages op** (fra hb-c3-model-recon.txt pkt. 2e): ny tabel
+`content_areas` (key PK, label, hint, position, status) + migration der erstatter de
+to CHECK-constraints med FK'er; `AREAS`-konstanten erstattes af ét query (+ cache) og
+`AreaKey`-typen af string; admin får et lille område-panel (omdøb/rækkefølge/hint —
+genbrug af eksisterende editor-mønstre); routes (`/akademiet/:area`) virker uændret,
+da key'en består. Størrelse: én migration + ~6 filers letvægts-refactor — et lille,
+selvstændigt sprint-trin.
+
+**Bemærk**: område-LABELS er ren frontend (bevist i PR #166, hvor
+"Classroom"→"Grundforløbet" og "Academy"→"Kurser" blev ændret uden migration) — de
+kan ændres på anmodning når som helst. Det er NYE/FJERNEDE områder, der kræver
+migration.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

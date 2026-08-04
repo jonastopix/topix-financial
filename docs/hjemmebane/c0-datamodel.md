@@ -718,4 +718,24 @@ CREATE POLICY "Advisors can delete content assets"
 
 ---
 
+## 8. Tillæg (2026-08-04, C3-forberedelse): `content_item_attachments`
+
+Recon før C3-migreringen viste, at Circle-lektionens fulde form (video +
+vedhæftede filer + links + tekst i ét opslag) ikke kunne repræsenteres i
+modellen ovenfor — B5's medie-reference er én provider pr. item, og der fandtes
+ingen attachments-relation. Arkitektbeslutning (godkendt): ny tabel
+**`content_item_attachments`** — ordnet liste af materialer pr. item (`kind`
+∈ `storage`/`link`, label, reference-CHECK der spejler B5-mønstret, position).
+RLS følger platform-global-mønstret med én begrundet afvigelse: bilag har ingen
+egen status og medlems-SELECT gater derfor på FORÆLDER-itemets
+`status='published'` via EXISTS. Filer bor i `content-assets` under
+`attachments/<item-uuid>/…`.
+
+Fuld DDL, RLS-begrundelse og deploy-guide: migrationen
+`supabase/migrations/20260804210000_content_item_attachments.sql` og
+design-blokken `docs/hjemmebane/c3-vedhaeftninger-design.md` (afsnit 3 + 8-9).
+Baseline: §5 + §9 opdateret i samme PR.
+
+---
+
 *C0-leverance 2 · Projekt Hjemmebane · 2026-08-04 · SQL er design — intet er kørt.*
