@@ -166,6 +166,10 @@ export const EventsView = () => {
             draft={drafts[selected.id] ?? {}}
             onDraftChange={setDraft}
             onSaved={clearDraft}
+            onDeleted={() => {
+              clearDraft();
+              setSelectedId(null);
+            }}
           />
         ) : (
           <EditorEmptyState

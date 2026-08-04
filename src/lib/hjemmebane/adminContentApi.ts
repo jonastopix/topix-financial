@@ -19,14 +19,40 @@ export type EventInsert = Tables["events"]["Insert"];
 
 export type ContentStatus = "draft" | "published" | "archived";
 
-/** De seks medlemsflader (B2) — rækkefølgen her er visningsrækkefølgen i admin. */
+/** De seks medlemsflader (B2) — rækkefølgen her er visningsrækkefølgen i admin.
+    Labels er visningsnavne (DB-nøglerne i `key` er urørte); `hint` vises som
+    stille hjælpelinje under område-rækken for det valgte område. */
 export const AREAS = [
-  { key: "start_her", label: "Start her" },
-  { key: "classroom", label: "Classroom" },
-  { key: "academy", label: "Academy" },
-  { key: "skabeloner", label: "Skabeloner" },
-  { key: "talks", label: "Talks" },
-  { key: "quick_wins", label: "Quick Wins" },
+  {
+    key: "start_her",
+    label: "Start her",
+    hint: "Onboarding-indholdet nye medlemmer møder først",
+  },
+  {
+    key: "classroom",
+    label: "Grundforløbet",
+    hint: "Det store sammenhængende forløb (Circles Classroom)",
+  },
+  {
+    key: "academy",
+    label: "Kurser",
+    hint: "Enkeltstående emnekurser (Circles Academy)",
+  },
+  {
+    key: "skabeloner",
+    label: "Skabeloner",
+    hint: "Dokumenter og ressourcer til download",
+  },
+  {
+    key: "talks",
+    label: "Talks",
+    hint: "Optagelser af live sessions og video-talks — podcast-episoder hentes automatisk via RSS (C2), ikke her",
+  },
+  {
+    key: "quick_wins",
+    label: "Quick Wins",
+    hint: "Korte, hurtige videoer",
+  },
 ] as const;
 
 export type AreaKey = (typeof AREAS)[number]["key"];
@@ -169,6 +195,33 @@ export async function updateEvent(
   patch: Tables["events"]["Update"],
 ): Promise<EventRow> {
   return throwIfError(await supabase.from("events").update(patch).eq("id", id).select().single());
+}
+
+// ── Permanent sletning (kun fra arkivet — UI'et gater, RLS håndhæver) ──────
+// Advisor-DELETE-policies findes på alle fire tabeller. Kaskade-adfærd pr.
+// migrationen: items → member_progress CASCADE; events → registrations
+// CASCADE; partner-sletning SET NULL'er content_items.partner_id; samlinger
+// CASCADE'r under-samlinger og SET NULL'er items — derfor NÆGTER UI'et
+// sletning af ikke-tomme samlinger (struktur går tabt ellers).
+
+export async function deleteCollection(id: string): Promise<void> {
+  const { error } = await supabase.from("content_collections").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteItem(id: string): Promise<void> {
+  const { error } = await supabase.from("content_items").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deletePartner(id: string): Promise<void> {
+  const { error } = await supabase.from("partners").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  const { error } = await supabase.from("events").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 // ── Rækkefølge ─────────────────────────────────────────────────────────────

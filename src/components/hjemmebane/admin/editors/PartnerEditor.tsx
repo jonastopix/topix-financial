@@ -1,7 +1,7 @@
 import * as React from "react";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type Partner, updatePartner } from "@/lib/hjemmebane/adminContentApi";
+import { type Partner, deletePartner, updatePartner } from "@/lib/hjemmebane/adminContentApi";
 import { HbField, HbInput, HbTextarea } from "../HbField";
 import { HbSegmented } from "../HbSegmented";
 import { HbUploadZone } from "../HbUploadZone";
@@ -16,6 +16,7 @@ interface PartnerEditorProps {
   draft: Draft;
   onDraftChange: (patch: Draft) => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }
 
 const REDEMPTION_OPTIONS = [
@@ -36,7 +37,7 @@ const redemptionError = (form: Partner): string | null => {
 };
 
 export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
-  ({ partner, categories, draft, onDraftChange, onSaved }, ref) => {
+  ({ partner, categories, draft, onDraftChange, onSaved, onDeleted }, ref) => {
     const queryClient = useQueryClient();
     const [savedAt, setSavedAt] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -77,6 +78,15 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
       publish: () => persist({ status: "published" }),
     }));
 
+    const deleteMutation = useMutation({
+      mutationFn: () => deletePartner(partner.id),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["admin-partners"] });
+        onDeleted();
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+
     const actions: EditorAction[] =
       form.status === "published"
         ? [
@@ -103,6 +113,16 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
             error={error}
             onSave={() => persist()}
             actions={actions}
+            deleteSpec={
+              form.status === "archived"
+                ? {
+                    entityLabel: form.name || "Uden navn",
+                    consequence: "Indholds-elementer der peger på partneren mister kun koblingen.",
+                    deleting: deleteMutation.isPending,
+                    onDelete: () => deleteMutation.mutate(),
+                  }
+                : undefined
+            }
           />
         }
       >

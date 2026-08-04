@@ -8,6 +8,7 @@ import {
   type ContentCollection,
   type ContentItem,
   type Partner,
+  deleteItem,
   updateItem,
 } from "@/lib/hjemmebane/adminContentApi";
 import { slugify } from "@/lib/hjemmebane/slug";
@@ -35,6 +36,7 @@ interface ItemEditorProps {
   draft: Draft;
   onDraftChange: (patch: Draft) => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }
 
 /** CHECK-constrainten spejles før gem, så DB-fejl aldrig er første feedback. */
@@ -54,7 +56,7 @@ const mediaError = (form: ContentItem): string | null => {
 };
 
 export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
-  ({ item, collections, partners, draft, onDraftChange, onSaved }, ref) => {
+  ({ item, collections, partners, draft, onDraftChange, onSaved, onDeleted }, ref) => {
     const queryClient = useQueryClient();
     const [savedAt, setSavedAt] = useState<Date | null>(null);
     const [slugError, setSlugError] = useState<string | null>(null);
@@ -106,6 +108,15 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
 
     useImperativeHandle(ref, () => ({ save: () => persist(), publish }));
 
+    const deleteMutation = useMutation({
+      mutationFn: () => deleteItem(item.id),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["admin-content"] });
+        onDeleted();
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+
     const actions: EditorAction[] =
       form.status === "published"
         ? [
@@ -133,6 +144,16 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
             error={error}
             onSave={() => persist()}
             actions={actions}
+            deleteSpec={
+              form.status === "archived"
+                ? {
+                    entityLabel: form.title || "Uden titel",
+                    consequence: "Medlemmers fremdrift på elementet slettes med.",
+                    deleting: deleteMutation.isPending,
+                    onDelete: () => deleteMutation.mutate(),
+                  }
+                : undefined
+            }
           />
         }
       >

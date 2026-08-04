@@ -5,6 +5,7 @@ import {
   AREAS,
   type AreaKey,
   type ContentCollection,
+  deleteCollection,
   updateCollection,
 } from "@/lib/hjemmebane/adminContentApi";
 import { slugify } from "@/lib/hjemmebane/slug";
@@ -25,13 +26,16 @@ interface CollectionEditorProps {
   collection: ContentCollection;
   /** Rod-samlinger i området (kursus→modul-forældre); kun Academy viser valget. */
   rootCollections: ContentCollection[];
+  /** Elementer + under-samlinger (alle statusser) — gater permanent sletning. */
+  containedCount: number;
   draft: Draft;
   onDraftChange: (patch: Draft) => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }
 
 export const CollectionEditor = forwardRef<EditorHandle, CollectionEditorProps>(
-  ({ collection, rootCollections, draft, onDraftChange, onSaved }, ref) => {
+  ({ collection, rootCollections, containedCount, draft, onDraftChange, onSaved, onDeleted }, ref) => {
     const queryClient = useQueryClient();
     const [savedAt, setSavedAt] = useState<Date | null>(null);
     const [slugError, setSlugError] = useState<string | null>(null);
@@ -70,6 +74,15 @@ export const CollectionEditor = forwardRef<EditorHandle, CollectionEditorProps>(
       publish: () => persist({ status: "published" }),
     }));
 
+    const deleteMutation = useMutation({
+      mutationFn: () => deleteCollection(collection.id),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["admin-content"] });
+        onDeleted();
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+
     const actions: EditorAction[] =
       form.status === "published"
         ? [
@@ -96,6 +109,19 @@ export const CollectionEditor = forwardRef<EditorHandle, CollectionEditorProps>(
             error={error}
             onSave={() => persist()}
             actions={actions}
+            deleteSpec={
+              form.status === "archived"
+                ? {
+                    entityLabel: form.title || "Uden titel",
+                    blockedReason:
+                      containedCount > 0
+                        ? `Tøm samlingen først — ${containedCount} element${containedCount === 1 ? "" : "er"}`
+                        : undefined,
+                    deleting: deleteMutation.isPending,
+                    onDelete: () => deleteMutation.mutate(),
+                  }
+                : undefined
+            }
           />
         }
       >

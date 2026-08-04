@@ -1,7 +1,12 @@
 import * as React from "react";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type ContentItem, type EventRow, updateEvent } from "@/lib/hjemmebane/adminContentApi";
+import {
+  type ContentItem,
+  type EventRow,
+  deleteEvent,
+  updateEvent,
+} from "@/lib/hjemmebane/adminContentApi";
 import { HbField, HbInput, HbSelect, HbTextarea } from "../HbField";
 import {
   EditorBar,
@@ -22,6 +27,7 @@ interface EventEditorProps {
   draft: Draft;
   onDraftChange: (patch: Draft) => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }
 
 const KIND_OPTIONS = [
@@ -31,7 +37,7 @@ const KIND_OPTIONS = [
 ];
 
 export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
-  ({ event, recordingCandidates, registrationCount, draft, onDraftChange, onSaved }, ref) => {
+  ({ event, recordingCandidates, registrationCount, draft, onDraftChange, onSaved, onDeleted }, ref) => {
     const queryClient = useQueryClient();
     const [savedAt, setSavedAt] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -72,6 +78,15 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
       publish: () => persist({ status: "published" }),
     }));
 
+    const deleteMutation = useMutation({
+      mutationFn: () => deleteEvent(event.id),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["admin-events"] });
+        onDeleted();
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+
     const actions: EditorAction[] =
       form.status === "draft"
         ? [{ label: "Publicér", onClick: () => persist({ status: "published" }), variant: "primary" }]
@@ -96,6 +111,18 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
             error={error}
             onSave={() => persist()}
             actions={actions}
+            deleteSpec={
+              // Events har intet 'archived' — de afsluttede tilstande
+              // (aflyst/afholdt) er arkiv-analogen, der åbner for sletning.
+              form.status === "cancelled" || form.status === "completed"
+                ? {
+                    entityLabel: form.title || "Uden titel",
+                    consequence: `${registrationCount} tilmelding${registrationCount === 1 ? "" : "er"} slettes med.`,
+                    deleting: deleteMutation.isPending,
+                    onDelete: () => deleteMutation.mutate(),
+                  }
+                : undefined
+            }
           />
         }
       >
