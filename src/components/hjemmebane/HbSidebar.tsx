@@ -1,62 +1,112 @@
 import * as React from "react";
+import { Link } from "react-router-dom";
 import { X } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 
+/** Nav-struktur. `to` = rigtig route; uden `to` er linket dødt (V0-preview-
+    adfærden). Additiv udvidelse i C1 trin 3 — previewens udtryk er urørt. */
+export interface HbNavEntry {
+  label: string;
+  to?: string;
+  active?: boolean;
+  children?: { label: string; to?: string }[];
+}
+
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
-const NAV: { label: string; active?: boolean; children?: string[] }[] = [
+const NAV: HbNavEntry[] = [
   { label: "Dit Boardroom", active: true },
-  { label: "Dine tal", children: ["Rapportering", "KPI'er", "Budget", "Milestones", "Handouts"] },
-  { label: "Din rådgiver", children: ["Chat", "Book session"] },
+  {
+    label: "Dine tal",
+    children: [
+      { label: "Rapportering" },
+      { label: "KPI'er" },
+      { label: "Budget" },
+      { label: "Milestones" },
+      { label: "Handouts" },
+    ],
+  },
+  { label: "Din rådgiver", children: [{ label: "Chat" }, { label: "Book session" }] },
   { label: "Akademiet" },
   { label: "Community" },
   { label: "Events" },
   { label: "Podcast & Talks" },
-  { label: "Ressourcer", children: ["Skabeloner", "Rabataftaler"] },
+  { label: "Ressourcer", children: [{ label: "Skabeloner" }, { label: "Rabataftaler" }] },
 ];
 
 interface HbSidebarProps {
   avatarSrc?: string;
   avatarAlt?: string;
   userName?: string;
+  /** Erstat nav-strukturen (rigtige links). Udeladt = V0-previewens døde nav. */
+  nav?: HbNavEntry[];
+  /** Logo-linkets mål; udeladt = dødt (preview). */
+  homeTo?: string;
 }
 
-const NavItem = ({ label, active }: { label: string; active?: boolean }) => (
-  <a
-    href="#"
-    className={cn(
-      "relative flex h-10 items-center rounded-full px-4 text-[15px] transition-colors",
-      active ? "font-medium text-hb-ink" : "text-hb-ink-soft hover:bg-hb-sage/30 hover:text-hb-ink",
-    )}
-  >
-    {active && <span className="absolute left-0 h-5 w-[3px] rounded-full bg-hb-evergreen" />}
-    {label}
-  </a>
-);
+const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: string }) => {
+  const className = cn(
+    "relative flex h-10 items-center rounded-full px-4 text-[15px] transition-colors",
+    active ? "font-medium text-hb-ink" : "text-hb-ink-soft hover:bg-hb-sage/30 hover:text-hb-ink",
+  );
+  const marker = active && <span className="absolute left-0 h-5 w-[3px] rounded-full bg-hb-evergreen" />;
+  return to ? (
+    <Link to={to} className={className}>
+      {marker}
+      {label}
+    </Link>
+  ) : (
+    <a href="#" className={className}>
+      {marker}
+      {label}
+    </a>
+  );
+};
+
+const ChildLink = ({ label, to }: { label: string; to?: string }) => {
+  const className =
+    "flex h-9 items-center text-sm text-hb-ink-soft transition-colors hover:text-hb-ink";
+  return to ? (
+    <Link to={to} className={className}>
+      {label}
+    </Link>
+  ) : (
+    <a href="#" className={className}>
+      {label}
+    </a>
+  );
+};
 
 /** Sidebarens indhold — delt mellem desktop-kolonnen og mobil-draweren. */
-const SidebarContent = ({ avatarSrc, avatarAlt = "Profil", userName = "Medlem" }: HbSidebarProps) => (
+const SidebarContent = ({
+  avatarSrc,
+  avatarAlt = "Profil",
+  userName = "Medlem",
+  nav = NAV,
+  homeTo,
+}: HbSidebarProps) => (
   <>
-    <a href="#" className="mb-10 flex items-center gap-3">
-      <img src={topixIcon} alt="Topix" className="h-8 w-8 rounded-lg" />
-      <span className="font-editorial text-lg font-medium text-hb-ink">The Boardroom</span>
-    </a>
+    {homeTo ? (
+      <Link to={homeTo} className="mb-10 flex items-center gap-3">
+        <img src={topixIcon} alt="Topix" className="h-8 w-8 rounded-lg" />
+        <span className="font-editorial text-lg font-medium text-hb-ink">The Boardroom</span>
+      </Link>
+    ) : (
+      <a href="#" className="mb-10 flex items-center gap-3">
+        <img src={topixIcon} alt="Topix" className="h-8 w-8 rounded-lg" />
+        <span className="font-editorial text-lg font-medium text-hb-ink">The Boardroom</span>
+      </a>
+    )}
     <nav className="flex-1 space-y-1">
-      {NAV.map((item) => (
+      {nav.map((item) => (
         <React.Fragment key={item.label}>
-          <NavItem label={item.label} active={item.active} />
+          <NavItem label={item.label} active={item.active} to={item.to} />
           {item.children && (
             /* Gren-hairline lokalt mørknet: hb-line (L88) drukner som fritstående
                1px-streg direkte på papiret (L97). Tokenen er urørt. */
             <div className="mb-3 ml-4 border-l border-hb-ink/15 pl-4">
               {item.children.map((child) => (
-                <a
-                  key={child}
-                  href="#"
-                  className="flex h-9 items-center text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-                >
-                  {child}
-                </a>
+                <ChildLink key={child.label} label={child.label} to={child.to} />
               ))}
             </div>
           )}

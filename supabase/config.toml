@@ -81,3 +81,5 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.bunny-content-admin]
     verify_jwt = false
+  [functions.get-video-embed]
+    verify_jwt = false

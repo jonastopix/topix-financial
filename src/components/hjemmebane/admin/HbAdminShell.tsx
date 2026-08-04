@@ -8,7 +8,7 @@ export type AdminSection = "content" | "partners" | "events";
 
 const SECTIONS: { key: AdminSection; label: string; to: string }[] = [
   { key: "content", label: "Indhold", to: "/admin/indhold" },
-  { key: "partners", label: "Partnere", to: "/admin/indhold/partnere" },
+  { key: "partners", label: "Rabataftaler", to: "/admin/indhold/partnere" },
   { key: "events", label: "Events", to: "/admin/indhold/events" },
 ];
 

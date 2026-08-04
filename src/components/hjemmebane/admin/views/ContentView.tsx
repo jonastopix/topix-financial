@@ -266,15 +266,25 @@ export const ContentView = () => {
     onEscape: () => setSelection(null),
   });
 
+  const onDeleted = () => {
+    clearDraft();
+    setSelection(null);
+  };
+
   const editor = selectedCollection ? (
     <CollectionEditor
       ref={editorRef}
       key={selectedCollection.id}
       collection={selectedCollection}
       rootCollections={collections.filter((c) => !c.parent_id && c.status !== "archived")}
+      containedCount={
+        items.filter((i) => i.collection_id === selectedCollection.id).length +
+        collections.filter((c) => c.parent_id === selectedCollection.id).length
+      }
       draft={drafts[`collection:${selectedCollection.id}`] ?? {}}
       onDraftChange={setDraft}
       onSaved={clearDraft}
+      onDeleted={onDeleted}
     />
   ) : selectedItem ? (
     <ItemEditor
@@ -286,6 +296,7 @@ export const ContentView = () => {
       draft={drafts[`item:${selectedItem.id}`] ?? {}}
       onDraftChange={setDraft}
       onSaved={clearDraft}
+      onDeleted={onDeleted}
     />
   ) : (
     <EditorEmptyState
@@ -302,35 +313,37 @@ export const ContentView = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
-        role="tablist"
-        aria-label="Områder"
-        className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-hb-line px-4 py-2.5"
-      >
-        {AREAS.map((entry) => {
-          const active = entry.key === area;
-          return (
-            <button
-              key={entry.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => {
-                setArea(entry.key);
-                setSelection(null);
-                setSearch("");
-              }}
-              className={cn(
-                "rounded-full px-3.5 py-1.5 text-sm transition-colors",
-                active
-                  ? "bg-hb-sage font-medium text-hb-ink"
-                  : "text-hb-ink-soft hover:bg-hb-sage/30 hover:text-hb-ink",
-              )}
-            >
-              {entry.label}
-            </button>
-          );
-        })}
+      <div className="shrink-0 border-b border-hb-line px-4 pb-2.5 pt-2.5">
+        <div role="tablist" aria-label="Områder" className="flex flex-wrap items-center gap-1.5">
+          {AREAS.map((entry) => {
+            const active = entry.key === area;
+            return (
+              <button
+                key={entry.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => {
+                  setArea(entry.key);
+                  setSelection(null);
+                  setSearch("");
+                }}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-sm transition-colors",
+                  active
+                    ? "bg-hb-sage font-medium text-hb-ink"
+                    : "text-hb-ink-soft hover:bg-hb-sage/30 hover:text-hb-ink",
+                )}
+              >
+                {entry.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* Stille hjælpelinje for det valgte område. */}
+        <p className="mt-1.5 px-1 text-xs text-hb-ink-soft">
+          {AREAS.find((entry) => entry.key === area)?.hint}
+        </p>
       </div>
 
       <div className="min-h-0 flex-1">

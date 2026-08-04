@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState } from "react";
 import { RotateCw } from "lucide-react";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbStatusPill } from "../HbStatusPill";
@@ -86,6 +87,19 @@ export const EditorShell = ({ eyebrow, title, meta, children, footer }: EditorSh
   </div>
 );
 
+/** Permanent sletning — kun synlig fra arkivet (strukturel dobbeltsikring).
+    Bekræftelsen sker inline i bundlinjen: ingen portal, ingen browser-confirm. */
+export interface DeleteSpec {
+  /** Entitetens navn til knapteksten: Slet "Testsamling". */
+  entityLabel: string;
+  /** Sat = sletning nægtes med denne rolige besked (fx ikke-tom samling). */
+  blockedReason?: string;
+  /** Ekstra konsekvenslinje i bekræftelsen (fx "3 tilmeldinger slettes med"). */
+  consequence?: string;
+  deleting: boolean;
+  onDelete: () => void;
+}
+
 interface EditorBarProps {
   status: string;
   dirty: boolean;
@@ -94,11 +108,71 @@ interface EditorBarProps {
   error?: string | null;
   onSave: () => void;
   actions: EditorAction[];
+  /** Kun angivet når sletning overhovedet er mulig (status = arkiveret m.v.). */
+  deleteSpec?: DeleteSpec;
 }
 
 /** Bundlinjen: status + stille kvittering til venstre, handlinger til højre.
     "Publicering er en bevidst, synlig handling" — derfor knap, ikke toggle. */
-export const EditorBar = ({ status, dirty, saving, savedAt, error, onSave, actions }: EditorBarProps) => (
+export const EditorBar = ({
+  status,
+  dirty,
+  saving,
+  savedAt,
+  error,
+  onSave,
+  actions,
+  deleteSpec,
+}: EditorBarProps) => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  if (deleteSpec && confirmOpen) {
+    return (
+      <div className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-2">
+        {deleteSpec.blockedReason ? (
+          <>
+            <p className="min-w-0 flex-1 text-sm text-hb-ink">{deleteSpec.blockedReason}</p>
+            <HbButton
+              variant="secondary"
+              className="h-9 px-4 text-sm"
+              onClick={() => setConfirmOpen(false)}
+            >
+              Forstået
+            </HbButton>
+          </>
+        ) : (
+          <>
+            <p className="min-w-0 flex-1 text-sm text-hb-ink">
+              Slettes permanent — kan ikke fortrydes.
+              {deleteSpec.consequence && (
+                <span className="text-hb-ink-soft"> {deleteSpec.consequence}</span>
+              )}
+            </p>
+            <div className="flex items-center gap-2">
+              <HbButton
+                variant="secondary"
+                className="h-9 px-4 text-sm"
+                onClick={() => setConfirmOpen(false)}
+                disabled={deleteSpec.deleting}
+              >
+                Fortryd
+              </HbButton>
+              <button
+                type="button"
+                onClick={deleteSpec.onDelete}
+                disabled={deleteSpec.deleting}
+                className="inline-flex h-9 items-center rounded-full bg-hb-rust px-4 text-sm font-medium text-white transition-colors hover:bg-hb-rust/90 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {deleteSpec.deleting ? "Sletter…" : `Slet "${deleteSpec.entityLabel}"`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
     <HbStatusPill status={status} />
     <p className="min-w-0 flex-1 truncate text-xs text-hb-ink-soft">
@@ -113,6 +187,15 @@ export const EditorBar = ({ status, dirty, saving, savedAt, error, onSave, actio
       ) : null}
     </p>
     <div className="flex items-center gap-2">
+      {deleteSpec && (
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          className="px-2 text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-rust hover:underline"
+        >
+          Slet permanent
+        </button>
+      )}
       {actions
         .filter((a) => a.variant === "link")
         .map((action) => (
@@ -143,7 +226,8 @@ export const EditorBar = ({ status, dirty, saving, savedAt, error, onSave, actio
         ))}
     </div>
   </div>
-);
+  );
+};
 
 interface SlugFieldProps {
   id: string;
