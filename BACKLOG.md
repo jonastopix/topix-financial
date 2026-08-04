@@ -236,6 +236,18 @@ Alle fonte (Manrope, Space Grotesk, Inter, Parkinsans i `src/index.css` samt Fra
 
 ---
 
+### [P4] Accepteret — dryp (`drip_after_days`) håndhæves i app-laget, ikke i RLS (B6-afgørelse 2026-08-04, Hjemmebane C1)
+
+**Status**: Bevidst accepteret i C0-datamodellen (B6, godkendt af Jonas 2026-08-04) og committet med migrationen `20260804120000_hjemmebane_content_layer.sql`. Medlemslæsning af `content_collections`/`content_items` gater i RLS kun på `status = 'published'` — dryp-filtreringen (`drip_after_days` relativt til medlemmets `company_members.created_at`) sker i app-laget. Konsekvens: et medlem der kalder PostgREST-API'et direkte kan se ikke-dryppet published indhold tidligere end forløbet tilsiger.
+
+**Hvorfor ikke fixet**: Dryp er pædagogisk pacing, ikke sikkerhed — alt indhold er allerede betalt medlemsindhold, så omgåelse viser kun indhold medlemmet har betalt for. RLS-håndhævelse ville kræve en ny SECURITY DEFINER-helper (fx `user_joined_at()`), og nye SECURITY DEFINER-funktioner er FORBIDDEN-zone uden eksplicit grønt lys. Omkostning/gevinst er forkert for V1.
+
+**Hardening-kandidat**: SECURITY DEFINER-helper `user_joined_at()` + dryp-prædikat i medlems-SELECT-policies på indholdstabellerne. Se `docs/hjemmebane/c0-datamodel.md` B6.
+
+**Revurder hvis**: indhold indføres med reel eksklusivitet ud over medlemskabet (fx betalte tiers via `tier_visibility`, hvor tidlig adgang har økonomisk værdi), eller hvis systematisk omgåelse af dryp observeres og underminerer forløbspædagogikken.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
