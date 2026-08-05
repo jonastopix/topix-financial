@@ -4,6 +4,7 @@ import { ContentView } from "@/components/hjemmebane/admin/views/ContentView";
 import { PartnersView } from "@/components/hjemmebane/admin/views/PartnersView";
 import { EventsView } from "@/components/hjemmebane/admin/views/EventsView";
 import { ProgressView } from "@/components/hjemmebane/admin/views/ProgressView";
+import { PushView } from "@/components/hjemmebane/admin/views/PushView";
 
 /** /admin/indhold — indholdsstyring i Hjemmebane-identiteten (C1 trin 2).
     Advisor-only via AdvisorRoute; RLS (advisor-write-policies) er anden
@@ -17,8 +18,10 @@ const AdminContent = ({ view }: { view: AdminSection }) => (
       <PartnersView />
     ) : view === "events" ? (
       <EventsView />
-    ) : (
+    ) : view === "progress" ? (
       <ProgressView />
+    ) : (
+      <PushView />
     )}
   </HbAdminShell>
 );

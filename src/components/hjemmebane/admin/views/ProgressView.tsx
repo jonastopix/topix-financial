@@ -46,7 +46,8 @@ function buildAreaBlocks(collections: ContentCollection[], tracked: ContentItem[
     a.position - b.position || a.created_at.localeCompare(b.created_at);
   const blocks: AreaBlock[] = [];
 
-  for (const area of AREAS) {
+  // Kun forløbsområder — et evt. bunny-push må aldrig optræde som modul.
+  for (const area of AREAS.filter((a) => a.akademi)) {
     const areaItems = tracked.filter((i) => i.area === area.key).sort(byPosition);
     if (areaItems.length === 0) continue;
     const areaCollections = collections.filter((c) => c.area === area.key).sort(byPosition);
