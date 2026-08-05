@@ -81,6 +81,24 @@ Applied to: `financial_reports`, `milestones`, `handouts`, `budget_targets`,
 `kpi_targets`, `kpi_benchmarks`, `conversations`, `messages` (via join),
 `company_invitations`, `company_members`
 
+**Addendum (2026-08-05, mål-adgang på /noegletal)**: `kpi_targets` and
+`kpi_benchmarks` additionally have advisor write policies — "Advisors can
+insert kpi targets" / "Advisors can insert benchmarks" (INSERT, WITH CHECK
+`has_role(auth.uid(), 'advisor')`) and "Advisors can update kpi targets" /
+"Advisors can update benchmarks" (UPDATE, USING + WITH CHECK same
+predicate), migration `20260805220000_kpi_targets_benchmarks_advisor_write.sql`.
+Purpose: both advisor and member set targets/benchmarks on the Hb KPI
+surface. No DELETE policies (the UI only upserts). Policies stack
+permissively; self-only and company-scoped policies are untouched.
+**Accepted condition (approved 2026-08-05)**: `user_id` on these tables is
+"last writer" — the upsert (`onConflict company_id,kpi_key`) flips the
+row's `user_id` to whoever saved last. Harmless for access (member access
+is company-scoped, not user_id-scoped) and doubles as a coarse trail of
+who last set the value. Note: the pre-existing self-insert policies check
+only `auth.uid() = user_id` with NO company predicate — a known gap logged
+as BACKLOG [P4] (baseline-stramning), deliberately not addressed in the
+advisor-write migration.
+
 ### Advisor access (full read, scoped write)
 ```sql
 has_role(auth.uid(), 'advisor'::app_role)

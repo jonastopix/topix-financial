@@ -41,7 +41,8 @@ import { deriveMoMChange } from "./trendMoM";
     KPI-kort, detail-view m. advisor-kommentar-laget bevaret 1:1
     (samme kpi_chart_comments-skrivning, samme notify-kpi-comment),
     benchmark-gauge, sammenligningstabel, AI-analysen som BRO m. eget
-    periodevalg, Avanceret-redigering (medlemmer only — 513-gaten arvet).
+    periodevalg, Avanceret-redigering (begge roller — mål-adgangs-
+    beslutningen 2026-08-05; advisor-write-policies i 20260805220000).
     Graf-farver = hb-tokens (synlige i eksport-klonen); PDF via
     exportKPIReport m. fladens egen papir-baggrund. Mola: stille
     kvitteringer; tal-afvigelser er attention, aldrig alarm (kpiTone). */
@@ -242,7 +243,7 @@ export const NoegletalView = () => {
     setExporting(false);
   };
 
-  // ── Avanceret-redigering (medlemmer only — 513-gaten arvet) ─────────────
+  // ── Avanceret-redigering (begge roller — mål-adgangs-beslutningen) ──────
   const startEditing = () => {
     const targetVals: Record<string, { value: string; label: string }> = {};
     const benchVals: Record<string, { value: string; label: string; source: string }> = {};
@@ -410,20 +411,20 @@ export const NoegletalView = () => {
             {exporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {exporting ? "Eksporterer…" : "Download PDF"}
           </button>
-          {!isAdvisor && (
-            <button
-              type="button"
-              onClick={() => {
-                if (!showAdvanced) startEditing();
-                setShowAdvanced((v) => !v);
-                setSavedNote(null);
-                setSaveError(null);
-              }}
-              className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
-            >
-              {showAdvanced ? "Skjul avanceret" : "Avanceret"}
-            </button>
-          )}
+          {/* Åben for begge roller (mål-adgangs-beslutningen 2026-08-05;
+              advisor-write-policies i 20260805220000). */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!showAdvanced) startEditing();
+              setShowAdvanced((v) => !v);
+              setSavedNote(null);
+              setSaveError(null);
+            }}
+            className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
+          >
+            {showAdvanced ? "Skjul avanceret" : "Avanceret"}
+          </button>
         </div>
       </section>
 
@@ -452,7 +453,7 @@ export const NoegletalView = () => {
               </div>
               {withTargets.length === 0 ? (
                 <p className="mt-3 text-sm text-hb-ink-soft">
-                  Ingen mål sat endnu{!isAdvisor ? " — sæt dem under Avanceret" : ""}.
+                  Ingen mål sat endnu — sæt dem under Avanceret.
                 </p>
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -821,8 +822,8 @@ export const NoegletalView = () => {
         </HbSection>
       )}
 
-      {/* ── 9. Avanceret-redigering (medlemmer only — 513-gaten arvet) ── */}
-      {showAdvanced && !isAdvisor && editingReady && (
+      {/* ── 9. Avanceret-redigering (begge roller — mål-adgangs-beslutningen) ── */}
+      {showAdvanced && editingReady && (
         <HbSection eyebrow="Avanceret · mål og benchmarks" className="mt-10">
           <HbCard className="p-6">
             <HbField

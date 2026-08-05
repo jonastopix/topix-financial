@@ -369,6 +369,25 @@ stedet for lokal state.
 
 ---
 
+### [P4] Baseline-stramning: self-insert uden company-tjek på kpi_targets/kpi_benchmarks (noteret 2026-08-05)
+
+**Fund** (hb-ai-maal-recon.txt §1e): de oprindelige self-insert-policies
+("Users can insert own kpi targets" / "Users can insert own benchmarks",
+20260223) tjekker KUN `auth.uid() = user_id` — INGEN company-prædikat.
+En autentificeret bruger kan derfor indsætte rækker med et fremmed
+`company_id`, så længe user_id er brugerens eget. Praktisk konsekvens i
+dag er begrænset (unikhedsankeret company_id+kpi_key og UPDATE-policies
+begrænser overskrivning; advisors har nu egne policies via
+20260805220000), men hullet er et afvig fra company-scoped-mønstret.
+
+**Kandidat-stramning** (noteret, IKKE besluttet): tilføj
+`AND company_id = user_company_id(auth.uid())` i de to self-insert-
+policies WITH CHECK — kræver verifikation af at ingen legitim self-flow
+skriver på tværs (advisor-flows bruger nu egne policies). Baseline-
+relevant: opdater SECURITY_BASELINE i samme PR hvis den gennemføres.
+
+---
+
 ### [P2·EPIC] Platform-onboarding — førstegangs-oplevelsen (besluttet 2026-08-05)
 
 Produktbeslutning (Jonas): platformens onboarding hører til UDEN FOR
