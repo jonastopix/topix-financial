@@ -385,10 +385,12 @@ ALDRIG eksistere to onboardings side om side.
 
 SEKVENS: bygges EFTER C3-indflytningen (rundturen skal vise et fyldt
 produkt; Circle-exit har deadline). KONSEKVENS for "Start her"-området:
-platformens onboarding bor IKKE der; områdets endelige rolle (lille
-Akademi-intro eller udgår) afgøres i onboarding-designet — indtil da
-fyldes det IKKE med indhold. Princip: ikke flere indholdsbokse end højst
-nødvendigt.
+platformens onboarding bor IKKE der — og områdets rolle er nu BESLUTTET
+(2026-08-05, klik-valg A): Start her ER Akademiets introduktion; indholdet
+(samlingen "Kom godt i gang med vores Akademi", 3 videoer inkl.
+målsætnings-lektion m. overordnet handout-kobling) er blivende, og
+"fyldes ikke endnu"-reglen er ophævet. Epicen er uændret i øvrigt.
+Princip: ikke flere indholdsbokse end højst nødvendigt.
 
 ---
 
@@ -408,6 +410,24 @@ klar, (ii) testindhold ryddet fra Start her, (iii) medlemskommunikation,
 (konvergens.md §1-skæbnerne). Selve aktiveringen er triviel: fjern
 advisorOnly-flaget, genindsæt 🎓-punktet i Mere-menuen, og luk
 konvergens.md §2.8 i samme PR.
+
+---
+
+### [P1] C3: Medlemsfremdrift fra Circle — eksport før lukning (noteret 2026-08-05)
+
+Fund (hb-circle-recon): fuld Circle Admin API v2-integration eksisterede
+(sync-circle, 686 linjer; fjernet som abandoned i commit 36b617e5/PR #34,
+sidste succesfulde sync 2026-03-28; de fem circle_*-tabeller droppet i
+20260528045148 — historisk fremdriftsdata er VÆK og skal hentes friskt).
+Kandidat: målrettet én-gangs EKSPORT-variant gendannet fra git
+(fetchCourseLessons/fetchSpaceMembers m.fl.), tilpasset nutidens
+bucket-mønstre, skrivende til staging/eksportfil — mål: forudfylde
+member_progress ved C3, så ingen medlemmer starter forfra. FORUDSÆTNING
+(afklares af Jonas i Circle-admin): gyldigt Admin API-token kan udstedes.
+Handout-svar bor allerede på platformen — ingen migrering dér.
+TIDSKRITISK: data forsvinder ved Circle-lukning. Sidefund til senere
+oprydning: stale 'Circle-status'-tip i Guide.tsx:116; CLAUDE.md nævner
+stadig droppede circle_*-tabeller.
 
 ---
 

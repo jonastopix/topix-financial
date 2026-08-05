@@ -28,7 +28,7 @@ export const AREAS = [
   {
     key: "start_her",
     label: "Start her",
-    hint: "Afventer onboarding-beslutning (BACKLOG-epic 2026-08-05) — fyldes ikke endnu",
+    hint: "Akademiets introduktion — det første, medlemmet møder her (platform-onboarding bor udenfor, jf. BACKLOG-epic)",
   },
   {
     key: "classroom",
