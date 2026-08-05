@@ -121,7 +121,9 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     { label: "Budget", path: "/budget", icon: "💰" },
     { label: "Milestones", path: "/milestones", icon: "🎯" },
     { label: "Handouts", path: "/handouts", icon: "📋" },
-    { label: "Akademiet", path: "/akademiet", icon: "🎓" },
+    // Akademiet udgår her indtil lancerings-GO (konvergens.md §2.8):
+    // Mere-menuen renderes kun for medlemmer (mobileBottomNav gates på
+    // !isAdvisor), så advisor-gating = punktet er fjernet.
     { label: "Indstillinger", path: "/settings", icon: "⚙️" },
   ];
 

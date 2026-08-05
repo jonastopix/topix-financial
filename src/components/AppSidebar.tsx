@@ -51,7 +51,9 @@ const baseNavItems = [
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
   { icon: BookOpen, label: "Handouts", path: "/handouts" },
-  { icon: GraduationCap, label: "Akademiet", path: "/akademiet" },
+  // Advisor-gated indtil eksplicit lancerings-GO (konvergens.md §2.8):
+  // et halvfærdigt Akademi må ikke være medlems-synligt mens Circle kører.
+  { icon: GraduationCap, label: "Akademiet", path: "/akademiet", advisorOnly: true },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
   { icon: Calendar, label: "Book session", path: "/book-session", memberOnly: true },
@@ -419,7 +421,11 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                   { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
                 ].filter(Boolean)
               : [
-                  ...baseNavItems.filter((item: any) => !item.memberOnly || !effectiveAdvisor),
+                  ...baseNavItems.filter(
+                    (item: any) =>
+                      (!item.memberOnly || !effectiveAdvisor) &&
+                      (!item.advisorOnly || effectiveAdvisor),
+                  ),
                   ...(isGroupUser && !effectiveAdvisor ? [
                     { icon: Layers, label: "Koncern", path: "/group" },
                     { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
