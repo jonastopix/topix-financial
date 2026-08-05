@@ -4,19 +4,17 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CompanyChatPane from "@/components/CompanyChatPane";
-import GroupChatInline from "@/components/GroupChatInline";
 import FinancialAIChat from "@/components/FinancialAIChat";
 import { MessageCircle, Sparkles } from "lucide-react";
 
 /**
  * Unified /chat route orchestrator.
  * Renders the correct chat experience based on user type:
- * - Advisor → flat inbox (company + group threads in one list)
- * - Group member → group chat inline
+ * - Advisor → flat inbox
  * - Single-company member → company chat with AI tab
  */
 const ChatShell = () => {
-  const { isAdvisor, isGroupUser, loading, membershipTier } = useAuth();
+  const { isAdvisor, loading, membershipTier } = useAuth();
   const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const [chatTab, setChatTab] = useState<"advisor" | "ai">(
@@ -74,20 +72,11 @@ const ChatShell = () => {
     );
   }
 
-  // Advisor: flat inbox with both company + group threads
+  // Advisor: flat inbox
   if (isAdvisor) {
     return (
       <AppLayout fullscreen>
         <CompanyChatPane />
-      </AppLayout>
-    );
-  }
-
-  // Group member: group chat inline
-  if (isGroupUser) {
-    return (
-      <AppLayout fullscreen>
-        <GroupChatInline />
       </AppLayout>
     );
   }

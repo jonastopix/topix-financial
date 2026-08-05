@@ -9,7 +9,7 @@ export function canEditMessage(createdAt: string): boolean {
 }
 
 export function useMessageActions(
-  messageTable: "messages" | "group_messages",
+  messageTable: "messages",
   currentUserId: string | undefined,
   isAdvisor: boolean
 ) {

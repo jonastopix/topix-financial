@@ -17,6 +17,8 @@ export async function hardDeleteCompany(
   const deleteUsers = options?.deleteUsers ?? false;
   const preserveInvitations = options?.preserveInvitations ?? false;
 
+  // KONCERN-FJERNELSE SPOR 1: guard + group_companies-delete består bevidst
+  // til SPOR 3 (DB-drop) — se hb-koncern-recon §B.
   const { data: anchoredGroup, error: anchoredGroupError } = await adminSupabase
     .from('groups')
     .select('id')

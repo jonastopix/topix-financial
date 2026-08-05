@@ -22,17 +22,8 @@ interface AuthContext {
   /** True when viewing a different company than the advisor's own */
   isCompanyOverride: boolean;
   needsOnboarding: boolean;
-  /** Group fields (additive — Koncern v1) */
-  groupId: string | null;
-  groupName: string | null;
-  isGroupUser: boolean;
-  isGroupFeatureEnabled: boolean;
-  /** True when user is the owner of their group (groups.owner_user_id) */
-  isGroupOwner: boolean;
   /** Membership tier: full (contract), subscriber (stripe), expired, or null */
   membershipTier: "full" | "subscriber" | "expired" | null;
-  /** Welcome banner dismissal timestamp from group_memberships */
-  welcomeDismissedAt: string | null;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   setOnboardingComplete: () => void;
@@ -54,13 +45,7 @@ const AuthContext = createContext<AuthContext>({
   ownCompanyName: null,
   isCompanyOverride: false,
   needsOnboarding: false,
-  groupId: null,
-  groupName: null,
-  isGroupUser: false,
-  isGroupFeatureEnabled: false,
-  isGroupOwner: false,
   membershipTier: null,
-  welcomeDismissedAt: null,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
   setOnboardingComplete: () => {},
@@ -96,13 +81,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLegat, setIsLegat] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  // Group state (additive — Koncern v1)
-  const [groupId, setGroupId] = useState<string | null>(null);
-  const [groupName, setGroupName] = useState<string | null>(null);
-  const [isGroupFeatureEnabled, setIsGroupFeatureEnabled] = useState(false);
-  const [isGroupOwner, setIsGroupOwner] = useState(false);
   const [membershipTier, setMembershipTier] = useState<"full" | "subscriber" | "expired" | null>(null);
-  const [welcomeDismissedAt, setWelcomeDismissedAt] = useState<string | null>(null);
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
 
@@ -195,42 +174,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {
       // ignore
     }
-
-    // Fetch group data (additive — Koncern v1)
-    const [groupMembershipRes, groupFeatureFlagRes] = await Promise.all([
-      supabase
-        .from("group_memberships" as any)
-        .select("group_id, welcome_dismissed_at, groups:group_id(id, name)" as any)
-        .eq("user_id", userId)
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("group_feature_flags" as any)
-        .select("enabled" as any)
-        .eq("user_id", userId)
-        .maybeSingle(),
-    ]);
-
-    const gm = groupMembershipRes.data as any;
-    if (gm?.group_id) {
-      setGroupId(gm.group_id);
-      setGroupName(gm.groups?.name || null);
-      setWelcomeDismissedAt(gm.welcome_dismissed_at || null);
-
-      // Check if user is group owner (groups.owner_user_id)
-      const { data: groupRow } = await supabase
-        .from("groups")
-        .select("owner_user_id")
-        .eq("id", gm.group_id)
-        .maybeSingle();
-      setIsGroupOwner(groupRow?.owner_user_id === userId);
-    } else {
-      setGroupId(null);
-      setGroupName(null);
-      setIsGroupOwner(false);
-      setWelcomeDismissedAt(null);
-    }
-    setIsGroupFeatureEnabled(!!(groupFeatureFlagRes.data as any)?.enabled);
 
     const cm = companyRes.data as any;
     if (cm?.company_id) {
@@ -353,12 +296,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setOwnCompanyName(null);
           setOverrideCompanyId(null);
           setOverrideCompanyName(null);
-          setGroupId(null);
-          setGroupName(null);
-          setIsGroupFeatureEnabled(false);
-          setIsGroupOwner(false);
           setMembershipTier(null);
-          setWelcomeDismissedAt(null);
           setLoading(false);
         }
       }
@@ -387,12 +325,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,
-      groupId, groupName,
-      isGroupUser: groupId != null,
-      isGroupFeatureEnabled,
-      isGroupOwner,
       membershipTier,
-      welcomeDismissedAt,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       refreshProfile, signOut,
     }}>
