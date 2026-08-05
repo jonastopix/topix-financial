@@ -113,7 +113,7 @@ const advisorFeatures = [
     tips: ["Prioriteringskøen øverst viser hvem der haster mest", "Klik en virksomhed i alerts-panelet for at gå direkte til chatten", "Brug søgning og filtre i member-listen til at finde hurtigt"] },
   { icon: UserCog, title: "Medlemmer", path: "/members", color: "text-chart-warning", bg: "bg-chart-warning/10",
     desc: "Komplet overblik over alle founders: rapporterings-status, engagement, branche og invitationer.",
-    tips: ["Filter på 'Ubesvaret' for hurtigt at se hvem der venter", "Udvid et medlem for at se login-aktivitet og Circle-status", "Send invitation direkte herfra til nye membres"] },
+    tips: ["Filter på 'Ubesvaret' for hurtigt at se hvem der venter", "Udvid et medlem for at se login-aktivitet", "Send invitation direkte herfra til nye membres"] },
   { icon: ClipboardList, title: "Review Queue", path: "/admin/review-queue", color: "text-primary", bg: "bg-primary/10",
     desc: "Diagnostisk oversigt over rapporter med pipeline-flags (AI blocked, validation fail, osv.). Bruges til fejlfinding — ikke til godkendelse.",
     tips: ["Klik pilen for at åbne debug-detaljer for en rapport", "Founders uploader og godkender selv deres rapporter", "Filtrér på extraction method, validation status eller AI eligibility"] },
