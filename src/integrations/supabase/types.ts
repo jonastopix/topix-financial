@@ -303,24 +303,6 @@ export type Database = {
         }
         Relationships: []
       }
-      budget_category_group_map: {
-        Row: {
-          category_key: string
-          group_key: string
-          template_key: string
-        }
-        Insert: {
-          category_key: string
-          group_key: string
-          template_key: string
-        }
-        Update: {
-          category_key?: string
-          group_key?: string
-          template_key?: string
-        }
-        Relationships: []
-      }
       budget_targets: {
         Row: {
           budget_amount: number
@@ -1464,265 +1446,6 @@ export type Database = {
           },
         ]
       }
-      group_advisor_access: {
-        Row: {
-          advisor_user_id: string
-          created_at: string
-          group_id: string
-          id: string
-        }
-        Insert: {
-          advisor_user_id: string
-          created_at?: string
-          group_id: string
-          id?: string
-        }
-        Update: {
-          advisor_user_id?: string
-          created_at?: string
-          group_id?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "group_advisor_access_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      group_companies: {
-        Row: {
-          company_id: string
-          created_at: string
-          group_id: string
-          id: string
-          sort_order: number
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          group_id: string
-          id?: string
-          sort_order?: number
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          group_id?: string
-          id?: string
-          sort_order?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "group_companies_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: true
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "group_companies_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      group_conversations: {
-        Row: {
-          acknowledged_at: string | null
-          acknowledged_by_advisor_id: string | null
-          assigned_advisor_id: string | null
-          awaiting_reply_from: string | null
-          conversation_status: string
-          created_at: string
-          follow_up_at: string | null
-          group_id: string
-          id: string
-          last_advisor_reply_at: string | null
-          last_member_message_at: string | null
-          last_message_at: string | null
-          resolved_at: string | null
-          resolved_by_advisor_id: string | null
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          acknowledged_by_advisor_id?: string | null
-          assigned_advisor_id?: string | null
-          awaiting_reply_from?: string | null
-          conversation_status?: string
-          created_at?: string
-          follow_up_at?: string | null
-          group_id: string
-          id?: string
-          last_advisor_reply_at?: string | null
-          last_member_message_at?: string | null
-          last_message_at?: string | null
-          resolved_at?: string | null
-          resolved_by_advisor_id?: string | null
-        }
-        Update: {
-          acknowledged_at?: string | null
-          acknowledged_by_advisor_id?: string | null
-          assigned_advisor_id?: string | null
-          awaiting_reply_from?: string | null
-          conversation_status?: string
-          created_at?: string
-          follow_up_at?: string | null
-          group_id?: string
-          id?: string
-          last_advisor_reply_at?: string | null
-          last_member_message_at?: string | null
-          last_message_at?: string | null
-          resolved_at?: string | null
-          resolved_by_advisor_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "group_conversations_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: true
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      group_feature_flags: {
-        Row: {
-          created_at: string
-          enabled: boolean
-          id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          enabled?: boolean
-          id?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          enabled?: boolean
-          id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      group_memberships: {
-        Row: {
-          created_at: string
-          group_id: string
-          id: string
-          role: string
-          user_id: string
-          welcome_dismissed_at: string | null
-        }
-        Insert: {
-          created_at?: string
-          group_id: string
-          id?: string
-          role?: string
-          user_id: string
-          welcome_dismissed_at?: string | null
-        }
-        Update: {
-          created_at?: string
-          group_id?: string
-          id?: string
-          role?: string
-          user_id?: string
-          welcome_dismissed_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "group_memberships_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      group_messages: {
-        Row: {
-          content: string
-          context_meta: Json | null
-          conversation_id: string
-          created_at: string
-          edited_at: string | null
-          id: string
-          message_type: string
-          sender_id: string
-        }
-        Insert: {
-          content: string
-          context_meta?: Json | null
-          conversation_id: string
-          created_at?: string
-          edited_at?: string | null
-          id?: string
-          message_type?: string
-          sender_id: string
-        }
-        Update: {
-          content?: string
-          context_meta?: Json | null
-          conversation_id?: string
-          created_at?: string
-          edited_at?: string | null
-          id?: string
-          message_type?: string
-          sender_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "group_messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "group_conversations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      groups: {
-        Row: {
-          anchor_company_id: string
-          created_at: string
-          id: string
-          name: string
-          owner_user_id: string
-          updated_at: string
-        }
-        Insert: {
-          anchor_company_id: string
-          created_at?: string
-          id?: string
-          name: string
-          owner_user_id: string
-          updated_at?: string
-        }
-        Update: {
-          anchor_company_id?: string
-          created_at?: string
-          id?: string
-          name?: string
-          owner_user_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "groups_anchor_company_id_fkey"
-            columns: ["anchor_company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       handout_lever_milestones: {
         Row: {
           created_at: string
@@ -2242,7 +1965,6 @@ export type Database = {
           dedup_key: string
           deep_link: string | null
           email_sent_at: string | null
-          group_id: string | null
           id: string
           priority: string
           push_sent_at: string | null
@@ -2261,7 +1983,6 @@ export type Database = {
           dedup_key: string
           deep_link?: string | null
           email_sent_at?: string | null
-          group_id?: string | null
           id?: string
           priority?: string
           push_sent_at?: string | null
@@ -2280,7 +2001,6 @@ export type Database = {
           dedup_key?: string
           deep_link?: string | null
           email_sent_at?: string | null
-          group_id?: string | null
           id?: string
           priority?: string
           push_sent_at?: string | null
@@ -2795,30 +2515,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      admin_add_company_to_group: {
-        Args: {
-          _caller_id: string
-          _company_id: string
-          _group_id: string
-          _member_entries?: Json
-        }
-        Returns: Json
-      }
-      admin_create_group: {
-        Args: {
-          _advisor_ids: string[]
-          _anchor_company_id: string
-          _caller_id: string
-          _company_ids: string[]
-          _group_name: string
-          _member_entries: Json
-        }
-        Returns: Json
-      }
-      advisor_has_group_access: {
-        Args: { _advisor_id: string; _group_id: string }
-        Returns: boolean
-      }
       cleanup_stale_processing_reports: { Args: never; Returns: number }
       commit_report_facts: {
         Args: { p_report_id: string }
@@ -2842,10 +2538,6 @@ export type Database = {
         }
       }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
-      create_group: {
-        Args: { _caller_id: string; _companies: Json; _group_name: string }
-        Returns: Json
-      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -2854,18 +2546,6 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
-      }
-      get_admin_group_list: {
-        Args: never
-        Returns: {
-          anchor_company_id: string
-          anchor_company_name: string
-          company_count: number
-          created_at: string
-          group_id: string
-          group_name: string
-          member_count: number
-        }[]
       }
       get_all_advisor_profiles: {
         Args: never
@@ -2882,63 +2562,6 @@ export type Database = {
           full_name: string
           is_advisor: boolean
           user_id: string
-        }[]
-      }
-      get_group_financial_summary_for_admin: {
-        Args: { p_group_id: string }
-        Returns: {
-          cash: number
-          company_id: string
-          company_name: string
-          ebt: number
-          effective_period_key: string
-          effective_period_label: string
-          gross_profit: number
-          has_report: boolean
-          has_verified_metrics: boolean
-          latest_report_id: string
-          logo_url: string
-          missing_current_period: boolean
-          revenue: number
-        }[]
-      }
-      get_group_financial_summary_for_advisor: {
-        Args: { p_group_id: string }
-        Returns: {
-          cash: number
-          company_id: string
-          company_name: string
-          ebt: number
-          effective_period_key: string
-          effective_period_label: string
-          gross_profit: number
-          has_report: boolean
-          has_verified_metrics: boolean
-          latest_report_id: string
-          logo_url: string
-          missing_current_period: boolean
-          revenue: number
-          revenue_prev: number
-        }[]
-      }
-      get_my_group_budget_summary: { Args: { p_year: string }; Returns: Json }
-      get_my_group_financial_summary: {
-        Args: never
-        Returns: {
-          cash: number
-          company_id: string
-          company_name: string
-          ebt: number
-          effective_period_key: string
-          effective_period_label: string
-          gross_profit: number
-          has_report: boolean
-          has_verified_metrics: boolean
-          latest_report_id: string
-          logo_url: string
-          missing_current_period: boolean
-          revenue: number
-          revenue_prev: number
         }[]
       }
       get_report_commit_preview: {
@@ -2974,11 +2597,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_group_owner: {
-        Args: { _group_id: string; _user_id: string }
-        Returns: boolean
-      }
-      is_group_subcompany: { Args: { p_company_id: string }; Returns: boolean }
       is_legat_user: { Args: { _user_id: string }; Returns: boolean }
       legat_day: { Args: { _user_id: string }; Returns: number }
       legat_unlocked_modules: { Args: { _user_id: string }; Returns: string[] }
@@ -3006,10 +2624,6 @@ export type Database = {
         }
         Returns: number
       }
-      owner_add_company_to_group: {
-        Args: { _company_name: string; _cvr_number?: string; _group_id: string }
-        Returns: Json
-      }
       parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
@@ -3029,13 +2643,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      user_can_access_group_conversation: {
-        Args: { _conv_id: string }
-        Returns: boolean
-      }
       user_company_id: { Args: { _user_id: string }; Returns: string }
-      user_group_id: { Args: { _user_id: string }; Returns: string }
-      user_has_group_feature: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "member" | "advisor" | "admin"
