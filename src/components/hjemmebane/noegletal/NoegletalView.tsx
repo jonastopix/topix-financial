@@ -98,6 +98,9 @@ export const NoegletalView = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, { value: string; label: string }>>({});
   const [editBenchmarkValues, setEditBenchmarkValues] = useState<Record<string, { value: string; label: string; source: string }>>({});
+  // Valgt brancheskabelon (t.name) — kun visning; nulstilles ved panelåbning
+  // og ved manuel benchmark-rettelse (ærlig tilbagemelding).
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -256,6 +259,7 @@ export const NoegletalView = () => {
     });
     setEditValues(targetVals);
     setEditBenchmarkValues(benchVals);
+    setSelectedTemplate(null);
   };
 
   const saveAdvanced = async () => {
@@ -315,6 +319,16 @@ export const NoegletalView = () => {
       });
       return next;
     });
+    setSelectedTemplate(template.name);
+  };
+
+  /** Fælles benchmark-felt-handler: manuel rettelse fraviger en valgt
+      skabelon, så select'en må ikke længere påstå den (ærlig
+      tilbagemelding). Mål-felter rører ikke skabelon-state — skabelonen
+      dækker kun benchmarks. */
+  const updateBenchmarkField = (key: string, patch: Partial<{ value: string; label: string }>) => {
+    setEditBenchmarkValues((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+    setSelectedTemplate(null);
   };
 
   // ── Benchmark-gauge-data (medlemmer; samme kilde som gamle) ─────────────
@@ -859,7 +873,7 @@ export const NoegletalView = () => {
             >
               <HbSelect
                 id="kpi-template"
-                value=""
+                value={selectedTemplate ?? ""}
                 onChange={(e) => {
                   const template = INDUSTRY_TEMPLATES.find((t) => t.name === e.target.value);
                   if (template) applyTemplate(template);
@@ -904,17 +918,13 @@ export const NoegletalView = () => {
                       <HbInput
                         id={`bench-${def.key}`}
                         value={editBenchmarkValues[def.key]?.value ?? ""}
-                        onChange={(e) =>
-                          setEditBenchmarkValues((prev) => ({ ...prev, [def.key]: { ...prev[def.key], value: e.target.value } }))
-                        }
+                        onChange={(e) => updateBenchmarkField(def.key, { value: e.target.value })}
                         placeholder="Værdi"
                         className="text-sm"
                       />
                       <HbInput
                         value={editBenchmarkValues[def.key]?.label ?? ""}
-                        onChange={(e) =>
-                          setEditBenchmarkValues((prev) => ({ ...prev, [def.key]: { ...prev[def.key], label: e.target.value } }))
-                        }
+                        onChange={(e) => updateBenchmarkField(def.key, { label: e.target.value })}
                         placeholder="Visningslabel"
                         aria-label={`${def.label} benchmark-label`}
                         className="text-sm"
