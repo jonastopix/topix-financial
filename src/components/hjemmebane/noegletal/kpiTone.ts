@@ -2,7 +2,11 @@
     tilstand + tone — ÉN dom, to visninger (hero-StateDots og kort-toner).
     Tone-kalibreringen (Mola): hit/no_target = quiet; near/off = attention.
     ALDRIG alert — tal-afvigelser er alvor, ikke alarm (alert er forbeholdt
-    fejl-tilstande som rapport-error, jf. reportCardView). */
+    fejl-tilstande som rapport-error, jf. reportCardView).
+    PRINCIP (benchmark-synligheds-beslutningen 2026-08-05): mål dømmer,
+    benchmark oplyser — benchmark farver ALDRIG toner, prikker eller
+    domme; den er stille kontekst (ink-soft), uanset kortets tone. Derfor
+    tager dommen KUN actual/target som input — aldrig benchmark. */
 
 export interface KpiToneInput {
   actual: number | null;

@@ -331,7 +331,8 @@ export const NoegletalView = () => {
     setSelectedTemplate(null);
   };
 
-  // ── Benchmark-gauge-data (medlemmer; samme kilde som gamle) ─────────────
+  // ── Benchmark-gauge-data (begge roller — benchmark-synligheds-
+  //    beslutningen 2026-08-05; samme kilde som gamle) ──────────────────────
   const { data: industryBenchmarkData } = useQuery({
     queryKey: ["industry-benchmarks-for-company", companyId],
     queryFn: async () => {
@@ -350,7 +351,7 @@ export const NoegletalView = () => {
         benchmarks: (benchmarks || []) as { kpi_key: string; benchmark_value: number; benchmark_label: string; benchmark_min: number; benchmark_max: number; source_label: string }[],
       };
     },
-    enabled: !!companyId && !isAdvisor,
+    enabled: !!companyId,
     staleTime: 10 * 60_000,
   });
 
@@ -669,6 +670,13 @@ export const NoegletalView = () => {
                   lowerIsBetter: def.lowerIsBetter,
                 });
                 const selected = metric.key === selectedKPI;
+                const toneCls = tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust";
+                const bench = industryBenchmarkData?.benchmarks.find((b) => b.kpi_key === metric.key);
+                const benchLabel = bench
+                  ? def.unit === "%"
+                    ? `${bench.benchmark_value} %`
+                    : formatCompact(bench.benchmark_value)
+                  : null;
                 return (
                   <button
                     key={metric.key}
@@ -683,8 +691,20 @@ export const NoegletalView = () => {
                     <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">
                       {def.unit === "%" ? `${metric.numValue.toFixed(1)} %` : metric.value}
                     </p>
-                    <p className={cn("mt-0.5 text-xs", tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust")}>
-                      {tone.state === "no_target" ? metric.change : `mål ${metric.target} · ${metric.change}`}
+                    {/* Mål dømmer, benchmark oplyser — benchmark farver ALDRIG
+                        toner, prikker eller domme; den er stille kontekst
+                        (ink-soft), uanset kortets tone. */}
+                    <p className="mt-0.5 text-xs">
+                      {tone.state !== "no_target" && <span className={toneCls}>{`mål ${metric.target}`}</span>}
+                      {benchLabel && (
+                        <span className="text-hb-ink-soft">
+                          {tone.state !== "no_target" ? " · " : ""}branche {benchLabel}
+                        </span>
+                      )}
+                      <span className={toneCls}>
+                        {tone.state !== "no_target" || benchLabel ? " · " : ""}
+                        {metric.change}
+                      </span>
                     </p>
                   </button>
                 );
@@ -781,8 +801,9 @@ export const NoegletalView = () => {
             </HbSection>
           )}
 
-          {/* ── 6. Branche-benchmark ── */}
-          {!isAdvisor && industryBenchmarkData && industryBenchmarkData.benchmarks.length > 0 && (
+          {/* ── 6. Branche-benchmark (begge roller — benchmark-synligheds-
+              beslutningen 2026-08-05) ── */}
+          {industryBenchmarkData && industryBenchmarkData.benchmarks.length > 0 && (
             <HbSection eyebrow={`Branchesammenligning${industryBenchmarkData.industryLabel ? ` · ${industryBenchmarkData.industryLabel}` : ""}`} className="mt-10">
               <HbCard className="space-y-4 p-6">
                 {industryBenchmarkData.benchmarks.map((b) => {
@@ -889,9 +910,19 @@ export const NoegletalView = () => {
             </HbField>
 
             <div className="mt-6 space-y-5">
-              {KPI_DEFS.map((def) => (
+              {KPI_DEFS.map((def) => {
+                // Model A: branchetallet som stille kalibrering ved mål-feltet
+                // (læst fra edit-state så skabelonvalg afspejles øjeblikkeligt).
+                // Målet forbliver aktivt valg — INGEN auto-udfyldning fra
+                // benchmark (model C fravalgt, beslutning 2026-08-05).
+                const benchNum = parseFloat(editBenchmarkValues[def.key]?.value || "0") || 0;
+                const benchHelp =
+                  benchNum > 0
+                    ? `branche: ${def.unit === "%" ? `${editBenchmarkValues[def.key].value} %` : formatCompact(benchNum)}`
+                    : undefined;
+                return (
                 <div key={def.key} className="grid gap-3 sm:grid-cols-2">
-                  <HbField label={`${def.label} · mål`} htmlFor={`target-${def.key}`}>
+                  <HbField label={`${def.label} · mål`} htmlFor={`target-${def.key}`} help={benchHelp}>
                     <div className="flex gap-2">
                       <HbInput
                         id={`target-${def.key}`}
@@ -932,7 +963,8 @@ export const NoegletalView = () => {
                     </div>
                   </HbField>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-6 flex items-center gap-4 border-t border-hb-line pt-4">
