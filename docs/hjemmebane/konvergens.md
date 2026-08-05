@@ -67,7 +67,8 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
 | /akademiet(/:area(/:slug)) | Akademiet.tsx | Forside → område → element (video/body/handout-kort/materialer/progress) | HB | Konverteret (C1 trin 3) |
-| /preview/hjemmebane | PreviewHjemmebane.tsx | V0-designprøve "Dit Boardroom" (døde links, bag login) | HB | Pension-kandidat — når forsiden er konverteret (§2.3); indtil da referencen for miljø-udtrykket |
+| /boardroom | Boardroom.tsx | Hb-forsiden "Dit Boardroom" (push-hero, tal-strip, næste skridt, events, talks) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap-PR til "/" (§2.3) |
+| /preview/hjemmebane | PreviewHjemmebane.tsx | V0-designprøve "Dit Boardroom" (døde links, bag login) | HB | Pension-kandidat — pensioneres i swap-PR'en (§2.3); indtil da referencen for miljø-udtrykket |
 
 ### Advisor
 
@@ -139,6 +140,9 @@ gammel UI — inkl. "Dit Boardroom" → "/" (gamle Dashboard). Rejsen IND er
 bygget som bevidst bro ("Akademiet"-punkt i AppSidebar, §4) — men
 ADVISOR-GATED indtil eksplicit lancerings-GO (§2.8). Fuld konvergens
 (Hb-skal på flere ruter, varianternes indplacering) er sit eget spor.
+NOTE (2026-08-05): Hb-medlemssiderne deler nu ÉN skal (HbMemberShell,
+afløser HbAkademiShell) — dens "Dit Boardroom"-mål er advisor-gated til
+/boardroom i forside-byggeperioden (medlemmer ser uændret "/"; §2.3).
 
 **NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
 i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og
@@ -158,6 +162,23 @@ Hb-nav'er — pegende på "/". Navnet er udrullet; fladen bag det er ikke bygget
 **Retning**: forsiden er den tungeste enkelt-konvertering (KPI-strip,
 sundhed, advisor-prioriteringskø). Previewen er referencen og pensioneres
 ved konverteringen (§1).
+
+**STATUS (2026-08-05): UNDER KONVERTERING — route-parallel.** /boardroom er
+bygget (preview-kernen m. rigtige kilder: push-hero, tal-strip fra
+facts-laget, deriveNextStep-porten af ActionCenter-prioriteringen, events,
+talks) bag AdvisorRoute; Index ("/") er FROSSET urørt. Midlertidig, bevidst
+dobbelthed (to forsider) — begrænset til byggeperioden. GO = swap-PR:
+"/"-MEDLEMSGRENEN renderer Boardroom (advisor-grenen/AdvisorDashboard
+bevares uændret — egen konvertering), nav-målet → "/" for alle, gammel
+medlems-Index + previewen pensioneres, dette punkt lukkes. Guard-inventar
+og forudsætninger: BACKLOG "[P1] Forside-GO = swap-PR". Fælles medlems-skal
+(HbMemberShell) afløste HbAkademiShell i samme PR — "Dit Boardroom"-målet i
+skallen er advisor-gated til /boardroom i byggeperioden (medlemmer ser
+uændret "/"; ingen døde links). Push-området er aktiveret (admin-fane +
+forside-hero); Akademiet er forseglet mod push via akademi-flaget på AREAS
+(ForsideView/OmraadeView/ElementView-værn). Bevidst udeladt af
+næste-skridt-porten: weekly_focus, ulæste beskeder, company_actions,
+announcements (bogført i forside-design-blokken).
 
 ### §2.4 Demo-miljøet · afgøres i: DEMO-BESLUTNING
 

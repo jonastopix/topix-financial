@@ -436,6 +436,37 @@ droppede circle_*-tabeller.
 
 ---
 
+### [P1] Forside-GO = swap-PR (noteret 2026-08-05)
+
+Hb-forsiden "Dit Boardroom" (/boardroom) er bygget route-parallelt bag
+AdvisorRoute; gamle Index ("/") er frosset. GO'ets indhold (én lille PR):
+fjern AdvisorRoute-gaten; "/"-MEDLEMSGRENEN renderer Boardroom
+(advisor-grenen/AdvisorDashboard bevares uændret); HbMemberShells
+"Dit Boardroom"-mål → "/" for alle; gammel medlems-Index + previewen
+(/preview/hjemmebane) pensioneres; konvergens.md §2.3 lukkes.
+Guard-arv ved swap (bogført i forside-design-blokkens §d-tabel):
+?subscription-toast + stille tour-markering flyttes 1:1; expired-gate
+arves som bevidst bro (gammelt udtryk); legat dækkes af MemberRoute.
+
+FORUDSÆTNINGER for GO: (i) push-indhold klar (mindst ét published
+indslag), (ii) advisor-gennemgang af /boardroom på rigtige data,
+(iii) koncern-banner-afklaring (GroupWelcomeBanner-ækvivalent el. bevidst
+udeladelse), (iv) expired-gate-broen accepteret el. konverteret,
+(v) princip 8-rammen: forside-swappen er IKKE den samlede lancering af
+medlemsrejsen — den styres fortsat af konvergens.md §2.8/[P1]
+Akademiet-lancering.
+
+---
+
+### [P3] Events-tilmelding på forsiden (noteret 2026-08-05)
+
+Forsidens "Kommende events"-kort vises UDEN CTA (HbEventCard ctaLabel=null)
+— der findes ingen medlems-events-flade, og tilmeldingsflowet
+(event_registrations: kapacitet, afmelding, bekræftelse) er sin egen
+leverance. Når den bygges: genindsæt CTA'en og afgør detalje-visning.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

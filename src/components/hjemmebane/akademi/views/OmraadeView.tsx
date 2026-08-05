@@ -44,7 +44,8 @@ export const OmraadeView = ({ areaKey }: { areaKey: string }) => {
   const entries = data.orderedByArea.get(areaKey) ?? [];
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
-  if (!area) {
+  // Ikke-akademi-områder (push) må aldrig ses her — samme dom som ukendt.
+  if (!area || !area.akademi) {
     return <p className="text-sm text-hb-ink-soft">Området findes ikke.</p>;
   }
 

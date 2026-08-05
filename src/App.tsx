@@ -56,6 +56,9 @@ const LegatDashboard = lazy(() => import("./pages/LegatDashboard"));
 // Lazy — designprøve (Projekt Hjemmebane V0)
 const PreviewHjemmebane = lazy(() => import("./pages/PreviewHjemmebane"));
 
+// Lazy — Hb-forsiden "Dit Boardroom" (route-parallel; advisor-gated indtil swap-GO)
+const Boardroom = lazy(() => import("./pages/Boardroom"));
+
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
 const DemoDashboard = lazy(() => import("./demo/DemoDashboard"));
@@ -225,6 +228,9 @@ const App = () => (
               <Route path="/akademiet/:area/:slug" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               {/* Designprøve (Hjemmebane V0) — standalone, bag login */}
               <Route path="/preview/hjemmebane" element={<ProtectedRoute><PreviewHjemmebane /></ProtectedRoute>} />
+              {/* Hb-forsiden "Dit Boardroom" — AdvisorRoute KUN i byggeperioden;
+                  swap-PR'en (GO) flytter den til "/"-medlemsgrenen. */}
+              <Route path="/boardroom" element={<AdvisorRoute><Boardroom /></AdvisorRoute>} />
               {/* Demo routes — no auth required */}
               <Route path="/demo" element={<DemoLayout />}>
                 <Route index element={<Navigate to="/demo/dashboard" replace />} />

@@ -21,39 +21,54 @@ export type ContentItemAttachmentInsert = Tables["content_item_attachments"]["In
 
 export type ContentStatus = "draft" | "published" | "archived";
 
-/** De seks medlemsflader (B2) — rækkefølgen her er visningsrækkefølgen i admin.
-    Labels er visningsnavne (DB-nøglerne i `key` er urørte); `hint` vises som
-    stille hjælpelinje under område-rækken for det valgte område. */
+/** Områderne — rækkefølgen her er visningsrækkefølgen i admin. Labels er
+    visningsnavne (DB-nøglerne i `key` er urørte); `hint` vises som stille
+    hjælpelinje under område-rækken for det valgte område.
+    `akademi`: true = forløbsområde i /akademiet; false = området har hjem
+    et andet sted (push → forsidens hero) og må ALDRIG optræde i Akademiet
+    (ForsideView/OmraadeView/ElementView gater på flaget). */
 export const AREAS = [
   {
     key: "start_her",
     label: "Start her",
+    akademi: true,
     hint: "Akademiets introduktion — det første, medlemmet møder her (platform-onboarding bor udenfor, jf. BACKLOG-epic)",
   },
   {
     key: "classroom",
     label: "Grundforløbet",
+    akademi: true,
     hint: "Det store sammenhængende forløb (Circles Classroom)",
   },
   {
     key: "academy",
     label: "Kurser",
+    akademi: true,
     hint: "Enkeltstående emnekurser (Circles Academy)",
   },
   {
     key: "skabeloner",
     label: "Skabeloner",
+    akademi: true,
     hint: "Dokumenter og ressourcer til download",
   },
   {
     key: "talks",
     label: "Talks",
+    akademi: true,
     hint: "Optagelser af live sessions og video-talks — podcast-episoder hentes automatisk via RSS (C2), ikke her",
   },
   {
     key: "quick_wins",
     label: "Quick Wins",
+    akademi: true,
     hint: "Korte, hurtige videoer",
+  },
+  {
+    key: "push",
+    label: "Ugens push",
+    akademi: false,
+    hint: "Forsidens hero — seneste publicerede indslag er det, medlemmet møder først på Dit Boardroom",
   },
 ] as const;
 
