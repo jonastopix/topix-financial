@@ -7,6 +7,7 @@ import { AREAS, ITEM_TYPES, getAssetPreviewUrl } from "@/lib/hjemmebane/adminCon
 import { getOwnHandout, listItemAttachments } from "@/lib/hjemmebane/akademiApi";
 import { handoutConfigs, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
@@ -237,10 +238,10 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
           </div>
         )}
 
-        {item.body && (
+        {hasRichTextContent(item.body) && (
           <div
             className="prose-hb mt-8 text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5"
-            dangerouslySetInnerHTML={{ __html: item.body }}
+            dangerouslySetInnerHTML={{ __html: item.body as string }}
           />
         )}
 
