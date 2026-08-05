@@ -8,7 +8,10 @@ interface HbEventCardProps extends React.HTMLAttributes<HTMLDivElement> {
   month: string;
   title: string;
   meta: string;
-  ctaLabel?: string;
+  /** null = ingen CTA (forsiden viser events uden tilmelding indtil
+      tilmeldings-leverancen — ingen døde knapper). Default bevarer
+      previewens udtryk. */
+  ctaLabel?: string | null;
 }
 
 /** Event-kort: dato-blok (dag i Fraunces, måned i caps), titel, sted/format, pill-CTA. */
@@ -21,9 +24,11 @@ const HbEventCard = ({ day, month, title, meta, ctaLabel = "Tilmeld", className,
     <div className="min-w-0 flex-1">
       <h3 className="font-editorial text-xl font-medium leading-snug text-hb-ink">{title}</h3>
       <p className="mt-1 text-sm text-hb-ink-soft">{meta}</p>
-      <HbButton variant="secondary" className="mt-4 h-9 px-5 text-sm">
-        {ctaLabel}
-      </HbButton>
+      {ctaLabel && (
+        <HbButton variant="secondary" className="mt-4 h-9 px-5 text-sm">
+          {ctaLabel}
+        </HbButton>
+      )}
     </div>
   </HbCard>
 );

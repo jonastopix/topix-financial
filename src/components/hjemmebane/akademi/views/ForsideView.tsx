@@ -73,6 +73,11 @@ export const ForsideView = () => {
     return <p className="text-sm text-hb-ink-soft">Henter Akademiet…</p>;
   }
 
+  // Kun forløbsområder — et push-item m. bunny-medie må aldrig blive
+  // "fortsæt"/"næste" (dets element-side findes ikke i Akademiet).
+  const inAkademi = (entry: { item: { area: string } }) =>
+    AREAS.find((a) => a.key === entry.item.area)?.akademi === true;
+
   // Model B1-video: fortsæt/næste peger kun på video-items — bibliotek
   // (tekst/dokumenter) bærer ingen fremdrift og skal ikke "genoptages".
   // Seneste påbegyndte video (nyeste progress-aktivitet, ulåst, ikke gennemført).
@@ -80,17 +85,20 @@ export const ForsideView = () => {
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .map((row) => data.byId.get(row.content_item_id))
     .find(
-      (entry) => entry && isTrackedEntry(entry) && entry.drip.unlocked && entry.state !== "done",
+      (entry) =>
+        entry && isTrackedEntry(entry) && inAkademi(entry) && entry.drip.unlocked && entry.state !== "done",
     );
 
   // Første urørte video i forløbsrækkefølgen (områdernes rækkefølge).
-  const nextEntry = AREAS.flatMap((area) => data.orderedByArea.get(area.key) ?? []).find(
-    (entry) =>
-      isTrackedEntry(entry) &&
-      entry.drip.unlocked &&
-      entry.state === "untouched" &&
-      entry.item.id !== continueEntry?.item.id,
-  );
+  const nextEntry = AREAS.filter((area) => area.akademi)
+    .flatMap((area) => data.orderedByArea.get(area.key) ?? [])
+    .find(
+      (entry) =>
+        isTrackedEntry(entry) &&
+        entry.drip.unlocked &&
+        entry.state === "untouched" &&
+        entry.item.id !== continueEntry?.item.id,
+    );
 
   const started = Boolean(continueEntry);
 
@@ -131,7 +139,8 @@ export const ForsideView = () => {
           Dine forløb
         </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {AREAS.map((area) => (
+          {/* Kun forløbsområder — push (akademi: false) bor på forsiden. */}
+          {AREAS.filter((area) => area.akademi).map((area) => (
             <AreaCard
               key={area.key}
               areaKey={area.key}

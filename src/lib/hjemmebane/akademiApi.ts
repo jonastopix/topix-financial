@@ -5,7 +5,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import type { ContentCollection, ContentItem, ContentItemAttachment } from "./adminContentApi";
+import type {
+  ContentCollection,
+  ContentItem,
+  ContentItemAttachment,
+  EventRow,
+} from "./adminContentApi";
 
 export type MemberProgress = {
   id: string;
@@ -138,6 +143,21 @@ export async function listItemAttachments(itemId: string): Promise<ContentItemAt
       .eq("item_id", itemId)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true }),
+  );
+}
+
+/** Kommende publicerede events til forsiden (Dit Boardroom). Medlems-RLS
+    tillader published/cancelled/completed — vi viser kun published og
+    fremtidige, nærmeste først. */
+export async function listUpcomingEvents(limit: number): Promise<EventRow[]> {
+  return throwIfError(
+    await supabase
+      .from("events")
+      .select("*")
+      .eq("status", "published")
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(limit),
   );
 }
 

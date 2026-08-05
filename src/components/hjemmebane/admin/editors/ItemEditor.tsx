@@ -221,6 +221,26 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
           />
         </HbField>
 
+        {form.type === "push_indslag" && (
+          /* Forfatter bor i metadata.author (fri JSONB-bærer — ingen
+             kolonne); vises i bylinen på forsidens hero sammen med
+             published_at-datoen. */
+          <HbField label="Forfatter" htmlFor="item-author" help="Vises i bylinen på forsidens hero.">
+            <HbInput
+              id="item-author"
+              value={((form.metadata as Record<string, unknown>)?.author as string) ?? ""}
+              onChange={(e) =>
+                onDraftChange({
+                  metadata: {
+                    ...((form.metadata as Record<string, unknown>) ?? {}),
+                    author: e.target.value || undefined,
+                  },
+                })
+              }
+            />
+          </HbField>
+        )}
+
         {/* htmlFor udeladt: richtext/picker/zone har ikke ét labelbart input. */}
         <HbField label="Indhold">
           <HbEditorRichtext

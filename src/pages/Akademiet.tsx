@@ -1,6 +1,6 @@
 import "@/styles/hjemmebane.css";
 import { useParams } from "react-router-dom";
-import { HbAkademiShell } from "@/components/hjemmebane/akademi/HbAkademiShell";
+import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { ForsideView } from "@/components/hjemmebane/akademi/views/ForsideView";
 import { OmraadeView } from "@/components/hjemmebane/akademi/views/OmraadeView";
 import { ElementView } from "@/components/hjemmebane/akademi/views/ElementView";
@@ -12,7 +12,7 @@ const Akademiet = () => {
   const { area, slug } = useParams<{ area?: string; slug?: string }>();
 
   return (
-    <HbAkademiShell>
+    <HbMemberShell active="akademiet">
       {area && slug ? (
         <ElementView areaKey={area} slug={slug} />
       ) : area ? (
@@ -20,7 +20,7 @@ const Akademiet = () => {
       ) : (
         <ForsideView />
       )}
-    </HbAkademiShell>
+    </HbMemberShell>
   );
 };
 

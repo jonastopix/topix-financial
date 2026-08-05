@@ -130,7 +130,10 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
 
   const areaLabel = AREAS.find((a) => a.key === areaKey)?.label ?? areaKey;
 
-  if (!entry) {
+  // Ikke-akademi-områder (push) må aldrig ses her — bySlug-mappet rummer
+  // dem, så guarden er nødvendig (push'ens hjem er forsidens hero).
+  const entryArea = entry ? AREAS.find((a) => a.key === entry.item.area) : undefined;
+  if (!entry || !entryArea?.akademi) {
     return (
       <div>
         <BackLink areaKey={areaKey} label={areaLabel} />
