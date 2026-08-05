@@ -81,6 +81,8 @@ const MaterialRow = ({
       ) : (
         <>
           <input
+            id={`material-label-${attachment.id}`}
+            name="material-label"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             onBlur={commitLabel}
@@ -150,16 +152,18 @@ export const HbMaterials = ({ itemId }: { itemId: string }) => {
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey });
 
+  // Fejl prefikses "Materialer: ", så de aldrig kan forveksles med
+  // gemme-fejl i editorens bundlinje (separate fejlkanaler).
   const createMutation = useMutation({
     mutationFn: createAttachment,
     onSuccess: invalidate,
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => setError(`Materialer: ${err.message}`),
   });
 
   const labelMutation = useMutation({
     mutationFn: ({ id, label }: { id: string; label: string }) => updateAttachment(id, { label }),
     onSuccess: invalidate,
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => setError(`Materialer: ${err.message}`),
   });
 
   // Optimistisk slet: rækken forsvinder straks, rollback ved fejl.
@@ -175,7 +179,7 @@ export const HbMaterials = ({ itemId }: { itemId: string }) => {
     },
     onError: (err: Error, _id, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
-      setError(err.message);
+      setError(`Materialer: ${err.message}`);
     },
     onSettled: invalidate,
   });
@@ -251,6 +255,8 @@ export const HbMaterials = ({ itemId }: { itemId: string }) => {
       {linkOpen ? (
         <div className="flex flex-wrap items-center gap-2">
           <HbInput
+            id="material-link-label"
+            name="material-link-label"
             autoFocus
             value={linkLabel}
             onChange={(e) => setLinkLabel(e.target.value)}
@@ -259,6 +265,8 @@ export const HbMaterials = ({ itemId }: { itemId: string }) => {
             className={cn(hbControlClasses, "w-auto min-w-0 flex-1 py-2 text-sm")}
           />
           <HbInput
+            id="material-link-url"
+            name="material-link-url"
             type="url"
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}

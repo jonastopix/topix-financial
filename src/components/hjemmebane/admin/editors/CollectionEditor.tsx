@@ -66,6 +66,12 @@ export const CollectionEditor = forwardRef<EditorHandle, CollectionEditorProps>(
       setError(null);
       const patch: Draft = { ...draft, ...extra };
       if (!String(patch.slug ?? form.slug).trim()) patch.slug = slugify(form.title);
+      // Tom patch = intet at gemme. update({}) giver 0 rækker (PGRST116) —
+      // kvittér stille i stedet for at sende en no-op-mutation.
+      if (Object.keys(patch).length === 0) {
+        setSavedAt(new Date());
+        return;
+      }
       mutation.mutate(patch);
     };
 
@@ -192,7 +198,8 @@ export const CollectionEditor = forwardRef<EditorHandle, CollectionEditorProps>(
           </HbField>
         </div>
 
-        <HbField label="Cover" htmlFor="col-cover">
+        {/* htmlFor udeladt: upload-zonen har ikke ét labelbart input. */}
+        <HbField label="Cover">
           <HbUploadZone
             kind="covers"
             ownerId={collection.id}

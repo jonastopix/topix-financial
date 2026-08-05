@@ -73,6 +73,16 @@ function throwIfError<T>(result: { data: T | null; error: { message: string } | 
   return result.data as T;
 }
 
+/** UPDATE-veje bruger maybeSingle: 0 rækker er et legitimt udfald (slettet
+    række, RLS, tom patch) og skal give en menneskelig besked — ikke
+    PostgRESTs "Cannot coerce..." (PGRST116). CREATE-veje beholder .single():
+    0 rækker fra INSERT+RETURNING er en reel invariantbrist. */
+function throwIfMissing<T>(result: { data: T | null; error: { message: string } | null }): T {
+  if (result.error) throw new Error(result.error.message);
+  if (result.data == null) throw new Error("Elementet findes ikke længere — genindlæs siden");
+  return result.data;
+}
+
 // ── Collections ────────────────────────────────────────────────────────────
 
 export async function listCollections(area: AreaKey): Promise<ContentCollection[]> {
@@ -96,8 +106,8 @@ export async function updateCollection(
   id: string,
   patch: Tables["content_collections"]["Update"],
 ): Promise<ContentCollection> {
-  return throwIfError(
-    await supabase.from("content_collections").update(patch).eq("id", id).select().single(),
+  return throwIfMissing(
+    await supabase.from("content_collections").update(patch).eq("id", id).select().maybeSingle(),
   );
 }
 
@@ -136,8 +146,8 @@ export async function updateItem(
   id: string,
   patch: Tables["content_items"]["Update"],
 ): Promise<ContentItem> {
-  return throwIfError(
-    await supabase.from("content_items").update(patch).eq("id", id).select().single(),
+  return throwIfMissing(
+    await supabase.from("content_items").update(patch).eq("id", id).select().maybeSingle(),
   );
 }
 
@@ -161,8 +171,8 @@ export async function updatePartner(
   id: string,
   patch: Tables["partners"]["Update"],
 ): Promise<Partner> {
-  return throwIfError(
-    await supabase.from("partners").update(patch).eq("id", id).select().single(),
+  return throwIfMissing(
+    await supabase.from("partners").update(patch).eq("id", id).select().maybeSingle(),
   );
 }
 
@@ -196,7 +206,9 @@ export async function updateEvent(
   id: string,
   patch: Tables["events"]["Update"],
 ): Promise<EventRow> {
-  return throwIfError(await supabase.from("events").update(patch).eq("id", id).select().single());
+  return throwIfMissing(
+    await supabase.from("events").update(patch).eq("id", id).select().maybeSingle(),
+  );
 }
 
 // ── Vedhæftninger/materialer (content_item_attachments) ────────────────────
@@ -227,8 +239,8 @@ export async function updateAttachment(
   id: string,
   patch: Tables["content_item_attachments"]["Update"],
 ): Promise<ContentItemAttachment> {
-  return throwIfError(
-    await supabase.from("content_item_attachments").update(patch).eq("id", id).select().single(),
+  return throwIfMissing(
+    await supabase.from("content_item_attachments").update(patch).eq("id", id).select().maybeSingle(),
   );
 }
 
