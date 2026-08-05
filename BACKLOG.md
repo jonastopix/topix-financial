@@ -641,6 +641,10 @@ loadBudget) som lille eget spor efter budget-GO. Den omvendte kobling
 
 ### [P3] Prompt-hærdning af generate-budget-scenarios — keys/enum i prompten (noteret 2026-08-05)
 
+STATUS: INDFRIET 2026-08-05 — deployet og serversidigt bevist (Matched
+categories x/y m. x=y i prod-loggen); klient-værnet U3 består som
+defense-in-depth. (PR #193; punktet står som historik.)
+
 Fund fra hb-ai-merge-recon §a: edge-funktionens baseSummary viser
 modellen KUN labels (`${r.label} (${r.group}): […]`), mens tool-schemaet
 beder om "key" retur ("samme som base" — en base modellen aldrig har set
