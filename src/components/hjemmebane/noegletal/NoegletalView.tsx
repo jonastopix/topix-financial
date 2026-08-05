@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -41,8 +41,9 @@ import { deriveMoMChange } from "./trendMoM";
     KPI-kort, detail-view m. advisor-kommentar-laget bevaret 1:1
     (samme kpi_chart_comments-skrivning, samme notify-kpi-comment),
     benchmark-gauge, sammenligningstabel, AI-analysen som BRO m. eget
-    periodevalg, Avanceret-redigering (begge roller — mål-adgangs-
-    beslutningen 2026-08-05; advisor-write-policies i 20260805220000).
+    periodevalg, mål/benchmark-panelet (begge roller — mål-adgangs-
+    beslutningen 2026-08-05; advisor-write-policies i 20260805220000;
+    døren bor i mål-hero'ens topline: Sæt mål/Ret mål/Skjul).
     Graf-farver = hb-tokens (synlige i eksport-klonen); PDF via
     exportKPIReport m. fladens egen papir-baggrund. Mola: stille
     kvitteringer; tal-afvigelser er attention, aldrig alarm (kpiTone). */
@@ -243,7 +244,7 @@ export const NoegletalView = () => {
     setExporting(false);
   };
 
-  // ── Avanceret-redigering (begge roller — mål-adgangs-beslutningen) ──────
+  // ── Mål/benchmark-panelet (begge roller — mål-adgangs-beslutningen) ─────
   const startEditing = () => {
     const targetVals: Record<string, { value: string; label: string }> = {};
     const benchVals: Record<string, { value: string; label: string; source: string }> = {};
@@ -351,6 +352,27 @@ export const NoegletalView = () => {
   const activeUnit = KPI_DEFS.find((d) => d.key === activeMetric?.key)?.unit;
   const editingReady = Object.keys(editValues).length > 0;
 
+  // Mål/benchmark-panelet ligger nederst — uden scroll tror brugeren at
+  // intet skete. setTimeout(0) så den betinget renderede sektion findes i
+  // DOM først. Kun ved ÅBNING: guarden gør at "Skjul" aldrig scroller.
+  const advancedRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!showAdvanced || !editingReady) return;
+    const t = setTimeout(() => {
+      advancedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [showAdvanced, editingReady]);
+
+  /** Åbner mål/benchmark-panelet (hero-knappen lukker selv m.
+      setShowAdvanced(false) når panelet er åbent). */
+  const openAdvanced = () => {
+    if (!showAdvanced) startEditing();
+    setShowAdvanced(true);
+    setSavedNote(null);
+    setSaveError(null);
+  };
+
   /** Prik-renderer til BÅDE dot og activeDot: recharts' active-dot-lag
       renderes oven på dots-laget uden egne handlers, så det øverste lag
       skal selv bære klikket (fix-recon (a)). Spejler gamle CustomDot
@@ -411,20 +433,6 @@ export const NoegletalView = () => {
             {exporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {exporting ? "Eksporterer…" : "Download PDF"}
           </button>
-          {/* Åben for begge roller (mål-adgangs-beslutningen 2026-08-05;
-              advisor-write-policies i 20260805220000). */}
-          <button
-            type="button"
-            onClick={() => {
-              if (!showAdvanced) startEditing();
-              setShowAdvanced((v) => !v);
-              setSavedNote(null);
-              setSaveError(null);
-            }}
-            className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
-          >
-            {showAdvanced ? "Skjul avanceret" : "Avanceret"}
-          </button>
         </div>
       </section>
 
@@ -444,17 +452,28 @@ export const NoegletalView = () => {
             <HbCard className="p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine mål</p>
-                {avgProgress != null && (
-                  <p className="text-sm text-hb-ink-soft">
-                    Samlet målopfyldelse:{" "}
-                    <span className="font-editorial text-lg font-medium text-hb-ink">{Math.round(avgProgress)} %</span>
-                  </p>
-                )}
+                <div className="flex items-baseline gap-4">
+                  {avgProgress != null && (
+                    <p className="text-sm text-hb-ink-soft">
+                      Samlet målopfyldelse:{" "}
+                      <span className="font-editorial text-lg font-medium text-hb-ink">{Math.round(avgProgress)} %</span>
+                    </p>
+                  )}
+                  {/* Mål/benchmark-døren bor HOS målene (begge roller —
+                      mål-adgangs-beslutningen 2026-08-05; advisor-write-
+                      policies i 20260805220000). Ignoreres af PDF-eksporten. */}
+                  <button
+                    type="button"
+                    data-html2canvas-ignore={true}
+                    onClick={() => (showAdvanced ? setShowAdvanced(false) : openAdvanced())}
+                    className="text-sm text-hb-rust underline-offset-4 hover:underline"
+                  >
+                    {showAdvanced ? "Skjul" : withTargets.length === 0 ? "Sæt mål" : "Ret mål"}
+                  </button>
+                </div>
               </div>
               {withTargets.length === 0 ? (
-                <p className="mt-3 text-sm text-hb-ink-soft">
-                  Ingen mål sat endnu — sæt dem under Avanceret.
-                </p>
+                <p className="mt-3 text-sm text-hb-ink-soft">Ingen mål sat endnu.</p>
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {heroEntries.map(({ def, actual, target, tone }) => (
@@ -822,9 +841,12 @@ export const NoegletalView = () => {
         </HbSection>
       )}
 
-      {/* ── 9. Avanceret-redigering (begge roller — mål-adgangs-beslutningen) ── */}
+      {/* ── 9. Mål og benchmarks-panelet (begge roller — mål-adgangs-
+          beslutningen). Wrapper-div bærer scroll-ref'en (HbSection
+          forwarder ikke ref). ── */}
       {showAdvanced && editingReady && (
-        <HbSection eyebrow="Avanceret · mål og benchmarks" className="mt-10">
+        <div ref={advancedRef} className="scroll-mt-24">
+        <HbSection eyebrow="Mål og benchmarks" className="mt-10">
           <HbCard className="p-6">
             <HbField
               label="Brancheskabelon"
@@ -909,6 +931,7 @@ export const NoegletalView = () => {
             </div>
           </HbCard>
         </HbSection>
+        </div>
       )}
     </div>
   );
