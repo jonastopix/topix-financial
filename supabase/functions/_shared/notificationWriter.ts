@@ -20,7 +20,6 @@ export interface NotificationPayload {
   reference_id?: string;
   deep_link?: string;
   company_id?: string;
-  group_id?: string;
   dedup_key: string;
 }
 
@@ -46,7 +45,6 @@ export async function writeNotification(
         reference_id: payload.reference_id || null,
         deep_link: payload.deep_link || null,
         company_id: payload.company_id || null,
-        group_id: payload.group_id || null,
         dedup_key: payload.dedup_key,
       });
 
