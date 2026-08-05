@@ -347,7 +347,43 @@ export const NoegletalView = () => {
   }
 
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) ?? kpiMetrics[0];
+  const activeUnit = KPI_DEFS.find((d) => d.key === activeMetric?.key)?.unit;
   const editingReady = Object.keys(editValues).length > 0;
+
+  /** Prik-renderer til BÅDE dot og activeDot: recharts' active-dot-lag
+      renderes oven på dots-laget uden egne handlers, så det øverste lag
+      skal selv bære klikket (fix-recon (a)). Spejler gamle CustomDot
+      (KPIs.tsx:79-101) inkl. onTouchEnd og prefill af eksisterende
+      kommentar; medlemmer uændret (cursor default, intet klik). */
+  const renderCommentDot = (props: any) => {
+    const { cx = 0, cy = 0, payload } = props;
+    if (!payload) return <g key={`dot-${props.index}`} />;
+    const hasComment = commentedKeys.has(payload.periodKey);
+    const openPopover = () => {
+      const existing = commentsForSelected.find((c) => c.period_key === payload.periodKey);
+      setCommentDraft(existing?.content || "");
+      setCommentPopover({ periodKey: payload.periodKey, periodLabel: payload.month, x: cx, y: cy });
+    };
+    return (
+      <g key={`dot-${payload.periodKey}`}>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={hasComment ? 6 : 4}
+          fill={hasComment ? "hsl(var(--hb-rust))" : "hsl(var(--hb-evergreen))"}
+          stroke={hasComment ? "hsl(var(--hb-surface))" : "none"}
+          strokeWidth={2}
+          style={{ cursor: isAdvisor ? "pointer" : "default" }}
+          onClick={() => isAdvisor && openPopover()}
+          onTouchEnd={(e) => {
+            if (!isAdvisor) return;
+            e.preventDefault();
+            openPopover();
+          }}
+        />
+      </g>
+    );
+  };
 
   return (
     <div>
@@ -606,7 +642,9 @@ export const NoegletalView = () => {
                     )}
                   >
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
-                    <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">{metric.value}</p>
+                    <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">
+                      {def.unit === "%" ? `${metric.numValue.toFixed(1)} %` : metric.value}
+                    </p>
                     <p className={cn("mt-0.5 text-xs", tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust")}>
                       {tone.state === "no_target" ? metric.change : `mål ${metric.target} · ${metric.change}`}
                     </p>
@@ -631,8 +669,8 @@ export const NoegletalView = () => {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--hb-line))" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
-                      <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
-                      <Tooltip formatter={(value: number) => [formatDKK(value), activeMetric.label]} {...hbTooltipStyle} />
+                      <YAxis tickFormatter={activeUnit === "%" ? (v: number) => `${v} %` : formatCompact} tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(value: number) => [activeUnit === "%" ? `${value.toFixed(1)} %` : formatDKK(value), activeMetric.label]} {...hbTooltipStyle} />
                       {commentsForSelected.map((c) => (
                         <ReferenceLine key={c.id} x={activeMetric.history.find((h) => h.periodKey === c.period_key)?.month} stroke="hsl(var(--hb-rust))" strokeDasharray="4 4" opacity={0.5} />
                       ))}
@@ -643,25 +681,8 @@ export const NoegletalView = () => {
                         strokeWidth={2.5}
                         fill="url(#hbgrad-detail)"
                         connectNulls
-                        dot={(props: any) => {
-                          const { cx = 0, cy = 0, payload } = props;
-                          if (!payload) return <g key={props.index} />;
-                          const hasComment = commentedKeys.has(payload.periodKey);
-                          return (
-                            <g key={payload.periodKey}>
-                              <circle
-                                cx={cx}
-                                cy={cy}
-                                r={hasComment ? 6 : 4}
-                                fill={hasComment ? "hsl(var(--hb-rust))" : "hsl(var(--hb-evergreen))"}
-                                stroke={hasComment ? "hsl(var(--hb-surface))" : "none"}
-                                strokeWidth={2}
-                                style={{ cursor: isAdvisor ? "pointer" : "default" }}
-                                onClick={() => isAdvisor && setCommentPopover({ periodKey: payload.periodKey, periodLabel: payload.month, x: cx, y: cy })}
-                              />
-                            </g>
-                          );
-                        }}
+                        dot={renderCommentDot}
+                        activeDot={renderCommentDot}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
