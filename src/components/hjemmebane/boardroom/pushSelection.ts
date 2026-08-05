@@ -9,7 +9,9 @@ import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
 export const byPublishedDesc = (a: ContentItem, b: ContentItem) =>
   (b.published_at ?? b.created_at).localeCompare(a.published_at ?? a.created_at);
 
-function isExpired(item: ContentItem, now: Date): boolean {
+/** Udløbsdommen — eksporteret så admin-listen (PushView) kan vise
+    "Udløbet" med SAMME dom som forsidens udvælgelse. */
+export function isPushExpired(item: ContentItem, now: Date): boolean {
   const raw = (item.metadata as Record<string, unknown> | null)?.expires_at;
   if (typeof raw !== "string") return false;
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -20,5 +22,5 @@ function isExpired(item: ContentItem, now: Date): boolean {
 }
 
 export function pickActivePush(items: ContentItem[], now: Date): ContentItem | undefined {
-  return [...items].sort(byPublishedDesc).find((item) => !isExpired(item, now));
+  return [...items].sort(byPublishedDesc).find((item) => !isPushExpired(item, now));
 }

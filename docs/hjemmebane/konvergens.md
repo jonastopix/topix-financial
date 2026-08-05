@@ -21,6 +21,9 @@ BESLUTNINGER, ikke ved drift.
    der svarer på: (a) hvad findes i forvejen på/omkring fladen, (b) hvordan
    bygges der sammen med det, (c) hvilken dobbelthed afvikles — eller
    skabes — og i så fald hvor er afviklingen bogført (§2-punkt).
+3. Enhver FLADE-design-blok skal desuden svare på: **"hvad er
+   admin-modstykket, og hvor bor det i Admin-spejlet (§5)?"** — også når
+   svaret er "intet" (så begrundes det).
 
 ---
 
@@ -143,6 +146,9 @@ ADVISOR-GATED indtil eksplicit lancerings-GO (§2.8). Fuld konvergens
 NOTE (2026-08-05): Hb-medlemssiderne deler nu ÉN skal (HbMemberShell,
 afløser HbAkademiShell) — dens "Dit Boardroom"-mål er advisor-gated til
 /boardroom i forside-byggeperioden (medlemmer ser uændret "/"; §2.3).
+Admin-nav'en spejler nu medlems-nav'ens Hb-destinationer (Admin-spejlet,
+§5): "Indhold"-fanen er omdøbt "Akademiet", og en ny "Dit Boardroom"-fane
+(let push-editor) står først — keys/URL'er er bevaret.
 
 **NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
 i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og
@@ -282,3 +288,35 @@ BACKLOG: [P1] Akademiet-lancering.
 4. **Forældreløse filer pensioneret**: src/pages/Demo.tsx +
    src/pages/GroupChatRoom.tsx slettet (uroutede, uimporterede;
    tsc/build er kontrollen).
+
+---
+
+## §5 ADMIN-SPEJLET (besluttet 2026-08-05)
+
+**(i) Princippet**: indholdsredaktion spejler medlemmets verden 1:1 —
+admin-fanerne følger medlemmets destinationer og rækkefølge. Advisor-DRIFT
+(værktøjer der ikke er indholdsredaktion) er sin egen gruppe, adskilt af en
+diskret divider sidst i fanerækken. Redskabet passer til indholdet:
+FORMÅLSBYGGEDE editorer over FÆLLES datamodel (PushView og ItemEditor
+skriver begge content_items — push behøver fem felter, ikke lektions-
+editorens fulde flade).
+
+**(ii) Målbilledet** (HbAdminShell SECTIONS):
+Dit Boardroom (let push-editor) · Akademiet (områder/samlinger/items —
+tidl. "Indhold") · Rabataftaler · Events · | · Fremdrift (drift).
+Keys/URL'er er historiske og bevaret — kun labels/rækkefølge spejler.
+
+**(iii) Fremtidige faner (bogført, ikke bygget)**:
+- **Handouts**: NÅR definitionerne bliver data-drevne (BACKLOG [P3]) —
+  indtil da er de kode (handoutConfig.ts), og ingen fane skal foregive
+  andet.
+- **Onboarding**: HVIS epicen gør flowet redaktionelt (video-/trin-
+  indhold) — afgøres i epic-designet.
+- **Events-tilmelding**: ændrer Events-FANENS indhold (deltagerlister
+  m.v.), ikke fanerækken.
+- **Gamle admin-værktøjer** (config/emails/email-log/import/feedback/
+  groups/legat): UDEN FOR spejlet — platformdrift i gammel UI;
+  konverteres sidst (§1-skæbnerne uændret).
+
+**(iv) Gate**: §0-vedligeholdsreglens punkt 3 — enhver flade-design-blok
+skal svare på admin-modstykke-spørgsmålet.

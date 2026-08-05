@@ -316,7 +316,10 @@ export const ContentView = () => {
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-hb-line px-4 pb-2.5 pt-2.5">
         <div role="tablist" aria-label="Områder" className="flex flex-wrap items-center gap-1.5">
-          {AREAS.map((entry) => {
+          {/* Kun forløbsområder — push redigeres i Dit Boardroom-fanen
+              (Admin-spejlet, konvergens.md §5); samme akademi-flag som
+              medlemsfladen gater på. */}
+          {AREAS.filter((entry) => entry.akademi).map((entry) => {
             const active = entry.key === area;
             return (
               <button
