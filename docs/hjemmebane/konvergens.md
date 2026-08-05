@@ -52,11 +52,11 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
 | / | Index.tsx | Dashboardet — KPI-kort, sundhed, prioriteringskø (advisor) | GAMMEL | Konverteres-før-lancering (navnet "Dit Boardroom" er allerede udrullet i Hb-nav'en; den tungeste enkelt-konvertering, §2.3) |
-| /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /rapportering er bygget; GO = swap HER (URL'en er email-kontrakt); fladen er frosset og bærer trash + trend/AI indtil deres nye hjem (trend/AI → KPI-konverteringen, som SKAL medtage dem; trash → drift-gruppen) |
+| /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /rapportering er bygget; GO = swap HER (URL'en er email-kontrakt); fladen er frosset og bærer trash + trend/AI indtil deres nye hjem (trend/AI: INDFRIET af /noegletal — Rapportering-GO må ikke ligge før KPI-GO; trash → drift-gruppen) |
 | /budget | Budget.tsx | Årsbudget, forecast, hvad-hvis | GAMMEL | Konverteres-før-lancering (do.) |
 | /milestones | Milestones.tsx | Mål + fremdrift | GAMMEL | Konverteres-før-lancering (do.) |
 | /handouts | Handouts.tsx | Interaktive handouts (5 moduler) | GAMMEL | Konverteres-før-lancering (definitions-arkitekturen afgøres i handout-sprintet, §2.5) |
-| /kpis | KPIs.tsx | Nøgletal m. trend/benchmark | GAMMEL | Konverteres-før-lancering (naturlig Hb-kandidat) |
+| /kpis | KPIs.tsx | Nøgletal m. trend/benchmark | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /noegletal er bygget (fuld paritet + trend/AI — forpligtelsen fra rapporterings-rækken INDFRIET her); GO = swap HER (URL'en er notifikations-/email-kontrakt: notify-kpi-comment, detect-financial-alerts, send-monthly-digest + #goals-Guide-ankeret) |
 | /chat | ChatShell.tsx | Samlet chat (rådgiver/AI/grupper) | GAMMEL | Konverteres-før-lancering |
 | /book-session | BookSession.tsx | Sessionsbooking | GAMMEL | Konverteres-før-lancering |
 | /pulse | PulseCheckin.tsx | Måneds-refleksion (?period=) | GAMMEL | Konverteres-før-lancering |
@@ -72,6 +72,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | /akademiet(/:area(/:slug)) | Akademiet.tsx | Forside → område → element (video/body/handout-kort/materialer/progress) | HB | Konverteret (C1 trin 3) |
 | /boardroom | Boardroom.tsx | Hb-forsiden "Dit Boardroom" (push-hero, tal-strip, næste skridt, events, talks) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap-PR til "/" (§2.3) |
 | /rapportering | Rapportering.tsx | Hb-rapporteringen — LEVERANCEN (upload/engine, leveringsbånd, nudges, tilstandskort, årsrapporter; dialoger som bro) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /reports (email-kontrakt), /rapportering → redirect |
+| /noegletal | Noegletal.tsx | Hb-KPI-fladen — fuld paritet + trend/AI (mål-hero, trend-overblik, kort, detail m. advisor-kommentarer, gauge, tabel; AI som bro) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /kpis (notifikations-kontrakt), /noegletal → redirect; KPI-GO SKAL ligge før/samtidig m. Rapportering-GO |
 | /preview/hjemmebane | PreviewHjemmebane.tsx | V0-designprøve "Dit Boardroom" (døde links, bag login) | HB | Pension-kandidat — pensioneres i swap-PR'en (§2.3); indtil da referencen for miljø-udtrykket |
 
 ### Advisor
@@ -158,6 +159,11 @@ ReportManualOverride + PulseCheckinModal (RP-1-hærdet flow åbnes uændret
 over Hb-fladen; deres toasts består til dialog-konverteringen, BACKLOG
 [P3]) samt AdvisorCompanyPrompt. Engine-laget (reportUploadEngine,
 deliveryMonths) er udskilt som ren flytning og deles med gammel UI.
+NOTE (2026-08-05, KPI'er): "Dine tal → KPI'er" i HbMemberShell er
+advisor-gated til /noegletal i byggeperioden (samme mønster). KPI-fladens
+broer: AIFinancialAnalysis-embed (gammelt udtryk + toasts — BACKLOG [P3])
+og gamle PeriodSelector (urørt; kun usePeriodFilter-hooken genbruges).
+FinancialOverview (forældreløs, 0 importører) er pensioneret.
 
 **NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
 i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og
