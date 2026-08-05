@@ -10,7 +10,7 @@ export interface HbNavEntry {
   label: string;
   to?: string;
   active?: boolean;
-  children?: { label: string; to?: string }[];
+  children?: { label: string; to?: string; active?: boolean }[];
 }
 
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
@@ -63,9 +63,11 @@ const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: 
   );
 };
 
-const ChildLink = ({ label, to }: { label: string; to?: string }) => {
-  const className =
-    "flex h-9 items-center text-sm text-hb-ink-soft transition-colors hover:text-hb-ink";
+const ChildLink = ({ label, to, active }: { label: string; to?: string; active?: boolean }) => {
+  const className = cn(
+    "flex h-9 items-center text-sm transition-colors",
+    active ? "font-medium text-hb-ink" : "text-hb-ink-soft hover:text-hb-ink",
+  );
   return to ? (
     <Link to={to} className={className}>
       {label}
@@ -106,7 +108,7 @@ const SidebarContent = ({
                1px-streg direkte på papiret (L97). Tokenen er urørt. */
             <div className="mb-3 ml-4 border-l border-hb-ink/15 pl-4">
               {item.children.map((child) => (
-                <ChildLink key={child.label} label={child.label} to={child.to} />
+                <ChildLink key={child.label} label={child.label} to={child.to} active={child.active} />
               ))}
             </div>
           )}

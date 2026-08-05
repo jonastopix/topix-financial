@@ -1,16 +1,11 @@
 import { useMemo } from "react";
 import { CheckCircle2, Clock, AlertCircle, Pencil } from "lucide-react";
 import {
-  DANISH_MONTHS, SHORT_MONTHS, getEffectiveReportPeriodKey, hasManualOverride, reportStatusConfig, isCompletedMonth,
+  DANISH_MONTHS, SHORT_MONTHS, hasManualOverride, reportStatusConfig, isCompletedMonth,
 } from "@/lib/financialUtils";
-
-interface ReportSlim {
-  id: string;
-  report_period: string | null;
-  status: string;
-  manual_report_period_key?: string | null;
-  manual_override_status?: string | null;
-}
+// Beregningen er udskilt som ren flytning (rapportering-design §a2) og
+// deles med Hb-leveringsbåndet. Denne komponents adfærd er uændret.
+import { buildReportsByMonth, buildYearGroups, type ReportSlim } from "@/lib/deliveryMonths";
 
 interface DeliveryOverviewProps {
   reports: ReportSlim[];
@@ -18,67 +13,13 @@ interface DeliveryOverviewProps {
   committedReportIds?: Set<string>;
 }
 
-type MonthSlot = { key: string; month: number; year: string; report?: ReportSlim };
-
-interface YearGroup {
-  year: string;
-  months: MonthSlot[];
-  delivered: number;
-  total: number;
-}
-
 const DeliveryOverview = ({ reports, onUploadClick, committedReportIds }: DeliveryOverviewProps) => {
-  const reportsByMonth = useMemo(() => {
-    const map: Record<string, ReportSlim> = {};
-    [...reports]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .forEach((r) => {
-        const key = getEffectiveReportPeriodKey(r as any);
-        if (key) {
-          const existing = map[key];
-          if (!existing || r.status === "processed") map[key] = r;
-        }
-      });
-    return map;
-  }, [reports]);
+  const reportsByMonth = useMemo(() => buildReportsByMonth(reports), [reports]);
 
-  const yearGroups = useMemo(() => {
-    const allKeys = Object.keys(reportsByMonth);
-    if (allKeys.length === 0) return [];
-
-    // Find min/max year from reports
-    const allYears = allKeys.map(k => parseInt(k.split("-")[0], 10));
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth(); // 0-indexed
-    const minYear = Math.min(...allYears);
-    const maxYear = Math.max(...allYears, currentYear);
-
-    const groups: YearGroup[] = [];
-    for (let y = minYear; y <= maxYear; y++) {
-      const yearStr = String(y);
-      // For current year, only show months up to current month
-      const lastMonth = y === currentYear ? currentMonth : 11;
-      const months: MonthSlot[] = [];
-      for (let m = 0; m <= lastMonth; m++) {
-        const key = `${yearStr}-${String(m + 1).padStart(2, "0")}`;
-        months.push({
-          key,
-          month: m,
-          year: yearStr,
-          report: reportsByMonth[key],
-        });
-      }
-      const delivered = months.filter(s => {
-        if (s.report?.status !== "processed") return false;
-        // If committedReportIds is not provided, fall back to old behavior (processed = delivered).
-        if (!committedReportIds) return true;
-        return committedReportIds.has(s.report.id);
-      }).length;
-      groups.push({ year: yearStr, months, delivered, total: months.filter(s => isCompletedMonth(s.key)).length });
-    }
-
-    return groups;
-  }, [reportsByMonth, committedReportIds]);
+  const yearGroups = useMemo(
+    () => buildYearGroups(reportsByMonth, committedReportIds),
+    [reportsByMonth, committedReportIds],
+  );
 
   if (yearGroups.length === 0) return null;
 

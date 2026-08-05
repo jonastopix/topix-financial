@@ -467,6 +467,36 @@ leverance. Når den bygges: genindsæt CTA'en og afgør detalje-visning.
 
 ---
 
+### [P1] Rapportering-GO = swap på /reports (noteret 2026-08-05)
+
+Hb-rapporteringen (/rapportering) er bygget route-parallelt bag
+AdvisorRoute; gamle /reports er frosset. GO'ets indhold: /reports'
+MEDLEMSGREN bærer den nye flade — URL'EN ER EMAIL-KONTRAKT
+(extract-financial-data + email-flows §1.1 skriver /reports?reportId=…;
+#upload/#annual-reports-ankrene skal virke identisk); /rapportering
+bliver redirect (§3.6-mønstret); HbMemberShells Rapportering-mål → /reports
+for alle.
+
+FORUDSÆTNINGER for GO: (i) papirkurvens nye hjem i drift-gruppen findes
+(gamle /reports bærer den indtil da), (ii) trend/AI's hjem er klart
+(KPI-konverteringen SKAL medtage dem — bogført i konvergens §1),
+(iii) email-link-kontrakten verificeret på byggeruten (?reportId=
+auto-expand + begge ankre testet manuelt), (iv) advisor-m.-override-flowet
+gennemprøvet (godkendelse på medlems vegne via broerne).
+
+---
+
+### [P3] Dialogernes konvertering (review + Ret data) — eget sprint m. testarv (noteret 2026-08-05)
+
+ReportReviewDialog + ReportManualOverride (+ PulseCheckinModal) åbnes som
+BEVIDST BRO i gammelt udtryk over Hb-rapporteringen. RP-1-flowet er hærdet
+gennem PR #150-155 — en Hb-konvertering skal arve/genetablere hele
+testdækningen og de tre commit-veje (Godkend / Opdater committed data /
+Erstat) samt handleAppliedCommit-semantikken ("Gem og anvend" committer
+straks; 'draft' committer aldrig). Broens toasts består indtil da.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

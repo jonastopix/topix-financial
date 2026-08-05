@@ -59,6 +59,9 @@ const PreviewHjemmebane = lazy(() => import("./pages/PreviewHjemmebane"));
 // Lazy — Hb-forsiden "Dit Boardroom" (route-parallel; advisor-gated indtil swap-GO)
 const Boardroom = lazy(() => import("./pages/Boardroom"));
 
+// Lazy — Hb-rapporteringen (route-parallel; advisor-gated indtil swap-GO på /reports)
+const Rapportering = lazy(() => import("./pages/Rapportering"));
+
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
 const DemoDashboard = lazy(() => import("./demo/DemoDashboard"));
@@ -232,6 +235,9 @@ const App = () => (
               {/* Hb-forsiden "Dit Boardroom" — AdvisorRoute KUN i byggeperioden;
                   swap-PR'en (GO) flytter den til "/"-medlemsgrenen. */}
               <Route path="/boardroom" element={<AdvisorRoute><Boardroom /></AdvisorRoute>} />
+              {/* Hb-rapporteringen — AdvisorRoute KUN i byggeperioden; GO = swap
+                  på /reports (email-kontrakt), /rapportering bliver redirect. */}
+              <Route path="/rapportering" element={<AdvisorRoute><Rapportering /></AdvisorRoute>} />
               {/* Demo routes — no auth required */}
               <Route path="/demo" element={<DemoLayout />}>
                 <Route index element={<Navigate to="/demo/dashboard" replace />} />

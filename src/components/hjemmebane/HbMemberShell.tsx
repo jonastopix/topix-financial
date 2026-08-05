@@ -17,7 +17,7 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  active: "boardroom" | "akademiet";
+  active: "boardroom" | "akademiet" | "rapportering";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -33,7 +33,13 @@ export const HbMemberShell = ({
     {
       label: "Dine tal",
       children: [
-        { label: "Rapportering", to: "/reports" },
+        // Rapportering peger på den nye flade for advisors i byggeperioden
+        // (samme gating som Dit Boardroom); medlemmer ser uændret /reports.
+        {
+          label: "Rapportering",
+          to: effectiveAdvisor ? "/rapportering" : "/reports",
+          active: active === "rapportering",
+        },
         { label: "KPI'er", to: "/kpis" },
         { label: "Budget", to: "/budget" },
         { label: "Milestones", to: "/milestones" },
