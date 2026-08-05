@@ -1,18 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { TrendingUp, TrendingDown, Minus, X, Plus } from "lucide-react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { loadSimEvents, saveSimEvents, type SimEvent } from "@/lib/budgetEngine";
 import { MONTHS, formatK, type BudgetRow } from "./types";
-
-interface SimEvent {
-  id: string;
-  type: "hire" | "marketing" | "rent" | "software" | "custom";
-  label: string;
-  monthlyCost: number;
-  startMonth: number;
-  isRevenue: boolean;
-}
 
 const EVENT_PRESETS = [
   { type: "hire", label: "Ansæt én medarbejder", defaultCost: 40000, isRevenue: false,
@@ -113,57 +104,22 @@ const BudgetForecastTab = ({ rows, year, companyId, userId }: Props) => {
   // Business event simulator
   const [events, setEvents] = useState<SimEvent[]>([]);
 
-  // Load saved events from DB
+  // Load saved events from DB (W7-motoren; JSON-kontrakten bor i budgetEngine)
   useEffect(() => {
     if (!companyId) return;
     (async () => {
-      const { data } = await (supabase
-        .from("budget_targets")
-        .select("category, period, budget_amount") as any)
-        .eq("company_id", companyId)
-        .like("category", `__sim_event__${year}_%`);
-
-      if (!data?.length) return;
-
-      const loaded: SimEvent[] = data.map((row: any) => {
-        try {
-          return JSON.parse(row.period) as SimEvent;
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
-
+      const loaded = await loadSimEvents(companyId, year);
       if (loaded.length > 0) setEvents(loaded);
     })();
   }, [companyId, year]);
 
-  // Persist events to DB with debounce
+  // Persist events to DB with debounce (debounce bor her; skrivevejen i motoren)
   useEffect(() => {
     if (!companyId || !userId) return;
 
-    const save = async () => {
-      await (supabase
-        .from("budget_targets")
-        .delete() as any)
-        .eq("company_id", companyId)
-        .like("category", `__sim_event__${year}_%`);
-
-      if (events.length === 0) return;
-
-      const inserts = events.map((event, idx) => ({
-        user_id: userId,
-        company_id: companyId,
-        category: `__sim_event__${year}_${idx}`,
-        budget_amount: event.monthlyCost,
-        period: JSON.stringify(event),
-      }));
-
-      await (supabase
-        .from("budget_targets")
-        .insert(inserts) as any);
-    };
-
-    const timer = setTimeout(save, 1000);
+    const timer = setTimeout(() => {
+      saveSimEvents({ userId, companyId, year, events });
+    }, 1000);
     return () => clearTimeout(timer);
   }, [events, companyId, userId, year]);
   const [addingEvent, setAddingEvent] = useState(false);

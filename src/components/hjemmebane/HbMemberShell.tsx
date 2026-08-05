@@ -17,7 +17,7 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -46,7 +46,12 @@ export const HbMemberShell = ({
           to: effectiveAdvisor ? "/noegletal" : "/kpis",
           active: active === "noegletal",
         },
-        { label: "Budget", to: "/budget" },
+        // Samme byggeperiode-gating som Rapportering/KPI'er (budget-konverteringen).
+        {
+          label: "Budget",
+          to: effectiveAdvisor ? "/budgettering" : "/budget",
+          active: active === "budget",
+        },
         { label: "Milestones", to: "/milestones" },
         { label: "Handouts", to: "/handouts" },
       ],

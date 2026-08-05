@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Upload, Loader2, Check, X, TrendingUp, Percent, FileText, Sparkles, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { confirmBudgetFromAccounts } from "@/lib/budgetEngine";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
@@ -195,58 +196,23 @@ const BudgetFromAccounts = ({ userId, companyId, onImportComplete }: BudgetFromA
     setSaving(true);
 
     try {
-      const targetYear = String(Number(result.source_year) + 1);
-      const periodPrefix = `${targetYear}-base-`;
-
-      // Delete existing base budget for target year
-      const { data: existing } = await supabase
-        .from("budget_targets")
-        .select("id, period")
-        .eq("user_id", userId)
-        .like("period", `${periodPrefix}%`);
-
-      if (existing && existing.length > 0) {
-        await supabase.from("budget_targets").delete().in("id", existing.map(e => e.id));
-      }
-
-      // Also delete template marker if exists
-      await supabase
-        .from("budget_targets")
-        .delete()
-        .eq("user_id", userId)
-        .eq("category", "__template__");
-
-      // Insert template marker
-      await supabase.from("budget_targets").insert({
-        user_id: userId,
-        company_id: companyId,
-        category: "__template__",
-        budget_amount: 0,
-        period: "webshop_b2c",
-      } as any);
-
-      // Insert budget rows with growth + overrides applied (AI + manual categories)
+      // Skrivevejen bor i motoren (W6) og arver U1 (company-filter i begge
+      // deletes) + U2 (ingen webshop_b2c-marker) — design-blok §a4.
       const allCategories = [...result.categories, ...addedCategories];
-      const inserts = allCategories.flatMap(cat => {
-        const isRevenue = cat.group === "indtaegter";
-        const final = getFinalMonthly(cat, isRevenue);
-        return final.map((amount, monthIdx) => ({
-          user_id: userId,
-          company_id: companyId,
-          category: cat.key,
-          budget_amount: amount,
-          period: `${targetYear}-base-${monthIdx}`,
-        }));
+      const { targetYear } = await confirmBudgetFromAccounts({
+        userId,
+        companyId,
+        sourceYear: result.source_year,
+        categories: allCategories.map(cat => {
+          const isRevenue = cat.group === "indtaegter";
+          return { key: cat.key, monthly: getFinalMonthly(cat, isRevenue) };
+        }),
       });
 
-      const { error } = await supabase.from("budget_targets").insert(inserts);
-      if (error) throw error;
-
-      const targetYearStr = String(Number(result.source_year) + 1);
-      toast.success(`Budget ${targetYearStr} importeret med ${growthPercent}% vækst!`);
+      toast.success(`Budget ${targetYear} importeret med ${growthPercent}% vækst!`);
 
       onImportComplete({
-        year: targetYearStr,
+        year: targetYear,
         company_name: result.company_name || "",
         categories: allCategories.map(cat => {
           const isRevenue = cat.group === "indtaegter";

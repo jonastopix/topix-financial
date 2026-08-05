@@ -4,7 +4,14 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  applyQuickstartRows,
+  copyBaseToScenario as engineCopyBaseToScenario,
+  distributeEvenly,
+  distributeSeasonally,
+  generateAIScenario as engineGenerateAIScenario,
+  saveScenarioEdits,
+} from "@/lib/budgetEngine";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import type { BudgetTemplate } from "@/lib/budgetTemplates";
 import { ScenarioKPI } from "./BudgetHelpers";
@@ -96,59 +103,20 @@ export default function BudgetScenariosTab({
 
     if (!userId || !companyId) return;
 
-    const periodPrefix = `${year}-${activeScenario}-`;
-
-    const res = await (supabase
-      .from("budget_targets")
-      .select("id, period, category") as any)
-      .eq("company_id", companyId);
-    const existing = (res.data || []) as { id: string; period: string; category: string }[];
-
-    const toDelete = existing.filter(e =>
-      e.period.startsWith(periodPrefix) ||
-      e.category.startsWith(`__label__${year}_`) ||
-      e.category.startsWith(`__group__${year}_`)
-    );
-    if (toDelete.length > 0) {
-      await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
-    }
-
-    const inserts = updatedScenario.flatMap(row =>
-      row.values.map((val, monthIdx) => ({
-        user_id: userId,
-        company_id: companyId,
-        category: row.key,
-        budget_amount: val,
-        period: `${year}-${activeScenario}-${monthIdx}`,
-      }))
-    );
-
-    const labelInserts = Object.entries(labelOverrides).map(([key, label]) => ({
-      user_id: userId,
-      company_id: companyId,
-      category: `__label__${year}_${key}`,
-      budget_amount: 0,
-      period: label,
-    }));
-
-    const templateKeys = new Set(selectedTemplate?.categories.map(c => c.key) || []);
-    const groupInserts = updatedScenario
-      .filter(r => !templateKeys.has(r.key))
-      .map(r => ({
-        user_id: userId,
-        company_id: companyId,
-        category: `__group__${year}_${r.key}`,
-        budget_amount: 0,
-        period: r.group,
-      }));
-
-    const allInserts = [...inserts, ...labelInserts, ...groupInserts];
-    const { error } = await supabase.from("budget_targets").insert(allInserts as any);
-    if (error) {
+    try {
+      await saveScenarioEdits({
+        userId,
+        companyId,
+        year,
+        scenario: activeScenario,
+        rows: updatedScenario,
+        labelOverrides,
+        templateKeys: new Set(selectedTemplate?.categories.map(c => c.key) || []),
+      });
+      toast.success(`${scenarioConfig.label}-scenarie gemt`);
+    } catch (error) {
       toast.error("Kunne ikke gemme budget");
       console.error("Budget save error:", error);
-    } else {
-      toast.success(`${scenarioConfig.label}-scenarie gemt`);
     }
   };
 
@@ -168,28 +136,11 @@ export default function BudgetScenariosTab({
 
     if (!userId || !companyId) return;
 
-    const periodPrefix = `${year}-${target}-`;
-    const res = await (supabase.from("budget_targets").select("id, period") as any).eq("company_id", companyId);
-    const existing = (res.data || []) as { id: string; period: string }[];
-    const toDelete = existing.filter(e => e.period.startsWith(periodPrefix));
-    if (toDelete.length > 0) {
-      await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
-    }
-
-    const inserts = copiedRows.flatMap(row =>
-      row.values.map((val, monthIdx) => ({
-        user_id: userId,
-        company_id: companyId,
-        category: row.key,
-        budget_amount: val,
-        period: `${year}-${target}-${monthIdx}`,
-      }))
-    );
-    const { error } = await supabase.from("budget_targets").insert(inserts as any);
-    if (error) {
-      toast.error("Kunne ikke gemme scenarie");
-    } else {
+    try {
+      await engineCopyBaseToScenario({ userId, companyId, year, target, baseRows: scenarioData.base });
       toast.success(`Base-budget kopieret og gemt til ${SCENARIOS.find(s => s.key === target)?.label}`);
+    } catch {
+      toast.error("Kunne ikke gemme scenarie");
     }
   };
 
@@ -203,46 +154,19 @@ export default function BudgetScenariosTab({
 
     setGeneratingScenario(target);
     try {
-      const baseRows = scenarioData.base.map(r => ({
-        key: r.key, label: r.label, group: r.group, values: r.values,
-      }));
-
-      const { data, error } = await supabase.functions.invoke("generate-budget-scenarios", {
-        body: { baseRows, scenario: target },
-      });
-
-      if (error) throw error;
-      if (!data?.categories) throw new Error("Ingen data returneret fra AI");
-
-      const updatedRows = scenarioData.base.map(r => {
-        const aiCat = data.categories.find((c: any) => c.key === r.key || c.key === r.label);
-        return { ...r, values: aiCat?.monthly || [...r.values] };
+      const { updatedRows, reasoning } = await engineGenerateAIScenario({
+        userId,
+        companyId,
+        year,
+        target,
+        baseRows: scenarioData.base,
       });
 
       setScenarioData(prev => prev ? { ...prev, [target]: updatedRows } : prev);
 
-      const periodPrefix = `${year}-${target}-`;
-      const res = await (supabase.from("budget_targets").select("id, period") as any).eq("company_id", companyId);
-      const existing = (res.data || []) as { id: string; period: string }[];
-      const toDelete = existing.filter(e => e.period.startsWith(periodPrefix));
-      if (toDelete.length > 0) {
-        await supabase.from("budget_targets").delete().in("id", toDelete.map(e => e.id));
-      }
-
-      const inserts = updatedRows.flatMap(row =>
-        row.values.map((val, monthIdx) => ({
-          user_id: userId,
-          company_id: companyId,
-          category: row.key,
-          budget_amount: val,
-          period: `${year}-${target}-${monthIdx}`,
-        }))
-      );
-      await supabase.from("budget_targets").insert(inserts as any);
-
       const label = SCENARIOS.find(s => s.key === target)?.label;
       toast.success(`AI har genereret ${label}-scenarie`, {
-        description: data.reasoning || undefined,
+        description: reasoning,
         duration: 6000,
       });
       setActiveScenario(target);
@@ -321,23 +245,10 @@ export default function BudgetScenariosTab({
     if (rev === 0) return;
 
     setApplyingQuick(true);
-    const monthlyRev = rev / 12;
-    const monthlyCosts = costs / 12;
-    const monthlyPay = pay / 12;
-
-    const updated = scenarioData[activeScenario].map(row => {
-      if (row.group === "indtaegter") return { ...row, values: Array(12).fill(Math.round(monthlyRev)) };
-      if (row.key === "loenninger" || row.key === "personale") return { ...row, values: Array(12).fill(Math.round(monthlyPay)) };
-      if (monthlyCosts > 0 && row.group !== "indtaegter" && row.key !== "loenninger" && row.key !== "personale") {
-        const nonPayrollCostRows = scenarioData[activeScenario].filter(r =>
-          r.group !== "indtaegter" && r.key !== "loenninger" && r.key !== "personale" && r.isEditable
-        );
-        const perRow = nonPayrollCostRows.length > 0 ? (monthlyCosts - monthlyPay) / nonPayrollCostRows.length : 0;
-        if (nonPayrollCostRows.some(r => r.key === row.key)) {
-          return { ...row, values: Array(12).fill(Math.round(Math.max(0, perRow))) };
-        }
-      }
-      return row;
+    const updated = applyQuickstartRows(scenarioData[activeScenario], {
+      revenue: rev,
+      costs,
+      payroll: pay,
     });
 
     setScenarioData(prev => prev ? { ...prev, [activeScenario]: updated } : prev);
@@ -564,10 +475,7 @@ export default function BudgetScenariosTab({
                                       onChange={(e) => {
                                         const annual = Number(e.target.value);
                                         if (annual <= 0) return;
-                                        const monthly = Math.round(annual / 12);
-                                        const newValues = Array(12).fill(monthly);
-                                        newValues[11] += annual - monthly * 12;
-                                        setEditValues(prev => ({ ...prev, [row.key]: newValues }));
+                                        setEditValues(prev => ({ ...prev, [row.key]: distributeEvenly(annual) }));
                                       }}
                                     />
                                     <span className="text-[10px] text-muted-foreground">→</span>
@@ -575,10 +483,7 @@ export default function BudgetScenariosTab({
                                       type="button"
                                       onClick={() => {
                                         if (currentTotal === 0) return;
-                                        const monthly = Math.round(currentTotal / 12);
-                                        const newValues = Array(12).fill(monthly);
-                                        newValues[11] += currentTotal - monthly * 12;
-                                        setEditValues(prev => ({ ...prev, [row.key]: newValues }));
+                                        setEditValues(prev => ({ ...prev, [row.key]: distributeEvenly(currentTotal) }));
                                       }}
                                       className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                                     >
@@ -588,15 +493,7 @@ export default function BudgetScenariosTab({
                                       type="button"
                                       onClick={() => {
                                         if (currentTotal === 0) return;
-                                        const t = currentTotal;
-                                        const seasonal = [
-                                          Math.round(t * 0.065), Math.round(t * 0.065), Math.round(t * 0.070),
-                                          Math.round(t * 0.085), Math.round(t * 0.090), Math.round(t * 0.090),
-                                          Math.round(t * 0.090), Math.round(t * 0.085), Math.round(t * 0.085),
-                                          Math.round(t * 0.085), Math.round(t * 0.080), Math.round(t * 0.110),
-                                        ];
-                                        seasonal[11] += t - seasonal.reduce((s, v) => s + v, 0);
-                                        setEditValues(prev => ({ ...prev, [row.key]: seasonal }));
+                                        setEditValues(prev => ({ ...prev, [row.key]: distributeSeasonally(currentTotal) }));
                                       }}
                                       className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                                     >

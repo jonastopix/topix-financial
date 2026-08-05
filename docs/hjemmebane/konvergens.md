@@ -53,7 +53,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 |---|---|---|---|---|
 | / | Index.tsx | Dashboardet — KPI-kort, sundhed, prioriteringskø (advisor) | GAMMEL | Konverteres-før-lancering (navnet "Dit Boardroom" er allerede udrullet i Hb-nav'en; den tungeste enkelt-konvertering, §2.3) |
 | /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /rapportering er bygget; GO = swap HER (URL'en er email-kontrakt); fladen er frosset og bærer trash + trend/AI indtil deres nye hjem (trend/AI: INDFRIET af /noegletal — Rapportering-GO må ikke ligge før KPI-GO; trash → drift-gruppen) |
-| /budget | Budget.tsx | Årsbudget, forecast, hvad-hvis | GAMMEL | Konverteres-før-lancering (do.) |
+| /budget | Budget.tsx | Årsbudget, forecast, hvad-hvis | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /budgettering er bygget; GO = swap HER (URL'en er notifikations-kontrakt: detect-financial-alerts skriver /budget-deep-links; #forecast er Guide-kontrakt); maskinlaget (budgetEngine) er udskilt og deles |
 | /milestones | Milestones.tsx | Mål + fremdrift | GAMMEL | Konverteres-før-lancering (do.) |
 | /handouts | Handouts.tsx | Interaktive handouts (5 moduler) | GAMMEL | Konverteres-før-lancering (definitions-arkitekturen afgøres i handout-sprintet, §2.5) |
 | /kpis | KPIs.tsx | Nøgletal m. trend/benchmark | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /noegletal er bygget (fuld paritet + trend/AI — forpligtelsen fra rapporterings-rækken INDFRIET her); GO = swap HER (URL'en er notifikations-/email-kontrakt: notify-kpi-comment, detect-financial-alerts, send-monthly-digest + #goals-Guide-ankeret) |
@@ -73,6 +73,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | /boardroom | Boardroom.tsx | Hb-forsiden "Dit Boardroom" (push-hero, tal-strip, næste skridt, events, talks) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap-PR til "/" (§2.3) |
 | /rapportering | Rapportering.tsx | Hb-rapporteringen — LEVERANCEN (upload/engine, leveringsbånd, nudges, tilstandskort, årsrapporter; dialoger som bro) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /reports (email-kontrakt), /rapportering → redirect |
 | /noegletal | Noegletal.tsx | Hb-KPI-fladen — fuld paritet + trend/AI (mål-hero, trend-overblik, kort, detail m. advisor-kommentarer, gauge, tabel; AI i Hb-udtryk) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /kpis (notifikations-kontrakt), /noegletal → redirect; KPI-GO SKAL ligge før/samtidig m. Rapportering-GO |
+| /budgettering | Budgettering.tsx | Hb-budgetfladen — fuld paritet (oversigt, scenarier/redigering, BvA, import ×2, hvad-hvis m. #forecast-anker, cashflow) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /budget (notifikations-deep_link + Guide-hash er kontrakt), /budgettering → redirect |
 | /preview/hjemmebane | PreviewHjemmebane.tsx | V0-designprøve "Dit Boardroom" (døde links, bag login) | HB | Pension-kandidat — pensioneres i swap-PR'en (§2.3); indtil da referencen for miljø-udtrykket |
 
 ### Advisor
@@ -170,6 +171,18 @@ on-demand på medlemsfladen; commentary-maskinen (generate-financial-
 commentary, stale-markering) hører drift/Medlemmer til. Tilbageværende
 KPI-bro: gamle PeriodSelector (urørt; kun usePeriodFilter-hooken
 genbruges). FinancialOverview (forældreløs, 0 importører) er pensioneret.
+NOTE (2026-08-05, budget): "Dine tal → Budget" i HbMemberShell er
+advisor-gated til /budgettering i byggeperioden (samme mønster).
+Budgettets maskinlag (budgetEngine: loadBudget-afkodning + alle
+klient-skriveveje W1-W7) er udskilt som ren flytning og deles m. gammel
+UI — eneste bogførte semantik-ændringer er W6-company-filteret (recon
+§7.3-rettelsen) og at "fra regnskab" ikke længere skriver en falsk
+webshop_b2c-skabelonmarker (budget-design §e(i)). Budgettets broer:
+budgetTemplates.ts + budget/types.ts (MONTHS) deles m. /group/budget
+(røres ikke); CombinedBudgetWidget røres ikke (forside-konverteringens
+sag); toasts består på gammel /budget-flade. Pensioneret i samme PR
+(0 importører): BudgetOverview.tsx, BudgetComparison.tsx,
+RollingForecastCard.tsx.
 
 **NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
 i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og
