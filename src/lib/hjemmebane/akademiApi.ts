@@ -4,6 +4,7 @@
     member_progress (self-only RLS). Dryp filtreres i app-laget via drip.ts. */
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import type { ContentCollection, ContentItem, ContentItemAttachment } from "./adminContentApi";
 
 export type MemberProgress = {
@@ -93,6 +94,30 @@ export function itemProgressState(progress: MemberProgress | undefined): ItemPro
   if (progress.skipped_at) return "skipped";
   if (progress.seen_at) return "started";
   return "untouched";
+}
+
+/** Medlemmets egen handouts-række for et modul (lektion→handout-koblingen,
+    refleksionskortet i ElementView). Self-only RLS dækker; user_id-filteret
+    er alligevel eksplicit, fordi advisors' brede SELECT ellers ville matche
+    alle medlemmers rækker. Ingen række = "Ikke startet" — et normalt udfald,
+    derfor maybeSingle. */
+export type OwnHandout = Pick<
+  Database["public"]["Tables"]["handouts"]["Row"],
+  "responses" | "checklist" | "levers" | "status"
+>;
+
+export async function getOwnHandout(
+  userId: string,
+  module: string,
+): Promise<OwnHandout | null> {
+  const { data, error } = await supabase
+    .from("handouts")
+    .select("responses, checklist, levers, status")
+    .eq("user_id", userId)
+    .eq("module", module)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 /** Materialer på et element (kun element-siden henter dem). RLS gater:

@@ -12,6 +12,7 @@ import {
   updateItem,
 } from "@/lib/hjemmebane/adminContentApi";
 import { slugify } from "@/lib/hjemmebane/slug";
+import { handoutConfigs, moduleOrder } from "@/lib/handoutConfig";
 import { HbField, HbInput, HbSelect, HbTextarea } from "../HbField";
 import { HbMediaPicker } from "../HbMediaPicker";
 import { HbMaterials } from "../HbMaterials";
@@ -281,6 +282,27 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
                 })
               }
             />
+          </HbField>
+
+          {/* Labels læses fra handoutConfig (kodens definitions-sandhed) —
+              kun modul-NØGLEN persisteres, så navne aldrig drifter. */}
+          <HbField
+            label="Handout"
+            htmlFor="item-handout"
+            help="Kobler elementet til et interaktivt handout — vises som refleksionskort for medlemmet."
+          >
+            <HbSelect
+              id="item-handout"
+              value={form.handout_module ?? ""}
+              onChange={(e) => onDraftChange({ handout_module: e.target.value || null })}
+            >
+              <option value="">Intet</option>
+              {moduleOrder.map((m) => (
+                <option key={m} value={m}>
+                  {handoutConfigs[m].title}
+                </option>
+              ))}
+            </HbSelect>
           </HbField>
         </div>
 

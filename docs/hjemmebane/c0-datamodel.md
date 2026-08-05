@@ -738,4 +738,24 @@ Baseline: §5 + §9 opdateret i samme PR.
 
 ---
 
+## 9. Tillæg (2026-08-05, lektion→handout-kobling): `content_items.handout_module`
+
+Akademi-lektioner skal kunne linke ind i de interaktive handouts (medlemmets
+refleksioner bliver på platformen — ingen dokument-kopier). Arkitektbeslutning
+(godkendt, jf. hb-handouts-recon §4): dedikeret nullable kolonne
+**`content_items.handout_module`** med CHECK der spejler `handouts.module`-
+CHECK'en (fem værdier) — IKKE en attachments-kind (ville kræve dobbelt
+CHECK-udvidelse + tredje render-gren) og IKKE metadata-jsonb (ingen
+integritet). INGEN FK: handout-definitionerne er kode
+(`src/lib/handoutConfig.ts`), ikke rækker — der findes ingen definitions-
+tabel at referere. NULL = ingen kobling. RLS uændret (kolonnen arver
+content_items' policies; medlemsstatus læses via handouts' self-only SELECT
+gennem `getOwnHandout` i akademiApi). Fase 1 er envejs (lektion→handout);
+omvendt visning er BACKLOG.
+
+Fuld DDL og deploy-guide: migrationen
+`supabase/migrations/20260805120000_content_items_handout_module.sql`.
+
+---
+
 *C0-leverance 2 · Projekt Hjemmebane · 2026-08-04 · SQL er design — intet er kørt.*

@@ -324,6 +324,51 @@ Genåbn med prioritet hvis tredje forekomst rammer.
 
 ---
 
+### [P3] Handout-kobling fase 2: omvendt link (noteret 2026-08-05)
+
+**Fund**: Lektion→handout-koblingen (`content_items.handout_module`) er envejs.
+Handout-siden (/handouts) kender ikke tilhørende modul/lektion — medlemmet
+kan ikke hoppe fra et handout tilbage til lektionen, der introducerede det.
+
+**Kandidat-fix** (ikke implementeret): opslag fra handout-fladen på
+`content_items WHERE handout_module = <modul> AND status = 'published'`
+(member-RLS gater i forvejen) og render af "Hører til"-links. Ingen
+skemaændring nødvendig — koblingen findes allerede i kolonnen.
+
+---
+
+### [P3] Data-drevne handout-definitioner — bevidst udskudt (noteret 2026-08-05)
+
+**Fund**: Handout-definitionerne er ~239 linjer hardcodet TS
+(`src/lib/handoutConfig.ts`) uden admin-flade og uden versionering —
+ordlyds-ændringer kræver kode + deploy, og omdøbte spørgsmåls-nøgler
+orphaner stille medlemssvar (`handoutUtils.ts:50-55` filtrerer på kendte
+nøgler; data slettes aldrig, men vises ikke, og medlemmets viste fremdrift
+kan falde uden forklaring).
+
+**Kandidat-fix** (ikke implementeret): definitions-tabel + versioneringsdesign
+som eget sprint — orphan-problemet skal LØSES, ikke arves ind i en
+data-drevet model. Vigtigt: lektion→handout-koblingen
+(`content_items.handout_module`) peger på modul-NØGLEN og overlever en
+senere ombygning uændret.
+
+---
+
+### [P4] /handouts?module= læses kun on mount (noteret 2026-08-05)
+
+**Fund**: Deep-linket `?module=<key>` læses i en on-mount-effekt med tomt
+dependency-array og ryddes med replace (`Handouts.tsx:77-85`). Navigation fra
+en allerede monteret /handouts-side til samme route med ny param genåbner
+derfor IKKE det ønskede modul. Rammer ikke fase 1 (refleksionskortet linker
+altid fra /akademiet, så /handouts friskmonteres), men bliver relevant hvis
+der senere linkes handout→handout eller fra en anden flade, der deler layout.
+
+**Kandidat-fix** (ikke implementeret): flyt param-læsningen til en effekt på
+searchParams (og behold replace-rydningen), eller styr aktivt modul via URL i
+stedet for lokal state.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

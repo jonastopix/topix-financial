@@ -667,12 +667,13 @@ export type Database = {
           },
         ]
       }
-      // HÅNDTILFØJET (Hjemmebane C3-forberedelse, D1-mønstret):
-      // content_item_attachments er skrevet i hånden i eksakt genereret format,
-      // fordi Lovables regenerering ikke er kørt siden migrationen
-      // 20260804210000. Ved fremtidig Lovable-regenerering er den genererede
-      // fil sandheden — tilføjelsen gen-afstemmes mod den (konvergensen er
-      // tidligere bekræftet for de seks C1-tabeller).
+      // HÅNDTILFØJET (Hjemmebane, D1-mønstret): content_item_attachments (C3,
+      // migration 20260804210000) og content_items.handout_module (migration
+      // 20260805120000) er skrevet i hånden i eksakt genereret format, fordi
+      // Lovables regenerering ikke er kørt siden. Ved fremtidig Lovable-
+      // regenerering er den genererede fil sandheden — tilføjelserne
+      // gen-afstemmes mod den (konvergensen er tidligere bekræftet for de
+      // seks C1-tabeller).
       content_item_attachments: {
         Row: {
           created_at: string
@@ -729,6 +730,7 @@ export type Database = {
           drip_after_days: number | null
           duration_seconds: number | null
           external_url: string | null
+          handout_module: string | null
           id: string
           media_provider: string
           metadata: Json
@@ -754,6 +756,7 @@ export type Database = {
           drip_after_days?: number | null
           duration_seconds?: number | null
           external_url?: string | null
+          handout_module?: string | null
           id?: string
           media_provider?: string
           metadata?: Json
@@ -779,6 +782,7 @@ export type Database = {
           drip_after_days?: number | null
           duration_seconds?: number | null
           external_url?: string | null
+          handout_module?: string | null
           id?: string
           media_provider?: string
           metadata?: Json
