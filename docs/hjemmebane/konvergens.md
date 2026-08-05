@@ -124,6 +124,8 @@ af et tidligere rundtur-tilløb.
 aldrig to onboardings side om side. (b) er dataindsamling, ikke oplevelse —
 rundturens forværelse eller separat; afgøres i epic-designet. (d):
 epic-reconnen afklarer genbrug vs. oprydning af ankerpunkterne.
+Epicens scope er alene PLATFORM-onboardingen — "Start her"-områdets rolle
+er lukket separat (Akademi-intro, besluttet 2026-08-05, jf. §2.7).
 
 ### §2.2 Navigation — fire menu-sandheder · afgøres i: NAVIGATIONS-KONVERGENS
 
@@ -185,8 +187,12 @@ afgøres i legat-stillingtagen.
 
 ### §2.7 Småfund
 
-Forældreløse filer pensioneret i denne PR (§4). "Start her"-området afventer
-onboarding-epicen (hint markeret i admin; fyldes ikke). Redirect-laget
+Forældreløse filer pensioneret i denne PR (§4). "Start her"-området: rollen
+er LUKKET (besluttet 2026-08-05, klik-valg A) — området ER Akademiets
+introduktion; indholdet (samlingen "Kom godt i gang med vores Akademi",
+3 videoer inkl. målsætnings-lektion m. overordnet handout-kobling) er
+blivende, og "fyldes ikke endnu"-reglen er ophævet. Platformens onboarding
+bor fortsat udenfor (BACKLOG-epicen, §2.1). Redirect-laget
 (/group/chat m.fl.) er platformens eget mønster for flade-sammenlægning —
 ophøjet til princip i §3.
 
