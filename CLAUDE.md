@@ -52,6 +52,8 @@ Frontend-koden under `src/` (Vite-build til `app.theboardroom.dk`) deployes IKKE
 
 "Update"-knappen er den eneste kanal for frontend-ændringer. Et merge til main lægger koden i repoet, men prod-builden på `app.theboardroom.dk` opdateres først efter klikket.
 
+Update udgiver EDITORENS tilstand — efter frisk merge: giv Lovable-synken et øjeblik og verificér, at den nye commit er synket ind, før klik (lærdom 2026-08-05).
+
 ## Stack
 
 Vite + React 18 + TypeScript + shadcn-ui + Tailwind på frontend.

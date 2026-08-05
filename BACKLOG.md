@@ -478,11 +478,42 @@ bliver redirect (§3.6-mønstret); HbMemberShells Rapportering-mål → /reports
 for alle.
 
 FORUDSÆTNINGER for GO: (i) papirkurvens nye hjem i drift-gruppen findes
-(gamle /reports bærer den indtil da), (ii) trend/AI's hjem er klart
-(KPI-konverteringen SKAL medtage dem — bogført i konvergens §1),
-(iii) email-link-kontrakten verificeret på byggeruten (?reportId=
-auto-expand + begge ankre testet manuelt), (iv) advisor-m.-override-flowet
-gennemprøvet (godkendelse på medlems vegne via broerne).
+(gamle /reports bærer den indtil da), (ii) trend/AI's hjem er klart —
+OPFYLDES AF KPI-GO (/noegletal bærer dem; Rapportering-GO må derfor IKKE
+ligge før KPI-GO — GO-koordineringen, jf. [P1] KPI-GO), (iii) email-link-
+kontrakten verificeret på byggeruten (?reportId= auto-expand + begge ankre
+testet manuelt), (iv) advisor-m.-override-flowet gennemprøvet (godkendelse
+på medlems vegne via broerne).
+
+---
+
+### [P1] KPI-GO = swap på /kpis (noteret 2026-08-05)
+
+Hb-KPI-fladen (/noegletal) er bygget route-parallelt bag AdvisorRoute
+(fuld paritet + trend/AI); gamle /kpis er frosset. GO'ets indhold: /kpis'
+MEDLEMSGREN bærer den nye flade — URL'en er NOTIFIKATIONS-/EMAIL-KONTRAKT
+(notify-kpi-comment, detect-financial-alerts og send-monthly-digest
+skriver /kpis-deep-links; #goals er Guide-kontrakt); /noegletal bliver
+redirect; HbMemberShells KPI'er-mål → /kpis for alle.
+
+FORUDSÆTNINGER for GO: (i) notifikations-/email-kontrakten verificeret på
+byggeruten (de tre edge-funktioners deep-links + #goals testet manuelt),
+(ii) advisor-kommentar-flowet gennemprøvet ende-til-ende (popover →
+kpi_chart_comments → notifikation hos medlem), (iii) PDF-eksporten
+gennemprøvet på ny flade (Hb-baggrund + hb-graffarver), (iv)
+GO-KOORDINERING: KPI-GO SKAL ligge FØR (el. samtidig med) Rapportering-GO
+— Reports-frysningens trend/AI dør ved Rapportering-swappen, og de må
+aldrig være hjemløse.
+
+---
+
+### [P3] AI-analysens Hb-konvertering (noteret 2026-08-05)
+
+AIFinancialAnalysis (589 linjer) embeddes som BEVIDST BRO i gammelt udtryk
+på /noegletal (og bruges fortsat af CompanyChatPane). En Hb-konvertering
+er sit eget sprint og skal dække BEGGE kaldesteder + generér-flowet
+(generate-financial-commentary) og periodevalgs-kontrakten
+(selectedPeriodKey/onSelectPeriod). Broens toasts består indtil da.
 
 ---
 

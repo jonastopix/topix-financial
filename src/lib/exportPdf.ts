@@ -3,7 +3,11 @@ import html2canvas from "html2canvas";
 
 export async function exportKPIReport(
   elementId: string,
-  filename: string
+  filename: string,
+  // Valgfri baggrund (Hb-fladen sender sin papir-tone som færdig rgb-værdi).
+  // Default = hidtidig adfærd, bevist uændret: grep viser præcis ÉN kalder
+  // (KPIs.tsx:127, uden options) ud over denne definition. :root røres aldrig.
+  options?: { backgroundColor?: string }
 ): Promise<void> {
   const element = document.getElementById(elementId);
   if (!element) throw new Error("Element not found");
@@ -11,8 +15,10 @@ export async function exportKPIReport(
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
-    backgroundColor: getComputedStyle(document.documentElement)
-      .getPropertyValue("--background").trim() || "#ffffff",
+    backgroundColor:
+      options?.backgroundColor ??
+      (getComputedStyle(document.documentElement)
+        .getPropertyValue("--background").trim() || "#ffffff"),
     onclone: (cloned) => {
       cloned.documentElement.classList.remove("dark");
       cloned.documentElement.style.colorScheme = "light";
