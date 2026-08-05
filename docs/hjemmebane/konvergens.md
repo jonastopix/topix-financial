@@ -52,7 +52,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
 | / | Index.tsx | Dashboardet — KPI-kort, sundhed, prioriteringskø (advisor) | GAMMEL | Konverteres-før-lancering (navnet "Dit Boardroom" er allerede udrullet i Hb-nav'en; den tungeste enkelt-konvertering, §2.3) |
-| /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Konverteres-før-lancering (naturlig Hb-kandidat under "Dine tal") |
+| /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /rapportering er bygget; GO = swap HER (URL'en er email-kontrakt); fladen er frosset og bærer trash + trend/AI indtil deres nye hjem (trend/AI → KPI-konverteringen, som SKAL medtage dem; trash → drift-gruppen) |
 | /budget | Budget.tsx | Årsbudget, forecast, hvad-hvis | GAMMEL | Konverteres-før-lancering (do.) |
 | /milestones | Milestones.tsx | Mål + fremdrift | GAMMEL | Konverteres-før-lancering (do.) |
 | /handouts | Handouts.tsx | Interaktive handouts (5 moduler) | GAMMEL | Konverteres-før-lancering (definitions-arkitekturen afgøres i handout-sprintet, §2.5) |
@@ -71,6 +71,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 |---|---|---|---|---|
 | /akademiet(/:area(/:slug)) | Akademiet.tsx | Forside → område → element (video/body/handout-kort/materialer/progress) | HB | Konverteret (C1 trin 3) |
 | /boardroom | Boardroom.tsx | Hb-forsiden "Dit Boardroom" (push-hero, tal-strip, næste skridt, events, talks) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap-PR til "/" (§2.3) |
+| /rapportering | Rapportering.tsx | Hb-rapporteringen — LEVERANCEN (upload/engine, leveringsbånd, nudges, tilstandskort, årsrapporter; dialoger som bro) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /reports (email-kontrakt), /rapportering → redirect |
 | /preview/hjemmebane | PreviewHjemmebane.tsx | V0-designprøve "Dit Boardroom" (døde links, bag login) | HB | Pension-kandidat — pensioneres i swap-PR'en (§2.3); indtil da referencen for miljø-udtrykket |
 
 ### Advisor
@@ -149,6 +150,14 @@ afløser HbAkademiShell) — dens "Dit Boardroom"-mål er advisor-gated til
 Admin-nav'en spejler nu medlems-nav'ens Hb-destinationer (Admin-spejlet,
 §5): "Indhold"-fanen er omdøbt "Akademiet", og en ny "Dit Boardroom"-fane
 (let push-editor) står først — keys/URL'er er bevaret.
+NOTE (2026-08-05, rapporteringen): "Dine tal → Rapportering" i
+HbMemberShell er advisor-gated til /rapportering i byggeperioden (samme
+mønster som Dit Boardroom-målet); medlemmer ser uændret /reports.
+Rapporteringens BROER (bevidste, jf. design-blokken): ReportReviewDialog +
+ReportManualOverride + PulseCheckinModal (RP-1-hærdet flow åbnes uændret
+over Hb-fladen; deres toasts består til dialog-konverteringen, BACKLOG
+[P3]) samt AdvisorCompanyPrompt. Engine-laget (reportUploadEngine,
+deliveryMonths) er udskilt som ren flytning og deles med gammel UI.
 
 **NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
 i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og
@@ -305,6 +314,12 @@ editorens fulde flade).
 Dit Boardroom (let push-editor) · Akademiet (områder/samlinger/items —
 tidl. "Indhold") · Rabataftaler · Events · | · Fremdrift (drift).
 Keys/URL'er er historiske og bevaret — kun labels/rækkefølge spejler.
+**BESLUTNING (Jonas 2026-08-05): Fremdrift omdøbes/udvides til
+"MEDLEMMER" på sigt**, når advisor-dagligdagen konverteres — den samlede
+drift-fane hvor medlemslisten (jf. §2.2-notens to-medlemslister-retning),
+Akademi-fremdriften og rapport-pipeline-overvågningen (Review Queue,
+/admin/review-queue) samles. Indtil da er Review Queue uændret på sin
+route (rapporterings-design-blokkens admin-modstykke-svar).
 
 **(iii) Fremtidige faner (bogført, ikke bygget)**:
 - **Handouts**: NÅR definitionerne bliver data-drevne (BACKLOG [P3]) —
