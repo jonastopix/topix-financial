@@ -369,6 +369,29 @@ stedet for lokal state.
 
 ---
 
+### [P2·EPIC] Platform-onboarding — førstegangs-oplevelsen (besluttet 2026-08-05)
+
+Produktbeslutning (Jonas): platformens onboarding hører til UDEN FOR
+Akademiet — som interaktiv førstegangs-oplevelse ved første login, ikke
+som indholdsområde. Vision: velkomstvideo(er) fra Morten (hostes i Bunny —
+signeret embed-infrastruktur findes, jf. get-video-embed), derefter
+interaktiv rundtur med spotlight-/infobokse og Næste-knap gennem fladerne
+(tal-upload, rapportering, rådgiver, Akademiet, Community), spring-over,
+gennemført-tilstand pr. medlem, genstart fra Guiden. Eget sprint med egen
+recon (first-login-detektion, profil-flags), design-blok og gates.
+Epic-reconnen SKAL omfatte den eksisterende tekst-onboarding (Guiden,
+/guide): den afløses eller integreres i førstegangs-oplevelsen — der må
+ALDRIG eksistere to onboardings side om side.
+
+SEKVENS: bygges EFTER C3-indflytningen (rundturen skal vise et fyldt
+produkt; Circle-exit har deadline). KONSEKVENS for "Start her"-området:
+platformens onboarding bor IKKE der; områdets endelige rolle (lille
+Akademi-intro eller udgår) afgøres i onboarding-designet — indtil da
+fyldes det IKKE med indhold. Princip: ikke flere indholdsbokse end højst
+nødvendigt.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
