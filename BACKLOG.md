@@ -392,6 +392,25 @@ nødvendigt.
 
 ---
 
+### [P1] Akademiet-lancering — medlems-synligt nav-punkt afventer GO fra Jonas (noteret 2026-08-05)
+
+**Fund**: Akademiet-broen i navigationen (PR #172) gjorde et halvfærdigt
+Akademi synligt for alle medlemmer, mens Circle stadig kører og
+indflytningen er i gang. Korrigeret samme dag: punktet er advisor-gated
+(advisorOnly-flag i AppSidebars baseNavItems; fjernet fra mobil-"Mere"-
+menuen, som kun renderes for medlemmer). URL-adgang til /akademiet har
+eksisteret siden C1 trin 3 og er uændret (RLS/published-gate + dryp
+beskytter indholdet).
+
+**Aktivering** (kræver eksplicit GO fra Jonas) forudsætter: (i) indhold
+klar, (ii) testindhold ryddet fra Start her, (iii) medlemskommunikation,
+(iv) Circle-plan og (v) hele medlemsrejsen redesignet til Hb
+(konvergens.md §1-skæbnerne). Selve aktiveringen er triviel: fjern
+advisorOnly-flaget, genindsæt 🎓-punktet i Mere-menuen, og luk
+konvergens.md §2.8 i samme PR.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

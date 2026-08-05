@@ -31,6 +31,7 @@ Designsprog: **[GAMMEL]** = AppLayout/mørk sidebar/shadcn · **[HB]** =
 AppLayout, gamle tokens.
 
 Skæbner (konservativt — kun det besluttede er markeret besluttet):
+**Konverteres-før-lancering** (princip 8, produktbeslutning 2026-08-05) ·
 **Konverteres-til-Hb** · **Forbliver-indtil-videre** (m. retningsnote) ·
 **Afgøres-i-onboarding-epic** · **Afgøres-i-demo-beslutning** ·
 **Pension-kandidat**.
@@ -39,27 +40,27 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /auth(/\*) | Auth.tsx | Login/signup (invite-grene) | STANDALONE-GAMMEL | Forbliver-indtil-videre |
-| /reset-password | ResetPassword.tsx | Kodeord-reset | STANDALONE-GAMMEL | Forbliver-indtil-videre |
-| /onboarding | Onboarding.tsx | Setup-wizard (navn/branche/virksomhed, needsOnboarding-gate) | STANDALONE-GAMMEL | Afgøres-i-onboarding-epic (dataindsamling vs. oplevelse, jf. §2.1) |
+| /auth(/\*) | Auth.tsx | Login/signup (invite-grene) | STANDALONE-GAMMEL | Konverteres-før-lancering |
+| /reset-password | ResetPassword.tsx | Kodeord-reset | STANDALONE-GAMMEL | Konverteres-før-lancering |
+| /onboarding | Onboarding.tsx | Setup-wizard (navn/branche/virksomhed, needsOnboarding-gate) | STANDALONE-GAMMEL | Afgøres-i-onboarding-epic (dataindsamling vs. oplevelse, jf. §2.1) + Konverteres-før-lancering |
 
 ### Medlem (kerne)
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| / | Index.tsx | Dashboardet — KPI-kort, sundhed, prioriteringskø (advisor) | GAMMEL | Forbliver-indtil-videre — men navnet "Dit Boardroom" er allerede udrullet i Hb-nav'en; forsiden er den tungeste enkelt-konvertering (§2.3) |
-| /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Forbliver-indtil-videre (naturlig Hb-kandidat under "Dine tal") |
-| /budget | Budget.tsx | Årsbudget, forecast, hvad-hvis | GAMMEL | Forbliver-indtil-videre (do.) |
-| /milestones | Milestones.tsx | Mål + fremdrift | GAMMEL | Forbliver-indtil-videre (do.) |
-| /handouts | Handouts.tsx | Interaktive handouts (5 moduler) | GAMMEL | Forbliver-indtil-videre — definitions-arkitekturen afgøres i handout-sprintet (§2.5) |
-| /kpis | KPIs.tsx | Nøgletal m. trend/benchmark | GAMMEL | Forbliver-indtil-videre (naturlig Hb-kandidat) |
-| /chat | ChatShell.tsx | Samlet chat (rådgiver/AI/grupper) | GAMMEL | Forbliver-indtil-videre |
-| /book-session | BookSession.tsx | Sessionsbooking | GAMMEL | Forbliver-indtil-videre |
-| /pulse | PulseCheckin.tsx | Måneds-refleksion (?period=) | GAMMEL | Forbliver-indtil-videre |
-| /community | Community.tsx | Bro til Circle-community | GAMMEL | Forbliver-indtil-videre — genbesøges ved Circle-exit (C3) |
-| /guide | Guide.tsx | Guiden — tekst-onboarding/manual (founder + advisor-playbook) | GAMMEL | Afgøres-i-onboarding-epic (afløses/integreres — aldrig to onboardings, §2.1) |
-| /annual-baseline | AnnualBaseline.tsx | Årsrapport-baseline-flow | GAMMEL | Forbliver-indtil-videre |
-| /settings | Settings.tsx | Indstillinger/profil | GAMMEL | Forbliver-indtil-videre |
+| / | Index.tsx | Dashboardet — KPI-kort, sundhed, prioriteringskø (advisor) | GAMMEL | Konverteres-før-lancering (navnet "Dit Boardroom" er allerede udrullet i Hb-nav'en; den tungeste enkelt-konvertering, §2.3) |
+| /reports | Reports.tsx | Rapportering: upload + pipeline | GAMMEL | Konverteres-før-lancering (naturlig Hb-kandidat under "Dine tal") |
+| /budget | Budget.tsx | Årsbudget, forecast, hvad-hvis | GAMMEL | Konverteres-før-lancering (do.) |
+| /milestones | Milestones.tsx | Mål + fremdrift | GAMMEL | Konverteres-før-lancering (do.) |
+| /handouts | Handouts.tsx | Interaktive handouts (5 moduler) | GAMMEL | Konverteres-før-lancering (definitions-arkitekturen afgøres i handout-sprintet, §2.5) |
+| /kpis | KPIs.tsx | Nøgletal m. trend/benchmark | GAMMEL | Konverteres-før-lancering (naturlig Hb-kandidat) |
+| /chat | ChatShell.tsx | Samlet chat (rådgiver/AI/grupper) | GAMMEL | Konverteres-før-lancering |
+| /book-session | BookSession.tsx | Sessionsbooking | GAMMEL | Konverteres-før-lancering |
+| /pulse | PulseCheckin.tsx | Måneds-refleksion (?period=) | GAMMEL | Konverteres-før-lancering |
+| /community | Community.tsx | Bro til Circle-community | GAMMEL | Forbliver-indtil-videre — genbesøges ved Circle-exit (C3) + Konverteres-før-lancering |
+| /guide | Guide.tsx | Guiden — tekst-onboarding/manual (founder + advisor-playbook) | GAMMEL | Afgøres-i-onboarding-epic (afløses/integreres — aldrig to onboardings, §2.1) + Konverteres-før-lancering |
+| /annual-baseline | AnnualBaseline.tsx | Årsrapport-baseline-flow | GAMMEL | Konverteres-før-lancering |
+| /settings | Settings.tsx | Indstillinger/profil | GAMMEL | Konverteres-før-lancering |
 
 ### Hjemmebane (medlemsflade)
 
@@ -72,8 +73,8 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem | GAMMEL | Forbliver-indtil-videre |
-| /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø | GAMMEL | Forbliver-indtil-videre |
+| /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
+| /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
 | /admin/indhold(/partnere,/events) | AdminContent.tsx | Hb-indholdsstyring (C1) | HB | Konverteret (C1 trin 2) |
 | /groups(/:groupId) | AdvisorGroupList/Dashboard | Koncern-flader (advisor) | GAMMEL | Forbliver-indtil-videre (§2.6) |
 
@@ -87,8 +88,8 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /legat | LegatDashboard.tsx | Legat-forløbets dashboard | GAMMEL | Forbliver-indtil-videre (§2.6) |
-| /group(/budget) | GroupDashboard/GroupBudget | Koncern-flader (medlem) | GAMMEL | Forbliver-indtil-videre (§2.6) |
+| /legat | LegatDashboard.tsx | Legat-forløbets dashboard | GAMMEL | Konverteres-før-lancering (§2.6) |
+| /group(/budget) | GroupDashboard/GroupBudget | Koncern-flader (medlem) | GAMMEL | Konverteres-før-lancering (§2.6) |
 | /group/onboarding, /group/setup-complete, /group/chat, /group-chats(/:id/chat) | — | Rene redirects | — | Forbliver (redirect-mønstret, §3) |
 
 ### Demo (uden auth)
@@ -133,9 +134,9 @@ Tre forskellige informations-arkitekturer.
 
 **Retning**: Hb-miljøstrukturen er mål-IA'en (§3). Rejsen ud af Hb lander i
 gammel UI — inkl. "Dit Boardroom" → "/" (gamle Dashboard). Rejsen IND er
-med denne PR etableret som bevidst bro: "Akademiet"-punkt i AppSidebars
-baseNavItems og i mobil-"Mere"-menuen (§4). Fuld konvergens (Hb-skal på
-flere ruter, varianternes indplacering) er sit eget spor.
+bygget som bevidst bro ("Akademiet"-punkt i AppSidebar, §4) — men
+ADVISOR-GATED indtil eksplicit lancerings-GO (§2.8). Fuld konvergens
+(Hb-skal på flere ruter, varianternes indplacering) er sit eget spor.
 
 ### §2.3 Dashboard-forsiden vs. "Dit Boardroom" · afgøres i: FORSIDE-KONVERTERING
 
@@ -189,6 +190,21 @@ onboarding-epicen (hint markeret i admin; fyldes ikke). Redirect-laget
 (/group/chat m.fl.) er platformens eget mønster for flade-sammenlægning —
 ophøjet til princip i §3.
 
+### §2.8 Akademiet-lancering · afgøres i: SEPARAT PRODUKTBESLUTNING (GO fra Jonas)
+
+**Hvad/hvor**: Akademiet-nav-punktet (AppSidebar) er ADVISOR-GATED
+(advisorOnly-flag) — medlemmer ser det ikke, mens Circle stadig kører og
+indflytningen er i gang; i mobil-"Mere"-menuen (som kun renderes for
+medlemmer) er punktet fjernet. URL-adgang til /akademiet har eksisteret
+siden C1 trin 3 og er uændret (RLS/published-gate + dryp beskytter
+indholdet; fladen er blot ulinket for medlemmer).
+
+**Retning**: medlemssynlighed kræver eksplicit lancerings-GO. Forudsætninger:
+indhold klar, testindhold ryddet fra Start her, medlemskommunikation og
+Circle-plan. GO'et gælder HELHEDEN — ikke Akademiet isoleret: lancering
+forudsætter at hele medlemsrejsen er redesignet (princip 8).
+BACKLOG: [P1] Akademiet-lancering.
+
 ---
 
 ## §3 PRINCIPPER (den røde tråd)
@@ -207,6 +223,10 @@ ophøjet til princip i §3.
    `Navigate` til den nye verden (som /group-chats → /chat).
 7. **Hb-tokens forbliver scoped** til `.theme-hjemmebane` — aldrig `:root`;
    PDF-eksporten afhænger af app-temaet (:root/.dark i index.css).
+8. **Intet åbnes halvfærdigt**: medlemmer får ALDRIG adgang til noget, de
+   allerede kender, i ny men halvfærdig form — hele medlemsrejsen (alle
+   medlemsvendte flader samt advisor-dagligdagen) redesignes til
+   Hb-identiteten FØR lancerings-GO. Produktbeslutning (Jonas) 2026-08-05.
 
 ---
 
@@ -218,6 +238,9 @@ ophøjet til princip i §3.
    🎓 efter Handouts). Bevidst IKKE i legat-varianten (§2.6). Recon'ens
    formodede "mobil-dublet" i AppSidebar viste sig at være legat-listen;
    den reelle mobil-medlemsliste er AppLayouts moreMenuItems.
+   **KORREKTION (2026-08-05, samme dag)**: punktet er ADVISOR-GATED indtil
+   lancerings-GO (§2.8) — advisorOnly-flag i AppSidebar; i mobil-"Mere"-
+   menuen (kun medlemmer) er punktet fjernet igen.
 3. **CSS-kommentar-drift rettet**: hjemmebane.css-headeren nævner nu de tre
    faktiske importører (PreviewHjemmebane, AdminContent, Akademiet).
 4. **Forældreløse filer pensioneret**: src/pages/Demo.tsx +
