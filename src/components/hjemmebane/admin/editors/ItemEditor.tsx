@@ -98,6 +98,12 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
       }
       setError(null);
       if (!String(patch.slug ?? form.slug).trim()) patch.slug = slugify(form.title);
+      // Tom patch = intet at gemme. update({}) giver 0 rækker (PGRST116) —
+      // kvittér stille i stedet for at sende en no-op-mutation.
+      if (Object.keys(patch).length === 0) {
+        setSavedAt(new Date());
+        return;
+      }
       mutation.mutate(patch);
     };
 
@@ -214,7 +220,8 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
           />
         </HbField>
 
-        <HbField label="Indhold" htmlFor="item-body">
+        {/* htmlFor udeladt: richtext/picker/zone har ikke ét labelbart input. */}
+        <HbField label="Indhold">
           <HbEditorRichtext
             key={item.id}
             content={form.body ?? ""}
@@ -222,7 +229,7 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
           />
         </HbField>
 
-        <HbField label="Medie" htmlFor="item-media">
+        <HbField label="Medie">
           <HbMediaPicker
             itemId={item.id}
             itemTitle={form.title}
@@ -298,7 +305,7 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
           </HbField>
         )}
 
-        <HbField label="Cover" htmlFor="item-cover">
+        <HbField label="Cover">
           <HbUploadZone
             kind="covers"
             ownerId={item.id}

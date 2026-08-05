@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 import { buildAssetPath, getAssetPreviewUrl, uploadAsset } from "@/lib/hjemmebane/adminContentApi";
 
 interface HbUploadZoneProps {
-  /** Path-konventionen fra baseline §9: covers/ · templates/ · partners/. */
-  kind: "covers" | "templates" | "partners";
+  /** Path-konventionen fra baseline §9: covers/ · templates/ · partners/ · attachments/. */
+  kind: "covers" | "templates" | "partners" | "attachments";
   ownerId: string;
   currentPath: string | null;
   accept?: string;

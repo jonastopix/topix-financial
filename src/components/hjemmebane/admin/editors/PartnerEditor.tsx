@@ -167,7 +167,8 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
           />
         </HbField>
 
-        <HbField label="Indløsning" htmlFor="partner-redemption">
+        {/* htmlFor udeladt: segmented + betinget input er ikke ét labelbart felt. */}
+        <HbField label="Indløsning">
           <div className="space-y-4">
             <HbSegmented
               aria-label="Indløsningstype"
@@ -228,7 +229,7 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
           </HbField>
         </div>
 
-        <HbField label="Logo" htmlFor="partner-logo">
+        <HbField label="Logo">
           <HbUploadZone
             kind="partners"
             ownerId={partner.id}
