@@ -72,7 +72,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | /akademiet(/:area(/:slug)) | Akademiet.tsx | Forside → område → element (video/body/handout-kort/materialer/progress) | HB | Konverteret (C1 trin 3) |
 | /boardroom | Boardroom.tsx | Hb-forsiden "Dit Boardroom" (push-hero, tal-strip, næste skridt, events, talks) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap-PR til "/" (§2.3) |
 | /rapportering | Rapportering.tsx | Hb-rapporteringen — LEVERANCEN (upload/engine, leveringsbånd, nudges, tilstandskort, årsrapporter; dialoger som bro) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /reports (email-kontrakt), /rapportering → redirect |
-| /noegletal | Noegletal.tsx | Hb-KPI-fladen — fuld paritet + trend/AI (mål-hero, trend-overblik, kort, detail m. advisor-kommentarer, gauge, tabel; AI som bro) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /kpis (notifikations-kontrakt), /noegletal → redirect; KPI-GO SKAL ligge før/samtidig m. Rapportering-GO |
+| /noegletal | Noegletal.tsx | Hb-KPI-fladen — fuld paritet + trend/AI (mål-hero, trend-overblik, kort, detail m. advisor-kommentarer, gauge, tabel; AI i Hb-udtryk) | HB | Konverteres-til-Hb — UNDER BYGGERI, advisor-gated route; GO = swap på /kpis (notifikations-kontrakt), /noegletal → redirect; KPI-GO SKAL ligge før/samtidig m. Rapportering-GO |
 | /preview/hjemmebane | PreviewHjemmebane.tsx | V0-designprøve "Dit Boardroom" (døde links, bag login) | HB | Pension-kandidat — pensioneres i swap-PR'en (§2.3); indtil da referencen for miljø-udtrykket |
 
 ### Advisor
@@ -161,9 +161,15 @@ over Hb-fladen; deres toasts består til dialog-konverteringen, BACKLOG
 deliveryMonths) er udskilt som ren flytning og deles med gammel UI.
 NOTE (2026-08-05, KPI'er): "Dine tal → KPI'er" i HbMemberShell er
 advisor-gated til /noegletal i byggeperioden (samme mønster). KPI-fladens
-broer: AIFinancialAnalysis-embed (gammelt udtryk + toasts — BACKLOG [P3])
-og gamle PeriodSelector (urørt; kun usePeriodFilter-hooken genbruges).
-FinancialOverview (forældreløs, 0 importører) er pensioneret.
+broer: AI-broen er AFVIKLET (2026-08-05) — /noegletal bruger
+HbFinancialAnalysis over useFinancialAnalysis-hooken (maskinen udskilt som
+ren flytning; én sandhed for messages-idempotensen); gamle udtryk består
+KUN på frosne /reports indtil dens swap (GO-koordineringen KPI-GO ≤
+Rapportering-GO uændret). Intet admin-modstykke — generering sker
+on-demand på medlemsfladen; commentary-maskinen (generate-financial-
+commentary, stale-markering) hører drift/Medlemmer til. Tilbageværende
+KPI-bro: gamle PeriodSelector (urørt; kun usePeriodFilter-hooken
+genbruges). FinancialOverview (forældreløs, 0 importører) er pensioneret.
 
 **NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
 i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og

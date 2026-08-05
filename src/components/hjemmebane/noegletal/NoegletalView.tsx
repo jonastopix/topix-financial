@@ -25,7 +25,7 @@ import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { formatCompact, formatDKK, SHORT_MONTHS } from "@/lib/financialUtils";
 import { KPI_DEFS, VALUE_EXTRACTORS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { INDUSTRY_TEMPLATES, type BenchmarkTemplate } from "@/lib/appConfig";
-import AIFinancialAnalysis from "@/components/AIFinancialAnalysis";
+import { HbFinancialAnalysis } from "./HbFinancialAnalysis";
 import { usePeriodFilter } from "@/components/PeriodSelector";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
@@ -40,8 +40,9 @@ import { deriveMoMChange } from "./trendMoM";
     (klik-valg A): mål-hero, trend-overblik (nyt hjem fra Reports),
     KPI-kort, detail-view m. advisor-kommentar-laget bevaret 1:1
     (samme kpi_chart_comments-skrivning, samme notify-kpi-comment),
-    benchmark-gauge, sammenligningstabel, AI-analysen som BRO m. eget
-    periodevalg, mål/benchmark-panelet (begge roller — mål-adgangs-
+    benchmark-gauge, sammenligningstabel, AI-analysen i Hb-udtryk
+    (HbFinancialAnalysis m. eget periodevalg — broen afviklet
+    2026-08-05), mål/benchmark-panelet (begge roller — mål-adgangs-
     beslutningen 2026-08-05; advisor-write-policies i 20260805220000;
     døren bor i mål-hero'ens topline: Sæt mål/Ret mål/Skjul).
     Graf-farver = hb-tokens (synlige i eksport-klonen); PDF via
@@ -889,10 +890,11 @@ export const NoegletalView = () => {
         </div>
       )}
 
-      {/* ── 8. AI-analysen (BRO — uden for eksport-DOM'en, klik-valg K1) ── */}
+      {/* ── 8. AI-analysen (Hb-visningslag over useFinancialAnalysis —
+          uden for eksport-DOM'en, klik-valg K1) ── */}
       {monthlyData.length > 0 && (
         <HbSection eyebrow="AI-analyse" className="mt-10">
-          <AIFinancialAnalysis
+          <HbFinancialAnalysis
             conversationId={conversationId}
             companyId={companyId}
             userId={user?.id || null}

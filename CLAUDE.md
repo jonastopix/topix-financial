@@ -129,6 +129,10 @@ Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 - Coverage er pt. minimal (3 filer: `src/test/example.test.ts`, `src/hooks/__tests__/useScrollToHash.test.tsx`, `src/lib/__tests__/pdfStructuralExtractor.test.ts`).
 - Nye security-kritiske stier (RLS, triggers, RPC, edge function-auth) bør have test før merge.
 
+## React-regler
+
+- Nye hooks placeres i komponentens TOPBLOK før enhver betinget return. Linjelæsning af en hook-tilføjelse spørger altid: "står der en `return` over denne hook?" (React #310-lærdommen, 2026-08-05).
+
 ## Dokumentations-disciplin
 
 - Ved arkitektur-ændring: opdater `CLAUDE.md` i samme PR.

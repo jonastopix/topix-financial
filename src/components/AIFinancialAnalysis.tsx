@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   Sparkles,
   TrendingUp,
@@ -14,35 +14,12 @@ import {
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
-import { useCompanyFacts } from "@/hooks/useCompanyFacts";
-import { useCompanyCommentary, generateCommentary, type Commentary } from "@/hooks/useCompanyCommentary";
-import { postActivityMessage } from "@/lib/chatActivity";
-import { parseReportPeriodToKey } from "@/lib/financialUtils";
-import { supabase } from "@/integrations/supabase/client";
+import { useFinancialAnalysis } from "@/hooks/useFinancialAnalysis";
+import { deriveDefaultExpanded, type TrendItem } from "@/lib/financialAnalysis";
 
-interface KeyFinding {
-  title: string;
-  analysis: string;
-  recommendation: string;
-  severity: "positiv" | "advarsel" | "kritisk";
-}
-
-interface TrendItem {
-  title: string;
-  description: string;
-  metric: string;
-  period: string;
-}
-
-export interface AnalysisData {
-  overview: string;
-  key_findings: KeyFinding[];
-  positive_trends: TrendItem[];
-  challenges: TrendItem[];
-  strategic_questions: string[];
-  next_steps: string[];
-}
+/** Typen bor nu i lib'et (ren udskillelse, hb-ai-design.md) — re-eksporten
+    bevarer navn/form/eksportsted for CompanyChatPane's type-import. */
+export type { AnalysisData } from "@/lib/financialAnalysis";
 
 const severityConfig = {
   positiv: {
@@ -77,18 +54,33 @@ interface AIFinancialAnalysisProps {
   onSelectPeriod?: (key: string) => void;
 }
 
-const CORE_FIELDS = ["revenue", "gross_profit", "ebt"] as const;
-
 const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriodKey = null, onSelectPeriod }: AIFinancialAnalysisProps) => {
-  const queryClient = useQueryClient();
-  const { data: facts = [] } = useCompanyFacts(companyId ?? undefined);
-  const { data: commentaries = [], isLoading: commentariesLoading } = useCompanyCommentary(companyId ?? undefined);
+  // Maskinen bor i useFinancialAnalysis (ren udskillelse — én sandhed for
+  // messages-idempotensen). Callbacks reproducerer komponentens toasts 1:1.
+  const {
+    availablePeriods,
+    effectivePeriodKey,
+    currentPeriodLabel,
+    analysis,
+    sortedFindings,
+    isStale,
+    dataSufficiency,
+    needsMoreData,
+    loading,
+    handleGenerate,
+  } = useFinancialAnalysis({
+    conversationId,
+    companyId,
+    userId,
+    selectedPeriodKey,
+    onSelectPeriod,
+    onGenerated: () => toast.success("Analyse genereret"),
+    onError: (m) => toast.error(m),
+  });
 
-  const [loading, setLoading] = useState(false);
   // Nøglefund kan have flere åbne samtidig (alle kritiske åbnes som standard)
   const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
   const [showAllTrends, setShowAllTrends] = useState(false);
-  const [needsMoreData, setNeedsMoreData] = useState(false);
   // De tre tunge sektioner er foldet sammen ved start
   const [openSections, setOpenSections] = useState({ trends: false, questions: false, nextSteps: false });
 
@@ -103,165 +95,10 @@ const AIFinancialAnalysis = ({ conversationId, companyId, userId, selectedPeriod
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Available periods from committed facts (sorted descending)
-  const availablePeriods = useMemo(() => {
-    return [...facts]
-      .sort((a, b) => b.period_key.localeCompare(a.period_key))
-      .map(f => ({
-        period_key: f.period_key,
-        period_label: f.period_label,
-      }));
-  }, [facts]);
-
-  // Auto-select: first period with commentary, or first available period
-  const effectivePeriodKey = useMemo(() => {
-    if (selectedPeriodKey) return selectedPeriodKey;
-    const withCommentary = availablePeriods.find(p =>
-      commentaries.some(c => c.period_key === p.period_key)
-    );
-    return withCommentary?.period_key || availablePeriods[0]?.period_key || null;
-  }, [selectedPeriodKey, availablePeriods, commentaries]);
-
-  // Get commentary for selected period
-  const currentCommentary = useMemo(() => {
-    if (!effectivePeriodKey) return null;
-    return commentaries.find(c => c.period_key === effectivePeriodKey) || null;
-  }, [commentaries, effectivePeriodKey]);
-
-  const analysis = useMemo(() => {
-    if (!currentCommentary?.analysis) return null;
-    return currentCommentary.analysis as unknown as AnalysisData;
-  }, [currentCommentary]);
-
-  // Sorteret KOPI af nøglefund efter alvor (kritisk → advarsel → positiv).
-  // Rører aldrig originalen; index som tie-breaker sikrer stabil rækkefølge
-  // inden for samme alvor.
-  const sortedFindings = useMemo(() => {
-    if (!analysis?.key_findings) return [];
-    const order: Record<string, number> = { kritisk: 0, advarsel: 1, positiv: 2 };
-    return [...analysis.key_findings]
-      .map((f, i) => ({ f, i }))
-      .sort((a, b) => ((order[a.f.severity] ?? 9) - (order[b.f.severity] ?? 9)) || (a.i - b.i))
-      .map(x => x.f);
-  }, [analysis]);
-
   // Default-fold: åbn alle kritiske fund (eller det første hvis ingen kritiske).
   useEffect(() => {
-    if (sortedFindings.length === 0) {
-      setExpandedFindings(new Set());
-      return;
-    }
-    const criticalIdx = sortedFindings
-      .map((f, i) => (f.severity === "kritisk" ? i : -1))
-      .filter(i => i >= 0);
-    setExpandedFindings(new Set(criticalIdx.length > 0 ? criticalIdx : [0]));
+    setExpandedFindings(new Set(deriveDefaultExpanded(sortedFindings)));
   }, [sortedFindings]);
-
-  const isStale = currentCommentary?.is_stale ?? false;
-
-  // Check data sufficiency for the selected period
-  const dataSufficiency = useMemo(() => {
-    if (!effectivePeriodKey) return { sufficient: false, populatedCoreCount: 0 };
-    const fact = facts.find(f => f.period_key === effectivePeriodKey);
-    if (!fact?.metrics) return { sufficient: false, populatedCoreCount: 0 };
-    const metrics = fact.metrics as Record<string, unknown>;
-    const populatedCoreCount = CORE_FIELDS.filter(k => metrics[k] != null).length;
-    return { sufficient: populatedCoreCount >= 3, populatedCoreCount };
-  }, [effectivePeriodKey, facts]);
-
-  const currentPeriodLabel = useMemo(() => {
-    const p = availablePeriods.find(p => p.period_key === effectivePeriodKey);
-    return p?.period_label || effectivePeriodKey || "";
-  }, [availablePeriods, effectivePeriodKey]);
-
-  const handleGenerate = async (periodKey?: string) => {
-    const targetPeriod = periodKey || effectivePeriodKey;
-    if (!targetPeriod || !companyId) {
-      toast.error("Ingen periode valgt.");
-      return;
-    }
-
-    setLoading(true);
-    setNeedsMoreData(false);
-    if (periodKey) onSelectPeriod?.(periodKey);
-
-    try {
-      const result = await generateCommentary(companyId, targetPeriod);
-
-      // Handle needs_more_data response from edge function
-      if ((result as any)?.needs_more_data) {
-        setNeedsMoreData(true);
-        setLoading(false);
-        return;
-      }
-
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ["company-commentaries", companyId] });
-
-      // (default-fold for nøglefund styres af useEffect på sortedFindings)
-
-      // Post to chat
-      if (conversationId && userId && result.analysis) {
-        const analysisData = result.analysis as unknown as AnalysisData;
-        const summaryParts: string[] = [];
-        const label = availablePeriods.find(p => p.period_key === targetPeriod)?.period_label || targetPeriod;
-        summaryParts.push(`📊 **AI Finansiel Analyse · ${label}**\n`);
-        summaryParts.push(analysisData.overview || "");
-        if (analysisData.key_findings?.length > 0) {
-          summaryParts.push(`\n\n**Nøglefund:**`);
-          analysisData.key_findings.forEach((f, i) => {
-            const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-            summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
-          });
-        }
-        const content = summaryParts.join("\n");
-
-        // Periodenøgle for den analyserede periode. targetPeriod ER allerede en
-        // kanonisk YYYY-MM-nøgle (fra committede facts); fald tilbage til at parse
-        // labelen. Uden en nøgle har vi intet idempotens-anker → spring kortet over
-        // (aldrig en "ukendt periode"-dublet).
-        const periodKey = targetPeriod || parseReportPeriodToKey(label);
-        if (periodKey) {
-          const contextMeta = { kind: "ai_analysis", period_key: periodKey, title: `AI Analyse · ${label}` };
-
-          // Idempotent pr. (samtale, periode): EET ai_analysis-kort pr. periode, aldrig
-          // en stak. Findes et → opdatér content + peg på nyeste commentary; ellers
-          // indsæt nyt. Samme mønster som reportCommit.ts' report_card.
-          const { data: existing } = await supabase
-            .from("messages")
-            .select("id")
-            .eq("conversation_id", conversationId)
-            .eq("context_type", "report")
-            .eq("context_meta->>kind", "ai_analysis")
-            .eq("context_meta->>period_key", periodKey)
-            .limit(1);
-
-          if (existing && existing.length > 0) {
-            await supabase
-              .from("messages")
-              .update({ content, context_id: result.id } as never)
-              .eq("id", (existing[0] as { id: string }).id);
-          } else {
-            await postActivityMessage({
-              conversationId,
-              senderId: userId,
-              content,
-              contextType: "report",
-              contextId: result.id,
-              contextMeta,
-            });
-          }
-        }
-      }
-
-      toast.success("Analyse genereret");
-    } catch (e: any) {
-      console.error("Commentary generation error:", e);
-      toast.error(e.message || "Kunne ikke generere analyse");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
