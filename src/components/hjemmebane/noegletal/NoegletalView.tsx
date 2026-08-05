@@ -340,21 +340,14 @@ export const NoegletalView = () => {
     staleTime: 10 * 60_000,
   });
 
-  if (isAdvisor && !companyId) {
-    return <HbAdvisorCompanyPrompt />;
-  }
-
-  if (factsLoading || targetsLoading || benchmarksLoading) {
-    return <p className="text-sm text-hb-ink-soft">Henter dine nøgletal…</p>;
-  }
-
-  const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) ?? kpiMetrics[0];
-  const activeUnit = KPI_DEFS.find((d) => d.key === activeMetric?.key)?.unit;
+  // Ren state-afledning — står FØR de tidlige returns så scroll-effekten
+  // kan gate på den.
   const editingReady = Object.keys(editValues).length > 0;
 
   // Mål/benchmark-panelet ligger nederst — uden scroll tror brugeren at
   // intet skete. setTimeout(0) så den betinget renderede sektion findes i
   // DOM først. Kun ved ÅBNING: guarden gør at "Skjul" aldrig scroller.
+  // SKAL stå før de tidlige returns (React #310 — hotfix 2026-08-05).
   const advancedRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!showAdvanced || !editingReady) return;
@@ -372,6 +365,17 @@ export const NoegletalView = () => {
     setSavedNote(null);
     setSaveError(null);
   };
+
+  if (isAdvisor && !companyId) {
+    return <HbAdvisorCompanyPrompt />;
+  }
+
+  if (factsLoading || targetsLoading || benchmarksLoading) {
+    return <p className="text-sm text-hb-ink-soft">Henter dine nøgletal…</p>;
+  }
+
+  const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) ?? kpiMetrics[0];
+  const activeUnit = KPI_DEFS.find((d) => d.key === activeMetric?.key)?.unit;
 
   /** Prik-renderer til BÅDE dot og activeDot: recharts' active-dot-lag
       renderes oven på dots-laget uden egne handlers, så det øverste lag
