@@ -48,9 +48,14 @@ serve(async (req) => {
       ? "bedre end forventet (vækst, effektivisering, øget salg)"
       : "værre end forventet (faldende salg, stigende omkostninger, forsinkelser)";
 
-    const baseSummary = baseRows.map((r: any) => 
-      `${r.label} (${r.group}): [${r.values.join(", ")}]`
+    // Prompt-hærdning (BACKLOG [P3], hb-ai-merge-recon §a1): modellen SKAL
+    // se de rigtige keys — før viste baseSummary kun labels, og modellen
+    // kunne kun gætte sine "key"-returværdier.
+    const baseSummary = baseRows.map((r: any) =>
+      `${r.key} — ${r.label} (${r.group}): [${r.values.join(", ")}]`
     ).join("\n");
+
+    const baseKeys = baseRows.map((r: any) => r.key);
 
     const systemPrompt = `Du er en ekspert i dansk budgettering og scenarieanalyse.
 
@@ -63,7 +68,7 @@ REGLER:
 3. Bevar sæsonmønstre fra base-budgettet men ændr størrelserne.
 4. Justeringerne skal være realistiske og varierede — ikke blot en flad procentjustering.
 5. Personaleomkostninger ændres minimalt (2-5%).
-6. Returnér PRÆCIS samme kategorier med samme "key" værdier.
+6. Returnér PRÆCIS de angivne "key"-værdier — feltet FØR "—" på hver linje — ordret og uændret. Find aldrig selv på keys.
 7. Alle værdier skal være hele tal (afrundet).
 8. Hvert tal SKAL være forskelligt fra base-budgettet.`;
 
@@ -102,7 +107,7 @@ REGLER:
                       items: {
                         type: "object",
                         properties: {
-                          key: { type: "string", description: "Kategori-nøgle (samme som base)" },
+                          key: { type: "string", enum: baseKeys, description: "Kategori-nøgle (samme som base)" },
                           monthly: {
                             type: "array",
                             items: { type: "number" },
@@ -151,10 +156,25 @@ REGLER:
 
       const parsed = JSON.parse(toolCall.function.arguments);
 
-      // Validate that AI actually changed the numbers
-      const isIdentical = (parsed.categories || []).every((cat: any) => {
+      // Hærdet validering (hb-ai-merge-recon §a4): den gamle
+      // `!baseRow → false`-gren lod helt umatchede svar passere som
+      // "ikke identiske". Nu dømmes KUN over kategorier hvis key findes
+      // i base — nul match er sin egen retry-grund.
+      const baseKeySet = new Set(baseKeys);
+      const matched = (parsed.categories || []).filter((cat: any) => baseKeySet.has(cat.key));
+
+      if (matched.length === 0) {
+        console.warn(
+          `Attempt ${attempt + 1}: AI returned no matching keys. Received:`,
+          (parsed.categories || []).map((cat: any) => cat.key),
+        );
+        lastError = new Error("AI returned no matching keys");
+        continue;
+      }
+
+      // Validate that AI actually changed the numbers (kun over matchede)
+      const isIdentical = matched.every((cat: any) => {
         const baseRow = baseRows.find((r: any) => r.key === cat.key);
-        if (!baseRow) return false;
         return JSON.stringify(cat.monthly) === JSON.stringify(baseRow.values);
       });
 
@@ -167,7 +187,7 @@ REGLER:
       // Log change stats
       let changedCount = 0;
       let totalCount = 0;
-      for (const cat of (parsed.categories || [])) {
+      for (const cat of matched) {
         const baseRow = baseRows.find((r: any) => r.key === cat.key);
         if (baseRow) {
           for (let i = 0; i < Math.min(cat.monthly.length, baseRow.values.length); i++) {
@@ -176,7 +196,7 @@ REGLER:
           }
         }
       }
-      console.log(`Values changed: ${changedCount}/${totalCount}`);
+      console.log(`Matched categories: ${matched.length}/${(parsed.categories || []).length} · Values changed: ${changedCount}/${totalCount}`);
 
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
