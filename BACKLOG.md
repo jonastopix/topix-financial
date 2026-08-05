@@ -492,11 +492,11 @@ arves som bevidst bro (gammelt udtryk); legat dækkes af MemberRoute.
 
 FORUDSÆTNINGER for GO: (i) push-indhold klar (mindst ét published
 indslag), (ii) advisor-gennemgang af /boardroom på rigtige data,
-(iii) koncern-banner-afklaring (GroupWelcomeBanner-ækvivalent el. bevidst
-udeladelse), (iv) expired-gate-broen accepteret el. konverteret,
-(v) princip 8-rammen: forside-swappen er IKKE den samlede lancering af
-medlemsrejsen — den styres fortsat af konvergens.md §2.8/[P1]
-Akademiet-lancering.
+(iii) UDGÅET 2026-08-05 (koncern-banner-afklaringen — koncern fjernet,
+GroupWelcomeBanner pensioneret), (iv) expired-gate-broen accepteret el.
+konverteret, (v) princip 8-rammen: forside-swappen er IKKE den samlede
+lancering af medlemsrejsen — den styres fortsat af konvergens.md
+§2.8/[P1] Akademiet-lancering.
 
 ---
 
@@ -571,6 +571,11 @@ generér-flowet (generate-financial-commentary) og periodevalgs-kontrakten
 
 ### [P1] Koncern-RPC månedsindeks-fejl — januar tabes, måneder forskydes (recon §7.1, noteret 2026-08-05) — EGET spor
 
+STATUS: BORTFALDET 2026-08-05 — koncern fjernet (produktbeslutning;
+kode-PR feat/koncern-fjernelse, DB-drop følger i SPOR 3, jf.
+hb-koncern-recon.txt). RPC'en get_my_group_budget_summary droppes i
+stedet for at fixes.
+
 Frontend skriver monthIdx 0-11 i alle budget-skriveveje (fx
 `${year}-${scenario}-${monthIdx}` med monthIdx fra values.map);
 RPC'en `get_my_group_budget_summary` accepterer kun 1-12
@@ -604,17 +609,20 @@ Budget-mål → /budget for alle.
 
 FORUDSÆTNINGER for GO: (i) #forecast-ankeret verificeret fra KOLD
 navigering på byggeruten, (ii) notifikations-deep_link efterprøvet
-(alert → /budget lander rigtigt post-swap), (iii) koncern-drill-down
-efterprøvet (GroupDashboard/AdvisorGroupDashboard → /budget m.
-company-kontekst), (iv) advisor-gennemgang af hele fladen på rigtige
-data (alle seks funktioner + begge import-spor), (v) W6-rettelsen
-(company-filteret) har levet i prod via gammel flade uden regressioner,
-(vi) princip 8-rammen: Budget-GO er IKKE medlemsrejse-lanceringen —
-den styres af konvergens.md §2.8.
+(alert → /budget lander rigtigt post-swap), (iii) UDGÅET 2026-08-05
+(koncern-drill-down — koncern fjernet), (iv) advisor-gennemgang af hele
+fladen på rigtige data (alle seks funktioner + begge import-spor),
+(v) W6-rettelsen (company-filteret) har levet i prod via gammel flade
+uden regressioner, (vi) princip 8-rammen: Budget-GO er IKKE
+medlemsrejse-lanceringen — den styres af konvergens.md §2.8.
 
 ---
 
 ### [P2] Dobbelt kategori→gruppe-sandhed for budget (recon §7.2, noteret 2026-08-05)
+
+STATUS: BORTFALDET 2026-08-05 — koncern fjernet (produktbeslutning).
+DB-spejlet budget_category_group_map var kun koncern-RPC'ens sandhed og
+droppes i SPOR 3; lib/budgetTemplates.ts er herefter eneste sandhed.
 
 lib/budgetTemplates.ts (frontend) og budget_category_group_map (DB,
 seedet 20260316113038:16-103 — "80 rows (7 templates)") er to sandheder;

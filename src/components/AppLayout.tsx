@@ -19,7 +19,6 @@ const CURRENT_ANNOUNCEMENT = {
   title: "Nyheder i The Boardroom",
   items: [
     "Din refleksion viser nu automatisk dine milestone-fremskridt",
-    "Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data",
     "AI-chefen genererer nyt ugesfokus hver mandag — se det øverst på dit dashboard",
   ],
 };

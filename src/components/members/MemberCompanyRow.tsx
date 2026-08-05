@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Users, Globe, MapPin, User,
   Mail, Phone, Wallet, ExternalLink, Hash, Trash2,
   UserPlus, X, Activity, Send, RotateCcw, CheckCircle2,
-  Loader2, Layers, Pencil, CalendarDays,
+  Loader2, Pencil, CalendarDays,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
@@ -21,8 +21,6 @@ interface MemberCompanyRowProps {
   onToggle: () => void;
   isAdmin: boolean;
   isAdvisor: boolean;
-  groupInfoMap: Map<string, { groupName: string; groupId: string; isAnchor: boolean }>;
-  groupedCompanyIds: Set<string>;
   resendingInvitation: string | null;
   removingMember: string | null;
   onRename: (id: string, currentName: string) => void;
@@ -31,7 +29,6 @@ interface MemberCompanyRowProps {
   onResendInvitation: (company: CompanyData) => void;
   onRemoveMember: (company: CompanyData, member: CompanyMember) => void;
   onDelete: (company: CompanyData) => void;
-  onCreateGroup: (id: string, name: string) => void;
   onEditCompany: (companyId: string) => void;
   onEnrich?: (companyId: string) => void;
   getDisplayRevenue: (c: CompanyData) => { value: number; source: string } | null;
@@ -44,8 +41,6 @@ const MemberCompanyRow = ({
   onToggle,
   isAdmin,
   isAdvisor,
-  groupInfoMap,
-  groupedCompanyIds,
   resendingInvitation,
   removingMember,
   onRename,
@@ -54,7 +49,6 @@ const MemberCompanyRow = ({
   onResendInvitation,
   onRemoveMember,
   onDelete,
-  onCreateGroup,
   onEditCompany,
   onEnrich,
   getDisplayRevenue,
@@ -532,14 +526,6 @@ const MemberCompanyRow = ({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-secondary/80 transition-colors border border-border"
                   >
                     <Pencil className="h-3 w-3" /> Rediger virksomhed
-                  </button>
-                )}
-                {isAdmin && !groupedCompanyIds.has(c.id) && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onCreateGroup(c.id, c.name); }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors border border-primary/30"
-                  >
-                    <Layers className="h-3 w-3" /> Gør til koncern
                   </button>
                 )}
                 {isAdmin && (

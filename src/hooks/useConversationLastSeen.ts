@@ -14,7 +14,7 @@ interface LastSeenEntry {
  */
 export function useConversationLastSeen(
   conversationId: string | null,
-  conversationType: "company" | "group",
+  conversationType: "company",
   currentUserId: string | undefined,
   latestMessageId: string | null
 ) {

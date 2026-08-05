@@ -19,7 +19,7 @@ export interface AggregatedReaction {
 
 export function useMessageReactions(
   messageIds: string[],
-  messageTable: "messages" | "group_messages",
+  messageTable: "messages",
   currentUserId: string | undefined
 ) {
   const [reactions, setReactions] = useState<Map<string, Reaction[]>>(new Map());

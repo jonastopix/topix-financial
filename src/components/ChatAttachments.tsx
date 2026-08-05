@@ -76,7 +76,7 @@ export function MessageAttachments({
   attachments: ChatAttachment[];
   isMine: boolean;
   messageId: string;
-  source: "messages" | "group_messages";
+  source: "messages";
 }) {
   if (!attachments || attachments.length === 0) return null;
 

@@ -5,8 +5,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import CreateGroupWizard from "@/components/CreateGroupWizard";
-import AddCompanyToGroupDialog from "@/components/AddCompanyToGroupDialog";
 import {
   Building2, Search, ChevronDown, ArrowUpDown, UserPlus,
   AlertTriangle, Loader2, Layers, Pencil, Users, FileText,
@@ -171,13 +169,6 @@ const Members = () => {
   // Edit company data state (delt dialog, aabnes in-place fra raekken)
   const [editCompanyId, setEditCompanyId] = useState<string | null>(null);
   const [editCompanyOpen, setEditCompanyOpen] = useState(false);
-
-  // Group/Koncern state (admin-only)
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardAnchor, setWizardAnchor] = useState<{ id: string; name: string } | null>(null);
-
-  // Add company to existing group (admin-only)
-  const [addToGroupTarget, setAddToGroupTarget] = useState<{ groupId: string; groupName: string } | null>(null);
 
   // Standalone invite (no company)
   const [standaloneInviteOpen, setStandaloneInviteOpen] = useState(false);
@@ -487,31 +478,12 @@ const Members = () => {
         .filter((inv: any) => inv.company_id === null && inv.status === 'pending')
         .map((inv: any) => ({ id: inv.id, email: inv.email, created_at: inv.created_at, token: inv.token, lastSentAt: lastSentMap.get(inv.email) || null }));
 
-      let groupInfoMapResult = new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
-      let groupedCompanyIdsResult = new Set<string>();
-
-      if (isAdmin) {
-        const { data: gcData } = await supabase
-          .from("group_companies" as any)
-          .select("company_id, group_id, groups:group_id(id, name, anchor_company_id)" as any);
-        (gcData || []).forEach((gc: any) => {
-          groupedCompanyIdsResult.add(gc.company_id);
-          groupInfoMapResult.set(gc.company_id, {
-            groupName: gc.groups?.name || "Koncern",
-            groupId: gc.group_id,
-            isAnchor: gc.groups?.anchor_company_id === gc.company_id,
-          });
-        });
-      }
-
       // Sort
       const sortedCompanies = [...enriched].sort((a, b) => a.name.localeCompare(b.name, "da"));
 
       return {
         companies: sortedCompanies,
         standalonePendingInvitations: standalonePending,
-        groupInfoMap: groupInfoMapResult,
-        groupedCompanyIds: groupedCompanyIdsResult,
         legatCompanies: allCompanies.filter((c: any) => c.is_legat),
         legatCompanyIds,
         allMembers: membersRes.data || [],
@@ -525,8 +497,6 @@ const Members = () => {
   // Destructure from query data
   const companies = membersData?.companies || [];
   const standalonePendingInvitations = membersData?.standalonePendingInvitations || [];
-  const groupInfoMap = membersData?.groupInfoMap || new Map<string, { groupName: string; groupId: string; isAnchor: boolean }>();
-  const groupedCompanyIds = membersData?.groupedCompanyIds || new Set<string>();
   const legatCompanies = membersData?.legatCompanies || [];
   const legatCompanyIds = membersData?.legatCompanyIds || new Set<string>();
   const allMembersRaw = (membersData?.allMembers || []) as any[];
@@ -1005,24 +975,6 @@ const Members = () => {
     return result;
   }, [companies, search, sortKey, sortDir, filterIndustry]);
 
-  const groupedView = useMemo(() => {
-    const standaloneCompanies = filtered.filter(c => !groupInfoMap.has(c.id));
-    const groupMap = new Map<string, {
-      groupId: string; groupName: string;
-      anchorCompany: CompanyData | null; subCompanies: CompanyData[];
-    }>();
-    for (const c of filtered) {
-      const info = groupInfoMap.get(c.id);
-      if (!info) continue;
-      if (!groupMap.has(info.groupId)) {
-        groupMap.set(info.groupId, { groupId: info.groupId, groupName: info.groupName, anchorCompany: null, subCompanies: [] });
-      }
-      const group = groupMap.get(info.groupId)!;
-      if (info.isAnchor) group.anchorCompany = c;
-      else group.subCompanies.push(c);
-    }
-    return { standaloneCompanies, groups: [...groupMap.values()] };
-  }, [filtered, groupInfoMap]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -1217,7 +1169,7 @@ const Members = () => {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-        ) : (groupedView.standaloneCompanies.length === 0 && groupedView.groups.length === 0) ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
@@ -1226,7 +1178,7 @@ const Members = () => {
           </div>
         ) : (
           <div className="divide-y divide-border/50">
-            {groupedView.standaloneCompanies.map((c) => (
+            {filtered.map((c) => (
               <MemberCompanyRow
                 key={c.id}
                 company={c}
@@ -1234,8 +1186,6 @@ const Members = () => {
                 onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
                 isAdmin={!!isAdmin}
                 isAdvisor={!!isAdvisor}
-                groupInfoMap={groupInfoMap}
-                groupedCompanyIds={groupedCompanyIds}
                 resendingInvitation={resendingInvitation}
                 removingMember={removingMember}
                 onRename={(id, name) => { setRenamingCompany({ id, currentName: name }); setRenameValue(name); }}
@@ -1244,7 +1194,6 @@ const Members = () => {
                 onResendInvitation={handleResendInvitation}
                 onRemoveMember={handleRemoveMember}
                 onDelete={(c) => { setDeleteTarget(c); setDeleteDialogOpen(true); }}
-                onCreateGroup={(id, name) => { setWizardAnchor({ id, name }); setWizardOpen(true); }}
                 onEditCompany={(id) => { setEditCompanyId(id); setEditCompanyOpen(true); }}
                 onEnrich={(companyId) => { setEnrichCompanyId(companyId); setShowImportDialog(true); }}
                 getDisplayRevenue={getDisplayRevenue}
@@ -1252,115 +1201,11 @@ const Members = () => {
               />
             ))}
 
-            {/* Group / Koncern consolidated rows */}
-            {groupedView.groups.map(group => {
-              const groupExpandKey = `group_${group.groupId}`;
-              const isGroupExpanded = expandedId === groupExpandKey;
-              const allCompanies = [group.anchorCompany, ...group.subCompanies].filter(Boolean) as CompanyData[];
-              const totalReports = allCompanies.reduce((s, c) => s + c.reportCount, 0);
-              const groupTotalMembers = allCompanies.reduce((s, c) => s + c.members.length, 0);
-              return (
-                <div key={group.groupId} className="border-b border-border/50">
-                  <button
-                    onClick={() => setExpandedId(isGroupExpanded ? null : groupExpandKey)}
-                    className="w-full text-left hover:bg-secondary/30 transition-colors focus:outline-none"
-                  >
-                    <div className="hidden sm:grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr_0.5fr] gap-3 px-5 py-3 items-center">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <Layers className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground truncate">{group.groupName}</span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold shrink-0">Koncern</span>
-                            {isAdmin && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setAddToGroupTarget({ groupId: group.groupId, groupName: group.groupName }); }}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-primary/20 text-primary hover:bg-primary/10 transition-colors shrink-0"
-                              >
-                                + Tilføj
-                              </button>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            {allCompanies.length} selskaber · {groupTotalMembers} brugere
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{totalReports} rap.</span>
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <div className="flex items-center justify-end">
-                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
-                      </div>
-                    </div>
-                    <div className="sm:hidden flex items-center gap-3 px-5 py-3">
-                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <Layers className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-foreground truncate">{group.groupName}</p>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">Koncern</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{allCompanies.length} selskaber · {totalReports} rapporter</p>
-                      </div>
-                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
-                    </div>
-                  </button>
-
-                  {isGroupExpanded && (
-                    <div className="bg-secondary/10 divide-y divide-border/30">
-                      {allCompanies.map(c => (
-                        <div key={c.id} className="px-5 py-2.5 flex items-center gap-3 pl-8 sm:pl-12 group/subrow hover:bg-secondary/20 transition-colors">
-                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                            {c.logo_url ? (
-                              <img src={c.logo_url} alt={c.name} className="h-full w-full object-contain" />
-                            ) : (
-                              <span className="text-[10px] font-semibold text-primary">{getInitials(c.name)}</span>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm text-foreground truncate">{c.name}</p>
-                              {groupInfoMap.get(c.id)?.isAnchor && (
-                                <span className="text-[8px] px-1 py-0.5 rounded bg-primary/10 text-primary font-semibold">Anchor</span>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setRenamingCompany({ id: c.id, currentName: c.name }); setRenameValue(c.name); }}
-                                className="opacity-0 group-hover/subrow:opacity-100 transition-opacity p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0"
-                                title="Omdøb virksomhed"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {c.reportCount} rapporter · {c.members.length} brugere
-                              {c.industry_label && ` · ${c.industry_label}`}
-                            </p>
-                          </div>
-                          {c.members.length > 0 && (
-                            <Link
-                              to={`/members/${c.members[0].user_id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-[10px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
-                            >
-                              Se data
-                            </Link>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </div>
         )}
 
         <div className="px-5 py-3 bg-secondary/30 border-t border-border text-xs text-muted-foreground">
-          Viser {groupedView.standaloneCompanies.length} virksomheder + {groupedView.groups.length} koncerner af {companies.length} total
+          Viser {filtered.length} af {companies.length} virksomheder
         </div>
       </div>
 
@@ -1561,33 +1406,6 @@ const Members = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Group creation wizard */}
-      {wizardAnchor && (
-        <CreateGroupWizard
-          open={wizardOpen}
-          onOpenChange={setWizardOpen}
-          anchorCompany={wizardAnchor}
-          allCompanies={companies.map((c) => ({ id: c.id, name: c.name }))}
-          groupedCompanyIds={groupedCompanyIds}
-          onCreated={() => refetchMembers()}
-        />
-      )}
-
-      {addToGroupTarget && (
-        <AddCompanyToGroupDialog
-          open={!!addToGroupTarget}
-          onOpenChange={(val) => { if (!val) setAddToGroupTarget(null); }}
-          groupId={addToGroupTarget.groupId}
-          groupName={addToGroupTarget.groupName}
-          allCompanies={companies.map((c) => ({
-            id: c.id, name: c.name,
-            members: c.members.map((m) => ({ user_id: m.user_id, full_name: m.full_name, role: m.role })),
-          }))}
-          groupedCompanyIds={groupedCompanyIds}
-          onSuccess={() => refetchMembers()}
-        />
-      )}
 
       {/* Rename company dialog */}
       <Dialog open={!!renamingCompany} onOpenChange={(open) => { if (!open) setRenamingCompany(null); }}>

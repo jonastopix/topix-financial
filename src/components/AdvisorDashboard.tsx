@@ -20,7 +20,6 @@ import {
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
-import type { GroupCompanySummary } from "@/lib/groupDashboardUtils";
 import KPICard from "@/components/KPICard";
 import AdvisorBroadcast from "@/components/AdvisorBroadcast";
 import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
@@ -99,7 +98,25 @@ interface KpiTargetData {
   target_label: string;
 }
 
-interface InvestorCompanySummary extends GroupCompanySummary {
+interface CompanyMetricSummary {
+  company_id: string;
+  company_name: string;
+  logo_url: string | null;
+  has_report: boolean;
+  has_verified_metrics: boolean;
+  latest_report_id: string | null;
+  effective_period_label: string | null;
+  effective_period_key: string | null;
+  revenue: number | null;
+  gross_profit: number | null;
+  ebt: number | null;
+  cash: number | null;
+  missing_current_period: boolean;
+  revenue_prev?: number | null;
+  has_pulse?: boolean;
+}
+
+interface InvestorCompanySummary extends CompanyMetricSummary {
   revenueTrendPct: number | null;
   ebitdaMargin: number | null;
   budgetRevenue: number | null;
@@ -310,7 +327,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, notesRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, groupConvsRes, groupsRes, groupCompaniesRes, weeklyFocusRes,
+        recentMilestonesRes, weeklyFocusRes,
         unreadAgentMsgsRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
       ] = await Promise.all([
         supabase
@@ -371,14 +388,6 @@ const AdvisorDashboard = () => {
           .order("updated_at", { ascending: false })
           .limit(50),
         (supabase
-          .from("group_conversations" as any)
-          .select("id, group_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
-          .order("last_message_at", { ascending: false })),
-        supabase
-          .from("groups")
-          .select("id, name"),
-        (supabase.from("group_companies" as any).select("company_id")),
-        (supabase
           .from("weekly_focus")
           .select("company_id")
           .eq("status", "active")
@@ -413,21 +422,7 @@ const AdvisorDashboard = () => {
           .limit(2000) as any),
       ]);
 
-      // Map group conversations into the same shape as company conversations
-      const groupNameMap = new Map<string, string>();
-      for (const g of ((groupsRes.data || []) as any[])) {
-        groupNameMap.set(g.id, g.name);
-      }
-      const groupConvsMapped = ((groupConvsRes as any)?.data || []).map((gc: any) => ({
-        ...gc,
-        company_id: `group_${gc.group_id}`,
-        id: `group_${gc.id}`,
-      })) as ConversationRow[];
-
-      const allConversations = [
-        ...(convRes.data || []) as ConversationRow[],
-        ...groupConvsMapped,
-      ];
+      const allConversations = (convRes.data || []) as ConversationRow[];
       const conversations = allConversations.filter((conversation) => conversation.conversation_status === "open");
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
@@ -442,11 +437,6 @@ const AdvisorDashboard = () => {
           .filter((c: any) => c.is_legat)
           .map((c: any) => c.id)
       );
-      // Add groups as pseudo-companies so they resolve in companyMap
-      for (const [gid, gname] of groupNameMap) {
-        companyMap.set(`group_${gid}`, { id: `group_${gid}`, name: gname, logo_url: null });
-      }
-
       // user_id → company_id
       const userToCompany = new Map<string, string>();
       for (const m of (companyMembersRes.data || []) as any[]) {
@@ -909,7 +899,6 @@ const AdvisorDashboard = () => {
         assigned_advisor_id: string | null;
         assigned_advisor_name: string | null;
         sortValue: number;
-        isGroup?: boolean;
       };
       const bWaiting: BucketItem[] = [];
       const bFresh: BucketItem[] = [];
@@ -983,23 +972,6 @@ const AdvisorDashboard = () => {
         }
       }
 
-      // Koncern-samtaler → bunke 1 (venter). Company-gates gælder ikke koncerner.
-      for (const gc of groupConvsMapped as any[]) {
-        const groupName = groupNameMap.get(gc.group_id) || "Koncern";
-        const gBase = {
-          company: { company_id: `group_${gc.group_id}`, company_name: groupName, logo_url: null },
-          assigned_advisor_id: gc.assigned_advisor_id ?? null,
-          assigned_advisor_name: advisorProfiles.find((a: any) => a.user_id === gc.assigned_advisor_id)?.full_name ?? null,
-          isGroup: true,
-        };
-        if (gc.awaiting_reply_from === "advisor") {
-          bWaiting.push({ ...gBase, subtext: "Ulæst besked fra koncern", sortValue: 1 });
-        } else if (gc.follow_up_at && new Date(gc.follow_up_at) <= now) {
-          const d = new Date(gc.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-          bWaiting.push({ ...gBase, subtext: `Opfølgning forfalden (${d})`, sortValue: 0 });
-        }
-      }
-
       const bySortDesc = (a: BucketItem, b: BucketItem) => b.sortValue - a.sortValue;
       const buckets = {
         waiting: bWaiting.sort(bySortDesc),
@@ -1009,17 +981,11 @@ const AdvisorDashboard = () => {
         positive: bPositive.sort(bySortDesc),
       };
 
-      const groupedCompanyIds = new Set<string>(
-        ((groupCompaniesRes as any)?.data || []).map((r: any) => r.company_id)
-      );
-
-
-
       return {
         actionQueue, overdueFollowUps, upcomingFollowUps,
         investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany, expiredCompanyIds, pendingCompanyIds,
         buckets, advisorProfiles,
-        allConversations, groupedCompanyIds, companyToUser, companies, legatCompanyIds,
+        allConversations, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
         recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
       };
@@ -1062,22 +1028,15 @@ const AdvisorDashboard = () => {
     return m;
   }, [data?.allConversations]);
 
-  const groupedCompanyIds = data?.groupedCompanyIds || new Set<string>();
 
-  // Count assigned conversations per advisor (companies + groups).
+  // Count assigned conversations per advisor.
   // Udløbede + pending virksomheder ekskluderes (samme gate som bunker + portefølje).
   const latestConvs = investorSummaries
     .filter((company) => !isHiddenCompany(company.company_id))
     .map((company) => allConvsByCompany.get(company.company_id))
     .filter((conv): conv is ConversationRow => !!conv);
 
-  // Add group conversations to assignment tracking
-  const groupConvsForCounting = (data?.allConversations || [])
-    .filter(c => c.company_id?.startsWith("group_"));
-
-  const allTrackedConvs = [...latestConvs, ...groupConvsForCounting];
-
-  const assignmentCounts = allTrackedConvs.reduce((acc, conv) => {
+  const assignmentCounts = latestConvs.reduce((acc, conv) => {
     if (conv.assigned_advisor_id) {
       acc[conv.assigned_advisor_id] = (acc[conv.assigned_advisor_id] || 0) + 1;
     }
@@ -1087,18 +1046,13 @@ const AdvisorDashboard = () => {
   const myAssignments = assignmentCounts[user?.id || ""] || 0;
   const totalAssigned = Object.values(assignmentCounts).reduce((s, n) => s + n, 0);
 
-  // Unassigned: company convs without advisor (excluding grouped companies) + group convs without advisor
+  // Unassigned: company convs without advisor
   const unassignedCompanies = investorSummaries.filter(c =>
-    !groupedCompanyIds.has(c.company_id) &&
     !isHiddenCompany(c.company_id) &&
     !allConvsByCompany.get(c.company_id)?.assigned_advisor_id
   ).length;
 
-  const unassignedGroups = groupConvsForCounting.filter(
-    c => !c.assigned_advisor_id
-  ).length;
-
-  const unassignedCount = unassignedCompanies + unassignedGroups;
+  const unassignedCount = unassignedCompanies;
 
   const engagementScores = investorSummaries.map(c => {
     const hasPulse = !!c.latestPulse && new Date(c.latestPulse.created_at) > new Date(Date.now() - 30 * 86400000);
@@ -1346,11 +1300,10 @@ const AdvisorDashboard = () => {
                 {b.items.map((item: any) => {
                   const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
                   const userId = data?.companyToUser?.get(item.company.company_id);
-                  const isGroup = !!item.isGroup;
                   // Fremhæv bunkens primære handling; fald tilbage til den anden hvis
                   // den ønskede knap ikke findes, så ingen række står uden primær.
                   const chatOK = !!convId;
-                  const companyOK = !!userId && !isGroup;
+                  const companyOK = !!userId;
                   let chatPrimary = false, companyPrimary = false;
                   if (b.primary === "chat") { chatPrimary = chatOK; companyPrimary = !chatOK && companyOK; }
                   else { companyPrimary = companyOK; chatPrimary = !companyOK && chatOK; }
@@ -1382,7 +1335,7 @@ const AdvisorDashboard = () => {
                             Åbn chat
                           </button>
                         )}
-                        {userId && !isGroup && (
+                        {userId && (
                           <button
                             onClick={() => navigate(`/members/${userId}`)}
                             className={companyPrimary ? PRIMARY_CLS : SECONDARY_CLS}
@@ -1390,8 +1343,7 @@ const AdvisorDashboard = () => {
                             Se virksomhed
                           </button>
                         )}
-                        {!isGroup && (
-                          <DropdownMenu>
+                        <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground">
                                 <MoreHorizontal className="h-3 w-3" />
@@ -1408,8 +1360,7 @@ const AdvisorDashboard = () => {
                                 ⏰ Påmind om 7 dage
                               </DropdownMenuItem>
                             </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                        </DropdownMenu>
                       </div>
                     </div>
                   );

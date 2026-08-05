@@ -9,7 +9,7 @@
 //
 // Bucket A: authenticateUser → callerClient SELECT (RLS gate) → adminClient
 // createSignedUrl. The callerClient (JWT-scoped, anon key) is what enforces
-// access — RLS on `messages` / `group_messages` already encodes "who may see
+// access — RLS on `messages` already encodes "who may see
 // this message", so re-using it as the gate keeps the security model in one
 // place. The adminClient is constructed only AFTER the row is returned and
 // is used solely for createSignedUrl.
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
   };
 
   // ── 3. Validate input — hard whitelist, no dynamic table name ──
-  if (source !== "messages" && source !== "group_messages") {
+  if (source !== "messages") {
     return jsonResponse({ error: "Invalid source" }, 400);
   }
   if (typeof messageId !== "string" || !UUID_RE.test(messageId)) {

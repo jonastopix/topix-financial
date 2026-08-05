@@ -185,7 +185,7 @@ export default function DashboardActionCenter({
         id: "v2026-04-platform-update",
         type: "info",
         title: "Platform opdateret — hvad er nyt",
-        description: "Din refleksion viser nu automatisk dine milestone-fremskridt. Klik på en virksomhed i koncernoverblikket for at dykke direkte ned i dens data. AI-chefen genererer nyt ugesfokus hver mandag.",
+        description: "Din refleksion viser nu automatisk dine milestone-fremskridt. AI-chefen genererer nyt ugesfokus hver mandag.",
         urgency: "low",
         link: "/guide",
       });

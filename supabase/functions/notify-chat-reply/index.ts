@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   if (auth instanceof Response) return auth;
   const { callerId, callerClient } = auth;
 
-  let body: { conversation_id?: string; group_conversation_id?: string; message_id?: string };
+  let body: { conversation_id?: string; message_id?: string };
   try {
     body = await req.json();
   } catch {
@@ -21,9 +21,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { conversation_id, group_conversation_id, message_id } = body;
-  if (!conversation_id && !group_conversation_id) {
-    return new Response(JSON.stringify({ error: "Missing conversation_id or group_conversation_id" }), {
+  const { conversation_id, message_id } = body;
+  if (!conversation_id) {
+    return new Response(JSON.stringify({ error: "Missing conversation_id" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -36,42 +36,7 @@ Deno.serve(async (req) => {
   let companyName = "din virksomhed";
   let memberIds: string[] = [];
 
-  if (group_conversation_id) {
-    // Group conversation path
-    const { data: gc } = await adminClient
-      .from("group_conversations")
-      .select("group_id")
-      .eq("id", group_conversation_id)
-      .maybeSingle();
-
-    if (gc?.group_id) {
-      const { data: group } = await adminClient
-        .from("groups")
-        .select("name")
-        .eq("id", gc.group_id)
-        .maybeSingle();
-      companyName = (group as any)?.name || "din koncern";
-
-      // Get all companies in the group
-      const { data: groupCos } = await adminClient
-        .from("group_companies")
-        .select("company_id")
-        .eq("group_id", gc.group_id);
-
-      const companyIds = (groupCos || []).map((m: any) => m.company_id);
-      if (companyIds.length > 0) {
-        const { data: compMembers } = await adminClient
-          .from("company_members")
-          .select("user_id")
-          .in("company_id", companyIds)
-          .eq("role", "member");
-        memberIds = (compMembers || [])
-          .map((m: any) => m.user_id)
-          .filter((uid: string) => uid !== callerId);
-      }
-    }
-  } else if (conversation_id) {
-    // Regular conversation path
+  {
     const { data: conv } = await adminClient
       .from("conversations")
       .select("company_id")
@@ -106,11 +71,10 @@ Deno.serve(async (req) => {
     priority: "important",
     title: "Ny besked fra din rådgiver",
     body: `Din rådgiver har svaret i chatten for ${companyName}`,
-    deep_link: conversation_id ? `/chat?conversationId=${conversation_id}` : "/chat",
+    deep_link: `/chat?conversationId=${conversation_id}`,
     reference_type: "message",
     reference_id: message_id || undefined,
-    company_id: conversation_id ? undefined : undefined,
-    dedup_key: `chat_reply_${group_conversation_id || conversation_id}_${message_id || Date.now()}`,
+    dedup_key: `chat_reply_${conversation_id}_${message_id || Date.now()}`,
   });
 
   return new Response(JSON.stringify({ sent: inserted }), {

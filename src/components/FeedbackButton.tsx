@@ -9,7 +9,7 @@ const FeedbackButton = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
 
-  const isChatRoute = location.pathname.startsWith("/chat") || location.pathname.startsWith("/group-chat");
+  const isChatRoute = location.pathname.startsWith("/chat");
   if (isChatRoute) return null;
 
   return (

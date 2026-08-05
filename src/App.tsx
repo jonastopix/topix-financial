@@ -42,15 +42,7 @@ const EmailTemplates = lazy(() => import("./pages/EmailTemplates"));
 const AdminEmailLog = lazy(() => import("./pages/AdminEmailLog"));
 const BulkImport = lazy(() => import("./pages/BulkImport"));
 const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
-const AdminGroups = lazy(() => import("./pages/AdminGroups"));
-const AdminGroupDetail = lazy(() => import("./pages/AdminGroupDetail"));
 const AdminLegat = lazy(() => import("./pages/AdminLegat"));
-
-// Lazy — group routes
-const GroupDashboard = lazy(() => import("./pages/GroupDashboard"));
-const GroupBudget = lazy(() => import("./pages/GroupBudget"));
-const AdvisorGroupList = lazy(() => import("./pages/AdvisorGroupList"));
-const AdvisorGroupDashboard = lazy(() => import("./pages/AdvisorGroupDashboard"));
 const LegatDashboard = lazy(() => import("./pages/LegatDashboard"));
 
 // Lazy — designprøve (Projekt Hjemmebane V0)
@@ -218,20 +210,8 @@ const App = () => (
               <Route path="/admin/indhold/boardroom" element={<AdvisorRoute><AdminContent view="boardroom" /></AdvisorRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
-              <Route path="/admin/groups" element={<AdminRoute><AdminGroups /></AdminRoute>} />
-              <Route path="/admin/groups/:groupId" element={<AdminRoute><AdminGroupDetail /></AdminRoute>} />
               <Route path="/admin/legat" element={<AdminRoute><AdminLegat /></AdminRoute>} />
-              <Route path="/groups" element={<AdvisorRoute><AdvisorGroupList /></AdvisorRoute>} />
-              <Route path="/groups/:groupId" element={<AdvisorRoute><AdvisorGroupDashboard /></AdvisorRoute>} />
               <Route path="/legat" element={<ProtectedRoute><LegatDashboard /></ProtectedRoute>} />
-              <Route path="/group" element={<ProtectedRoute><GroupDashboard /></ProtectedRoute>} />
-              <Route path="/group/budget" element={<ProtectedRoute><GroupBudget /></ProtectedRoute>} />
-              <Route path="/group/onboarding" element={<Navigate to="/" replace />} />
-              <Route path="/group/setup-complete" element={<Navigate to="/" replace />} />
-              {/* Old group chat routes — redirect to unified /chat */}
-              <Route path="/group/chat" element={<Navigate to="/chat" replace />} />
-              <Route path="/group-chats" element={<Navigate to="/chat" replace />} />
-              <Route path="/group-chats/:groupId/chat" element={<Navigate to="/chat" replace />} />
               {/* Hjemmebane C1 trin 3 — Akademiet (medlemsvisning, standalone Hb-skal) */}
               <Route path="/akademiet" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />

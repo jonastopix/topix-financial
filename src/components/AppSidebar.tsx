@@ -34,14 +34,12 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Calculator as CalcIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
-import { Layers } from "lucide-react";
 import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import topixIconWhite from "@/assets/topix-icon-white.png";
 
@@ -87,24 +85,11 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user, profile, signOut, isAdvisor, isAdmin, isLegat, isGroupUser, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName, membershipTier } = useAuth();
+  const { user, profile, signOut, isAdvisor, isAdmin, isLegat, companyId, companyName, isCompanyOverride, setCompanyOverride, clearCompanyOverride, ownCompanyName, membershipTier } = useAuth();
   const { viewingAsMember, toggleViewMode } = useViewMode();
   const effectiveAdvisor = isAdvisor && !viewingAsMember;
   const [unreadChat, setUnreadChat] = useState(0);
 
-  // Lightweight query: does advisor have any group access?
-  const { data: hasGroupAccess } = useQuery({
-    queryKey: ["advisor-has-group-access"],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("group_advisor_access" as any)
-        .select("id", { count: "exact", head: true })
-        .eq("advisor_user_id", user!.id);
-      return (count ?? 0) > 0;
-    },
-    enabled: !!user && isAdvisor,
-    staleTime: 5 * 60_000,
-  });
   const { data: newFeedbackCount = 0 } = useQuery({
     queryKey: ["feedback-count"],
     queryFn: async () => {
@@ -240,26 +225,9 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
         totalUnread += count || 0;
       }
 
-      // Group conversations (for group users)
-      if (isGroupUser) {
-        const { data: groupConvs } = await supabase
-          .from("group_conversations" as any)
-          .select("id");
-        if (groupConvs && (groupConvs as any[]).length > 0) {
-          const gcIds = (groupConvs as any[]).map((c: any) => c.id);
-          const { count: groupCount } = await supabase
-            .from("group_messages" as any)
-            .select("id", { count: "exact", head: true })
-            .in("conversation_id", gcIds)
-            .neq("sender_id", user.id)
-            .is("read_at", null);
-          totalUnread += (groupCount as number) || 0;
-        }
-      }
-
       setUnreadChat(totalUnread);
     }
-  }, [user, effectiveAdvisor, isGroupUser]);
+  }, [user, effectiveAdvisor]);
 
   useEffect(() => {
     if (!user) return;
@@ -426,13 +394,6 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
                       (!item.memberOnly || !effectiveAdvisor) &&
                       (!item.advisorOnly || effectiveAdvisor),
                   ),
-                  ...(isGroupUser && !effectiveAdvisor ? [
-                    { icon: Layers, label: "Koncern", path: "/group" },
-                    { icon: CalcIcon, label: "Koncernbudget", path: "/group/budget" },
-                  ] : []),
-                  ...(effectiveAdvisor && hasGroupAccess ? [
-                    { icon: Layers, label: "Koncerner", path: "/groups" },
-                  ] : []),
                   { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
                   ...(effectiveAdvisor ? advisorNavItems : []),
 

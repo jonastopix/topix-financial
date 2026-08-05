@@ -57,7 +57,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | /milestones | Milestones.tsx | Mål + fremdrift | GAMMEL | Konverteres-før-lancering (do.) |
 | /handouts | Handouts.tsx | Interaktive handouts (5 moduler) | GAMMEL | Konverteres-før-lancering (definitions-arkitekturen afgøres i handout-sprintet, §2.5) |
 | /kpis | KPIs.tsx | Nøgletal m. trend/benchmark | GAMMEL | Konverteres-før-lancering — UNDER AFLØSNING: /noegletal er bygget (fuld paritet + trend/AI — forpligtelsen fra rapporterings-rækken INDFRIET her); GO = swap HER (URL'en er notifikations-/email-kontrakt: notify-kpi-comment, detect-financial-alerts, send-monthly-digest + #goals-Guide-ankeret) |
-| /chat | ChatShell.tsx | Samlet chat (rådgiver/AI/grupper) | GAMMEL | Konverteres-før-lancering |
+| /chat | ChatShell.tsx | Samlet chat (rådgiver/AI) | GAMMEL | Konverteres-før-lancering |
 | /book-session | BookSession.tsx | Sessionsbooking | GAMMEL | Konverteres-før-lancering |
 | /pulse | PulseCheckin.tsx | Måneds-refleksion (?period=) | GAMMEL | Konverteres-før-lancering |
 | /community | Community.tsx | Bro til Circle-community | GAMMEL | Forbliver-indtil-videre — genbesøges ved Circle-exit (C3) + Konverteres-før-lancering |
@@ -83,21 +83,18 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 | /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
 | /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
 | /admin/indhold(/partnere,/events,/fremdrift) | AdminContent.tsx | Hb-admin: indholdsstyring (C1) + fremdriftsværktøj (2026-08-05) | HB | Konverteret |
-| /groups(/:groupId) | AdvisorGroupList/Dashboard | Koncern-flader (advisor) | GAMMEL | Forbliver-indtil-videre (§2.6) |
 
 ### Admin
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /admin/config, /admin/emails, /admin/email-log, /admin/import, /admin/report-debug/:id, /admin/feedback, /admin/groups(/:id), /admin/legat | (8 sider) | Platformdrift | GAMMEL | Forbliver-indtil-videre (interne værktøjer — lav konverterings-prioritet) |
+| /admin/config, /admin/emails, /admin/email-log, /admin/import, /admin/report-debug/:id, /admin/feedback, /admin/legat | (7 sider) | Platformdrift | GAMMEL | Forbliver-indtil-videre (interne værktøjer — lav konverterings-prioritet) |
 
-### Legat/koncern (medlemsvarianter)
+### Legat (medlemsvariant)
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
 | /legat | LegatDashboard.tsx | Legat-forløbets dashboard | GAMMEL | Konverteres-før-lancering (§2.6) |
-| /group(/budget) | GroupDashboard/GroupBudget | Koncern-flader (medlem) | GAMMEL | Konverteres-før-lancering (§2.6) |
-| /group/onboarding, /group/setup-complete, /group/chat, /group-chats(/:id/chat) | — | Rene redirects | — | Forbliver (redirect-mønstret, §3) |
 
 ### Demo (uden auth)
 
@@ -136,7 +133,7 @@ er lukket separat (Akademi-intro, besluttet 2026-08-05, jf. §2.7).
 
 ### §2.2 Navigation — fire menu-sandheder · afgøres i: NAVIGATIONS-KONVERGENS
 
-**Hvad/hvor**: AppSidebar (flad, m. legat-/mobilrådgiver-/koncern-varianter)
+**Hvad/hvor**: AppSidebar (flad, m. legat-/mobilrådgiver-varianter)
 + mobil "Mere"-menu (AppLayout.tsx:118-125) · HbSidebars V0-nav (døde links)
 · HbAkademiShells AKADEMI_NAV (rigtige links) · DemoLayouts NAV.
 Tre forskellige informations-arkitekturer.
@@ -178,9 +175,9 @@ klient-skriveveje W1-W7) er udskilt som ren flytning og deles m. gammel
 UI — eneste bogførte semantik-ændringer er W6-company-filteret (recon
 §7.3-rettelsen) og at "fra regnskab" ikke længere skriver en falsk
 webshop_b2c-skabelonmarker (budget-design §e(i)). Budgettets broer:
-budgetTemplates.ts + budget/types.ts (MONTHS) deles m. /group/budget
-(røres ikke); CombinedBudgetWidget røres ikke (forside-konverteringens
-sag); toasts består på gammel /budget-flade. Pensioneret i samme PR
+CombinedBudgetWidget røres ikke (forside-konverteringens sag); toasts
+består på gammel /budget-flade. (Koncern-broen budgetTemplates/MONTHS →
+/group/budget er OPLØST 2026-08-05 — koncern fjernet, §2.6.) Pensioneret i samme PR
 (0 importører): BudgetOverview.tsx, BudgetComparison.tsx,
 RollingForecastCard.tsx.
 
@@ -242,15 +239,20 @@ designsprog-grænsen: refleksionskortet (Hb) linker ind i gammel UI.
 arves) + [P3] fase 2 omvendt link. Koblingen peger på modul-nøglen og
 overlever ombygningen.
 
-### §2.6 Legat- og koncern-varianterne · afgøres i: LEGAT/KONCERN-STILLINGTAGEN
+### §2.6 Legat-varianten · afgøres i: LEGAT-STILLINGTAGEN
 
-**Hvad/hvor**: Legat: eget dashboard (/legat), egen hardcodet nav-variant m.
-låste rækker + Momentumkald-CTA, server-side modul-gating
+**Koncern: FJERNET 2026-08-05** — produktbeslutning (Jonas): funktionen
+fjernes helt og gentænkes forfra ved behov (recon: hb-koncern-recon.txt).
+Kode-PR feat/koncern-fjernelse sletter alle flader/ruter/edge-funktioner;
+data-frigørelsen (SPOR 2) og DB-droppet (SPOR 3, SECURITY DEFINER-
+objekter — eget grønt lys) følger.
+
+**Hvad/hvor (legat)**: eget dashboard (/legat), egen hardcodet nav-variant
+m. låste rækker + Momentumkald-CTA, server-side modul-gating
 (legat_unlocked_modules) m. spejlet klient-logik (Handouts.tsx:67-74).
-Koncern: /group(/budget) + /groups(/:id) + redirect-lag fra ældre struktur.
 
-**Retning**: varianter, ikke dobbeltheder — men enhver navigations-/forside-
-konvergens skal tage stilling (Hb-nav'en kender ingen af dem). BEMÆRK
+**Retning**: variant, ikke dobbelthed — men enhver navigations-/forside-
+konvergens skal tage stilling (Hb-nav'en kender den ikke). BEMÆRK
 (besluttet i denne PR): "Akademiet"-broen tilføjes IKKE i legat-variantens
 hardcodede liste — legat-forløbet er kurateret; Akademi-adgang for legat
 afgøres i legat-stillingtagen.
@@ -355,7 +357,7 @@ route (rapporterings-design-blokkens admin-modstykke-svar).
 - **Events-tilmelding**: ændrer Events-FANENS indhold (deltagerlister
   m.v.), ikke fanerækken.
 - **Gamle admin-værktøjer** (config/emails/email-log/import/feedback/
-  groups/legat): UDEN FOR spejlet — platformdrift i gammel UI;
+  legat): UDEN FOR spejlet — platformdrift i gammel UI;
   konverteres sidst (§1-skæbnerne uændret).
 
 **(iv) Gate**: §0-vedligeholdsreglens punkt 3 — enhver flade-design-blok
