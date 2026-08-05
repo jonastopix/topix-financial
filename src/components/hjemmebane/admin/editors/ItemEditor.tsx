@@ -222,23 +222,46 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
         </HbField>
 
         {form.type === "push_indslag" && (
-          /* Forfatter bor i metadata.author (fri JSONB-bærer — ingen
-             kolonne); vises i bylinen på forsidens hero sammen med
-             published_at-datoen. */
-          <HbField label="Forfatter" htmlFor="item-author" help="Vises i bylinen på forsidens hero.">
-            <HbInput
-              id="item-author"
-              value={((form.metadata as Record<string, unknown>)?.author as string) ?? ""}
-              onChange={(e) =>
-                onDraftChange({
-                  metadata: {
-                    ...((form.metadata as Record<string, unknown>) ?? {}),
-                    author: e.target.value || undefined,
-                  },
-                })
-              }
-            />
-          </HbField>
+          /* Push-felterne bor i metadata (fri JSONB-bærer — ingen kolonner):
+             author vises i hero'ens byline; expires_at ("YYYY-MM-DD") lader
+             hero'en falde tilbage efter udløbsdagens udgang (pickActivePush).
+             Tomme værdier fjernes fra metadata (undefined droppes af JSON). */
+          <>
+            <HbField label="Forfatter" htmlFor="item-author" help="Vises i bylinen på forsidens hero.">
+              <HbInput
+                id="item-author"
+                value={((form.metadata as Record<string, unknown>)?.author as string) ?? ""}
+                onChange={(e) =>
+                  onDraftChange({
+                    metadata: {
+                      ...((form.metadata as Record<string, unknown>) ?? {}),
+                      author: e.target.value || undefined,
+                    },
+                  })
+                }
+              />
+            </HbField>
+
+            <HbField
+              label="Vises til og med"
+              htmlFor="item-expires"
+              help="Valgfri — efter denne dag falder hero'en tilbage. Tom = vises til afløst af nyere."
+            >
+              <HbInput
+                id="item-expires"
+                type="date"
+                value={((form.metadata as Record<string, unknown>)?.expires_at as string) ?? ""}
+                onChange={(e) =>
+                  onDraftChange({
+                    metadata: {
+                      ...((form.metadata as Record<string, unknown>) ?? {}),
+                      expires_at: e.target.value || undefined,
+                    },
+                  })
+                }
+              />
+            </HbField>
+          </>
         )}
 
         {/* htmlFor udeladt: richtext/picker/zone har ikke ét labelbart input. */}

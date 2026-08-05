@@ -21,8 +21,10 @@ import { HbCard } from "../HbCard";
 import { HbEventCard } from "../HbEventCard";
 import { HbSection } from "../HbSection";
 import { HbVideoCard } from "../HbVideoCard";
+import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { deriveNextStep } from "./nextStep";
+import { byPublishedDesc, pickActivePush } from "./pushSelection";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden, preview-kernens IA med rigtige
     kilder: push-hero, tal-strip (facts-laget 1:1), Dit næste skridt
@@ -42,9 +44,6 @@ const getGreeting = () => {
 
 const proseClasses =
   "prose-hb mt-6 max-w-3xl text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5";
-
-const byPublishedDesc = (a: ContentItem, b: ContentItem) =>
-  (b.published_at ?? b.created_at).localeCompare(a.published_at ?? a.created_at);
 
 /** Hero: seneste published push-indslag; uden push en rolig, personaliseret
     velkomst (aldrig tom — og ingen dublet af talks-sektionen). */
@@ -91,7 +90,7 @@ const Hero = ({ push, firstName }: { push: ContentItem | undefined; firstName: s
           {date && <span className="text-hb-ink-soft">{date}</span>}
         </p>
       )}
-      {push.body && (
+      {hasRichTextContent(push.body) && (
         <>
           <button
             type="button"
@@ -102,7 +101,7 @@ const Hero = ({ push, firstName }: { push: ContentItem | undefined; firstName: s
             {bodyOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
           {bodyOpen && (
-            <div className={proseClasses} dangerouslySetInnerHTML={{ __html: push.body }} />
+            <div className={proseClasses} dangerouslySetInnerHTML={{ __html: push.body as string }} />
           )}
         </>
       )}
@@ -255,10 +254,14 @@ export const BoardroomView = () => {
 
   // ── Katalog-afledninger (deler cache med Akademiet) ─────────────────────
   const items = akademi.orderedByArea;
-  const pushItem = useMemo(() => {
-    const all = [...(items.get("push") ?? [])].map((entry) => entry.item).sort(byPublishedDesc);
-    return all[0];
-  }, [items]);
+  const pushItem = useMemo(
+    () =>
+      pickActivePush(
+        (items.get("push") ?? []).map((entry) => entry.item),
+        new Date(),
+      ),
+    [items],
+  );
   const talks = useMemo(
     () =>
       [...(items.get("talks") ?? [])]
