@@ -989,10 +989,11 @@ const KPIs = () => {
                         <Info className="h-2.5 w-2.5" />
                       </span>
                     </TooltipTrigger>
+                    {/* ærligheds-rettelse 2026-08-05 — eneste tilladte ændring i frossen flade */}
                     <TooltipContent side="top" className="max-w-[220px]">
                       <p className="font-medium text-xs">{metric.benchmark.source || "Branchestandard"}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Baseret på danske SMV-data. Brug som vejledning — din situation kan afvige.
+                        Vejledende estimat. Brug som vejledning — din situation kan afvige.
                       </p>
                     </TooltipContent>
                   </UITooltip>
@@ -1258,8 +1259,9 @@ const KPIs = () => {
         </div>}
       </div>
       </div>
+      {/* ærligheds-rettelse 2026-08-05 — eneste tilladte ændring i frossen flade */}
       <p className="text-[10px] text-muted-foreground text-center mt-8 mb-2">
-        Benchmarks er vejledende og baseret på aggregerede data fra danske virksomheder.
+        Benchmarks er vejledende estimater — din situation kan afvige.
         Hover over et benchmark for at se kilden.
       </p>
     </AppLayout>
