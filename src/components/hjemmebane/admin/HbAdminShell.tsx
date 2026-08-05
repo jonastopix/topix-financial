@@ -4,12 +4,13 @@ import { ArrowLeft } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 
-export type AdminSection = "content" | "partners" | "events";
+export type AdminSection = "content" | "partners" | "events" | "progress";
 
 const SECTIONS: { key: AdminSection; label: string; to: string }[] = [
   { key: "content", label: "Indhold", to: "/admin/indhold" },
   { key: "partners", label: "Rabataftaler", to: "/admin/indhold/partnere" },
   { key: "events", label: "Events", to: "/admin/indhold/events" },
+  { key: "progress", label: "Fremdrift", to: "/admin/indhold/fremdrift" },
 ];
 
 interface HbAdminShellProps {
@@ -54,7 +55,7 @@ export const HbAdminShell = ({ section, children }: HbAdminShellProps) => (
       </nav>
 
       <p className="ml-auto hidden text-xs text-hb-ink-soft md:block">
-        Indholdsstyring · kun rådgivere
+        Admin · kun rådgivere
       </p>
     </header>
 

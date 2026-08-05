@@ -109,6 +109,17 @@ Applied to: `profiles`, `financial_reports` (owner ops), `handouts` (owner ops),
 (SELECT/INSERT/UPDATE only — no member DELETE; cancellation is a
 `cancelled_at` UPDATE, preserving capacity history)
 
+**Addendum (2026-08-05, advisor-fremdriftsværktøjet)**: `member_progress`
+additionally has advisor write policies — "Advisors can insert progress"
+(INSERT, WITH CHECK `has_role(auth.uid(), 'advisor')`) and "Advisors can
+update progress" (UPDATE, USING + WITH CHECK same predicate), migration
+`20260805200000_member_progress_advisor_write.sql`. Purpose: manual
+Circle-migration + ongoing advisor marking via `/admin/indhold/fremdrift`.
+Policies stack permissively; the self-only policy is untouched. **Accepted
+condition (approved 2026-08-05)**: `acknowledged_at` is SOURCE-LESS — no
+audit trail distinguishes member-set from advisor-set completion (only
+`updated_at` changes). Members see advisor-set marks as their own.
+
 ### Platform-global content (authenticated read published)
 ```sql
 status = 'published'   -- member SELECT gate; no company_id predicate

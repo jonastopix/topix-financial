@@ -293,6 +293,103 @@ export async function persistOrder(
   if (failed?.error) throw new Error(failed.error.message);
 }
 
+// ── Fremdrift (advisor-værktøjet, /admin/indhold/fremdrift) ────────────────
+// Læsning bæres af advisor-SELECT-policyen; skrivning af advisor-INSERT/
+// UPDATE-policies (migration 20260805200000). Medlemmer skriver fortsat kun
+// egne rækker via akademiApi.upsertProgress.
+
+/** Rå fremdriftsrækker for en mængde items (typisk alle published) — én
+    samlet SELECT. Sparse: kun rækker der findes. */
+export type AdminProgressRow = {
+  user_id: string;
+  content_item_id: string;
+  seen_at: string | null;
+  acknowledged_at: string | null;
+  skipped_at: string | null;
+};
+
+export async function listAllMemberProgress(itemIds: string[]): Promise<AdminProgressRow[]> {
+  if (itemIds.length === 0) return [];
+  return throwIfError(
+    await supabase
+      .from("member_progress")
+      .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at")
+      .in("content_item_id", itemIds),
+  );
+}
+
+/** Medlemslisten til Fremdrift-fanen: company_members × profiles ×
+    companies — minimal udgave af Members-mønstret. Legat filtreres FRA
+    (kurateret forløb, eget dashboard); advisors optræder ikke i
+    company_members og er dermed automatisk udeladt. Medlemmer uden
+    profil-række beholdes med fallback-navn. Alfabetisk sortering. */
+export type AdminMember = {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  companyName: string;
+};
+
+export async function listMembers(): Promise<AdminMember[]> {
+  const [membersRes, profilesRes, companiesRes] = await Promise.all([
+    supabase.from("company_members").select("user_id, company_id"),
+    supabase.from("profiles").select("user_id, full_name, avatar_url"),
+    supabase.from("companies").select("id, name, is_legat"),
+  ]);
+  for (const res of [membersRes, profilesRes, companiesRes])
+    if (res.error) throw new Error(res.error.message);
+
+  const profileByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p]));
+  const companyById = new Map((companiesRes.data ?? []).map((c) => [c.id, c]));
+
+  return (membersRes.data ?? [])
+    .filter((m) => companyById.get(m.company_id)?.is_legat !== true)
+    .map((m) => {
+      const profile = profileByUser.get(m.user_id);
+      return {
+        userId: m.user_id,
+        name: profile?.full_name?.trim() || "Ukendt medlem",
+        avatarUrl: profile?.avatar_url ?? null,
+        companyName: companyById.get(m.company_id)?.name ?? "",
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "da"));
+}
+
+/** Batch-markering: manglende TRACKED videoer i ét array-upsert (én
+    request, atomisk). Kalderen leverer eksisterende seen_at pr. item, så
+    "startet"-tidsstempler bevares; nye rækker får seen_at = nu. KUN sæt —
+    fortryd sker celle-for-celle (clearAcknowledge). */
+export async function batchAcknowledge(
+  userId: string,
+  entries: { itemId: string; seenAt: string | null }[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("member_progress").upsert(
+    entries.map((entry) => ({
+      user_id: userId,
+      content_item_id: entry.itemId,
+      seen_at: entry.seenAt ?? now,
+      acknowledged_at: now,
+    })),
+    { onConflict: "user_id,content_item_id" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+/** Fortryd én markering (advisor): acknowledged_at → null. Rækkens øvrige
+    tidsstempler (seen_at m.v.) bevares — samme fortryd-semantik som
+    medlemmets egen unacknowledge i ElementView. */
+export async function clearAcknowledge(userId: string, itemId: string): Promise<void> {
+  const { error } = await supabase
+    .from("member_progress")
+    .update({ acknowledged_at: null })
+    .eq("user_id", userId)
+    .eq("content_item_id", itemId);
+  if (error) throw new Error(error.message);
+}
+
 // ── Storage (content-assets) ───────────────────────────────────────────────
 
 /** Path-konventionen fra baseline §9. Filnavn saneres til slug-venlig form. */
