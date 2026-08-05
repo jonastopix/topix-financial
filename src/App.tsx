@@ -202,6 +202,7 @@ const App = () => (
               <Route path="/admin/indhold" element={<AdvisorRoute><AdminContent view="content" /></AdvisorRoute>} />
               <Route path="/admin/indhold/partnere" element={<AdvisorRoute><AdminContent view="partners" /></AdvisorRoute>} />
               <Route path="/admin/indhold/events" element={<AdvisorRoute><AdminContent view="events" /></AdvisorRoute>} />
+              <Route path="/admin/indhold/fremdrift" element={<AdvisorRoute><AdminContent view="progress" /></AdvisorRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
               <Route path="/admin/groups" element={<AdminRoute><AdminGroups /></AdminRoute>} />

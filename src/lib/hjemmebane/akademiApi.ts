@@ -70,7 +70,10 @@ export type ProgressPatch = Partial<
   Pick<MemberProgress, "seen_at" | "acknowledged_at" | "skipped_at" | "last_position_seconds">
 >;
 
-/** Upsert på UNIQUE(user_id, content_item_id) — self-only RLS håndhæver ejerskab. */
+/** Upsert på UNIQUE(user_id, content_item_id). Medlemmers ejerskab
+    håndhæves af self-only RLS; advisors har egne write-policies
+    (fremdriftsværktøjet, migration 20260805200000) og skriver via
+    adminContentApi's batchAcknowledge/clearAcknowledge. */
 export async function upsertProgress(
   userId: string,
   contentItemId: string,
@@ -85,10 +88,14 @@ export async function upsertProgress(
   if (error) throw new Error(error.message);
 }
 
-/** Tilstandsprikken pr. element — afledt af de uafhængige tidsstempler. */
+/** Tilstandsprikken pr. element — afledt af de uafhængige tidsstempler.
+    Accepterer et strukturelt subset, så advisor-værktøjets AdminProgressRow
+    (uden id/positions-felter) kan bruge samme dom. */
 export type ItemProgressState = "done" | "started" | "skipped" | "untouched";
 
-export function itemProgressState(progress: MemberProgress | undefined): ItemProgressState {
+export function itemProgressState(
+  progress: Pick<MemberProgress, "seen_at" | "acknowledged_at" | "skipped_at"> | undefined,
+): ItemProgressState {
   if (!progress) return "untouched";
   if (progress.acknowledged_at) return "done";
   if (progress.skipped_at) return "skipped";

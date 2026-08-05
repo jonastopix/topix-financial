@@ -165,9 +165,14 @@ export function useAkademiData() {
 
 /** Model B1-video (BACKLOG-beslutningsnote 2026-08-04): fremdrift spores KUN
     på video-items — øvrige items er bibliotek uden sporings-UI. Kræver både
-    bunny-provider OG et faktisk video-ID (ét prædikat, delt af alle views). */
+    bunny-provider OG et faktisk video-ID (ét prædikat, delt af alle views —
+    inkl. advisor-fremdriftsværktøjet via isTrackedItem). */
+export function isTrackedItem(item: ContentItem): boolean {
+  return item.media_provider === "bunny" && Boolean(item.bunny_video_id);
+}
+
 export function isTrackedEntry(entry: AkademiItem): boolean {
-  return entry.item.media_provider === "bunny" && Boolean(entry.item.bunny_video_id);
+  return isTrackedItem(entry.item);
 }
 
 /** Samlings-/områdefremdrift: gennemførte af de VIDEOER man faktisk kan nå.

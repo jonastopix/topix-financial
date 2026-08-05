@@ -75,7 +75,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 |---|---|---|---|---|
 | /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
 | /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
-| /admin/indhold(/partnere,/events) | AdminContent.tsx | Hb-indholdsstyring (C1) | HB | Konverteret (C1 trin 2) |
+| /admin/indhold(/partnere,/events,/fremdrift) | AdminContent.tsx | Hb-admin: indholdsstyring (C1) + fremdriftsværktøj (2026-08-05) | HB | Konverteret |
 | /groups(/:groupId) | AdvisorGroupList/Dashboard | Koncern-flader (advisor) | GAMMEL | Forbliver-indtil-videre (§2.6) |
 
 ### Admin
@@ -139,6 +139,15 @@ gammel UI — inkl. "Dit Boardroom" → "/" (gamle Dashboard). Rejsen IND er
 bygget som bevidst bro ("Akademiet"-punkt i AppSidebar, §4) — men
 ADVISOR-GATED indtil eksplicit lancerings-GO (§2.8). Fuld konvergens
 (Hb-skal på flere ruter, varianternes indplacering) er sit eget spor.
+
+**NOTE (2026-08-05, fremdriftsværktøjet)**: der findes nu TO medlemslister
+i to designsprog — Members.tsx (/members, gammel UI: drift/økonomi) og
+Fremdrift-fanen (/admin/indhold/fremdrift, Hb: Akademi-fremdrift +
+markering). Bevidst skabt dobbelthed; retning: Members-konverteringen
+(princip 8, "advisor-dagligdagen") forener listerne — Fremdrift-fanens
+medlemsliste er forløberen for Hb-udgaven. Samtidig AFVIKLET: Circle-
+eksport-dobbeltheden (BACKLOG [P1] omskrevet — API-sporet probet dødt
+2026-08-05; værktøjet er afløseren).
 
 ### §2.3 Dashboard-forsiden vs. "Dit Boardroom" · afgøres i: FORSIDE-KONVERTERING
 

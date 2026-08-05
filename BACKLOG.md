@@ -413,21 +413,26 @@ konvergens.md §2.8 i samme PR.
 
 ---
 
-### [P1] C3: Medlemsfremdrift fra Circle — eksport før lukning (noteret 2026-08-05)
+### [P1] C3: Medlemsfremdrift — manuel migrering via fremdriftsværktøjet (omskrevet 2026-08-05)
 
-Fund (hb-circle-recon): fuld Circle Admin API v2-integration eksisterede
-(sync-circle, 686 linjer; fjernet som abandoned i commit 36b617e5/PR #34,
-sidste succesfulde sync 2026-03-28; de fem circle_*-tabeller droppet i
-20260528045148 — historisk fremdriftsdata er VÆK og skal hentes friskt).
-Kandidat: målrettet én-gangs EKSPORT-variant gendannet fra git
-(fetchCourseLessons/fetchSpaceMembers m.fl.), tilpasset nutidens
-bucket-mønstre, skrivende til staging/eksportfil — mål: forudfylde
-member_progress ved C3, så ingen medlemmer starter forfra. FORUDSÆTNING
-(afklares af Jonas i Circle-admin): gyldigt Admin API-token kan udstedes.
-Handout-svar bor allerede på platformen — ingen migrering dér.
-TIDSKRITISK: data forsvinder ved Circle-lukning. Sidefund til senere
-oprydning: stale 'Circle-status'-tip i Guide.tsx:116; CLAUDE.md nævner
-stadig droppede circle_*-tabeller.
+API-SPORET ER LUKKET: Admin v2-probe 2026-08-05 gav 404 på alle
+fremdrifts-endpoints — per-lektion completion findes ikke i API'et (jf.
+også den historiske sync-kodes egen kommentar: "We can't get individual
+lesson completion from this API"). Eksport-kandidaten fra den oprindelige
+note udgår.
+
+AFLØSER: advisor-fremdriftsværktøjet (/admin/indhold/fremdrift): batch-
+markering pr. modul + enkelt-toggles skriver ægte member_progress
+(acknowledged_at) via advisor-write-policies (migration 20260805200000).
+Manuel migrering: ~35 kursister aflæses i Circle-modal (fremdrift pr.
+kursist) og markeres via batch. TIDSKRITISK: aflæsningen skal ske FØR
+Circle-lukningen — dataene forsvinder med platformen. Handout-svar bor
+allerede på platformen — ingen migrering dér.
+
+Historik (reference): fuld Circle-integration eksisterede og er fjernet
+(36b617e5/PR #34; tabeller droppet 20260528045148). Sidefund fortsat åbne:
+stale 'Circle-status'-tip i Guide.tsx:116; CLAUDE.md nævner stadig
+droppede circle_*-tabeller.
 
 ---
 
