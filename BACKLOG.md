@@ -96,6 +96,18 @@ udskudt strukturel gæld).
 
 ---
 
+### [P2] Branchetals-kuratering (noteret 2026-08-05)
+
+Jonas' røde pen på hb-branchetal-review.md; derefter migration:
+industry_benchmarks-UPDATE'er m. FØR-optælling, skema-default →
+'Estimat, The Boardroom 2026', [P3]-nøgleoversættelse/sletning
+(jf. [P3] Usynlige seedede benchmarks), OG Settings-brancheskiftets
+benchmark→default-MÅL-adfærd fjernes (strid m. model A: mål er
+aktivt valg). Ærligheds-forarbejdet (source-strenge renset for falsk
+attribution i frontend) er taget i PR fix/branchetal-aerlighed.
+
+---
+
 ### [P3] Migration-squash
 
 **Risiko**: 193 migrationsfiler. `supabase db reset` langsom, drift-overflade voksende. Eksplicit udskudt iht. `SECURITY_BASELINE.md` afsnit 8 ("Only perform after the hardening sequence has been validated in production for at least 2–4 weeks").

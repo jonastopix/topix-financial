@@ -77,15 +77,19 @@ export const KPI_FALLBACK_TARGETS: Record<string, { value: number; label: string
   ebitda_margin: { value: 15, label: "15%" },
 };
 
-// ─── KPI Default Benchmarks (Danish SMB averages) ────────────────────────────
+// ─── KPI Default Benchmarks ──────────────────────────────────────────────────
 
+/** Kildeprincip (2026-08-05): source_label påstår aldrig mere end vi kan
+    dokumentere — ægte kilder angives m. navn + årstal; skøn hedder
+    Estimat, The Boardroom. Tallene er under faglig kuratering
+    (hb-branchetal-review.md). */
 export const KPI_DEFAULT_BENCHMARKS: Record<string, { value: number; label: string; source: string }> = {
-  omsaetning: { value: 150000, label: "150.000 DKK", source: "Dansk SMB gennemsnit" },
-  db_margin: { value: 55, label: "55%", source: "Branchestandard" },
-  loenninger: { value: 60000, label: "60.000 DKK", source: "Danmarks Statistik" },
-  resultat: { value: 12000, label: "12.000 DKK", source: "Dansk SMB gennemsnit" },
-  omkostninger: { value: 90000, label: "90.000 DKK", source: "Branchestandard" },
-  ebitda_margin: { value: 12, label: "12%", source: "Branchestandard" },
+  omsaetning: { value: 150000, label: "150.000 DKK", source: "Estimat, The Boardroom" },
+  db_margin: { value: 55, label: "55%", source: "Estimat, The Boardroom" },
+  loenninger: { value: 60000, label: "60.000 DKK", source: "Estimat, The Boardroom" },
+  resultat: { value: 12000, label: "12.000 DKK", source: "Estimat, The Boardroom" },
+  omkostninger: { value: 90000, label: "90.000 DKK", source: "Estimat, The Boardroom" },
+  ebitda_margin: { value: 12, label: "12%", source: "Estimat, The Boardroom" },
 };
 
 // ─── Industry Benchmark Templates ────────────────────────────────────────────
@@ -96,77 +100,81 @@ export interface BenchmarkTemplate {
   benchmarks: Record<string, { value: number; label: string; source: string }>;
 }
 
+/** Kildeprincip (2026-08-05): source_label påstår aldrig mere end vi kan
+    dokumentere — ægte kilder angives m. navn + årstal; skøn hedder
+    Estimat, The Boardroom. Tallene er under faglig kuratering
+    (hb-branchetal-review.md). */
 export const INDUSTRY_TEMPLATES: BenchmarkTemplate[] = [
   {
     name: "Tech & SaaS",
     description: "Software, apps, digitale produkter",
     benchmarks: {
-      omsaetning: { value: 200000, label: "200.000 DKK", source: "Tech-branchen DK" },
-      db_margin: { value: 75, label: "75%", source: "Tech-branchen DK" },
-      loenninger: { value: 85000, label: "85.000 DKK", source: "Tech-branchen DK" },
-      resultat: { value: 25000, label: "25.000 DKK", source: "Tech-branchen DK" },
-      omkostninger: { value: 55000, label: "55.000 DKK", source: "Tech-branchen DK" },
-      ebitda_margin: { value: 20, label: "20%", source: "Tech-branchen DK" },
+      omsaetning: { value: 200000, label: "200.000 DKK", source: "Estimat, The Boardroom" },
+      db_margin: { value: 75, label: "75%", source: "Estimat, The Boardroom" },
+      loenninger: { value: 85000, label: "85.000 DKK", source: "Estimat, The Boardroom" },
+      resultat: { value: 25000, label: "25.000 DKK", source: "Estimat, The Boardroom" },
+      omkostninger: { value: 55000, label: "55.000 DKK", source: "Estimat, The Boardroom" },
+      ebitda_margin: { value: 20, label: "20%", source: "Estimat, The Boardroom" },
     },
   },
   {
     name: "Konsulenter & Bureau",
     description: "Rådgivning, marketing, freelance",
     benchmarks: {
-      omsaetning: { value: 180000, label: "180.000 DKK", source: "Rådgiverbranchen" },
-      db_margin: { value: 80, label: "80%", source: "Rådgiverbranchen" },
-      loenninger: { value: 90000, label: "90.000 DKK", source: "Rådgiverbranchen" },
-      resultat: { value: 20000, label: "20.000 DKK", source: "Rådgiverbranchen" },
-      omkostninger: { value: 45000, label: "45.000 DKK", source: "Rådgiverbranchen" },
-      ebitda_margin: { value: 18, label: "18%", source: "Rådgiverbranchen" },
+      omsaetning: { value: 180000, label: "180.000 DKK", source: "Estimat, The Boardroom" },
+      db_margin: { value: 80, label: "80%", source: "Estimat, The Boardroom" },
+      loenninger: { value: 90000, label: "90.000 DKK", source: "Estimat, The Boardroom" },
+      resultat: { value: 20000, label: "20.000 DKK", source: "Estimat, The Boardroom" },
+      omkostninger: { value: 45000, label: "45.000 DKK", source: "Estimat, The Boardroom" },
+      ebitda_margin: { value: 18, label: "18%", source: "Estimat, The Boardroom" },
     },
   },
   {
     name: "E-commerce",
     description: "Webshops, dropshipping, online salg",
     benchmarks: {
-      omsaetning: { value: 300000, label: "300.000 DKK", source: "E-handel DK" },
-      db_margin: { value: 35, label: "35%", source: "E-handel DK" },
-      loenninger: { value: 40000, label: "40.000 DKK", source: "E-handel DK" },
-      resultat: { value: 10000, label: "10.000 DKK", source: "E-handel DK" },
-      omkostninger: { value: 100000, label: "100.000 DKK", source: "E-handel DK" },
-      ebitda_margin: { value: 5, label: "5%", source: "E-handel DK" },
+      omsaetning: { value: 300000, label: "300.000 DKK", source: "Estimat, The Boardroom" },
+      db_margin: { value: 35, label: "35%", source: "Estimat, The Boardroom" },
+      loenninger: { value: 40000, label: "40.000 DKK", source: "Estimat, The Boardroom" },
+      resultat: { value: 10000, label: "10.000 DKK", source: "Estimat, The Boardroom" },
+      omkostninger: { value: 100000, label: "100.000 DKK", source: "Estimat, The Boardroom" },
+      ebitda_margin: { value: 5, label: "5%", source: "Estimat, The Boardroom" },
     },
   },
   {
     name: "Detailhandel",
     description: "Fysiske butikker, specialbutikker",
     benchmarks: {
-      omsaetning: { value: 250000, label: "250.000 DKK", source: "Detailhandel DK" },
-      db_margin: { value: 42, label: "42%", source: "Detailhandel DK" },
-      loenninger: { value: 55000, label: "55.000 DKK", source: "Detailhandel DK" },
-      resultat: { value: 8000, label: "8.000 DKK", source: "Detailhandel DK" },
-      omkostninger: { value: 130000, label: "130.000 DKK", source: "Detailhandel DK" },
-      ebitda_margin: { value: 6, label: "6%", source: "Detailhandel DK" },
+      omsaetning: { value: 250000, label: "250.000 DKK", source: "Estimat, The Boardroom" },
+      db_margin: { value: 42, label: "42%", source: "Estimat, The Boardroom" },
+      loenninger: { value: 55000, label: "55.000 DKK", source: "Estimat, The Boardroom" },
+      resultat: { value: 8000, label: "8.000 DKK", source: "Estimat, The Boardroom" },
+      omkostninger: { value: 130000, label: "130.000 DKK", source: "Estimat, The Boardroom" },
+      ebitda_margin: { value: 6, label: "6%", source: "Estimat, The Boardroom" },
     },
   },
   {
     name: "Håndværk & Byggeri",
     description: "Entreprenører, installatører, malere",
     benchmarks: {
-      omsaetning: { value: 350000, label: "350.000 DKK", source: "Byggeriets tal" },
-      db_margin: { value: 35, label: "35%", source: "Byggeriets tal" },
-      loenninger: { value: 85000, label: "85.000 DKK", source: "Byggeriets tal" },
-      resultat: { value: 10000, label: "10.000 DKK", source: "Byggeriets tal" },
-      omkostninger: { value: 180000, label: "180.000 DKK", source: "Byggeriets tal" },
-      ebitda_margin: { value: 5, label: "5%", source: "Byggeriets tal" },
+      omsaetning: { value: 350000, label: "350.000 DKK", source: "Estimat, The Boardroom" },
+      db_margin: { value: 35, label: "35%", source: "Estimat, The Boardroom" },
+      loenninger: { value: 85000, label: "85.000 DKK", source: "Estimat, The Boardroom" },
+      resultat: { value: 10000, label: "10.000 DKK", source: "Estimat, The Boardroom" },
+      omkostninger: { value: 180000, label: "180.000 DKK", source: "Estimat, The Boardroom" },
+      ebitda_margin: { value: 5, label: "5%", source: "Estimat, The Boardroom" },
     },
   },
   {
     name: "Restauration & Café",
     description: "Restauranter, caféer, takeaway",
     benchmarks: {
-      omsaetning: { value: 220000, label: "220.000 DKK", source: "HORESTA" },
-      db_margin: { value: 30, label: "30%", source: "HORESTA" },
-      loenninger: { value: 75000, label: "75.000 DKK", source: "HORESTA" },
-      resultat: { value: 5000, label: "5.000 DKK", source: "HORESTA" },
-      omkostninger: { value: 140000, label: "140.000 DKK", source: "HORESTA" },
-      ebitda_margin: { value: 4, label: "4%", source: "HORESTA" },
+      omsaetning: { value: 220000, label: "220.000 DKK", source: "Estimat, The Boardroom" },
+      db_margin: { value: 30, label: "30%", source: "Estimat, The Boardroom" },
+      loenninger: { value: 75000, label: "75.000 DKK", source: "Estimat, The Boardroom" },
+      resultat: { value: 5000, label: "5.000 DKK", source: "Estimat, The Boardroom" },
+      omkostninger: { value: 140000, label: "140.000 DKK", source: "Estimat, The Boardroom" },
+      ebitda_margin: { value: 4, label: "4%", source: "Estimat, The Boardroom" },
     },
   },
 ];

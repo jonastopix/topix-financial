@@ -298,7 +298,7 @@ export const NoegletalView = () => {
         kpi_key: def.key,
         benchmark_value: numVal,
         benchmark_label: ev?.label?.trim() || String(numVal),
-        source_label: ev?.source?.trim() || "Branchestandard",
+        source_label: ev?.source?.trim() || "Estimat, The Boardroom",
       };
     });
 
