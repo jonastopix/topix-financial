@@ -25,7 +25,7 @@ import { buildReportsByMonth, buildYearGroups, deriveSlotState, type SlotState }
 import ReportReviewDialog from "@/components/ReportReviewDialog";
 import ReportManualOverride from "@/components/ReportManualOverride";
 import PulseCheckinModal from "@/components/PulseCheckinModal";
-import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
+import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
@@ -116,7 +116,19 @@ export const RapporteringView = () => {
     },
     enabled: !!user && !!companyId,
   });
-  const dbReports = useMemo(() => reportsQuery.data ?? [], [reportsQuery.data]);
+  // Sorteres efter EFFEKTIV periode (manual override vinder over parsed),
+  // nyeste måned øverst; rapporter uden periode-nøgle nederst i upload-orden
+  // (query'en leverer uploaded_at DESC, og Array.sort er stabil).
+  const dbReports = useMemo(() => {
+    return [...(reportsQuery.data ?? [])].sort((a, b) => {
+      const keyA = getEffectiveReportPeriodKey(a as any);
+      const keyB = getEffectiveReportPeriodKey(b as any);
+      if (keyA && keyB) return keyB.localeCompare(keyA);
+      if (keyA) return -1;
+      if (keyB) return 1;
+      return 0;
+    });
+  }, [reportsQuery.data]);
 
   // Auto-refresh mens noget behandles (arvet adfærd).
   useEffect(() => {
@@ -242,7 +254,7 @@ export const RapporteringView = () => {
   };
 
   if (isAdvisor && !companyId) {
-    return <AdvisorCompanyPrompt />;
+    return <HbAdvisorCompanyPrompt />;
   }
 
   const statusFor = (report: DbReport) => {

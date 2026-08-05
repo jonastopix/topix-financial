@@ -26,7 +26,6 @@ export interface ReportCardView {
     | "awaiting"
     | "blocked"
     | "not_ready"
-    | "update"
     | "committed"
     | "unknown";
   label: string;
@@ -95,14 +94,10 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
         primary: { label: "Gennemgå og godkend", action: "review" },
       };
     }
-    if (commitState === "update_available") {
-      return {
-        key: "update",
-        label: "Opdatering klar til gennemsyn",
-        tone: "attention",
-        primary: { label: "Gennemgå opdatering", action: "review" },
-      };
-    }
+    // 'update_available' fra get_report_commit_states er en EJERSKABS-
+    // KAPABILITET (same_report → altid update_available), ikke en alarm —
+    // maskinen sammenligner ikke metrics; gen-commit-flowet bor i
+    // review-dialogen. Godkendte rapporter dømmes derfor ALTID stille.
     return {
       key: "committed",
       label: "Godkendt",

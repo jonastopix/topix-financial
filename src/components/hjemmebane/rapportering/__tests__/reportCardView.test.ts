@@ -55,11 +55,12 @@ describe("deriveReportCardView — mapping-tabellen række for række", () => {
     expect(view.primary?.action).toBe("override");
   });
 
-  it("6) processed + committed + update_available → Gennemgå opdatering (review)", () => {
+  it("6) REGRESSIONSVÆRN: committed + update_available → stille Godkendt uden primær handling (ejerskabs-kapabilitet, ikke alarm)", () => {
     const view = deriveReportCardView({ status: "processed", isCommitted: true, commitState: "update_available" });
-    expect(view.key).toBe("update");
-    expect(view.tone).toBe("attention");
-    expect(view.primary?.action).toBe("review");
+    expect(view.key).toBe("committed");
+    expect(view.tone).toBe("quiet");
+    expect(view.primary).toBeUndefined();
+    expect(view.secondary?.action).toBe("override");
   });
 
   it("7) processed + committed → Godkendt, quiet, kun sekundær Ret data", () => {
