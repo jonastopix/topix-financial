@@ -9,7 +9,6 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
-import { supabase } from "@/integrations/supabase/client";
 import { Calculator, ArrowLeft, BarChart3, Layers, DollarSign, Upload, TrendingUp, Droplets, ArrowRight } from "lucide-react";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
@@ -19,10 +18,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { BUDGET_TEMPLATES, type BudgetTemplate } from "@/lib/budgetTemplates";
 import {
-  BUDGET_TEMPLATES, GROUP_ORDER,
-  type BudgetTemplate, type BudgetCategory,
-} from "@/lib/budgetTemplates";
+  decodeImportedRows,
+  loadBudget,
+  resolveAutoYear,
+  writeTemplateMarker,
+} from "@/lib/budgetEngine";
 
 import { catToRow, type BudgetRow, type ScenarioKey } from "@/components/budget/types";
 import BudgetTemplatePicker from "@/components/budget/BudgetTemplatePicker";
@@ -59,11 +61,11 @@ const Budget = () => {
     }
   }, [resetKey]);
 
-  // Load from DB
+  // Load from DB (afkodningen bor i budgetEngine — ren flytning, design-blok §a3)
   useEffect(() => {
     if (!user || !companyId) return;
 
-    const loadBudget = async () => {
+    const load = async () => {
       // Reset before loading new year
       setSelectedTemplate(null);
       setScenarioData(null);
@@ -71,134 +73,24 @@ const Budget = () => {
       setDbLoaded(false);
 
       try {
-        const res = await (supabase
-          .from("budget_targets")
-          .select("category, budget_amount, period") as any)
-          .eq("company_id", companyId);
-        const data = (res.data || []) as { category: string; budget_amount: number; period: string }[];
-
-        if (!data || data.length === 0) {
+        const result = await loadBudget(companyId, year);
+        if (result.empty || !result.decoded) {
           return;
         }
-
-        // Derive which years actually have budget data (value rows only)
-        const availableYears = Array.from(new Set(
-          data
-            .filter(d => !d.category.startsWith("__"))
-            .map(d => d.period.split("-")[0])
-            .filter(y => /^\d{4}$/.test(y))
-        )).sort();
 
         // Fallback: if the selected year has no data but another year does,
         // jump once to the newest year that has data. Guarded per-company so the
         // user can still navigate to an empty year (e.g. to create a new budget).
-        if (
-          availableYears.length > 0 &&
-          !availableYears.includes(year) &&
-          autoYearAdjustedFor.current !== companyId
-        ) {
+        const jumpYear = resolveAutoYear(result.availableYears, year);
+        if (jumpYear && autoYearAdjustedFor.current !== companyId) {
           autoYearAdjustedFor.current = companyId;
-          setYear(availableYears[availableYears.length - 1]);
+          setYear(jumpYear);
           return;
         }
 
-        // Value rows for the selected year only
-        const yearValueRows = data.filter(d =>
-          !d.category.startsWith("__") &&
-          d.period.split("-")[0] === year
-        );
-
-        // Detect template
-        const templateMarker = data.find(d => d.category === "__template__");
-        let template: BudgetTemplate | undefined;
-
-        if (templateMarker) {
-          template = BUDGET_TEMPLATES.find(t => t.key === templateMarker.period);
-        }
-
-        if (!template) {
-          const storedKeys = new Set(data.map(d => d.category).filter(c => c !== "__template__" && !c.startsWith("__label__")));
-          let bestMatch = BUDGET_TEMPLATES[0];
-          let bestScore = 0;
-          for (const tmpl of BUDGET_TEMPLATES) {
-            const score = tmpl.categories.filter(c => storedKeys.has(c.key)).length;
-            if (score > bestScore) { bestScore = score; bestMatch = tmpl; }
-          }
-          template = bestMatch;
-        }
-
-        setSelectedTemplate(template);
-
-        // Collect all unique category keys (selected year's value rows only)
-        const allCatKeys = new Set(yearValueRows.map(d => d.category));
-
-        const templateKeys = new Set(template.categories.map(c => c.key));
-        const extraKeys = [...allCatKeys].filter(k => !templateKeys.has(k));
-
-        const groupMarkers = data.filter(d => d.category.startsWith("__group__"));
-        const extraGroupMap: Record<string, string> = {};
-        groupMarkers
-          .filter(g => g.category.startsWith(`__group__${year}_`))
-          .forEach(g => {
-            const key = g.category.replace(`__group__${year}_`, "");
-            extraGroupMap[key] = g.period;
-          });
-
-        const extraCategories: BudgetCategory[] = extraKeys.map(key => ({
-          key,
-          label: key.replace(/_/g, " "),
-          group: (extraGroupMap[key] || "variable") as BudgetCategory["group"],
-        }));
-
-        const allCategories = [...template.categories, ...extraCategories];
-
-        const newData: Record<ScenarioKey, BudgetRow[]> = {
-          base: allCategories.map(catToRow),
-          optimistisk: allCategories.map(catToRow),
-          pessimistisk: allCategories.map(catToRow),
-        };
-
-        // Load label overrides
-        const labelMarkers = data.filter(d => d.category.startsWith("__label__"));
-        const loadedLabels: Record<string, string> = {};
-        labelMarkers
-          .filter(m => m.category.startsWith(`__label__${year}_`))
-          .forEach(m => {
-            const key = m.category.replace(`__label__${year}_`, "");
-            loadedLabels[key] = m.period;
-          });
-        setLabelOverrides(loadedLabels);
-
-        // Apply labels
-        Object.entries(loadedLabels).forEach(([key, label]) => {
-          for (const sc of Object.values(newData)) {
-            const row = sc.find(r => r.key === key);
-            if (row) row.label = label;
-          }
-        });
-        extraCategories.forEach(ec => {
-          if (loadedLabels[ec.key]) ec.label = loadedLabels[ec.key];
-        });
-
-        // Apply values
-        data.forEach(item => {
-          if (item.category === "__template__" || item.category.startsWith("__label__") || item.category.startsWith("__group__")) return;
-          const parts = item.period.split("-");
-          if (parts.length < 3) return;
-          if (parts[0] !== year) return;
-          const [, scenario, monthIdxStr] = parts;
-          const monthIdx = parseInt(monthIdxStr, 10);
-          if (isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return;
-          const sc = scenario as ScenarioKey;
-          if (!newData[sc]) return;
-
-          const row = newData[sc].find(r => r.key === item.category);
-          if (row) {
-            row.values[monthIdx] = Number(item.budget_amount);
-          }
-        });
-
-        setScenarioData(newData);
+        setSelectedTemplate(result.decoded.template);
+        setLabelOverrides(result.decoded.labelOverrides);
+        setScenarioData(result.decoded.scenarioData);
       } catch (e) {
         console.error("[Budget] loadBudget failed:", e);
       } finally {
@@ -206,7 +98,7 @@ const Budget = () => {
       }
     };
 
-    loadBudget();
+    load();
   }, [user, companyId, year]);
 
   const handleTemplateSelect = async (tmpl: BudgetTemplate) => {
@@ -219,35 +111,19 @@ const Budget = () => {
     setScenarioData(data);
 
     if (user && companyId) {
-      await supabase.from("budget_targets").insert({
-        user_id: user.id,
-        company_id: companyId,
-        category: "__template__",
-        budget_amount: 0,
-        period: tmpl.key,
-      } as any);
+      await writeTemplateMarker(user.id, companyId, tmpl.key);
     }
 
     toast.success(`Skabelon "${tmpl.label}" valgt`);
   };
 
   const handleImportComplete = useCallback((result: any) => {
+    // Skabelon-antagelsen er ren state-kosmetik i gamle side (design-blok
+    // §e(i)) — række-afkodningen bor i motoren.
     const tmpl = BUDGET_TEMPLATES[0];
     setSelectedTemplate(tmpl);
 
-    const importedRows: BudgetRow[] = (result.categories || []).map((cat: any) => ({
-      key: cat.key,
-      label: cat.label,
-      values: cat.monthly || Array(12).fill(0),
-      isEditable: true,
-      group: cat.key === "omsaetning" ? "indtaegter" :
-             cat.key === "loenninger" ? "personale" :
-             cat.key === "marketing" ? "salg_marketing" :
-             cat.key === "lokaler" ? "faste" :
-             cat.key === "tech_software" ? "drift" :
-             cat.key === "admin" ? "faste" :
-             "variable",
-    }));
+    const importedRows: BudgetRow[] = decodeImportedRows(result);
 
     setScenarioData({
       base: importedRows,

@@ -569,6 +569,90 @@ generér-flowet (generate-financial-commentary) og periodevalgs-kontrakten
 
 ---
 
+### [P1] Koncern-RPC månedsindeks-fejl — januar tabes, måneder forskydes (recon §7.1, noteret 2026-08-05) — EGET spor
+
+Frontend skriver monthIdx 0-11 i alle budget-skriveveje (fx
+`${year}-${scenario}-${monthIdx}` med monthIdx fra values.map);
+RPC'en `get_my_group_budget_summary` accepterer kun 1-12
+(20260316113038:229: `IF _agg.month_idx >= 1 AND _agg.month_idx <= 12`)
+og placerer på month_idx−1. KONSEKVENS for rigtige data: januar (idx 0)
+udelades, og feb-dec (1-11) forskydes én måned frem i
+/group/budget-totalerne; årstotaler mangler januar. QA-fixturen
+(20260316115536:51-59) skriver 1-12 via generate_series(1,12) og
+validerede derfor falsk grønt.
+
+**Fix-skitse**: (1) verificér mod prod-data (SELECT på rå
+budget_targets-perioder for en koncern-virksomhed); (2) migration der
+ændrer RPC'ens vindue til 0-11 og placerer på month_idx (ikke −1) —
+frontenden er de facto-kontrakten; (3) omskriv QA-fixturen til
+generate_series(0,11); (4) deploy via Lovable SQL editor +
+pg_get_functiondef-verifikation. Rører SECURITY DEFINER-RPC ⇒ kræver
+eksplicit grønt lys (FORBIDDEN-zonen).
+
+---
+
+### [P1] Budget-GO = swap på /budget (noteret 2026-08-05)
+
+Hb-budgetfladen (/budgettering) er bygget route-parallelt bag
+AdvisorRoute (fuld paritet: oversigt, scenarier/redigering, BvA, import
+×2, hvad-hvis, cashflow); gamle /budget er omlagt til budgetEngine men
+ellers frosset. GO'ets indhold: /budget's MemberRoute-gren bærer den nye
+flade — URL'en er NOTIFIKATIONS-KONTRAKT (detect-financial-alerts
+skriver /budget-deep-links) og GUIDE-KONTRAKT (/budget#forecast);
+/budgettering bliver redirect (§3.6-mønstret); HbMemberShells
+Budget-mål → /budget for alle.
+
+FORUDSÆTNINGER for GO: (i) #forecast-ankeret verificeret fra KOLD
+navigering på byggeruten, (ii) notifikations-deep_link efterprøvet
+(alert → /budget lander rigtigt post-swap), (iii) koncern-drill-down
+efterprøvet (GroupDashboard/AdvisorGroupDashboard → /budget m.
+company-kontekst), (iv) advisor-gennemgang af hele fladen på rigtige
+data (alle seks funktioner + begge import-spor), (v) W6-rettelsen
+(company-filteret) har levet i prod via gammel flade uden regressioner,
+(vi) princip 8-rammen: Budget-GO er IKKE medlemsrejse-lanceringen —
+den styres af konvergens.md §2.8.
+
+---
+
+### [P2] Dobbelt kategori→gruppe-sandhed for budget (recon §7.2, noteret 2026-08-05)
+
+lib/budgetTemplates.ts (frontend) og budget_category_group_map (DB,
+seedet 20260316113038:16-103 — "80 rows (7 templates)") er to sandheder;
+restaurant_cafe MANGLER i DB-mappen men findes i frontend-skabelonerne ⇒
+restaurant-virksomheder ekskluderes altid af koncern-RPC'en som
+unmapped/no-template-match, og nye skabelon-kategorier kræver opdatering
+begge steder. Kandidat: kuratering + seed-migration af de manglende
+rækker; naturlig nabo til [P1]-RPC-sporet ovenfor.
+
+---
+
+### [P3] "Fra budget"-mål-kilde på /noegletal (recon §7.5, noteret 2026-08-05)
+
+KPIs.tsx:692-706 (frosset) henter månedligt budgetgennemsnit ind i
+målsætningen ("Fra budget"-knappen); /noegletal har ingen
+budget-reference — reelt paritetshul i dag. Beslutning fra
+budget-design §e(ii): koblingen hører hjemme på KPI-fladen —
+/noegletal's mål-panel får en "Fra budget"-kilde (læser motorens
+loadBudget) som lille eget spor efter budget-GO. Den omvendte kobling
+("gør til KPI-mål" fra budgetfladen) er fravalgt som primær vej
+(én dør til mål).
+
+---
+
+### [P4] Chat-analysekortets tidsstempel bumper ikke ved genanalyse (noteret 2026-08-05)
+
+Fund fra AI-analysens idempotens-bevis: useFinancialAnalysis' UPDATE af
+det eksisterende ai_analysis-kort (én pr. periode) opdaterer content,
+men kortet viser fortsat oprindelig created_at — som ikke KAN bumpes
+(protect_message_immutable_fields blokerer created_at-ændring, bevidst).
+To muligheder når det tages op: (a) stemp `context_meta.updated_at` ved
+UPDATE og vis "opdateret {tid}" i kort-rendereren; (b) acceptér
+nuværende adfærd (kortet er en levende artefakt pr. periode —
+oprettelsestiden er ærlig nok). Ingen hast; afgøres ved
+chat-konverteringen.
+
+---
+
 ### [P3] Dialogernes konvertering (review + Ret data) — eget sprint m. testarv (noteret 2026-08-05)
 
 ReportReviewDialog + ReportManualOverride (+ PulseCheckinModal) åbnes som

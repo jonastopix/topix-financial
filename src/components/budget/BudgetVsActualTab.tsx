@@ -6,34 +6,13 @@ import {
 } from "recharts";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { getBudgetRowReportField } from "@/lib/budgetEngine";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import { BvaSummaryCard, varianceColor, varianceIcon } from "./BudgetHelpers";
 import {
   MONTHS, REVENUE_GROUPS, formatK,
   type BudgetRow, type ScenarioKey,
 } from "./types";
-
-const REPORT_FIELD_TO_BUDGET_KEYS: Record<string, string[]> = {
-  omsaetning: ["omsaetning"],
-  direkte_omkostninger: ["vareforbrug", "direkte_omk", "fragt_levering",
-    "betalingsgebyrer", "produktions_omk", "lager_logistik"],
-  loenninger: ["loenninger", "personale", "konsulenter_freelance",
-    "rekruttering", "personale_udvikling"],
-  salgsomkostninger: ["marketing", "digital_marketing", "seo_content",
-    "email_marketing", "salg_kundepleje", "reklame"],
-  lokaleomkostninger: ["lokaler", "leje_lokaler", "forsikring_abonnementer",
-    "el_vand_varme"],
-  administrationsomkostninger: ["admin", "admin_regnskab", "tech_software",
-    "platform_tech", "it_udstyr", "forsikring", "revision_jura",
-    "kontorhold", "andet"],
-};
-
-function getBudgetRowReportField(key: string): string | null {
-  for (const [field, keys] of Object.entries(REPORT_FIELD_TO_BUDGET_KEYS)) {
-    if (keys.includes(key)) return field;
-  }
-  return null;
-}
 
 interface Props {
   scenarioData: Record<ScenarioKey, BudgetRow[]>;

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Upload, FileSpreadsheet, Check, X, Loader2, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { confirmBudgetImport } from "@/lib/budgetEngine";
 import { toast } from "sonner";
 
 interface ImportedCategory {
@@ -194,52 +195,7 @@ const BudgetImport = ({ userId, companyId, onImportComplete }: BudgetImportProps
     setSaving(true);
 
     try {
-      const { data: existing } = await supabase
-        .from("budget_targets")
-        .select("id, period")
-        .eq("user_id", userId)
-        .eq("company_id", companyId)
-        .or(
-          `period.like.${preview.year}-base-%,` +
-          `period.like.${preview.year}-optimistisk-%,` +
-          `period.like.${preview.year}-pessimistisk-%`
-        );
-
-      if (existing && existing.length > 0) {
-        await supabase.from("budget_targets").delete().in("id", existing.map((e) => e.id));
-      }
-
-      const inserts = preview.categories.flatMap((cat) =>
-        (["base", "optimistisk", "pessimistisk"] as const).flatMap((scenario) =>
-          cat.monthly.map((amount, monthIdx) => ({
-            user_id: userId,
-            company_id: companyId,
-            category: cat.key,
-            budget_amount: amount,
-            period: `${preview.year}-${scenario}-${monthIdx}`,
-          }))
-        )
-      );
-
-      // Deduplicate inserts: if same company_id+user_id+category+period appears multiple times,
-      // keep only the last occurrence (sum amounts for duplicate keys)
-      const insertMap = new Map<string, typeof inserts[0]>();
-      for (const row of inserts) {
-        const key = `${row.company_id}:${row.user_id}:${row.category}:${row.period}`;
-        if (insertMap.has(key)) {
-          const existing = insertMap.get(key)!;
-          insertMap.set(key, { ...existing, budget_amount: existing.budget_amount + row.budget_amount });
-        } else {
-          insertMap.set(key, row);
-        }
-      }
-      const dedupedInserts = Array.from(insertMap.values());
-
-      const { error } = await supabase.from("budget_targets").upsert(dedupedInserts, {
-        onConflict: "company_id,user_id,category,period",
-        ignoreDuplicates: false,
-      });
-      if (error) throw error;
+      await confirmBudgetImport({ userId, companyId, preview });
 
       toast.success(`Budget ${preview.year} importeret!`);
       onImportComplete(preview);
