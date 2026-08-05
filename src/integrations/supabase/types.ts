@@ -667,13 +667,6 @@ export type Database = {
           },
         ]
       }
-      // HÅNDTILFØJET (Hjemmebane, D1-mønstret): content_item_attachments (C3,
-      // migration 20260804210000) og content_items.handout_module (migration
-      // 20260805120000) er skrevet i hånden i eksakt genereret format, fordi
-      // Lovables regenerering ikke er kørt siden. Ved fremtidig Lovable-
-      // regenerering er den genererede fil sandheden — tilføjelserne
-      // gen-afstemmes mod den (konvergensen er tidligere bekræftet for de
-      // seks C1-tabeller).
       content_item_attachments: {
         Row: {
           created_at: string
