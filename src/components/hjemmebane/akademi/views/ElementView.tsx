@@ -4,7 +4,10 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock, Undo2 } from "lucide-react";
 import { AREAS, ITEM_TYPES, getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
-import { listItemAttachments } from "@/lib/hjemmebane/akademiApi";
+import { getOwnHandout, listItemAttachments } from "@/lib/hjemmebane/akademiApi";
+import { handoutConfigs, type HandoutModule } from "@/lib/handoutConfig";
+import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { useAuth } from "@/hooks/useAuth";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbVideoEmbed } from "../HbVideoEmbed";
@@ -56,6 +59,55 @@ const MaterialsSection = ({ itemId, unlocked }: { itemId: string; unlocked: bool
           </li>
         ))}
       </ul>
+    </section>
+  );
+};
+
+/** Refleksionskortet (lektion→handout-kobling, fase 1): vises kun når
+    item.handout_module er sat og elementet er dryp-ulåst. Status læses fra
+    medlemmets EGEN handouts-række via getOwnHandout (self-only RLS dækker;
+    advisors har typisk ingen række → "Ikke startet" — korrekt preview af
+    medlemsstart). Definition + procent genbruger handoutConfigs/
+    calcHandoutProgress — ingen duplikeret logik. Internt <Link> (aldrig
+    _blank): refleksionerne bliver på platformen. */
+const HandoutSection = ({ module, unlocked }: { module: string; unlocked: boolean }) => {
+  const { user } = useAuth();
+  const config = handoutConfigs[module as HandoutModule];
+  const query = useQuery({
+    queryKey: ["akademi", "handout", module],
+    queryFn: () => getOwnHandout(user!.id, module),
+    enabled: unlocked && !!config && !!user,
+  });
+
+  if (!config) return null; // ukendt nøgle (CHECK forhindrer det — defensivt)
+
+  const row = query.data;
+  const statusText =
+    !row || row.status === "not_started"
+      ? "Ikke startet"
+      : row.status === "completed"
+        ? "Udfyldt ✓"
+        : `I gang · ${calcHandoutProgress(
+            config,
+            (row.responses as Record<string, string>) || {},
+            (row.checklist as Record<string, boolean>) || {},
+            (row.levers as string[]) || [],
+          )} %`;
+
+  return (
+    <section className="mt-8 rounded-hb border border-hb-line bg-hb-sage/20 px-6 py-5">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Handout</p>
+      <h2 className="mt-2 font-editorial text-xl font-medium text-hb-ink">{config.title}</h2>
+      <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{config.subtitle}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Link to={`/handouts?module=${module}`}>
+          <HbButton variant="secondary">
+            Åbn handoutet
+            <ArrowRight className="h-4 w-4" />
+          </HbButton>
+        </Link>
+        <span className="text-sm text-hb-ink-soft">{query.isLoading ? "" : statusText}</span>
+      </div>
     </section>
   );
 };
@@ -187,6 +239,10 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
             className="prose-hb mt-8 text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5"
             dangerouslySetInnerHTML={{ __html: item.body }}
           />
+        )}
+
+        {item.handout_module && (
+          <HandoutSection module={item.handout_module} unlocked={drip.unlocked} />
         )}
 
         <MaterialsSection itemId={item.id} unlocked={drip.unlocked} />
