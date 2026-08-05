@@ -1,7 +1,8 @@
 /* Hjemmebane (V0) — tokens for det lyse, premium-redaktionelle miljø.
    Additivt og scoped: variablerne findes kun under .theme-hjemmebane og
-   importeres kun af preview-siden. App-temaet (:root/.dark i index.css)
-   er urørt — PDF-eksporten afhænger af det. */
+   importeres af de tre Hb-flader (PreviewHjemmebane, AdminContent,
+   Akademiet). App-temaet (:root/.dark i index.css) er urørt —
+   PDF-eksporten afhænger af det. */
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap');
 
 .theme-hjemmebane {

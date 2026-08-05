@@ -31,6 +31,7 @@ import {
   Sparkles,
   BarChart3,
   Lock,
+  GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Calculator as CalcIcon } from "lucide-react";
@@ -50,6 +51,7 @@ const baseNavItems = [
   { icon: Calculator, label: "Budget", path: "/budget" },
   { icon: Target, label: "Milestones", path: "/milestones" },
   { icon: BookOpen, label: "Handouts", path: "/handouts" },
+  { icon: GraduationCap, label: "Akademiet", path: "/akademiet" },
   { icon: TrendingUp, label: "KPI'er", path: "/kpis" },
   { icon: MessageCircle, label: "Chat", path: "/chat" },
   { icon: Calendar, label: "Book session", path: "/book-session", memberOnly: true },
