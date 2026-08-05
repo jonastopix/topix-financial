@@ -721,6 +721,26 @@ straks; 'draft' committer aldrig). Broens toasts består indtil da.
 
 ---
 
+### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
+
+Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
+slettede (POST m. ugyldig Bearer + tom body): **55/55 svarer (ikke-404) ·
+5/5 slettede er 404 — ingen drift mellem repo og server.** Fire afvigere
+fra 401-mønstret er recon'et godartede (hb-gate-recon.txt):
+send-engagement-nudge svarede 200 fordi den er en afblændet stub uden
+handlinger (pensioneret i PR chore/audit-oprydning);
+intro-reminder-cron/legat-reminder-cron/run-weekly-agent svarede 500 fordi
+de er Deno.cron-only uden HTTP-handler — runtime-500 før nogen kodelinje,
+ingen sideeffekter.
+
+**Sweep-svarklasse-lærdom** (til fremtidige fejninger): forventningen ved
+ugyldig Bearer er IKKE uniform 401 — auth-gatede giver 401, webhooks/
+payload-validering 400, cron-only-moduler 500, og en statisk stub kan give
+200. Kun 404 beviser "findes ikke serverside"; alle andre koder beviser
+"deployet", og en 200 skal altid følges af kode-recon før konklusion.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

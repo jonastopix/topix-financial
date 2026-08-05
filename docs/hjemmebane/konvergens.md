@@ -82,7 +82,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 |---|---|---|---|---|
 | /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
 | /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
-| /admin/indhold(/partnere,/events,/fremdrift) | AdminContent.tsx | Hb-admin: indholdsstyring (C1) + fremdriftsværktøj (2026-08-05) | HB | Konverteret |
+| /admin/indhold(/partnere,/events,/fremdrift,/boardroom) | AdminContent.tsx | Hb-admin: indholdsstyring (C1) + fremdriftsværktøj + Dit Boardroom-push-editor (2026-08-05) | HB | Konverteret |
 
 ### Admin
 

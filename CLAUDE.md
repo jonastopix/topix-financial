@@ -7,7 +7,7 @@ The Boardroom — finansiel rådgivnings-platform for SMV'er bygget på Supabase
 ```sh
 bun install
 bun dev
-bun test
+bun run test
 bun lint
 ```
 
@@ -73,9 +73,9 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 - Advisor-bred: `has_role(auth.uid(), 'advisor')` — fuld read, scoped write.
 - Admin-only: `has_role(auth.uid(), 'admin')` — for `app_config`, `user_roles`.
 - Self-only: `auth.uid() = user_id` — for `profiles`, ejer-ops på `handouts` og `financial_reports`.
-- Service-role-only tabeller (ingen klient-mutation): `slack_*_log`, `circle_*`, `email_send_*`, `*_oauth_*`.
+- Service-role-only tabeller (ingen klient-mutation): `slack_*_log`, `email_send_*`, `*_oauth_*`.
 
-**Edge function-buckets**. Alle functions har `verify_jwt = false` i `supabase/config.toml` — det er bevidst pga. Supabases signing-keys-system, og konsekvensen er at hver function SKAL validere selv før første service-role-handling.
+**Edge function-buckets**. Functions har `verify_jwt = false` i `supabase/config.toml` (to undtagelser står `true`: `process-email-queue`, `send-notification-email`) — det er bevidst pga. Supabases signing-keys-system, og konsekvensen er at hver function SKAL validere selv før første service-role-handling.
 - **Bucket A — bruger-trigget**: kald `authenticateUser(req)` FØRST. Brug derefter `callerClient` (JWT-scoped) til RLS-tjek af target-ressourcen, før service-role-klienten konstrueres.
 - **Bucket B — service-role/cron**: kald `authenticateServiceRole(req)` FØRST. Afvis alt der ikke bærer service-role-nøglen.
 - **Bucket C — eksterne webhooks**: per-funktion signaturverifikation FØR parsing (HMAC-SHA256 for Monday.com, `verifyWebhookRequest` for auth-hook, Stripe-signature for Stripe).
@@ -125,7 +125,7 @@ Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 
 ## Test
 
-- `bun test` skal være grøn før commit.
+- `bun run test` skal være grøn før commit (IKKE `bun test` — den rammer Buns egen test-runner uden om vitest-scriptet).
 - Coverage er pt. minimal (3 filer: `src/test/example.test.ts`, `src/hooks/__tests__/useScrollToHash.test.tsx`, `src/lib/__tests__/pdfStructuralExtractor.test.ts`).
 - Nye security-kritiske stier (RLS, triggers, RPC, edge function-auth) bør have test før merge.
 
