@@ -434,6 +434,12 @@ målsætnings-lektion m. overordnet handout-kobling) er blivende, og
 "fyldes ikke endnu"-reglen er ophævet. Epicen er uændret i øvrigt.
 Princip: ikke flere indholdsbokse end højst nødvendigt.
 
+DESIGN-INPUT (Jonas' observation 2026-08-05 under koncern-sluttest):
+virksomhedsnavn sættes i dag EFTER oprettelse via Indstillinger —
+bør ind i selve onboardingen (handle_new_user falder i dag tilbage til
+"{navn}s virksomhed" når company_name mangler i signup-metadata).
+Tages med i epic-designet.
+
 ---
 
 ### [P1] Akademiet-lancering — medlems-synligt nav-punkt afventer GO fra Jonas (noteret 2026-08-05)
@@ -679,6 +685,28 @@ UPDATE og vis "opdateret {tid}" i kort-rendereren; (b) acceptér
 nuværende adfærd (kortet er en levende artefakt pr. periode —
 oprettelsestiden er ærlig nok). Ingen hast; afgøres ved
 chat-konverteringen.
+
+---
+
+### [P4] hardDeleteCompany efterlader notifikations-orfaner m. NULL company_id (set 2026-08-05, koncern-sluttest)
+
+hardDeleteCompany rydder notifications pr. company_id — men rækker med
+NULL company_id til de slettede brugere overlever som orfaner
+(chat_reply-vejen i notify-chat-reply sætter ingen company_id på
+notifikationen). Observeret under koncern-sluttesten 2026-08-05 og
+ryddet manuelt. Fix-idé: slet også pr. user_id for de slettede brugere
+(userIds-listen findes allerede i hardDeleteCompany).
+
+---
+
+### [P4] 4 præeksisterende tsc-fejl på main — kendt baseline (noteret 2026-08-05)
+
+`bunx tsc --noEmit -p tsconfig.app.json` (det RIGTIGE typecheck — root-
+tsconfig er solution-style m. `"files": []`, så `tsc --noEmit` uden -p
+tjekker ingenting) giver 4 kendte fejl på main: CompanyChatPane
+(AnalysisData-cast), PushView:136, RapporteringView:431+520. Kendt
+baseline — ryddes samlet i én lille oprydnings-PR; indtil da er facittet
+for enhver branch "præcis de 4 kendte fejl, ingen nye".
 
 ---
 
