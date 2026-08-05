@@ -223,6 +223,21 @@ export function applyQuickstartRows(
   });
 }
 
+/** Normaliserings-hjælperen bag det robuste AI-merge-match (U3,
+    hb-ai-merge-recon §b3): lowercase, æ/ø/å → ae/oe/aa, alt der ikke er
+    [a-z0-9] → "_", sammenfald af gentagne "_" og trim af kant-"_".
+    Dækker miss-kataloget 1-4 (dansk normalisering, casing, specialtegn/
+    whitespace, snake_case-gæt); ordret match er et specialtilfælde. */
+export function normalizeBudgetKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "oe")
+    .replace(/å/g, "aa")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 /** Import-callbackens række-afkodning (Budget.tsx:238-250 ordret inkl.
     kategori→gruppe-switchen). Webshop-skabelon-antagelsen (Budget.tsx:235)
     er IKKE motorens sag — den forbliver som state-kosmetik i gamle side
@@ -578,17 +593,23 @@ export async function copyBaseToScenario(args: {
   return copiedRows;
 }
 
-/** W4 — AI-generér scenarie (BudgetScenariosTab.tsx:206-241 ordret):
-    edge-kald generate-budget-scenarios → merge på key/label → delete+insert
-    (originalen ignorerede insert-fejlen — det gør motoren også her).
-    Kalderen ejer state-skiftet og kvitteringen. */
+/** W4 — AI-generér scenarie (BudgetScenariosTab.tsx:206-241; edge-kald
+    generate-budget-scenarios → merge → delete+insert; originalen
+    ignorerede insert-fejlen — det gør motoren også her). Kalderen ejer
+    state-skiftet og kvitteringen; matchedCount/totalRowCount bæres retur
+    til den ("x af y linjer justeret"). */
 export async function generateAIScenario(args: {
   userId: string;
   companyId: string;
   year: string;
   target: ScenarioKey;
   baseRows: BudgetRow[];
-}): Promise<{ updatedRows: BudgetRow[]; reasoning?: string }> {
+}): Promise<{
+  updatedRows: BudgetRow[];
+  reasoning?: string;
+  matchedCount: number;
+  totalRowCount: number;
+}> {
   const { userId, companyId, year, target, baseRows } = args;
   const payloadRows = baseRows.map((r) => ({
     key: r.key,
@@ -604,14 +625,48 @@ export async function generateAIScenario(args: {
   if (error) throw error;
   if (!data?.categories) throw new Error("Ingen data returneret fra AI");
 
+  // U3 (fix/budget-ai-merge, hb-ai-merge-recon — fejlrettelse for BEGGE
+  // flader): det gamle ordrette match (`c.key === r.key || c.key === r.label`)
+  // missede stille når modellens keys afveg i casing/specialtegn/dansk
+  // normalisering — modellen ser kun labels (recon §a1) — og gemte så en
+  // base-kopi som succes m. reasoning. Nu matches på normaliseret key OG
+  // label; en linje tæller kun som matchet m. gyldig 12-tals monthly
+  // (falsy-værnet); nul-match afviser FØR skrivning.
+  const aiByNormKey = new Map<string, number[]>();
+  for (const cat of (data.categories as { key?: unknown; monthly?: unknown }[])) {
+    if (typeof cat?.key !== "string") continue;
+    const monthly = cat.monthly;
+    if (
+      !Array.isArray(monthly) ||
+      monthly.length !== 12 ||
+      !monthly.every((v) => typeof v === "number" && Number.isFinite(v))
+    )
+      continue;
+    const norm = normalizeBudgetKey(cat.key);
+    if (norm && !aiByNormKey.has(norm)) aiByNormKey.set(norm, monthly as number[]);
+  }
+
+  let matchedCount = 0;
   const updatedRows = baseRows.map((r) => {
-    const aiCat = data.categories.find((c: any) => c.key === r.key || c.key === r.label);
-    return { ...r, values: aiCat?.monthly || [...r.values] };
+    const monthly =
+      aiByNormKey.get(normalizeBudgetKey(r.key)) ?? aiByNormKey.get(normalizeBudgetKey(r.label));
+    if (!monthly) return { ...r, values: [...r.values] };
+    matchedCount++;
+    return { ...r, values: monthly };
   });
+
+  if (matchedCount === 0) {
+    throw new Error("AI-forslaget matchede ikke budgetlinjerne — prøv igen");
+  }
 
   await replaceScenarioValues({ userId, companyId, year, target, rows: updatedRows });
 
-  return { updatedRows, reasoning: data.reasoning || undefined };
+  return {
+    updatedRows,
+    reasoning: data.reasoning || undefined,
+    matchedCount,
+    totalRowCount: baseRows.length,
+  };
 }
 
 /** W5 — Excel-import-confirm (BudgetImport.tsx:197-242 ordret): delete

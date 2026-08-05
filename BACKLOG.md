@@ -639,6 +639,23 @@ loadBudget) som lille eget spor efter budget-GO. Den omvendte kobling
 
 ---
 
+### [P3] Prompt-hærdning af generate-budget-scenarios — keys/enum i prompten (noteret 2026-08-05)
+
+Fund fra hb-ai-merge-recon §a: edge-funktionens baseSummary viser
+modellen KUN labels (`${r.label} (${r.group}): […]`), mens tool-schemaet
+beder om "key" retur ("samme som base" — en base modellen aldrig har set
+nøglerne på). Modellen kan kun gætte, og valideringens
+`!baseRow → false`-gren lader helt umatchede svar passere. Klient-værnet
+(U3 i budgetEngine: normaliseret match + ærlig nul-match-fejl) er landet
+i fix/budget-ai-merge og SKAL bestå uanset — dette punkt er den
+komplementære server-hærdning: send keys med i prompten (fx
+"key: label (group): […]"-form) og/eller enum over gyldige keys i
+tool-schemaet, plus stram valideringen så umatchede keys tæller som
+fejl, ikke som "ændrede". Edge auto-deployer fra merge — eget lille
+spor m. manuel prod-verifikation ("View code").
+
+---
+
 ### [P4] Chat-analysekortets tidsstempel bumper ikke ved genanalyse (noteret 2026-08-05)
 
 Fund fra AI-analysens idempotens-bevis: useFinancialAnalysis' UPDATE af

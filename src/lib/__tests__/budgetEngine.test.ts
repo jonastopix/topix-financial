@@ -13,6 +13,7 @@ import {
   deriveGrowthFactor,
   distributeEvenly,
   distributeSeasonally,
+  normalizeBudgetKey,
   parseBudgetMarker,
   parseBudgetPeriod,
   resolveAutoYear,
@@ -181,6 +182,32 @@ describe("deriveGrowthFactor (§b4)", () => {
 
   it("ratio 1.0 → 1", () => {
     expect(deriveGrowthFactor([100, 100, 100], [100, 100, 100])).toBe(1);
+  });
+});
+
+describe("normalizeBudgetKey (U3 — miss-kataloget 1-4, hb-ai-merge-recon §b3)", () => {
+  it("1: dansk normalisering — æ/ø/å oversættes som i keys", () => {
+    expect(normalizeBudgetKey("omsætning")).toBe("omsaetning");
+    expect(normalizeBudgetKey("Løn & Personale")).toBe("loen_personale");
+    expect(normalizeBudgetKey("småanskaffelser")).toBe("smaaanskaffelser");
+  });
+
+  it("2: casing og kant-whitespace", () => {
+    expect(normalizeBudgetKey("OMSÆTNING ")).toBe("omsaetning");
+    expect(normalizeBudgetKey("vareforbrug / cogs")).toBe("vareforbrug_cogs");
+  });
+
+  it("3: specialtegns-/mellemrums-varianter af sammensatte labels falder sammen", () => {
+    expect(normalizeBudgetKey("Vareforbrug / COGS")).toBe("vareforbrug_cogs");
+    expect(normalizeBudgetKey("Vareforbrug/COGS")).toBe("vareforbrug_cogs");
+    expect(normalizeBudgetKey("Fragt & levering")).toBe("fragt_levering");
+    expect(normalizeBudgetKey("Fragt & Levering ")).toBe("fragt_levering");
+  });
+
+  it("4: lagrede snake_case-keys er fixpunkter (idempotent)", () => {
+    expect(normalizeBudgetKey("fragt_levering")).toBe("fragt_levering");
+    expect(normalizeBudgetKey("omsaetning")).toBe("omsaetning");
+    expect(normalizeBudgetKey(normalizeBudgetKey("Vareforbrug / COGS"))).toBe("vareforbrug_cogs");
   });
 });
 

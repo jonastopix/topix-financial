@@ -174,7 +174,7 @@ export const HbBudgetEditTable = ({
 
     setGenerating(true);
     try {
-      const { updatedRows, reasoning } = await engineGenerateAIScenario({
+      const { updatedRows, reasoning, matchedCount, totalRowCount } = await engineGenerateAIScenario({
         userId,
         companyId,
         year,
@@ -182,8 +182,8 @@ export const HbBudgetEditTable = ({
         baseRows: scenarioData.base,
       });
       setScenarioData((prev) => (prev ? { ...prev, [target]: updatedRows } : prev));
-      const label = SCENARIOS.find((s) => s.key === target)?.label;
-      note(reasoning ? `Forslag til ${label} er klar — ${reasoning}` : `Forslag til ${label} er klar`);
+      const summary = `Forslag klar — ${matchedCount} af ${totalRowCount} linjer justeret`;
+      note(reasoning ? `${summary} · ${reasoning}` : summary);
       setActiveScenario(target);
     } catch (err: any) {
       console.error("AI scenario error:", err);

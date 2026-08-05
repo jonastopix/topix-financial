@@ -183,7 +183,11 @@ export const HbBudgetCashflow = ({ rows, year, companyId }: Props) => {
         <HbCard className="p-5">
           <TalStat
             label="Cash runway"
-            value={cashInsights?.runwayMonths != null ? `${cashInsights.runwayMonths} måneder` : "—"}
+            value={
+              cashInsights?.runwayMonths != null
+                ? `${cashInsights.runwayMonths} ${cashInsights.runwayMonths === 1 ? "måned" : "måneder"}`
+                : "—"
+            }
             attention={runwayTone.tone === "attention"}
             sub={
               cashInsights?.runwayMonths != null
