@@ -549,13 +549,23 @@ aldrig være hjemløse.
 
 ---
 
-### [P3] AI-analysens Hb-konvertering (noteret 2026-08-05)
+### [P3] ✅ Løst i PR feat/hjemmebane-ai-analyse — AI-analysens Hb-konvertering
 
-AIFinancialAnalysis (589 linjer) embeddes som BEVIDST BRO i gammelt udtryk
-på /noegletal (og bruges fortsat af CompanyChatPane). En Hb-konvertering
-er sit eget sprint og skal dække BEGGE kaldesteder + generér-flowet
-(generate-financial-commentary) og periodevalgs-kontrakten
-(selectedPeriodKey/onSelectPeriod). Broens toasts består indtil da.
+**Status**: Løst (2026-08-05). Maskinen udskilt til useFinancialAnalysis som
+ren flytning (én sandhed for messages-idempotensen — skrivevejen findes kun
+i hook'en); gamle AIFinancialAnalysis omlagt til hook'en m. nul
+adfærdsændring (JSX/toasts/collapse 1:1 via callbacks); HbFinancialAnalysis
+på /noegletal m. eget periodevalg og stille kvitteringer — broens toasts
+afviklet på Hb-fladen. Rene domme (sortFindings/deriveEffectivePeriod/
+deriveDataSufficiency/deriveDefaultExpanded) i src/lib/financialAnalysis.ts
+m. vitest. CompanyChatPane's AnalysisData-import bevaret via re-eksport.
+Gamle udtryk består KUN på frosne /reports indtil dens swap.
+
+**Oprindelig plan**: AIFinancialAnalysis (589 linjer) embeddes som BEVIDST
+BRO i gammelt udtryk på /noegletal (og bruges fortsat af CompanyChatPane).
+En Hb-konvertering er sit eget sprint og skal dække BEGGE kaldesteder +
+generér-flowet (generate-financial-commentary) og periodevalgs-kontrakten
+(selectedPeriodKey/onSelectPeriod).
 
 ---
 
