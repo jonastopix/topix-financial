@@ -56,6 +56,16 @@ const HB_SERIES = [
   { key: "bank_balance", label: "Bank", color: "hsl(var(--hb-ink-soft))" },
 ] as const;
 
+/** Branche-tabellens (industry_benchmarks) nøgler → fladens def-nøgler.
+    Gamle KPIs.tsx' sandhed (858-885): gross_margin_pct → DB-margin
+    (calcDbMargin = VALUE_EXTRACTORS.db_margin), ebitda_margin_pct →
+    Resultatmargin (calcResultMargin = VALUE_EXTRACTORS.ebitda_margin).
+    Jf. hb-benchmark-kilde-recon.txt. */
+const INDUSTRY_TO_DEF_KEY: Record<string, string> = {
+  gross_margin_pct: "db_margin",
+  ebitda_margin_pct: "ebitda_margin",
+};
+
 const hbTooltipStyle = {
   contentStyle: {
     borderRadius: 12,
@@ -392,6 +402,17 @@ export const NoegletalView = () => {
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) ?? kpiMetrics[0];
   const activeUnit = KPI_DEFS.find((d) => d.key === activeMetric?.key)?.unit;
 
+  // Gauge-rækker: branche-nøgler mappes til fladens def-nøgler
+  // (INDUSTRY_TO_DEF_KEY, gamle sides sandhed). Kun RENDERBARE rækker
+  // tæller — sektionen gater på dem, ikke på rå benchmarks.length
+  // (tomt-kort-fejlen, jf. hb-benchmark-kilde-recon.txt).
+  const gaugeRows = (industryBenchmarkData?.benchmarks ?? []).flatMap((b) => {
+    const defKey = INDUSTRY_TO_DEF_KEY[b.kpi_key];
+    const metric = defKey ? kpiMetrics.find((m) => m.key === defKey) : undefined;
+    if (!metric || b.benchmark_max <= b.benchmark_min) return [];
+    return [{ b, metric }];
+  });
+
   /** Prik-renderer til BÅDE dot og activeDot: recharts' active-dot-lag
       renderes oven på dots-laget uden egne handlers, så det øverste lag
       skal selv bære klikket (fix-recon (a)). Spejler gamle CustomDot
@@ -671,12 +692,15 @@ export const NoegletalView = () => {
                 });
                 const selected = metric.key === selectedKPI;
                 const toneCls = tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust";
-                const bench = industryBenchmarkData?.benchmarks.find((b) => b.kpi_key === metric.key);
-                const benchLabel = bench
-                  ? def.unit === "%"
-                    ? `${bench.benchmark_value} %`
-                    : formatCompact(bench.benchmark_value)
-                  : null;
+                // VIRKSOMHEDSSAT benchmark (samme data som panelet
+                // redigerer/gemmer) — kalibrerings-løkken lukker: sæt → se.
+                const bench = benchmarksResolved[metric.key];
+                const benchLabel =
+                  bench && bench.value > 0
+                    ? def.unit === "%"
+                      ? `${bench.value} %`
+                      : formatCompact(bench.value)
+                    : null;
                 return (
                   <button
                     key={metric.key}
@@ -803,12 +827,10 @@ export const NoegletalView = () => {
 
           {/* ── 6. Branche-benchmark (begge roller — benchmark-synligheds-
               beslutningen 2026-08-05) ── */}
-          {industryBenchmarkData && industryBenchmarkData.benchmarks.length > 0 && (
+          {gaugeRows.length > 0 && industryBenchmarkData && (
             <HbSection eyebrow={`Branchesammenligning${industryBenchmarkData.industryLabel ? ` · ${industryBenchmarkData.industryLabel}` : ""}`} className="mt-10">
               <HbCard className="space-y-4 p-6">
-                {industryBenchmarkData.benchmarks.map((b) => {
-                  const metric = kpiMetrics.find((m) => m.key === b.kpi_key);
-                  if (!metric || b.benchmark_max <= b.benchmark_min) return null;
+                {gaugeRows.map(({ b, metric }) => {
                   const pos = Math.max(0, Math.min(100, ((metric.numValue - b.benchmark_min) / (b.benchmark_max - b.benchmark_min)) * 100));
                   const benchPos = Math.max(0, Math.min(100, ((b.benchmark_value - b.benchmark_min) / (b.benchmark_max - b.benchmark_min)) * 100));
                   return (

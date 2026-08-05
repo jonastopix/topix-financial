@@ -369,6 +369,17 @@ stedet for lokal state.
 
 ---
 
+### [P3] Usynlige seedede benchmarks (noteret 2026-08-05)
+
+Service-seeden 20260329212047 kopierede industry_benchmarks-nøgler
+(gross_margin_pct/ebitda_margin_pct) råt ind i kpi_benchmarks for 37
+CVR — rækkerne matcher aldrig panelets def.key-opslag og har været
+usynlige siden. Kandidat: engangs-datamigrering der oversætter nøglerne
+(INDUSTRY_TO_DEF_KEY) el. sletter de døde rækker; kræver FØR-optælling
+(jf. hb-benchmark-kilde-recon.txt §b).
+
+---
+
 ### [P4] Baseline-stramning: self-insert uden company-tjek på kpi_targets/kpi_benchmarks (noteret 2026-08-05)
 
 **Fund** (hb-ai-maal-recon.txt §1e): de oprindelige self-insert-policies
