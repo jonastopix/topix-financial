@@ -108,9 +108,22 @@ Applied to: all data tables for SELECT; most tables for INSERT/UPDATE/DELETE
 `pulse_checkins` (member reflections) carries this broad advisor SELECT policy
 too, named "Advisors can view all checkins" (migration
 `20260611140000_advisor_read_pulse_checkins.sql`). It is read-only for advisors
-(members remain the only writers via "Members manage company checkins") and is
-required because the older group-scoped advisor policy returned 0 rows for
-standalone companies, hiding their reflections from advisors.
+(members remain the only writers via "Members manage company checkins"). It was
+originally added because an older group-scoped advisor policy returned 0 rows
+for standalone companies; that group-scoped policy is now DROPPED entirely
+(koncern removal, see note below) and this broad policy is the sole advisor
+read path.
+
+**Koncern-objekter FJERNET (2026-08-05, SPOR 3)**: alle koncern-/group-
+DB-objekter er droppet med eksplicit grønt lys — 8 tabeller (groups,
+group_companies, group_memberships, group_advisor_access,
+group_feature_flags, group_conversations, group_messages,
+budget_category_group_map), 21 funktioner (heraf SECURITY DEFINER-helpers
+som user_group_id/advisor_has_group_access og alle group-RPC'er), policyen
+"Advisors read checkins for their companies" på pulse_checkins samt
+kolonnen notifications.group_id. Eksekveret manuelt i prod ca. 22:45 og
+committet for paritet som migration
+`20260805224500_drop_koncern_objects.sql`. Recon: hb-koncern-recon.txt §C.
 
 ### Admin access
 ```sql

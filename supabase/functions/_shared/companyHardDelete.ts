@@ -17,22 +17,6 @@ export async function hardDeleteCompany(
   const deleteUsers = options?.deleteUsers ?? false;
   const preserveInvitations = options?.preserveInvitations ?? false;
 
-  // KONCERN-FJERNELSE SPOR 1: guard + group_companies-delete består bevidst
-  // til SPOR 3 (DB-drop) — se hb-koncern-recon §B.
-  const { data: anchoredGroup, error: anchoredGroupError } = await adminSupabase
-    .from('groups')
-    .select('id')
-    .eq('anchor_company_id', companyId)
-    .maybeSingle();
-
-  if (anchoredGroupError) {
-    throw new Error(`Kunne ikke tjekke koncernforankring: ${anchoredGroupError.message}`);
-  }
-
-  if (anchoredGroup?.id) {
-    throw new Error('Virksomheden kan ikke slettes, fordi den er ankervirksomhed i en koncern');
-  }
-
   const { data: members, error: membersError } = await adminSupabase
     .from('company_members')
     .select('user_id')
@@ -79,7 +63,6 @@ export async function hardDeleteCompany(
   await mustSucceed(adminSupabase.from('slack_notification_log').delete().eq('company_id', companyId), 'Kunne ikke slette slack_notification_log');
   await mustSucceed(adminSupabase.from('slack_handout_notification_log').delete().eq('company_id', companyId), 'Kunne ikke slette slack_handout_notification_log');
   await mustSucceed(adminSupabase.from('slack_report_notification_log').delete().eq('company_id', companyId), 'Kunne ikke slette slack_report_notification_log');
-  await mustSucceed(adminSupabase.from('group_companies').delete().eq('company_id', companyId), 'Kunne ikke slette group_companies');
   await mustSucceed(adminSupabase.from('company_actions').delete().eq('company_id', companyId), 'Kunne ikke slette company_actions');
   await mustSucceed(adminSupabase.from('notifications').delete().eq('company_id', companyId), 'Kunne ikke slette notifications');
   await mustSucceed(adminSupabase.from('weekly_focus').delete().eq('company_id', companyId), 'Kunne ikke slette weekly_focus');
