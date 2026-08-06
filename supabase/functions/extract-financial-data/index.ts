@@ -907,9 +907,15 @@ serve(async (req) => {
       }
 
       console.log("[Routing] Using AI extraction path");
-      
+
+      // Dato-anker (periode-fix PR 1b): funktionen kører i upload-øjeblikket,
+      // så dags dato ≡ upload-datoen. Uden ankeret har modellen intet
+      // holdepunkt for året og kan gætte vilkårligt (prod: "Juni 2020").
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const promptUploadYear = new Date().getFullYear();
+
       // Company name instruction for AI
-      const companyNameInstruction = knownCompanyName 
+      const companyNameInstruction = knownCompanyName
         ? `\n\nVIGTIGT: Virksomhedens navn er "${knownCompanyName}". Brug dette navn i company_name feltet.`
         : "";
       
@@ -1020,8 +1026,11 @@ I en saldobalance er der to typer kolonner:
 ═══════════════════════════════════════════════════
 TRIN 5: RAPPORTPERIODE
 ═══════════════════════════════════════════════════
+- I DAG ER ${todayIso}, og rapporten er netop uploadet.
 - Skriv som "December 2025", "Oktober 2025" osv.
 - Bestem ud fra datoer i dokumenthovedet (f.eks. "01.12.25 - 31.12.25" = December 2025)
+- Årstallet SKAL ligge i intervallet [${promptUploadYear - 2} .. ${promptUploadYear}]. Står der et andet år i dokumentet, så brug det KUN hvis det er helt utvetydigt — og sæt validation.status = "UNSURE".
+- GÆT ALDRIG et år der ikke står i dokumentet.
 
 ═══════════════════════════════════════════════════
 TRIN 6: DANSK TALFORMAT
@@ -1075,12 +1084,12 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           image_url: { url: `data:image/jpeg;base64,${base64}` },
         }));
         userContent = [
-          { type: "text", text: `Filnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
+          { type: "text", text: `I dag er ${todayIso} — rapporten er netop uploadet.\nFilnavn: ${fileName || 'ukendt'}\n\nHerunder er siderne fra dokumentet som billeder. Aflæs tabellerne VISUELT og vær omhyggelig med at skelne "Perioden"/"Faktisk" kolonnen (venstre) fra "År til dato" kolonnen (højre). Supplerende tekstudtræk:\n\n${(fileContent || '').slice(0, 5000)}` },
           ...imageParts,
         ];
         console.log(`Sending ${pageImages.length} page images to AI (vision mode)`);
       } else {
-        userContent = `Filnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
+        userContent = `I dag er ${todayIso} — rapporten er netop uploadet.\nFilnavn: ${fileName || 'ukendt'}\n\nHer er det rå indhold fra dokumentet:\n\n${fileContent}`;
         console.log("Sending text-only content to AI (no images available)");
       }
 
@@ -1115,7 +1124,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                     },
                     report_period: {
                       type: "string",
-                      description: "F.eks. 'Oktober 2025'. Angiv den måned rapporten primært dækker.",
+                      description: `F.eks. 'Oktober 2025'. Angiv den måned rapporten primært dækker. Årstallet skal ligge i [${promptUploadYear - 2} .. ${promptUploadYear}] medmindre dokumentet utvetydigt siger andet.`,
                     },
                     company_name: { type: "string" },
                     cvr_number: { type: "string" },
@@ -1442,7 +1451,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         : extractedData.report_type;
 
       // FIX C: Convert semantic period metadata to Danish month label for DB/commit compatibility
-      const dbReportPeriod = (() => {
+      let dbReportPeriod = (() => {
         if (!isSemanticCanonical) return extractedData.report_period;
 
         const DK_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
@@ -1549,6 +1558,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // frontendens isCompletedMonth (src/lib/financialUtils). Den SKAL holdes identisk med
       // klient-helperen og commit-RPC'en resolve_report_commit_candidate
       // (period_key >= to_char(now(),'YYYY-MM') afvises).
+      let periodRejectedReason: string | null = null;
+      let suspectedPeriod: string | null = null;
       if (dbReportPeriod) {
         const DK_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
         const monthIdx = DK_MONTHS.findIndex(m => dbReportPeriod.toLowerCase().includes(m.toLowerCase()));
@@ -1586,6 +1597,23 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
+
+          // ── Års-guard (periode-fix PR 1a): udledt år må ikke ligge mere end
+          //    2 år FØR upload-året. Dækker alle tre kanaler (deterministisk/
+          //    semantisk/AI+override) via dbReportPeriod-tragten — prod-bevist
+          //    nødvendigt af rapport f5293b79 ("Juni 2020" fra AI-gæt m. PASS).
+          //    Funktionen kører synkront i upload-øjeblikket, så now() ≡
+          //    uploaded_at-året. Ingen auto-periode → medlemmet bekræfter
+          //    perioden manuelt i stedet for at få et stiltiende forkert år.
+          const uploadYear = now.getFullYear();
+          const derivedYear = parseInt(yearMatch[0], 10);
+          if (derivedYear < uploadYear - 2) {
+            console.log(`[PeriodGuard] Rejecting out-of-range year: derived="${dbReportPeriod}" (${derivedYear}) < ${uploadYear - 2} (uploadYear-2) — dropping auto-period, needs_manual_entry`);
+            periodRejectedReason = "year_out_of_range";
+            suspectedPeriod = dbReportPeriod;
+            dbReportPeriod = null;
+            needsManualEntry = true;
+          }
         }
       }
 
@@ -1616,6 +1644,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           has_period: !!(dbReportPeriod && dbReportPeriod.length > 0),
           extraction_method: extractionMethod,
           routing_branch: routingTrace.branch,
+          ...(periodRejectedReason ? {
+            period_rejected_reason: periodRejectedReason,
+            suspected_period: suspectedPeriod,
+          } : {}),
         } : null,
       };
 
