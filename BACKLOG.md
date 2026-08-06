@@ -674,6 +674,32 @@ spor m. manuel prod-verifikation ("View code").
 
 ---
 
+### [P3] Chat-attachments PR 5 — upload-vejens restpunkter (noteret 2026-08-06)
+
+Bucketen blev privat 2026-08-06 (PR 4,
+`20260806082800_chat_attachments_private.sql`); læsning går nu
+udelukkende via get-chat-attachment-url (RLS-gatet, signeret 600 s).
+Tre restpunkter samlet som PR 5:
+1. **INSERT-stramning**: policyen "Authenticated users can upload chat
+   attachments" tjekker kun bucket_id — stram til eget
+   `{userId}/`-præfiks (`(storage.foldername(name))[1] =
+   auth.uid()::text`, samme mønster som DELETE-policyen fra
+   20260317133757).
+2. **uploadChatAttachments skriver path i stedet for public-URL**:
+   `getPublicUrl`-strengen i `context_meta.attachments[].url` er død
+   som direkte link efter flippet; edge-parseren understøtter allerede
+   `att.path` (index.ts:114-115), så skift skrivningen til
+   `{ path }`-formen og behold url-parseren for historiske rækker.
+3. **Levende sandbox-bevis for upload-vejen**: upload → besked →
+   rendering via frisk signering, efter både 1 og 2.
+
+Konsekvens noteret (besluttet 2026-08-06): historiske
+public-URL-kopier UDEN FOR appen (fx delte links) er døde pr.
+flippet — app-visningen er upåvirket, da edge-parseren håndterer den
+lagrede url-form.
+
+---
+
 ### [P4] Chat-analysekortets tidsstempel bumper ikke ved genanalyse (noteret 2026-08-05)
 
 Fund fra AI-analysens idempotens-bevis: useFinancialAnalysis' UPDATE af
