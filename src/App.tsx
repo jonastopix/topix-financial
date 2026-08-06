@@ -19,7 +19,6 @@ import NotFound from "./pages/NotFound";
 // Lazy — member/advisor routes
 const Milestones = lazy(() => import("./pages/Milestones"));
 const Budget = lazy(() => import("./pages/Budget"));
-const Handouts = lazy(() => import("./pages/Handouts"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
 const BookSession = lazy(() => import("./pages/BookSession"));
@@ -58,7 +57,7 @@ const Noegletal = lazy(() => import("./pages/Noegletal"));
 // Lazy — Hb-budgetfladen (route-parallel; advisor-gated indtil swap-GO på /budget)
 const Budgettering = lazy(() => import("./pages/Budgettering"));
 
-// Lazy — Hb-handoutfladen (route-parallel; advisor-gated indtil swap-GO på /handouts)
+// Lazy — Hb-handoutfladen (bærer /handouts efter Handouts-GO 2026-08-06)
 const Handout = lazy(() => import("./pages/Handout"));
 
 // Lazy — demo routes (no auth)
@@ -113,6 +112,14 @@ const NoegletalRedirect = () => {
 const RapporteringRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/reports", search, hash }} replace />;
+};
+
+/* Handouts-GO (2026-08-06): /handout → /handouts. Query/hash bevares —
+   ?module= er Akademi-broens kontrakt (ElementView linker
+   /handouts?module=<m>) og skal overleve redirectet. */
+const HandoutRedirect = () => {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: "/handouts", search, hash }} replace />;
 };
 
 const AdvisorRoute = ({ children }: { children: React.ReactNode }) => {
@@ -205,7 +212,11 @@ const App = () => (
               <Route path="/reports" element={<MemberRoute><Rapportering /></MemberRoute>} />
               <Route path="/budget" element={<MemberRoute><Budget /></MemberRoute>} />
               <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
-              <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
+              {/* Handouts-GO (2026-08-06): /handouts bærer Hb-handoutfladen.
+                  ⚠️ PROTECTEDROUTE — IKKE MemberRoute: Legat-brugere skal
+                  kunne stå her (MemberRoute redirecter isLegat → /legat).
+                  Samme gating som gamle Handouts.tsx havde. */}
+              <Route path="/handouts" element={<ProtectedRoute><Handout /></ProtectedRoute>} />
               {/* KPI-GO (2026-08-06): /kpis bærer Hb-KPI-fladen. MemberRoute
                   som før — advisors passerer (ingen isAdvisor-gate) og vælger
                   virksomhed via company-override, præcis som på gammel /kpis. */}
@@ -254,11 +265,10 @@ const App = () => (
                   på /budget (notifikations-deep_link + Guide-hash er kontrakt),
                   /budgettering bliver redirect. */}
               <Route path="/budgettering" element={<AdvisorRoute><Budgettering /></AdvisorRoute>} />
-              {/* Hb-handoutfladen — AdvisorRoute KUN i byggeperioden; GO = swap
-                  på /handouts m. PROTECTEDROUTE (IKKE MemberRoute — Legat-
-                  adgang; ?module= er Akademi-broens kontrakt), /handout
-                  bliver redirect. */}
-              <Route path="/handout" element={<AdvisorRoute><Handout /></AdvisorRoute>} />
+              {/* Handouts-GO gennemført 2026-08-06: /handouts bærer fladen
+                  (?module= er Akademi-broens kontrakt); /handout redirecter
+                  m. bevaret query/hash. */}
+              <Route path="/handout" element={<HandoutRedirect />} />
               {/* Demo routes — no auth required */}
               <Route path="/demo" element={<DemoLayout />}>
                 <Route index element={<Navigate to="/demo/dashboard" replace />} />

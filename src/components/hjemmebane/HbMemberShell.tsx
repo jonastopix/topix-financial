@@ -52,11 +52,10 @@ export const HbMemberShell = ({
           active: active === "budget",
         },
         { label: "Milestones", to: "/milestones" },
-        // Samme byggeperiode-gating som de tre foregående konverteringer
-        // (handout-konverteringen); medlemmer ser uændret /handouts.
+        // Handouts-GO 2026-08-06: /handouts bærer fladen for alle roller.
         {
           label: "Handouts",
-          to: effectiveAdvisor ? "/handout" : "/handouts",
+          to: "/handouts",
           active: active === "handouts",
         },
       ],
