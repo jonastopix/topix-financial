@@ -566,8 +566,12 @@ flow, mørk dialog i lys flade, ventetid uden feedback — recon:
 hb-rapport-ux-recon.txt). B1/B2/B4/B5 lukker flow-delen og SHIPPES PÅ
 MAIN FØR SWAPPET (ufarligt: gamle Reports har selv auto-åbning, og
 deep-links håndteres af begge flader) så byggeruten kan gentestes;
-B3 (Hb-restyling af review-dialog + pulse-modal) forbliver stacked på
-feat/rapportering-go-swap:
+B3 (Hb-restyling af review-dialog + pulse-modal) IMPLEMENTERET
+2026-08-06 i feat/rapportering-b3-dialoger — stacked på
+feat/rapportering-go-swap, shipper i swap-merget (theme-hjemmebane på
+DialogContent-roden jf. recon §3 vej i; pulse-modalens inline-gren på
+/pulse beholder appens tokens via stil-indirektion — den lyse stil
+rammer ikke gamle flade):
 - B1 auto-åbning: RP-1-affyringen portet 1:1 fra Reports:611-641 ind i
   RapporteringView (handlePipelineComplete → pendingReviewReportId →
   effekt åbner review-dialogen ved ready/update_available/blocked,
@@ -596,9 +600,11 @@ Parse-ventetid (processed_at - uploaded_at): median 5 s, p90 76 s.
 Portal-dialogerne på Hb-rapporteringsfladen lander uden for
 .theme-hjemmebane-scopet og arver appens mørke tokens (strukturelt
 vilkår — jf. hb-rapport-ux-recon.txt §3 og HbSidebars Sheet-fravalg).
-Review-dialogen og pulse-modalen tages i B3-PR'en (Rapportering-UX);
-tilbage står ReportManualOverride og slette-AlertDialog'en på samme
-flade.
+Review-dialogen og pulse-modalen ER taget i B3-PR'en
+(feat/rapportering-b3-dialoger, 2026-08-06); tilbage står
+ReportManualOverride (inkl. delte OverrideFormFields, som B3 bevidst
+ikke rører — den deles med ManualOverride) og slette-AlertDialog'en på
+samme flade.
 
 ---
 
