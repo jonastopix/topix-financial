@@ -96,6 +96,7 @@ export const RapporteringView = () => {
   const [pulseState, setPulseState] = useState<{ open: boolean; periodKey?: string; periodLabel?: string }>({
     open: false,
   });
+  const [pendingReviewReportId, setPendingReviewReportId] = useState<string | null>(null);
 
   const { data: facts = [] } = useCompanyFacts();
   const { data: commentaries = [] } = useCompanyCommentary();
@@ -170,6 +171,54 @@ export const RapporteringView = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, dbReports]);
+
+  // ── RP-1-affyring (portet 1:1 fra Reports:611-641): pipeline-færdig →
+  //    armér review; effekten åbner dialogen når commit-state er landet. ────
+  const pendingScrollRef = useRef<string | null>(null);
+
+  const handlePipelineComplete = async (reportId?: string) => {
+    if (reportId) {
+      pendingScrollRef.current = reportId;
+      setExpandedReport(reportId);
+    }
+    setRefreshKey((k) => k + 1);
+    if (reportId) {
+      await commitStatesQuery.refetch();
+      setPendingReviewReportId(reportId);
+    }
+  };
+
+  // RP-1: Reactive auto-open review dialog for pending report
+  useEffect(() => {
+    if (!pendingReviewReportId) return;
+    const entry = commitStatesQuery.data?.get(pendingReviewReportId);
+    if (!entry) return; // not in map yet, wait for next data update
+    if (entry.state === "ready" || entry.state === "update_available" || entry.state === "blocked") {
+      const report = dbReports.find((r) => r.id === pendingReviewReportId);
+      const label = report ? getEffectiveReportPeriod(report as any) || report.file_name : "";
+      setReviewDialogState({ open: true, reportId: pendingReviewReportId, reportLabel: label, cardState: entry.state });
+      setPendingReviewReportId(null);
+    } else if (entry.state === "not_ready") {
+      setPendingReviewReportId(null);
+      // Open manual override so user can fix the period
+      const report = dbReports.find((r) => r.id === pendingReviewReportId);
+      if (report) setOverrideReport(report);
+    }
+  }, [pendingReviewReportId, commitStatesQuery.data, dbReports]);
+
+  // Post-upload: scroll til den nye rapport når listen er genindlæst
+  // (fladens highlight-mekanisme frem for gamle Reports' rå ring-klasser).
+  useEffect(() => {
+    const targetId = pendingScrollRef.current;
+    if (!targetId || dbReports.length === 0) return;
+    if (dbReports.some((r) => r.id === targetId)) {
+      pendingScrollRef.current = null;
+      setHighlightedReport(targetId);
+      setTimeout(() => {
+        reportCardRefs.current.get(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  }, [dbReports]);
 
   // ── Godkend = commit ved "Gem og anvend" (portet 1:1 fra Reports) ────────
   const handleAppliedCommit = useCallback(
@@ -505,7 +554,7 @@ export const RapporteringView = () => {
           companyId={companyId ?? null}
           companyName={companyName ?? null}
           conversationId={conversationId}
-          onPipelineComplete={() => setRefreshKey((k) => k + 1)}
+          onPipelineComplete={handlePipelineComplete}
         />
       </div>
 

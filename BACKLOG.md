@@ -560,6 +560,52 @@ URL'EN ER EMAIL-KONTRAKT (extract-financial-data + email-flows §1.1
 skriver /reports?reportId=…; #upload/#annual-reports-ankrene skal virke
 identisk); /rapportering bliver redirect (§3.6-mønstret).
 
+UX-FLOW-FIX (fix/rapportering-ux-flow-main, 2026-08-06): medlemstest
+satte swap-GO'et (PR #208) i HOLD på tre fund (passivt godkendelses-
+flow, mørk dialog i lys flade, ventetid uden feedback — recon:
+hb-rapport-ux-recon.txt). B1/B2/B4/B5 lukker flow-delen og SHIPPES PÅ
+MAIN FØR SWAPPET (ufarligt: gamle Reports har selv auto-åbning, og
+deep-links håndteres af begge flader) så byggeruten kan gentestes;
+B3 (Hb-restyling af review-dialog + pulse-modal) IMPLEMENTERET
+2026-08-06 i feat/rapportering-b3-dialoger — stacked på
+feat/rapportering-go-swap, shipper i swap-merget (theme-hjemmebane på
+DialogContent-roden jf. recon §3 vej i; pulse-modalens inline-gren på
+/pulse beholder appens tokens via stil-indirektion — den lyse stil
+rammer ikke gamle flade):
+- B1 auto-åbning: RP-1-affyringen portet 1:1 fra Reports:611-641 ind i
+  RapporteringView (handlePipelineComplete → pendingReviewReportId →
+  effekt åbner review-dialogen ved ready/update_available/blocked,
+  manuel override ved not_ready) — pariteten genoprettet.
+- B2 reminder-godkend-variant: send-report-reminder skelner nu
+  upload/godkend/manuel pr. virksomhed via tragt-kriterierne (processed,
+  ikke slettet/aarsrapport/_sentinel, ingen facts-række); godkend/manuel
+  deep-linker /reports?reportId=<nyeste ucommittede>; egne dedup_keys
+  (report_reminder_approve/_manual); email-varianterne (inkl.
+  variant-styret hint-boks via {{hint_text}}) går uden om
+  DB-upload-templaterne.
+- B4 ventetids-feedback: Hb-upload-zonen viser "Læser dokumentet…"
+  (processing) → "Trækker tallene ud — tager normalt under ét minut"
+  (analyzing — status-værdien var død og sættes nu før extract-kaldet;
+  ren UI-status, A1 urørt).
+- B5 toast-CTA: succes-toasten slutter "gennemgangen åbner automatisk"
+  (gamle CTA-tekst 'tryk "Klar til godkendelse"' matchede ingen knap).
+Tragt-facit (målt i prod 2026-08-06): 152 processed / 145 committet /
+5 ugodkendte (parse ok) / 2 manuel-indtastning aldrig udfyldt.
+Parse-ventetid (processed_at - uploaded_at): median 5 s, p90 76 s.
+
+---
+
+### [P3] Hb-restyling af ReportManualOverride + slette-AlertDialog (noteret 2026-08-06)
+
+Portal-dialogerne på Hb-rapporteringsfladen lander uden for
+.theme-hjemmebane-scopet og arver appens mørke tokens (strukturelt
+vilkår — jf. hb-rapport-ux-recon.txt §3 og HbSidebars Sheet-fravalg).
+Review-dialogen og pulse-modalen ER taget i B3-PR'en
+(feat/rapportering-b3-dialoger, 2026-08-06); tilbage står
+ReportManualOverride (inkl. delte OverrideFormFields, som B3 bevidst
+ikke rører — den deles med ManualOverride) og slette-AlertDialog'en på
+samme flade.
+
 ---
 
 ### [P1] KPI-GO = swap på /kpis (noteret 2026-08-05)

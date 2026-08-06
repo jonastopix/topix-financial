@@ -16,7 +16,81 @@ interface PulseCheckinModalProps {
   periodLabelOverride?: string;
 }
 
+/* B3: dialog-grenen (RapporteringView) bærer Hb-udtrykket via theme-rod på
+   DialogContent; inline-grenen (/pulse, gammel AppLayout-flade) må IKKE
+   rammes af den lyse stil og beholder appens tokens ORDRET indtil dens egen
+   konvertering. Ren stil-indirektion på `inline` — ingen logik-ændringer. */
+const APP_STYLES = {
+  checkBadge: "inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-5",
+  checkIcon: "h-8 w-8 text-primary",
+  doneTitle: "text-xl font-display font-bold text-foreground mb-2",
+  doneBody: "text-sm text-muted-foreground max-w-xs mx-auto mb-6",
+  updateBtn: "text-xs px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors",
+  historyEyebrow: "text-[10px] font-semibold text-muted-foreground uppercase tracking-wider",
+  historyCard: "rounded-lg bg-secondary/50 p-3 space-y-1",
+  historyDate: "text-[10px] font-medium text-muted-foreground",
+  historyText: "text-xs text-foreground",
+  colleagueBox: "flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2.5 mb-4 text-xs text-muted-foreground",
+  colleagueIcon: "h-3.5 w-3.5 text-primary shrink-0 mt-0.5",
+  colleagueName: "font-medium text-foreground",
+  fieldCard: "rounded-xl border border-border p-4 mb-3",
+  fieldCardLast: "rounded-xl border border-border p-4 mb-4",
+  iconBadgeGreen: "h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0",
+  iconGreen: "h-3.5 w-3.5 text-primary",
+  iconBadgeWarn: "h-7 w-7 rounded-lg bg-chart-warning/10 flex items-center justify-center shrink-0",
+  iconWarn: "h-3.5 w-3.5 text-chart-warning",
+  iconBadgeTarget: "h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0",
+  iconTarget: "h-3.5 w-3.5 text-blue-500",
+  label: "text-sm font-semibold text-foreground",
+  labelOptional: "text-muted-foreground font-normal text-xs",
+  hint: "text-[11px] text-muted-foreground mb-3",
+  textarea: "w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none",
+  msMeta: "text-xs text-muted-foreground",
+  msValue: "text-2xl font-display font-bold text-foreground",
+  msTrack: "w-full bg-secondary rounded-full h-2",
+  msFill: "bg-primary h-2 rounded-full transition-all",
+  msNote: "text-[11px] text-muted-foreground mt-2",
+  msLink: "text-primary hover:underline",
+  submitBtn: "w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2",
+  footnote: "text-center text-[11px] text-muted-foreground mt-1",
+};
+const HB_STYLES: typeof APP_STYLES = {
+  checkBadge: "inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-hb-sage/60 mb-5",
+  checkIcon: "h-8 w-8 text-hb-evergreen",
+  doneTitle: "text-xl font-editorial font-medium text-hb-ink mb-2",
+  doneBody: "text-sm text-hb-ink-soft max-w-xs mx-auto mb-6",
+  updateBtn: "text-xs px-4 py-2 rounded-full border border-hb-line text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors",
+  historyEyebrow: "text-[10px] font-semibold text-hb-ink-soft uppercase tracking-wider",
+  historyCard: "rounded-lg border border-hb-line bg-hb-surface p-3 space-y-1",
+  historyDate: "text-[10px] font-medium text-hb-ink-soft",
+  historyText: "text-xs text-hb-ink",
+  colleagueBox: "flex items-start gap-2 rounded-lg bg-hb-sage/40 border border-hb-line px-3 py-2.5 mb-4 text-xs text-hb-ink-soft",
+  colleagueIcon: "h-3.5 w-3.5 text-hb-evergreen shrink-0 mt-0.5",
+  colleagueName: "font-medium text-hb-ink",
+  fieldCard: "rounded-hb border border-hb-line bg-hb-surface p-4 mb-3",
+  fieldCardLast: "rounded-hb border border-hb-line bg-hb-surface p-4 mb-4",
+  iconBadgeGreen: "h-7 w-7 rounded-lg bg-hb-sage/60 flex items-center justify-center shrink-0",
+  iconGreen: "h-3.5 w-3.5 text-hb-evergreen",
+  iconBadgeWarn: "h-7 w-7 rounded-lg bg-hb-rust/10 flex items-center justify-center shrink-0",
+  iconWarn: "h-3.5 w-3.5 text-hb-rust",
+  iconBadgeTarget: "h-7 w-7 rounded-lg bg-hb-sage/60 flex items-center justify-center shrink-0",
+  iconTarget: "h-3.5 w-3.5 text-hb-evergreen",
+  label: "text-sm font-semibold text-hb-ink",
+  labelOptional: "text-hb-ink-soft font-normal text-xs",
+  hint: "text-[11px] text-hb-ink-soft mb-3",
+  textarea: "w-full px-3 py-2.5 rounded-lg bg-hb-paper border border-hb-line text-sm text-hb-ink focus:outline-none focus:ring-2 focus:ring-hb-evergreen/30 placeholder:text-hb-ink-soft/60 resize-none",
+  msMeta: "text-xs text-hb-ink-soft",
+  msValue: "text-2xl font-editorial font-bold text-hb-ink",
+  msTrack: "w-full bg-hb-line rounded-full h-2",
+  msFill: "bg-hb-evergreen h-2 rounded-full transition-all",
+  msNote: "text-[11px] text-hb-ink-soft mt-2",
+  msLink: "text-hb-rust hover:underline",
+  submitBtn: "w-full py-3.5 rounded-full bg-hb-evergreen text-white font-semibold text-sm hover:bg-hb-evergreen/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2",
+  footnote: "text-center text-[11px] text-hb-ink-soft mt-1",
+};
+
 export default function PulseCheckinModal({ open, onOpenChange, onComplete, inline, periodKeyOverride, periodLabelOverride }: PulseCheckinModalProps) {
+  const s = inline ? APP_STYLES : HB_STYLES;
   const { user, companyId } = useAuth();
   const queryClient = useQueryClient();
   const { viewingAsMember } = useViewMode();
@@ -158,37 +232,37 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
   const alreadyDoneContent = (
     <div className="text-center py-8 animate-fade-in">
-      <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-5">
-        <CheckCircle2 className="h-8 w-8 text-primary" />
+      <div className={s.checkBadge}>
+        <CheckCircle2 className={s.checkIcon} />
       </div>
-      <h2 className="text-xl font-display font-bold text-foreground mb-2">
+      <h2 className={s.doneTitle}>
         {isColleagueAuthored
           ? `Jeres refleksion for ${periodLabel} er sendt`
           : `Tak, din refleksion for ${periodLabel} er sendt`}
       </h2>
-      <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">
+      <p className={s.doneBody}>
         {isColleagueAuthored
           ? `${authorName || "En kollega"} har skrevet virksomhedens refleksion. Du kan opdatere den, hvis du vil tilføje noget.`
           : "Dine rådgivere kan nu se din opdatering og vil tage den med i deres sparring med dig."}
       </p>
       <button
         onClick={() => setAlreadyDone(false)}
-        className="text-xs px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        className={s.updateBtn}
       >
         Opdatér alligevel
       </button>
       {history && history.length > 1 && (
         <div className="mt-6 text-left space-y-3">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <p className={s.historyEyebrow}>
             Tidligere refleksioner
           </p>
           {history.slice(1, 4).map((h) => (
-            <div key={h.period_key} className="rounded-lg bg-secondary/50 p-3 space-y-1">
-              <p className="text-[10px] font-medium text-muted-foreground">
+            <div key={h.period_key} className={s.historyCard}>
+              <p className={s.historyDate}>
                 {new Date(h.created_at).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}
               </p>
-              {h.went_well && <p className="text-xs text-foreground">✅ {h.went_well}</p>}
-              {h.biggest_challenge && <p className="text-xs text-foreground">⚠️ {h.biggest_challenge}</p>}
+              {h.went_well && <p className={s.historyText}>✅ {h.went_well}</p>}
+              {h.biggest_challenge && <p className={s.historyText}>⚠️ {h.biggest_challenge}</p>}
             </div>
           ))}
         </div>
@@ -216,8 +290,8 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           </div>
         ) : (
           <DialogHeader>
-            <DialogTitle>Hvordan gik {periodLabel}?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="font-editorial text-xl font-medium text-hb-ink">Hvordan gik {periodLabel}?</DialogTitle>
+            <DialogDescription className="text-sm text-hb-ink-soft">
               2 minutter der hjælper os med at give dig den bedste sparring.
             </DialogDescription>
           </DialogHeader>
@@ -226,26 +300,26 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
       {/* Colleague-authored notice (shared company reflection) */}
       {isColleagueAuthored && (
-        <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2.5 mb-4 text-xs text-muted-foreground">
-          <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+        <div className={s.colleagueBox}>
+          <CheckCircle2 className={s.colleagueIcon} />
           <span>
-            <span className="font-medium text-foreground">{authorName || "En kollega"}</span>{" "}
+            <span className={s.colleagueName}>{authorName || "En kollega"}</span>{" "}
             har allerede skrevet virksomhedens refleksion for {periodLabel}. Du redigerer den fælles refleksion.
           </span>
         </div>
       )}
 
       {/* Field 1 */}
-      <div className="rounded-xl border border-border p-4 mb-3">
+      <div className={s.fieldCard}>
         <div className="flex items-center gap-2 mb-3">
-          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <ThumbsUp className="h-3.5 w-3.5 text-primary" />
+          <div className={s.iconBadgeGreen}>
+            <ThumbsUp className={s.iconGreen} />
           </div>
-          <label className="text-sm font-semibold text-foreground">
+          <label className={s.label}>
             Hvad er gået godt denne måned?
           </label>
         </div>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className={s.hint}>
           En ordre, et nyt samarbejde, en beslutning du er stolt af — stort eller småt.
         </p>
         <textarea
@@ -253,21 +327,21 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           onChange={e => setWentWell(e.target.value)}
           rows={3}
           placeholder="Skriv her..."
-          className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
+          className={s.textarea}
         />
       </div>
 
       {/* Field 2 */}
-      <div className="rounded-xl border border-border p-4 mb-3">
+      <div className={s.fieldCard}>
         <div className="flex items-center gap-2 mb-3">
-          <div className="h-7 w-7 rounded-lg bg-chart-warning/10 flex items-center justify-center shrink-0">
-            <AlertCircle className="h-3.5 w-3.5 text-chart-warning" />
+          <div className={s.iconBadgeWarn}>
+            <AlertCircle className={s.iconWarn} />
           </div>
-          <label className="text-sm font-semibold text-foreground">
+          <label className={s.label}>
             Hvad er din største udfordring lige nu?
           </label>
         </div>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className={s.hint}>
           Det er her vi kan hjælpe mest. Jo mere konkret du er, des bedre sparring kan vi give dig.
         </p>
         <textarea
@@ -275,21 +349,21 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           onChange={e => setChallenge(e.target.value)}
           rows={3}
           placeholder="Skriv her..."
-          className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
+          className={s.textarea}
         />
       </div>
 
       {/* Field 2b — Help needed */}
-      <div className="rounded-xl border border-border p-4 mb-3">
+      <div className={s.fieldCard}>
         <div className="flex items-center gap-2 mb-3">
-          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <ChevronRight className="h-3.5 w-3.5 text-primary" />
+          <div className={s.iconBadgeGreen}>
+            <ChevronRight className={s.iconGreen} />
           </div>
-          <label className="text-sm font-semibold text-foreground">
-            Hvad har du brug for hjælp til? <span className="text-muted-foreground font-normal text-xs">(valgfri)</span>
+          <label className={s.label}>
+            Hvad har du brug for hjælp til? <span className={s.labelOptional}>(valgfri)</span>
           </label>
         </div>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className={s.hint}>
           Dette felt går direkte til dine rådgivere og hjælper dem med at forberede relevant sparring til dig.
         </p>
         <textarea
@@ -297,40 +371,40 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           onChange={e => setHelpNeeded(e.target.value)}
           placeholder="Er der noget konkret du gerne vil have sparring på denne måned?"
           rows={2}
-          className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/50 resize-none"
+          className={s.textarea}
         />
       </div>
 
       {/* Field 3 — Milestone fremgang */}
-      <div className="rounded-xl border border-border p-4 mb-4">
+      <div className={s.fieldCardLast}>
         <div className="flex items-center gap-2 mb-3">
-          <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-            <Target className="h-3.5 w-3.5 text-blue-500" />
+          <div className={s.iconBadgeTarget}>
+            <Target className={s.iconTarget} />
           </div>
-          <label className="text-sm font-semibold text-foreground">
+          <label className={s.label}>
             Dine milestones
           </label>
         </div>
         {autoProgress !== null ? (
           <>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground">{milestoneData?.length} aktive milestones</span>
-              <span className="text-2xl font-display font-bold text-foreground">{autoProgress}%</span>
+              <span className={s.msMeta}>{milestoneData?.length} aktive milestones</span>
+              <span className={s.msValue}>{autoProgress}%</span>
             </div>
-            <div className="w-full bg-secondary rounded-full h-2">
+            <div className={s.msTrack}>
               <div
-                className="bg-primary h-2 rounded-full transition-all"
+                className={s.msFill}
                 style={{ width: `${autoProgress}%` }}
               />
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
+            <p className={s.msNote}>
               Beregnet automatisk fra dine aktive milestones. Opdatér fremgang under Milestones.
             </p>
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">
+          <p className={s.msMeta}>
             Du har ingen aktive milestones endnu.{" "}
-            <a href="/milestones" className="text-primary hover:underline">Opret dine første mål →</a>
+            <a href="/milestones" className={s.msLink}>Opret dine første mål →</a>
           </p>
         )}
       </div>
@@ -338,7 +412,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
       <button
         onClick={handleSubmit}
         disabled={saving || (!wentWell.trim() && !challenge.trim() && !helpNeeded.trim())}
-        className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+        className={s.submitBtn}
       >
         {saving ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> Gemmer...</>
@@ -346,7 +420,7 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           <>Send til dine rådgivere <ChevronRight className="h-4 w-4" /></>
         )}
       </button>
-      <p className="text-center text-[11px] text-muted-foreground mt-1">
+      <p className={s.footnote}>
         Dine rådgivere modtager besked og vil følge op hvis relevant.
       </p>
     </>
@@ -360,7 +434,9 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      {/* B3: theme-hjemmebane på portal-indholdets rod (dialog-grenen bruges
+          kun af RapporteringView) — hb-CSS-variablerne resolver derunder. */}
+      <DialogContent className="theme-hjemmebane sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-hb sm:rounded-hb border-hb-line bg-hb-paper font-body text-hb-ink antialiased">
         {content}
       </DialogContent>
     </Dialog>

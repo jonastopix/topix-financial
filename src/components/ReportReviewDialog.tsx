@@ -12,8 +12,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X, AlertTriangle, Info } from "lucide-react";
 import { formatDKK } from "@/lib/financialUtils";
 import OverrideFormFields from "@/components/OverrideFormFields";
@@ -509,15 +507,18 @@ export default function ReportReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      {/* B3: theme-hjemmebane på portal-indholdets rod — hb-CSS-variablerne
+          resolver derunder (dialogen portaler til <body>, uden for fladens
+          theme-scope; jf. hb-rapport-ux-recon §3, vej i). */}
+      <DialogContent className="theme-hjemmebane sm:max-w-lg max-h-[85vh] overflow-y-auto rounded-hb sm:rounded-hb border-hb-line bg-hb-paper font-body text-hb-ink antialiased">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 font-editorial text-xl font-medium text-hb-ink">
             {editing ? (
-              <Pencil className="h-5 w-5 text-primary" />
+              <Pencil className="h-5 w-5 text-hb-evergreen" />
             ) : cardState === "update_available" ? (
-              <RefreshCw className="h-5 w-5 text-primary" />
+              <RefreshCw className="h-5 w-5 text-hb-evergreen" />
             ) : (
-              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <CheckCircle2 className="h-5 w-5 text-hb-evergreen" />
             )}
             {editing
               ? "Ret data"
@@ -525,17 +526,17 @@ export default function ReportReviewDialog({
                 ? "Opdater committed data"
                 : "Godkend data"}
           </DialogTitle>
-          <DialogDescription>Er tallene korrekte? Tjek at vi har læst din {reportLabel} rigtigt.</DialogDescription>
+          <DialogDescription className="text-sm text-hb-ink-soft">Er tallene korrekte? Tjek at vi har læst din {reportLabel} rigtigt.</DialogDescription>
         </DialogHeader>
 
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="h-6 w-6 animate-spin text-hb-ink-soft" />
           </div>
         )}
 
         {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div className="rounded-lg border border-hb-rust/40 bg-hb-rust/5 p-4 text-sm text-hb-rust">
             <div className="flex items-center gap-2 font-medium mb-1">
               <AlertCircle className="h-4 w-4" />
               Fejl
@@ -549,20 +550,20 @@ export default function ReportReviewDialog({
             {/* Status */}
             {preview.eligible ? (
               <>
-                <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                <div className="flex items-center gap-2 text-sm text-hb-evergreen">
                   <CheckCircle2 className="h-4 w-4" />
                   Vi har trukket tallene ud — kontrollér at de ser rigtige ud
                 </div>
-                <div className="rounded-lg bg-secondary/50 border border-border/30 p-3 flex items-start gap-2.5">
-                  <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                  <div className="text-xs text-muted-foreground leading-relaxed">
-                    <span className="font-medium text-foreground">Hvad sker der når du godkender?</span>
+                <div className="rounded-lg bg-hb-surface border border-hb-line p-3 flex items-start gap-2.5">
+                  <Info className="h-4 w-4 text-hb-ink-soft flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-hb-ink-soft leading-relaxed">
+                    <span className="font-medium text-hb-ink">Hvad sker der når du godkender?</span>
                     {" "}Tallene nedenfor gemmes på dit dashboard og bruges i dine KPI-grafer, performance-score og budget-sammenligning. Du kan altid uploade en ny rapport og godkende igen.
                   </div>
                 </div>
               </>
             ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-hb-ink-soft">
                 <AlertCircle className="h-4 w-4" />
                 Rapporten er ikke klar til godkendelse endnu
               </div>
@@ -570,18 +571,18 @@ export default function ReportReviewDialog({
 
             {/* Period & type info */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Periode</p>
-                <p className="text-sm font-medium text-foreground mt-0.5">
+              <div className="rounded-lg border border-hb-line bg-hb-surface p-3">
+                <p className="text-[10px] text-hb-ink-soft uppercase tracking-wider">Periode</p>
+                <p className="text-sm font-medium text-hb-ink mt-0.5">
                   {preview.period_label || "—"}
                 </p>
                 {preview.period_key && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{preview.period_key}</p>
+                  <p className="text-[10px] text-hb-ink-soft mt-0.5">{preview.period_key}</p>
                 )}
               </div>
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Rapporttype</p>
-                <p className="text-sm font-medium text-foreground mt-0.5 capitalize">
+              <div className="rounded-lg border border-hb-line bg-hb-surface p-3">
+                <p className="text-[10px] text-hb-ink-soft uppercase tracking-wider">Rapporttype</p>
+                <p className="text-sm font-medium text-hb-ink mt-0.5 capitalize">
                   {preview.report_type || "—"}
                 </p>
               </div>
@@ -589,11 +590,11 @@ export default function ReportReviewDialog({
 
             {/* Ownership state */}
             {preview.ownership_state === "other_report" && (
-              <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-3 flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="rounded-lg border border-hb-rust/40 bg-hb-rust/5 p-3 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-hb-rust mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Du har allerede godkendt tal for denne periode fra en anden rapport</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-sm font-medium text-hb-rust">Du har allerede godkendt tal for denne periode fra en anden rapport</p>
+                  <p className="text-xs text-hb-ink-soft mt-0.5">
                     Du kan erstatte de gamle data med denne rapports data. Den gamle rapport arkiveres.
                   </p>
                 </div>
@@ -601,9 +602,9 @@ export default function ReportReviewDialog({
             )}
 
             {preview.ownership_state === "same_report" && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-2">
-                <RefreshCw className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-primary">
+              <div className="rounded-lg border border-hb-evergreen/30 bg-hb-sage/40 p-3 flex items-start gap-2">
+                <RefreshCw className="h-4 w-4 text-hb-evergreen mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-hb-evergreen">
                   Denne rapport har allerede godkendte tal for denne periode — de opdateres.
                 </p>
               </div>
@@ -615,19 +616,19 @@ export default function ReportReviewDialog({
                 preview.eligibility_reason.includes("Status is processing");
               if (isErrorOrProcessing) {
                 return (
-                  <div className="rounded-lg border border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 p-3">
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  <div className="rounded-lg border border-hb-rust/40 bg-hb-rust/5 p-3">
+                    <p className="text-sm font-medium text-hb-rust">
                       Udfyld tallene nedenfor
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-xs text-hb-ink-soft mt-0.5">
                       Vi kunne ikke læse dokumentet automatisk. Indtast tallene fra din rapport — så gemmer vi dem og aktiverer din AI-analyse.
                     </p>
                   </div>
                 );
               }
               return (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                  <p className="text-sm text-destructive">{preview.eligibility_reason}</p>
+                <div className="rounded-lg border border-hb-rust/40 bg-hb-rust/5 p-3">
+                  <p className="text-sm text-hb-rust">{preview.eligibility_reason}</p>
                 </div>
               );
             })()}
@@ -636,23 +637,23 @@ export default function ReportReviewDialog({
             {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <h4 className="text-xs font-semibold text-hb-ink-soft uppercase tracking-wider">
                     Vi fandt disse tal i din rapport
                   </h4>
                   {preview.eligible && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={enterEditMode}>
+                    <button type="button" className="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink" onClick={enterEditMode}>
                       <Pencil className="h-3 w-3" />
                       Ret data
-                    </Button>
+                    </button>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(preview.metrics_preview).map(([key, value]) => (
-                    <div key={key} className="rounded-lg border border-border/50 bg-background/50 p-2.5">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    <div key={key} className="rounded-lg border border-hb-line bg-hb-surface p-2.5">
+                      <p className="text-[10px] text-hb-ink-soft uppercase tracking-wider">
                         {METRIC_LABELS[key] || key}
                       </p>
-                      <p className="text-sm font-medium text-foreground mt-0.5">
+                      <p className="text-sm font-medium text-hb-ink mt-0.5">
                         {formatDKK(value as number)}
                       </p>
                     </div>
@@ -669,7 +670,7 @@ export default function ReportReviewDialog({
               const hasWarnings = checks.some(s => s.result === 'FAIL');
               return (
                 <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  <h4 className="text-xs font-semibold text-hb-ink-soft uppercase tracking-wider mb-2">
                     Validering
                   </h4>
                   <div className="space-y-1.5">
@@ -681,25 +682,25 @@ export default function ReportReviewDialog({
                           key={idx}
                           className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
                             isFail
-                              ? 'border-amber-300/50 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20'
+                              ? 'border-hb-rust/40 bg-hb-rust/5'
                               : isPass
-                                ? 'border-border/50 bg-background/50'
-                                : 'border-border/30 bg-muted/20'
+                                ? 'border-hb-line bg-hb-surface'
+                                : 'border-hb-line bg-hb-paper'
                           }`}
                         >
                           {isFail ? (
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                            <AlertTriangle className="h-3.5 w-3.5 text-hb-rust mt-0.5 flex-shrink-0" />
                           ) : isPass ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-hb-evergreen mt-0.5 flex-shrink-0" />
                           ) : (
-                            <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <Info className="h-3.5 w-3.5 text-hb-ink-soft mt-0.5 flex-shrink-0" />
                           )}
                           <div className="min-w-0">
-                            <p className={`font-medium ${isFail ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'}`}>
+                            <p className={`font-medium ${isFail ? 'text-hb-rust' : 'text-hb-ink'}`}>
                               {signal.name}
                             </p>
                             {signal.details && (
-                              <p className="text-muted-foreground mt-0.5">{signal.details}</p>
+                              <p className="text-hb-ink-soft mt-0.5">{signal.details}</p>
                             )}
                           </div>
                         </div>
@@ -707,7 +708,7 @@ export default function ReportReviewDialog({
                     })}
                   </div>
                   {hasWarnings && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 italic">
+                    <p className="text-[10px] text-hb-rust mt-2 italic">
                       Du kan stadig godkende — men tjek tallene nedenfor før du trykker.
                     </p>
                   )}
@@ -717,10 +718,10 @@ export default function ReportReviewDialog({
 
             {/* "Ret data" button for blocked reports or when no metrics yet */}
             {(!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
-              <Button variant="outline" size="sm" className="gap-1" onClick={enterEditMode}>
+              <button type="button" className="inline-flex items-center gap-1 self-start rounded-full border border-hb-line px-3 py-1.5 text-xs text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink" onClick={enterEditMode}>
                 <Pencil className="h-3 w-3" />
                 Ret data
-              </Button>
+              </button>
             )}
           </div>
         )}
@@ -731,11 +732,11 @@ export default function ReportReviewDialog({
             {/* Manual entry info banner */}
             {(preview.quality_signals as any)?.needs_manual_entry === true && (
               <div className="space-y-3">
-                <div className="rounded-lg border border-blue-200/60 bg-blue-50/50 dark:border-blue-800/40 dark:bg-blue-950/20 p-3">
-                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
+                <div className="rounded-lg border border-hb-line bg-hb-surface p-3">
+                  <p className="text-sm font-medium text-hb-ink mb-1">
                     Vi kunne ikke læse dit dokument automatisk
                   </p>
-                  <p className="text-xs text-blue-700/80 dark:text-blue-400/80">
+                  <p className="text-xs text-hb-ink-soft">
                     {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0
                       ? "Vi fandt nogle tal — kontrollér at de er korrekte og ret dem der er forkerte."
                       : "Systemet genkendte ikke formatet. Indtast tallene nedenfor direkte fra din rapport."}
@@ -743,17 +744,17 @@ export default function ReportReviewDialog({
                 </div>
 
                 {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
-                  <div className="rounded-lg border border-amber-200/60 bg-amber-50/40 dark:border-amber-800/30 dark:bg-amber-950/20 p-3">
-                    <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2">
+                  <div className="rounded-lg border border-hb-rust/40 bg-hb-rust/5 p-3">
+                    <p className="text-[10px] font-medium text-hb-rust uppercase tracking-wider mb-2">
                       Usikre tal — kontrollér disse
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {Object.entries(preview.metrics_preview).map(([key, value]) => (
                         <div key={key} className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">
+                          <span className="text-hb-ink-soft">
                             {METRIC_LABELS[key] || key}
                           </span>
-                          <span className="font-medium text-amber-700 dark:text-amber-400">
+                          <span className="font-medium text-hb-rust">
                             {formatDKK(value as number)}
                           </span>
                         </div>
@@ -766,25 +767,25 @@ export default function ReportReviewDialog({
 
             {(preview.quality_signals as any)?.needs_manual_entry === true
               && (!preview.metrics_preview || Object.keys(preview.metrics_preview).length === 0) && (
-              <div className="rounded-lg border border-border/50 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1.5">
-                <p className="font-medium text-foreground">
+              <div className="rounded-lg border border-hb-line bg-hb-surface p-3 text-xs text-hb-ink-soft space-y-1.5">
+                <p className="font-medium text-hb-ink">
                   Vi understøtter disse eksportformater:
                 </p>
                 <ul className="space-y-1">
                   <li>
-                    <span className="font-medium text-foreground">e-conomic:</span>
+                    <span className="font-medium text-hb-ink">e-conomic:</span>
                     {" "}Regnskab → Rapporter → <strong>Balance</strong> → Excel
                   </li>
                   <li>
-                    <span className="font-medium text-foreground">Dinero:</span>
+                    <span className="font-medium text-hb-ink">Dinero:</span>
                     {" "}Rapporter → Resultatopgørelse → CSV eller PDF
                   </li>
                   <li>
-                    <span className="font-medium text-foreground">Billy:</span>
+                    <span className="font-medium text-hb-ink">Billy:</span>
                     {" "}Rapporter → Resultatopgørelse → Excel
                   </li>
                   <li>
-                    <span className="font-medium text-foreground">Andre:</span>
+                    <span className="font-medium text-hb-ink">Andre:</span>
                     {" "}Udfyld tallene nedenfor manuelt — det tager 2 minutter
                   </li>
                 </ul>
@@ -793,14 +794,14 @@ export default function ReportReviewDialog({
 
             {/* Blocked warning in edit mode */}
             {isBlocked && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
-                <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="rounded-lg border border-hb-rust/40 bg-hb-rust/5 p-3 flex items-start gap-2">
+                <ShieldAlert className="h-4 w-4 text-hb-rust mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-destructive">Periode ejet af anden rapport</p>
+                  <p className="text-sm font-medium text-hb-rust">Periode ejet af anden rapport</p>
                   {preview.state_reason && (
-                    <p className="text-xs text-destructive/80 mt-0.5">{preview.state_reason}</p>
+                    <p className="text-xs text-hb-rust/80 mt-0.5">{preview.state_reason}</p>
                   )}
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-hb-ink-soft mt-1">
                     Du kan rette data — men commit er først mulig når blokering er løst (fx ved periodeændring).
                   </p>
                 </div>
@@ -808,7 +809,7 @@ export default function ReportReviewDialog({
             )}
 
             {(preview.quality_signals as any)?.needs_manual_entry && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <p className="text-[11px] text-hb-rust flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Felterne er delvist udfyldt fra vores bedste forsøg — kontrollér alle tal
               </p>
@@ -830,23 +831,24 @@ export default function ReportReviewDialog({
         )}
 
         <DialogFooter className="gap-2">
-          {/* Non-edit mode footer */}
+          {/* Non-edit mode footer — primær handling som hb-evergreen-udfyldt,
+              sekundær som stille kantknap (fladens knapmønstre). */}
           {!editing && (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={committing || replacing}>
+              <button type="button" className="inline-flex items-center justify-center rounded-full border border-hb-line px-4 py-2 text-sm text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink disabled:opacity-50" onClick={() => onOpenChange(false)} disabled={committing || replacing}>
                 Annuller
-              </Button>
+              </button>
               {preview?.can_commit && (
-                <Button onClick={handleCommit} disabled={committing}>
+                <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleCommit} disabled={committing}>
                   {committing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {preview.ownership_state === "same_report" ? "Opdater committed data" : "Godkend data"}
-                </Button>
+                </button>
               )}
               {isBlocked && preview?.existing_owner_id && (
-                <Button onClick={handleReplace} disabled={replacing} variant="default">
+                <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleReplace} disabled={replacing}>
                   {replacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Erstat gammel data
-                </Button>
+                </button>
               )}
             </>
           )}
@@ -854,14 +856,14 @@ export default function ReportReviewDialog({
           {/* Edit mode footer: commit is HIDDEN */}
           {editing && (
             <>
-              <Button variant="outline" onClick={cancelEditMode} disabled={saving}>
+              <button type="button" className="inline-flex items-center justify-center rounded-full border border-hb-line px-4 py-2 text-sm text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink disabled:opacity-50" onClick={cancelEditMode} disabled={saving}>
                 <X className="mr-1 h-3.5 w-3.5" />
                 Annuller redigering
-              </Button>
-              <Button onClick={handleSaveEdits} disabled={saving}>
+              </button>
+              <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleSaveEdits} disabled={saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Gem rettelser
-              </Button>
+              </button>
             </>
           )}
         </DialogFooter>
