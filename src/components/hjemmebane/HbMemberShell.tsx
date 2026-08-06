@@ -40,10 +40,10 @@ export const HbMemberShell = ({
           to: effectiveAdvisor ? "/rapportering" : "/reports",
           active: active === "rapportering",
         },
-        // Samme byggeperiode-gating som Rapportering (KPI-konverteringen).
+        // KPI-GO 2026-08-06: /kpis bærer fladen for alle roller.
         {
           label: "KPI'er",
-          to: effectiveAdvisor ? "/noegletal" : "/kpis",
+          to: "/kpis",
           active: active === "noegletal",
         },
         // Samme byggeperiode-gating som Rapportering/KPI'er (budget-konverteringen).
