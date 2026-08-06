@@ -3,8 +3,8 @@ import { render, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { useScrollToHash } from "../useScrollToHash";
 
-function TestPage({ delay }: { delay?: number }) {
-  useScrollToHash(delay);
+function TestPage() {
+  useScrollToHash();
   return (
     <div>
       <div id="upload" data-testid="upload">Upload</div>
@@ -15,12 +15,19 @@ function TestPage({ delay }: { delay?: number }) {
   );
 }
 
-function renderWithHash(hash: string, delay = 0) {
+function renderWithHash(hash: string) {
   return render(
     <MemoryRouter initialEntries={[`/test${hash}`]}>
-      <TestPage delay={delay} />
+      <TestPage />
     </MemoryRouter>
   );
+}
+
+/** Side uden ankre — bruges til kold-load-scenariet, hvor målet først
+    dukker op i DOM efter datahentning. */
+function EmptyPage() {
+  useScrollToHash();
+  return <div />;
 }
 
 describe("useScrollToHash → documented Guide anchors", () => {
@@ -48,11 +55,10 @@ describe("useScrollToHash → documented Guide anchors", () => {
       HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
       try {
-        renderWithHash(hash, 0);
+        renderWithHash(hash);
 
-        // Hook uses setTimeout(delay) — flush it.
-        vi.runAllTimers();
-
+        // Straksforsøget rammer allerede-renderede ankre uden timere —
+        // ingen pending timers må være nødvendige.
         expect(scrollIntoView).toHaveBeenCalledTimes(1);
         expect(scrollIntoView).toHaveBeenCalledWith({
           behavior: "smooth",
@@ -62,6 +68,10 @@ describe("useScrollToHash → documented Guide anchors", () => {
         // Confirm the element that scrolled is the one with the expected id.
         const calledOn = scrollIntoView.mock.instances[0] as HTMLElement;
         expect(calledOn.id).toBe(targetId);
+
+        // Polling må ikke fortsætte (og dobbelt-scrolle) efter fund.
+        vi.runAllTimers();
+        expect(scrollIntoView).toHaveBeenCalledTimes(1);
       } finally {
         HTMLElement.prototype.scrollIntoView = original;
       }
@@ -74,7 +84,7 @@ describe("useScrollToHash → documented Guide anchors", () => {
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     try {
-      renderWithHash("", 0);
+      renderWithHash("");
       vi.runAllTimers();
       expect(scrollIntoView).not.toHaveBeenCalled();
     } finally {
@@ -88,11 +98,48 @@ describe("useScrollToHash → documented Guide anchors", () => {
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     try {
-      renderWithHash("#does-not-exist", 0);
+      renderWithHash("#does-not-exist");
+      // Polling stopper selv ved 6 s-loftet — runAllTimers må terminere.
       expect(() => vi.runAllTimers()).not.toThrow();
       expect(scrollIntoView).not.toHaveBeenCalled();
     } finally {
       HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("scrolls to an element that first appears in the DOM after ~1 s (cold load)", () => {
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    const late = document.createElement("div");
+    late.id = "goals";
+
+    try {
+      render(
+        <MemoryRouter initialEntries={["/test#goals"]}>
+          <EmptyPage />
+        </MemoryRouter>
+      );
+
+      // Endnu intet mål i DOM — hverken straksforsøg eller polling må ramme.
+      vi.advanceTimersByTime(900);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      // "Datahentningen" lander — ankeret renderes ind i dokumentet.
+      document.body.appendChild(late);
+      vi.advanceTimersByTime(300);
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      const calledOn = scrollIntoView.mock.instances[0] as HTMLElement;
+      expect(calledOn.id).toBe("goals");
+
+      // Efter fund er intervallet stoppet — ingen yderligere scrolls.
+      vi.runAllTimers();
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      late.remove();
     }
   });
 });
