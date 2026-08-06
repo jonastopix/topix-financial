@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ChevronUp, FileText, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,10 +34,10 @@ import { HbReportUploadZone } from "./HbReportUploadZone";
 
 /** Rapportering (/rapportering → /reports ved GO) — LEVERANCEN rendyrket
     (klik-valg B): upload, status/nudges, godkendelse, historik (inkl.
-    analyser-uden-rapport) og årsrapporter. Trend/AI bor i KPI-
-    konverteringen; papirkurven i drift-gruppen (gamle /reports bærer den
-    til swap). Dialogerne (review/Ret data/pulse) er BEVIDST BRO — hærdet
-    RP-1-flow åbnes uændret. Mola: stille kvitteringer; alvoren
+    analyser-uden-rapport), årsrapporter og advisor-papirkurven (portet
+    1:1 fra gamle Reports som GO-forudsætning i). Trend/AI bor i KPI-
+    konverteringen. Dialogerne (review/Ret data/pulse) er BEVIDST BRO —
+    hærdet RP-1-flow åbnes uændret. Mola: stille kvitteringer; alvoren
     kommunikeres roligt men tydeligt i kortene (deriveReportCardView). */
 
 type DbReport = Record<string, any>;
@@ -68,6 +68,8 @@ export const RapporteringView = () => {
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   useScrollToHash();
 
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
@@ -141,6 +143,10 @@ export const RapporteringView = () => {
   const latestCommittedLabel = facts.length > 0 ? facts[facts.length - 1].period_label : null;
 
   // ── Deep link: ?reportId= → expand + scroll + highlight (arvet 1:1) ──────
+  // Dependency-mønstret fra gamle Reports (searchParams + dbReports): et NYT
+  // reportId-klik mens fladen er åben re-trigger. Param ryddes efter brug —
+  // via navigate frem for setSearchParams, fordi setSearchParams smider
+  // hash'en (og #upload/#annual-reports er Guide-kontrakt).
   const reportCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   useEffect(() => {
     const reportId = searchParams.get("reportId");
@@ -150,9 +156,10 @@ export const RapporteringView = () => {
       setTimeout(() => {
         reportCardRefs.current.get(reportId)?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
+      navigate({ pathname: location.pathname, search: "", hash: location.hash }, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbReports.length]);
+  }, [searchParams, dbReports]);
 
   // ── Godkend = commit ved "Gem og anvend" (portet 1:1 fra Reports) ────────
   const handleAppliedCommit = useCallback(
@@ -251,6 +258,91 @@ export const RapporteringView = () => {
     await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
     clearReportReviewNotification(report.id);
     setRefreshKey((k) => k + 1);
+  };
+
+  // ── Papirkurv (advisor) — portet 1:1 fra gamle Reports før Rapportering-GO.
+  //    Oprydningskæden i handlePermanentDelete er kopieret ordret. ──────────
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedReports, setTrashedReports] = useState<DbReport[]>([]);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
+
+  const loadTrashedReports = useCallback(async () => {
+    if (!isAdvisor || !companyId) return;
+    const { data } = await (supabase
+      .from("financial_reports")
+      .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
+      .eq("company_id", companyId)
+      .not("deleted_at", "is", null)
+      .order("uploaded_at", { ascending: false });
+    setTrashedReports(data || []);
+  }, [isAdvisor, companyId]);
+
+  useEffect(() => {
+    if (showTrash) loadTrashedReports();
+  }, [showTrash, loadTrashedReports]);
+
+  const handleRestoreReport = async (report: DbReport) => {
+    setRestoring(report.id);
+    try {
+      const { error } = await (supabase.from("financial_reports").update({ deleted_at: null, status: "processed" } as any).eq("id", report.id) as any);
+      if (error) throw error;
+      setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      setRefreshKey((k) => k + 1);
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
+      toast.success("Rapport gendannet", { description: `${report.report_period || report.file_name} er gendannet.` });
+    } catch (err) {
+      console.error("Restore error:", err);
+      toast.error("Fejl", { description: "Kunne ikke gendanne rapporten." });
+    } finally {
+      setRestoring(null);
+    }
+  };
+
+  const handlePermanentDelete = async (report: DbReport) => {
+    setPermanentDeleting(report.id);
+    try {
+      await supabase.from("milestones").delete().eq("source_report", report.id);
+      await (supabase.from("messages").delete() as any).eq("context_type", "report").eq("context_id", report.id);
+      await supabase.from("advisor_notifications").delete().eq("reference_type", "report").eq("reference_id", report.id);
+      if (report.file_path && report.file_path.includes("/")) {
+        await supabase.storage.from("financial-documents").remove([report.file_path]);
+      }
+      // Delete commentaries linked to this report's facts (defensive — CASCADE also handles this)
+      const { data: reportFacts } = await (supabase
+        .from("financial_report_facts" as any)
+        .select("id")
+        .eq("source_report_id", report.id) as any);
+      if (reportFacts && reportFacts.length > 0) {
+        const factIds = reportFacts.map((f: any) => f.id);
+        await (supabase
+          .from("financial_commentaries" as any)
+          .delete()
+          .in("facts_id", factIds) as any);
+      }
+      const { error: factsDeleteError } = await (supabase.from("financial_report_facts" as any)
+        .delete()
+        .eq("source_report_id", report.id) as any);
+      if (factsDeleteError) {
+        console.error("Facts delete error:", factsDeleteError);
+        throw new Error("Kunne ikke slette rapportens nøgletal. Prøv igen.");
+      }
+      const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
+      if (error) throw error;
+      setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["company-commentaries"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
+      toast.success("Permanent slettet", { description: `${report.report_period || report.file_name} er fjernet permanent.` });
+    } catch (err) {
+      console.error("Permanent delete error:", err);
+      toast.error("Fejl", { description: "Kunne ikke slette rapporten permanent." });
+    } finally {
+      setPermanentDeleting(null);
+    }
   };
 
   if (isAdvisor && !companyId) {
@@ -529,6 +621,69 @@ export const RapporteringView = () => {
       </section>
 
       <AnnualSection companyId={companyId ?? null} userId={user?.id ?? null} refreshKey={refreshKey} />
+
+      {/* ── Papirkurv (advisor) — sammenfoldet som default ── */}
+      {isAdvisor && companyId && (
+        <section className="mt-14 border-t border-hb-line pt-10">
+          <button
+            type="button"
+            onClick={() => setShowTrash((v) => !v)}
+            className="flex items-center gap-2 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+          >
+            <Archive className="h-4 w-4" />
+            Papirkurv
+            {showTrash ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+
+          {showTrash && (
+            <div className="mt-4 space-y-3">
+              {trashedReports.length === 0 ? (
+                <HbCard className="p-8 text-center">
+                  <Trash2 className="mx-auto mb-2 h-8 w-8 text-hb-ink-soft/30" />
+                  <p className="text-sm text-hb-ink-soft">Papirkurven er tom</p>
+                </HbCard>
+              ) : (
+                trashedReports.map((report) => (
+                  <HbCard key={report.id} className="flex items-center justify-between p-4 opacity-70">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <FileText className="h-4 w-4 shrink-0 text-hb-ink-soft" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-hb-ink">
+                          {report.report_period || report.file_name}
+                        </p>
+                        <p className="text-xs text-hb-ink-soft">
+                          {report.report_type} ·{" "}
+                          {new Date(report.uploaded_at).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreReport(report)}
+                        disabled={restoring === report.id}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-hb-evergreen transition-colors hover:text-hb-ink disabled:opacity-50"
+                      >
+                        <RotateCcw className={cn("h-3.5 w-3.5", restoring === report.id && "animate-spin")} />
+                        Gendan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePermanentDelete(report)}
+                        disabled={permanentDeleting === report.id}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-hb-rust/80 transition-colors hover:text-hb-rust disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {permanentDeleting === report.id ? "Sletter..." : "Slet permanent"}
+                      </button>
+                    </div>
+                  </HbCard>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── Broer: dialogerne åbnes uændret (RP-1-hærdet flow) ── */}
       {overrideReport && (
