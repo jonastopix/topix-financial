@@ -525,13 +525,25 @@ MEDLEMSGREN bærer den nye flade — URL'EN ER EMAIL-KONTRAKT
 bliver redirect (§3.6-mønstret); HbMemberShells Rapportering-mål → /reports
 for alle.
 
-FORUDSÆTNINGER for GO: (i) papirkurvens nye hjem i drift-gruppen findes
-(gamle /reports bærer den indtil da), (ii) trend/AI's hjem er klart —
-OPFYLDES AF KPI-GO (/noegletal bærer dem; Rapportering-GO må derfor IKKE
-ligge før KPI-GO — GO-koordineringen, jf. [P1] KPI-GO), (iii) email-link-
-kontrakten verificeret på byggeruten (?reportId= auto-expand + begge ankre
-testet manuelt), (iv) advisor-m.-override-flowet gennemprøvet (godkendelse
-på medlems vegne via broerne).
+FORUDSÆTNINGER for GO — status 2026-08-06 (recon-bevis:
+hb-rapgo-recon.txt; gap-lukning: feat/rapportering-go-forberedelse):
+(i) papirkurven: LØST i forberedelses-PR'en — porteret 1:1 ind i
+RapporteringView som advisor-gated sektion (gendan + permanent slet m.
+fuld oprydningskæde kopieret ordret fra gamle Reports :720-760);
+"drift-gruppen"-planen bortfaldt — papirkurven følger fladen.
+(ii) trend/AI's hjem: OPFYLDT — KPI-GO er gennemført (PR #203),
+GO-koordineringen (KPI-GO før Rapportering-GO) er dermed indfriet.
+(iii) email-link-kontrakten: kontrakt-facit fra hb-rapgo-recon
+GAP-tabellen — elementerne 1-7 JA (3× /reports?reportId= fra
+extract-financial-data arvet i RapporteringView; ren /reports +
+email-CTA; #upload/#annual-reports-ankrene m. robust useScrollToHash).
+De to ?reportId-nuancer (param-rydning + re-trigger ved nyt id på åben
+flade) er arvet 1:1 i forberedelses-PR'en. Manuel byggerute-test
+udestår som GO-tjek.
+(iv) advisor-m.-override-flowet: mønstret verificeret til stede 1:1
+(HbAdvisorCompanyPrompt ved isAdvisor && !companyId, override-aware
+companyId i alle queries — identisk m. NoegletalView, prod-bevist af
+KPI-GO). Gennemprøvning via broerne udestår som GO-tjek.
 
 ---
 
