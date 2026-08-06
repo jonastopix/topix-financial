@@ -649,6 +649,37 @@ RESTERENDE LED (denne backlog-post):
 
 ---
 
+### [P1] Handouts-GO = swap på /handouts (noteret 2026-08-06)
+
+Hb-handoutfladen (/handout) er bygget route-parallelt bag AdvisorRoute
+(feat/handouts-hb-flade — fuld paritet: liste m. fremgang/legat-lås/
+løftestænger/milepæls-rejse, sektioneret detalje m. autosave, løftestang
+→milestone, markér-udfyldt→notifikation, AI-sparring; al data gennem
+handoutEngine H1-H6, PR #213); gamle /handouts er frosset. GO'ets
+indhold: /handouts bærer den nye flade, /handout bliver redirect m.
+bevaret query, HbMemberShells Handouts-mål → /handouts for alle, gamle
+Handouts/HandoutDetail/HandoutCard/HandoutLeverItem/HandoutAIFeedback
+pensioneres m. grep-belæg (AdvisorCompanyPrompt består — Milestones/
+Handouts-fladerne deler den).
+
+FORUDSÆTNINGER for GO:
+(i) ?module=-KONTRAKTEN: Akademi-broens ElementView linker
+    /handouts?module=<m> — deep-linket skal åbne modulet direkte på ny
+    flade (verificeret på byggeruten /handout?module=… som GO-tjek).
+(ii) GATING: swappen SKAL bruge PROTECTEDROUTE — IKKE MemberRoute:
+    Legat-brugere skal kunne stå på /handouts (MemberRoute redirecter
+    isLegat → /legat, App.tsx). Må ikke kopieres blindt fra de tre
+    foregående swaps (som alle var MemberRoute).
+(iii) LEGAT-VERIFIKATION: dag-oplåsningen (1/3/5/7/9) + "Åbner på dag
+    N"-kortene efterprøvet m. legat-konto på ny flade.
+(iv) ADVISOR-GENNEMGANG på rigtige data: læsevisning uden autosave
+    (isOwner-gaten), user-id-resolution m. ældste-medlem-fallback,
+    modul-åbning fra /members/:id?handout=-notifikations-linket.
+(v) MEDLEMSNOTE jf. proces-reglen: nyt announcement-id i
+    DashboardActionCenter + AppLayout i samme PR som swappet.
+
+---
+
 ### [P1] KPI-GO = swap på /kpis (noteret 2026-08-05)
 
 STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/kpi-go-swap) er

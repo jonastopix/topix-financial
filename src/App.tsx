@@ -58,6 +58,9 @@ const Noegletal = lazy(() => import("./pages/Noegletal"));
 // Lazy — Hb-budgetfladen (route-parallel; advisor-gated indtil swap-GO på /budget)
 const Budgettering = lazy(() => import("./pages/Budgettering"));
 
+// Lazy — Hb-handoutfladen (route-parallel; advisor-gated indtil swap-GO på /handouts)
+const Handout = lazy(() => import("./pages/Handout"));
+
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
 const DemoDashboard = lazy(() => import("./demo/DemoDashboard"));
@@ -251,6 +254,11 @@ const App = () => (
                   på /budget (notifikations-deep_link + Guide-hash er kontrakt),
                   /budgettering bliver redirect. */}
               <Route path="/budgettering" element={<AdvisorRoute><Budgettering /></AdvisorRoute>} />
+              {/* Hb-handoutfladen — AdvisorRoute KUN i byggeperioden; GO = swap
+                  på /handouts m. PROTECTEDROUTE (IKKE MemberRoute — Legat-
+                  adgang; ?module= er Akademi-broens kontrakt), /handout
+                  bliver redirect. */}
+              <Route path="/handout" element={<AdvisorRoute><Handout /></AdvisorRoute>} />
               {/* Demo routes — no auth required */}
               <Route path="/demo" element={<DemoLayout />}>
                 <Route index element={<Navigate to="/demo/dashboard" replace />} />
