@@ -182,12 +182,12 @@ export default function DashboardActionCenter({
       // ⚠️ HUSK: Opdatér også AppLayout.tsx når du skifter announcement
       // Platform update announcement
       items.push({
-        id: "v2026-08-hjemmebane-kpi",
+        id: "v2026-08-hjemmebane-rapportering",
         type: "info",
-        title: "Vi opgraderer The Boardroom",
-        description: "KPI'er er det første miljø i nyt design — resten følger løbende i de kommende uger. Alt fungerer som normalt undervejs.",
+        title: "Opgraderingen fortsætter",
+        description: "Rapportering og KPI'er er nu i nyt design — resten følger løbende. Alt fungerer som normalt.",
         urgency: "low",
-        link: "/kpis",
+        link: "/reports",
       });
 
       return items;

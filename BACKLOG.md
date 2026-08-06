@@ -517,33 +517,48 @@ leverance. Når den bygges: genindsæt CTA'en og afgør detalje-visning.
 
 ### [P1] Rapportering-GO = swap på /reports (noteret 2026-08-05)
 
-Hb-rapporteringen (/rapportering) er bygget route-parallelt bag
-AdvisorRoute; gamle /reports er frosset. GO'ets indhold: /reports'
-MEDLEMSGREN bærer den nye flade — URL'EN ER EMAIL-KONTRAKT
-(extract-financial-data + email-flows §1.1 skriver /reports?reportId=…;
-#upload/#annual-reports-ankrene skal virke identisk); /rapportering
-bliver redirect (§3.6-mønstret); HbMemberShells Rapportering-mål → /reports
-for alle.
+STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/rapportering-go-swap)
+er bygget og verificeret; AFVENTER ADVISOR-GO før merge. Alle fire
+forudsætninger opfyldt 2026-08-06 m. bevis:
+- (i) papirkurven: LØST i forberedelses-PR'en (PR #206) — porteret 1:1
+  ind i RapporteringView som advisor-gated sektion (gendan + permanent
+  slet m. fuld oprydningskæde kopieret ordret fra gamle Reports
+  :720-760). Slette-PARITETEN fulgt op i PR #207 (ubetinget "Slet
+  rapport" + dialog). "Drift-gruppen"-planen bortfaldt — papirkurven
+  følger fladen.
+- (ii) trend/AI's hjem: OPFYLDT — KPI-GO er gennemført (PR #203),
+  GO-koordineringen (KPI-GO før Rapportering-GO) er dermed indfriet.
+- (iii) email-link-kontrakten: kontrakt-facit fra hb-rapgo-recon
+  GAP-tabellen — elementerne 1-7 JA (3× /reports?reportId= fra
+  extract-financial-data arvet i RapporteringView; ren /reports +
+  email-CTA; #upload/#annual-reports-ankrene m. robust useScrollToHash).
+  De to ?reportId-nuancer (param-rydning + re-trigger ved nyt id på åben
+  flade) arvet 1:1 i PR #206. Manuel byggerute-test GENNEMFØRT
+  2026-08-06 (dagens GO-tjek).
+- (iv) advisor-m.-override-flowet: mønstret til stede 1:1
+  (HbAdvisorCompanyPrompt ved isAdvisor && !companyId, override-aware
+  companyId i alle queries — identisk m. NoegletalView, prod-bevist af
+  KPI-GO). Gennemprøvning via broerne GENNEMFØRT 2026-08-06 (dagens
+  GO-tjek).
 
-FORUDSÆTNINGER for GO — status 2026-08-06 (recon-bevis:
-hb-rapgo-recon.txt; gap-lukning: feat/rapportering-go-forberedelse):
-(i) papirkurven: LØST i forberedelses-PR'en — porteret 1:1 ind i
-RapporteringView som advisor-gated sektion (gendan + permanent slet m.
-fuld oprydningskæde kopieret ordret fra gamle Reports :720-760);
-"drift-gruppen"-planen bortfaldt — papirkurven følger fladen.
-(ii) trend/AI's hjem: OPFYLDT — KPI-GO er gennemført (PR #203),
-GO-koordineringen (KPI-GO før Rapportering-GO) er dermed indfriet.
-(iii) email-link-kontrakten: kontrakt-facit fra hb-rapgo-recon
-GAP-tabellen — elementerne 1-7 JA (3× /reports?reportId= fra
-extract-financial-data arvet i RapporteringView; ren /reports +
-email-CTA; #upload/#annual-reports-ankrene m. robust useScrollToHash).
-De to ?reportId-nuancer (param-rydning + re-trigger ved nyt id på åben
-flade) er arvet 1:1 i forberedelses-PR'en. Manuel byggerute-test
-udestår som GO-tjek.
-(iv) advisor-m.-override-flowet: mønstret verificeret til stede 1:1
-(HbAdvisorCompanyPrompt ved isAdvisor && !companyId, override-aware
-companyId i alle queries — identisk m. NoegletalView, prod-bevist af
-KPI-GO). Gennemprøvning via broerne udestår som GO-tjek.
+GO'ets indhold (implementeret i swap-PR'en): /reports bærer den nye
+flade via MemberRoute (advisors passerer som på gammel /reports —
+company-override-mønstret uændret); /rapportering er redirect m.
+bevaret hash/query (?reportId= er email-kontrakt, #upload/
+#annual-reports er Guide-kontrakt); HbMemberShells Rapportering-mål →
+/reports for alle; gamle Reports.tsx pensioneret (nul resterende
+importører; alle delte komponenter — AdvisorCompanyPrompt,
+ReportReviewDialog, FileUploadZone, AIFinancialAnalysis,
+DeliveryOverview, PeriodSelector, ReportManualOverride,
+PulseCheckinModal — har andre brugere og består). Medlemsnote shippet
+i samme PR jf. proces-reglen (nyt announcement-id
+"v2026-08-hjemmebane-rapportering" i DashboardActionCenter + AppLayout).
+
+Oprindeligt punkt (historik): Hb-rapporteringen (/rapportering) er
+bygget route-parallelt bag AdvisorRoute; gamle /reports er frosset.
+URL'EN ER EMAIL-KONTRAKT (extract-financial-data + email-flows §1.1
+skriver /reports?reportId=…; #upload/#annual-reports-ankrene skal virke
+identisk); /rapportering bliver redirect (§3.6-mønstret).
 
 ---
 
