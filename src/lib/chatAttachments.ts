@@ -27,13 +27,9 @@ export async function uploadChatAttachments(
       continue;
     }
 
-    const { data: urlData } = supabase.storage
-      .from("chat-attachments")
-      .getPublicUrl(path);
-
     results.push({
       name: file.name,
-      url: urlData.publicUrl,
+      path,
       type: file.type,
       size: file.size,
     });
