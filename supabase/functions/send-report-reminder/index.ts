@@ -52,9 +52,9 @@ const FALLBACK_HTML = `<!DOCTYPE html>
     <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">{{subject_line}}</h1>
     <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Hej {{first_name}}, {{intro}}</p>
     <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0">
-      <p style="color:#166534;font-size:13px;margin:0;font-weight:500">Eksportér direkte fra e-conomic, Dinero eller Billy og upload filen.</p>
+      <p style="color:#166534;font-size:13px;margin:0;font-weight:500">{{hint_text}}</p>
     </div>
-    ${bulletproofButton({ href: "{{report_url}}", label: "Upload rapport", bgColor: "#16a34a" })}
+    ${bulletproofButton({ href: "{{report_url}}", label: "{{cta_label}}", bgColor: "#16a34a" })}
     ${fallbackLinkBlock("{{report_url}}")}
     <div style="height:0.5px;background:#e5e7eb"></div>
     <div style="padding:16px 0">
@@ -115,7 +115,34 @@ Deno.serve(async (req) => {
 
     console.log(`[send-report-reminder] Period: ${expectedPeriod} | Day: ${dayOfMonth}${testEmail ? ` | TEST → ${testEmail}` : ''}`);
 
-    const reportUrl = "https://app.theboardroom.dk/reports";
+    const APP_URL = "https://app.theboardroom.dk";
+    const reportUrl = `${APP_URL}/reports`;
+
+    // ── Reminder-varianter (B2) ──
+    // Virksomheder der HAR uploadet men ikke godkendt må ikke mødes af
+    // "upload"-sprog. Varianten afgøres pr. virksomhed via tragt-
+    // kriterierne (processed, ikke slettet, ikke aarsrapport, ikke
+    // _sentinel, ingen facts-række på source_report_id).
+    type ReminderVariant = "upload" | "approve" | "manual";
+    const UPLOAD_HINT_TEXT = "Eksportér direkte fra e-conomic, Dinero eller Billy og upload filen.";
+    const VARIANT_TEXTS: Record<Exclude<ReminderVariant, "upload">, {
+      subject: string; subjectLine: string; intro: string; ctaLabel: string; hintText: string;
+    }> = {
+      approve: {
+        subject: "Dine tal venter kun på din godkendelse",
+        subjectLine: "Dine tal venter kun på din godkendelse",
+        intro: "du har uploadet din rapport — der mangler kun din godkendelse (tager under 1 minut) før tallene aktiveres i dine KPI'er og din AI-analyse.",
+        ctaLabel: "Godkend dine tal",
+        hintText: "Tallene er allerede trukket ud — du skal kun bekræfte dem.",
+      },
+      manual: {
+        subject: "Indtast dine tal — 2 minutter",
+        subjectLine: "Indtast dine tal — 2 minutter",
+        intro: "vi kunne ikke læse alle tal automatisk fra din uploadede rapport. Indtast de vigtigste tal — det tager 2 minutter — så aktiveres dine KPI'er og din AI-analyse.",
+        ctaLabel: "Indtast dine tal",
+        hintText: "Indtast de vigtigste tal manuelt — eller upload en ny, mere læsbar eksport hvis du har en.",
+      },
+    };
 
     // Urgency-specific subjects and intros
     type Urgency = "gentle" | "urgent" | "critical";
@@ -171,7 +198,27 @@ Deno.serve(async (req) => {
     }
 
     // Helper to build email for a specific company
-    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
+    function buildEmail(companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle", variant: ReminderVariant = "upload", targetUrl: string = reportUrl) {
+      // Godkend-/manuel-varianten går BEVIDST uden om DB-templaterne —
+      // de tre "Rapport-påmindelse"-templates bærer upload-sprog og må
+      // ikke overskrive varianten.
+      if (variant !== "upload") {
+        const t = VARIANT_TEXTS[variant];
+        const vars: Record<string, string> = {
+          period,
+          company_name: companyName,
+          report_url: targetUrl,
+          first_name: firstName || "dig",
+          subject_line: t.subjectLine,
+          intro: t.intro,
+          cta_label: t.ctaLabel,
+          hint_text: t.hintText,
+        };
+        const subject = (isTest ? '[TEST] ' : '') + replaceVars(t.subject, vars);
+        const html = replaceVars(FALLBACK_HTML, vars);
+        return { subject, html, sender: SENDER };
+      }
+
       const tplName = TEMPLATE_NAMES[urgency];
       const tpl = tplMap.get(tplName);
       const activeSubjectTpl = (tpl?.enabled && tpl.subject) ? tpl.subject : emailSubjects[urgency];
@@ -183,10 +230,12 @@ Deno.serve(async (req) => {
       const vars: Record<string, string> = {
         period,
         company_name: companyName,
-        report_url: reportUrl,
+        report_url: targetUrl,
         first_name: firstName || "dig",
         subject_line: subjectLines[urgency],
         intro: replaceVars(intros[urgency], { period }),
+        cta_label: "Upload rapport",
+        hint_text: UPLOAD_HINT_TEXT,
       };
       const subject = (isTest ? '[TEST] ' : '') + replaceVars(activeSubjectTpl, vars);
       const html = replaceVars(activeBodyTpl, vars);
@@ -194,8 +243,8 @@ Deno.serve(async (req) => {
     }
 
     // Helper to enqueue a reminder email
-    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle") {
-      const { subject, html, sender } = buildEmail(companyName, period, isTest, firstName, urgency);
+    async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle", variant: ReminderVariant = "upload", targetUrl: string = reportUrl) {
+      const { subject, html, sender } = buildEmail(companyName, period, isTest, firstName, urgency, variant, targetUrl);
       const messageId = crypto.randomUUID();
 
       await supabase.from('email_send_log').insert({
@@ -325,28 +374,78 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // ── B2: Tragt-opslag — har virksomheden uploadede men UGODKENDTE
+        //    rapporter? Så skal reminderen tale godkend/indtast, ikke upload.
+        let variant: ReminderVariant = "upload";
+        let targetPath = "/reports";
+        try {
+          const { data: pendingReports } = await supabase
+            .from("financial_reports")
+            .select("id, uploaded_at, quality_signals")
+            .eq("company_id", company.id)
+            .eq("status", "processed")
+            .is("deleted_at", null)
+            .neq("report_type", "aarsrapport")
+            .neq("file_path", "_sentinel")
+            .order("uploaded_at", { ascending: false });
+          if (pendingReports?.length) {
+            const { data: factRows } = await supabase
+              .from("financial_report_facts")
+              .select("source_report_id")
+              .eq("company_id", company.id);
+            const committedIds = new Set((factRows || []).map((f: any) => f.source_report_id));
+            const uncommitted = (pendingReports as any[]).filter((r) => !committedIds.has(r.id));
+            const approvable = uncommitted.filter((r) => r.quality_signals?.needs_manual_entry !== true);
+            if (approvable.length > 0) {
+              variant = "approve";
+              targetPath = `/reports?reportId=${approvable[0].id}`;
+            } else if (uncommitted.length > 0) {
+              variant = "manual";
+              targetPath = `/reports?reportId=${uncommitted[0].id}`;
+            }
+          }
+        } catch (variantErr) {
+          console.error(`[B2] uncommitted-lookup error for ${company.id} (fallback: upload-variant):`, variantErr);
+        }
+        const targetUrl = `${APP_URL}${targetPath}`;
+
         // ── Phase 2: Write report_reminder notification (with email_sent_at to prevent double email) ──
+        // Dedup-nøglen bærer varianten for approve/manual — kolliderer ikke
+        // m. eksisterende `report_reminder:`-mønster.
+        const dedupKey = variant === "upload"
+          ? `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`
+          : `report_reminder_${variant}:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`;
+        const notifTitle = variant === "approve"
+          ? "Dine tal venter kun på din godkendelse"
+          : variant === "manual"
+            ? "Indtast dine tal — 2 minutter"
+            : dayOfMonth >= 15
+              ? `Rapport for ${expectedPeriod} mangler stadig`
+              : `Husk: Upload din rapport for ${expectedPeriod}`;
+        const notifBody = variant === "approve"
+          ? "Du har uploadet din rapport — der mangler kun din godkendelse (tager under 1 minut) før tallene aktiveres i dine KPI'er og din AI-analyse."
+          : variant === "manual"
+            ? "Vi kunne ikke læse alle tal automatisk fra din uploadede rapport. Indtast de vigtigste tal — det tager 2 minutter — så aktiveres dine KPI'er og din AI-analyse."
+            : `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram. Det tager under 2 minutter.`;
         try {
           const { writeNotification } = await import("../_shared/notificationWriter.ts");
           await writeNotification(supabase, {
             user_id: member.user_id,
             type: "report_reminder",
-            priority: dayOfMonth >= 15 ? "action_required" : "important",
-            title: dayOfMonth >= 15
-              ? `Rapport for ${expectedPeriod} mangler stadig`
-              : `Husk: Upload din rapport for ${expectedPeriod}`,
-            body: `Din rapport for ${expectedPeriod} mangler. Upload den direkte fra dit regnskabsprogram. Det tager under 2 minutter.`,
+            priority: variant !== "upload" || dayOfMonth >= 15 ? "action_required" : "important",
+            title: notifTitle,
+            body: notifBody,
             reference_type: "report",
-            deep_link: "/reports",
+            deep_link: targetPath,
             company_id: company.id,
-            dedup_key: `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`,
+            dedup_key: dedupKey,
           });
           // Mark email_sent_at immediately since this function already sends the email
           await supabase
             .from("notifications")
             .update({ email_sent_at: new Date().toISOString() })
             .eq("user_id", member.user_id)
-            .eq("dedup_key", `report_reminder:${company.id}:${expectedPeriodKey}:d${dayOfMonth}`);
+            .eq("dedup_key", dedupKey);
         } catch (notifErr) {
           console.error(`[Phase2] report_reminder notification error (non-blocking):`, notifErr);
         }
@@ -358,8 +457,8 @@ Deno.serve(async (req) => {
         }
 
         try {
-          await enqueueReminder(email, company.name, expectedPeriod, false, memberFirstName, urgencyLevel);
-          console.log(`[LIVE] Enqueued for: ${email} (${company.name})`);
+          await enqueueReminder(email, company.name, expectedPeriod, false, memberFirstName, urgencyLevel, variant, targetUrl);
+          console.log(`[LIVE] Enqueued for: ${email} (${company.name}) [${variant}]`);
           sent++;
         } catch (e) {
           console.error(`Error ${email}:`, e);
