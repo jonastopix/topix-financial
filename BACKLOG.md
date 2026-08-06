@@ -566,6 +566,14 @@ route-parallelt bag AdvisorRoute (fuld paritet + trend/AI); gamle
 (notify-kpi-comment, detect-financial-alerts og send-monthly-digest
 skriver /kpis-deep-links; #goals er Guide-kontrakt).
 
+MEDLEMSNOTE shippet 2026-08-06: opgraderings-banner i
+DashboardActionCenter + AppLayout (nyt announcement-id
+"v2026-08-hjemmebane-kpi" så tidligere dismissere ser den).
+PROCES-REGEL: hver kommende GO (Rapportering, Budget, Forside) shipper
+m. opdateret medlemsnote i samme PR. Ved Forside-GO flytter
+opgraderings-kommunikationen til push-laget — bannerne her dør med
+gamle Index/AppLayout.
+
 ---
 
 ### [P3] ✅ Løst i PR feat/hjemmebane-ai-analyse — AI-analysens Hb-konvertering
