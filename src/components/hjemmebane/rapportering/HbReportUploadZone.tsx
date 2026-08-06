@@ -44,8 +44,9 @@ const statusLine = (file: UploadedFile): string => {
     case "uploading":
       return "Uploader…";
     case "processing":
+      return "Læser dokumentet…";
     case "analyzing":
-      return "Behandles…";
+      return "Trækker tallene ud — tager normalt under ét minut";
     case "done":
       return "Klar — se rapporten i listen nedenfor";
     case "error":
@@ -199,6 +200,9 @@ export const HbReportUploadZone = ({
         }
 
         if (!extractedData) {
+          // Ventetids-feedback: ekstraktions-kaldet er det lange led (median
+          // 5 s, p90 76 s) — ren UI-status, DB-status røres ikke (A1).
+          updateFile(fileId, { status: "analyzing" });
           const { data: aiData, error: extractError } = await supabase.functions.invoke(
             "extract-financial-data",
             { body: { fileContent: extracted.text, pageImages: extracted.pageImages, excelBase64, pdfStructural, reportId: reportRecord.id, fileName: file.name, knownCompanyName: companyName || undefined } },
@@ -303,6 +307,8 @@ export const HbReportUploadZone = ({
       }
       await supabase.from("financial_reports").update({ file_path: storagePath } as any).eq("id", reportRecord.id);
 
+      // Ventetids-feedback: samme UI-transition som processFile (A1: ren UI-status).
+      updateFile(fileId, { status: "analyzing" });
       const { data: extractedData, error: extractError } = await supabase.functions.invoke(
         "extract-financial-data",
         { body: { fileContent, pageImages, excelBase64, reportId: reportRecord.id, fileName: file.name, overwrite: true, knownCompanyName: companyName || undefined } },
