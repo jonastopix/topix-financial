@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { requestHandoutAiFeedback } from "@/lib/handoutEngine";
 
 interface HandoutAIFeedbackProps {
   handoutId: string;
@@ -20,10 +20,8 @@ const HandoutAIFeedback = ({ handoutId, module, feedback, feedbackAt, onFeedback
   const requestFeedback = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("handout-ai-feedback", {
-        body: { handout_id: handoutId, module, company_name: companyName, industry },
-      });
-      if (error) throw error;
+      // H5 i motoren — invoke-body inkl. industry, ordret
+      await requestHandoutAiFeedback({ handoutId, module, companyName, industry });
       onFeedbackReceived();
       toast.success("AI-sparring modtaget", { description: "Din feedback er klar nedenfor." });
     } catch (e: any) {

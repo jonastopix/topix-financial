@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AdvisorCompanyPrompt from "@/components/AdvisorCompanyPrompt";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { loadHandoutSummaries } from "@/lib/handoutEngine";
 import { useNavigationReset } from "@/hooks/useNavigationReset";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -114,15 +115,8 @@ const Handouts = () => {
     if (!user || !companyId) return;
     setIsLoading(true);
     const load = async () => {
-      let query = supabase
-        .from("handouts")
-        .select("module, status, responses, checklist, levers, completed_at, user_id");
-      if (isAdvisor) {
-        query = query.eq("company_id", companyId!);
-      } else {
-        query = query.eq("user_id", user!.id);
-      }
-      const { data } = await query;
+      // H1c i motoren — advisor ser virksomhedens rækker, medlem sine egne.
+      const data = await loadHandoutSummaries({ userId: user!.id, companyId: companyId!, isAdvisor });
 
       // Build per-module user_id map for advisor deep-linking
       const userMap: Record<string, string> = {};

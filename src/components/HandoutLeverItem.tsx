@@ -3,9 +3,9 @@ import { Target, Plus, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { createLeverMilestone } from "@/lib/handoutEngine";
 
 interface LeverMilestone {
   milestone_id: string;
@@ -32,18 +32,8 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
     if (!user || !handoutId || !value.trim()) return;
     setCreating(true);
     try {
-      const insertData: Record<string, any> = { user_id: user.id, title: value.trim(), source: "handout", company_id: companyId };
-      const { data: ms, error: msErr } = await supabase
-        .from("milestones")
-        .insert(insertData as any)
-        .select("id")
-        .single();
-      if (msErr) throw msErr;
-
-      const { error: linkErr } = await supabase
-        .from("handout_lever_milestones" as any)
-        .insert({ handout_id: handoutId, lever_index: index, milestone_id: ms.id });
-      if (linkErr) throw linkErr;
+      // H4 i motoren — milestone + junction-rækken (UNIQUE bærer idempotensen)
+      await createLeverMilestone({ userId: user.id, companyId, handoutId, leverIndex: index, title: value.trim() });
 
       toast.success("Milestone oprettet", { description: `"${value.trim()}" er nu en aktiv milestone. Åbn Milestones for at tilføje et konkret talmål.` });
       onMilestoneCreated?.();
