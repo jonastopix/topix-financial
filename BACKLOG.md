@@ -739,23 +739,51 @@ eksplicit grønt lys (FORBIDDEN-zonen).
 
 ### [P1] Budget-GO = swap på /budget (noteret 2026-08-05)
 
-Hb-budgetfladen (/budgettering) er bygget route-parallelt bag
-AdvisorRoute (fuld paritet: oversigt, scenarier/redigering, BvA, import
-×2, hvad-hvis, cashflow); gamle /budget er omlagt til budgetEngine men
-ellers frosset. GO'ets indhold: /budget's MemberRoute-gren bærer den nye
-flade — URL'en er NOTIFIKATIONS-KONTRAKT (detect-financial-alerts
-skriver /budget-deep-links) og GUIDE-KONTRAKT (/budget#forecast);
-/budgettering bliver redirect (§3.6-mønstret); HbMemberShells
-Budget-mål → /budget for alle.
+STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/budget-go-swap) er
+bygget og verificeret; AFVENTER ADVISOR-GO før merge. Recon-bevis:
+hb-budgetgo-recon.txt — NUL paritets-gap (alle 13 handlinger H1-H13
+findes på ny flade m. linjecitater; ingen forberedelses-PR nødvendig).
+Status pr. forudsætning:
+- (i) #forecast fra kold navigering: STRUKTURELT INDFRIET AF SWAPPET —
+  ankeret sidder på gamle flade på en Radix-fane der ikke er i DOM
+  (Guide-linket var de facto dødt); ny flades sektion er ALTID i DOM
+  (recon §2/§4). Manuel byggerute-test udestår som GO-tjek.
+- (ii) notifikations-deep_link: kontrakten er ren "/budget" (ét
+  skrivested: detect-financial-alerts:159) + Guide-hash — redirect m.
+  bevaret hash/query dækker alt (recon §1). Manuel efterprøvning
+  udestår som GO-tjek.
+- (iii) koncern-drill-down: BORTFALDET m. KODE-FACIT — nul
+  koncern/group-RPC-referencer i src, drop-migration
+  20260805224500_drop_koncern_objects.sql findes (recon §5).
+- (iv) advisor-gennemgang på rigtige data: UDESTÅR som GO-tjek (fladen
+  ligger klar på byggeruten til gennemgang før merge).
+- (v) W6-company-filteret: i koden på begge flader (budgetEngine:743-747)
+  + W6-integrationstestet; prod-levetid dog kun siden 2026-08-05 —
+  kalender-vilkår, advisor-GO'et tager stilling.
+- (vi) princip 8-rammen: uændret gældende (konvergens.md §2.8).
 
-FORUDSÆTNINGER for GO: (i) #forecast-ankeret verificeret fra KOLD
-navigering på byggeruten, (ii) notifikations-deep_link efterprøvet
-(alert → /budget lander rigtigt post-swap), (iii) UDGÅET 2026-08-05
-(koncern-drill-down — koncern fjernet), (iv) advisor-gennemgang af hele
-fladen på rigtige data (alle seks funktioner + begge import-spor),
-(v) W6-rettelsen (company-filteret) har levet i prod via gammel flade
-uden regressioner, (vi) princip 8-rammen: Budget-GO er IKKE
-medlemsrejse-lanceringen — den styres af konvergens.md §2.8.
+GO'ets indhold (implementeret i swap-PR'en): /budget bærer den nye
+flade via MemberRoute (advisors passerer som på gammel /budget —
+company-override-mønstret uændret, HbAdvisorCompanyPrompt + scoped
+queries jf. recon §6); /budgettering er redirect m. bevaret hash/query
+(#forecast er Guide-kontrakt, "/budget" er notifikations-kontrakt);
+HbMemberShells Budget-mål → /budget for alle; gamle Budget.tsx
+pensioneret SAMT ni forældreløse komponenter (grep-belæg pr. komponent
+i hb-budgetgo-swap.txt): BudgetTemplatePicker, BudgetOverviewTab,
+BudgetScenariosTab, BudgetVsActualTab, BudgetForecastTab,
+BudgetCashflowTab, BudgetHelpers, BudgetImport, BudgetFromAccounts —
+alle m. nul resterende kode-brugere. BEVARET: budget/types.ts
+(hjemmebane+engine), AdvisorCompanyPrompt (Milestones/Handouts),
+budgetEngine/budgetTemplates (én sandhed, W1-W7-testet). Medlemsnote
+shippet i samme PR jf. proces-reglen (nyt announcement-id
+"v2026-08-hjemmebane-budget" i DashboardActionCenter + AppLayout).
+
+Oprindeligt punkt (historik): Hb-budgetfladen (/budgettering) er bygget
+route-parallelt bag AdvisorRoute (fuld paritet: oversigt,
+scenarier/redigering, BvA, import ×2, hvad-hvis, cashflow); gamle
+/budget er omlagt til budgetEngine men ellers frosset. URL'en er
+NOTIFIKATIONS-KONTRAKT (detect-financial-alerts skriver
+/budget-deep-links) og GUIDE-KONTRAKT (/budget#forecast).
 
 ---
 

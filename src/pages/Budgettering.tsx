@@ -2,12 +2,12 @@ import "@/styles/hjemmebane.css";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { BudgetteringView } from "@/components/hjemmebane/budget/BudgetteringView";
 
-/** /budgettering — Hb-budgetfladen (route-parallel konvertering; næstsidste
-    flade i "Dine tal"-miljøet). AdvisorRoute i BYGGEPERIODEN: /budget er
-    frosset og uændret for medlemmer. VED GO bærer /budget fladen (URL'en
-    er kontrakt: notifikations-deep_link fra detect-financial-alerts +
-    Guide-hash'en /budget#forecast), og /budgettering bliver redirect —
-    jf. konvergens.md §1/§2.2 og BACKLOG "[P1] Budget-GO = swap på /budget". */
+/** Hb-budgetfladen. Budget-GO gennemført 2026-08-06: /budget bærer
+    fladen (URL'en er kontrakt: notifikations-deep_link "/budget" fra
+    detect-financial-alerts + Guide-hash'en /budget#forecast — ankeret
+    indfries strukturelt, sektionen er altid i DOM), og /budgettering
+    redirecter til /budget m. bevaret hash/query — jf. konvergens.md
+    §1/§2.2 og BACKLOG "Budget-GO". */
 const Budgettering = () => (
   <HbMemberShell active="budget">
     <BudgetteringView />
