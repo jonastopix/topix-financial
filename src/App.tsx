@@ -17,7 +17,6 @@ import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 // Lazy — member/advisor routes
-const Reports = lazy(() => import("./pages/Reports"));
 const Milestones = lazy(() => import("./pages/Milestones"));
 const Budget = lazy(() => import("./pages/Budget"));
 const Handouts = lazy(() => import("./pages/Handouts"));
@@ -50,7 +49,7 @@ const PreviewHjemmebane = lazy(() => import("./pages/PreviewHjemmebane"));
 // Lazy — Hb-forsiden "Dit Boardroom" (route-parallel; advisor-gated indtil swap-GO)
 const Boardroom = lazy(() => import("./pages/Boardroom"));
 
-// Lazy — Hb-rapporteringen (route-parallel; advisor-gated indtil swap-GO på /reports)
+// Lazy — Hb-rapporteringen (bærer /reports efter Rapportering-GO 2026-08-06)
 const Rapportering = lazy(() => import("./pages/Rapportering"));
 
 // Lazy — Hb-KPI-fladen (bærer /kpis efter KPI-GO 2026-08-06)
@@ -103,6 +102,14 @@ const MemberRoute = ({ children }: { children: React.ReactNode }) => {
 const NoegletalRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/kpis", search, hash }} replace />;
+};
+
+/* Rapportering-GO (2026-08-06): /rapportering → /reports. Hash/query
+   bevares — ?reportId= er email-kontrakt og #upload/#annual-reports er
+   Guide-kontrakt; begge skal overleve redirectet. */
+const RapporteringRedirect = () => {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: "/reports", search, hash }} replace />;
 };
 
 const AdvisorRoute = ({ children }: { children: React.ReactNode }) => {
@@ -188,7 +195,11 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
-              <Route path="/reports" element={<MemberRoute><Reports /></MemberRoute>} />
+              {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.
+                  MemberRoute som før — advisors passerer (ingen isAdvisor-gate)
+                  og vælger virksomhed via company-override, præcis som på
+                  gammel /reports. */}
+              <Route path="/reports" element={<MemberRoute><Rapportering /></MemberRoute>} />
               <Route path="/budget" element={<MemberRoute><Budget /></MemberRoute>} />
               <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
               <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
@@ -230,9 +241,9 @@ const App = () => (
               {/* Hb-forsiden "Dit Boardroom" — AdvisorRoute KUN i byggeperioden;
                   swap-PR'en (GO) flytter den til "/"-medlemsgrenen. */}
               <Route path="/boardroom" element={<AdvisorRoute><Boardroom /></AdvisorRoute>} />
-              {/* Hb-rapporteringen — AdvisorRoute KUN i byggeperioden; GO = swap
-                  på /reports (email-kontrakt), /rapportering bliver redirect. */}
-              <Route path="/rapportering" element={<AdvisorRoute><Rapportering /></AdvisorRoute>} />
+              {/* Rapportering-GO gennemført 2026-08-06: /reports bærer fladen
+                  (email-kontrakt); /rapportering redirecter m. bevaret hash/query. */}
+              <Route path="/rapportering" element={<RapporteringRedirect />} />
               {/* KPI-GO gennemført 2026-08-06: /kpis bærer fladen (notifikations-
                   kontrakt); /noegletal redirecter m. bevaret hash/query. */}
               <Route path="/noegletal" element={<NoegletalRedirect />} />

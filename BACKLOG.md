@@ -517,33 +517,48 @@ leverance. Når den bygges: genindsæt CTA'en og afgør detalje-visning.
 
 ### [P1] Rapportering-GO = swap på /reports (noteret 2026-08-05)
 
-Hb-rapporteringen (/rapportering) er bygget route-parallelt bag
-AdvisorRoute; gamle /reports er frosset. GO'ets indhold: /reports'
-MEDLEMSGREN bærer den nye flade — URL'EN ER EMAIL-KONTRAKT
-(extract-financial-data + email-flows §1.1 skriver /reports?reportId=…;
-#upload/#annual-reports-ankrene skal virke identisk); /rapportering
-bliver redirect (§3.6-mønstret); HbMemberShells Rapportering-mål → /reports
-for alle.
+STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/rapportering-go-swap)
+er bygget og verificeret; AFVENTER ADVISOR-GO før merge. Alle fire
+forudsætninger opfyldt 2026-08-06 m. bevis:
+- (i) papirkurven: LØST i forberedelses-PR'en (PR #206) — porteret 1:1
+  ind i RapporteringView som advisor-gated sektion (gendan + permanent
+  slet m. fuld oprydningskæde kopieret ordret fra gamle Reports
+  :720-760). Slette-PARITETEN fulgt op i PR #207 (ubetinget "Slet
+  rapport" + dialog). "Drift-gruppen"-planen bortfaldt — papirkurven
+  følger fladen.
+- (ii) trend/AI's hjem: OPFYLDT — KPI-GO er gennemført (PR #203),
+  GO-koordineringen (KPI-GO før Rapportering-GO) er dermed indfriet.
+- (iii) email-link-kontrakten: kontrakt-facit fra hb-rapgo-recon
+  GAP-tabellen — elementerne 1-7 JA (3× /reports?reportId= fra
+  extract-financial-data arvet i RapporteringView; ren /reports +
+  email-CTA; #upload/#annual-reports-ankrene m. robust useScrollToHash).
+  De to ?reportId-nuancer (param-rydning + re-trigger ved nyt id på åben
+  flade) arvet 1:1 i PR #206. Manuel byggerute-test GENNEMFØRT
+  2026-08-06 (dagens GO-tjek).
+- (iv) advisor-m.-override-flowet: mønstret til stede 1:1
+  (HbAdvisorCompanyPrompt ved isAdvisor && !companyId, override-aware
+  companyId i alle queries — identisk m. NoegletalView, prod-bevist af
+  KPI-GO). Gennemprøvning via broerne GENNEMFØRT 2026-08-06 (dagens
+  GO-tjek).
 
-FORUDSÆTNINGER for GO — status 2026-08-06 (recon-bevis:
-hb-rapgo-recon.txt; gap-lukning: feat/rapportering-go-forberedelse):
-(i) papirkurven: LØST i forberedelses-PR'en — porteret 1:1 ind i
-RapporteringView som advisor-gated sektion (gendan + permanent slet m.
-fuld oprydningskæde kopieret ordret fra gamle Reports :720-760);
-"drift-gruppen"-planen bortfaldt — papirkurven følger fladen.
-(ii) trend/AI's hjem: OPFYLDT — KPI-GO er gennemført (PR #203),
-GO-koordineringen (KPI-GO før Rapportering-GO) er dermed indfriet.
-(iii) email-link-kontrakten: kontrakt-facit fra hb-rapgo-recon
-GAP-tabellen — elementerne 1-7 JA (3× /reports?reportId= fra
-extract-financial-data arvet i RapporteringView; ren /reports +
-email-CTA; #upload/#annual-reports-ankrene m. robust useScrollToHash).
-De to ?reportId-nuancer (param-rydning + re-trigger ved nyt id på åben
-flade) er arvet 1:1 i forberedelses-PR'en. Manuel byggerute-test
-udestår som GO-tjek.
-(iv) advisor-m.-override-flowet: mønstret verificeret til stede 1:1
-(HbAdvisorCompanyPrompt ved isAdvisor && !companyId, override-aware
-companyId i alle queries — identisk m. NoegletalView, prod-bevist af
-KPI-GO). Gennemprøvning via broerne udestår som GO-tjek.
+GO'ets indhold (implementeret i swap-PR'en): /reports bærer den nye
+flade via MemberRoute (advisors passerer som på gammel /reports —
+company-override-mønstret uændret); /rapportering er redirect m.
+bevaret hash/query (?reportId= er email-kontrakt, #upload/
+#annual-reports er Guide-kontrakt); HbMemberShells Rapportering-mål →
+/reports for alle; gamle Reports.tsx pensioneret (nul resterende
+importører; alle delte komponenter — AdvisorCompanyPrompt,
+ReportReviewDialog, FileUploadZone, AIFinancialAnalysis,
+DeliveryOverview, PeriodSelector, ReportManualOverride,
+PulseCheckinModal — har andre brugere og består). Medlemsnote shippet
+i samme PR jf. proces-reglen (nyt announcement-id
+"v2026-08-hjemmebane-rapportering" i DashboardActionCenter + AppLayout).
+
+Oprindeligt punkt (historik): Hb-rapporteringen (/rapportering) er
+bygget route-parallelt bag AdvisorRoute; gamle /reports er frosset.
+URL'EN ER EMAIL-KONTRAKT (extract-financial-data + email-flows §1.1
+skriver /reports?reportId=…; #upload/#annual-reports-ankrene skal virke
+identisk); /rapportering bliver redirect (§3.6-mønstret).
 
 UX-FLOW-FIX (fix/rapportering-ux-flow-main, 2026-08-06): medlemstest
 satte swap-GO'et (PR #208) i HOLD på tre fund (passivt godkendelses-
@@ -551,8 +566,12 @@ flow, mørk dialog i lys flade, ventetid uden feedback — recon:
 hb-rapport-ux-recon.txt). B1/B2/B4/B5 lukker flow-delen og SHIPPES PÅ
 MAIN FØR SWAPPET (ufarligt: gamle Reports har selv auto-åbning, og
 deep-links håndteres af begge flader) så byggeruten kan gentestes;
-B3 (Hb-restyling af review-dialog + pulse-modal) forbliver stacked på
-feat/rapportering-go-swap:
+B3 (Hb-restyling af review-dialog + pulse-modal) IMPLEMENTERET
+2026-08-06 i feat/rapportering-b3-dialoger — stacked på
+feat/rapportering-go-swap, shipper i swap-merget (theme-hjemmebane på
+DialogContent-roden jf. recon §3 vej i; pulse-modalens inline-gren på
+/pulse beholder appens tokens via stil-indirektion — den lyse stil
+rammer ikke gamle flade):
 - B1 auto-åbning: RP-1-affyringen portet 1:1 fra Reports:611-641 ind i
   RapporteringView (handlePipelineComplete → pendingReviewReportId →
   effekt åbner review-dialogen ved ready/update_available/blocked,
@@ -581,9 +600,11 @@ Parse-ventetid (processed_at - uploaded_at): median 5 s, p90 76 s.
 Portal-dialogerne på Hb-rapporteringsfladen lander uden for
 .theme-hjemmebane-scopet og arver appens mørke tokens (strukturelt
 vilkår — jf. hb-rapport-ux-recon.txt §3 og HbSidebars Sheet-fravalg).
-Review-dialogen og pulse-modalen tages i B3-PR'en (Rapportering-UX);
-tilbage står ReportManualOverride og slette-AlertDialog'en på samme
-flade.
+Review-dialogen og pulse-modalen ER taget i B3-PR'en
+(feat/rapportering-b3-dialoger, 2026-08-06); tilbage står
+ReportManualOverride (inkl. delte OverrideFormFields, som B3 bevidst
+ikke rører — den deles med ManualOverride) og slette-AlertDialog'en på
+samme flade.
 
 ---
 

@@ -33,11 +33,10 @@ export const HbMemberShell = ({
     {
       label: "Dine tal",
       children: [
-        // Rapportering peger på den nye flade for advisors i byggeperioden
-        // (samme gating som Dit Boardroom); medlemmer ser uændret /reports.
+        // Rapportering-GO 2026-08-06: /reports bærer fladen for alle roller.
         {
           label: "Rapportering",
-          to: effectiveAdvisor ? "/rapportering" : "/reports",
+          to: "/reports",
           active: active === "rapportering",
         },
         // KPI-GO 2026-08-06: /kpis bærer fladen for alle roller.

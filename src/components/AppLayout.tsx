@@ -15,11 +15,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 // ⚠️ HUSK: Opdatér også DashboardActionCenter.tsx når du skifter announcement
 const CURRENT_ANNOUNCEMENT = {
-  id: "v2026-08-hjemmebane-kpi",
+  id: "v2026-08-hjemmebane-rapportering",
   title: "Nyheder i The Boardroom",
   items: [
-    "Vi opgraderer platformen i disse uger — KPI'er er det første miljø i nyt design",
-    "Resten af miljøerne følger løbende — alt fungerer som normalt",
+    "Rapportering er nu i nyt design — samme sted, samme flow",
+    "KPI'er fik nyt design i sidste uge — resten følger løbende",
   ],
 };
 
