@@ -22,6 +22,16 @@ import {
   getEffectiveReportPeriodKey,
 } from "@/lib/financialUtils";
 import { buildReportsByMonth, buildYearGroups, deriveSlotState, type SlotState } from "@/lib/deliveryMonths";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import ReportReviewDialog from "@/components/ReportReviewDialog";
 import ReportManualOverride from "@/components/ReportManualOverride";
 import PulseCheckinModal from "@/components/PulseCheckinModal";
@@ -258,6 +268,37 @@ export const RapporteringView = () => {
     await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
     clearReportReviewNotification(report.id);
     setRefreshKey((k) => k + 1);
+  };
+
+  // ── "Slet rapport" (alle korttilstande, begge roller) — paritet m. gamle
+  //    Reports' ubetingede knap; handler portet 1:1 fra handleDeleteReport.
+  //    Lukker paritets-gap'et fra hb-slet-diagnose: uden denne kunne
+  //    committed/manual/error-rapporter ikke soft-deletes på ny flade. ─────
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; report: DbReport | null }>({ open: false, report: null });
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteReport = async (report: DbReport) => {
+    setDeleting(true);
+    try {
+      // Soft-delete: set deleted_at timestamp instead of removing data
+      const { error } = await (supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", report.id) as any);
+      if (error) throw error;
+
+      // Slettet rapport: dispose ventende review-mail (best-effort; server-side gate er autoritativ)
+      clearReportReviewNotification(report.id);
+
+      setDeleteDialog({ open: false, report: null });
+      setRefreshKey((k) => k + 1);
+      queryClient.invalidateQueries({ queryKey: ["company-facts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-overview-v3"] });
+      toast.success("Rapport flyttet til papirkurv", { description: `${report.report_period || report.file_name} kan gendannes af en administrator.` });
+    } catch (err) {
+      console.error("Soft-delete error:", err);
+      toast.error("Fejl", { description: "Kunne ikke slette rapporten. Prøv igen." });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // ── Papirkurv (advisor) — portet 1:1 fra gamle Reports før Rapportering-GO.
@@ -574,10 +615,25 @@ export const RapporteringView = () => {
 
                     {expanded && (
                       <div className="mt-4 border-t border-hb-line pt-4">
-                        <p className="text-xs text-hb-ink-soft">
-                          {report.file_name} · uploadet{" "}
-                          {new Date(report.uploaded_at).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}
-                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs text-hb-ink-soft">
+                            {report.file_name} · uploadet{" "}
+                            {new Date(report.uploaded_at).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" })}
+                          </p>
+                          {/* Ubetinget slettevej (paritet m. gamle Reports:1485-1495) —
+                              bor i detaljeområdet, IKKE i kort-dommen. */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteDialog({ open: true, report });
+                            }}
+                            className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-hb-rust/70 transition-colors hover:text-hb-rust"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Slet rapport
+                          </button>
+                        </div>
                         {figureEntries.length > 0 && (
                           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                             {figureEntries.slice(0, 6).map(([name, value]) => (
@@ -721,6 +777,28 @@ export const RapporteringView = () => {
         periodKeyOverride={pulseState.periodKey}
         periodLabelOverride={pulseState.periodLabel}
       />
+      {/* Delete confirmation dialog (AlertDialog-mønstret fra gamle flade) */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !deleting && setDeleteDialog({ open, report: open ? deleteDialog.report : null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Slet rapport?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{deleteDialog.report?.report_period || deleteDialog.report?.file_name}</strong>{" "}
+              — Rapporten flyttes til papirkurven og kan gendannes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuller</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteDialog.report && handleDeleteReport(deleteDialog.report)}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Sletter..." : "Flyt til papirkurv"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
