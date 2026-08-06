@@ -674,7 +674,31 @@ spor m. manuel prod-verifikation ("View code").
 
 ---
 
-### [P3] Chat-attachments PR 5 — upload-vejens restpunkter (noteret 2026-08-06)
+### [P3] ✅ Løst 2026-08-06 — Chat-attachments PR 5 — upload-vejens restpunkter (noteret 2026-08-06)
+
+STATUS: LØST 2026-08-06. Bevis, punkt for punkt:
+1. **Path-skrivning**: PR #201 — uploadChatAttachments skriver
+   `{ name, path, type, size }`; getPublicUrl fjernet.
+2. **INSERT-stramning**: eksekveret manuelt i prod 2026-08-06 08:55 —
+   `with_check` på "Authenticated users can upload chat attachments" er
+   nu bucket + eget `{userId}/`-præfiks (samme mønster som
+   DELETE-policyen fra 20260317133757). BEVIDST ingen migrationsfil —
+   ALTER POLICY-statementen står dokumenteret her som kanonisk historik:
+   ```sql
+   alter policy "Authenticated users can upload chat attachments"
+     on storage.objects
+     with check (
+       bucket_id = 'chat-attachments'
+       and (storage.foldername(name))[1] = auth.uid()::text
+     );
+   ```
+   Rollback: `with check (bucket_id = 'chat-attachments')` (bucket-only).
+3. **Levende sandbox-bevis** (Uploadtest ApS): upload passerede den
+   strammede policy; context_meta indeholdt path-formen UDEN url-nøgle;
+   signeret rendering bevist i både medlems- og advisor-visning; fuld
+   oprydning bevist 0.
+
+Oprindeligt punkt (historik):
 
 Bucketen blev privat 2026-08-06 (PR 4,
 `20260806082800_chat_attachments_private.sql`); læsning går nu
@@ -714,14 +738,23 @@ chat-konverteringen.
 
 ---
 
-### [P4] hardDeleteCompany efterlader notifikations-orfaner m. NULL company_id (set 2026-08-05, koncern-sluttest)
+### [P4] companyHardDelete efterlader storage- og notifikations-orfaner (set 2026-08-05/06; samler tidligere notifikations-orfan-punkt)
 
-hardDeleteCompany rydder notifications pr. company_id — men rækker med
-NULL company_id til de slettede brugere overlever som orfaner
-(chat_reply-vejen i notify-chat-reply sætter ingen company_id på
-notifikationen). Observeret under koncern-sluttesten 2026-08-05 og
-ryddet manuelt. Fix-idé: slet også pr. user_id for de slettede brugere
-(userIds-listen findes allerede i hardDeleteCompany).
+`hardDeleteCompany` (supabase/functions/_shared/companyHardDelete.ts)
+efterlader to klasser af orfaner — begge set og manuelt ryddet:
+
+1. **Storage-orfaner** (set 2026-08-06, chat-attachments-sluttest):
+   chat-attachments-objekter under slettede brugeres
+   `{userId}/`-præfiks ryddes ikke. Fix-krav: oprydningen SKAL ske via
+   `adminClient.storage.from(...).remove()` i edge-laget — direkte
+   DELETE på storage.objects blokeres af
+   `storage.protect_delete()`-triggeren (lærdom 2026-08-06).
+2. **Notifikations-orfaner** (set 2026-08-05, koncern-sluttest):
+   rækker med NULL company_id til de slettede brugere overlever,
+   fordi der ryddes pr. company_id (chat_reply-vejen i
+   notify-chat-reply sætter ingen company_id på notifikationen).
+   Fix-idé: slet også pr. user_id for de slettede brugere
+   (userIds-listen findes allerede i hardDeleteCompany).
 
 ---
 
