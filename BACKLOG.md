@@ -651,32 +651,51 @@ RESTERENDE LED (denne backlog-post):
 
 ### [P1] Handouts-GO = swap på /handouts (noteret 2026-08-06)
 
-Hb-handoutfladen (/handout) er bygget route-parallelt bag AdvisorRoute
-(feat/handouts-hb-flade — fuld paritet: liste m. fremgang/legat-lås/
-løftestænger/milepæls-rejse, sektioneret detalje m. autosave, løftestang
-→milestone, markér-udfyldt→notifikation, AI-sparring; al data gennem
-handoutEngine H1-H6, PR #213); gamle /handouts er frosset. GO'ets
-indhold: /handouts bærer den nye flade, /handout bliver redirect m.
-bevaret query, HbMemberShells Handouts-mål → /handouts for alle, gamle
-Handouts/HandoutDetail/HandoutCard/HandoutLeverItem/HandoutAIFeedback
-pensioneres m. grep-belæg (AdvisorCompanyPrompt består — Milestones/
-Handouts-fladerne deler den).
+GENNEMFØRT 2026-08-06 (swap-PR'en feat/handouts-go-swap; flade:
+PR #214, motor: PR #213 m. 18 write-path-tests; recon/byggeplan:
+hb-handouts-recon.txt + hb-handouts-byggeplan.txt): /handouts bærer
+Hb-fladen via PROTECTEDROUTE — IKKE MemberRoute (forudsætning ii:
+Legat-brugere skal kunne stå her; samme gating som gamle Handouts.tsx).
+/handout redirecter m. bevaret query/hash (?module= er Akademi-broens
+kontrakt, forudsætning i — HandoutRedirect efter §3.6-mønstret).
+HbMemberShells Handouts-mål → /handouts for alle. Medlemsnote shippet
+i samme PR (id "v2026-08-hjemmebane-handouts", forudsætning v).
 
-FORUDSÆTNINGER for GO:
-(i) ?module=-KONTRAKTEN: Akademi-broens ElementView linker
-    /handouts?module=<m> — deep-linket skal åbne modulet direkte på ny
-    flade (verificeret på byggeruten /handout?module=… som GO-tjek).
-(ii) GATING: swappen SKAL bruge PROTECTEDROUTE — IKKE MemberRoute:
-    Legat-brugere skal kunne stå på /handouts (MemberRoute redirecter
-    isLegat → /legat, App.tsx). Må ikke kopieres blindt fra de tre
-    foregående swaps (som alle var MemberRoute).
-(iii) LEGAT-VERIFIKATION: dag-oplåsningen (1/3/5/7/9) + "Åbner på dag
-    N"-kortene efterprøvet m. legat-konto på ny flade.
-(iv) ADVISOR-GENNEMGANG på rigtige data: læsevisning uden autosave
-    (isOwner-gaten), user-id-resolution m. ældste-medlem-fallback,
-    modul-åbning fra /members/:id?handout=-notifikations-linket.
-(v) MEDLEMSNOTE jf. proces-reglen: nyt announcement-id i
-    DashboardActionCenter + AppLayout i samme PR som swappet.
+PENSIONERINGS-FACIT (afveg fra planen — grep-reglen afgjorde):
+- PENSIONERET: pages/Handouts.tsx (nul importører efter swap) +
+  HandoutCard.tsx (kun brugt af Handouts.tsx).
+- BEVARET SOM ADVISOR-BRO: HandoutDetail.tsx + HandoutLeverItem.tsx +
+  HandoutAIFeedback.tsx — MemberDetail.tsx:661 renderer HandoutDetail
+  (advisor-visningen bag /members/:id?handout=-notifikations-linket,
+  send-slack-handout-notification:194). Kan først pensioneres når
+  MemberDetail-brugen konverteres/omlægges (eget punkt).
+- DELTE BEVARET: AdvisorCompanyPrompt (AppSidebar/Milestones/Budget),
+  handoutConfig (DashboardHandouts/ItemEditor/ElementView/engine m.fl.),
+  handoutUtils (ElementView/MemberDetail), handoutEngine + handoutNotify
+  (begge flader + tests).
+
+ÆRLIG RISIKO-NOTE: skrivevejene (autosave, løftestang→milestone,
+AI-sparring) er IKKE afprøvet af en ægte EJER på den nye flade før
+swappet — advisor-byggeruten er skrivebeskyttet (isOwner-gaten). De
+hviler på motor-pariteten (PR #213: samme H1-H6-kald, 18 write-path-
+tests) og gamle flades prod-brug af selvsamme motor siden PR #213.
+Første medlems-autosave på ny flade bør observeres efter deploy.
+ROLLBACK-PLAN: revert af swap-PR'en + Lovable "Update" bringer
+medlemmerne tilbage på gammel flade; ingen data-migrering er
+involveret (samme tabeller/motor), så rollback er ren visning.
+
+SEKVENS-NOTE (banner): medlemsnoten her er skrevet OVEN PÅ
+rapportering-banneret og nævner Budget som "i nyt design" — Budget-GO-
+swappen (feat/budget-go-swap, afventer advisor-GO) SKAL derfor merges
+FØR eller SAMMEN MED denne PR, ellers lover banneret et Budget-design
+der ikke er live, og de to PR'er konflikter i banner-blokkene
+(DashboardActionCenter/AppLayout — løses ved at denne PR's
+handouts-banner vinder).
+
+Oprindelige GO-forudsætninger (historik): (i) ?module=-kontrakten,
+(ii) ProtectedRoute-gatingen, (iii) Legat-verifikation m. legat-konto,
+(iv) advisor-gennemgang på rigtige data, (v) medlemsnote. (iii)+(iv)
+indgår i GO-beslutningens manuelle tjek på byggeruten.
 
 ---
 
