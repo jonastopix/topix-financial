@@ -17,7 +17,7 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -52,7 +52,13 @@ export const HbMemberShell = ({
           active: active === "budget",
         },
         { label: "Milestones", to: "/milestones" },
-        { label: "Handouts", to: "/handouts" },
+        // Samme byggeperiode-gating som de tre foregående konverteringer
+        // (handout-konverteringen); medlemmer ser uændret /handouts.
+        {
+          label: "Handouts",
+          to: effectiveAdvisor ? "/handout" : "/handouts",
+          active: active === "handouts",
+        },
       ],
     },
     {
