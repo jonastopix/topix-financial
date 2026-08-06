@@ -3,7 +3,10 @@ import { useChatAttachmentUrl } from "@/hooks/useChatAttachmentUrl";
 
 export interface ChatAttachment {
   name: string;
-  url: string;
+  /** Historiske rækker: fuld public-URL-form. Nye rækker skriver path. */
+  url?: string;
+  /** Storage-path ({userId}/{ts}-{navn}) — skrives af uploadChatAttachments. */
+  path?: string;
   type: string; // MIME type
   size: number;
 }
