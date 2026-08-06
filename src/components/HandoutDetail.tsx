@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { moduleOrder } from "@/lib/handoutConfig";
-import { notifyHandoutCompleted } from "@/lib/handoutNotify";
+import { loadHandout, loadLeverMilestones, saveHandout, toggleHandoutCompleted } from "@/lib/handoutEngine";
 
 interface HandoutDetailProps {
   config: HandoutConfig;
@@ -54,12 +54,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
     if (!effectiveUserId) return;
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from("handouts")
-        .select("*")
-        .eq("user_id", effectiveUserId)
-        .eq("module", config.module)
-        .maybeSingle();
+      const data = await loadHandout(effectiveUserId, config.module);
 
       if (data) {
         setHandoutId(data.id);
@@ -71,26 +66,9 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
         setAiFeedbackAt(data.ai_feedback_at);
         setHandoutStatus(data.status || "not_started");
 
-        // Load lever milestones
-        const { data: links } = await supabase
-          .from("handout_lever_milestones" as any)
-          .select("lever_index, milestone_id")
-          .eq("handout_id", data.id);
-
-        if (links && links.length > 0) {
-          const msIds = links.map((l: any) => l.milestone_id);
-          const { data: milestones } = await supabase
-            .from("milestones")
-            .select("id, title, progress, status")
-            .in("id", msIds);
-
-          const map: Record<number, LeverMilestone> = {};
-          for (const link of links as any[]) {
-            const ms = milestones?.find((m) => m.id === link.milestone_id);
-            if (ms) {
-              map[link.lever_index] = { milestone_id: ms.id, title: ms.title, progress: ms.progress, status: ms.status };
-            }
-          }
+        // Load lever milestones (H1b i motoren)
+        const map = await loadLeverMilestones(data.id);
+        if (Object.keys(map).length > 0) {
           setLeverMilestones(map);
         }
       }
@@ -111,31 +89,24 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
     });
   }, [companyId]);
 
-  // Auto-save with debounce
+  // Auto-save with debounce (skrivevejen H2 bor i handoutEngine)
   const save = useCallback(async (r: Record<string, string>, c: Record<string, boolean>, l: string[]) => {
     if (!effectiveUserId || !isOwner) return;
     setSaveStatus("saving");
 
-    const hasContent = Object.values(r).some(v => v.trim()) || Object.values(c).some(v => v) || l.some(v => v.trim());
-    const status = hasContent ? "in_progress" : "not_started";
-
-    const payload: Record<string, any> = {
-      user_id: effectiveUserId,
+    const result = await saveHandout({
+      effectiveUserId,
+      isOwner,
       module: config.module,
+      companyId,
+      handoutId,
       responses: r,
       checklist: c,
       levers: l,
-      status,
-    };
-    payload.company_id = companyId;
-
-    if (handoutId) {
-      const { error } = await supabase.from("handouts").update(payload).eq("id", handoutId);
-      if (error) { toast.error("Fejl ved gem", { description: error.message }); }
-    } else {
-      const { data, error } = await supabase.from("handouts").insert(payload as any).select("id").single();
-      if (error) { toast.error("Fejl ved gem", { description: error.message }); }
-      else { setHandoutId(data.id); }
+    });
+    if (!result.skipped) {
+      if (result.error) { toast.error("Fejl ved gem", { description: result.error.message }); }
+      else if (!handoutId && result.handoutId) { setHandoutId(result.handoutId); }
     }
 
     setSaveStatus("saved");
@@ -172,24 +143,15 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
   const toggleCompleted = async () => {
     if (!handoutId || !isOwner) return;
-    const newStatus = isCompleted ? "in_progress" : "completed";
-    const update: Record<string, any> = { status: newStatus };
-    // Always set a fresh completed_at so the UNIQUE(handout_id, completed_at)
-    // idempotency key works correctly on uncomplete → re-complete cycles.
-    if (newStatus === "completed") update.completed_at = new Date().toISOString();
-    else update.completed_at = null;
-
-    const { error } = await supabase.from("handouts").update(update).eq("id", handoutId);
-    if (error) {
-      toast.error("Fejl", { description: error.message });
+    // H3 i motoren — inkl. completed_at-friskningen og H6-notifikationen
+    // (Slack + advisor_notifications, fire-and-forget) ved completed.
+    const result = await toggleHandoutCompleted({ handoutId, isOwner, isCompleted });
+    if (result.skipped) return;
+    if (result.error) {
+      toast.error("Fejl", { description: result.error.message });
     } else {
-      setHandoutStatus(newStatus);
-      toast.success(newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet");
-
-      // Server-side notification (Slack + advisor_notifications) — fire-and-forget
-      if (newStatus === "completed") {
-        notifyHandoutCompleted(handoutId);
-      }
+      setHandoutStatus(result.newStatus);
+      toast.success(result.newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet");
     }
   };
 
