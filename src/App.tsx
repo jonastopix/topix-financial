@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ViewModeProvider } from "@/hooks/useViewMode";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -19,7 +19,6 @@ import NotFound from "./pages/NotFound";
 // Lazy — member/advisor routes
 const Reports = lazy(() => import("./pages/Reports"));
 const Milestones = lazy(() => import("./pages/Milestones"));
-const KPIs = lazy(() => import("./pages/KPIs"));
 const Budget = lazy(() => import("./pages/Budget"));
 const Handouts = lazy(() => import("./pages/Handouts"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -54,7 +53,7 @@ const Boardroom = lazy(() => import("./pages/Boardroom"));
 // Lazy — Hb-rapporteringen (route-parallel; advisor-gated indtil swap-GO på /reports)
 const Rapportering = lazy(() => import("./pages/Rapportering"));
 
-// Lazy — Hb-KPI-fladen (route-parallel; advisor-gated indtil swap-GO på /kpis)
+// Lazy — Hb-KPI-fladen (bærer /kpis efter KPI-GO 2026-08-06)
 const Noegletal = lazy(() => import("./pages/Noegletal"));
 
 // Lazy — Hb-budgetfladen (route-parallel; advisor-gated indtil swap-GO på /budget)
@@ -97,6 +96,13 @@ const MemberRoute = ({ children }: { children: React.ReactNode }) => {
   if (isLegat) return <Navigate to="/legat" replace />;
   if (!isAdvisor && membershipTier === "expired" && window.location.pathname !== "/") return <Navigate to="/" replace />;
   return <>{children}</>;
+};
+
+/* KPI-GO (2026-08-06): /noegletal → /kpis. Hash/query bevares —
+   #goals er Guide-kontrakt og skal overleve redirectet. */
+const NoegletalRedirect = () => {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: "/kpis", search, hash }} replace />;
 };
 
 const AdvisorRoute = ({ children }: { children: React.ReactNode }) => {
@@ -186,7 +192,10 @@ const App = () => (
               <Route path="/budget" element={<MemberRoute><Budget /></MemberRoute>} />
               <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
               <Route path="/handouts" element={<ProtectedRoute><Handouts /></ProtectedRoute>} />
-              <Route path="/kpis" element={<MemberRoute><KPIs /></MemberRoute>} />
+              {/* KPI-GO (2026-08-06): /kpis bærer Hb-KPI-fladen. MemberRoute
+                  som før — advisors passerer (ingen isAdvisor-gate) og vælger
+                  virksomhed via company-override, præcis som på gammel /kpis. */}
+              <Route path="/kpis" element={<MemberRoute><Noegletal /></MemberRoute>} />
               <Route path="/chat" element={<ProtectedRoute><ChatShell /></ProtectedRoute>} />
               <Route path="/book-session" element={<ProtectedRoute><BookSession /></ProtectedRoute>} />
               <Route path="/pulse" element={<ProtectedRoute><PulseCheckin /></ProtectedRoute>} />
@@ -224,9 +233,9 @@ const App = () => (
               {/* Hb-rapporteringen — AdvisorRoute KUN i byggeperioden; GO = swap
                   på /reports (email-kontrakt), /rapportering bliver redirect. */}
               <Route path="/rapportering" element={<AdvisorRoute><Rapportering /></AdvisorRoute>} />
-              {/* Hb-KPI-fladen — AdvisorRoute KUN i byggeperioden; GO = swap
-                  på /kpis (notifikations-kontrakt), /noegletal bliver redirect. */}
-              <Route path="/noegletal" element={<AdvisorRoute><Noegletal /></AdvisorRoute>} />
+              {/* KPI-GO gennemført 2026-08-06: /kpis bærer fladen (notifikations-
+                  kontrakt); /noegletal redirecter m. bevaret hash/query. */}
+              <Route path="/noegletal" element={<NoegletalRedirect />} />
               {/* Hb-budgetfladen — AdvisorRoute KUN i byggeperioden; GO = swap
                   på /budget (notifikations-deep_link + Guide-hash er kontrakt),
                   /budgettering bliver redirect. */}

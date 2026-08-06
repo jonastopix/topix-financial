@@ -537,21 +537,34 @@ på medlems vegne via broerne).
 
 ### [P1] KPI-GO = swap på /kpis (noteret 2026-08-05)
 
-Hb-KPI-fladen (/noegletal) er bygget route-parallelt bag AdvisorRoute
-(fuld paritet + trend/AI); gamle /kpis er frosset. GO'ets indhold: /kpis'
-MEDLEMSGREN bærer den nye flade — URL'en er NOTIFIKATIONS-/EMAIL-KONTRAKT
-(notify-kpi-comment, detect-financial-alerts og send-monthly-digest
-skriver /kpis-deep-links; #goals er Guide-kontrakt); /noegletal bliver
-redirect; HbMemberShells KPI'er-mål → /kpis for alle.
+STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/kpi-go-swap) er
+bygget og verificeret; AFVENTER ADVISOR-GO før merge. Forudsætning
+(i)+(ii)+(iii) verificeret 2026-08-06 m. bevis:
+- (i) Link-kontrakten: hb-kpigo-recon.txt — alle 6 edge-skrevne links
+  er rene "/kpis"-stier (ingen params/ankre); #goals honoreres af
+  NoegletalView (useScrollToHash + id="goals" m. scroll-mt-24).
+  Redirectet /noegletal → /kpis bevarer hash/query.
+- (ii) Advisor-kommentar-flowet: gennemprøvet ende-til-ende på
+  byggeruten (popover → kpi_chart_comments → notifikation hos medlem).
+- (iii) PDF-eksport: gennemprøvet på ny flade (Hb-baggrund +
+  hb-graffarver). To kendte skavanker accepteret og noteret som [P4]
+  (sektionsoverskrifter klippes i venstre kant; kommentar-pins
+  medtages ikke).
+(iv) GO-koordinering består som merge-betingelse: KPI-GO SKAL ligge FØR
+(el. samtidig med) Rapportering-GO.
 
-FORUDSÆTNINGER for GO: (i) notifikations-/email-kontrakten verificeret på
-byggeruten (de tre edge-funktioners deep-links + #goals testet manuelt),
-(ii) advisor-kommentar-flowet gennemprøvet ende-til-ende (popover →
-kpi_chart_comments → notifikation hos medlem), (iii) PDF-eksporten
-gennemprøvet på ny flade (Hb-baggrund + hb-graffarver), (iv)
-GO-KOORDINERING: KPI-GO SKAL ligge FØR (el. samtidig med) Rapportering-GO
-— Reports-frysningens trend/AI dør ved Rapportering-swappen, og de må
-aldrig være hjemløse.
+GO'ets indhold (implementeret i swap-PR'en): /kpis bærer den nye flade
+via MemberRoute (advisors passerer som på gammel /kpis — company-
+override-mønstret uændret); /noegletal er redirect m. bevaret
+hash/query; HbMemberShells KPI'er-mål → /kpis for alle; gamle
+KPIs.tsx pensioneret (nul resterende importører; exportKPIReport
+lever videre i lib og bruges af NoegletalView).
+
+Oprindeligt punkt (historik): Hb-KPI-fladen (/noegletal) er bygget
+route-parallelt bag AdvisorRoute (fuld paritet + trend/AI); gamle
+/kpis er frosset. URL'en er NOTIFIKATIONS-/EMAIL-KONTRAKT
+(notify-kpi-comment, detect-financial-alerts og send-monthly-digest
+skriver /kpis-deep-links; #goals er Guide-kontrakt).
 
 ---
 
@@ -755,6 +768,18 @@ efterlader to klasser af orfaner — begge set og manuelt ryddet:
    notify-chat-reply sætter ingen company_id på notifikationen).
    Fix-idé: slet også pr. user_id for de slettede brugere
    (userIds-listen findes allerede i hardDeleteCompany).
+
+---
+
+### [P4] KPI-PDF-eksport: to kendte skavanker på Hb-fladen (noteret 2026-08-06, KPI-GO-forudsætning iii)
+
+Fra PDF-gennemprøvningen af NoegletalView før KPI-GO:
+1. **Sektionsoverskrifter klippes i venstre kant** af det eksporterede
+   PDF (exportKPIReport på "kpi-export-area").
+2. **Kommentar-pins medtages ikke i eksporten** — accepteret indtil
+   videre (pins er popover-lag, ikke del af eksport-DOM'en).
+Begge accepteret som ikke-blokerende for GO; tages op hvis eksporten
+får klager eller ved næste eksport-arbejde.
 
 ---
 
