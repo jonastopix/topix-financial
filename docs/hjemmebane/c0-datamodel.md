@@ -37,6 +37,8 @@ tilfælde, da hver policy her er selvstændigt stram.
 **Storage-lektionerne** (aflæst i `20260317133757` og `20260523183330_fix_financial_documents_storage_rls.sql`):
 1. `chat-attachments` blev oprettet som **public bucket** med "Anyone can read" — det er
    præcis fejlen, dette design undgår: **privat bucket + signerede URL'er fra dag ét.**
+   (Lukket 2026-08-06: bucketen er nu privat + signeret, jf.
+   `20260806082800_chat_attachments_private.sql`.)
 2. `storage.objects`-policies er PERMISSIVE (OR-stakker) — en enkelt løs policy åbner hele
    bucketen uanset hvor stramme de øvrige er. Derfor er hver storage-policy herunder skrevet
    med både bucket-check OG rolle-/path-check i samme prædikat.

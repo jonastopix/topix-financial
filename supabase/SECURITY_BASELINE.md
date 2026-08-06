@@ -374,17 +374,32 @@ Because `storage.objects` policies are PERMISSIVE and OR-stack, every
 policy carries the bucket check inside its own predicate — a policy
 without a bucket check must NEVER be created for this schema.
 
-### Bucket: `chat-attachments` (public)
+### Bucket: `chat-attachments` (private)
 
-**Known issues**: bucket is `public = true`, SELECT policy is `TO public`
-with no path or membership check, INSERT policy lacks a tenant/path
-check. Public-bucket flag means files are served via
-`/storage/v1/object/public/...` which bypasses RLS entirely — tightening
-the SELECT policy alone would not close the read exposure. Remediation
-requires making the bucket private, replacing `getPublicUrl` with signed
-URLs in `src/lib/chatAttachments.ts`, and migrating existing
-`message.context_meta.attachments[].url` data. **Tracked separately —
-not in scope for the financial-documents migration.**
+Flipped to `public = false` 2026-08-06 (migration
+`20260806082800_chat_attachments_private.sql`, executed manually in
+prod 08:28). The open SELECT policy (`Anyone can read chat attachments`,
+`TO public`, no path/membership check) was dropped in the same step —
+proven by negative test (public URL → 400 NoSuchBucket) and positive
+test (attachments render via fresh signing).
+
+**Read path**: exclusively via the `get-chat-attachment-url` edge
+function (Bucket A) — caller access is gated by RLS on the underlying
+`messages` row via `callerClient`, then a service-role
+`createSignedUrl` mints a 600 s signed URL. No SELECT policy on
+`storage.objects` is needed for this path (service-role bypasses RLS).
+Frontend consumes it through `useChatAttachmentUrl` (TanStack Query,
+staleTime 9 min against the 10 min TTL).
+
+**Remaining items (→ chat-attachments PR 5, tracked in BACKLOG.md)**:
+- INSERT policy (`Authenticated users can upload chat attachments`)
+  still lacks a tenant/path check — should be tightened to the caller's
+  own `{userId}/` prefix.
+- `uploadChatAttachments` still stores the public-URL *form* in
+  `message.context_meta.attachments[].url`; the edge function's parser
+  handles both that form and a plain `path` field, so switching writes
+  to `path` is cleanup, not a blocker. Historical public-URL copies
+  outside the app are dead as of 2026-08-06 (accepted).
 
 ### Other buckets (not security-critical at this time)
 
