@@ -216,6 +216,22 @@ export async function extractPdfPageImages(file: File): Promise<string[]> {
   return images;
 }
 
+// Periode-fix PR 1c3: PDF-tekstloftet på 15.000 tegn klippede dokument-HALEN
+// af — hvor e-conomic-footeren (eneste PDF-fingerprint-markør) og sene
+// header-items bor. Konsekvens i prod: unknown fingerprint → AI-gæt
+// ("Juni 2020") uden at periode-mønstrene kunne gribe ind. Loftet er hævet
+// til 60.000, og over loftet bevares ALTID hoved (40k) + hale (10k) med en
+// eksplicit klip-markør imellem, så fingerprint og periode-regex overlever.
+const PDF_TEXT_CAP = 60_000;
+const PDF_TEXT_HEAD = 40_000;
+const PDF_TEXT_TAIL = 10_000;
+
+function capPdfText(text: string): string {
+  if (text.length <= PDF_TEXT_CAP) return text;
+  const omitted = text.length - PDF_TEXT_HEAD - PDF_TEXT_TAIL;
+  return `${text.slice(0, PDF_TEXT_HEAD)}\n…[klippet: ${omitted} tegn udeladt]…\n${text.slice(-PDF_TEXT_TAIL)}`;
+}
+
 export async function extractTextFromFile(file: File): Promise<{ text: string; pageImages?: string[] }> {
   const ext = file.name.toLowerCase().split(".").pop();
   if (file.type === "application/pdf" || ext === "pdf") {
@@ -241,7 +257,7 @@ export async function extractTextFromFile(file: File): Promise<{ text: string; p
           .join("");
         textParts.push(`--- Side ${i} ---\n${pageText}`);
       }
-      const fullText = textParts.join("\n\n").slice(0, 15000);
+      const fullText = capPdfText(textParts.join("\n\n"));
       return { text: fullText, pageImages };
     } catch (err) {
       console.error("PDF image extraction failed, falling back to text:", err);
@@ -250,7 +266,7 @@ export async function extractTextFromFile(file: File): Promise<{ text: string; p
         .replace(/[^\x20-\x7E\xC0-\xFF\n\r\tæøåÆØÅ.,\-()]/g, " ")
         .replace(/\s{3,}/g, "\n")
         .trim();
-      return { text: readable.slice(0, 15000) };
+      return { text: capPdfText(readable) };
     }
   }
   if (ext === "xlsx" || ext === "xls") {

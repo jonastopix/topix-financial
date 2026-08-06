@@ -608,6 +608,47 @@ samme flade.
 
 ---
 
+### [P2] Periode-hallucination: resterende værn efter års-guard-PR'en (noteret 2026-08-06)
+
+PROD-FACIT (rapport f5293b79, "Saldobalance juni + ÅTD.pdf", uploadet
+2026-08-06): klientens PDF-tekstudtræk var degraderet → source_fingerprint
+unknown/LOW ("No known source fingerprint matched") → det_result no_match
+→ branch ai_fallback_no_match → AI gættede "Juni 2020" → server-overriden
+extractPeriodFromText fandt INTET (raw_ai_period == report_period) →
+persisteret m. validation_status PASS. Samme fil tidligere læst korrekt.
+RODÅRSAG: 15.000-tegns-loftet i extractTextFromFile klippede dokument-
+halen (m. e-conomic-footeren, eneste PDF-fingerprint-markør) + pdfjs-
+tokensplit; fuld kortlægning i hb-periode-2020-recon.txt +
+hb-periode-fix-forslag.txt.
+
+SHIPPET i fix/periode-aars-guard (PR 1): (a) års-guard i
+extract-financial-data (udledt år < uploadår−2 → ingen auto-periode,
+needs_manual_entry + quality_signals.period_rejected_reason/
+suspected_period, log [PeriodGuard]); (b) AI-dato-anker (TRIN 5 +
+tool-beskrivelse + user-besked: dags dato + årsvindue [år−2 .. år],
+ellers UNSURE); (c3) tekstudtræks-loft hævet 15k → 60k m. sikker
+hoved(40k)+hale(10k)-trunkering og klip-markør.
+
+RESTERENDE LED (denne backlog-post):
+- (c1) Whitespace-normaliseret footer-match i sourceFingerprint.ts
+  (`secure.e-conomic.com` skal overleve tokensplit midt i URL'en) —
+  lille, lav risiko.
+- (c2) Flere uafhængige markører/2-af-3 for e-conomic-SALDOBALANCE
+  (i dag KUN footer-URL'en; range-detektoren er eksplicit udelukket
+  for saldobalancer). OBS adfærdsændring: mere aggressiv genkendelse
+  flytter filer fra AI-fallback til FAIL LOUD/needs_manual_entry —
+  kør m. dry-run-belæg først.
+- (d) PASS-degradering ved uverificeret AI-periode: branch ==
+  ai_fallback_no_match OG extractPeriodFromText bekræftede intet →
+  quality_signals.period_unverified + validation UNSURE (dagens PASS
+  er falsk tryghed, jf. prod-facittet). Evt. UI-opfølgning: markér
+  Periode-boksen i ReportReviewDialog til bekræftelse.
+- OPRYDNING: kør forekomst-query'en (hb-periode-2020-recon.txt §5) og
+  ret ramte rapporter manuelt; f5293b79 skal have periode-override el.
+  re-upload.
+
+---
+
 ### [P1] KPI-GO = swap på /kpis (noteret 2026-08-05)
 
 STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/kpi-go-swap) er
