@@ -765,7 +765,10 @@ const MemberDetail = () => {
         const momDetail = `${fmtKr(prev)} → ${fmtKr(curr)}`;
         const covering = rows.find(r => r.kind === "alert" && r.metric === metric);
         if (covering) {
-          covering.detail = covering.detail ? `${covering.detail} · ${momDetail}` : momDetail;
+          // MoM-detaljen er kun FALLBACK når alerten står uden detail —
+          // har den en body, siger den allerede tallene (pilen ville
+          // blot gentage brødteksten).
+          if (!covering.detail) covering.detail = momDetail;
           return;
         }
         rows.push({
