@@ -48,14 +48,16 @@ import { extractYouTubeId } from "./youtube";
        INLINE så notifikations-kontrakten "Ugens fokus er klar" → "/"
        indfries), milestones, company_actions, pulse, løftestænger.
        #1 stort, #2-4 som stille linjer.
-    2) "Siden sidst"-båndet — kurateret via RYKKELISTEN (PR B3,
+    2) "Kommende"-sektionen — de næste 2-3 events som egen sektion
+       (live-sessions er en kerneydelse, ikke en nyhed). Uden CTA
+       (tilmelding er egen leverance).
+    3) "Fra os til dig"-båndet — kurateret via RYKKELISTEN (PR B3,
        pickMainStory): push → ugens video → nyeste redaktionelle →
        nyeste podcast-episode → evergreen-rotationen. Første kandidat
-       vinder hovedpladsen; resten fylder sidespalten sammen m. seneste
-       talk + kommende event. Hver kandidat kan være null af hvilken
-       som helst grund (udløbet, tom pulje, RSS-fejl) — båndet vælter
-       aldrig. Events fortsat uden CTA (tilmelding er egen leverance).
-    3) Tal-strippen NEDERST som rolig status (uændret indhold/kilder).
+       vinder hovedpladsen; resten fylder tile-rækken sammen m. seneste
+       talk. Hver kandidat kan være null af hvilken som helst grund
+       (udløbet, tom pulje, RSS-fejl) — båndet vælter aldrig.
+    4) Tal-strippen NEDERST som rolig status (uændret indhold/kilder).
     Motoren er LÅST (ingen ændringer i deriveFocus); alle nye queries er
     company-scoped og arvet ORDRET fra DashboardActionCenter (citeret
     ved hver query). Advisor-gated route i byggeperioden. */
@@ -1327,13 +1329,16 @@ export const BoardroomView = () => {
       unreadQuery.isPending ||
       leversQuery.isPending);
 
-  // ── Lag 2-data ──────────────────────────────────────────────────────────
+  // ── Events-sektionen (egen sektion mellem lag 1 og lag 2) ───────────────
+  // Samme kilde som hidtil: listUpcomingEvents (akademiApi.ts:152-162 —
+  // status='published', gte(starts_at, nu), order ascending) — kun
+  // limit er udvidet fra 1 til 3: live-sessions er en kerneydelse og
+  // fortjener de næste 2-3 pladser, ikke én tile i det redaktionelle bånd.
   const { data: events = [] } = useQuery({
     queryKey: ["boardroom", "events"],
-    queryFn: () => listUpcomingEvents(1),
+    queryFn: () => listUpcomingEvents(3),
     staleTime: 5 * 60_000,
   });
-  const nextEvent = events[0];
 
   // ── Tal-strip-afledning (uændret) ───────────────────────────────────────
   const sorted = useMemo(
@@ -1356,16 +1361,18 @@ export const BoardroomView = () => {
   // skubbet ud igen når feedet lander — ingen indholds-swap/layout-hop.
   const podcastCouldLeadBand = podcastPending && !pushItem && !weekVideo && !redaktioneltItem;
   const hasBand = Boolean(
-    band.main || podcastCouldLeadBand || latestTalk || nextEvent || redaktioneltHistory.length > 0,
+    band.main || podcastCouldLeadBand || latestTalk || redaktioneltHistory.length > 0,
   );
   const sideBefore = band.side.filter((s) => KIND_RANK[s.kind] < KIND_RANK.podcast);
   const sideAfter = band.side.filter((s) => KIND_RANK[s.kind] >= KIND_RANK.podcast);
   // Antal tiles i rækken (polering #2) — skeletonet tæller med, så
-  // kolonnevalget ikke skifter når feedet lander.
+  // kolonnevalget ikke skifter når feedet lander. Event er flyttet til
+  // egen sektion og tælles IKKE længere med; tileColsClass-mapningen
+  // (2→2, 3→3, 4→4/2+2, 5-6→3) dækker fortsat hele intervallet — rækken
+  // kan nu højst rumme 5 (4 side-historier + talk), og 5 → 3+2.
   const tileCount =
     (podcastCouldLeadBand ? 0 : band.side.length + (podcastPending ? 1 : 0)) +
-    (latestTalk ? 1 : 0) +
-    (nextEvent ? 1 : 0);
+    (latestTalk ? 1 : 0);
 
   return (
     <div>
@@ -1382,9 +1389,60 @@ export const BoardroomView = () => {
         />
       </HbSection>
 
-      {/* ── LAG 2: Siden sidst (kurateret bånd) ── */}
+      {/* ── EVENTS: egen sektion mellem lag 1 og lag 2 — live-sessions
+          er en KERNEYDELSE, ikke en nyhed; de skal ikke bo som én tile
+          i det redaktionelle bånd. Rolige rammeløse rækker (samme
+          tile-materiale: hb-line + luft) m. dato tydeligt. INGEN
+          tilmelding endnu (egen leverance) — højrekolonnen i hver række
+          er bevidst reserveret: CTA'en ("Tilmeld") skal ind dér, når
+          tilmeldings-leverancen lander. Ingen kommende events → ingen
+          sektion. */}
+      {events.length > 0 && (
+        <HbSection eyebrow="Kommende" className="mt-14 md:mt-16">
+          <ul>
+            {events.map((event) => (
+              <li
+                key={event.id}
+                className="flex items-center gap-5 border-t border-hb-line py-4 last:border-b"
+              >
+                <div className="w-12 shrink-0 text-center">
+                  <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
+                    {new Date(event.starts_at).getDate()}
+                  </p>
+                  <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                    {new Date(event.starts_at).toLocaleDateString("da-DK", { month: "short" }).replace(".", "")}
+                  </p>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
+                  <p className="mt-1 text-sm text-hb-ink-soft">
+                    {[
+                      event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
+                      event.meet_url ? "Online" : null,
+                      new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
+                      eventCountdown(event.starts_at),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                {/* Reserveret handlings-kolonne (tom indtil tilmeldings-
+                    leverancen) — holder rækkens form stabil. */}
+                <div className="w-24 shrink-0" aria-hidden />
+              </li>
+            ))}
+          </ul>
+        </HbSection>
+      )}
+
+      {/* ── LAG 2: Fra os til dig (kurateret bånd) ── */}
       {hasBand && (
-        <HbSection eyebrow="Siden sidst" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-14 md:mt-16">
+        // Overskriften: "Siden sidst" → "Fra os til dig" — båndet rummer
+        // både tidløst (evergreen) og fremtid gjorde det tidligere (event);
+        // "siden sidst" var kun sandt for push/podcast. Selve "siden
+        // sidst"-LINJEN (countNewSince) beholder sin tekst — den handler
+        // netop om det nye.
+        <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-14 md:mt-16">
           {/* "Siden sidst"-linjen (bølge 3): rolig grund til at kigge i
               dag frem for på fredag. 0 nye → ingen linje (tavshed, ikke
               "0 nye ting"). */}
@@ -1392,7 +1450,7 @@ export const BoardroomView = () => {
           {/* Redesign (bryd to-kolonne-stakken): rykkelistens vinder står
               i FULD bredde som fokus-kortet ovenfor — cover i fuld
               kortbredde, editorial-overskrift i stor skala. Resten
-              (side[] + talk + event) ligger UNDER i ét jævnt 3-kolonne-
+              (side[] + talk) ligger UNDER i ét jævnt 3-kolonne-
               grid af ENS, rammeløse tiles (materiale-differentiering:
               hovedhistorien er det eneste hvide kort i båndet) — grid'et
               wrapper og tåler 2-6 elementer uden tomme hjørner. Mens
@@ -1410,7 +1468,7 @@ export const BoardroomView = () => {
                 pushCoverUrl={pushCoverUrl}
               />
             ))}
-          {(band.side.length > 0 || podcastPending || latestTalk || nextEvent) && (
+          {(band.side.length > 0 || podcastPending || latestTalk) && (
             <div className={cn("mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9", tileColsClass(tileCount))}>
               {!podcastCouldLeadBand && (
                 <>
@@ -1435,8 +1493,9 @@ export const BoardroomView = () => {
                   ))}
                 </>
               )}
-              {/* Talk/event som SAMME tile-materiale — rækken er ét
-                  redaktionelt opslag, ikke dashboard-fliser. */}
+              {/* Talk som SAMME tile-materiale — rækken er ét
+                  redaktionelt opslag, ikke dashboard-fliser. Event er
+                  flyttet til sin egen "Kommende"-sektion ovenfor. */}
               {latestTalk && (
                 <Link
                   to={`/akademiet/talks/${latestTalk.slug}`}
@@ -1458,28 +1517,6 @@ export const BoardroomView = () => {
                     <ArrowRight className="h-4 w-4" />
                   </p>
                 </Link>
-              )}
-              {nextEvent && (
-                <div className="border-t border-hb-line pt-4">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                    Kommende event · {eventCountdown(nextEvent.starts_at)}
-                  </p>
-                  <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">
-                    {nextEvent.title}
-                  </p>
-                  <p className="mt-1.5 text-sm text-hb-ink-soft">
-                    {[
-                      `${new Date(nextEvent.starts_at).getDate()}. ${new Date(nextEvent.starts_at)
-                        .toLocaleDateString("da-DK", { month: "short" })
-                        .replace(".", "")}`,
-                      nextEvent.kind === "live_sparring" ? "Live sparring" : nextEvent.kind === "workshop" ? "Workshop" : "Event",
-                      nextEvent.meet_url ? "Online" : null,
-                      new Date(nextEvent.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
               )}
             </div>
           )}
