@@ -70,6 +70,12 @@ export const AREAS = [
     akademi: false,
     hint: "Forsidens hero — seneste publicerede indslag er det, medlemmet møder først på Dit Boardroom",
   },
+  {
+    key: "ugens_video",
+    label: "Ugens video",
+    akademi: false,
+    hint: "Forsidens kuraterede videoindslag — nyeste publicerede, ikke-udløbne vinder (Bunny-id eller ekstern URL); kræver migration 20260809140000 kørt i Lovable",
+  },
 ] as const;
 
 export type AreaKey = (typeof AREAS)[number]["key"];
