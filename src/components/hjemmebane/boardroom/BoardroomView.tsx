@@ -94,11 +94,12 @@ const eventCountdown = (startsAt: string): string => {
 };
 
 /** Sidehovedet: rolig, personlig velkomst — altid til stede (pushet er
-    flyttet ned i "Siden sidst"-båndet som hovedhistorie). */
+    flyttet ned i båndet som hovedhistorie). INGEN eyebrow (polish):
+    sidebaren siger allerede "Dit Boardroom", og siden har eyebrows nok
+    — rubrikken står selv. */
 const PageHeader = ({ firstName }: { firstName: string }) => (
   <section className="max-w-3xl">
-    <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dit Boardroom</p>
-    <h1 className="mt-4 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
+    <h1 className="font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
       {getGreeting()}, {firstName}.
     </h1>
   </section>
@@ -793,7 +794,14 @@ const TalStrip = ({
             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
               {figure.label}
             </p>
-            <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">
+            {/* Fortegns-tonen: ordret samme udtryk som resten af
+                platformen (HbBudgetEditTable:625). */}
+            <p
+              className={cn(
+                "mt-1 font-editorial text-2xl font-medium",
+                figure.value != null && figure.value < 0 ? "text-hb-rust" : "text-hb-ink",
+              )}
+            >
               {figure.value != null ? formatDKK(figure.value) : "—"}
             </p>
           </div>
@@ -1394,7 +1402,7 @@ export const BoardroomView = () => {
       <PageHeader firstName={firstName} />
 
       {/* ── LAG 1: Dit næste skridt (fuld bredde, øverst) ── */}
-      <HbSection eyebrow="Dit næste skridt" className="mt-10 md:mt-12">
+      <HbSection eyebrow="Dit næste skridt" hairline className="mt-10 md:mt-12">
         <FocusCard
           loading={focusLoading}
           items={focus}
@@ -1413,7 +1421,7 @@ export const BoardroomView = () => {
           tilmeldings-leverancen lander. Ingen kommende events → ingen
           sektion. */}
       {events.length > 0 && (
-        <HbSection eyebrow="Kommende" className="mt-14 md:mt-16">
+        <HbSection eyebrow="Kommende" hairline className="mt-14 md:mt-16">
           <ul>
             {events.map((event) => (
               <li
@@ -1435,15 +1443,17 @@ export const BoardroomView = () => {
                       event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
                       event.meet_url ? "Online" : null,
                       new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
-                      eventCountdown(event.starts_at),
                     ]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
                 </div>
-                {/* Reserveret handlings-kolonne (tom indtil tilmeldings-
-                    leverancen) — holder rækkens form stabil. */}
-                <div className="w-24 shrink-0" aria-hidden />
+                {/* Nedtællingen højre-stillet, så rækken spænder aksen ud
+                    (polish #4) — den bærer højrekolonnen indtil
+                    tilmeldings-CTA'en ("Tilmeld") lander dér. */}
+                <p className="shrink-0 text-sm text-hb-ink-soft">
+                  {eventCountdown(event.starts_at)}
+                </p>
               </li>
             ))}
           </ul>
@@ -1457,7 +1467,7 @@ export const BoardroomView = () => {
         // "siden sidst" var kun sandt for push/podcast. Selve "siden
         // sidst"-LINJEN (countNewSince) beholder sin tekst — den handler
         // netop om det nye.
-        <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-14 md:mt-16">
+        <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline className="mt-14 md:mt-16">
           {/* "Siden sidst"-linjen (bølge 3): rolig grund til at kigge i
               dag frem for på fredag. 0 nye → ingen linje (tavshed, ikke
               "0 nye ting"). */}
