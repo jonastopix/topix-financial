@@ -27,3 +27,18 @@ export function eventEndTime(event: EventTimes): Date {
 export function isEventPast(event: EventTimes, now: Date = new Date()): boolean {
   return eventEndTime(event).getTime() < now.getTime();
 }
+
+export type EventMeetPhase = "before" | "live" | "after";
+
+/** Meet-knappens fase: "live" fra 15 min FØR start (man skal kunne
+    logge på i god tid) TIL OG MED sluttiden; "after" er STRENGT efter
+    sluttiden. Grænserne: præcis 15 min før = live; præcis ved sluttid
+    = stadig live. */
+const LIVE_LEAD_MS = 15 * 60 * 1000;
+
+export function eventMeetPhase(event: EventTimes, now: Date = new Date()): EventMeetPhase {
+  const t = now.getTime();
+  if (t > eventEndTime(event).getTime()) return "after";
+  if (t >= new Date(event.starts_at).getTime() - LIVE_LEAD_MS) return "live";
+  return "before";
+}
