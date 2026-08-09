@@ -233,8 +233,10 @@ const PushStory = ({
 };
 
 /** Cover m. play-knap (PR A: INGEN autoplay/lyd før klik): afspilleren
-    monteres først når brugeren klikker. Uden cover: rolig Hb-flade m.
-    titel + play. Kun Hb-toner — vægten kommer fra billedet. */
+    monteres først når brugeren klikker. Uden cover: rolig, TOM Hb-flade
+    m. play-knappen — ingen titel (titlen står allerede over playeren i
+    alle tre kaldsteder, og aria-label bærer den for skærmlæsere). Kun
+    Hb-toner — vægten kommer fra billedet. */
 const PlayCover = ({
   coverUrl,
   title,
@@ -264,16 +266,25 @@ const PlayCover = ({
         className={cn(shape === "square" ? "aspect-square" : "aspect-video", "w-full object-cover")}
       />
     ) : (
+      // Fallback uden cover: REN rolig flade — ingen titel-tekst (alle
+      // kaldere viser titlen over playeren, og aria-label bærer den for
+      // skærmlæsere), så play-cirklen ikke lander oven i tekst.
       <span
         className={cn(
           shape === "square" ? "aspect-square" : "aspect-video",
-          "flex w-full items-center justify-center bg-hb-sage/30 px-6 text-center text-sm text-hb-ink-soft",
+          "block w-full bg-hb-sage/30",
         )}
-      >
-        {title}
-      </span>
+      />
     )}
-    <span className="absolute inset-0 flex items-center justify-center bg-hb-ink/10 transition-colors group-hover:bg-hb-ink/20">
+    {/* Sløret gælder KUN over et cover (læsbarheds-kontrast for
+        play-cirklen på billeder); uden cover er hvilefladen ren, og
+        hover-tonen dæmpet. */}
+    <span
+      className={cn(
+        "absolute inset-0 flex items-center justify-center transition-colors",
+        coverUrl ? "bg-hb-ink/10 group-hover:bg-hb-ink/20" : "group-hover:bg-hb-ink/10",
+      )}
+    >
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-hb-evergreen text-white shadow-hb-hover transition-transform group-hover:scale-105">
         <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
       </span>
