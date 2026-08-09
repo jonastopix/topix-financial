@@ -14,6 +14,7 @@ import {
   type ReportData,
 } from "@/lib/financialUtils";
 import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
@@ -26,7 +27,16 @@ import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, type FocusItem } from "./nextStep";
-import { byPublishedDesc, pickActivePush, pickActiveWeekVideo } from "./pushSelection";
+import {
+  byPublishedDesc,
+  pickActiveItem,
+  pickActivePush,
+  pickActiveWeekVideo,
+  pickEvergreen,
+  pickMainStory,
+  type StoryCandidate,
+  type StoryKind,
+} from "./pushSelection";
 import { extractYouTubeId } from "./youtube";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
@@ -36,9 +46,13 @@ import { extractYouTubeId } from "./youtube";
        INLINE så notifikations-kontrakten "Ugens fokus er klar" → "/"
        indfries), milestones, company_actions, pulse, løftestænger.
        #1 stort, #2-4 som stille linjer.
-    2) "Siden sidst"-båndet — kurateret: push som hovedhistorie +
-       seneste talk + kommende event, hver m. diskret tidsmarkering.
-       Events fortsat uden CTA (tilmelding er egen leverance).
+    2) "Siden sidst"-båndet — kurateret via RYKKELISTEN (PR B3,
+       pickMainStory): push → ugens video → nyeste redaktionelle →
+       nyeste podcast-episode → evergreen-rotationen. Første kandidat
+       vinder hovedpladsen; resten fylder sidespalten sammen m. seneste
+       talk + kommende event. Hver kandidat kan være null af hvilken
+       som helst grund (udløbet, tom pulje, RSS-fejl) — båndet vælter
+       aldrig. Events fortsat uden CTA (tilmelding er egen leverance).
     3) Tal-strippen NEDERST som rolig status (uændret indhold/kilder).
     Motoren er LÅST (ingen ændringer i deriveFocus); alle nye queries er
     company-scoped og arvet ORDRET fra DashboardActionCenter (citeret
@@ -85,20 +99,30 @@ const PageHeader = ({ firstName }: { firstName: string }) => (
   </section>
 );
 
+/** Bånd-varianterne (PR B3): hver kind har ÉT komponentsæt m. en
+    variant-prop — "main" (hovedpladsen, col-span-4) og "side"
+    (sidespalten, kompakt p-4-kort) — ikke to sæt komponenter. */
+type StoryVariant = "main" | "side";
+
 /** Push som lag 2-hovedhistorie (kilde/udløbsdom uændret — pickActivePush).
     Afsender-bylinen (bølge 1, PR 3): findes metadata.author_user_id, vises
     portræt (40 px) + navn — profilen slås op af forælderen (rolle-sikkert
     via get_all_advisor_profiles-RPC'en); manglende avatar → initial-cirkel
     i Hb-toner (admin-vælgerens fallback-mønster). Uden author_user_id:
-    fri-tekst-bylinen uændret (bagudkompatibelt). */
+    fri-tekst-bylinen uændret (bagudkompatibelt). PR B3: main-formen er
+    uændret (blot m. HbCard flyttet HERIND fra forælderen); side-formen
+    findes for komponentsæt-symmetrien — pushet står først i rykkelisten
+    og er i praksis altid main når det findes. */
 const PushStory = ({
   push,
   sender,
   coverUrl,
+  variant,
 }: {
   push: ContentItem;
   sender: { full_name: string; avatar_url: string | null } | null;
   coverUrl: string | null;
+  variant: StoryVariant;
 }) => {
   const [bodyOpen, setBodyOpen] = useState(false);
   const metadata = (push.metadata as Record<string, unknown>) ?? {};
@@ -114,8 +138,23 @@ const PushStory = ({
   // vægten kommer fra billede, typografi-skala og luft.
   const bigPortrait = !coverUrl && hasSenderId && senderName;
 
+  if (variant === "side") {
+    return (
+      <HbCard className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+          Ugens push{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
+        </p>
+        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{push.title}</p>
+        {push.description && (
+          <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{push.description}</p>
+        )}
+        {senderName && <p className="mt-2 text-xs font-medium text-hb-ink">{senderName}</p>}
+      </HbCard>
+    );
+  }
+
   return (
-    <div>
+    <HbCard className="p-6 md:p-8">
       {coverUrl && (
         <img
           src={coverUrl}
@@ -187,7 +226,7 @@ const PushStory = ({
           )}
         </>
       )}
-    </div>
+    </HbCard>
   );
 };
 
@@ -232,9 +271,12 @@ const PlayCover = ({
     YouTube via nocookie-iframe m. autoplay=1 så FØRSTE klik også starter
     afspilningen. Bunny-cover hentes som Akademiets covers
     (getAssetPreviewUrl, signeret URL); YouTube-cover fra i.ytimg.com.
-    Alt andet eksternt → "Åbn"-knap. Sidekort-rolle: bevidst mindre og
-    roligere end hovedhistorien (p-4, alm. brødskrift-titel). */
-const WeekVideoCard = ({ video }: { video: ContentItem }) => {
+    Alt andet eksternt → "Åbn"-knap. PR B3: variant-prop — "side" er den
+    hidtidige form (p-4, alm. brødskrift-titel); "main" er STOR form
+    (hovedpladsen når pushet mangler: editorial-titel, mere luft) m.
+    SAMME player-blok — gate/afspiller-logikken er delt, kun rammen
+    skifter. */
+const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryVariant }) => {
   const [playing, setPlaying] = useState(false);
   const marker = publishedMarker(video.published_at ?? video.created_at);
   const youTubeId = video.media_provider === "external" ? extractYouTubeId(video.external_url) : null;
@@ -253,6 +295,54 @@ const WeekVideoCard = ({ video }: { video: ContentItem }) => {
       ? `https://i.ytimg.com/vi/${youTubeId}/hqdefault.jpg`
       : null;
 
+  const player = isBunny ? (
+    playing ? (
+      <HbVideoEmbed itemId={video.id} resumeAt={null} onPosition={() => {}} onCompleted={() => {}} />
+    ) : (
+      <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
+    )
+  ) : youTubeId ? (
+    playing ? (
+      <iframe
+        src={`https://www.youtube-nocookie.com/embed/${youTubeId}?autoplay=1`}
+        title={video.title}
+        className="aspect-video w-full rounded-hb border border-hb-line bg-black"
+        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+        allowFullScreen
+      />
+    ) : (
+      <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
+    )
+  ) : video.external_url ? (
+    <a href={video.external_url} target="_blank" rel="noopener noreferrer">
+      <HbButton variant="secondary" className="h-9 px-4 text-sm">
+        <ExternalLink className="h-4 w-4" />
+        Åbn videoen
+      </HbButton>
+    </a>
+  ) : null;
+
+  if (variant === "main") {
+    return (
+      <HbCard className="p-6 md:p-8">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+          Denne uges video
+          {marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
+        </p>
+        <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+          {video.title}
+        </h2>
+        {video.description && (
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{video.description}</p>
+        )}
+        {video.duration_seconds != null && (
+          <p className="mt-2 text-sm text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
+        )}
+        <div className="mt-5">{player}</div>
+      </HbCard>
+    );
+  }
+
   return (
     <HbCard className="p-4">
       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
@@ -266,37 +356,282 @@ const WeekVideoCard = ({ video }: { video: ContentItem }) => {
       {video.duration_seconds != null && (
         <p className="mt-1 text-xs text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
       )}
-      <div className="mt-3">
-        {isBunny ? (
-          playing ? (
-            <HbVideoEmbed itemId={video.id} resumeAt={null} onPosition={() => {}} onCompleted={() => {}} />
-          ) : (
-            <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
-          )
-        ) : youTubeId ? (
-          playing ? (
-            <iframe
-              src={`https://www.youtube-nocookie.com/embed/${youTubeId}?autoplay=1`}
-              title={video.title}
-              className="aspect-video w-full rounded-hb border border-hb-line bg-black"
-              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-            />
-          ) : (
-            <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
-          )
-        ) : video.external_url ? (
-          <a href={video.external_url} target="_blank" rel="noopener noreferrer">
-            <HbButton variant="secondary" className="h-9 px-4 text-sm">
-              <ExternalLink className="h-4 w-4" />
-              Åbn videoen
-            </HbButton>
-          </a>
-        ) : null}
-      </div>
+      <div className="mt-3">{player}</div>
     </HbCard>
   );
 };
+
+/** Cover-opslag for indslags-kort — samme signerede-URL-mønster som
+    Akademiets covers (getAssetPreviewUrl mod content-assets). */
+const useCoverUrl = (coverPath: string | null): string | null =>
+  useQuery({
+    queryKey: ["boardroom", "story-cover", coverPath],
+    queryFn: () => getAssetPreviewUrl(coverPath as string),
+    enabled: !!coverPath,
+    staleTime: 30 * 60_000,
+  }).data ?? null;
+
+/** Anchor-feedets beskrivelser er HTML i CDATA — strippes til ren tekst
+    til teaseren (DOMParser findes i browser og jsdom). */
+const stripHtml = (html: string): string =>
+  new DOMParser().parseFromString(html, "text/html").body.textContent?.trim() ?? "";
+
+const truncateText = (value: string, max: number): string =>
+  value.length <= max ? value : `${value.slice(0, max).trimEnd()}…`;
+
+/** Redaktionelt indslag (PR B3): cover + titel + hvorfor-linje + evt.
+    citat + "Læs artiklen" i nyt vindue. Felterne er B1's metadata-
+    konvention (link/quote — jsonb, ingen kolonner). */
+const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: StoryVariant }) => {
+  const coverUrl = useCoverUrl(item.cover_path ?? null);
+  const metadata = (item.metadata as Record<string, unknown>) ?? {};
+  const link = (metadata.link as string) || null;
+  const quote = (metadata.quote as string) || null;
+  const marker = publishedMarker(item.published_at ?? item.created_at);
+
+  if (variant === "side") {
+    return (
+      <HbCard className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+          Redaktionelt{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
+        </p>
+        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{item.title}</p>
+        {item.description && (
+          <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{item.description}</p>
+        )}
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm text-hb-rust underline-offset-4 hover:underline"
+          >
+            Læs artiklen
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+      </HbCard>
+    );
+  }
+
+  return (
+    <HbCard className="p-6 md:p-8">
+      {coverUrl && (
+        <img
+          src={coverUrl}
+          alt=""
+          className="mb-6 aspect-[16/8] w-full rounded-hb border border-hb-line object-cover"
+        />
+      )}
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+        Redaktionelt{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
+      </p>
+      <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+        {item.title}
+      </h2>
+      {item.description && (
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{item.description}</p>
+      )}
+      {quote && (
+        <blockquote className="mt-5 max-w-2xl border-l-2 border-hb-evergreen pl-4 font-editorial text-xl italic leading-snug text-hb-ink">
+          "{quote}"
+        </blockquote>
+      )}
+      {link && (
+        <a href={link} target="_blank" rel="noopener noreferrer" className="mt-6 inline-block">
+          <HbButton variant="secondary" className="h-9 px-4 text-sm">
+            <ExternalLink className="h-4 w-4" />
+            Læs artiklen
+          </HbButton>
+        </a>
+      )}
+    </HbCard>
+  );
+};
+
+/** Podcast-kortet (PR B3): nyeste episode fra feedet (dum proxy + ren
+    parser, B1/B2). INGEN LYD FØR KLIK (PR A-reglen gælder også podcast):
+    <audio> monteres FØRST ved klik på PlayCover-gaten — autoPlay er OK
+    dér, monteringen ER klikket. Uden audioUrl: "Åbn episoden"-link. */
+const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: StoryVariant }) => {
+  const [playing, setPlaying] = useState(false);
+  const marker = publishedMarker(episode.publishedAt);
+  const teaser = episode.description
+    ? truncateText(stripHtml(episode.description), variant === "main" ? 200 : 110)
+    : null;
+
+  const player =
+    playing && episode.audioUrl ? (
+      // eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor
+      <audio controls autoPlay src={episode.audioUrl} className="w-full" />
+    ) : episode.audioUrl ? (
+      <PlayCover coverUrl={episode.imageUrl} title={episode.title} onPlay={() => setPlaying(true)} />
+    ) : episode.link ? (
+      <a href={episode.link} target="_blank" rel="noopener noreferrer">
+        <HbButton variant="secondary" className="h-9 px-4 text-sm">
+          <ExternalLink className="h-4 w-4" />
+          Åbn episoden
+        </HbButton>
+      </a>
+    ) : null;
+
+  if (variant === "side") {
+    return (
+      <HbCard className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+          Podcast{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
+        </p>
+        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{episode.title}</p>
+        {teaser && <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{teaser}</p>}
+        {episode.durationSeconds != null && (
+          <p className="mt-1 text-xs text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
+        )}
+        <div className="mt-3">{player}</div>
+      </HbCard>
+    );
+  }
+
+  return (
+    <HbCard className="p-6 md:p-8">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+        Podcast{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
+      </p>
+      <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+        {episode.title}
+      </h2>
+      {teaser && <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{teaser}</p>}
+      {episode.durationSeconds != null && (
+        <p className="mt-2 text-sm text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
+      )}
+      <div className="mt-5">{player}</div>
+    </HbCard>
+  );
+};
+
+/** Evergreen-indslaget (PR B3): biblioteket der bærer forsiden når alt
+    andet er stille — markeret "Værd at se igen", BEVIDST uden
+    tidsmarkering (indslaget er tidløst; en dato ville modsige det). */
+const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVariant }) => {
+  const coverUrl = useCoverUrl(item.cover_path ?? null);
+  const link = (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
+
+  if (variant === "side") {
+    return (
+      <HbCard className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+          Værd at se igen
+        </p>
+        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{item.title}</p>
+        {item.description && (
+          <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{item.description}</p>
+        )}
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm text-hb-rust underline-offset-4 hover:underline"
+          >
+            Se indslaget
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+      </HbCard>
+    );
+  }
+
+  return (
+    <HbCard className="p-6 md:p-8">
+      {coverUrl && (
+        <img
+          src={coverUrl}
+          alt=""
+          className="mb-6 aspect-[16/8] w-full rounded-hb border border-hb-line object-cover"
+        />
+      )}
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Værd at se igen</p>
+      <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+        {item.title}
+      </h2>
+      {item.description && (
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{item.description}</p>
+      )}
+      {link && (
+        <a href={link} target="_blank" rel="noopener noreferrer" className="mt-6 inline-block">
+          <HbButton variant="secondary" className="h-9 px-4 text-sm">
+            <ExternalLink className="h-4 w-4" />
+            Se indslaget
+          </HbButton>
+        </a>
+      )}
+    </HbCard>
+  );
+};
+
+type BandItem = ContentItem | PodcastEpisode;
+
+/** Rykkelistens FASTE rækkefølge som rang — bruges til at holde podcast-
+    skeletonets plads i sidespalten mens feedet hentes. */
+const KIND_RANK: Record<StoryKind, number> = {
+  push: 0,
+  video: 1,
+  redaktionelt: 2,
+  podcast: 3,
+  evergreen: 4,
+};
+
+/** Dispatcher: én kandidat → det rigtige kort i den rigtige variant.
+    StoryCandidate<T> er kind-agnostisk (dommen er låst) — kandidat-
+    byggeren i BoardroomView garanterer kind↔type-parringen, så casts
+    her er sikre pr. konstruktion. */
+const StoryCard = ({
+  story,
+  variant,
+  pushSender,
+  pushCoverUrl,
+}: {
+  story: StoryCandidate<BandItem>;
+  variant: StoryVariant;
+  pushSender: { full_name: string; avatar_url: string | null } | null;
+  pushCoverUrl: string | null;
+}) => {
+  switch (story.kind) {
+    case "push":
+      return (
+        <PushStory
+          push={story.item as ContentItem}
+          sender={pushSender}
+          coverUrl={pushCoverUrl}
+          variant={variant}
+        />
+      );
+    case "video":
+      return <WeekVideoCard video={story.item as ContentItem} variant={variant} />;
+    case "redaktionelt":
+      return <RedaktioneltCard item={story.item as ContentItem} variant={variant} />;
+    case "podcast":
+      return <PodcastCard episode={story.item as PodcastEpisode} variant={variant} />;
+    case "evergreen":
+      return <EvergreenCard item={story.item as ContentItem} variant={variant} />;
+  }
+};
+
+/** Reserveret højde mens podcast-feedet hentes (ingen layout-hop):
+    main-formen matcher et cover-kort, side-formen et kompakt kort. */
+const StorySkeleton = ({ variant }: { variant: StoryVariant }) =>
+  variant === "main" ? (
+    <HbCard className="p-6 md:p-8" aria-hidden>
+      <div className="aspect-[16/8] w-full animate-pulse rounded bg-hb-line/40" />
+      <div className="mt-5 h-8 w-2/3 animate-pulse rounded bg-hb-line/60" />
+      <div className="mt-3 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
+    </HbCard>
+  ) : (
+    <HbCard className="p-4" aria-hidden>
+      <div className="h-3 w-24 animate-pulse rounded bg-hb-line/40" />
+      <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-hb-line/60" />
+      <div className="mt-3 aspect-video w-full animate-pulse rounded bg-hb-line/40" />
+    </HbCard>
+  );
 
 /** Tal-strip (lag 3): senest godkendte periode fra facts-laget — indhold
     og kilder uændret; kun placeringen er flyttet nederst. */
@@ -505,6 +840,81 @@ export const BoardroomView = () => {
         (items.get("ugens_video") ?? []).map((entry) => entry.item),
         new Date(),
       ),
+    [items],
+  );
+
+  // ── Rykkelistens øvrige kandidater (PR B3) — hver hentes UAFHÆNGIGT ─────
+  // Kataloget fra useAkademiData er published-only (listPublishedItems), så
+  // status-filteret er allerede indfriet før dommene anvendes.
+  const redaktioneltItem = useMemo(
+    () =>
+      pickActiveItem(
+        (items.get("redaktionelt") ?? []).map((entry) => entry.item),
+        new Date(),
+      ),
+    [items],
+  );
+  const evergreenItem = useMemo(
+    () =>
+      pickEvergreen(
+        (items.get("evergreen") ?? []).map((entry) => entry.item),
+        new Date(),
+      ),
+    [items],
+  );
+
+  // Podcast: dum proxy (podcast-rss, B2) + ren parser (parsePodcastFeed,
+  // B1) → nyeste episode. FEJL/tom → null: queryFn'en kaster ALDRIG, så
+  // medlemmet ser aldrig en fejl — kandidaten falder bare ud af
+  // rykkelisten. invoke() bærer sessionens JWT (Bucket A-kravet).
+  const podcastQuery = useQuery({
+    queryKey: ["boardroom", "podcast-latest"],
+    queryFn: async (): Promise<PodcastEpisode | null> => {
+      try {
+        const { data, error } = await supabase.functions.invoke("podcast-rss");
+        if (error) return null;
+        // functions-js afleverer ikke-JSON-svar som tekst; Blob-grenen er
+        // defensiv mod content-type-afvigelser.
+        const xml =
+          typeof data === "string" ? data : data instanceof Blob ? await data.text() : null;
+        if (!xml) return null;
+        const episodes = parsePodcastFeed(xml);
+        if (episodes.length === 0) return null;
+        return [...episodes].sort((a, b) =>
+          (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""),
+        )[0];
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 30 * 60_000,
+    retry: 1,
+    enabled: !!user,
+  });
+  const podcastEpisode = podcastQuery.data ?? null;
+  const podcastPending = !!user && podcastQuery.isPending;
+
+  // Rykkelisten (LÅST dom): første ikke-null kandidat vinder hovedpladsen.
+  const band = useMemo(
+    () =>
+      pickMainStory<BandItem>([
+        pushItem ? { kind: "push", item: pushItem } : null,
+        weekVideo ? { kind: "video", item: weekVideo } : null,
+        redaktioneltItem ? { kind: "redaktionelt", item: redaktioneltItem } : null,
+        podcastEpisode ? { kind: "podcast", item: podcastEpisode } : null,
+        evergreenItem ? { kind: "evergreen", item: evergreenItem } : null,
+      ]),
+    [pushItem, weekVideo, redaktioneltItem, podcastEpisode, evergreenItem],
+  );
+
+  // Historik (PR B3): seneste redaktionelle som rolige linjer, kollapset.
+  const [historikOpen, setHistorikOpen] = useState(false);
+  const redaktioneltHistory = useMemo(
+    () =>
+      [...(items.get("redaktionelt") ?? [])]
+        .map((entry) => entry.item)
+        .sort(byPublishedDesc)
+        .slice(0, 5),
     [items],
   );
 
@@ -760,7 +1170,16 @@ export const BoardroomView = () => {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
   }
 
-  const hasBand = Boolean(pushItem || weekVideo || latestTalk || nextEvent);
+  // Kan podcasten stadig ende som HOVEDhistorie? Kun når alle kandidater
+  // FØR den i rykkelisten mangler. Så viser hovedpladsen skeleton m.
+  // reserveret højde i stedet for at lade evergreen rykke ind og blive
+  // skubbet ud igen når feedet lander — ingen indholds-swap/layout-hop.
+  const podcastCouldLeadBand = podcastPending && !pushItem && !weekVideo && !redaktioneltItem;
+  const hasBand = Boolean(
+    band.main || podcastCouldLeadBand || latestTalk || nextEvent || redaktioneltHistory.length > 0,
+  );
+  const sideBefore = band.side.filter((s) => KIND_RANK[s.kind] < KIND_RANK.podcast);
+  const sideAfter = band.side.filter((s) => KIND_RANK[s.kind] >= KIND_RANK.podcast);
 
   return (
     <div>
@@ -779,27 +1198,56 @@ export const BoardroomView = () => {
       {/* ── LAG 2: Siden sidst (kurateret bånd) ── */}
       {hasBand && (
         <HbSection eyebrow="Siden sidst" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-12 md:mt-14">
-          {/* Bånd-balance (PR 3, begrundet valg): findes pushet, står det
-              som hovedhistorie (col-span-4) og videoen ØVERST i højre
-              spalte over talk/event — grid'et er items-start, så spalterne
-              stakker uden tomme huller uanset player-højden. Mangler
-              pushet, rykker videoen op som hovedhistorie i venstre spalte
-              (afspilleren bærer bredden fint), og talk/event beholder
-              højre spalte — båndet har aldrig en tom hovedplads. */}
+          {/* Bånd-balance (PR B3 — rykkelisten generaliserer PR 3's valg):
+              rykkelistens vinder står som hovedhistorie (col-span-4);
+              resten fylder sidespalten i FAST rækkefølge over talk/event.
+              Grid'et er items-start, så spalterne stakker uden tomme
+              huller uanset player-højden — og båndet har aldrig en tom
+              hovedplads (evergreen er sikkerhedsnettet). Mens feedet
+              hentes holder skeletons pladsen (reserveret højde). */}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-6">
-            {pushItem ? (
-              <HbCard className="p-6 md:p-8 lg:col-span-4">
-                <PushStory push={pushItem} sender={pushSender} coverUrl={pushCoverUrl} />
-              </HbCard>
-            ) : weekVideo ? (
+            {(band.main || podcastCouldLeadBand) && (
               <div className="lg:col-span-4">
-                <WeekVideoCard video={weekVideo} />
+                {podcastCouldLeadBand ? (
+                  <StorySkeleton variant="main" />
+                ) : (
+                  <StoryCard
+                    story={band.main!}
+                    variant="main"
+                    pushSender={pushSender}
+                    pushCoverUrl={pushCoverUrl}
+                  />
+                )}
               </div>
-            ) : null}
-            <div className={pushItem || weekVideo ? "flex flex-col gap-4 lg:col-span-2" : "flex flex-col gap-4 lg:col-span-6"}>
-              {pushItem && weekVideo && <WeekVideoCard video={weekVideo} />}
+            )}
+            <div className={band.main || podcastCouldLeadBand ? "flex flex-col gap-4 lg:col-span-2" : "flex flex-col gap-4 lg:col-span-6"}>
               {/* Sidekort (PR A): bevidst roligere/mindre end hovedhistorien —
-                  alm. brødskrift-titel og strammere padding. */}
+                  alm. brødskrift-titel og strammere padding. Skjules helt
+                  mens podcasten kan ende som main (evergreen må ikke først
+                  vises i siden og så hoppe op). */}
+              {!podcastCouldLeadBand && (
+                <>
+                  {sideBefore.map((story) => (
+                    <StoryCard
+                      key={story.kind}
+                      story={story}
+                      variant="side"
+                      pushSender={pushSender}
+                      pushCoverUrl={pushCoverUrl}
+                    />
+                  ))}
+                  {podcastPending && <StorySkeleton variant="side" />}
+                  {sideAfter.map((story) => (
+                    <StoryCard
+                      key={story.kind}
+                      story={story}
+                      variant="side"
+                      pushSender={pushSender}
+                      pushCoverUrl={pushCoverUrl}
+                    />
+                  ))}
+                </>
+              )}
               {latestTalk && (
                 <Link to={`/akademiet/talks/${latestTalk.slug}`} className="block">
                   <HbCard className="p-4 transition-colors hover:bg-hb-sage/20">
@@ -845,6 +1293,54 @@ export const BoardroomView = () => {
               )}
             </div>
           </div>
+
+          {/* Historik (PR B3): diskret "Se tidligere" under båndet —
+              seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
+              linjer m. titel + dato + link. Kollapset som standard. */}
+          {redaktioneltHistory.length > 0 && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => setHistorikOpen((open) => !open)}
+                className="flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+              >
+                {historikOpen ? "Skjul tidligere" : "Se tidligere"}
+                {historikOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {historikOpen && (
+                <ul className="mt-3">
+                  {redaktioneltHistory.map((item) => {
+                    const link =
+                      (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
+                    const date = new Date(item.published_at ?? item.created_at).toLocaleDateString(
+                      "da-DK",
+                      { day: "numeric", month: "short", year: "numeric" },
+                    );
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex items-baseline gap-3 border-t border-hb-line/60 py-2.5 text-sm"
+                      >
+                        <span className="w-28 shrink-0 text-xs text-hb-ink-soft">{date}</span>
+                        {link ? (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-hb-ink underline-offset-4 hover:underline"
+                          >
+                            {item.title}
+                          </a>
+                        ) : (
+                          <span className="text-hb-ink">{item.title}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
         </HbSection>
       )}
 
