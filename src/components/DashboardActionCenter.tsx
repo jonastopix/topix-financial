@@ -8,16 +8,8 @@ import {
   Clock, CheckCircle2, Circle, X, Plus, ChevronRight, ChevronDown, Info,
 } from "lucide-react";
 import { DANISH_MONTHS, getEffectiveReportPeriodKey, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
-
-// ── Weekly focus ISO week key ──
-function getISOWeekKey(date: Date): string {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
+// Uge-nøglen bor nu i den delte helper (PR B1) — samme aritmetik, ordret.
+import { getISOWeekKey } from "@/lib/hjemmebane/week";
 
 // ── Dismiss logic ──
 function useDismissed() {

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
-import { pickActiveItem, pickActivePush, pickActiveWeekVideo } from "../pushSelection";
+import { isoWeekNumber } from "@/lib/hjemmebane/week";
+import {
+  pickActiveItem,
+  pickActivePush,
+  pickActiveWeekVideo,
+  pickEvergreen,
+  pickMainStory,
+  type StoryCandidate,
+} from "../pushSelection";
 
 const push = (overrides: Partial<ContentItem>): ContentItem =>
   ({
@@ -121,5 +129,69 @@ describe("pickActiveWeekVideo — ugens video (samme dom, relative datoer)", () 
     ];
     expect(pickActiveWeekVideo(items, NOW)).toBe(pickActiveItem(items, NOW));
     expect(pickActivePush(items, NOW)).toBe(pickActiveItem(items, NOW));
+  });
+});
+
+/** Evergreen-rotationen (PR B1): deterministisk pr. ISO-uge, pulje
+    sorteret på slug. Forventninger beregnes RELATIVT via isoWeekNumber
+    (ingen hardcodede uge-numre — TZ-/kalender-robust). */
+describe("pickEvergreen — deterministisk uge-rotation", () => {
+  const ev = (slug: string): ContentItem => push({ title: slug, slug } as Partial<ContentItem>);
+
+  it("tom pulje → undefined", () => {
+    expect(pickEvergreen([], NOW)).toBeUndefined();
+  });
+
+  it("1 element → altid samme, uanset uge", () => {
+    const pool = [ev("eneste")];
+    expect(pickEvergreen(pool, NOW)?.slug).toBe("eneste");
+    expect(pickEvergreen(pool, new Date(NOW.getTime() + 21 * 86400000))?.slug).toBe("eneste");
+  });
+
+  it("N elementer: valget følger uge-nummeret modulo N på den SLUG-sorterede pulje", () => {
+    const pool = [ev("c-sidst"), ev("a-foerst"), ev("b-midt")]; // bevidst usorteret input
+    const sorted = ["a-foerst", "b-midt", "c-sidst"];
+    const week = isoWeekNumber(NOW);
+    expect(pickEvergreen(pool, NOW)?.slug).toBe(sorted[week % 3]);
+  });
+
+  it("stabil INDEN FOR ugen (torsdag = fredag), skifter ved +7 dage", () => {
+    const pool = [ev("a"), ev("b"), ev("c")];
+    const torsdag = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - 1); // NOW er fredag
+    expect(pickEvergreen(pool, torsdag)).toBe(pickEvergreen(pool, NOW));
+    const naesteUge = new Date(NOW.getTime() + 7 * 86400000);
+    const week = isoWeekNumber(NOW);
+    expect(pickEvergreen(pool, naesteUge)?.slug).toBe(["a", "b", "c"][(week + 1) % 3]);
+    expect(pickEvergreen(pool, naesteUge)).not.toBe(pickEvergreen(pool, NOW));
+  });
+});
+
+/** Rykkeliste-dommen (PR B1): første ikke-null vinder; enhver kandidat
+    kan være null af hvilken som helst grund (udløbet, tom pulje,
+    RSS-fejl) — dommen antager aldrig at fx podcasten findes. */
+describe("pickMainStory — hovedplads + sidespalte", () => {
+  const c = (kind: StoryCandidate["kind"], item = kind): StoryCandidate<string> => ({ kind, item });
+
+  it("alle null (fx total RSS-fejl + tomme puljer) → main=null, tom sidespalte", () => {
+    expect(pickMainStory<string>([null, null, undefined, null, null])).toEqual({ main: null, side: [] });
+  });
+
+  it("kun evergreen tilbage → evergreen bærer hovedpladsen (aldrig tom forside)", () => {
+    expect(pickMainStory<string>([null, null, null, null, c("evergreen")])).toEqual({
+      main: c("evergreen"),
+      side: [],
+    });
+  });
+
+  it("push+video+podcast (redaktionelt/evergreen null) → push vinder, resten i rækkefølge", () => {
+    const result = pickMainStory<string>([c("push"), c("video"), null, c("podcast"), null]);
+    expect(result.main).toEqual(c("push"));
+    expect(result.side.map((s) => s.kind)).toEqual(["video", "podcast"]);
+  });
+
+  it("huller i midten bevarer rækkefølgen (video null → redaktionelt rykker frem)", () => {
+    const result = pickMainStory<string>([null, null, c("redaktionelt"), c("podcast"), c("evergreen")]);
+    expect(result.main?.kind).toBe("redaktionelt");
+    expect(result.side.map((s) => s.kind)).toEqual(["podcast", "evergreen"]);
   });
 });

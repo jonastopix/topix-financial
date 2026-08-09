@@ -14,6 +14,7 @@ import {
   type ReportData,
 } from "@/lib/financialUtils";
 import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
@@ -54,15 +55,7 @@ const getGreeting = () => {
 const proseClasses =
   "prose-hb mt-6 max-w-3xl text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5";
 
-// ── Uge-nøgle — ordret fra DashboardActionCenter:13-20 ──────────────────
-function getISOWeekKey(date: Date): string {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
+// Uge-nøglen bor nu i den delte helper (PR B1) — samme aritmetik, ordret.
 
 // ── Diskrete tidsmarkeringer (lag 2: "siden sidst"-følelsen) ────────────
 const publishedMarker = (iso: string | null): string | null => {

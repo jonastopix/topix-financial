@@ -76,6 +76,18 @@ export const AREAS = [
     akademi: false,
     hint: "Forsidens kuraterede videoindslag — nyeste publicerede, ikke-udløbne vinder (Bunny-id eller ekstern URL); kræver migration 20260809140000 kørt i Lovable",
   },
+  {
+    key: "redaktionelt",
+    label: "Redaktionelt",
+    akademi: false,
+    hint: "Forsidens redaktionelle indslag (blog/LinkedIn m.m.) — link/citat i metadata; kræver migration 20260809170000 kørt i Lovable",
+  },
+  {
+    key: "evergreen",
+    label: "Evergreen",
+    akademi: false,
+    hint: "Forsidens tidløse bibliotek (5-10 indslag UDEN udløb) — roterer deterministisk pr. ISO-uge; kræver migration 20260809170000 kørt i Lovable",
+  },
 ] as const;
 
 export type AreaKey = (typeof AREAS)[number]["key"];

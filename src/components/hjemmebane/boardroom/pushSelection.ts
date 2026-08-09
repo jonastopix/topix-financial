@@ -1,4 +1,5 @@
 import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import { isoWeekNumber } from "@/lib/hjemmebane/week";
 
 /** Forsidens kuraterings-domme som rene funktioner (testbare): nyeste
     published indslag der ikke er udløbet. Dommen er AREA-AGNOSTISK
@@ -44,4 +45,35 @@ export function pickActivePush(items: ContentItem[], now: Date): ContentItem | u
 /** Ugens video (area='ugens_video', bølge 1) — samme dom som hero'en. */
 export function pickActiveWeekVideo(items: ContentItem[], now: Date): ContentItem | undefined {
   return pickActiveItem(items, now);
+}
+
+/** Evergreen-rotationen (PR B1): deterministisk pr. ISO-uge — alle
+    medlemmer ser det samme, og valget skifter mandag. Puljen sorteres
+    på SLUG (stabil nøgle: uafhængig af published_at-redigeringer og af
+    kaldernes rækkefølge). Kalderen filtrerer status (published) som ved
+    de øvrige domme. Tom pulje → undefined. */
+export function pickEvergreen(items: ContentItem[], now: Date): ContentItem | undefined {
+  const pool = [...items].sort((a, b) => a.slug.localeCompare(b.slug));
+  if (pool.length === 0) return undefined;
+  return pool[isoWeekNumber(now) % pool.length];
+}
+
+export type StoryKind = "push" | "video" | "redaktionelt" | "podcast" | "evergreen";
+
+export interface StoryCandidate<T = unknown> {
+  kind: StoryKind;
+  item: T;
+}
+
+/** Rykkeliste-dommen (PR B1): første IKKE-NULL kandidat vinder
+    hovedpladsen; resten fylder sidespalten — ingen tomme pladser.
+    Kandidaterne ankommer i FAST rækkefølge (push → ugens video →
+    redaktionelt → podcast → evergreen), og enhver kandidat kan være
+    null af HVILKEN SOM HELST grund (udløbet, tom pulje, RSS-fejl) —
+    dommen antager aldrig at fx podcasten findes. */
+export function pickMainStory<T>(
+  candidates: (StoryCandidate<T> | null | undefined)[],
+): { main: StoryCandidate<T> | null; side: StoryCandidate<T>[] } {
+  const present = candidates.filter((c): c is StoryCandidate<T> => c != null);
+  return { main: present[0] ?? null, side: present.slice(1) };
 }
