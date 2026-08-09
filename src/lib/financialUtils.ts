@@ -211,7 +211,9 @@ export function calcResultMargin(kf: Record<string, number | null>): number | nu
 
 // ── DKK formatting ──
 export const formatDKK = (n?: number | null) =>
-  n != null ? `${n.toLocaleString("da-DK")} kr.` : "—";
+  n != null
+    ? `${n.toLocaleString("da-DK", { maximumFractionDigits: 0 })} kr.`
+    : "—";
 
 export const formatDKKFull = (n: number) =>
   n.toLocaleString("da-DK", { maximumFractionDigits: 0 }) + " DKK";
