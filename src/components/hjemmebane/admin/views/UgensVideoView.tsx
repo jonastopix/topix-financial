@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  AREAS,
   createItem,
   deleteItem,
+  listCollections,
   listItems,
   updateItem,
   type ContentItem,
@@ -23,6 +25,7 @@ import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
   EditorBar,
   EditorShell,
+  formatDuration,
   isSlugUniqueError,
   type EditorAction,
   type EditorHandle,
@@ -44,6 +47,13 @@ const uniqueSlugSuffix = () => crypto.randomUUID().slice(0, 8);
 
 /** Kilde-tilstanden afledes af media-kolonnerne (ingen ekstra state i DB). */
 type SourceMode = "akademi" | "bunny" | "external";
+
+/** Kilde-areas (fix/ugens-video-kilder): alle medlemsvendte content-areas
+    der kan bære video — IKKE 'push'/'ugens_video' (kuraterings-kanaler,
+    ikke kilder) og ikke 'rabataftaler'. Labels slås op i AREAS. */
+const SOURCE_AREAS = ["talks", "classroom", "academy", "quick_wins", "skabeloner", "start_her"] as const;
+
+const areaLabel = (key: string) => AREAS.find((a) => a.key === key)?.label ?? key;
 
 const sourceModeOf = (form: ContentItem): SourceMode =>
   form.media_provider === "external" ? "external" : "bunny";
@@ -69,27 +79,43 @@ const VideoEditor = forwardRef<
   const metadata = (form.metadata as Record<string, unknown>) ?? {};
   const mode = sourceMode ?? sourceModeOf(form);
 
-  // (i) Akademi-indhold: eksisterende Bunny-videoer fra talks/classroom/
-  // academy — søgbar liste; valg KOPIERER bunny_video_id (én sandhed er
-  // media-kolonnerne; intet link tilbage, bevidst simpelt).
+  // (i) Akademi-indhold: eksisterende Bunny-videoer fra ALLE medlemsvendte
+  // content-areas m. video-indhold (fix/ugens-video-kilder — admin-testens
+  // fund: kun Grundforløbet dukkede op). IKKE push/ugens_video (kuraterings-
+  // kanaler, ikke kilder) og ikke rabataftaler. Valg KOPIERER bunny_video_id
+  // (én sandhed er media-kolonnerne; intet link tilbage, bevidst simpelt).
+  // KUN published — kladder er ikke kilder (status-dommen som
+  // PushView:307 `item.status === "published"` / akademiApi:39
+  // `.eq("status", "published")`). Areas helt uden video-items vises ikke.
   const akademiQuery = useQuery({
-    queryKey: ["admin-ugens-video", "akademi-kilder"],
+    queryKey: ["admin-ugens-video", "video-kilder"],
     queryFn: async () => {
-      const [talks, classroom, academy] = await Promise.all([
-        listItems("talks"),
-        listItems("classroom"),
-        listItems("academy"),
+      const [itemLists, collectionLists] = await Promise.all([
+        Promise.all(SOURCE_AREAS.map((area) => listItems(area))),
+        Promise.all(SOURCE_AREAS.map((area) => listCollections(area))),
       ]);
-      return [...talks, ...classroom, ...academy].filter(
-        (i) => i.media_provider === "bunny" && i.bunny_video_id,
-      );
+      const collectionTitle = new Map(collectionLists.flat().map((c) => [c.id, c.title]));
+      const sources = itemLists
+        .flat()
+        .filter((i) => i.status === "published" && i.media_provider === "bunny" && i.bunny_video_id);
+      return { sources, collectionTitle };
     },
     staleTime: 5 * 60_000,
   });
-  const akademiMatches = useMemo(() => {
+
+  // Grupperet + søgbar: søgningen matcher titel OG område-label; grupper
+  // uden match/indhold udelades (ingen tomme overskrifter).
+  const groupedSources = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const all = akademiQuery.data ?? [];
-    return (q ? all.filter((i) => i.title.toLowerCase().includes(q)) : all).slice(0, 8);
+    const data = akademiQuery.data;
+    if (!data) return [];
+    const matches = (i: ContentItem) =>
+      !q || i.title.toLowerCase().includes(q) || areaLabel(i.area).toLowerCase().includes(q);
+    return SOURCE_AREAS.map((area) => ({
+      area,
+      label: areaLabel(area),
+      items: data.sources.filter((i) => i.area === area && matches(i)),
+    })).filter((group) => group.items.length > 0);
   }, [akademiQuery.data, search]);
 
   const saveWithSlugRetry = async (patch: Draft): Promise<ContentItem> => {
@@ -260,34 +286,49 @@ const VideoEditor = forwardRef<
         {mode === "akademi" && (
           <div className="mt-3">
             <HbInput
-              placeholder="Søg i talks, grundforløb og kurser…"
+              placeholder="Søg på titel eller område…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <div className="mt-2 overflow-hidden rounded-lg border border-hb-line">
+            <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-hb-line">
               {akademiQuery.isLoading ? (
                 <p className="px-3 py-2.5 text-sm text-hb-ink-soft">Henter…</p>
-              ) : akademiMatches.length === 0 ? (
+              ) : groupedSources.length === 0 ? (
                 <p className="px-3 py-2.5 text-sm text-hb-ink-soft">Ingen video-match — prøv en anden søgning.</p>
               ) : (
-                akademiMatches.map((source) => {
-                  const chosen = form.media_provider === "bunny" && form.bunny_video_id === source.bunny_video_id;
-                  return (
-                    <button
-                      key={source.id}
-                      type="button"
-                      onClick={() => chooseAkademi(source)}
-                      className={cn(
-                        "flex w-full items-center gap-2 border-b border-hb-line/60 px-3 py-2 text-left text-sm transition-colors last:border-b-0",
-                        chosen ? "bg-hb-sage/40 text-hb-ink" : "text-hb-ink hover:bg-hb-sage/20",
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{source.title}</span>
-                      <span className="shrink-0 text-xs uppercase tracking-wide text-hb-ink-soft">{source.area}</span>
-                      {chosen && <span className="shrink-0 text-xs text-hb-evergreen">Valgt ✓</span>}
-                    </button>
-                  );
-                })
+                groupedSources.map((group) => (
+                  <div key={group.area}>
+                    <p className="sticky top-0 border-b border-hb-line/60 bg-hb-sage/30 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                      {group.label}
+                    </p>
+                    {group.items.map((source) => {
+                      const chosen = form.media_provider === "bunny" && form.bunny_video_id === source.bunny_video_id;
+                      const collection = source.collection_id
+                        ? akademiQuery.data?.collectionTitle.get(source.collection_id) ?? null
+                        : null;
+                      const subline = [collection, source.duration_seconds != null ? formatDuration(source.duration_seconds) : null]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return (
+                        <button
+                          key={source.id}
+                          type="button"
+                          onClick={() => chooseAkademi(source)}
+                          className={cn(
+                            "flex w-full items-center gap-2 border-b border-hb-line/60 px-3 py-2 text-left text-sm transition-colors last:border-b-0",
+                            chosen ? "bg-hb-sage/40 text-hb-ink" : "text-hb-ink hover:bg-hb-sage/20",
+                          )}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{source.title}</span>
+                            {subline && <span className="block truncate text-xs text-hb-ink-soft">{subline}</span>}
+                          </span>
+                          {chosen && <span className="shrink-0 text-xs text-hb-evergreen">Valgt ✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
               )}
             </div>
           </div>
