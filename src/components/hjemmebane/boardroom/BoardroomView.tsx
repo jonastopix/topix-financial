@@ -616,7 +616,24 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
 
   const player =
     playing && episode.audioUrl ? (
-      <HbAudioPlayer src={episode.audioUrl} title={episode.title} />
+      // Coveret BLIVER stående når afspilningen starter — ellers
+      // kollapser podcast-spalten til tom luft ved siden af
+      // video-spalten. Nu som RENT billede uden gate/overlay
+      // (afspilningen styres af afspilleren nedenunder); separat <img>
+      // frem for en "inert" PlayCover-prop, fordi gaten er en <button>
+      // m. Afspil-aria og ikke skal kunne være en ikke-knap.
+      <div>
+        {episode.imageUrl && (
+          <img
+            src={episode.imageUrl}
+            alt=""
+            className="aspect-square w-full rounded-hb border border-hb-line object-cover"
+          />
+        )}
+        <div className={cn(episode.imageUrl && "mt-3")}>
+          <HbAudioPlayer src={episode.audioUrl} title={episode.title} />
+        </div>
+      </div>
     ) : episode.audioUrl ? (
       // Polering #3: kvadratisk ramme — episode-covers er 1:1 og skal
       // ikke beskæres i bredformat (hoveder/tekst klippes).
