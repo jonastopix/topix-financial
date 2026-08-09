@@ -15,6 +15,7 @@ import {
   type ReportData,
 } from "@/lib/financialUtils";
 import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -360,8 +361,11 @@ const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryV
     enabled: isBunny && !!video.cover_path,
     staleTime: 30 * 60_000,
   });
+  // Manuelt cover_path VINDER; mangler det (38 af 39 videoer), falder
+  // Bunny-grenen tilbage til auto-thumbnailet fra pull zonen (usigneret,
+  // referrer-gated — se bunnyMedia.ts). YouTube-grenen uændret.
   const coverUrl = isBunny
-    ? coverQuery.data ?? null
+    ? coverQuery.data ?? bunnyThumbnailUrl(video.bunny_video_id)
     : youTubeId
       ? `https://i.ytimg.com/vi/${youTubeId}/hqdefault.jpg`
       : null;
