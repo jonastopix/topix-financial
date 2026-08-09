@@ -11,6 +11,10 @@ interface HbUploadZoneProps {
   currentPath: string | null;
   accept?: string;
   onUploaded: (path: string) => void;
+  /** Valgfri (PR B1): vises som "Fjern"-knap ved eksisterende fil —
+      rydder kun REFERENCEN hos kalderen (cover_path → null); filen i
+      content-assets slettes bevidst ikke (oprydning er egen opgave). */
+  onCleared?: () => void;
   className?: string;
 }
 
@@ -22,6 +26,7 @@ export const HbUploadZone = ({
   currentPath,
   accept,
   onUploaded,
+  onCleared,
   className,
 }: HbUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -111,6 +116,15 @@ export const HbUploadZone = ({
           >
             Vis (signeret, 60 min)
           </button>
+          {onCleared && (
+            <button
+              type="button"
+              onClick={onCleared}
+              className="shrink-0 text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline"
+            >
+              Fjern
+            </button>
+          )}
         </p>
       )}
       {error && <p className="mt-1.5 text-xs text-hb-rust">{error}</p>}
