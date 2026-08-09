@@ -286,7 +286,12 @@ Deno.serve(async (req) => {
         name: resolvedName,
         cvr_number: body.cvr_number || null,
         industry_label: industryLabel,
-        industry_code: cvrData?.industry_code || null,
+        // CVR's NACE/DB07-tal må IKKE i industry_code: kolonnen bærer
+        // app-taksonomien (INDUSTRY_OPTIONS) og er nøgle til
+        // industry_benchmarks — en NACE-kode giver nul benchmarks.
+        // Koden sættes af medlemmet i onboarding/Settings. CVR-svaret
+        // er bevaret råt i application_context.raw_cvr_data nedenfor.
+        industry_code: null,
         website: body.website || null,
         contact_phone: body.phone || null,
         start_date: startDate,
