@@ -3,7 +3,6 @@ import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "reac
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import {
   createItem,
   deleteItem,
@@ -15,10 +14,9 @@ import { slugify } from "@/lib/hjemmebane/slug";
 import {
   byPublishedDesc,
   isPushExpired,
-  pickActivePush,
+  pickActiveWeekVideo,
 } from "../../boardroom/pushSelection";
-import { HbField, HbInput, HbTextarea, hbControlClasses } from "../HbField";
-import { HbEditorRichtext } from "../HbEditorRichtext";
+import { HbField, HbInput, hbControlClasses } from "../HbField";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
 import { useAdminHotkeys } from "../useAdminHotkeys";
@@ -30,22 +28,27 @@ import {
   type EditorHandle,
 } from "../editors/shared";
 
-/** Dit Boardroom-fanen (Admin-spejlet, konvergens.md §5): formålsbygget LET
-    push-editor over SAMME datamodel som Akademiet (content_items,
-    area='push', type='push_indslag') — fem felter, intet slug-felt (afledes
-    af titlen), intet cover/dryp/materialer. Aktiv/udløbs-markeringerne
-    genbruger pushSelection-dommene — én sandhed med forsidens hero.
-    ItemEditor er Akademiets og røres ikke. */
+/** Ugens video-fanen (forside bølge 1, PR 2 — PushView-forbilledet 1:1):
+    formålsbygget LET editor over SAMME datamodel (content_items,
+    area='ugens_video', type='video') — titel, hvorfor-linje, KILDE
+    (Akademi-indhold / Bunny-id / ekstern https-URL via de EKSISTERENDE
+    media-kolonner), udløb og publicér/kladde. Aktiv/udløbs-markeringerne
+    genbruger pickActiveWeekVideo/isPushExpired — én sandhed med forsidens
+    kommende visning (PR 3). Ingen nye tabeller/kolonner; migration
+    20260809140000 (area-CHECK) er kørt i prod 2026-08-09. */
 
 type Draft = Partial<ContentItem>;
 type DraftMap = Record<string, Draft>;
 
 const uniqueSlugSuffix = () => crypto.randomUUID().slice(0, 8);
 
-/** Editoren (højre side): fem felter + EditorBar m. robusthedslæren
-    (no-op-guard, slug-afledning m. ét kollisions-retry, arkiv+slet-flow —
-    push-items kan ikke åbnes fra Akademi-fanen, så flowet SKAL bo her). */
-const PushEditor = forwardRef<
+/** Kilde-tilstanden afledes af media-kolonnerne (ingen ekstra state i DB). */
+type SourceMode = "akademi" | "bunny" | "external";
+
+const sourceModeOf = (form: ContentItem): SourceMode =>
+  form.media_provider === "external" ? "external" : "bunny";
+
+const VideoEditor = forwardRef<
   EditorHandle,
   {
     item: ContentItem;
@@ -58,40 +61,37 @@ const PushEditor = forwardRef<
   const queryClient = useQueryClient();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
+  const [search, setSearch] = useState("");
 
   const form = { ...item, ...draft } as ContentItem;
   const dirty = Object.keys(draft).length > 0;
   const metadata = (form.metadata as Record<string, unknown>) ?? {};
+  const mode = sourceMode ?? sourceModeOf(form);
 
-  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes m. SAMME
-  // to-trins-query som chat-tildelingens dropdown (CompanyChatPane:
-  // "Cached advisor list for assignment dropdown (two-step: roles then
-  // profiles)") — RLS-policyen "Advisors can view all roles" bærer den.
-  const { data: advisors = [] } = useQuery({
-    queryKey: ["admin-push", "advisor-profiles"],
+  // (i) Akademi-indhold: eksisterende Bunny-videoer fra talks/classroom/
+  // academy — søgbar liste; valg KOPIERER bunny_video_id (én sandhed er
+  // media-kolonnerne; intet link tilbage, bevidst simpelt).
+  const akademiQuery = useQuery({
+    queryKey: ["admin-ugens-video", "akademi-kilder"],
     queryFn: async () => {
-      const { data: roles, error: rolesErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["advisor", "admin"]);
-      if (rolesErr) throw rolesErr;
-      if (!roles?.length) return [];
-      const uniqueIds = [...new Set(roles.map((r) => r.user_id))];
-      const { data: profiles, error: profErr } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", uniqueIds);
-      if (profErr) throw profErr;
-      return (profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[];
+      const [talks, classroom, academy] = await Promise.all([
+        listItems("talks"),
+        listItems("classroom"),
+        listItems("academy"),
+      ]);
+      return [...talks, ...classroom, ...academy].filter(
+        (i) => i.media_provider === "bunny" && i.bunny_video_id,
+      );
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: 5 * 60_000,
   });
+  const akademiMatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const all = akademiQuery.data ?? [];
+    return (q ? all.filter((i) => i.title.toLowerCase().includes(q)) : all).slice(0, 8);
+  }, [akademiQuery.data, search]);
 
-  const senderId = (metadata.author_user_id as string) ?? "";
-  const sender = advisors.find((a) => a.user_id === senderId);
-
-  // Slug-kollision håndteres m. ét automatisk retry (suffix) — push har
-  // ingen medlemsvendt URL, så slug er ren DB-invariant.
   const saveWithSlugRetry = async (patch: Draft): Promise<ContentItem> => {
     try {
       return await updateItem(item.id, patch);
@@ -114,16 +114,34 @@ const PushEditor = forwardRef<
     onError: (err: Error) => setError(err.message),
   });
 
+  // Medie-validering — reglerne ordret fra ItemEditor (Bunny kræver id;
+  // ekstern kræver https-URL, /^https:\/\/.+/-testen).
+  const mediaError = (candidate: ContentItem): string | null => {
+    if (candidate.media_provider === "bunny") {
+      return candidate.bunny_video_id?.trim() ? null : "Vælg en video eller angiv et Bunny video-ID";
+    }
+    if (candidate.media_provider === "external") {
+      return /^https:\/\/.+/.test(candidate.external_url ?? "")
+        ? null
+        : "Ekstern video kræver en https-URL";
+    }
+    return "Vælg en kilde til videoen";
+  };
+
   const persist = (extra: Draft = {}) => {
     if (mutation.isPending) return;
     setError(null);
     const patch: Draft = { ...draft, ...extra };
-    // Tom patch = intet at gemme — kvittér stille (no-op-guard).
+    const candidate = { ...item, ...patch } as ContentItem;
+    const invalid = mediaError(candidate);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     if (Object.keys(patch).length === 0) {
       setSavedAt(new Date());
       return;
     }
-    // Slug afledes af titlen (intet felt); kun når den reelt ændres.
     const derived = slugify(String(patch.title ?? form.title));
     if (derived && derived !== item.slug) patch.slug = derived;
     mutation.mutate(patch);
@@ -161,12 +179,35 @@ const PushEditor = forwardRef<
 
   const setMeta = (key: string, value: string) =>
     onDraftChange({
-      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined },
+      // Cast: metadata er Json-typet; PushViews ucastede pendant er netop
+      // en af de 4 kendte baseline-fejl — nyt kode tilføjer ikke en femte.
+      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined } as ContentItem["metadata"],
     });
+
+  const chooseAkademi = (source: ContentItem) => {
+    onDraftChange({ media_provider: "bunny", bunny_video_id: source.bunny_video_id, external_url: null });
+    setSearch(source.title);
+  };
+
+  const modeButton = (value: SourceMode, label: string) => (
+    <button
+      key={value}
+      type="button"
+      onClick={() => setSourceMode(value)}
+      className={cn(
+        "rounded-full border px-4 py-1.5 text-sm transition-colors",
+        mode === value
+          ? "border-hb-evergreen bg-hb-evergreen text-white"
+          : "border-hb-line text-hb-ink-soft hover:border-hb-evergreen/50 hover:text-hb-ink",
+      )}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <EditorShell
-      eyebrow="Push-indslag · Dit Boardroom"
+      eyebrow="Ugens video · Dit Boardroom"
       title={form.title}
       footer={
         <EditorBar
@@ -189,121 +230,130 @@ const PushEditor = forwardRef<
         />
       }
     >
-      <HbField label="Titel" htmlFor="push-title">
+      <HbField label="Titel" htmlFor="uv-title">
         <HbInput
-          id="push-title"
+          id="uv-title"
           value={form.title}
           onChange={(e) => onDraftChange({ title: e.target.value })}
         />
       </HbField>
 
-      <HbField label="Manchet" htmlFor="push-desc" help="Vises under overskriften i hero'en.">
-        <HbTextarea
-          id="push-desc"
-          rows={3}
+      <HbField
+        label="Hvorfor skal du se den?"
+        htmlFor="uv-why"
+        help="Én linje — vises sammen med videoen på forsiden."
+      >
+        <HbInput
+          id="uv-why"
           value={form.description ?? ""}
           onChange={(e) => onDraftChange({ description: e.target.value || null })}
         />
       </HbField>
 
-      <HbField label="Brødtekst" help="Valgfri — vises bag 'Læs mere' på forsiden.">
-        <HbEditorRichtext
-          key={item.id}
-          content={form.body ?? ""}
-          onChange={(html) => onDraftChange({ body: html })}
-        />
+      <HbField label="Kilde" help="Akademi-valg kopierer videoens Bunny-ID; ekstern kræver https.">
+        <div className="flex flex-wrap items-center gap-2">
+          {modeButton("akademi", "Fra Akademiet")}
+          {modeButton("bunny", "Bunny video-ID")}
+          {modeButton("external", "Ekstern URL")}
+        </div>
+
+        {mode === "akademi" && (
+          <div className="mt-3">
+            <HbInput
+              placeholder="Søg i talks, grundforløb og kurser…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="mt-2 overflow-hidden rounded-lg border border-hb-line">
+              {akademiQuery.isLoading ? (
+                <p className="px-3 py-2.5 text-sm text-hb-ink-soft">Henter…</p>
+              ) : akademiMatches.length === 0 ? (
+                <p className="px-3 py-2.5 text-sm text-hb-ink-soft">Ingen video-match — prøv en anden søgning.</p>
+              ) : (
+                akademiMatches.map((source) => {
+                  const chosen = form.media_provider === "bunny" && form.bunny_video_id === source.bunny_video_id;
+                  return (
+                    <button
+                      key={source.id}
+                      type="button"
+                      onClick={() => chooseAkademi(source)}
+                      className={cn(
+                        "flex w-full items-center gap-2 border-b border-hb-line/60 px-3 py-2 text-left text-sm transition-colors last:border-b-0",
+                        chosen ? "bg-hb-sage/40 text-hb-ink" : "text-hb-ink hover:bg-hb-sage/20",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{source.title}</span>
+                      <span className="shrink-0 text-xs uppercase tracking-wide text-hb-ink-soft">{source.area}</span>
+                      {chosen && <span className="shrink-0 text-xs text-hb-evergreen">Valgt ✓</span>}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {mode === "bunny" && (
+          <div className="mt-3">
+            <HbInput
+              placeholder="Bunny video-ID (guid)"
+              value={form.bunny_video_id ?? ""}
+              onChange={(e) =>
+                onDraftChange({ media_provider: "bunny", bunny_video_id: e.target.value || null, external_url: null })
+              }
+            />
+          </div>
+        )}
+
+        {mode === "external" && (
+          <div className="mt-3">
+            <HbInput
+              placeholder="https://…"
+              value={form.external_url ?? ""}
+              onChange={(e) =>
+                onDraftChange({ media_provider: "external", external_url: e.target.value || null, bunny_video_id: null })
+              }
+            />
+          </div>
+        )}
       </HbField>
 
       <HbField
-        label="Afsender"
-        htmlFor="push-sender"
-        help="Rådgiveren bag indslaget — navnet forudfyldes i Forfatter, og portrættet kan vises på forsiden. 'Ingen afsender' rydder koblingen."
+        label="Vises til og med"
+        htmlFor="uv-expires"
+        help="Valgfri — efter denne dag falder ugens video tilbage. Tom = vises til afløst af nyere."
       >
-        <div className="flex items-center gap-3">
-          {sender?.avatar_url ? (
-            <img
-              src={sender.avatar_url}
-              alt={sender.full_name}
-              className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
-            />
-          ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 text-xs text-hb-ink-soft">
-              {sender?.full_name?.charAt(0) ?? "—"}
-            </span>
-          )}
-          <select
-            id="push-sender"
-            className={cn(hbControlClasses, "flex-1")}
-            value={senderId}
-            onChange={(e) => {
-              const id = e.target.value;
-              const advisor = advisors.find((a) => a.user_id === id);
-              // Skriver author_user_id og forudfylder author-NAVNET ved valg;
-              // "Ingen afsender" rydder kun koblingen (fri-teksten består).
-              onDraftChange({
-                metadata: {
-                  ...metadata,
-                  author_user_id: id || undefined,
-                  author: id ? advisor?.full_name ?? (metadata.author as string) : (metadata.author as string | undefined),
-                },
-              });
-            }}
-          >
-            <option value="">Ingen afsender</option>
-            {advisors.map((a) => (
-              <option key={a.user_id} value={a.user_id}>
-                {a.full_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <HbInput
+          id="uv-expires"
+          type="date"
+          className={cn(hbControlClasses, "max-w-xs")}
+          value={(metadata.expires_at as string) ?? ""}
+          onChange={(e) => setMeta("expires_at", e.target.value)}
+        />
       </HbField>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <HbField label="Forfatter" htmlFor="push-author" help="Vises i bylinen — overstyrer afsender-navnet hvis udfyldt anderledes.">
-          <HbInput
-            id="push-author"
-            value={(metadata.author as string) ?? ""}
-            onChange={(e) => setMeta("author", e.target.value)}
-          />
-        </HbField>
-
-        <HbField
-          label="Vises til og med"
-          htmlFor="push-expires"
-          help="Valgfri — efter denne dag falder hero'en tilbage. Tom = vises til afløst af nyere."
-        >
-          <HbInput
-            id="push-expires"
-            type="date"
-            value={(metadata.expires_at as string) ?? ""}
-            onChange={(e) => setMeta("expires_at", e.target.value)}
-          />
-        </HbField>
-      </div>
     </EditorShell>
   );
 });
-PushEditor.displayName = "PushEditor";
+VideoEditor.displayName = "VideoEditor";
 
-export const PushView = () => {
+export const UgensVideoView = () => {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftMap>({});
   const editorRef = useRef<EditorHandle>(null);
 
   const itemsQuery = useQuery({
-    queryKey: ["admin-content", "items", "push"],
-    queryFn: () => listItems("push"),
+    queryKey: ["admin-content", "items", "ugens_video"],
+    queryFn: () => listItems("ugens_video"),
   });
   const items = useMemo(
     () => [...(itemsQuery.data ?? [])].sort(byPublishedDesc),
     [itemsQuery.data],
   );
 
-  // Aktiv/udløbs-dommene — samme rene funktioner som forsidens hero.
+  // Aktiv/udløbs-dommene — samme rene funktioner som forsidens visning (PR 3).
   const now = new Date();
-  const activePush = pickActivePush(
+  const activeVideo = pickActiveWeekVideo(
     items.filter((item) => item.status === "published"),
     now,
   );
@@ -337,10 +387,10 @@ export const PushView = () => {
   const newMutation = useMutation({
     mutationFn: () =>
       createItem({
-        area: "push",
-        type: "push_indslag",
+        area: "ugens_video",
+        type: "video",
         title: "Uden titel",
-        slug: `push-${uniqueSlugSuffix()}`,
+        slug: `ugens-video-${uniqueSlugSuffix()}`,
         position: 0,
       }),
     onSuccess: (created) => {
@@ -359,11 +409,12 @@ export const PushView = () => {
   const listRow = (item: ContentItem) => {
     const active = item.id === selectedId;
     const dirty = Object.keys(drafts[item.id] ?? {}).length > 0;
-    const isActiveNow = item.id === activePush?.id;
+    const isActiveNow = item.id === activeVideo?.id;
     const expired = item.status === "published" && isPushExpired(item, now);
     const date = item.published_at
       ? new Date(item.published_at).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })
       : null;
+    const sourceLabel = item.media_provider === "external" ? "Ekstern" : item.bunny_video_id ? "Bunny" : "Ingen kilde";
     return (
       <button
         key={item.id}
@@ -379,7 +430,10 @@ export const PushView = () => {
             {dirty && <span aria-label="Ugemte ændringer" className="h-1.5 w-1.5 shrink-0 rounded-full bg-hb-rust" />}
             <span className="truncate text-sm text-hb-ink">{item.title || "Uden titel"}</span>
           </span>
-          {date && <span className="block text-xs text-hb-ink-soft">{date}</span>}
+          <span className="block text-xs text-hb-ink-soft">
+            {sourceLabel}
+            {date && ` · ${date}`}
+          </span>
         </span>
         {isActiveNow && (
           <span className="shrink-0 rounded-full bg-hb-evergreen px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
@@ -407,7 +461,8 @@ export const PushView = () => {
               <p className="px-4 py-6 text-sm text-hb-ink-soft">Henter…</p>
             ) : items.length === 0 ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">
-                Ingen push-indslag endnu — opret det første. Seneste publicerede er forsidens hero.
+                Ingen videoer endnu — opret den første. Seneste publicerede, ikke-udløbne er ugens
+                video på forsiden.
               </p>
             ) : (
               items.map(listRow)
@@ -421,7 +476,7 @@ export const PushView = () => {
               className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-hb-ink-soft transition-colors hover:bg-hb-sage/25 hover:text-hb-ink"
             >
               <Plus className="h-4 w-4" />
-              Nyt indslag
+              Ny video
               <span className="ml-auto font-mono text-xs text-hb-ink-soft/70">n</span>
             </button>
           </div>
@@ -429,7 +484,7 @@ export const PushView = () => {
       }
       editor={
         selected ? (
-          <PushEditor
+          <VideoEditor
             ref={editorRef}
             key={selected.id}
             item={selected}
@@ -444,8 +499,8 @@ export const PushView = () => {
         ) : (
           <div className="flex h-full items-center justify-center bg-hb-surface px-10">
             <p className="max-w-sm text-sm leading-relaxed text-hb-ink-soft">
-              Vælg et indslag — eller opret nyt (n). Seneste publicerede, ikke-udløbne indslag er
-              forsidens hero; "Vises til og med" styrer udløb.
+              Vælg en video — eller opret ny (n). Seneste publicerede, ikke-udløbne er ugens video
+              på forsiden; "Vises til og med" styrer udløb.
             </p>
           </div>
         )
