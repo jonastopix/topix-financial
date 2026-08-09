@@ -35,6 +35,7 @@ const DEFAULT_TYPE: Record<AreaKey, string> = {
   talks: "episode",
   quick_wins: "video",
   push: "push_indslag",
+  ugens_video: "video",
 };
 
 const uniqueSlugSuffix = () => crypto.randomUUID().slice(0, 8);

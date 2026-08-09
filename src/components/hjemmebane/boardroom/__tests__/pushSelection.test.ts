@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
-import { pickActivePush } from "../pushSelection";
+import { pickActiveItem, pickActivePush, pickActiveWeekVideo } from "../pushSelection";
 
 const push = (overrides: Partial<ContentItem>): ContentItem =>
   ({
@@ -56,5 +56,70 @@ describe("pickActivePush — hero-udvælgelsen", () => {
 
   it("tom liste → undefined", () => {
     expect(pickActivePush([], NOW)).toBeUndefined();
+  });
+});
+
+/** Ugens video (bølge 1, PR 1): samme dom som hero'en via pickActiveItem.
+    Testdatoer er RELATIVE til NOW (tidszone-lærdommen fra PR #217):
+    published_at som absolutte epoch-offsets; expires_at som LOKALE
+    kalenderdatoer afledt af NOW's dele — dommen ER lokal-kalenderbaseret
+    ("lever dagen ud"), så begge dele er deterministiske i enhver TZ. */
+const isoDaysAgo = (days: number) => new Date(NOW.getTime() - days * 86400000).toISOString();
+
+const localDateStr = (offsetDays: number) => {
+  const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** Klokkeslæt på en dag relativt til NOW's dato (lokal tid). */
+const atLocal = (offsetDays: number, hours: number, minutes = 0, seconds = 0) =>
+  new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + offsetDays, hours, minutes, seconds);
+
+describe("pickActiveWeekVideo — ugens video (samme dom, relative datoer)", () => {
+  it("nyeste published vinder", () => {
+    const items = [
+      push({ title: "Ældre video", published_at: isoDaysAgo(6) }),
+      push({ title: "Nyeste video", published_at: isoDaysAgo(2) }),
+    ];
+    expect(pickActiveWeekVideo(items, NOW)?.title).toBe("Nyeste video");
+  });
+
+  it("udløbet springes over til næstnyeste", () => {
+    const items = [
+      push({ title: "Udløbet i går", published_at: isoDaysAgo(2), metadata: { expires_at: localDateStr(-1) } }),
+      push({ title: "Stadig aktiv", published_at: isoDaysAgo(6) }),
+    ];
+    expect(pickActiveWeekVideo(items, NOW)?.title).toBe("Stadig aktiv");
+  });
+
+  it("grænsetilfælde: udløber I DAG → aktiv dagen ud (sent på aftenen), væk lige efter midnat", () => {
+    const items = [
+      push({ title: "Dagens video", published_at: isoDaysAgo(2), metadata: { expires_at: localDateStr(0) } }),
+    ];
+    expect(pickActiveWeekVideo(items, atLocal(0, 23, 30))?.title).toBe("Dagens video");
+    expect(pickActiveWeekVideo(items, atLocal(1, 0, 0, 1))).toBeUndefined();
+  });
+
+  it("manglende/ugyldig expires_at = aldrig udløb", () => {
+    const items = [push({ title: "Uden udløb", published_at: isoDaysAgo(2), metadata: { expires_at: "snarest" } })];
+    expect(pickActiveWeekVideo(items, NOW)?.title).toBe("Uden udløb");
+  });
+
+  it("tomt resultat: tom liste OG alle-udløbet → undefined", () => {
+    expect(pickActiveWeekVideo([], NOW)).toBeUndefined();
+    const allExpired = [
+      push({ title: "A", published_at: isoDaysAgo(3), metadata: { expires_at: localDateStr(-2) } }),
+      push({ title: "B", published_at: isoDaysAgo(5), metadata: { expires_at: localDateStr(-1) } }),
+    ];
+    expect(pickActiveWeekVideo(allExpired, NOW)).toBeUndefined();
+  });
+
+  it("wrapper-ækvivalens: push- og video-dommen ER kerne-dommen (ingen duplikeret logik)", () => {
+    const items = [
+      push({ title: "X", published_at: isoDaysAgo(1) }),
+      push({ title: "Y", published_at: isoDaysAgo(4), metadata: { expires_at: localDateStr(-1) } }),
+    ];
+    expect(pickActiveWeekVideo(items, NOW)).toBe(pickActiveItem(items, NOW));
+    expect(pickActivePush(items, NOW)).toBe(pickActiveItem(items, NOW));
   });
 });
