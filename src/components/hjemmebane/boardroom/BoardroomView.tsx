@@ -21,7 +21,6 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
-import { HbEventCard } from "../HbEventCard";
 import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
@@ -141,29 +140,29 @@ const PushStory = ({
   const bigPortrait = !coverUrl && hasSenderId && senderName;
 
   if (variant === "side") {
+    // Redesign (materiale, ikke farve): sidetiles er redaktionelle
+    // opslag — ingen ramme/kortbaggrund, kun hb-line-streg og luft.
     return (
-      <HbCard className="p-4">
+      <div className="border-t border-hb-line pt-4">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
           Ugens push{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
         </p>
-        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{push.title}</p>
+        <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{push.title}</p>
         {push.description && (
-          <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{push.description}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{push.description}</p>
         )}
-        {senderName && <p className="mt-2 text-xs font-medium text-hb-ink">{senderName}</p>}
-      </HbCard>
+        {senderName && <p className="mt-2.5 text-xs font-medium text-hb-ink">{senderName}</p>}
+      </div>
     );
   }
 
   return (
-    <HbCard className="p-6 md:p-8">
-      {coverUrl && (
-        <img
-          src={coverUrl}
-          alt=""
-          className="mb-6 aspect-[16/8] w-full rounded-hb border border-hb-line object-cover"
-        />
-      )}
+    // Redesign: hovedhistorien er FULD bredde m. FULL-BLEED cover —
+    // billedet går til kortets kanter (overflow-hidden), indholdet
+    // ligger i sin egen polstrede zone under.
+    <HbCard className="overflow-hidden">
+      {coverUrl && <img src={coverUrl} alt="" className="aspect-[21/9] w-full object-cover" />}
+      <div className="p-6 md:p-8">
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Ugens push{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
@@ -228,6 +227,7 @@ const PushStory = ({
           )}
         </>
       )}
+      </div>
     </HbCard>
   );
 };
@@ -345,21 +345,23 @@ const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryV
     );
   }
 
+  // Redesign: tile-form — ingen ramme/kortbaggrund; player-blokken
+  // (inkl. PlayCover-gaten) er uændret i funktion.
   return (
-    <HbCard className="p-4">
+    <div className="border-t border-hb-line pt-4">
       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
         Denne uges video
         {marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
       </p>
-      <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{video.title}</p>
+      <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{video.title}</p>
       {video.description && (
-        <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{video.description}</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{video.description}</p>
       )}
       {video.duration_seconds != null && (
-        <p className="mt-1 text-xs text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
+        <p className="mt-1.5 text-xs text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
       )}
       <div className="mt-3">{player}</div>
-    </HbCard>
+    </div>
   );
 };
 
@@ -393,38 +395,33 @@ const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: Story
 
   if (variant === "side") {
     return (
-      <HbCard className="p-4">
+      <div className="border-t border-hb-line pt-4">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
           Redaktionelt{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
         </p>
-        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{item.title}</p>
+        <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{item.title}</p>
         {item.description && (
-          <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{item.description}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{item.description}</p>
         )}
         {link && (
           <a
             href={link}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 text-sm text-hb-rust underline-offset-4 hover:underline"
+            className="mt-2.5 inline-flex items-center gap-1.5 text-sm text-hb-rust underline-offset-4 hover:underline"
           >
             Læs artiklen
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         )}
-      </HbCard>
+      </div>
     );
   }
 
   return (
-    <HbCard className="p-6 md:p-8">
-      {coverUrl && (
-        <img
-          src={coverUrl}
-          alt=""
-          className="mb-6 aspect-[16/8] w-full rounded-hb border border-hb-line object-cover"
-        />
-      )}
+    <HbCard className="overflow-hidden">
+      {coverUrl && <img src={coverUrl} alt="" className="aspect-[21/9] w-full object-cover" />}
+      <div className="p-6 md:p-8">
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Redaktionelt{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
@@ -447,6 +444,7 @@ const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: Story
           </HbButton>
         </a>
       )}
+      </div>
     </HbCard>
   );
 };
@@ -479,17 +477,17 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
 
   if (variant === "side") {
     return (
-      <HbCard className="p-4">
+      <div className="border-t border-hb-line pt-4">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
           Podcast{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
         </p>
-        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{episode.title}</p>
-        {teaser && <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{teaser}</p>}
+        <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{episode.title}</p>
+        {teaser && <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{teaser}</p>}
         {episode.durationSeconds != null && (
-          <p className="mt-1 text-xs text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
+          <p className="mt-1.5 text-xs text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
         )}
         <div className="mt-3">{player}</div>
-      </HbCard>
+      </div>
     );
   }
 
@@ -519,38 +517,33 @@ const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVar
 
   if (variant === "side") {
     return (
-      <HbCard className="p-4">
+      <div className="border-t border-hb-line pt-4">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
           Værd at se igen
         </p>
-        <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{item.title}</p>
+        <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{item.title}</p>
         {item.description && (
-          <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{item.description}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{item.description}</p>
         )}
         {link && (
           <a
             href={link}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 text-sm text-hb-rust underline-offset-4 hover:underline"
+            className="mt-2.5 inline-flex items-center gap-1.5 text-sm text-hb-rust underline-offset-4 hover:underline"
           >
             Se indslaget
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         )}
-      </HbCard>
+      </div>
     );
   }
 
   return (
-    <HbCard className="p-6 md:p-8">
-      {coverUrl && (
-        <img
-          src={coverUrl}
-          alt=""
-          className="mb-6 aspect-[16/8] w-full rounded-hb border border-hb-line object-cover"
-        />
-      )}
+    <HbCard className="overflow-hidden">
+      {coverUrl && <img src={coverUrl} alt="" className="aspect-[21/9] w-full object-cover" />}
+      <div className="p-6 md:p-8">
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Værd at se igen</p>
       <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
         {item.title}
@@ -566,6 +559,7 @@ const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVar
           </HbButton>
         </a>
       )}
+      </div>
     </HbCard>
   );
 };
@@ -619,20 +613,24 @@ const StoryCard = ({
 };
 
 /** Reserveret højde mens podcast-feedet hentes (ingen layout-hop):
-    main-formen matcher et cover-kort, side-formen et kompakt kort. */
+    main-formen matcher fuldbredde-kortet m. full-bleed cover,
+    side-formen den rammeløse tile. */
 const StorySkeleton = ({ variant }: { variant: StoryVariant }) =>
   variant === "main" ? (
-    <HbCard className="p-6 md:p-8" aria-hidden>
-      <div className="aspect-[16/8] w-full animate-pulse rounded bg-hb-line/40" />
-      <div className="mt-5 h-8 w-2/3 animate-pulse rounded bg-hb-line/60" />
-      <div className="mt-3 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
+    <HbCard className="overflow-hidden" aria-hidden>
+      <div className="aspect-[21/9] w-full animate-pulse bg-hb-line/40" />
+      <div className="p-6 md:p-8">
+        <div className="h-3 w-28 animate-pulse rounded bg-hb-line/40" />
+        <div className="mt-4 h-9 w-2/3 animate-pulse rounded bg-hb-line/60" />
+        <div className="mt-4 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
+      </div>
     </HbCard>
   ) : (
-    <HbCard className="p-4" aria-hidden>
+    <div className="border-t border-hb-line pt-4" aria-hidden>
       <div className="h-3 w-24 animate-pulse rounded bg-hb-line/40" />
-      <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-hb-line/60" />
+      <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded bg-hb-line/60" />
       <div className="mt-3 aspect-video w-full animate-pulse rounded bg-hb-line/40" />
-    </HbCard>
+    </div>
   );
 
 /** Tal-strip (lag 3): senest godkendte periode fra facts-laget — indhold
@@ -735,37 +733,45 @@ const FocusCard = ({
   const inlineBody = (item: FocusItem) =>
     item.kind === "weekly-focus" && weeklySummary ? weeklySummary : null;
 
+  // Redesign (ægte form): primær handling i STOR editorial-skala m.
+  // manchet i rolig grad og CTA'en i bunden af den primære zone m. luft
+  // omkring — ikke klemt op under teksten. Sekundære punkter (#2-4) som
+  // tydeligt adskilt liste under en hb-line. Tom-tilstanden bærer SAMME
+  // typografiske vægt som den aktive — sidens vigtigste plads må ikke
+  // være svagest den uge, hvor medlemmet har styr på det hele.
   return (
-    <HbCard className="min-h-[190px] p-6">
+    <HbCard className="min-h-[230px] p-7 md:p-9">
       {loading ? (
-        <div className="space-y-3" aria-hidden>
-          <div className="h-7 w-2/3 animate-pulse rounded bg-hb-line/60" />
-          <div className="h-4 w-full animate-pulse rounded bg-hb-line/40" />
-          <div className="h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
-          <div className="h-10 w-40 animate-pulse rounded-full bg-hb-line/40" />
+        <div aria-hidden>
+          <div className="h-10 w-2/3 animate-pulse rounded bg-hb-line/60" />
+          <div className="mt-5 h-4 w-full animate-pulse rounded bg-hb-line/40" />
+          <div className="mt-2.5 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
+          <div className="mt-8 h-11 w-44 animate-pulse rounded-full bg-hb-line/40" />
         </div>
       ) : primary ? (
-        <div className="flex flex-col items-start gap-4">
-          <h3 className="font-editorial text-2xl font-medium leading-snug text-hb-ink">
+        <div>
+          <h3 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
             {primary.title}
           </h3>
-          <p className="text-sm leading-relaxed text-hb-ink-soft">{primary.description}</p>
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">
+            {primary.description}
+          </p>
           {inlineBody(primary) && (
-            <p className="text-[15px] leading-relaxed text-hb-ink">{inlineBody(primary)}</p>
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-hb-ink">{inlineBody(primary)}</p>
           )}
           {primary.ctaHref !== "/" && (
-            <Link to={primary.ctaHref}>
+            <Link to={primary.ctaHref} className="mt-7 inline-block">
               <HbButton>{primary.ctaLabel}</HbButton>
             </Link>
           )}
           {quiet.length > 0 && (
-            <ul className="mt-2 w-full border-t border-hb-line pt-3">
+            <ul className="mt-9 w-full border-t border-hb-line pt-4">
               {quiet.map((item) => (
                 <li key={item.key}>
                   {item.ctaHref !== "/" ? (
                     <Link
                       to={item.ctaHref}
-                      className="flex items-center gap-3 py-2 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+                      className="flex items-center gap-3 py-2.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
                     >
                       <span className="min-w-0 flex-1 truncate">{item.title}</span>
                       <ArrowRight className="h-4 w-4 shrink-0" />
@@ -774,7 +780,7 @@ const FocusCard = ({
                     <button
                       type="button"
                       onClick={() => setExpandedKey((k) => (k === item.key ? null : item.key))}
-                      className="flex w-full items-center gap-3 py-2 text-left text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+                      className="flex w-full items-center gap-3 py-2.5 text-left text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
                     >
                       <span className="min-w-0 flex-1 truncate">{item.title}</span>
                       {expandedKey === item.key ? (
@@ -796,15 +802,15 @@ const FocusCard = ({
           )}
         </div>
       ) : (
-        <div className="flex flex-col items-start gap-4">
-          <h3 className="font-editorial text-2xl font-medium leading-snug text-hb-ink">
+        <div>
+          <h3 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
             Alt er ajour.
           </h3>
-          {/* Anerkendelse frem for tomhed (bølge 3): sidens vigtigste
-              plads skal ikke være svagest netop den uge, hvor medlemmet
-              har styr på det hele. Alle tal nul (nyt medlem) → den
-              hidtidige sætning uændret. */}
-          <p className="text-sm leading-relaxed text-hb-ink-soft">
+          {/* Anerkendelse frem for tomhed (bølge 3): samme typografiske
+              vægt som den aktive tilstand — overskrift + linje i læsbar
+              grad. Alle tal nul (nyt medlem) → den hidtidige sætning
+              uændret. */}
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">
             {journeyLine ?? "Rapport, refleksion og milestones er på plads — brug momentum i dit forløb."}
           </p>
         </div>
@@ -812,7 +818,7 @@ const FocusCard = ({
       {!loading && nextEntry && (
         <Link
           to={`/akademiet/${nextEntry.item.area}/${nextEntry.item.slug}`}
-          className="mt-4 inline-block text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
+          className="mt-6 inline-block text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
         >
           Eller fortsæt dit forløb: {nextEntry.item.title}
         </Link>
@@ -1287,38 +1293,34 @@ export const BoardroomView = () => {
 
       {/* ── LAG 2: Siden sidst (kurateret bånd) ── */}
       {hasBand && (
-        <HbSection eyebrow="Siden sidst" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-12 md:mt-14">
+        <HbSection eyebrow="Siden sidst" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-14 md:mt-16">
           {/* "Siden sidst"-linjen (bølge 3): rolig grund til at kigge i
               dag frem for på fredag. 0 nye → ingen linje (tavshed, ikke
               "0 nye ting"). */}
-          {newsLine && <p className="mb-4 text-sm text-hb-ink-soft">{newsLine}</p>}
-          {/* Bånd-balance (PR B3 — rykkelisten generaliserer PR 3's valg):
-              rykkelistens vinder står som hovedhistorie (col-span-4);
-              resten fylder sidespalten i FAST rækkefølge over talk/event.
-              Grid'et er items-start, så spalterne stakker uden tomme
-              huller uanset player-højden — og båndet har aldrig en tom
-              hovedplads (evergreen er sikkerhedsnettet). Mens feedet
-              hentes holder skeletons pladsen (reserveret højde). */}
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-6">
-            {(band.main || podcastCouldLeadBand) && (
-              <div className="lg:col-span-4">
-                {podcastCouldLeadBand ? (
-                  <StorySkeleton variant="main" />
-                ) : (
-                  <StoryCard
-                    story={band.main!}
-                    variant="main"
-                    pushSender={pushSender}
-                    pushCoverUrl={pushCoverUrl}
-                  />
-                )}
-              </div>
-            )}
-            <div className={band.main || podcastCouldLeadBand ? "flex flex-col gap-4 lg:col-span-2" : "flex flex-col gap-4 lg:col-span-6"}>
-              {/* Sidekort (PR A): bevidst roligere/mindre end hovedhistorien —
-                  alm. brødskrift-titel og strammere padding. Skjules helt
-                  mens podcasten kan ende som main (evergreen må ikke først
-                  vises i siden og så hoppe op). */}
+          {newsLine && <p className="mb-5 text-sm text-hb-ink-soft">{newsLine}</p>}
+          {/* Redesign (bryd to-kolonne-stakken): rykkelistens vinder står
+              i FULD bredde som fokus-kortet ovenfor — cover i fuld
+              kortbredde, editorial-overskrift i stor skala. Resten
+              (side[] + talk + event) ligger UNDER i ét jævnt 3-kolonne-
+              grid af ENS, rammeløse tiles (materiale-differentiering:
+              hovedhistorien er det eneste hvide kort i båndet) — grid'et
+              wrapper og tåler 2-6 elementer uden tomme hjørner. Mens
+              feedet hentes holder skeletons pladsen (reserveret højde);
+              side-tiles skjules mens podcasten kan ende som main
+              (evergreen må ikke først stå i rækken og så hoppe op). */}
+          {(band.main || podcastCouldLeadBand) &&
+            (podcastCouldLeadBand ? (
+              <StorySkeleton variant="main" />
+            ) : (
+              <StoryCard
+                story={band.main!}
+                variant="main"
+                pushSender={pushSender}
+                pushCoverUrl={pushCoverUrl}
+              />
+            ))}
+          {(band.side.length > 0 || podcastPending || latestTalk || nextEvent) && (
+            <div className="mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9 md:grid-cols-2 lg:grid-cols-3">
               {!podcastCouldLeadBand && (
                 <>
                   {sideBefore.map((story) => (
@@ -1342,57 +1344,60 @@ export const BoardroomView = () => {
                   ))}
                 </>
               )}
+              {/* Talk/event som SAMME tile-materiale — rækken er ét
+                  redaktionelt opslag, ikke dashboard-fliser. */}
               {latestTalk && (
-                <Link to={`/akademiet/talks/${latestTalk.slug}`} className="block">
-                  <HbCard className="p-4 transition-colors hover:bg-hb-sage/20">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                      Seneste talk
-                      {publishedMarker(latestTalk.published_at ?? latestTalk.created_at) && (
-                        <span className="ml-2 normal-case tracking-normal">
-                          · {publishedMarker(latestTalk.published_at ?? latestTalk.created_at)}
-                        </span>
-                      )}
-                    </p>
-                    <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">
-                      {latestTalk.title}
-                    </p>
-                    <p className="mt-1.5 flex items-center gap-2 text-sm text-hb-ink-soft">
-                      {latestTalk.duration_seconds != null && formatDuration(latestTalk.duration_seconds)}
-                      <ArrowRight className="h-4 w-4" />
-                    </p>
-                  </HbCard>
+                <Link
+                  to={`/akademiet/talks/${latestTalk.slug}`}
+                  className="group block border-t border-hb-line pt-4"
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                    Seneste talk
+                    {publishedMarker(latestTalk.published_at ?? latestTalk.created_at) && (
+                      <span className="ml-2 normal-case tracking-normal">
+                        · {publishedMarker(latestTalk.published_at ?? latestTalk.created_at)}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">
+                    {latestTalk.title}
+                  </p>
+                  <p className="mt-1.5 flex items-center gap-2 text-sm text-hb-ink-soft transition-colors group-hover:text-hb-ink">
+                    {latestTalk.duration_seconds != null && formatDuration(latestTalk.duration_seconds)}
+                    <ArrowRight className="h-4 w-4" />
+                  </p>
                 </Link>
               )}
               {nextEvent && (
-                <div>
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                <div className="border-t border-hb-line pt-4">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                     Kommende event · {eventCountdown(nextEvent.starts_at)}
                   </p>
-                  <HbEventCard
-                    day={String(new Date(nextEvent.starts_at).getDate())}
-                    month={new Date(nextEvent.starts_at)
-                      .toLocaleDateString("da-DK", { month: "short" })
-                      .replace(".", "")}
-                    title={nextEvent.title}
-                    meta={[
+                  <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">
+                    {nextEvent.title}
+                  </p>
+                  <p className="mt-1.5 text-sm text-hb-ink-soft">
+                    {[
+                      `${new Date(nextEvent.starts_at).getDate()}. ${new Date(nextEvent.starts_at)
+                        .toLocaleDateString("da-DK", { month: "short" })
+                        .replace(".", "")}`,
                       nextEvent.kind === "live_sparring" ? "Live sparring" : nextEvent.kind === "workshop" ? "Workshop" : "Event",
                       nextEvent.meet_url ? "Online" : null,
                       new Date(nextEvent.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
                     ]
                       .filter(Boolean)
                       .join(" · ")}
-                    ctaLabel={null}
-                  />
+                  </p>
                 </div>
               )}
             </div>
-          </div>
+          )}
 
           {/* Historik (PR B3): diskret "Se tidligere" under båndet —
               seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
               linjer m. titel + dato + link. Kollapset som standard. */}
           {redaktioneltHistory.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-9">
               <button
                 type="button"
                 onClick={() => setHistorikOpen((open) => !open)}
@@ -1440,7 +1445,7 @@ export const BoardroomView = () => {
 
       {/* ── LAG 3: Tal-strippen (rolig status, nederst) ── */}
       {companyId && (
-        <div className="mt-12 md:mt-14">
+        <div className="mt-14 md:mt-16">
           <TalStrip
             hasFacts={sorted.length > 0}
             processing={processing}
