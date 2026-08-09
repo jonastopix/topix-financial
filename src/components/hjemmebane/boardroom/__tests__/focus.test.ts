@@ -7,6 +7,13 @@ import { deriveFocus, deriveNextStep, type FocusInputs, type NextStepInputs } fr
     som nextStep.test.ts. */
 const NOW = new Date(2026, 7, 10);
 
+/** Deadline som ABSOLUT tidsstempel præcis N dage efter NOW —
+    tidszone-uafhængigt: motorens ceil-aritmetik regner på epoch-
+    differencen, så N·86400000 ms giver altid "N dage tilbage", uanset
+    om testen kører i UTC (CI) eller Europe/Copenhagen. Vi tester
+    RELATIONEN (N dage frem), ikke en kalenderdato. */
+const daysFromNow = (days: number) => new Date(NOW.getTime() + days * 86400000).toISOString();
+
 const base = (overrides: Partial<FocusInputs> = {}): FocusInputs => ({
   now: NOW,
   processedPeriodKeys: new Set(["2026-07"]),
@@ -60,16 +67,17 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(seen).toHaveLength(0);
   });
 
-  it("(e) milestone-deadlines: ≤14-dages-tærsklen ordret, ALLE kandidater, nærmeste først + titel-tie-break", () => {
+  it("(e) milestone-deadlines: ≤14-dages-tærsklen ordret (14 med, 15 ikke), ALLE kandidater, nærmeste først + titel-tie-break", () => {
     const items = deriveFocus(
       base({
         milestones: [
-          { title: "Parkeret", deadline: "2026-08-12", progress: 10, status: "parked" },
-          { title: "Færdig", deadline: "2026-08-12", progress: 100, status: "active" },
-          { title: "For langt ude", deadline: "2026-09-30", progress: 10, status: "active" },
-          { title: "B-samme-dag", deadline: "2026-08-13", progress: 40, status: "active" },
-          { title: "A-samme-dag", deadline: "2026-08-13", progress: 40, status: "active" },
-          { title: "Senere", deadline: "2026-08-20", progress: 40, status: "active" },
+          { title: "Parkeret", deadline: daysFromNow(2), progress: 10, status: "parked" },
+          { title: "Færdig", deadline: daysFromNow(2), progress: 100, status: "active" },
+          { title: "Grænse-15 (ude)", deadline: daysFromNow(15), progress: 10, status: "active" },
+          { title: "B-samme-dag", deadline: daysFromNow(4), progress: 40, status: "active" },
+          { title: "A-samme-dag", deadline: daysFromNow(4), progress: 40, status: "active" },
+          { title: "Senere", deadline: daysFromNow(10), progress: 40, status: "active" },
+          { title: "Grænse-14 (med)", deadline: daysFromNow(14), progress: 40, status: "active" },
         ],
       }),
     );
@@ -77,10 +85,11 @@ describe("deriveFocus — hver kilde for sig", () => {
       '"A-samme-dag" nærmer sig deadline',
       '"B-samme-dag" nærmer sig deadline',
       '"Senere" nærmer sig deadline',
+      '"Grænse-14 (med)" nærmer sig deadline',
     ]);
-    // 2026-08-13 parses som UTC-midnat → lokal DK-tid 02:00 → ceil = 4 dage
-    // (samme aritmetik som ActionCenter:144 / porten — arvet ordret).
+    // Præcis 4·86400000 ms frem → ceil = 4 — uafhængigt af tidszone.
     expect(items[0].description).toContain("4 dage tilbage");
+    expect(items[3].description).toContain("14 dage tilbage");
   });
 
   it("(f) company_actions: kalderens orden bevares, sourceId følger med", () => {
@@ -125,7 +134,7 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
       now: NOW,
       processedPeriodKeys: new Set(), // (a) — og pulse-gaten lukker (g)
       committedPeriodKeys: new Set(),
-      milestones: [{ title: "Deadline", deadline: "2026-08-15", progress: 20, status: "active" }],
+      milestones: [{ title: "Deadline", deadline: daysFromNow(5), progress: 20, status: "active" }],
       hasPulseThisMonth: false,
       unreadUserMessages: 2,
       unreadAgentMessages: 1,
@@ -160,8 +169,8 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
           { id: "a2", title: "Y", priority: "low" },
         ],
         milestones: [
-          { title: "M1", deadline: "2026-08-15", progress: 1, status: "active" },
-          { title: "M2", deadline: "2026-08-16", progress: 1, status: "active" },
+          { title: "M1", deadline: daysFromNow(5), progress: 1, status: "active" },
+          { title: "M2", deadline: daysFromNow(6), progress: 1, status: "active" },
         ],
       }),
     );
@@ -206,8 +215,8 @@ describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilde
     const step = deriveNextStep(
       old({
         milestones: [
-          { title: "Senere", deadline: "2026-08-20", progress: 40, status: "active" },
-          { title: "Nærmest", deadline: "2026-08-13", progress: 40, status: "active" },
+          { title: "Senere", deadline: daysFromNow(10), progress: 40, status: "active" },
+          { title: "Nærmest", deadline: daysFromNow(4), progress: 40, status: "active" },
         ],
       }),
     );
