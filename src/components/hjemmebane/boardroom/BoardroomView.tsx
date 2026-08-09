@@ -96,9 +96,11 @@ const eventCountdown = (startsAt: string): string => {
 /** Sidehovedet: rolig, personlig velkomst — altid til stede (pushet er
     flyttet ned i båndet som hovedhistorie). INGEN eyebrow (polish):
     sidebaren siger allerede "Dit Boardroom", og siden har eyebrows nok
-    — rubrikken står selv. */
+    — rubrikken står selv. Topluften (mt-8 md:mt-10) bor HER i
+    komponenten, ikke i shell'en — eyebrow'en bar tidligere luften, og
+    shell'ens py-10/14 deles af alle flader og må ikke vokse for én. */
 const PageHeader = ({ firstName }: { firstName: string }) => (
-  <section className="max-w-3xl">
+  <section className="mt-8 max-w-3xl md:mt-10">
     <h1 className="font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
       {getGreeting()}, {firstName}.
     </h1>
