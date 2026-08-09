@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Play } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
@@ -157,12 +158,10 @@ const PushStory = ({
   }
 
   return (
-    // Redesign: hovedhistorien er FULD bredde m. FULL-BLEED cover —
-    // billedet går til kortets kanter (overflow-hidden), indholdet
-    // ligger i sin egen polstrede zone under.
-    <HbCard className="overflow-hidden">
-      {coverUrl && <img src={coverUrl} alt="" className="aspect-[21/9] w-full object-cover" />}
-      <div className="p-6 md:p-8">
+    // Polering #1: to-spaltet m. cover (billede venstre, tekst højre);
+    // uden cover bærer teksten fuld bredde som i dag (bigPortrait-
+    // fallback'et er netop cover-løs og forbliver fuldbredde).
+    <MainStoryShell coverUrl={coverUrl}>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Ugens push{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
@@ -227,8 +226,7 @@ const PushStory = ({
           )}
         </>
       )}
-      </div>
-    </HbCard>
+    </MainStoryShell>
   );
 };
 
@@ -239,10 +237,17 @@ const PlayCover = ({
   coverUrl,
   title,
   onPlay,
+  shape = "video",
 }: {
   coverUrl: string | null;
   title: string;
   onPlay: () => void;
+  /** Polering #3: podcast-episoders covers er KVADRATISKE — presset i
+      bredformat klippes hoveder/tekst. "square" viser dem 1:1 (intet
+      crop af et kvadratisk billede i kvadratisk ramme). Bunny/YouTube
+      er 16:9 og beholder default "video". Ren præsentation — gate-
+      funktionen (ingen lyd/afspilning før klik) er uændret. */
+  shape?: "video" | "square";
 }) => (
   <button
     type="button"
@@ -251,9 +256,18 @@ const PlayCover = ({
     className="group relative block w-full overflow-hidden rounded-hb border border-hb-line"
   >
     {coverUrl ? (
-      <img src={coverUrl} alt="" className="aspect-video w-full object-cover" />
+      <img
+        src={coverUrl}
+        alt=""
+        className={cn(shape === "square" ? "aspect-square" : "aspect-video", "w-full object-cover")}
+      />
     ) : (
-      <span className="flex aspect-video w-full items-center justify-center bg-hb-sage/30 px-6 text-center text-sm text-hb-ink-soft">
+      <span
+        className={cn(
+          shape === "square" ? "aspect-square" : "aspect-video",
+          "flex w-full items-center justify-center bg-hb-sage/30 px-6 text-center text-sm text-hb-ink-soft",
+        )}
+      >
         {title}
       </span>
     )}
@@ -264,6 +278,48 @@ const PlayCover = ({
     </span>
   </button>
 );
+
+/** Polering #1 — fælles main-layout, ÉT sted for alle main-varianter:
+    m. medie → TO-SPALTET på md+ (medie venstre ~42 %, tekst højre m.
+    luft); mobil: medie over tekst; uden medie → tekst i fuld bredde
+    (den variant var allerede god — uændret udtryk). To medie-former:
+    - coverUrl (push/redaktionelt/evergreen): billedet FYLDER spalten
+      (absolute-fill + object-cover; aspect-[3/2] på mobil, md+ følger
+      tekstens højde via flex-stretch) — 21:9-dominansen er væk.
+    - player (video/podcast): gate/afspiller beholder sit EGET format
+      og ligger roligt centreret i spalten (en iframe/audio-bar må ikke
+      strækkes). */
+const MainStoryShell = ({
+  coverUrl,
+  player,
+  children,
+}: {
+  coverUrl?: string | null;
+  player?: React.ReactNode | null;
+  children: React.ReactNode;
+}) => {
+  if (!player && !coverUrl) {
+    return <HbCard className="p-6 md:p-8">{children}</HbCard>;
+  }
+  return (
+    <HbCard className="overflow-hidden">
+      <div className="md:flex md:min-h-[280px]">
+        {player ? (
+          <div className="p-6 pb-0 md:w-[42%] md:shrink-0 md:self-center md:py-6 md:pl-6 md:pr-0">
+            {player}
+          </div>
+        ) : (
+          <div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">
+            <img src={coverUrl!} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          </div>
+        )}
+        <div className="min-w-0 md:flex-1">
+          <div className="p-6 md:p-8">{children}</div>
+        </div>
+      </div>
+    </HbCard>
+  );
+};
 
 /** "Denne uges video"-kortet (bølge 1, PR 3 + PR A): valgt m. den DELTE
     dom (pickActiveWeekVideo). INGEN autoplay: kortet viser cover m.
@@ -325,8 +381,9 @@ const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryV
   ) : null;
 
   if (variant === "main") {
+    // Polering #1: gaten/afspilleren i venstre spalte, teksten højre.
     return (
-      <HbCard className="p-6 md:p-8">
+      <MainStoryShell player={player}>
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
           Denne uges video
           {marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
@@ -340,8 +397,7 @@ const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryV
         {video.duration_seconds != null && (
           <p className="mt-2 text-sm text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
         )}
-        <div className="mt-5">{player}</div>
-      </HbCard>
+      </MainStoryShell>
     );
   }
 
@@ -419,9 +475,7 @@ const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: Story
   }
 
   return (
-    <HbCard className="overflow-hidden">
-      {coverUrl && <img src={coverUrl} alt="" className="aspect-[21/9] w-full object-cover" />}
-      <div className="p-6 md:p-8">
+    <MainStoryShell coverUrl={coverUrl}>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Redaktionelt{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
@@ -444,8 +498,7 @@ const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: Story
           </HbButton>
         </a>
       )}
-      </div>
-    </HbCard>
+    </MainStoryShell>
   );
 };
 
@@ -465,7 +518,14 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
       // eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor
       <audio controls autoPlay src={episode.audioUrl} className="w-full" />
     ) : episode.audioUrl ? (
-      <PlayCover coverUrl={episode.imageUrl} title={episode.title} onPlay={() => setPlaying(true)} />
+      // Polering #3: kvadratisk ramme — episode-covers er 1:1 og skal
+      // ikke beskæres i bredformat (hoveder/tekst klippes).
+      <PlayCover
+        coverUrl={episode.imageUrl}
+        title={episode.title}
+        onPlay={() => setPlaying(true)}
+        shape="square"
+      />
     ) : episode.link ? (
       <a href={episode.link} target="_blank" rel="noopener noreferrer">
         <HbButton variant="secondary" className="h-9 px-4 text-sm">
@@ -491,8 +551,10 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
     );
   }
 
+  // Polering #1: gaten (kvadratisk albumkunst) i venstre spalte, teksten
+  // højre — samme fælles layout-greb som de øvrige main-varianter.
   return (
-    <HbCard className="p-6 md:p-8">
+    <MainStoryShell player={player}>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Podcast{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
@@ -503,8 +565,7 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
       {episode.durationSeconds != null && (
         <p className="mt-2 text-sm text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
       )}
-      <div className="mt-5">{player}</div>
-    </HbCard>
+    </MainStoryShell>
   );
 };
 
@@ -541,9 +602,7 @@ const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVar
   }
 
   return (
-    <HbCard className="overflow-hidden">
-      {coverUrl && <img src={coverUrl} alt="" className="aspect-[21/9] w-full object-cover" />}
-      <div className="p-6 md:p-8">
+    <MainStoryShell coverUrl={coverUrl}>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Værd at se igen</p>
       <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
         {item.title}
@@ -559,8 +618,7 @@ const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVar
           </HbButton>
         </a>
       )}
-      </div>
-    </HbCard>
+    </MainStoryShell>
   );
 };
 
@@ -574,6 +632,28 @@ const KIND_RANK: Record<StoryKind, number> = {
   redaktionelt: 2,
   podcast: 3,
   evergreen: 4,
+};
+
+/** Polering #2 (begrundet valg): kolonneantal AFHÆNGIGT af antallet frem
+    for fast grid. Fast cols-3 efterlader én enlig ved 4 (3+1), og fast
+    cols-4 gør det samme ved 5 (4+1) — ingen fast værdi dækker hele
+    intervallet. Mapningen 2→2 · 3→3 · 4→4 på lg (2+2 på md) · 5-6→3
+    (3+2 / 3+3) efterlader ALDRIG præcis én tile alene på sidste række
+    for 2-6 elementer — på hverken md eller lg. 1 element → fuld bredde. */
+const tileColsClass = (count: number): string => {
+  switch (count) {
+    case 2:
+      return "md:grid-cols-2";
+    case 3:
+      return "md:grid-cols-3";
+    case 4:
+      return "md:grid-cols-2 lg:grid-cols-4";
+    case 5:
+    case 6:
+      return "md:grid-cols-3";
+    default:
+      return count <= 1 ? "" : "md:grid-cols-3";
+  }
 };
 
 /** Dispatcher: én kandidat → det rigtige kort i den rigtige variant.
@@ -613,23 +693,28 @@ const StoryCard = ({
 };
 
 /** Reserveret højde mens podcast-feedet hentes (ingen layout-hop):
-    main-formen matcher fuldbredde-kortet m. full-bleed cover,
-    side-formen den rammeløse tile. */
+    main-formen matcher det to-spaltede kort (polering #1); side-formen
+    den rammeløse tile — m. KVADRATISK medie-blok, for skeletonet holder
+    netop podcastens plads, og dens cover er 1:1 (polering #3). */
 const StorySkeleton = ({ variant }: { variant: StoryVariant }) =>
   variant === "main" ? (
     <HbCard className="overflow-hidden" aria-hidden>
-      <div className="aspect-[21/9] w-full animate-pulse bg-hb-line/40" />
-      <div className="p-6 md:p-8">
-        <div className="h-3 w-28 animate-pulse rounded bg-hb-line/40" />
-        <div className="mt-4 h-9 w-2/3 animate-pulse rounded bg-hb-line/60" />
-        <div className="mt-4 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
+      <div className="md:flex md:min-h-[280px]">
+        <div className="aspect-[3/2] w-full animate-pulse bg-hb-line/40 md:aspect-auto md:w-[42%] md:shrink-0" />
+        <div className="min-w-0 md:flex-1">
+          <div className="p-6 md:p-8">
+            <div className="h-3 w-28 animate-pulse rounded bg-hb-line/40" />
+            <div className="mt-4 h-9 w-2/3 animate-pulse rounded bg-hb-line/60" />
+            <div className="mt-4 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
+          </div>
+        </div>
       </div>
     </HbCard>
   ) : (
     <div className="border-t border-hb-line pt-4" aria-hidden>
       <div className="h-3 w-24 animate-pulse rounded bg-hb-line/40" />
       <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded bg-hb-line/60" />
-      <div className="mt-3 aspect-video w-full animate-pulse rounded bg-hb-line/40" />
+      <div className="mt-3 aspect-square w-full animate-pulse rounded bg-hb-line/40" />
     </div>
   );
 
@@ -1275,6 +1360,12 @@ export const BoardroomView = () => {
   );
   const sideBefore = band.side.filter((s) => KIND_RANK[s.kind] < KIND_RANK.podcast);
   const sideAfter = band.side.filter((s) => KIND_RANK[s.kind] >= KIND_RANK.podcast);
+  // Antal tiles i rækken (polering #2) — skeletonet tæller med, så
+  // kolonnevalget ikke skifter når feedet lander.
+  const tileCount =
+    (podcastCouldLeadBand ? 0 : band.side.length + (podcastPending ? 1 : 0)) +
+    (latestTalk ? 1 : 0) +
+    (nextEvent ? 1 : 0);
 
   return (
     <div>
@@ -1320,7 +1411,7 @@ export const BoardroomView = () => {
               />
             ))}
           {(band.side.length > 0 || podcastPending || latestTalk || nextEvent) && (
-            <div className="mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9 md:grid-cols-2 lg:grid-cols-3">
+            <div className={cn("mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9", tileColsClass(tileCount))}>
               {!podcastCouldLeadBand && (
                 <>
                   {sideBefore.map((story) => (
