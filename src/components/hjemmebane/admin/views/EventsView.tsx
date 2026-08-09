@@ -8,6 +8,7 @@ import {
   listEvents,
   listRecordingCandidates,
 } from "@/lib/hjemmebane/adminContentApi";
+import { isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { HbAdminSplit } from "../HbAdminShell";
 import { HbTreeList, type HbListRow } from "../HbTreeList";
 import { useAdminHotkeys } from "../useAdminHotkeys";
@@ -56,13 +57,14 @@ export const EventsView = () => {
   const query = search.trim().toLowerCase();
 
   const upcoming = useMemo(() => {
-    const now = Date.now();
     const filtered = events.filter((e) => !query || e.title.toLowerCase().includes(query));
     // Kommende først (nærmest øverst), derefter afholdte/ældre nyeste-først.
+    // Opdelingen bruger den DELTE fasedom (isEventPast: ends_at, 90 min-
+    // fallback) — admin og medlemsflade deler samme sandhed om "afholdt".
     const future = filtered
-      .filter((e) => new Date(e.starts_at).getTime() >= now)
+      .filter((e) => !isEventPast(e))
       .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
-    const past = filtered.filter((e) => new Date(e.starts_at).getTime() < now);
+    const past = filtered.filter((e) => isEventPast(e));
     return [...future, ...past];
   }, [events, query]);
 
