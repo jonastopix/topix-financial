@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Play } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -520,21 +520,103 @@ const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: Story
   );
 };
 
+/** Hb-stylet lydafspiller (podcast-tile): den nøgne <audio controls>
+    gav browser-chrome og download-menu. <audio>-elementet er nu SKJULT
+    og styres af play/pause-cirklen (samme udtryk som PlayCovers knap),
+    en klikbar forløbslinje i hb-line/hb-evergreen og tiden som
+    "12:04 / 47:10". Monteres fortsat FØRST ved klik på gaten og
+    autostarter dér — monteringen ER klikket (PR A-reglen intakt). */
+const HbAudioPlayer = ({ src, title }: { src: string; title: string }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState<number | null>(null);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      void audio.play();
+    } else {
+      audio.pause();
+    }
+  };
+
+  const seek = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+    audio.currentTime = ratio * duration;
+  };
+
+  const progress = duration ? Math.min(currentTime / duration, 1) : 0;
+
+  return (
+    <div className="flex items-center gap-3 rounded-hb border border-hb-line bg-hb-surface px-3 py-2.5">
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor */}
+      <audio
+        ref={audioRef}
+        src={src}
+        autoPlay
+        onPlay={() => setAudioPlaying(true)}
+        onPause={() => setAudioPlaying(false)}
+        onEnded={() => setAudioPlaying(false)}
+        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={audioPlaying ? `Pause: ${title}` : `Afspil: ${title}`}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-hb-evergreen text-white shadow-hb-hover transition-transform hover:scale-105"
+      >
+        {audioPlaying ? (
+          <Pause className="h-4 w-4" fill="currentColor" />
+        ) : (
+          <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={seek}
+        aria-label="Spol i afspilningen"
+        className="relative h-1.5 min-w-0 flex-1 cursor-pointer overflow-hidden rounded-full bg-hb-line"
+      >
+        <span
+          className="absolute inset-y-0 left-0 rounded-full bg-hb-evergreen"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </button>
+      <span className="shrink-0 text-xs tabular-nums text-hb-ink-soft">
+        {formatDuration(Math.floor(currentTime)) ?? "0:00"} /{" "}
+        {duration != null ? formatDuration(Math.floor(duration)) ?? "0:00" : "–:––"}
+      </span>
+    </div>
+  );
+};
+
 /** Podcast-kortet (PR B3): nyeste episode fra feedet (dum proxy + ren
     parser, B1/B2). INGEN LYD FØR KLIK (PR A-reglen gælder også podcast):
-    <audio> monteres FØRST ved klik på PlayCover-gaten — autoPlay er OK
-    dér, monteringen ER klikket. Uden audioUrl: "Åbn episoden"-link. */
+    afspilleren monteres FØRST ved klik på PlayCover-gaten — autostart er
+    OK dér, monteringen ER klikket. Uden audioUrl: "Åbn episoden"-link. */
 const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: StoryVariant }) => {
   const [playing, setPlaying] = useState(false);
-  const marker = publishedMarker(episode.publishedAt);
+  // Sæson/episode-etiket i stedet for dato (podcast-tile): "S2E2" når
+  // BEGGE findes, ellers ingenting — bevidst INGEN dato-fallback (en
+  // elleve måneder gammel dato skal ikke vises).
+  const seasonLabel =
+    episode.season != null && episode.episode != null
+      ? `S${episode.season}E${episode.episode}`
+      : null;
   const teaser = episode.description
     ? truncateText(stripHtml(episode.description), variant === "main" ? 200 : 110)
     : null;
 
   const player =
     playing && episode.audioUrl ? (
-      // eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor
-      <audio controls autoPlay src={episode.audioUrl} className="w-full" />
+      <HbAudioPlayer src={episode.audioUrl} title={episode.title} />
     ) : episode.audioUrl ? (
       // Polering #3: kvadratisk ramme — episode-covers er 1:1 og skal
       // ikke beskæres i bredformat (hoveder/tekst klippes).
@@ -557,7 +639,7 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
     return (
       <div className="border-t border-hb-line pt-4">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-          Podcast{marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
+          Podcast{seasonLabel && <span className="ml-2 normal-case tracking-normal">· {seasonLabel}</span>}
         </p>
         <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{episode.title}</p>
         {teaser && <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{teaser}</p>}
@@ -574,7 +656,7 @@ const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: S
   return (
     <MainStoryShell player={player}>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
-        Podcast{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
+        Podcast{seasonLabel && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {seasonLabel}</span>}
       </p>
       <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
         {episode.title}

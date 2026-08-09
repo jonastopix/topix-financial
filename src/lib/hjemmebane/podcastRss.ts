@@ -17,7 +17,21 @@ export interface PodcastEpisode {
   imageUrl: string | null;
   /** ISO-8601 — null hvis pubDate mangler/er ulæselig. */
   publishedAt: string | null;
+  /** <itunes:season> — null når feltet mangler eller ikke er et tal. */
+  season: number | null;
+  /** <itunes:episode> — null når feltet mangler eller ikke er et tal. */
+  episode: number | null;
+  /** <itunes:episodeType> — rå streng ("full"/"bonus"/"trailer"), null når den mangler. */
+  episodeType: string | null;
 }
+
+/** Number() m. null-fallback ved NaN/tomt (tomt fanges før Number(""),
+    som ellers ville give 0). */
+const intOrNull = (raw: string | null): number | null => {
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isNaN(n) ? null : n;
+};
 
 /** "HH:MM:SS" | "MM:SS" | rå sekunder → sekunder; alt andet → null. */
 export function parseDurationSeconds(raw: string | null | undefined): number | null {
@@ -55,6 +69,9 @@ export function parsePodcastFeed(xml: string): PodcastEpisode[] {
         imageUrl: item.getElementsByTagName("itunes:image")[0]?.getAttribute("href") ?? null,
         publishedAt:
           pubDate && !Number.isNaN(pubDate.getTime()) ? pubDate.toISOString() : null,
+        season: intOrNull(text(item, "itunes:season")),
+        episode: intOrNull(text(item, "itunes:episode")),
+        episodeType: text(item, "itunes:episodeType"),
       };
     });
   } catch {
