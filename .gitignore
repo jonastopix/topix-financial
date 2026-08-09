@@ -31,3 +31,4 @@ supabase/.temp/
 
 # MCP client config — may contain secrets in env values; never commit
 .mcp.json
+_recon/
