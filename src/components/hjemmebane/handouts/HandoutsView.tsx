@@ -149,7 +149,11 @@ export const HandoutsView = () => {
       setIsLoading(false);
     };
     load();
-  }, [user, activeModule, companyId]);
+    // `user?.id` — ikke user-objektet (samme fokus-event-mønster som
+    // BudgetteringViews load-effekt, hb-budget-persistens-recon §1c):
+    // effekten afhænger kun af bruger-identiteten; objektet skiftes ved
+    // hvert auth-event og gav unødig genindlæsning/spinner-flimmer.
+  }, [user?.id, activeModule, companyId]);
 
   if (activeModule) {
     // Resolve the correct member userId for this module

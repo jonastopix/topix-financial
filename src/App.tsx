@@ -18,7 +18,6 @@ import NotFound from "./pages/NotFound";
 
 // Lazy — member/advisor routes
 const Milestones = lazy(() => import("./pages/Milestones"));
-const Budget = lazy(() => import("./pages/Budget"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
 const BookSession = lazy(() => import("./pages/BookSession"));
@@ -54,7 +53,7 @@ const Rapportering = lazy(() => import("./pages/Rapportering"));
 // Lazy — Hb-KPI-fladen (bærer /kpis efter KPI-GO 2026-08-06)
 const Noegletal = lazy(() => import("./pages/Noegletal"));
 
-// Lazy — Hb-budgetfladen (route-parallel; advisor-gated indtil swap-GO på /budget)
+// Lazy — Hb-budgetfladen (bærer /budget efter Budget-GO 2026-08-06)
 const Budgettering = lazy(() => import("./pages/Budgettering"));
 
 // Lazy — Hb-handoutfladen (bærer /handouts efter Handouts-GO 2026-08-06)
@@ -112,6 +111,14 @@ const NoegletalRedirect = () => {
 const RapporteringRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/reports", search, hash }} replace />;
+};
+
+/* Budget-GO (2026-08-06): /budgettering → /budget. Hash/query bevares —
+   #forecast er Guide-kontrakt og detect-financial-alerts' deep_link
+   "/budget" er notifikations-kontrakt; begge skal overleve redirectet. */
+const BudgetteringRedirect = () => {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: "/budget", search, hash }} replace />;
 };
 
 /* Handouts-GO (2026-08-06): /handout → /handouts. Query/hash bevares —
@@ -210,7 +217,11 @@ const App = () => (
                   og vælger virksomhed via company-override, præcis som på
                   gammel /reports. */}
               <Route path="/reports" element={<MemberRoute><Rapportering /></MemberRoute>} />
-              <Route path="/budget" element={<MemberRoute><Budget /></MemberRoute>} />
+              {/* Budget-GO (2026-08-06): /budget bærer Hb-budgetfladen.
+                  MemberRoute som før — advisors passerer (ingen isAdvisor-gate)
+                  og vælger virksomhed via company-override, præcis som på
+                  gammel /budget. */}
+              <Route path="/budget" element={<MemberRoute><Budgettering /></MemberRoute>} />
               <Route path="/milestones" element={<ProtectedRoute><Milestones /></ProtectedRoute>} />
               {/* Handouts-GO (2026-08-06): /handouts bærer Hb-handoutfladen.
                   ⚠️ PROTECTEDROUTE — IKKE MemberRoute: Legat-brugere skal
@@ -261,10 +272,10 @@ const App = () => (
               {/* KPI-GO gennemført 2026-08-06: /kpis bærer fladen (notifikations-
                   kontrakt); /noegletal redirecter m. bevaret hash/query. */}
               <Route path="/noegletal" element={<NoegletalRedirect />} />
-              {/* Hb-budgetfladen — AdvisorRoute KUN i byggeperioden; GO = swap
-                  på /budget (notifikations-deep_link + Guide-hash er kontrakt),
-                  /budgettering bliver redirect. */}
-              <Route path="/budgettering" element={<AdvisorRoute><Budgettering /></AdvisorRoute>} />
+              {/* Budget-GO gennemført 2026-08-06: /budget bærer fladen
+                  (notifikations-deep_link + Guide-hash er kontrakt);
+                  /budgettering redirecter m. bevaret hash/query. */}
+              <Route path="/budgettering" element={<BudgetteringRedirect />} />
               {/* Handouts-GO gennemført 2026-08-06: /handouts bærer fladen
                   (?module= er Akademi-broens kontrakt); /handout redirecter
                   m. bevaret query/hash. */}

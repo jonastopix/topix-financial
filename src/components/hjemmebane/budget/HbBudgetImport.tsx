@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { confirmBudgetFromAccounts, confirmBudgetImport } from "@/lib/budgetEngine";
@@ -32,6 +32,45 @@ const pickFile = (accept: string, onFile: (f: File) => void) => {
   };
   input.click();
 };
+
+// ── Kladde-persistens (hb-budget-persistens-recon §4 ii): et indlæst
+// forslag skal overleve reload/remount indtil godkend/annullér.
+// sessionStorage er per-fane; nøglen er COMPANY-SCOPED — advisor-override
+// må aldrig vise en anden virksomheds kladde. 24 t alders-loft. try/catch
+// som repoets øvrige storage-brug: storage-fejl må aldrig vælte importen.
+const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function readDraft<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > DRAFT_MAX_AGE_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return parsed as T;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(key: string, value: Record<string, unknown>) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ ...value, savedAt: Date.now() }));
+  } catch {
+    /* fuld/utilgængelig storage — kladden er best-effort */
+  }
+}
+
+function clearDraft(key: string | null) {
+  if (!key) return;
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignorér */
+  }
+}
 
 // ───────────────────────── Excel-import (W5) ─────────────────────────
 
@@ -72,6 +111,27 @@ export const HbBudgetExcelImport = ({
   const [errorNote, setErrorNote] = useState<string | null>(null);
   const workbookRef = useRef<any>(null);
   const pendingFileRef = useRef<File | null>(null);
+
+  // Kladde (recon §4 ii): det PARSEDE resultat persisteres — fil/workbook
+  // kan ikke (File-objekter overlever ikke JSON), og det er resultatet
+  // der mistes ved remount.
+  const draftKey = companyId ? `hb-budget-excel-draft:${companyId}` : null;
+
+  useEffect(() => {
+    if (!draftKey || multiYear) return;
+    const draft = readDraft<{ multiYear: MultiYearResult; selectedYear: string | null }>(draftKey);
+    if (draft?.multiYear) {
+      setMultiYear(draft.multiYear);
+      setSelectedYear(draft.selectedYear);
+      setStatusNote("Dit indlæste ark er gendannet — gennemse og godkend nedenfor");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !multiYear) return;
+    writeDraft(draftKey, { multiYear, selectedYear });
+  }, [draftKey, multiYear, selectedYear]);
 
   const preview =
     multiYear && selectedYear
@@ -180,6 +240,7 @@ export const HbBudgetExcelImport = ({
         companyId,
         preview: { year: preview.year, categories: preview.categories },
       });
+      clearDraft(draftKey);
       setStatusNote(`Budget ${preview.year} er importeret`);
       onImported({ year: preview.year });
     } catch (err: any) {
@@ -192,6 +253,7 @@ export const HbBudgetExcelImport = ({
   };
 
   const reset = () => {
+    clearDraft(draftKey);
     setMultiYear(null);
     setSelectedYear(null);
     setSheetNames([]);
@@ -341,11 +403,13 @@ export const HbBudgetExcelImport = ({
                   </p>
                   <p className="text-sm tabular-nums text-hb-ink">{fmtNumber(yearTotal)} kr.</p>
                 </div>
-                <div className="mt-2 grid grid-cols-12 gap-1">
+                {/* Feltbredde (recon 1 §4): 12 kolonner klemte sekscifrede
+                    beløb — nu 4/6 kolonner over flere rækker + større tekst. */}
+                <div className="mt-2 grid grid-cols-4 gap-x-2 gap-y-1.5 sm:grid-cols-6">
                   {cat.monthly.map((val, i) => (
                     <div key={i} className="text-center">
-                      <p className="text-[9px] text-hb-ink-soft">{MONTH_LABELS[i]}</p>
-                      <p className="text-[10px] tabular-nums text-hb-ink">{fmtNumber(val)}</p>
+                      <p className="text-[10px] text-hb-ink-soft">{MONTH_LABELS[i]}</p>
+                      <p className="text-[11px] tabular-nums text-hb-ink">{fmtNumber(val)}</p>
                     </div>
                   ))}
                 </div>
@@ -432,6 +496,17 @@ interface AccountsResult {
 
 const GROWTH_PRESETS = [0, 5, 10, 15, 20];
 
+type RevenueMode = "growth" | "absolute";
+
+// Jævn, krone-præcis fordeling af et årsmål (recon 1 §5): basen er
+// floor(target/12); resten (target − 12·base) lægges på de første R
+// måneder, så summen rammer målet PRÆCIST.
+const evenMonthly = (target: number): number[] => {
+  const base = Math.floor(target / 12);
+  const rest = target - base * 12;
+  return Array.from({ length: 12 }, (_, i) => base + (i < rest ? 1 : 0));
+};
+
 export const HbBudgetFromAccounts = ({
   userId,
   companyId,
@@ -447,8 +522,42 @@ export const HbBudgetFromAccounts = ({
   const [result, setResult] = useState<AccountsResult | null>(null);
   const [growthPercent, setGrowthPercent] = useState(0);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  // Absolut årsmål for omsætning (recon 1 §5): år 1-regnskaber
+  // (stiftelsesperiode, bruttotab) har intet repræsentativt at
+  // vækst-skalere — medlemmet sætter i stedet ÉT måltal.
+  const [revenueMode, setRevenueMode] = useState<RevenueMode>("growth");
+  const [revenueAnnualTarget, setRevenueAnnualTarget] = useState<number | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [errorNote, setErrorNote] = useState<string | null>(null);
+
+  // Kladde (recon 2 §4 ii) — company-scoped, gendannes ved mount,
+  // ryddes ved godkend/annullér.
+  const draftKey = companyId ? `hb-budget-accounts-draft:${companyId}` : null;
+
+  useEffect(() => {
+    if (!draftKey || result) return;
+    const draft = readDraft<{
+      result: AccountsResult;
+      growthPercent: number;
+      overrides: Record<string, number>;
+      revenueMode?: RevenueMode;
+      revenueAnnualTarget?: number | null;
+    }>(draftKey);
+    if (draft?.result) {
+      setResult(draft.result);
+      setGrowthPercent(draft.growthPercent ?? 0);
+      setOverrides(draft.overrides ?? {});
+      setRevenueMode(draft.revenueMode ?? "growth");
+      setRevenueAnnualTarget(draft.revenueAnnualTarget ?? null);
+      setStatusNote("Dit budgetforslag er gendannet — gennemse og godkend nedenfor");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !result) return;
+    writeDraft(draftKey, { result, growthPercent, overrides, revenueMode, revenueAnnualTarget });
+  }, [draftKey, result, growthPercent, overrides, revenueMode, revenueAnnualTarget]);
 
   const extractTextFromPDF = useCallback(async (file: File): Promise<string> => {
     const pdfjsLib = await import("pdfjs-dist");
@@ -506,6 +615,8 @@ export const HbBudgetFromAccounts = ({
         setResult(data as AccountsResult);
         setGrowthPercent(0);
         setOverrides({});
+        setRevenueMode("growth");
+        setRevenueAnnualTarget(null);
         setStatusNote("Regnskabet er læst — vælg vækst og godkend forslaget");
       } catch (err: any) {
         console.error("Budget from accounts error:", err);
@@ -518,14 +629,62 @@ export const HbBudgetFromAccounts = ({
     [extractTextFromPDF],
   );
 
+  // ── Absolut årsmål (recon 1 §5) — beregnes rent i komponenten ──
+  const absoluteActive = revenueMode === "absolute" && revenueAnnualTarget != null && revenueAnnualTarget > 0;
+  const revenueCats = result ? result.categories.filter((c) => c.group === "indtaegter") : [];
+
+  // Målet pr. omsætningskategori: proportionalt efter annual_amount
+  // (sidste kategori får resten, så summen rammer målet præcist).
+  // INGEN indtaegter-kategori (år 1-casen): en SYNTETISK "omsaetning"-
+  // kategori appendes til preview + confirm — motoren tager keys verbatim,
+  // og "omsaetning" er netop nøglen BvA/rapport-mapningen kender.
+  const revenueTargetByKey: Record<string, number> = {};
+  let syntheticRevenue: AccountsCategory | null = null;
+  if (result && absoluteActive) {
+    const target = Math.round(revenueAnnualTarget!);
+    if (revenueCats.length === 0) {
+      syntheticRevenue = {
+        key: "omsaetning",
+        label: "Omsætning",
+        group: "indtaegter",
+        annual_amount: target,
+        monthly: evenMonthly(target),
+        source_lines: [],
+      };
+    } else {
+      const totalAnnual = revenueCats.reduce((s, c) => s + Math.max(0, c.annual_amount), 0);
+      let allocated = 0;
+      revenueCats.forEach((c, idx) => {
+        const isLast = idx === revenueCats.length - 1;
+        const share = totalAnnual > 0 ? Math.max(0, c.annual_amount) / totalAnnual : 1 / revenueCats.length;
+        const amt = isLast ? target - allocated : Math.floor(target * share);
+        revenueTargetByKey[c.key] = amt;
+        allocated += amt;
+      });
+    }
+  }
+
+  const displayCategories: AccountsCategory[] = result
+    ? syntheticRevenue
+      ? [syntheticRevenue, ...result.categories]
+      : result.categories
+    : [];
+
   // Væksten anvendes som i BudgetFromAccounts.tsx:145-158: omkostninger
-  // vokser med halv procent; celle-overrides ligger oven på.
+  // vokser med halv procent; celle-overrides ligger oven på. Ved absolut
+  // årsmål erstattes OMSÆTNINGENS grundlag af den jævne fordeling af
+  // målet — omkostningerne følger fortsat vækst-%'en (halv-vækst-reglen).
   const getFinalMonthly = (cat: AccountsCategory): number[] => {
     const isRevenue = cat.group === "indtaegter";
     const factor = 1 + growthPercent / 100;
     const costFactor = 1 + (growthPercent / 100) * 0.5;
-    const grown = cat.monthly.map((v) => Math.round(v * (isRevenue ? factor : costFactor)));
-    return grown.map((v, i) => {
+    const base =
+      isRevenue && absoluteActive
+        ? cat.key in revenueTargetByKey
+          ? evenMonthly(revenueTargetByKey[cat.key])
+          : cat.monthly // syntetisk kategori: monthly ER allerede fordelingen
+        : cat.monthly.map((v) => Math.round(v * (isRevenue ? factor : costFactor)));
+    return base.map((v, i) => {
       const key = `${cat.key}-${i}`;
       return key in overrides ? overrides[key] : v;
     });
@@ -540,9 +699,15 @@ export const HbBudgetFromAccounts = ({
         userId,
         companyId,
         sourceYear: result.source_year,
-        categories: result.categories.map((cat) => ({ key: cat.key, monthly: getFinalMonthly(cat) })),
+        // displayCategories: inkl. evt. syntetisk omsætningsrække (år 1-casen)
+        categories: displayCategories.map((cat) => ({ key: cat.key, monthly: getFinalMonthly(cat) })),
       });
-      setStatusNote(`Budget ${targetYear} er oprettet med ${growthPercent} % vækst`);
+      clearDraft(draftKey);
+      setStatusNote(
+        absoluteActive
+          ? `Budget ${targetYear} er oprettet med årsmål ${fmtNumber(Math.round(revenueAnnualTarget!))} kr. i omsætning`
+          : `Budget ${targetYear} er oprettet med ${growthPercent} % vækst`,
+      );
       onImported({ year: targetYear });
     } catch (err: any) {
       console.error("Save error:", err);
@@ -554,10 +719,10 @@ export const HbBudgetFromAccounts = ({
 
   if (result) {
     const targetYear = Number(result.source_year) + 1;
-    const totalRev = result.categories
+    const totalRev = displayCategories
       .filter((c) => c.group === "indtaegter")
       .reduce((s, c) => s + getFinalMonthly(c).reduce((a, b) => a + b, 0), 0);
-    const totalCost = result.categories
+    const totalCost = displayCategories
       .filter((c) => c.group !== "indtaegter")
       .reduce((s, c) => s + getFinalMonthly(c).reduce((a, b) => a + b, 0), 0);
 
@@ -570,8 +735,59 @@ export const HbBudgetFromAccounts = ({
           {result.company_name && <p className="text-xs text-hb-ink-soft">{result.company_name}</p>}
         </div>
 
-        <div className="mt-4">
-          <HbField label="Forventet vækst" help="Omkostninger vokser med halv procent af den valgte vækst.">
+        <div className="mt-4 space-y-4">
+          {/* Mode-skifte (recon 1 §5): vækst-% ELLER absolut årsmål for omsætningen */}
+          <HbField
+            label="Omsætning"
+            help={
+              revenueMode === "absolute"
+                ? "Årsmålet fordeles jævnt over 12 måneder — du kan redigere hver måned nedenfor."
+                : "Vækst i % skalerer omsætningen fra regnskabet."
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { mode: "growth" as const, label: "Vækst i %" },
+                { mode: "absolute" as const, label: "Årsmål for omsætning" },
+              ]).map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setRevenueMode(mode)}
+                  className={cn(
+                    "rounded-full border px-4 py-1.5 text-sm transition-colors",
+                    revenueMode === mode
+                      ? "border-hb-evergreen bg-hb-evergreen text-white"
+                      : "border-hb-line text-hb-ink-soft hover:border-hb-evergreen/50 hover:text-hb-ink",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              {revenueMode === "absolute" && (
+                <span className="flex items-center gap-2">
+                  <HbInput
+                    type="number"
+                    min={0}
+                    value={revenueAnnualTarget ?? ""}
+                    onChange={(e) => {
+                      const num = Math.round(Number(e.target.value));
+                      setRevenueAnnualTarget(isNaN(num) || e.target.value === "" ? null : num);
+                    }}
+                    placeholder="fx 1200000"
+                    aria-label={`Forventet omsætning ${targetYear}, kr.`}
+                    className="w-44 text-sm tabular-nums"
+                  />
+                  <span className="text-sm text-hb-ink-soft">kr. ({targetYear})</span>
+                </span>
+              )}
+            </div>
+          </HbField>
+
+          <HbField
+            label={revenueMode === "absolute" ? "Forventet vækst (omkostninger)" : "Forventet vækst"}
+            help="Omkostninger vokser med halv procent af den valgte vækst."
+          >
             <div className="flex flex-wrap items-center gap-2">
               {GROWTH_PRESETS.map((p) => (
                 <button
@@ -625,7 +841,7 @@ export const HbBudgetFromAccounts = ({
         </div>
 
         <div className="mt-4 space-y-2">
-          {result.categories.map((cat) => {
+          {displayCategories.map((cat) => {
             const final = getFinalMonthly(cat);
             const yearTotal = final.reduce((s, v) => s + v, 0);
             return (
@@ -642,10 +858,13 @@ export const HbBudgetFromAccounts = ({
                   </p>
                   <p className="text-sm tabular-nums text-hb-ink">{fmtNumber(yearTotal)} kr.</p>
                 </div>
-                <div className="mt-2 grid grid-cols-6 gap-1 sm:grid-cols-12">
+                {/* Feltbredde (recon 1 §4): 12 kolonner gav ~50 px pr. felt —
+                    sekscifrede beløb kunne ikke læses. Nu 3/6 kolonner
+                    (12 mdr. over to rækker på desktop) + større tekst. */}
+                <div className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1.5 sm:grid-cols-6">
                   {final.map((val, i) => (
                     <label key={i} className="text-center">
-                      <span className="block text-[9px] text-hb-ink-soft">{MONTH_LABELS[i]}</span>
+                      <span className="block text-[10px] text-hb-ink-soft">{MONTH_LABELS[i]}</span>
                       <input
                         type="number"
                         value={val}
@@ -654,7 +873,7 @@ export const HbBudgetFromAccounts = ({
                           if (isNaN(num)) return;
                           setOverrides((prev) => ({ ...prev, [`${cat.key}-${i}`]: num }));
                         }}
-                        className="w-full rounded border border-hb-line bg-hb-surface px-1 py-0.5 text-right text-[10px] tabular-nums text-hb-ink focus:outline-none focus:ring-1 focus:ring-hb-evergreen/60"
+                        className="w-full rounded border border-hb-line bg-hb-surface px-1.5 py-1 text-right text-xs tabular-nums text-hb-ink focus:outline-none focus:ring-1 focus:ring-hb-evergreen/60"
                         aria-label={`${cat.label} ${MONTH_LABELS[i]}`}
                       />
                     </label>
@@ -672,7 +891,11 @@ export const HbBudgetFromAccounts = ({
           <button
             type="button"
             onClick={() => {
+              clearDraft(draftKey);
               setResult(null);
+              setOverrides({});
+              setRevenueMode("growth");
+              setRevenueAnnualTarget(null);
               setStatusNote(null);
               setErrorNote(null);
             }}

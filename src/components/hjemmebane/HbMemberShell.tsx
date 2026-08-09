@@ -45,10 +45,10 @@ export const HbMemberShell = ({
           to: "/kpis",
           active: active === "noegletal",
         },
-        // Samme byggeperiode-gating som Rapportering/KPI'er (budget-konverteringen).
+        // Budget-GO 2026-08-06: /budget bærer fladen for alle roller.
         {
           label: "Budget",
-          to: effectiveAdvisor ? "/budgettering" : "/budget",
+          to: "/budget",
           active: active === "budget",
         },
         { label: "Milestones", to: "/milestones" },
