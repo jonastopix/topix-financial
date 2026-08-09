@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { listAllUpcomingEvents, listPastEvents } from "@/lib/hjemmebane/akademiApi";
 import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
@@ -113,17 +114,21 @@ export const EventsView = () => {
           </p>
         ) : (
           <ul>
+            {/* Hele rækken linker til eventsiden (trin 2) — udtrykket er
+                uændret; kun en stille hover-tone er lagt til. */}
             {upcoming.map((event) => (
-              <li
-                key={event.id}
-                className="flex items-center gap-5 border-t border-hb-line py-4 last:border-b"
-              >
-                <DateBlock startsAt={event.starts_at} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
-                  <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event)}</p>
-                </div>
-                <p className="shrink-0 text-sm text-hb-ink-soft">{eventCountdown(event.starts_at)}</p>
+              <li key={event.id} className="border-t border-hb-line last:border-b">
+                <Link
+                  to={`/events/${event.id}`}
+                  className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
+                >
+                  <DateBlock startsAt={event.starts_at} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
+                    <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event)}</p>
+                  </div>
+                  <p className="shrink-0 text-sm text-hb-ink-soft">{eventCountdown(event.starts_at)}</p>
+                </Link>
               </li>
             ))}
           </ul>
@@ -147,32 +152,34 @@ export const EventsView = () => {
                 {(pastByYear.get(year) ?? []).map((event) => {
                   const cancelled = event.status === "cancelled";
                   return (
-                    <li
-                      key={event.id}
-                      className={cn(
-                        "flex items-center gap-5 border-t border-hb-line py-4 last:border-b",
-                        cancelled && "opacity-60",
-                      )}
-                    >
-                      <DateBlock startsAt={event.starts_at} dimmed />
-                      <div className="min-w-0 flex-1">
-                        {/* Aflyst bæres af badgen + opacity — ingen
-                            gennemstregning (tredje markør er for meget). */}
-                        <p
-                          className={cn(
-                            "text-[15px] font-medium leading-snug",
-                            cancelled ? "text-hb-ink-soft" : "text-hb-ink",
-                          )}
-                        >
-                          {event.title}
-                        </p>
-                        <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event, false)}</p>
-                      </div>
-                      {cancelled && (
-                        <span className="shrink-0 rounded-full border border-hb-rust/40 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-hb-rust">
-                          Aflyst
-                        </span>
-                      )}
+                    <li key={event.id} className="border-t border-hb-line last:border-b">
+                      <Link
+                        to={`/events/${event.id}`}
+                        className={cn(
+                          "flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20",
+                          cancelled && "opacity-60",
+                        )}
+                      >
+                        <DateBlock startsAt={event.starts_at} dimmed />
+                        <div className="min-w-0 flex-1">
+                          {/* Aflyst bæres af badgen + opacity — ingen
+                              gennemstregning (tredje markør er for meget). */}
+                          <p
+                            className={cn(
+                              "text-[15px] font-medium leading-snug",
+                              cancelled ? "text-hb-ink-soft" : "text-hb-ink",
+                            )}
+                          >
+                            {event.title}
+                          </p>
+                          <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event, false)}</p>
+                        </div>
+                        {cancelled && (
+                          <span className="shrink-0 rounded-full border border-hb-rust/40 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-hb-rust">
+                            Aflyst
+                          </span>
+                        )}
+                      </Link>
                     </li>
                   );
                 })}

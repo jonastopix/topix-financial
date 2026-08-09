@@ -176,6 +176,25 @@ export async function listAllUpcomingEvents(): Promise<EventRow[]> {
   return rows.filter((event) => !isEventPast(event));
 }
 
+/** Én event til /events/:id. Returnerer NULL ved ikke-fundet (også
+    ugyldigt id og draft-status) — fladen viser en ordentlig tom-
+    tilstand; throw er forbeholdt reelle fejl. */
+export async function getEvent(id: string): Promise<EventRow | null> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", id)
+    .in("status", ["published", "completed", "cancelled"])
+    .maybeSingle();
+  // 22P02 = ugyldig uuid-syntaks — et gættet/forvansket id er "ikke
+  // fundet" for medlemmet, ikke en fejl.
+  if (error) {
+    if ((error as { code?: string }).code === "22P02") return null;
+    throw new Error(error.message);
+  }
+  return data;
+}
+
 /** Historikken på /events: afholdte og aflyste, nyeste først. Afholdt =
     eksplicit completed/cancelled ELLER published m. sluttid i fortiden
     (samme udledte dom som ovenfor — "Markér afholdt" er fortsat en

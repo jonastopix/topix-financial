@@ -1523,38 +1523,42 @@ export const BoardroomView = () => {
           sektion. */}
       {events.length > 0 && (
         <HbSection eyebrow="Kommende" hairline className="mt-14 md:mt-16">
+          {/* Hele rækken linker til eventsiden (Events trin 2) —
+              udtrykket uændret, kun stille hover-tone tilføjet. */}
           <ul>
             {events.map((event) => (
-              <li
-                key={event.id}
-                className="flex items-center gap-5 border-t border-hb-line py-4 last:border-b"
-              >
-                <div className="w-12 shrink-0 text-center">
-                  <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
-                    {new Date(event.starts_at).getDate()}
+              <li key={event.id} className="border-t border-hb-line last:border-b">
+                <Link
+                  to={`/events/${event.id}`}
+                  className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
+                >
+                  <div className="w-12 shrink-0 text-center">
+                    <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
+                      {new Date(event.starts_at).getDate()}
+                    </p>
+                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                      {new Date(event.starts_at).toLocaleDateString("da-DK", { month: "short" }).replace(".", "")}
+                    </p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
+                    <p className="mt-1 text-sm text-hb-ink-soft">
+                      {[
+                        event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
+                        event.meet_url ? "Online" : null,
+                        new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  {/* Nedtællingen højre-stillet, så rækken spænder aksen ud
+                      (polish #4) — den bærer højrekolonnen indtil
+                      tilmeldings-CTA'en ("Tilmeld") lander dér. */}
+                  <p className="shrink-0 text-sm text-hb-ink-soft">
+                    {eventCountdown(event.starts_at)}
                   </p>
-                  <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                    {new Date(event.starts_at).toLocaleDateString("da-DK", { month: "short" }).replace(".", "")}
-                  </p>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
-                  <p className="mt-1 text-sm text-hb-ink-soft">
-                    {[
-                      event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
-                      event.meet_url ? "Online" : null,
-                      new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                {/* Nedtællingen højre-stillet, så rækken spænder aksen ud
-                    (polish #4) — den bærer højrekolonnen indtil
-                    tilmeldings-CTA'en ("Tilmeld") lander dér. */}
-                <p className="shrink-0 text-sm text-hb-ink-soft">
-                  {eventCountdown(event.starts_at)}
-                </p>
+                </Link>
               </li>
             ))}
           </ul>

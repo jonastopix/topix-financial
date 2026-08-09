@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventEndTime, isEventPast } from "../eventPhase";
+import { eventEndTime, eventMeetPhase, isEventPast } from "../eventPhase";
 
 /** Fast "nu" + RELATIVE offsets (absolutte epoch-beregninger — aldrig
     kalenderdatoer; CI kører UTC, lokalt Europe/Copenhagen). */
@@ -45,5 +45,41 @@ describe("eventEndTime — sluttids-udledningen", () => {
     expect(
       eventEndTime({ starts_at: minutesFromNow(0), ends_at: null }).getTime(),
     ).toBe(NOW.getTime() + 90 * 60_000);
+  });
+});
+
+describe("eventMeetPhase — Meet-knappens tre faser", () => {
+  it("mere end 15 min før start → before", () => {
+    expect(
+      eventMeetPhase({ starts_at: minutesFromNow(16), ends_at: minutesFromNow(76) }, NOW),
+    ).toBe("before");
+  });
+
+  it("midt i eventet → live", () => {
+    expect(
+      eventMeetPhase({ starts_at: minutesFromNow(-30), ends_at: minutesFromNow(30) }, NOW),
+    ).toBe("live");
+  });
+
+  it("efter sluttiden → after", () => {
+    expect(
+      eventMeetPhase({ starts_at: minutesFromNow(-90), ends_at: minutesFromNow(-1) }, NOW),
+    ).toBe("after");
+  });
+
+  it("grænsen: PRÆCIS 15 min før start → live", () => {
+    expect(
+      eventMeetPhase({ starts_at: minutesFromNow(15), ends_at: minutesFromNow(75) }, NOW),
+    ).toBe("live");
+  });
+
+  it("grænsen: PRÆCIS ved sluttiden → stadig live (after er strengt efter)", () => {
+    expect(
+      eventMeetPhase({ starts_at: minutesFromNow(-60), ends_at: minutesFromNow(0) }, NOW),
+    ).toBe("live");
+  });
+
+  it("ends_at null: 90 min-fallback bærer også faserne (2 timer efter start → after)", () => {
+    expect(eventMeetPhase({ starts_at: minutesFromNow(-120), ends_at: null }, NOW)).toBe("after");
   });
 });

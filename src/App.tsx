@@ -59,6 +59,7 @@ const Budgettering = lazy(() => import("./pages/Budgettering"));
 // Lazy — Hb-handoutfladen (bærer /handouts efter Handouts-GO 2026-08-06)
 const Handout = lazy(() => import("./pages/Handout"));
 const Events = lazy(() => import("./pages/Events"));
+const EventDetail = lazy(() => import("./pages/EventDetail"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -231,6 +232,7 @@ const App = () => (
               <Route path="/handouts" element={<ProtectedRoute><Handout /></ProtectedRoute>} />
               {/* Events-miljøet trin 1 (2026-08-09): medlemmets eventliste. */}
               <Route path="/events" element={<MemberRoute><Events /></MemberRoute>} />
+              <Route path="/events/:id" element={<MemberRoute><EventDetail /></MemberRoute>} />
               {/* KPI-GO (2026-08-06): /kpis bærer Hb-KPI-fladen. MemberRoute
                   som før — advisors passerer (ingen isAdvisor-gate) og vælger
                   virksomhed via company-override, præcis som på gammel /kpis. */}
