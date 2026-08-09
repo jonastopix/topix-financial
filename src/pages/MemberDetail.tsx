@@ -732,10 +732,18 @@ const MemberDetail = () => {
     const fmtKr = (n?: number | null) =>
       n != null ? `${Math.round(n).toLocaleString("da-DK")} kr.` : "—";
     type Sev = "action_required" | "important" | "muted";
-    type Row = { severity: Sev; kind: "alert" | "mom" | "budget" | "reflection" | "lever"; badge: string; title: string; detail?: string };
+    type Row = { severity: Sev; kind: "alert" | "mom" | "budget" | "reflection" | "lever"; badge: string; title: string; detail?: string; metric?: string };
     const rows: Row[] = [];
 
-    // 1) Persisterede alerts (dedup pr. type, nyeste først)
+    // 1) Persisterede alerts (dedup pr. type, nyeste først). Metrik-nøglen
+    //    gør kilde A sammenlignelig m. inline-MoM'en (kilde B) — alerten og
+    //    MoM'en måler SAMME signal (samme tal, samme 15%-tærskel) og må
+    //    ikke stå som to rækker.
+    const ALERT_METRIC: Record<string, string> = {
+      alert_revenue_drop: "omsaetning",
+      alert_result_negative: "resultat",
+      alert_negative_cash: "bank",
+    };
     const seenTypes = new Set<string>();
     for (const a of (financialAlerts as any[])) {
       if (seenTypes.has(a.type)) continue;
@@ -743,22 +751,31 @@ const MemberDetail = () => {
       rows.push({
         severity: a.priority === "action_required" ? "action_required" : "important",
         kind: "alert", badge: "Alert", title: a.title, detail: a.body || undefined,
+        metric: ALERT_METRIC[a.type],
       });
     }
 
-    // 2) MoM-bevægelse (genbrug pctChange; tærskel 15% begge veje)
+    // 2) MoM-bevægelse (genbrug pctChange; tærskel 15% begge veje).
+    //    Dækker en alert allerede metrikken, pushes INGEN egen række —
+    //    MoM-tallene lægges i stedet ind som alertens detail.
     if (latestKf && prevKf) {
-      const mom = (label: string, curr?: number, prev?: number) => {
+      const mom = (metric: string, label: string, curr?: number, prev?: number) => {
         const pct = pctChange(curr, prev);
         if (pct == null || Math.abs(pct) < 15) return;
+        const momDetail = `${fmtKr(prev)} → ${fmtKr(curr)}`;
+        const covering = rows.find(r => r.kind === "alert" && r.metric === metric);
+        if (covering) {
+          covering.detail = covering.detail ? `${covering.detail} · ${momDetail}` : momDetail;
+          return;
+        }
         rows.push({
-          severity: "important", kind: "mom", badge: "MoM",
+          severity: "important", kind: "mom", badge: "MoM", metric,
           title: `${label} ${pct < 0 ? "falder" : "stiger"} ${Math.abs(pct).toFixed(0)}% på en måned`,
-          detail: `${fmtKr(prev)} → ${fmtKr(curr)}`,
+          detail: momDetail,
         });
       };
-      mom("Omsætning", latestKf.omsaetning, prevKf.omsaetning);
-      mom("Resultat f. skat", latestKf.resultat_foer_skat, prevKf.resultat_foer_skat);
+      mom("omsaetning", "Omsætning", latestKf.omsaetning, prevKf.omsaetning);
+      mom("resultat", "Resultat f. skat", latestKf.resultat_foer_skat, prevKf.resultat_foer_skat);
     }
 
     // 3) Budgetafvigelse (seneste måneds faktiske omsætning vs budget; tærskel 10%)
@@ -795,7 +812,25 @@ const MemberDetail = () => {
     }
 
     const rank: Record<Sev, number> = { action_required: 0, important: 1, muted: 2 };
-    return rows.sort((a, b) => rank[a.severity] - rank[b.severity]);
+    const sorted = rows.sort((a, b) => rank[a.severity] - rank[b.severity]);
+
+    // Loft: højst FIRE signal-rækker (action_required/important) —
+    // overskydende droppes EFTER severity-sorteringen, så det er de
+    // mindst alvorlige der ryger. Løftestangs-rækken (muted) tæller
+    // ikke med og bevares altid.
+    const capped: typeof sorted = [];
+    let signalCount = 0;
+    for (const row of sorted) {
+      if (row.severity === "muted") {
+        capped.push(row);
+        continue;
+      }
+      if (signalCount < 4) {
+        capped.push(row);
+        signalCount++;
+      }
+    }
+    return capped;
   })();
 
   return (
