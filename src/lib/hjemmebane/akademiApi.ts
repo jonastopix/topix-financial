@@ -5,6 +5,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { isEventPast } from "./eventPhase";
 import type {
   ContentCollection,
   ContentItem,
@@ -146,44 +147,54 @@ export async function listItemAttachments(itemId: string): Promise<ContentItemAt
   );
 }
 
-/** Kommende publicerede events til forsiden (Dit Boardroom). Medlems-RLS
-    tillader published/cancelled/completed — vi viser kun published og
-    fremtidige, nærmeste først. */
+/** Kommende publicerede events til forsiden (Dit Boardroom). "Afholdt"
+    UDLEDES af sluttiden (isEventPast — ends_at, 90 min-fallback) i
+    stedet for at afhænge af manuel status-flytning; et event der er i
+    gang, står stadig som kommende. Filtrering + limit sker KLIENT-side
+    EFTER hentning — forsvarligt med 15-30 events om året. */
 export async function listUpcomingEvents(limit: number): Promise<EventRow[]> {
-  return throwIfError(
+  const rows = throwIfError(
     await supabase
       .from("events")
       .select("*")
       .eq("status", "published")
-      .gte("starts_at", new Date().toISOString())
-      .order("starts_at", { ascending: true })
-      .limit(limit),
+      .order("starts_at", { ascending: true }),
   );
+  return rows.filter((event) => !isEventPast(event)).slice(0, limit);
 }
 
 /** Alle kommende publicerede events til listefladen (/events) — samme
     dom som listUpcomingEvents, blot uden loft. */
 export async function listAllUpcomingEvents(): Promise<EventRow[]> {
-  return throwIfError(
+  const rows = throwIfError(
     await supabase
       .from("events")
       .select("*")
       .eq("status", "published")
-      .gte("starts_at", new Date().toISOString())
       .order("starts_at", { ascending: true }),
   );
+  return rows.filter((event) => !isEventPast(event));
 }
 
-/** Historikken på /events: afholdte og aflyste events, nyeste først.
-    Medlems-RLS tillader completed/cancelled (jf. noten ovenfor). */
+/** Historikken på /events: afholdte og aflyste, nyeste først. Afholdt =
+    eksplicit completed/cancelled ELLER published m. sluttid i fortiden
+    (samme udledte dom som ovenfor — "Markér afholdt" er fortsat en
+    mulighed, ikke en forudsætning). Limit anvendes EFTER filtreringen. */
 export async function listPastEvents(limit?: number): Promise<EventRow[]> {
-  let query = supabase
-    .from("events")
-    .select("*")
-    .in("status", ["completed", "cancelled"])
-    .order("starts_at", { ascending: false });
-  if (limit != null) query = query.limit(limit);
-  return throwIfError(await query);
+  const rows = throwIfError(
+    await supabase
+      .from("events")
+      .select("*")
+      .in("status", ["published", "completed", "cancelled"])
+      .order("starts_at", { ascending: false }),
+  );
+  const past = rows.filter(
+    (event) =>
+      event.status === "completed" ||
+      event.status === "cancelled" ||
+      (event.status === "published" && isEventPast(event)),
+  );
+  return limit != null ? past.slice(0, limit) : past;
 }
 
 /** Signeret Bunny-embed fra get-video-embed (Bucket A). Token-signering sker
