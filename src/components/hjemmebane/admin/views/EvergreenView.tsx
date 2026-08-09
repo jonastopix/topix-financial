@@ -1,9 +1,8 @@
 import * as React from "react";
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import {
   createItem,
   deleteItem,
@@ -12,16 +11,11 @@ import {
   type ContentItem,
 } from "@/lib/hjemmebane/adminContentApi";
 import { slugify } from "@/lib/hjemmebane/slug";
-import {
-  byPublishedDesc,
-  isPushExpired,
-  pickActivePush,
-} from "../../boardroom/pushSelection";
-import { HbField, HbInput, HbTextarea, hbControlClasses } from "../HbField";
-import { HbUploadZone } from "../HbUploadZone";
-import { HbEditorRichtext } from "../HbEditorRichtext";
+import { pickEvergreen } from "../../boardroom/pushSelection";
+import { HbField, HbInput } from "../HbField";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
+import { HbUploadZone } from "../HbUploadZone";
 import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
   EditorBar,
@@ -31,24 +25,20 @@ import {
   type EditorHandle,
 } from "../editors/shared";
 
-/** Dit Boardroom-fanen (Admin-spejlet, konvergens.md §5): formålsbygget LET
-    push-editor over SAMME datamodel som Akademiet (content_items,
-    area='push', type='push_indslag') — få felter, intet slug-felt (afledes
-    af titlen), intet dryp/materialer. ÉN bevidst undtagelse fra
-    medie-løsheden (forside-vægt, PR A): ét cover-felt (ItemEditors
-    HbUploadZone-mønster) — hovedhistorien skal kunne bære et billede.
-    Aktiv/udløbs-markeringerne genbruger pushSelection-dommene — én
-    sandhed med forsidens hero. ItemEditor er Akademiets og røres ikke. */
+/** Evergreen-fanen (forside PR B2 — PushView-forbilledet 1:1): det
+    tidløse bibliotek (5-10 indslag UDEN udløb) der er forsidens
+    SIKKERHEDSNET — pickEvergreen roterer deterministisk pr. ISO-uge.
+    INTET udløbsfelt (evergreen er tidløs). Visningen viser hvilket
+    indslag der roterer ind i indeværende uge (samme DELTE dom som
+    forsiden — kurateringen skal være gennemskuelig), og advarer
+    tydeligt hvis der er NUL publicerede indslag. */
 
 type Draft = Partial<ContentItem>;
 type DraftMap = Record<string, Draft>;
 
 const uniqueSlugSuffix = () => crypto.randomUUID().slice(0, 8);
 
-/** Editoren (højre side): fem felter + EditorBar m. robusthedslæren
-    (no-op-guard, slug-afledning m. ét kollisions-retry, arkiv+slet-flow —
-    push-items kan ikke åbnes fra Akademi-fanen, så flowet SKAL bo her). */
-const PushEditor = forwardRef<
+const EvergreenEditor = forwardRef<
   EditorHandle,
   {
     item: ContentItem;
@@ -66,35 +56,6 @@ const PushEditor = forwardRef<
   const dirty = Object.keys(draft).length > 0;
   const metadata = (form.metadata as Record<string, unknown>) ?? {};
 
-  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes m. SAMME
-  // to-trins-query som chat-tildelingens dropdown (CompanyChatPane:
-  // "Cached advisor list for assignment dropdown (two-step: roles then
-  // profiles)") — RLS-policyen "Advisors can view all roles" bærer den.
-  const { data: advisors = [] } = useQuery({
-    queryKey: ["admin-push", "advisor-profiles"],
-    queryFn: async () => {
-      const { data: roles, error: rolesErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["advisor", "admin"]);
-      if (rolesErr) throw rolesErr;
-      if (!roles?.length) return [];
-      const uniqueIds = [...new Set(roles.map((r) => r.user_id))];
-      const { data: profiles, error: profErr } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", uniqueIds);
-      if (profErr) throw profErr;
-      return (profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[];
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-
-  const senderId = (metadata.author_user_id as string) ?? "";
-  const sender = advisors.find((a) => a.user_id === senderId);
-
-  // Slug-kollision håndteres m. ét automatisk retry (suffix) — push har
-  // ingen medlemsvendt URL, så slug er ren DB-invariant.
   const saveWithSlugRetry = async (patch: Draft): Promise<ContentItem> => {
     try {
       return await updateItem(item.id, patch);
@@ -121,12 +82,18 @@ const PushEditor = forwardRef<
     if (mutation.isPending) return;
     setError(null);
     const patch: Draft = { ...draft, ...extra };
-    // Tom patch = intet at gemme — kvittér stille (no-op-guard).
+    // Link er VALGFRIT på evergreen — men https-reglen (ItemEditor:52)
+    // håndhæves når det er udfyldt.
+    const candidateMeta = ((patch.metadata ?? form.metadata) as Record<string, unknown>) ?? {};
+    const link = (candidateMeta.link as string) ?? "";
+    if (link && !/^https:\/\/.+/.test(link)) {
+      setError("Linket skal være en https-URL (eller stå tomt)");
+      return;
+    }
     if (Object.keys(patch).length === 0) {
       setSavedAt(new Date());
       return;
     }
-    // Slug afledes af titlen (intet felt); kun når den reelt ændres.
     const derived = slugify(String(patch.title ?? form.title));
     if (derived && derived !== item.slug) patch.slug = derived;
     mutation.mutate(patch);
@@ -164,12 +131,13 @@ const PushEditor = forwardRef<
 
   const setMeta = (key: string, value: string) =>
     onDraftChange({
-      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined },
+      // Json-cast-mønstret fra UgensVideoView — ingen ny baseline-fejl.
+      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined } as ContentItem["metadata"],
     });
 
   return (
     <EditorShell
-      eyebrow="Push-indslag · Dit Boardroom"
+      eyebrow="Evergreen · Dit Boardroom"
       title={form.title}
       footer={
         <EditorBar
@@ -192,37 +160,36 @@ const PushEditor = forwardRef<
         />
       }
     >
-      <HbField label="Titel" htmlFor="push-title">
+      <HbField label="Titel" htmlFor="ev-title">
         <HbInput
-          id="push-title"
+          id="ev-title"
           value={form.title}
           onChange={(e) => onDraftChange({ title: e.target.value })}
         />
       </HbField>
 
-      <HbField label="Manchet" htmlFor="push-desc" help="Vises under overskriften i hero'en.">
-        <HbTextarea
-          id="push-desc"
-          rows={3}
+      <HbField
+        label="Hvorfor er det værd at se/læse?"
+        htmlFor="ev-why"
+        help="Én linje — indslaget er tidløst, så skriv den uden dato-referencer."
+      >
+        <HbInput
+          id="ev-why"
           value={form.description ?? ""}
           onChange={(e) => onDraftChange({ description: e.target.value || null })}
         />
       </HbField>
 
-      <HbField label="Brødtekst" help="Valgfri — vises bag 'Læs mere' på forsiden.">
-        <HbEditorRichtext
-          key={item.id}
-          content={form.body ?? ""}
-          onChange={(html) => onDraftChange({ body: html })}
+      <HbField label="Link" htmlFor="ev-link" help="Valgfrit — https hvis udfyldt.">
+        <HbInput
+          id="ev-link"
+          placeholder="https://…"
+          value={(metadata.link as string) ?? ""}
+          onChange={(e) => setMeta("link", e.target.value)}
         />
       </HbField>
 
-      {/* ItemEditors cover-mønster genbrugt (HbUploadZone kind="covers") —
-          PR A's ene undtagelse fra push-editorens medie-løshed. */}
-      <HbField
-        label="Cover"
-        help="Valgfrit billede — giver hovedhistorien visuel vægt på forsiden. Uden cover vises afsenderens portræt i stort format."
-      >
+      <HbField label="Cover" help="Valgfrit billede — giver indslaget visuel vægt på forsiden.">
         <HbUploadZone
           kind="covers"
           ownerId={item.id}
@@ -232,100 +199,30 @@ const PushEditor = forwardRef<
           onCleared={() => onDraftChange({ cover_path: null })}
         />
       </HbField>
-
-      <HbField
-        label="Afsender"
-        htmlFor="push-sender"
-        help="Rådgiveren bag indslaget — navnet forudfyldes i Forfatter, og portrættet kan vises på forsiden. 'Ingen afsender' rydder koblingen."
-      >
-        <div className="flex items-center gap-3">
-          {sender?.avatar_url ? (
-            <img
-              src={sender.avatar_url}
-              alt={sender.full_name}
-              className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
-            />
-          ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 text-xs text-hb-ink-soft">
-              {sender?.full_name?.charAt(0) ?? "—"}
-            </span>
-          )}
-          <select
-            id="push-sender"
-            className={cn(hbControlClasses, "flex-1")}
-            value={senderId}
-            onChange={(e) => {
-              const id = e.target.value;
-              const advisor = advisors.find((a) => a.user_id === id);
-              // Skriver author_user_id og forudfylder author-NAVNET ved valg;
-              // "Ingen afsender" rydder kun koblingen (fri-teksten består).
-              onDraftChange({
-                metadata: {
-                  ...metadata,
-                  author_user_id: id || undefined,
-                  author: id ? advisor?.full_name ?? (metadata.author as string) : (metadata.author as string | undefined),
-                },
-              });
-            }}
-          >
-            <option value="">Ingen afsender</option>
-            {advisors.map((a) => (
-              <option key={a.user_id} value={a.user_id}>
-                {a.full_name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </HbField>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <HbField label="Forfatter" htmlFor="push-author" help="Vises i bylinen — overstyrer afsender-navnet hvis udfyldt anderledes.">
-          <HbInput
-            id="push-author"
-            value={(metadata.author as string) ?? ""}
-            onChange={(e) => setMeta("author", e.target.value)}
-          />
-        </HbField>
-
-        <HbField
-          label="Vises til og med"
-          htmlFor="push-expires"
-          help="Valgfri — efter denne dag falder hero'en tilbage. Tom = vises til afløst af nyere."
-        >
-          <HbInput
-            id="push-expires"
-            type="date"
-            value={(metadata.expires_at as string) ?? ""}
-            onChange={(e) => setMeta("expires_at", e.target.value)}
-          />
-        </HbField>
-      </div>
     </EditorShell>
   );
 });
-PushEditor.displayName = "PushEditor";
+EvergreenEditor.displayName = "EvergreenEditor";
 
-export const PushView = () => {
+export const EvergreenView = () => {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftMap>({});
   const editorRef = useRef<EditorHandle>(null);
 
   const itemsQuery = useQuery({
-    queryKey: ["admin-content", "items", "push"],
-    queryFn: () => listItems("push"),
+    queryKey: ["admin-content", "items", "evergreen"],
+    queryFn: () => listItems("evergreen"),
   });
   const items = useMemo(
-    () => [...(itemsQuery.data ?? [])].sort(byPublishedDesc),
+    () => [...(itemsQuery.data ?? [])].sort((a, b) => a.slug.localeCompare(b.slug)),
     [itemsQuery.data],
   );
 
-  // Aktiv/udløbs-dommene — samme rene funktioner som forsidens hero.
-  const now = new Date();
-  const activePush = pickActivePush(
-    items.filter((item) => item.status === "published"),
-    now,
-  );
+  // Den DELTE rotationsdom — samme sandhed som forsiden (B3): hvilket
+  // indslag roterer ind i INDEVÆRENDE uge?
+  const published = items.filter((item) => item.status === "published");
+  const thisWeeks = pickEvergreen(published, new Date());
 
   const selected = items.find((item) => item.id === selectedId);
   const hasDrafts = Object.values(drafts).some((d) => Object.keys(d).length > 0);
@@ -356,10 +253,10 @@ export const PushView = () => {
   const newMutation = useMutation({
     mutationFn: () =>
       createItem({
-        area: "push",
+        area: "evergreen",
         type: "push_indslag",
         title: "Uden titel",
-        slug: `push-${uniqueSlugSuffix()}`,
+        slug: `evergreen-${uniqueSlugSuffix()}`,
         position: 0,
       }),
     onSuccess: (created) => {
@@ -378,11 +275,7 @@ export const PushView = () => {
   const listRow = (item: ContentItem) => {
     const active = item.id === selectedId;
     const dirty = Object.keys(drafts[item.id] ?? {}).length > 0;
-    const isActiveNow = item.id === activePush?.id;
-    const expired = item.status === "published" && isPushExpired(item, now);
-    const date = item.published_at
-      ? new Date(item.published_at).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })
-      : null;
+    const isThisWeeks = item.id === thisWeeks?.id;
     return (
       <button
         key={item.id}
@@ -398,16 +291,10 @@ export const PushView = () => {
             {dirty && <span aria-label="Ugemte ændringer" className="h-1.5 w-1.5 shrink-0 rounded-full bg-hb-rust" />}
             <span className="truncate text-sm text-hb-ink">{item.title || "Uden titel"}</span>
           </span>
-          {date && <span className="block text-xs text-hb-ink-soft">{date}</span>}
         </span>
-        {isActiveNow && (
+        {isThisWeeks && (
           <span className="shrink-0 rounded-full bg-hb-evergreen px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
-            Aktiv nu
-          </span>
-        )}
-        {expired && !isActiveNow && (
-          <span className="shrink-0 rounded-full border border-hb-line px-2 py-0.5 text-[10px] uppercase tracking-wide text-hb-ink-soft">
-            Udløbet
+            Denne uge
           </span>
         )}
         <HbStatusPill status={item.status} />
@@ -421,12 +308,28 @@ export const PushView = () => {
       onCloseEditor={() => setSelectedId(null)}
       list={
         <div className="flex h-full min-h-0 flex-col">
+          {/* SKÆRPELSEN: nul publicerede = forsiden uden sikkerhedsnet. */}
+          {!itemsQuery.isLoading && published.length === 0 && (
+            <div className="flex items-start gap-2.5 border-b border-hb-rust/30 bg-hb-rust/5 px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-hb-rust" />
+              <p className="text-xs leading-relaxed text-hb-ink">
+                <span className="font-medium text-hb-rust">Forsiden har intet sikkerhedsnet</span>{" "}
+                — opret mindst ét evergreen-indslag, så hovedpladsen aldrig står tom.
+              </p>
+            </div>
+          )}
+          {thisWeeks && (
+            <p className="border-b border-hb-line/60 bg-hb-sage/20 px-4 py-2 text-xs text-hb-ink-soft">
+              Roterer ind i denne uge: <span className="font-medium text-hb-ink">{thisWeeks.title}</span>
+            </p>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {itemsQuery.isLoading ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">Henter…</p>
             ) : items.length === 0 ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">
-                Ingen push-indslag endnu — opret det første. Seneste publicerede er forsidens hero.
+                Biblioteket er tomt — kuratér 5-10 tidløse indslag. De roterer automatisk
+                én pr. uge og bærer forsiden, når alt andet er stille.
               </p>
             ) : (
               items.map(listRow)
@@ -448,7 +351,7 @@ export const PushView = () => {
       }
       editor={
         selected ? (
-          <PushEditor
+          <EvergreenEditor
             ref={editorRef}
             key={selected.id}
             item={selected}
@@ -463,8 +366,8 @@ export const PushView = () => {
         ) : (
           <div className="flex h-full items-center justify-center bg-hb-surface px-10">
             <p className="max-w-sm text-sm leading-relaxed text-hb-ink-soft">
-              Vælg et indslag — eller opret nyt (n). Seneste publicerede, ikke-udløbne indslag er
-              forsidens hero; "Vises til og med" styrer udløb.
+              Vælg et indslag — eller opret nyt (n). Biblioteket roterer deterministisk pr.
+              uge (alle medlemmer ser det samme) og er forsidens sikkerhedsnet.
             </p>
           </div>
         )

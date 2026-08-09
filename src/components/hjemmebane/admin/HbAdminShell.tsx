@@ -4,7 +4,15 @@ import { ArrowLeft } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 
-export type AdminSection = "boardroom" | "ugens_video" | "content" | "partners" | "events" | "progress";
+export type AdminSection =
+  | "boardroom"
+  | "ugens_video"
+  | "redaktionelt"
+  | "evergreen"
+  | "content"
+  | "partners"
+  | "events"
+  | "progress";
 
 /** Admin-spejlet (konvergens.md §5): fanerne spejler medlemmets verden i
     medlemmets rækkefølge; advisor-drift (Fremdrift) står sidst efter en
@@ -13,6 +21,8 @@ export type AdminSection = "boardroom" | "ugens_video" | "content" | "partners" 
 const SECTIONS: { key: AdminSection; label: string; to: string; drift?: boolean }[] = [
   { key: "boardroom", label: "Dit Boardroom", to: "/admin/indhold/boardroom" },
   { key: "ugens_video", label: "Ugens video", to: "/admin/indhold/ugens-video" },
+  { key: "redaktionelt", label: "Redaktionelt", to: "/admin/indhold/redaktionelt" },
+  { key: "evergreen", label: "Evergreen", to: "/admin/indhold/evergreen" },
   { key: "content", label: "Akademiet", to: "/admin/indhold" },
   { key: "partners", label: "Rabataftaler", to: "/admin/indhold/partnere" },
   { key: "events", label: "Events", to: "/admin/indhold/events" },

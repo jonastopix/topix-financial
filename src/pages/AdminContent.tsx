@@ -6,6 +6,8 @@ import { EventsView } from "@/components/hjemmebane/admin/views/EventsView";
 import { ProgressView } from "@/components/hjemmebane/admin/views/ProgressView";
 import { PushView } from "@/components/hjemmebane/admin/views/PushView";
 import { UgensVideoView } from "@/components/hjemmebane/admin/views/UgensVideoView";
+import { RedaktioneltView } from "@/components/hjemmebane/admin/views/RedaktioneltView";
+import { EvergreenView } from "@/components/hjemmebane/admin/views/EvergreenView";
 
 /** /admin/indhold — indholdsstyring i Hjemmebane-identiteten (C1 trin 2).
     Advisor-only via AdvisorRoute; RLS (advisor-write-policies) er anden
@@ -23,6 +25,10 @@ const AdminContent = ({ view }: { view: AdminSection }) => (
       <ProgressView />
     ) : view === "ugens_video" ? (
       <UgensVideoView />
+    ) : view === "redaktionelt" ? (
+      <RedaktioneltView />
+    ) : view === "evergreen" ? (
+      <EvergreenView />
     ) : (
       <PushView />
     )}
