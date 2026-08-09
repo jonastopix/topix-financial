@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Play } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
@@ -13,7 +13,7 @@ import {
   getEffectiveReportPeriodKey,
   type ReportData,
 } from "@/lib/financialUtils";
-import { AREAS, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
@@ -101,9 +101,11 @@ const PageHeader = ({ firstName }: { firstName: string }) => (
 const PushStory = ({
   push,
   sender,
+  coverUrl,
 }: {
   push: ContentItem;
   sender: { full_name: string; avatar_url: string | null } | null;
+  coverUrl: string | null;
 }) => {
   const [bodyOpen, setBodyOpen] = useState(false);
   const metadata = (push.metadata as Record<string, unknown>) ?? {};
@@ -112,19 +114,55 @@ const PushStory = ({
   const marker = publishedMarker(push.published_at ?? push.created_at);
   const senderName = sender?.full_name ?? author;
 
+  // PR A (visuel vægt): hovedhistorien skal SE UD som en historie —
+  // cover øverst, større overskrift, mere luft. Uden cover bærer
+  // afsenderens portræt i STORT format (72 px) den visuelle vægt i
+  // stedet; m. cover holdes bylinen lille (40 px). Kun Hb-paletten —
+  // vægten kommer fra billede, typografi-skala og luft.
+  const bigPortrait = !coverUrl && hasSenderId && senderName;
+
   return (
     <div>
+      {coverUrl && (
+        <img
+          src={coverUrl}
+          alt=""
+          className="mb-6 aspect-[16/8] w-full rounded-hb border border-hb-line object-cover"
+        />
+      )}
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Ugens push{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
-      <h2 className="mt-3 font-editorial text-2xl font-medium leading-tight text-hb-ink md:text-3xl">
-        {push.title}
-      </h2>
-      {push.description && (
-        <p className="mt-3 text-[15px] leading-relaxed text-hb-ink-soft">{push.description}</p>
+      {bigPortrait ? (
+        <div className="mt-4 flex items-start gap-5">
+          {sender?.avatar_url ? (
+            <img
+              src={sender.avatar_url}
+              alt={senderName!}
+              className="h-[72px] w-[72px] shrink-0 rounded-full border border-hb-line object-cover"
+            />
+          ) : (
+            <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-2xl text-hb-ink-soft">
+              {senderName!.charAt(0)}
+            </span>
+          )}
+          <div className="min-w-0">
+            <h2 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+              {push.title}
+            </h2>
+            <p className="mt-2 text-sm font-medium text-hb-ink">{senderName}</p>
+          </div>
+        </div>
+      ) : (
+        <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+          {push.title}
+        </h2>
       )}
-      {hasSenderId && senderName ? (
-        <p className="mt-4 flex items-center gap-3">
+      {push.description && (
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{push.description}</p>
+      )}
+      {!bigPortrait && hasSenderId && senderName ? (
+        <p className="mt-5 flex items-center gap-3">
           {sender?.avatar_url ? (
             <img
               src={sender.avatar_url}
@@ -139,7 +177,7 @@ const PushStory = ({
           <span className="text-sm font-medium text-hb-ink">{senderName}</span>
         </p>
       ) : (
-        author && <p className="mt-4 text-sm font-medium text-hb-ink">{author}</p>
+        !bigPortrait && author && <p className="mt-5 text-sm font-medium text-hb-ink">{author}</p>
       )}
       {hasRichTextContent(push.body) && (
         <>
@@ -160,42 +198,100 @@ const PushStory = ({
   );
 };
 
-/** "Denne uges video"-kortet (bølge 1, PR 3): valgt m. den DELTE dom
-    (pickActiveWeekVideo). Bunny → det EKSISTERENDE get-video-embed-flow
-    via HbVideoEmbed genbrugt 1:1 inkl. loading-/fejltilstandene
-    (ElementView:206-215-mønstret) — men m. no-op-callbacks: fremdrifts-
-    sporing er Akademiets domæne, forsiden skriver ikke progress.
-    Ekstern YouTube-URL → inline youtube-nocookie-iframe (lazy, aspect-
-    video); alt andet eksternt → "Åbn"-knap i nyt vindue. */
+/** Cover m. play-knap (PR A: INGEN autoplay/lyd før klik): afspilleren
+    monteres først når brugeren klikker. Uden cover: rolig Hb-flade m.
+    titel + play. Kun Hb-toner — vægten kommer fra billedet. */
+const PlayCover = ({
+  coverUrl,
+  title,
+  onPlay,
+}: {
+  coverUrl: string | null;
+  title: string;
+  onPlay: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onPlay}
+    aria-label={`Afspil: ${title}`}
+    className="group relative block w-full overflow-hidden rounded-hb border border-hb-line"
+  >
+    {coverUrl ? (
+      <img src={coverUrl} alt="" className="aspect-video w-full object-cover" />
+    ) : (
+      <span className="flex aspect-video w-full items-center justify-center bg-hb-sage/30 px-6 text-center text-sm text-hb-ink-soft">
+        {title}
+      </span>
+    )}
+    <span className="absolute inset-0 flex items-center justify-center bg-hb-ink/10 transition-colors group-hover:bg-hb-ink/20">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-hb-evergreen text-white shadow-hb-hover transition-transform group-hover:scale-105">
+        <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
+      </span>
+    </span>
+  </button>
+);
+
+/** "Denne uges video"-kortet (bølge 1, PR 3 + PR A): valgt m. den DELTE
+    dom (pickActiveWeekVideo). INGEN autoplay: kortet viser cover m.
+    play-knap, og afspilleren monteres FØRST ved klik — Bunny via det
+    eksisterende get-video-embed-flow (HbVideoEmbed 1:1 inkl. loading-/
+    fejltilstande, no-op-callbacks: forsiden skriver ikke progress);
+    YouTube via nocookie-iframe m. autoplay=1 så FØRSTE klik også starter
+    afspilningen. Bunny-cover hentes som Akademiets covers
+    (getAssetPreviewUrl, signeret URL); YouTube-cover fra i.ytimg.com.
+    Alt andet eksternt → "Åbn"-knap. Sidekort-rolle: bevidst mindre og
+    roligere end hovedhistorien (p-4, alm. brødskrift-titel). */
 const WeekVideoCard = ({ video }: { video: ContentItem }) => {
+  const [playing, setPlaying] = useState(false);
   const marker = publishedMarker(video.published_at ?? video.created_at);
   const youTubeId = video.media_provider === "external" ? extractYouTubeId(video.external_url) : null;
+  const isBunny = video.media_provider === "bunny" && Boolean(video.bunny_video_id);
+
+  // Bunny-cover som Akademiet henter covers: signeret URL fra content-assets.
+  const coverQuery = useQuery({
+    queryKey: ["boardroom", "week-video-cover", video.cover_path ?? null],
+    queryFn: () => getAssetPreviewUrl(video.cover_path as string),
+    enabled: isBunny && !!video.cover_path,
+    staleTime: 30 * 60_000,
+  });
+  const coverUrl = isBunny
+    ? coverQuery.data ?? null
+    : youTubeId
+      ? `https://i.ytimg.com/vi/${youTubeId}/hqdefault.jpg`
+      : null;
 
   return (
-    <HbCard className="p-5">
+    <HbCard className="p-4">
       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
         Denne uges video
         {marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
       </p>
-      <p className="mt-2 font-editorial text-lg font-medium leading-snug text-hb-ink">{video.title}</p>
+      <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">{video.title}</p>
       {video.description && (
-        <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{video.description}</p>
+        <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{video.description}</p>
       )}
       {video.duration_seconds != null && (
-        <p className="mt-1.5 text-xs text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
+        <p className="mt-1 text-xs text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
       )}
-      <div className="mt-4">
-        {video.media_provider === "bunny" && video.bunny_video_id ? (
-          <HbVideoEmbed itemId={video.id} resumeAt={null} onPosition={() => {}} onCompleted={() => {}} />
+      <div className="mt-3">
+        {isBunny ? (
+          playing ? (
+            <HbVideoEmbed itemId={video.id} resumeAt={null} onPosition={() => {}} onCompleted={() => {}} />
+          ) : (
+            <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
+          )
         ) : youTubeId ? (
-          <iframe
-            src={`https://www.youtube-nocookie.com/embed/${youTubeId}`}
-            title={video.title}
-            loading="lazy"
-            className="aspect-video w-full rounded-hb border border-hb-line bg-black"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-            allowFullScreen
-          />
+          playing ? (
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${youTubeId}?autoplay=1`}
+              title={video.title}
+              className="aspect-video w-full rounded-hb border border-hb-line bg-black"
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
+          )
         ) : video.external_url ? (
           <a href={video.external_url} target="_blank" rel="noopener noreferrer">
             <HbButton variant="secondary" className="h-9 px-4 text-sm">
@@ -441,6 +537,15 @@ export const BoardroomView = () => {
     },
     staleTime: 10 * 60 * 1000,
     enabled: !!pushAuthorUserId,
+  });
+
+  // Push-coveret (PR A) — samme signerede-URL-mønster som Akademiets covers
+  // (getAssetPreviewUrl mod content-assets).
+  const { data: pushCoverUrl = null } = useQuery({
+    queryKey: ["boardroom", "push-cover", pushItem?.cover_path ?? null],
+    queryFn: () => getAssetPreviewUrl(pushItem!.cover_path as string),
+    enabled: !!pushItem?.cover_path,
+    staleTime: 30 * 60_000,
   });
 
   // Forløbs-linket — samme dom som Akademi-forsiden.
@@ -690,8 +795,8 @@ export const BoardroomView = () => {
               højre spalte — båndet har aldrig en tom hovedplads. */}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-6">
             {pushItem ? (
-              <HbCard className="p-6 lg:col-span-4">
-                <PushStory push={pushItem} sender={pushSender} />
+              <HbCard className="p-6 md:p-8 lg:col-span-4">
+                <PushStory push={pushItem} sender={pushSender} coverUrl={pushCoverUrl} />
               </HbCard>
             ) : weekVideo ? (
               <div className="lg:col-span-4">
@@ -700,9 +805,11 @@ export const BoardroomView = () => {
             ) : null}
             <div className={pushItem || weekVideo ? "flex flex-col gap-4 lg:col-span-2" : "flex flex-col gap-4 lg:col-span-6"}>
               {pushItem && weekVideo && <WeekVideoCard video={weekVideo} />}
+              {/* Sidekort (PR A): bevidst roligere/mindre end hovedhistorien —
+                  alm. brødskrift-titel og strammere padding. */}
               {latestTalk && (
                 <Link to={`/akademiet/talks/${latestTalk.slug}`} className="block">
-                  <HbCard className="p-5 transition-colors hover:bg-hb-sage/20">
+                  <HbCard className="p-4 transition-colors hover:bg-hb-sage/20">
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                       Seneste talk
                       {publishedMarker(latestTalk.published_at ?? latestTalk.created_at) && (
@@ -711,10 +818,10 @@ export const BoardroomView = () => {
                         </span>
                       )}
                     </p>
-                    <p className="mt-2 font-editorial text-lg font-medium leading-snug text-hb-ink">
+                    <p className="mt-1.5 text-[15px] font-medium leading-snug text-hb-ink">
                       {latestTalk.title}
                     </p>
-                    <p className="mt-2 flex items-center gap-2 text-sm text-hb-ink-soft">
+                    <p className="mt-1.5 flex items-center gap-2 text-sm text-hb-ink-soft">
                       {latestTalk.duration_seconds != null && formatDuration(latestTalk.duration_seconds)}
                       <ArrowRight className="h-4 w-4" />
                     </p>

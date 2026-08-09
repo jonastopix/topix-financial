@@ -18,6 +18,7 @@ import {
   pickActivePush,
 } from "../../boardroom/pushSelection";
 import { HbField, HbInput, HbTextarea, hbControlClasses } from "../HbField";
+import { HbUploadZone } from "../HbUploadZone";
 import { HbEditorRichtext } from "../HbEditorRichtext";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
@@ -32,10 +33,12 @@ import {
 
 /** Dit Boardroom-fanen (Admin-spejlet, konvergens.md §5): formålsbygget LET
     push-editor over SAMME datamodel som Akademiet (content_items,
-    area='push', type='push_indslag') — fem felter, intet slug-felt (afledes
-    af titlen), intet cover/dryp/materialer. Aktiv/udløbs-markeringerne
-    genbruger pushSelection-dommene — én sandhed med forsidens hero.
-    ItemEditor er Akademiets og røres ikke. */
+    area='push', type='push_indslag') — få felter, intet slug-felt (afledes
+    af titlen), intet dryp/materialer. ÉN bevidst undtagelse fra
+    medie-løsheden (forside-vægt, PR A): ét cover-felt (ItemEditors
+    HbUploadZone-mønster) — hovedhistorien skal kunne bære et billede.
+    Aktiv/udløbs-markeringerne genbruger pushSelection-dommene — én
+    sandhed med forsidens hero. ItemEditor er Akademiets og røres ikke. */
 
 type Draft = Partial<ContentItem>;
 type DraftMap = Record<string, Draft>;
@@ -211,6 +214,21 @@ const PushEditor = forwardRef<
           key={item.id}
           content={form.body ?? ""}
           onChange={(html) => onDraftChange({ body: html })}
+        />
+      </HbField>
+
+      {/* ItemEditors cover-mønster genbrugt (HbUploadZone kind="covers") —
+          PR A's ene undtagelse fra push-editorens medie-løshed. */}
+      <HbField
+        label="Cover"
+        help="Valgfrit billede — giver hovedhistorien visuel vægt på forsiden. Uden cover vises afsenderens portræt i stort format."
+      >
+        <HbUploadZone
+          kind="covers"
+          ownerId={item.id}
+          currentPath={form.cover_path ?? null}
+          accept="image/*"
+          onUploaded={(path) => onDraftChange({ cover_path: path })}
         />
       </HbField>
 
