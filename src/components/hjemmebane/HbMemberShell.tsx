@@ -17,7 +17,7 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -68,6 +68,7 @@ export const HbMemberShell = ({
       ],
     },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
+    { label: "Events", to: "/events", active: active === "events" },
     { label: "Community", to: "/community" },
   ];
 

@@ -161,6 +161,31 @@ export async function listUpcomingEvents(limit: number): Promise<EventRow[]> {
   );
 }
 
+/** Alle kommende publicerede events til listefladen (/events) — samme
+    dom som listUpcomingEvents, blot uden loft. */
+export async function listAllUpcomingEvents(): Promise<EventRow[]> {
+  return throwIfError(
+    await supabase
+      .from("events")
+      .select("*")
+      .eq("status", "published")
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: true }),
+  );
+}
+
+/** Historikken på /events: afholdte og aflyste events, nyeste først.
+    Medlems-RLS tillader completed/cancelled (jf. noten ovenfor). */
+export async function listPastEvents(limit?: number): Promise<EventRow[]> {
+  let query = supabase
+    .from("events")
+    .select("*")
+    .in("status", ["completed", "cancelled"])
+    .order("starts_at", { ascending: false });
+  if (limit != null) query = query.limit(limit);
+  return throwIfError(await query);
+}
+
 /** Signeret Bunny-embed fra get-video-embed (Bucket A). Token-signering sker
     KUN server-side — frontend modtager den færdige, tidsbegrænsede URL. */
 export async function getVideoEmbed(
