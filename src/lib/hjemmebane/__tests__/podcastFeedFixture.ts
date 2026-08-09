@@ -17,6 +17,9 @@ export const PODCAST_FEED_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?><rss 
 			<enclosure url="https://anchor.fm/s/101a8bd38/podcast/play/108418615/episode1.mp3" length="45294235" type="audio/mpeg"/>
 			<itunes:duration>00:47:10</itunes:duration>
 			<itunes:image href="https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_episode/43128030/episode1.jpg"/>
+			<itunes:season>2</itunes:season>
+			<itunes:episode>2</itunes:episode>
+			<itunes:episodeType>full</itunes:episodeType>
 		</item>
 		<item>
 			<title><![CDATA[Andet afsnit — moms, løn og alt det kedelige]]></title>

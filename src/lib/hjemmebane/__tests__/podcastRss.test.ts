@@ -19,6 +19,9 @@ describe("parsePodcastFeed — felt-udtræk mod rigtig fixture", () => {
       durationSeconds: 47 * 60 + 10,
       imageUrl: "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_episode/43128030/episode1.jpg",
       publishedAt: new Date("Wed, 17 Sep 2025 07:10:31 GMT").toISOString(),
+      season: 2,
+      episode: 2,
+      episodeType: "full",
     });
   });
 
@@ -36,6 +39,9 @@ describe("parsePodcastFeed — felt-udtræk mod rigtig fixture", () => {
       imageUrl: null,
       publishedAt: null,
       audioUrl: "https://anchor.fm/s/101a8bd38/podcast/play/107000000/episode3.mp3",
+      season: null,
+      episode: null,
+      episodeType: null,
     });
   });
 });
