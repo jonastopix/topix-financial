@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { isoWeekNumber } from "@/lib/hjemmebane/week";
 import {
+  countNewSince,
   pickActiveItem,
   pickActivePush,
   pickActiveWeekVideo,
@@ -193,5 +194,50 @@ describe("pickMainStory — hovedplads + sidespalte", () => {
     const result = pickMainStory<string>([null, null, c("redaktionelt"), c("podcast"), c("evergreen")]);
     expect(result.main?.kind).toBe("redaktionelt");
     expect(result.side.map((s) => s.kind)).toEqual(["podcast", "evergreen"]);
+  });
+});
+
+/** "Siden sidst"-dommen (bølge 3): STRENGT efter (>), null tæller aldrig,
+    ulæseligt/manglende lastVisit → 0. Datoer som absolutte epoch-offsets
+    fra NOW (daysFromNow-mønstret) — TZ-uafhængigt. */
+describe("countNewSince — siden sidst-tællingen", () => {
+  const daysFromNow = (days: number) => new Date(NOW.getTime() + days * 86400000).toISOString();
+
+  it("lastVisit null (første besøg) → 0 uanset kandidater", () => {
+    expect(countNewSince([{ publishedAt: daysFromNow(-1) }], null)).toBe(0);
+  });
+
+  it("lastVisit ulæselig → 0", () => {
+    expect(countNewSince([{ publishedAt: daysFromNow(-1) }], "hest")).toBe(0);
+  });
+
+  it("kandidat m. publishedAt null tæller ikke", () => {
+    expect(countNewSince([{ publishedAt: null }], daysFromNow(-3))).toBe(0);
+  });
+
+  it("publiceret FØR besøget tæller ikke; EFTER tæller", () => {
+    const lastVisit = daysFromNow(-3);
+    expect(countNewSince([{ publishedAt: daysFromNow(-5) }], lastVisit)).toBe(0);
+    expect(countNewSince([{ publishedAt: daysFromNow(-1) }], lastVisit)).toBe(1);
+  });
+
+  it("grænsen: publiceret PRÆCIS på besøgs-tidspunktet tæller ikke (strengt >)", () => {
+    const lastVisit = daysFromNow(-3);
+    expect(countNewSince([{ publishedAt: lastVisit }], lastVisit)).toBe(0);
+  });
+
+  it("blandet liste → korrekt antal", () => {
+    const lastVisit = daysFromNow(-3);
+    expect(
+      countNewSince(
+        [
+          { publishedAt: daysFromNow(-1) }, // ny
+          { publishedAt: daysFromNow(-2) }, // ny
+          { publishedAt: daysFromNow(-5) }, // gammel
+          { publishedAt: null }, // ukendt → tæller ikke
+        ],
+        lastVisit,
+      ),
+    ).toBe(2);
   });
 });

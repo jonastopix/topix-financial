@@ -29,11 +29,13 @@ import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, type FocusItem } from "./nextStep";
 import {
   byPublishedDesc,
+  countNewSince,
   pickActiveItem,
   pickActivePush,
   pickActiveWeekVideo,
   pickEvergreen,
   pickMainStory,
+  type NewsCandidate,
   type StoryCandidate,
   type StoryKind,
 } from "./pushSelection";
@@ -716,11 +718,14 @@ const FocusCard = ({
   items,
   weeklySummary,
   nextEntry,
+  journeyLine,
 }: {
   loading: boolean;
   items: FocusItem[];
   weeklySummary: string | null;
   nextEntry: AkademiItem | undefined;
+  /** Anerkendelses-linjen (bølge 3) — null når alle tal er 0. */
+  journeyLine: string | null;
 }) => {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const displayed = items.slice(0, 4);
@@ -795,8 +800,12 @@ const FocusCard = ({
           <h3 className="font-editorial text-2xl font-medium leading-snug text-hb-ink">
             Alt er ajour.
           </h3>
+          {/* Anerkendelse frem for tomhed (bølge 3): sidens vigtigste
+              plads skal ikke være svagest netop den uge, hvor medlemmet
+              har styr på det hele. Alle tal nul (nyt medlem) → den
+              hidtidige sætning uændret. */}
           <p className="text-sm leading-relaxed text-hb-ink-soft">
-            Rapport, refleksion og milestones er på plads — brug momentum i dit forløb.
+            {journeyLine ?? "Rapport, refleksion og milestones er på plads — brug momentum i dit forløb."}
           </p>
         </div>
       )}
@@ -906,6 +915,56 @@ export const BoardroomView = () => {
       ]),
     [pushItem, weekVideo, redaktioneltItem, podcastEpisode, evergreenItem],
   );
+
+  // ── "Siden sidst"-linjen (bølge 3) ──────────────────────────────────────
+  // READ-THEN-STAMP på localStorage: forrige besøgs stempel fanges i
+  // lazy-initializeren FØR det nye skrives — én gang pr. mount, så et
+  // refresh midt i besøget ikke nulstiller linjen utilsigtet. Pr. enhed
+  // (recon §1: bevidst mindste vej — linjen er en blød nudge, ikke en
+  // indbakke-badge; ingen migration/RLS-flade).
+  const [lastVisitIso] = useState<string | null>(() => {
+    try {
+      const prev = localStorage.getItem("hb.forside.lastVisitAt");
+      localStorage.setItem("hb.forside.lastVisitAt", new Date().toISOString());
+      return prev;
+    } catch {
+      return null; // storage utilgængelig (privat tilstand m.m.) → linjen tier
+    }
+  });
+
+  // Kandidatlisten til tællingen = båndets kandidater MINUS evergreen:
+  // rotationen er deterministisk (isoWeekNumber % length) og indslaget
+  // bevidst tidløst — talte den med, ville linjen råbe "nyt" hver mandag
+  // uden at noget faktisk var nyt. Dommen selv er dum og tæller det den
+  // får; fravalget er kalderens (dokumenteret i pushSelection-headeren).
+  const newsCount = useMemo(
+    () =>
+      countNewSince(
+        [
+          pushItem ? { publishedAt: pushItem.published_at ?? pushItem.created_at } : null,
+          weekVideo ? { publishedAt: weekVideo.published_at ?? weekVideo.created_at } : null,
+          redaktioneltItem
+            ? { publishedAt: redaktioneltItem.published_at ?? redaktioneltItem.created_at }
+            : null,
+          podcastEpisode ? { publishedAt: podcastEpisode.publishedAt } : null,
+        ].filter((c): c is NewsCandidate => c != null),
+        lastVisitIso,
+      ),
+    [pushItem, weekVideo, redaktioneltItem, podcastEpisode, lastVisitIso],
+  );
+
+  // 0 → ingen linje. Tidsdel: ≤7 dage → ugedag ("siden i tirsdags"),
+  // ellers den rolige fallback (en gammel dato ville udstille fraværet).
+  const newsLine = useMemo(() => {
+    if (newsCount === 0 || !lastVisitIso) return null;
+    const since = new Date(lastVisitIso);
+    const days = (Date.now() - since.getTime()) / 86400000;
+    const sincePart =
+      !Number.isNaN(since.getTime()) && days <= 7
+        ? `siden i ${since.toLocaleDateString("da-DK", { weekday: "long" })}s`
+        : "siden dit sidste besøg";
+    return `${newsCount === 1 ? "1 ny ting" : `${newsCount} nye ting`} ${sincePart}`;
+  }, [newsCount, lastVisitIso]);
 
   // Historik (PR B3): seneste redaktionelle som rolige linjer, kollapset.
   const [historikOpen, setHistorikOpen] = useState(false);
@@ -1101,6 +1160,36 @@ export const BoardroomView = () => {
 
   const committedKeys = useMemo(() => new Set(facts.map((f) => f.period_key)), [facts]);
 
+  // ── Anerkendelses-linjen til fokus-kortets tom-tilstand (bølge 3) ───────
+  // RENT afledt af hånd-data — INGEN nye queries: committedKeys (godkendte
+  // facts-perioder, "YYYY-MM"), milestonesQuery (progress >= 100 er SAMME
+  // dom som Milestones.tsx:60) og akademi-objektet (isTrackedEntry +
+  // state === "done" — B1-video-dommen). BEVIDST ingen nævner: "5 af 6"
+  // er mangel-fokus (nævneren siger "du mangler 1") — anerkendelsen
+  // tæller det GJORTE. Kun tal > 0 vises; ALLE nul → null, og kortet
+  // beholder den nuværende sætning (tomheden må aldrig blive "0
+  // rapporter"). Ingen scores, procenter eller sammenligninger.
+  const journeyLine = useMemo(() => {
+    const year = String(new Date().getFullYear());
+    const reportsThisYear = [...committedKeys].filter((k) => k.startsWith(year)).length;
+    const milestonesDone = (milestonesQuery.data ?? []).filter((m) => m.progress >= 100).length;
+    const akademiDone = [...akademi.orderedByArea.values()]
+      .flat()
+      .filter((entry) => isTrackedEntry(entry) && entry.state === "done").length;
+    const parts: string[] = [];
+    if (reportsThisYear > 0)
+      parts.push(
+        reportsThisYear === 1 ? "1 godkendt rapport i år" : `${reportsThisYear} godkendte rapporter i år`,
+      );
+    if (milestonesDone > 0)
+      parts.push(milestonesDone === 1 ? "1 milepæl nået" : `${milestonesDone} milepæle nået`);
+    if (akademiDone > 0)
+      parts.push(
+        akademiDone === 1 ? "1 video gennemført i Akademiet" : `${akademiDone} videoer gennemført i Akademiet`,
+      );
+    return parts.length > 0 ? `Og rejsen kan ses: ${parts.join(" · ")}.` : null;
+  }, [committedKeys, milestonesQuery.data, akademi.orderedByArea]);
+
   const focus = useMemo(() => {
     if (!companyId) return []; // advisor uden company-override i byggeperioden
     return deriveFocus({
@@ -1192,12 +1281,17 @@ export const BoardroomView = () => {
           items={focus}
           weeklySummary={weeklyFocusQuery.data?.summary ?? null}
           nextEntry={nextEntry}
+          journeyLine={journeyLine}
         />
       </HbSection>
 
       {/* ── LAG 2: Siden sidst (kurateret bånd) ── */}
       {hasBand && (
         <HbSection eyebrow="Siden sidst" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-12 md:mt-14">
+          {/* "Siden sidst"-linjen (bølge 3): rolig grund til at kigge i
+              dag frem for på fredag. 0 nye → ingen linje (tavshed, ikke
+              "0 nye ting"). */}
+          {newsLine && <p className="mb-4 text-sm text-hb-ink-soft">{newsLine}</p>}
           {/* Bånd-balance (PR B3 — rykkelisten generaliserer PR 3's valg):
               rykkelistens vinder står som hovedhistorie (col-span-4);
               resten fylder sidespalten i FAST rækkefølge over talk/event.
