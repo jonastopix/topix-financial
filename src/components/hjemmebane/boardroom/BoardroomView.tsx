@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
@@ -23,8 +23,10 @@ import { HbEventCard } from "../HbEventCard";
 import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
+import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, type FocusItem } from "./nextStep";
-import { byPublishedDesc, pickActivePush } from "./pushSelection";
+import { byPublishedDesc, pickActivePush, pickActiveWeekVideo } from "./pushSelection";
+import { extractYouTubeId } from "./youtube";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
     PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen
@@ -90,11 +92,25 @@ const PageHeader = ({ firstName }: { firstName: string }) => (
   </section>
 );
 
-/** Push som lag 2-hovedhistorie (kilde/udløbsdom uændret — pickActivePush). */
-const PushStory = ({ push }: { push: ContentItem }) => {
+/** Push som lag 2-hovedhistorie (kilde/udløbsdom uændret — pickActivePush).
+    Afsender-bylinen (bølge 1, PR 3): findes metadata.author_user_id, vises
+    portræt (40 px) + navn — profilen slås op af forælderen (rolle-sikkert
+    via get_all_advisor_profiles-RPC'en); manglende avatar → initial-cirkel
+    i Hb-toner (admin-vælgerens fallback-mønster). Uden author_user_id:
+    fri-tekst-bylinen uændret (bagudkompatibelt). */
+const PushStory = ({
+  push,
+  sender,
+}: {
+  push: ContentItem;
+  sender: { full_name: string; avatar_url: string | null } | null;
+}) => {
   const [bodyOpen, setBodyOpen] = useState(false);
-  const author = ((push.metadata as Record<string, unknown>)?.author as string) || null;
+  const metadata = (push.metadata as Record<string, unknown>) ?? {};
+  const author = (metadata.author as string) || null;
+  const hasSenderId = Boolean(metadata.author_user_id);
   const marker = publishedMarker(push.published_at ?? push.created_at);
+  const senderName = sender?.full_name ?? author;
 
   return (
     <div>
@@ -107,7 +123,24 @@ const PushStory = ({ push }: { push: ContentItem }) => {
       {push.description && (
         <p className="mt-3 text-[15px] leading-relaxed text-hb-ink-soft">{push.description}</p>
       )}
-      {author && <p className="mt-4 text-sm font-medium text-hb-ink">{author}</p>}
+      {hasSenderId && senderName ? (
+        <p className="mt-4 flex items-center gap-3">
+          {sender?.avatar_url ? (
+            <img
+              src={sender.avatar_url}
+              alt={senderName}
+              className="h-10 w-10 shrink-0 rounded-full border border-hb-line object-cover"
+            />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 text-sm text-hb-ink-soft">
+              {senderName.charAt(0)}
+            </span>
+          )}
+          <span className="text-sm font-medium text-hb-ink">{senderName}</span>
+        </p>
+      ) : (
+        author && <p className="mt-4 text-sm font-medium text-hb-ink">{author}</p>
+      )}
       {hasRichTextContent(push.body) && (
         <>
           <button
@@ -124,6 +157,55 @@ const PushStory = ({ push }: { push: ContentItem }) => {
         </>
       )}
     </div>
+  );
+};
+
+/** "Denne uges video"-kortet (bølge 1, PR 3): valgt m. den DELTE dom
+    (pickActiveWeekVideo). Bunny → det EKSISTERENDE get-video-embed-flow
+    via HbVideoEmbed genbrugt 1:1 inkl. loading-/fejltilstandene
+    (ElementView:206-215-mønstret) — men m. no-op-callbacks: fremdrifts-
+    sporing er Akademiets domæne, forsiden skriver ikke progress.
+    Ekstern YouTube-URL → inline youtube-nocookie-iframe (lazy, aspect-
+    video); alt andet eksternt → "Åbn"-knap i nyt vindue. */
+const WeekVideoCard = ({ video }: { video: ContentItem }) => {
+  const marker = publishedMarker(video.published_at ?? video.created_at);
+  const youTubeId = video.media_provider === "external" ? extractYouTubeId(video.external_url) : null;
+
+  return (
+    <HbCard className="p-5">
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+        Denne uges video
+        {marker && <span className="ml-2 normal-case tracking-normal">· {marker}</span>}
+      </p>
+      <p className="mt-2 font-editorial text-lg font-medium leading-snug text-hb-ink">{video.title}</p>
+      {video.description && (
+        <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{video.description}</p>
+      )}
+      {video.duration_seconds != null && (
+        <p className="mt-1.5 text-xs text-hb-ink-soft">{formatDuration(video.duration_seconds)}</p>
+      )}
+      <div className="mt-4">
+        {video.media_provider === "bunny" && video.bunny_video_id ? (
+          <HbVideoEmbed itemId={video.id} resumeAt={null} onPosition={() => {}} onCompleted={() => {}} />
+        ) : youTubeId ? (
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${youTubeId}`}
+            title={video.title}
+            loading="lazy"
+            className="aspect-video w-full rounded-hb border border-hb-line bg-black"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        ) : video.external_url ? (
+          <a href={video.external_url} target="_blank" rel="noopener noreferrer">
+            <HbButton variant="secondary" className="h-9 px-4 text-sm">
+              <ExternalLink className="h-4 w-4" />
+              Åbn videoen
+            </HbButton>
+          </a>
+        ) : null}
+      </div>
+    </HbCard>
   );
 };
 
@@ -328,6 +410,38 @@ export const BoardroomView = () => {
         .sort(byPublishedDesc)[0],
     [items],
   );
+  const weekVideo = useMemo(
+    () =>
+      pickActiveWeekVideo(
+        (items.get("ugens_video") ?? []).map((entry) => entry.item),
+        new Date(),
+      ),
+    [items],
+  );
+
+  // Afsender-portrættet (PR 3): profiler slås op via den SAMME RPC som
+  // medlems-chatten bruger ("Fetch all advisors for member header",
+  // CompanyChatPane:163-176 — get_all_advisor_profiles er security definer,
+  // så MEDLEMMER må kalde den; direkte profiles-select er ikke garanteret
+  // for medlemmer). Kun når pushet bærer et author_user_id.
+  const pushAuthorUserId =
+    ((pushItem?.metadata as Record<string, unknown> | null)?.author_user_id as string) || null;
+  const { data: pushSender = null } = useQuery({
+    queryKey: ["boardroom", "push-sender", pushAuthorUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
+      if (error) {
+        console.error("Failed to fetch advisor profiles:", error);
+        return null;
+      }
+      const match = ((data as any[]) || []).find((r: any) => r.user_id === pushAuthorUserId);
+      return match
+        ? { full_name: match.full_name as string, avatar_url: (match.avatar_url as string) ?? null }
+        : null;
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: !!pushAuthorUserId,
+  });
 
   // Forløbs-linket — samme dom som Akademi-forsiden.
   const nextEntry = useMemo(() => {
@@ -548,7 +662,7 @@ export const BoardroomView = () => {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
   }
 
-  const hasBand = Boolean(pushItem || latestTalk || nextEvent);
+  const hasBand = Boolean(pushItem || weekVideo || latestTalk || nextEvent);
 
   return (
     <div>
@@ -567,13 +681,25 @@ export const BoardroomView = () => {
       {/* ── LAG 2: Siden sidst (kurateret bånd) ── */}
       {hasBand && (
         <HbSection eyebrow="Siden sidst" linkLabel="Se Akademiet" linkTo="/akademiet" className="mt-12 md:mt-14">
+          {/* Bånd-balance (PR 3, begrundet valg): findes pushet, står det
+              som hovedhistorie (col-span-4) og videoen ØVERST i højre
+              spalte over talk/event — grid'et er items-start, så spalterne
+              stakker uden tomme huller uanset player-højden. Mangler
+              pushet, rykker videoen op som hovedhistorie i venstre spalte
+              (afspilleren bærer bredden fint), og talk/event beholder
+              højre spalte — båndet har aldrig en tom hovedplads. */}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-6">
-            {pushItem && (
+            {pushItem ? (
               <HbCard className="p-6 lg:col-span-4">
-                <PushStory push={pushItem} />
+                <PushStory push={pushItem} sender={pushSender} />
               </HbCard>
-            )}
-            <div className={pushItem ? "flex flex-col gap-4 lg:col-span-2" : "flex flex-col gap-4 lg:col-span-6"}>
+            ) : weekVideo ? (
+              <div className="lg:col-span-4">
+                <WeekVideoCard video={weekVideo} />
+              </div>
+            ) : null}
+            <div className={pushItem || weekVideo ? "flex flex-col gap-4 lg:col-span-2" : "flex flex-col gap-4 lg:col-span-6"}>
+              {pushItem && weekVideo && <WeekVideoCard video={weekVideo} />}
               {latestTalk && (
                 <Link to={`/akademiet/talks/${latestTalk.slug}`} className="block">
                   <HbCard className="p-5 transition-colors hover:bg-hb-sage/20">
