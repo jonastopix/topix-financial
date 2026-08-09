@@ -3,7 +3,6 @@ import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "reac
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import {
   createItem,
   deleteItem,
@@ -15,13 +14,12 @@ import { slugify } from "@/lib/hjemmebane/slug";
 import {
   byPublishedDesc,
   isPushExpired,
-  pickActivePush,
+  pickActiveItem,
 } from "../../boardroom/pushSelection";
-import { HbField, HbInput, HbTextarea, hbControlClasses } from "../HbField";
-import { HbUploadZone } from "../HbUploadZone";
-import { HbEditorRichtext } from "../HbEditorRichtext";
+import { HbField, HbInput, hbControlClasses } from "../HbField";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
+import { HbUploadZone } from "../HbUploadZone";
 import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
   EditorBar,
@@ -31,24 +29,20 @@ import {
   type EditorHandle,
 } from "../editors/shared";
 
-/** Dit Boardroom-fanen (Admin-spejlet, konvergens.md §5): formålsbygget LET
-    push-editor over SAMME datamodel som Akademiet (content_items,
-    area='push', type='push_indslag') — få felter, intet slug-felt (afledes
-    af titlen), intet dryp/materialer. ÉN bevidst undtagelse fra
-    medie-løsheden (forside-vægt, PR A): ét cover-felt (ItemEditors
-    HbUploadZone-mønster) — hovedhistorien skal kunne bære et billede.
-    Aktiv/udløbs-markeringerne genbruger pushSelection-dommene — én
-    sandhed med forsidens hero. ItemEditor er Akademiets og røres ikke. */
+/** Redaktionelt-fanen (forside PR B2 — PushView/UgensVideo-forbilledet
+    1:1): formålsbygget LET editor over SAMME datamodel (content_items,
+    area='redaktionelt', type='push_indslag') — titel, hvorfor-linje,
+    citat/link i metadata (jsonb-konventionen), cover m. Fjern-knap og
+    udløb. Aktiv/udløbs-markeringerne genbruger de DELTE domme
+    (pickActiveItem/isPushExpired) — én sandhed m. forsidens rykkeliste
+    (B3). Migration 20260809170000 er kørt i prod 2026-08-09. */
 
 type Draft = Partial<ContentItem>;
 type DraftMap = Record<string, Draft>;
 
 const uniqueSlugSuffix = () => crypto.randomUUID().slice(0, 8);
 
-/** Editoren (højre side): fem felter + EditorBar m. robusthedslæren
-    (no-op-guard, slug-afledning m. ét kollisions-retry, arkiv+slet-flow —
-    push-items kan ikke åbnes fra Akademi-fanen, så flowet SKAL bo her). */
-const PushEditor = forwardRef<
+const RedaktioneltEditor = forwardRef<
   EditorHandle,
   {
     item: ContentItem;
@@ -66,35 +60,6 @@ const PushEditor = forwardRef<
   const dirty = Object.keys(draft).length > 0;
   const metadata = (form.metadata as Record<string, unknown>) ?? {};
 
-  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes m. SAMME
-  // to-trins-query som chat-tildelingens dropdown (CompanyChatPane:
-  // "Cached advisor list for assignment dropdown (two-step: roles then
-  // profiles)") — RLS-policyen "Advisors can view all roles" bærer den.
-  const { data: advisors = [] } = useQuery({
-    queryKey: ["admin-push", "advisor-profiles"],
-    queryFn: async () => {
-      const { data: roles, error: rolesErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["advisor", "admin"]);
-      if (rolesErr) throw rolesErr;
-      if (!roles?.length) return [];
-      const uniqueIds = [...new Set(roles.map((r) => r.user_id))];
-      const { data: profiles, error: profErr } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", uniqueIds);
-      if (profErr) throw profErr;
-      return (profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[];
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-
-  const senderId = (metadata.author_user_id as string) ?? "";
-  const sender = advisors.find((a) => a.user_id === senderId);
-
-  // Slug-kollision håndteres m. ét automatisk retry (suffix) — push har
-  // ingen medlemsvendt URL, så slug er ren DB-invariant.
   const saveWithSlugRetry = async (patch: Draft): Promise<ContentItem> => {
     try {
       return await updateItem(item.id, patch);
@@ -121,12 +86,18 @@ const PushEditor = forwardRef<
     if (mutation.isPending) return;
     setError(null);
     const patch: Draft = { ...draft, ...extra };
-    // Tom patch = intet at gemme — kvittér stille (no-op-guard).
+    // Linket er indslagets kerne (recon: "titel, billede, hvorfor-linje,
+    // link, evt. citat") — https-reglen ordret fra ItemEditor:52.
+    const candidateMeta = ((patch.metadata ?? form.metadata) as Record<string, unknown>) ?? {};
+    const link = (candidateMeta.link as string) ?? "";
+    if (!/^https:\/\/.+/.test(link)) {
+      setError("Indslaget skal have et link (https://…)");
+      return;
+    }
     if (Object.keys(patch).length === 0) {
       setSavedAt(new Date());
       return;
     }
-    // Slug afledes af titlen (intet felt); kun når den reelt ændres.
     const derived = slugify(String(patch.title ?? form.title));
     if (derived && derived !== item.slug) patch.slug = derived;
     mutation.mutate(patch);
@@ -164,12 +135,13 @@ const PushEditor = forwardRef<
 
   const setMeta = (key: string, value: string) =>
     onDraftChange({
-      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined },
+      // Json-cast-mønstret fra UgensVideoView — tilføjer ingen ny baseline-fejl.
+      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined } as ContentItem["metadata"],
     });
 
   return (
     <EditorShell
-      eyebrow="Push-indslag · Dit Boardroom"
+      eyebrow="Redaktionelt · Dit Boardroom"
       title={form.title}
       footer={
         <EditorBar
@@ -192,37 +164,44 @@ const PushEditor = forwardRef<
         />
       }
     >
-      <HbField label="Titel" htmlFor="push-title">
+      <HbField label="Titel" htmlFor="red-title">
         <HbInput
-          id="push-title"
+          id="red-title"
           value={form.title}
           onChange={(e) => onDraftChange({ title: e.target.value })}
         />
       </HbField>
 
-      <HbField label="Manchet" htmlFor="push-desc" help="Vises under overskriften i hero'en.">
-        <HbTextarea
-          id="push-desc"
-          rows={3}
+      <HbField
+        label="Hvorfor er det værd at læse?"
+        htmlFor="red-why"
+        help="Én linje — vises sammen med indslaget på forsiden."
+      >
+        <HbInput
+          id="red-why"
           value={form.description ?? ""}
           onChange={(e) => onDraftChange({ description: e.target.value || null })}
         />
       </HbField>
 
-      <HbField label="Brødtekst" help="Valgfri — vises bag 'Læs mere' på forsiden.">
-        <HbEditorRichtext
-          key={item.id}
-          content={form.body ?? ""}
-          onChange={(html) => onDraftChange({ body: html })}
+      <HbField label="Citat" htmlFor="red-quote" help="Valgfrit — et pull-quote fra indslaget.">
+        <HbInput
+          id="red-quote"
+          value={(metadata.quote as string) ?? ""}
+          onChange={(e) => setMeta("quote", e.target.value)}
         />
       </HbField>
 
-      {/* ItemEditors cover-mønster genbrugt (HbUploadZone kind="covers") —
-          PR A's ene undtagelse fra push-editorens medie-løshed. */}
-      <HbField
-        label="Cover"
-        help="Valgfrit billede — giver hovedhistorien visuel vægt på forsiden. Uden cover vises afsenderens portræt i stort format."
-      >
+      <HbField label="Link" htmlFor="red-link" help="Hvor indslaget bor (blog, LinkedIn m.m.) — kræver https.">
+        <HbInput
+          id="red-link"
+          placeholder="https://…"
+          value={(metadata.link as string) ?? ""}
+          onChange={(e) => setMeta("link", e.target.value)}
+        />
+      </HbField>
+
+      <HbField label="Cover" help="Valgfrit billede — giver indslaget visuel vægt på forsiden.">
         <HbUploadZone
           kind="covers"
           ownerId={item.id}
@@ -234,95 +213,41 @@ const PushEditor = forwardRef<
       </HbField>
 
       <HbField
-        label="Afsender"
-        htmlFor="push-sender"
-        help="Rådgiveren bag indslaget — navnet forudfyldes i Forfatter, og portrættet kan vises på forsiden. 'Ingen afsender' rydder koblingen."
+        label="Vises til og med"
+        htmlFor="red-expires"
+        help="Valgfri — efter denne dag falder indslaget tilbage. Tom = vises til afløst af nyere."
       >
-        <div className="flex items-center gap-3">
-          {sender?.avatar_url ? (
-            <img
-              src={sender.avatar_url}
-              alt={sender.full_name}
-              className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
-            />
-          ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 text-xs text-hb-ink-soft">
-              {sender?.full_name?.charAt(0) ?? "—"}
-            </span>
-          )}
-          <select
-            id="push-sender"
-            className={cn(hbControlClasses, "flex-1")}
-            value={senderId}
-            onChange={(e) => {
-              const id = e.target.value;
-              const advisor = advisors.find((a) => a.user_id === id);
-              // Skriver author_user_id og forudfylder author-NAVNET ved valg;
-              // "Ingen afsender" rydder kun koblingen (fri-teksten består).
-              onDraftChange({
-                metadata: {
-                  ...metadata,
-                  author_user_id: id || undefined,
-                  author: id ? advisor?.full_name ?? (metadata.author as string) : (metadata.author as string | undefined),
-                },
-              });
-            }}
-          >
-            <option value="">Ingen afsender</option>
-            {advisors.map((a) => (
-              <option key={a.user_id} value={a.user_id}>
-                {a.full_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <HbInput
+          id="red-expires"
+          type="date"
+          className={cn(hbControlClasses, "max-w-xs")}
+          value={(metadata.expires_at as string) ?? ""}
+          onChange={(e) => setMeta("expires_at", e.target.value)}
+        />
       </HbField>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <HbField label="Forfatter" htmlFor="push-author" help="Vises i bylinen — overstyrer afsender-navnet hvis udfyldt anderledes.">
-          <HbInput
-            id="push-author"
-            value={(metadata.author as string) ?? ""}
-            onChange={(e) => setMeta("author", e.target.value)}
-          />
-        </HbField>
-
-        <HbField
-          label="Vises til og med"
-          htmlFor="push-expires"
-          help="Valgfri — efter denne dag falder hero'en tilbage. Tom = vises til afløst af nyere."
-        >
-          <HbInput
-            id="push-expires"
-            type="date"
-            value={(metadata.expires_at as string) ?? ""}
-            onChange={(e) => setMeta("expires_at", e.target.value)}
-          />
-        </HbField>
-      </div>
     </EditorShell>
   );
 });
-PushEditor.displayName = "PushEditor";
+RedaktioneltEditor.displayName = "RedaktioneltEditor";
 
-export const PushView = () => {
+export const RedaktioneltView = () => {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftMap>({});
   const editorRef = useRef<EditorHandle>(null);
 
   const itemsQuery = useQuery({
-    queryKey: ["admin-content", "items", "push"],
-    queryFn: () => listItems("push"),
+    queryKey: ["admin-content", "items", "redaktionelt"],
+    queryFn: () => listItems("redaktionelt"),
   });
   const items = useMemo(
     () => [...(itemsQuery.data ?? [])].sort(byPublishedDesc),
     [itemsQuery.data],
   );
 
-  // Aktiv/udløbs-dommene — samme rene funktioner som forsidens hero.
+  // De DELTE domme — samme sandhed som forsidens rykkeliste (B3).
   const now = new Date();
-  const activePush = pickActivePush(
+  const activeItem = pickActiveItem(
     items.filter((item) => item.status === "published"),
     now,
   );
@@ -356,10 +281,10 @@ export const PushView = () => {
   const newMutation = useMutation({
     mutationFn: () =>
       createItem({
-        area: "push",
+        area: "redaktionelt",
         type: "push_indslag",
         title: "Uden titel",
-        slug: `push-${uniqueSlugSuffix()}`,
+        slug: `redaktionelt-${uniqueSlugSuffix()}`,
         position: 0,
       }),
     onSuccess: (created) => {
@@ -378,7 +303,7 @@ export const PushView = () => {
   const listRow = (item: ContentItem) => {
     const active = item.id === selectedId;
     const dirty = Object.keys(drafts[item.id] ?? {}).length > 0;
-    const isActiveNow = item.id === activePush?.id;
+    const isActiveNow = item.id === activeItem?.id;
     const expired = item.status === "published" && isPushExpired(item, now);
     const date = item.published_at
       ? new Date(item.published_at).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })
@@ -426,7 +351,8 @@ export const PushView = () => {
               <p className="px-4 py-6 text-sm text-hb-ink-soft">Henter…</p>
             ) : items.length === 0 ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">
-                Ingen push-indslag endnu — opret det første. Seneste publicerede er forsidens hero.
+                Ingen redaktionelle indslag endnu — opret det første. Nyeste publicerede,
+                ikke-udløbne kandiderer til forsidens hovedplads.
               </p>
             ) : (
               items.map(listRow)
@@ -448,7 +374,7 @@ export const PushView = () => {
       }
       editor={
         selected ? (
-          <PushEditor
+          <RedaktioneltEditor
             ref={editorRef}
             key={selected.id}
             item={selected}
@@ -463,8 +389,8 @@ export const PushView = () => {
         ) : (
           <div className="flex h-full items-center justify-center bg-hb-surface px-10">
             <p className="max-w-sm text-sm leading-relaxed text-hb-ink-soft">
-              Vælg et indslag — eller opret nyt (n). Seneste publicerede, ikke-udløbne indslag er
-              forsidens hero; "Vises til og med" styrer udløb.
+              Vælg et indslag — eller opret nyt (n). Nyeste publicerede, ikke-udløbne indslag
+              kandiderer til forsidens hovedplads; "Vises til og med" styrer udløb.
             </p>
           </div>
         )

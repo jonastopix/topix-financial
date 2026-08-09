@@ -254,6 +254,8 @@ const App = () => (
               <Route path="/admin/indhold/fremdrift" element={<AdvisorRoute><AdminContent view="progress" /></AdvisorRoute>} />
               <Route path="/admin/indhold/boardroom" element={<AdvisorRoute><AdminContent view="boardroom" /></AdvisorRoute>} />
               <Route path="/admin/indhold/ugens-video" element={<AdvisorRoute><AdminContent view="ugens_video" /></AdvisorRoute>} />
+              <Route path="/admin/indhold/redaktionelt" element={<AdvisorRoute><AdminContent view="redaktionelt" /></AdvisorRoute>} />
+              <Route path="/admin/indhold/evergreen" element={<AdvisorRoute><AdminContent view="evergreen" /></AdvisorRoute>} />
               <Route path="/admin/report-debug/:reportId" element={<AdminRoute><ReportDebug /></AdminRoute>} />
               <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
               <Route path="/admin/legat" element={<AdminRoute><AdminLegat /></AdminRoute>} />
