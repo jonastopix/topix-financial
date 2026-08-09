@@ -1,37 +1,42 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowLeft, ArrowRight, Save, Check, Loader2, CheckCircle2, RotateCcw, Eye, Target, AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import HandoutLeverItem from "@/components/HandoutLeverItem";
-import HandoutAIFeedback from "@/components/HandoutAIFeedback";
+import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2, RotateCcw, Eye, Target, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import type { HandoutConfig, HandoutModule } from "@/lib/handoutConfig";
-import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { moduleOrder } from "@/lib/handoutConfig";
-import { loadHandout, loadLeverMilestones, saveHandout, toggleHandoutCompleted } from "@/lib/handoutEngine";
+import { calcHandoutProgress } from "@/lib/handoutUtils";
+import {
+  loadHandout,
+  loadLeverMilestones,
+  saveHandout,
+  toggleHandoutCompleted,
+  type LeverMilestone,
+} from "@/lib/handoutEngine";
+import { HbSection } from "../HbSection";
+import { HbCard } from "../HbCard";
+import { hbControlClasses } from "../admin/HbField";
+import { HbHandoutLeverRow } from "./HbHandoutLeverRow";
+import { HbHandoutAIFeedback } from "./HbHandoutAIFeedback";
 
-interface HandoutDetailProps {
+/** Hb-modul-detaljen (spejler HandoutDetail.tsx 1:1 i adfærd — alle
+    skriveveje gennem handoutEngine): SEKTIONERET side, ikke Radix-Tabs —
+    alle sektioner er ALTID i DOM (fladefamiliens form, jf. #forecast-
+    lærdommen). Autosave m. 1500 ms debounce, isOwner-gaten (advisor ser,
+    skriver aldrig), løftestang→milestone, markér-udfyldt→notifikation
+    (H6 affyres i motoren) og AI-sparring. handoutConfig røres ikke —
+    question.key/checklist.key ER jsonb-nøglerne i medlemmernes data. */
+
+type SaveStatus = "idle" | "saving" | "saved";
+
+interface HbHandoutDetailProps {
   config: HandoutConfig;
   onBack: () => void;
   userId?: string; // for advisor viewing another member
   onModuleSelect?: (module: HandoutModule) => void;
 }
 
-interface LeverMilestone {
-  milestone_id: string;
-  title: string;
-  progress: number;
-  status: string;
-}
-
-type SaveStatus = "idle" | "saving" | "saved";
-
-const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetailProps) => {
+export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHandoutDetailProps) => {
   const { user, companyId, companyName } = useAuth();
   const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
@@ -49,7 +54,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load handout data
+  // Load handout data (H1a + H1b i motoren)
   const loadData = useCallback(async () => {
     if (!effectiveUserId) return;
     setLoading(true);
@@ -66,14 +71,13 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
         setAiFeedbackAt(data.ai_feedback_at);
         setHandoutStatus(data.status || "not_started");
 
-        // Load lever milestones (H1b i motoren)
         const map = await loadLeverMilestones(data.id);
         if (Object.keys(map).length > 0) {
           setLeverMilestones(map);
         }
       }
     } catch (e) {
-      console.error("[HandoutDetail] loadData failed:", e);
+      console.error("[HbHandoutDetail] loadData failed:", e);
     } finally {
       setLoading(false);
     }
@@ -81,7 +85,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Fetch industry from company
+  // Fetch industry from company (læsning — bruges i AI-sparringens body)
   useEffect(() => {
     if (!companyId) return;
     supabase.from("companies").select("industry_label").eq("id", companyId).maybeSingle().then(({ data }) => {
@@ -137,14 +141,12 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
     debounceSave(responses, checklist, next);
   };
 
-  // Calculate progress using shared helper
   const progress = calcHandoutProgress(config, responses, checklist, levers);
   const isCompleted = handoutStatus === "completed";
 
   const toggleCompleted = async () => {
     if (!handoutId || !isOwner) return;
     // H3 i motoren — inkl. completed_at-friskningen og H6-notifikationen
-    // (Slack + advisor_notifications, fire-and-forget) ved completed.
     const result = await toggleHandoutCompleted({ handoutId, isOwner, isCompleted });
     if (result.skipped) return;
     if (result.error) {
@@ -158,75 +160,69 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <Loader2 className="h-6 w-6 animate-spin text-hb-evergreen" />
       </div>
     );
   }
 
+  const completeButtonClasses = isCompleted
+    ? "inline-flex items-center gap-1.5 rounded-full border border-hb-line px-4 py-2 text-xs text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink"
+    : "inline-flex items-center gap-1.5 rounded-full bg-hb-evergreen px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-hb-evergreen/90";
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5">
+    <div className="space-y-10">
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+          >
             <ArrowLeft className="h-4 w-4" /> Tilbage
-          </Button>
-          <div>
-            <h2 className="text-xl font-display font-bold text-foreground">{config.title}</h2>
-            <p className="text-xs text-muted-foreground">{config.subtitle} · {progress}% udfyldt</p>
-          </div>
+          </button>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Handout</p>
+          <h1 className="mt-2 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">{config.title}</h1>
+          <p className="mt-2 text-sm text-hb-ink-soft">{config.subtitle} · {progress}% udfyldt</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-1">
           {!isOwner && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-hb-sage/40 px-3 py-1.5 text-xs text-hb-ink-soft">
               <Eye className="h-3 w-3" /> Skrivebeskyttet
-            </div>
+            </span>
           )}
           {isOwner && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-xs text-hb-ink-soft">
               {saveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Gemmer…</>}
-              {saveStatus === "saved" && <><Check className="h-3 w-3 text-emerald-500" /> Gemt</>}
-            </div>
+              {saveStatus === "saved" && <><Check className="h-3 w-3 text-hb-evergreen" /> Gemt</>}
+            </span>
           )}
           {isOwner && handoutId && (
-            <Button
-              size="sm"
-              variant={isCompleted ? "outline" : "default"}
-              onClick={toggleCompleted}
-              className="gap-1.5 text-xs"
-            >
+            <button type="button" onClick={toggleCompleted} className={completeButtonClasses}>
               {isCompleted ? (
                 <><RotateCcw className="h-3.5 w-3.5" /> Genåbn</>
               ) : (
                 <><CheckCircle2 className="h-3.5 w-3.5" /> Markér som udfyldt</>
               )}
-            </Button>
+            </button>
           )}
         </div>
       </div>
 
-      {/* Tabs for sections */}
-      <Tabs defaultValue="0" className="w-full">
-        <TabsList className="w-full justify-start">
-          {config.sections.map((s, i) => (
-            <TabsTrigger key={i} value={String(i)} className="text-xs">{s.title}</TabsTrigger>
-          ))}
-          {config.leverCount > 0 && (
-            <TabsTrigger value="levers" className="text-xs">Løftestænger</TabsTrigger>
-          )}
-        </TabsList>
-
-        {config.sections.map((section, si) => (
-          <TabsContent key={si} value={String(si)} className="space-y-5 mt-4">
+      {/* ── Sektioner (alle i DOM — ingen faner) ── */}
+      {config.sections.map((section, si) => (
+        <HbSection key={si} eyebrow={`Del ${si + 1} af ${config.sections.length}`} title={section.title}>
+          <HbCard className="space-y-5 p-6">
             {section.questions.map((q) => (
               <div key={q.key} className="space-y-2">
-                <label className="text-sm font-medium text-foreground">{q.label}</label>
+                <label className="text-sm font-medium text-hb-ink">{q.label}</label>
                 {q.type === "textarea" ? (
-                  <Textarea
+                  <textarea
                     value={responses[q.key] || ""}
                     onChange={(e) => updateResponse(q.key, e.target.value)}
                     placeholder="Skriv dit svar her..."
-                    className="min-h-[100px] text-sm"
+                    rows={4}
+                    className={`${hbControlClasses} min-h-[100px] resize-y text-sm`}
                     disabled={!isOwner}
                   />
                 ) : q.type === "numbered_list" ? (
@@ -234,13 +230,13 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
                     {Array.from({ length: q.count || 2 }).map((_, ni) => {
                       const listKey = `${q.key}_${ni}`;
                       return (
-                        <div key={ni} className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-muted-foreground w-5">{ni + 1}.</span>
-                          <Input
+                        <div key={ni} className="flex items-center gap-2.5">
+                          <span className="w-5 text-xs font-semibold text-hb-ink-soft">{ni + 1}.</span>
+                          <input
                             value={responses[listKey] || ""}
                             onChange={(e) => updateResponse(listKey, e.target.value)}
                             placeholder={`Punkt ${ni + 1}`}
-                            className="text-sm"
+                            className={`${hbControlClasses} text-sm`}
                             disabled={!isOwner}
                           />
                         </div>
@@ -252,28 +248,30 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
             ))}
 
             {section.checklist && (
-              <div className="space-y-3 pt-2">
-                <h4 className="text-sm font-semibold text-foreground">Tjekliste</h4>
+              <div className="space-y-3 border-t border-hb-line pt-5">
+                <h4 className="text-sm font-semibold text-hb-ink">Tjekliste</h4>
                 {section.checklist.map((item) => (
                   <div key={item.key} className="space-y-1.5">
                     <div className="flex items-start gap-3">
-                      <Checkbox
+                      <input
+                        type="checkbox"
                         id={item.key}
                         checked={checklist[item.key] || false}
-                        onCheckedChange={(v) => updateChecklist(item.key, v === true)}
+                        onChange={(e) => updateChecklist(item.key, e.target.checked)}
                         disabled={!isOwner}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-hb-evergreen"
                       />
-                      <label htmlFor={item.key} className="text-sm text-foreground cursor-pointer leading-tight">
+                      <label htmlFor={item.key} className="cursor-pointer text-sm leading-tight text-hb-ink">
                         {item.label}
                       </label>
                     </div>
                     {item.hasFollowUp && checklist[item.key] && (
                       <div className="ml-7">
-                        <Input
+                        <input
                           value={responses[`followup_${item.key}`] || ""}
                           onChange={(e) => updateResponse(`followup_${item.key}`, e.target.value)}
                           placeholder={item.hasFollowUp}
-                          className="text-sm"
+                          className={`${hbControlClasses} text-sm`}
                           disabled={!isOwner}
                         />
                       </div>
@@ -282,24 +280,27 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
                 ))}
               </div>
             )}
-          </TabsContent>
-        ))}
+          </HbCard>
+        </HbSection>
+      ))}
 
-        {config.leverCount > 0 && (
-          <TabsContent value="levers" className="space-y-4 mt-4">
-            <div className="rounded-xl bg-primary/5 border border-primary/10 p-4 flex items-start gap-3">
-              <Target className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+      {/* ── Løftestænger ── */}
+      {config.leverCount > 0 && (
+        <HbSection eyebrow="Handling" title="Løftestænger">
+          <HbCard className="space-y-4 p-6">
+            <div className="flex items-start gap-3 rounded-lg bg-hb-sage/20 p-4">
+              <Target className="h-4 w-4 shrink-0 text-hb-evergreen mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-foreground mb-1">
+                <p className="mb-1 text-sm font-medium text-hb-ink">
                   Gør dine løftestænger til aktive milestones
                 </p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-xs leading-relaxed text-hb-ink-soft">
                   Skriv dine vigtigste handlingspunkter nedenfor og klik <strong>→ Milestone</strong> for at tilføje dem til din milestone-liste. Så kan du — og din rådgiver — følge fremgangen løbende.
                 </p>
               </div>
             </div>
             {levers.map((val, i) => (
-              <HandoutLeverItem
+              <HbHandoutLeverRow
                 key={i}
                 index={i}
                 value={val}
@@ -312,27 +313,31 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
             ))}
             {/* Prompt to convert levers to milestones */}
             {isOwner && levers.some(l => l.trim()) && Object.keys(leverMilestones).length === 0 && (
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-chart-warning/20 bg-chart-warning/5">
-                <AlertTriangle className="h-4 w-4 text-chart-warning flex-shrink-0" />
-                <p className="text-xs text-muted-foreground flex-1">
+              <div className="flex items-center gap-3 rounded-lg border border-hb-rust/30 bg-hb-rust/5 p-3">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-hb-rust" />
+                <p className="flex-1 text-xs text-hb-ink-soft">
                   Du har skrevet løftestænger men ikke oprettet milestones endnu. Klik <strong>→ Milestone</strong> ud for en løftestang for at begynde at tracke.
                 </p>
               </div>
             )}
-          </TabsContent>
-        )}
-      </Tabs>
+          </HbCard>
+        </HbSection>
+      )}
 
       {/* Completion prompt at 100% */}
       {isOwner && handoutId && progress === 100 && !isCompleted && (
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4">
-          <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
-          <p className="text-sm text-foreground flex-1">
+        <div className="flex flex-wrap items-center gap-3 rounded-hb border border-hb-evergreen/30 bg-hb-sage/30 p-4">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-hb-evergreen" />
+          <p className="flex-1 text-sm text-hb-ink">
             Alt er udfyldt — vil du markere handoutet som færdigt?
           </p>
-          <Button size="sm" onClick={toggleCompleted} className="gap-1.5 text-xs flex-shrink-0">
+          <button
+            type="button"
+            onClick={toggleCompleted}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-hb-evergreen px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-hb-evergreen/90"
+          >
             <CheckCircle2 className="h-3.5 w-3.5" /> Markér som færdig
-          </Button>
+          </button>
         </div>
       )}
 
@@ -346,24 +351,25 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
 
         return (
           <button
+            type="button"
             onClick={() => onModuleSelect?.(nextModule)}
-            className="mt-4 w-full flex items-center justify-between p-4 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-left group"
+            className="group flex w-full items-center justify-between rounded-hb border border-hb-line bg-hb-surface p-5 text-left transition-colors hover:bg-hb-sage/20"
           >
             <div>
-              <p className="text-xs text-muted-foreground">Næste modul</p>
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-xs text-hb-ink-soft">Næste modul</p>
+              <p className="mt-0.5 text-sm font-medium text-hb-ink">
                 {nextModule.charAt(0).toUpperCase() + nextModule.slice(1)}
               </p>
             </div>
-            <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform" />
+            <ArrowRight className="h-4 w-4 text-hb-evergreen transition-transform group-hover:translate-x-0.5" />
           </button>
         );
       })()}
 
-      {/* AI Feedback */}
+      {/* AI Feedback (kortet bærer sin egen overskrift, som i kilden) */}
       {handoutId && (
-        <div className="mt-2 pt-4 border-t border-border/50">
-          <HandoutAIFeedback
+        <div className="border-t border-hb-line pt-8">
+          <HbHandoutAIFeedback
             handoutId={handoutId}
             module={config.module}
             feedback={aiFeedback}
@@ -377,5 +383,3 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
     </div>
   );
 };
-
-export default HandoutDetail;

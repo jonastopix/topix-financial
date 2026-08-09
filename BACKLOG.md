@@ -649,6 +649,56 @@ RESTERENDE LED (denne backlog-post):
 
 ---
 
+### [P1] Handouts-GO = swap på /handouts (noteret 2026-08-06)
+
+GENNEMFØRT 2026-08-06 (swap-PR'en feat/handouts-go-swap; flade:
+PR #214, motor: PR #213 m. 18 write-path-tests; recon/byggeplan:
+hb-handouts-recon.txt + hb-handouts-byggeplan.txt): /handouts bærer
+Hb-fladen via PROTECTEDROUTE — IKKE MemberRoute (forudsætning ii:
+Legat-brugere skal kunne stå her; samme gating som gamle Handouts.tsx).
+/handout redirecter m. bevaret query/hash (?module= er Akademi-broens
+kontrakt, forudsætning i — HandoutRedirect efter §3.6-mønstret).
+HbMemberShells Handouts-mål → /handouts for alle. Medlemsnote shippet
+i samme PR (id "v2026-08-hjemmebane-handouts", forudsætning v).
+
+PENSIONERINGS-FACIT (afveg fra planen — grep-reglen afgjorde):
+- PENSIONERET: pages/Handouts.tsx (nul importører efter swap) +
+  HandoutCard.tsx (kun brugt af Handouts.tsx).
+- BEVARET SOM ADVISOR-BRO: HandoutDetail.tsx + HandoutLeverItem.tsx +
+  HandoutAIFeedback.tsx — MemberDetail.tsx:661 renderer HandoutDetail
+  (advisor-visningen bag /members/:id?handout=-notifikations-linket,
+  send-slack-handout-notification:194). Kan først pensioneres når
+  MemberDetail-brugen konverteres/omlægges (eget punkt).
+- DELTE BEVARET: AdvisorCompanyPrompt (AppSidebar/Milestones/Budget),
+  handoutConfig (DashboardHandouts/ItemEditor/ElementView/engine m.fl.),
+  handoutUtils (ElementView/MemberDetail), handoutEngine + handoutNotify
+  (begge flader + tests).
+
+ÆRLIG RISIKO-NOTE: skrivevejene (autosave, løftestang→milestone,
+AI-sparring) er IKKE afprøvet af en ægte EJER på den nye flade før
+swappet — advisor-byggeruten er skrivebeskyttet (isOwner-gaten). De
+hviler på motor-pariteten (PR #213: samme H1-H6-kald, 18 write-path-
+tests) og gamle flades prod-brug af selvsamme motor siden PR #213.
+Første medlems-autosave på ny flade bør observeres efter deploy.
+ROLLBACK-PLAN: revert af swap-PR'en + Lovable "Update" bringer
+medlemmerne tilbage på gammel flade; ingen data-migrering er
+involveret (samme tabeller/motor), så rollback er ren visning.
+
+SEKVENS-NOTE (banner): medlemsnoten her er skrevet OVEN PÅ
+rapportering-banneret og nævner Budget som "i nyt design" — Budget-GO-
+swappen (feat/budget-go-swap, afventer advisor-GO) SKAL derfor merges
+FØR eller SAMMEN MED denne PR, ellers lover banneret et Budget-design
+der ikke er live, og de to PR'er konflikter i banner-blokkene
+(DashboardActionCenter/AppLayout — løses ved at denne PR's
+handouts-banner vinder).
+
+Oprindelige GO-forudsætninger (historik): (i) ?module=-kontrakten,
+(ii) ProtectedRoute-gatingen, (iii) Legat-verifikation m. legat-konto,
+(iv) advisor-gennemgang på rigtige data, (v) medlemsnote. (iii)+(iv)
+indgår i GO-beslutningens manuelle tjek på byggeruten.
+
+---
+
 ### [P1] KPI-GO = swap på /kpis (noteret 2026-08-05)
 
 STATUS 2026-08-06: TEKNISK KLAR — swap-PR'en (feat/kpi-go-swap) er

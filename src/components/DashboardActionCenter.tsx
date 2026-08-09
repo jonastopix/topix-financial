@@ -182,12 +182,12 @@ export default function DashboardActionCenter({
       // ⚠️ HUSK: Opdatér også AppLayout.tsx når du skifter announcement
       // Platform update announcement
       items.push({
-        id: "v2026-08-hjemmebane-budget",
+        id: "v2026-08-hjemmebane-handouts",
         type: "info",
-        title: "Budget i nyt design",
-        description: "Budget, Rapportering og KPI'er er nu i nyt design — resten følger løbende. Alt fungerer som normalt.",
+        title: "Handouts i nyt design",
+        description: "Handouts, Budget, Rapportering og KPI'er er nu i nyt design — resten følger løbende. Alt fungerer som normalt.",
         urgency: "low",
-        link: "/budget",
+        link: "/handouts",
       });
 
       return items;

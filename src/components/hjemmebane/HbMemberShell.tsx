@@ -17,7 +17,7 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -52,7 +52,12 @@ export const HbMemberShell = ({
           active: active === "budget",
         },
         { label: "Milestones", to: "/milestones" },
-        { label: "Handouts", to: "/handouts" },
+        // Handouts-GO 2026-08-06: /handouts bærer fladen for alle roller.
+        {
+          label: "Handouts",
+          to: "/handouts",
+          active: active === "handouts",
+        },
       ],
     },
     {

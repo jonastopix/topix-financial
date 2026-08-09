@@ -104,7 +104,13 @@ export const BudgetteringView = () => {
     };
 
     void load();
-  }, [user, companyId, year, reloadNonce]);
+    // `user?.id` — IKKE user-objektet: supabase affyrer auth-events ved
+    // fane-fokus (SIGNED_IN/TOKEN_REFRESHED), useAuth sætter da et NYT
+    // user-objekt, og med objektet som dep re-kørte effekten → nulstilling
+    // af scenarioData/dbLoaded → unmount af import-komponenterne → tab af
+    // indlæste forslag (hb-budget-persistens-recon §1c). Effekten afhænger
+    // reelt kun af bruger-IDENTITETEN.
+  }, [user?.id, companyId, year, reloadNonce]);
 
   const viewRows = useMemo(
     () => (scenarioData ? scenarioData[activeScenario] : []),
