@@ -77,3 +77,28 @@ export function pickMainStory<T>(
   const present = candidates.filter((c): c is StoryCandidate<T> => c != null);
   return { main: present[0] ?? null, side: present.slice(1) };
 }
+
+export interface NewsCandidate {
+  /** ISO-timestamp eller null — null tæller aldrig som nyt. */
+  publishedAt: string | null;
+}
+
+/** "Siden sidst"-dommen (bølge 3): antal kandidater publiceret STRENGT
+    efter sidste besøg. null/ulæseligt lastVisit (første besøg, ryddet
+    storage) → 0 — "alt er nyt" er ingen nyhed, og linjen skal tie
+    stille frem for at råbe ved første møde. Dommen er DUM: den tæller
+    det den får — hvilke kinds der deltager (fx at evergreen udelades)
+    er kalderens fravalg og dokumenteres dér. */
+export function countNewSince(
+  candidates: NewsCandidate[],
+  lastVisitIso: string | null,
+): number {
+  if (!lastVisitIso) return 0;
+  const since = new Date(lastVisitIso).getTime();
+  if (Number.isNaN(since)) return 0;
+  return candidates.filter((c) => {
+    if (!c.publishedAt) return false;
+    const t = new Date(c.publishedAt).getTime();
+    return !Number.isNaN(t) && t > since;
+  }).length;
+}
