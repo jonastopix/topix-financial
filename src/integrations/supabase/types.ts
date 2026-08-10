@@ -1093,6 +1093,7 @@ export type Database = {
           event_id: string
           id: string
           registered_at: string
+          response: string
           user_id: string
         }
         Insert: {
@@ -1100,6 +1101,7 @@ export type Database = {
           event_id: string
           id?: string
           registered_at?: string
+          response?: string
           user_id: string
         }
         Update: {
@@ -1107,6 +1109,7 @@ export type Database = {
           event_id?: string
           id?: string
           registered_at?: string
+          response?: string
           user_id?: string
         }
         Relationships: [
@@ -2597,6 +2600,12 @@ export type Database = {
           avatar_url: string
           full_name: string
           is_advisor: boolean
+          user_id: string
+        }[]
+      }
+      get_event_non_responders: {
+        Args: { p_event_id: string }
+        Returns: {
           user_id: string
         }[]
       }
