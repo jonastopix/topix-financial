@@ -42,6 +42,13 @@ to the entire access-control model.
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
 - Introduced in migration `20260810150000_directory_aktive_medlemmer.sql`
 
+### `get_event_non_responders(p_event_id uuid) → TABLE (user_id uuid)`
+- Active members (the `get_member_directory` verdict: `company_members`, not advisor, not legat, `is_membership_active`) WITHOUT an active `event_registrations` row for the event — both `attending` and `declined` count as answers and exclude
+- Returns ONLY `user_id` — no profile data; consumer is cron reminders (event-reminders window A), never display
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` AND `TO service_role` — service_role does not inherit authenticated grants (learned 2026-08-10: `get_member_directory` cannot be called from cron); `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Introduced in migration `20260810210000_event_svar.sql`
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
@@ -49,7 +56,7 @@ to the entire access-control model.
 - **NEVER expose** `email`, `notification_email_prefs`, `registered_at` or `cancelled_at`
 - Field changes (migration `20260810200000`): `member_profiles.bio` is REMOVED, replaced by `ask_me_about` + `working_on` (+ `working_on_updated_at` freshness stamp); `companies.description` is a new shared field. All are deliberately shared content — the NEVER-expose list is unchanged.
 - The return type changed in `20260810200000`, so all three RPCs were DROPped and re-created (Postgres rejects CREATE OR REPLACE on return-type changes) — grants were re-applied explicitly in the same migration (`REVOKE FROM PUBLIC/anon`, `EXECUTE TO authenticated`).
-- `get_event_participants`: active registrations only (`cancelled_at IS NULL`) — the list shows who is coming, not registration history
+- `get_event_participants`: active registrations only (`cancelled_at IS NULL`) AND `response = 'attending'` (migration `20260810210000_event_svar.sql`) — the list shows who is coming, never who is not, neither as name nor count. `event_registrations.response` (`attending | declined`) is independent of `cancelled_at`: a decline is an active answer, a cancellation withdraws the answer
 - `get_member_directory`: UNION of company members (`is_advisor = false`) and advisors/admins from `user_roles` (company columns NULL, sorted last) — advisors have no `company_members` row
 - **Active-membership gate** (migration `20260810150000_directory_aktive_medlemmer.sql`): `get_member_directory` (member branch only — advisors have no company) and `get_event_participants` include only rows where `is_membership_active(user_company_id(user_id))` is true. `get_member_profile` deliberately does NOT gate: a profile must remain resolvable by direct lookup, e.g. from a historical participant list.
 - **Legat gate** (migration `20260810180000_directory_legat_filter.sql`): the same two RPCs also exclude legat users — mirrors useAuth's `isLegat` condition verbatim (`legat_enrollments` row with `status IN ('active','completed')`, non-advisors only; advisors are explicitly exempt in the participants predicate). Legat users have their own environment (`/legat`) and do not belong in the member network. `get_member_profile` again deliberately does NOT gate.
