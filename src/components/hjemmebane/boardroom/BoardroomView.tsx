@@ -1041,7 +1041,7 @@ const FocusCard = ({
 };
 
 export const BoardroomView = () => {
-  const { user, profile, companyId } = useAuth();
+  const { user, profile, companyId, isAdvisor } = useAuth();
   const akademi = useAkademiData();
   const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
 
@@ -1377,6 +1377,25 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
 
+  // Egen netværksprofil (fokus-kilde (i)): mangler ask_me_about?
+  // ADVISOR-GATED via enabled — rådgivere har ikke samme profilrolle, og
+  // deres user.id ville ellers slå igennem selv i company-override.
+  // Disabled/loading → data undefined → askMeAboutMissing false (ingen
+  // flakkende prompt før svaret er der).
+  const ownProfileQuery = useQuery({
+    queryKey: ["boardroom", "own-profile-empty", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("member_profiles" as any)
+        .select("ask_me_about")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !((data as any)?.ask_me_about ?? "").trim();
+    },
+    enabled: !!user && !isAdvisor,
+    staleTime: 5 * 60_000,
+  });
+
   const committedKeys = useMemo(() => new Set(facts.map((f) => f.period_key)), [facts]);
 
   // ── Anerkendelses-linjen til fokus-kortets tom-tilstand (bølge 3) ───────
@@ -1424,8 +1443,9 @@ export const BoardroomView = () => {
         : null,
       openActions: (actionsQuery.data ?? []).map((a: any) => ({ id: a.id, title: a.title, priority: a.priority })),
       unlinkedLevers: leversQuery.data ?? [],
+      askMeAboutMissing: ownProfileQuery.data === true,
     });
-  }, [companyId, processedQuery.data, committedKeys, milestonesQuery.data, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data]);
+  }, [companyId, processedQuery.data, committedKeys, milestonesQuery.data, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
