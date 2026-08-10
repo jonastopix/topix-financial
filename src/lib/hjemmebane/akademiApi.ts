@@ -216,6 +216,74 @@ export async function listPastEvents(limit?: number): Promise<EventRow[]> {
   return limit != null ? past.slice(0, limit) : past;
 }
 
+/** Deltagerlisten på /events/:id (Events trin 3) — kolonnesættet fra
+    get_event_participants (SECURITY DEFINER-RPC, migration 20260810120000
+    + aktivt-medlemskabs-gaten i 20260810150000). RPC'en er ikke i de
+    genererede typer endnu — deraf as any-kaldet (samme mønster som
+    get_all_advisor_profiles i CompanyChatPane). */
+export type EventParticipant = {
+  user_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  company_name: string | null;
+  industry_label: string | null;
+  website: string | null;
+  linkedin_url: string | null;
+  expertise: string[];
+  bio: string | null;
+  is_advisor: boolean;
+};
+
+export async function listEventParticipants(eventId: string): Promise<EventParticipant[]> {
+  const { data, error } = await supabase.rpc("get_event_participants" as any, {
+    p_event_id: eventId,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as EventParticipant[];
+}
+
+/** Tilmelding. UNIQUE(event_id, user_id) + upsert: en tidligere afmeldt
+    række genbruges med cancelled_at nulstillet — historikken er altid én
+    række pr. (event, bruger), aldrig dubletter. Self-only RLS håndhæver
+    ejerskabet. */
+export async function registerForEvent(eventId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("event_registrations")
+    .upsert(
+      { event_id: eventId, user_id: userId, cancelled_at: null },
+      { onConflict: "event_id,user_id" },
+    );
+  if (error) throw new Error(error.message);
+}
+
+/** Brugerens EGEN tilmeldingsstatus — læses direkte fra
+    event_registrations (self-only RLS), UAFHÆNGIGT af deltagerlisten:
+    get_event_participants filtrerer på aktivt medlemskab, så en gyldig
+    tilmelding kan eksistere uden at brugeren optræder i listen. */
+export async function isRegisteredForEvent(eventId: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .select("id")
+    .eq("event_id", eventId)
+    .eq("user_id", userId)
+    .is("cancelled_at", null)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data != null;
+}
+
+/** Afmelding er en cancelled_at-UPDATE på egen række — ALDRIG DELETE.
+    Kapacitetshistorikken bevares, og medlemmer har ingen DELETE-policy
+    (baseline: event_registrations er SELECT/INSERT/UPDATE only). */
+export async function cancelRegistration(eventId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("event_registrations")
+    .update({ cancelled_at: new Date().toISOString() })
+    .eq("event_id", eventId)
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
 /** Signeret Bunny-embed fra get-video-embed (Bucket A). Token-signering sker
     KUN server-side — frontend modtager den færdige, tidsbegrænsede URL. */
 export async function getVideoEmbed(
