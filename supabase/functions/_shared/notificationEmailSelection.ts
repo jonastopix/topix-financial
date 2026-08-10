@@ -38,8 +38,44 @@ const SEND_WINDOW_END_HOUR = 20; // eksklusiv
  * sendes derfor om natten. Kræver både opbrugt kvote (5 sends samme dag) og
  * sen-aftens-notifikation — sjælden kombination, og alternativet (lavere
  * tærskel) ville forsinke legitime aftenmails. Bevidst afvejning.
+ *
+ * Gælder efter 10-08-2026 KUN default-typer: de handlingsudløste typer
+ * (EMAIL_DELAY_MINUTES_BY_TYPE) bærer altid afsendelsesvinduet, uanset
+ * alder, og kan derfor ikke ramme natten.
  */
 const DEFER_THRESHOLD_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Handlingsudløste typer: notifikationen fortæller medlemmet hvad
+ * medlemmet netop SELV har gjort, mens de sandsynligvis stadig sidder
+ * i skærmen. En mail 15 minutter efter er en besked om noget de
+ * allerede ved — og den slags underminerer tilliden til de øvrige
+ * mails.
+ *
+ * Længere ventetid giver det naturlige forløb (upload → gennemgå →
+ * godkend) tid til at fuldføre. Fuldføres det, disposes notifikationen
+ * af rapport-tilstandsfilteret i trin 1 og mailen sendes aldrig.
+ * Fuldføres det ikke, er mailen reel information: du startede noget og
+ * gik fra det.
+ *
+ * Der findes intet aktivitetssignal i systemet (ingen heartbeat,
+ * presence eller last_seen), så ventetid er det eneste tilgængelige
+ * mål for "brugeren er gået videre".
+ *
+ * Beslutning 10-08-2026. Kilde: et medlem om "Dine tal er klar" —
+ * "de er lidt dumme faktisk, for jeg ved jo de er klar".
+ */
+export const DEFAULT_EMAIL_DELAY_MINUTES = 15;
+
+export const EMAIL_DELAY_MINUTES_BY_TYPE: Record<string, number> = {
+  report_review_ready: 240,
+  report_error: 240,
+  alert_financial_summary: 240,
+};
+
+export function emailDelayMinutes(type: string): number {
+  return EMAIL_DELAY_MINUTES_BY_TYPE[type] ?? DEFAULT_EMAIL_DELAY_MINUTES;
+}
 
 export interface ReportJoin {
   /** financial_reports.deleted_at — null = aktiv rapport */
@@ -114,9 +150,13 @@ function copenhagenHour(d: Date): number {
  * 1) Rapport-tilstandsfilter: slettet/godkendt/forsvundet rapport → dispose.
  * 2) Dedup: report_review_ready per (company_id, period_key) — nyeste vinder,
  *    taberne disposes.
- * 3) Afsendelsesvindue: udskudte kandidater (> 6 timer gamle, dvs. holdt
- *    tilbage af dagskvoten) sendes kun kl. 07-20 dansk tid — aldrig ved
- *    kvote-nulstillingen kl. 02 dansk nat. Friske sendes straks.
+ * 3) Ventetid pr. type + afsendelsesvindue: en kandidat yngre end sin types
+ *    ventetid (emailDelayMinutes — default 15 min, handlingsudløste typer
+ *    240 min) venter, hverken mail eller dispose. Udskudte kandidater
+ *    (> 6 timer gamle, dvs. holdt tilbage af dagskvoten — samt ALLE
+ *    handlingsudløste typer, uanset alder) sendes kun kl. 07-20 dansk
+ *    tid — aldrig ved kvote-nulstillingen kl. 02 dansk nat. Friske
+ *    default-kandidater sendes straks.
  */
 export function selectNotificationEmails<T extends EmailCandidate>(
   candidates: T[],
@@ -161,12 +201,19 @@ export function selectNotificationEmails<T extends EmailCandidate>(
     }
   }
 
-  // 3) Afsendelsesvindue for udskudte kandidater
+  // 3) Ventetid pr. type, derefter afsendelsesvindue.
+  // Handlingsudløste typer bærer altid vinduet, uanset alder: en mail
+  // om ens egen upload må ikke lande kl. 22.
   const hour = copenhagenHour(now);
   const inWindow = hour >= SEND_WINDOW_START_HOUR && hour < SEND_WINDOW_END_HOUR;
   const toEmail: T[] = [];
   for (const c of [...passthrough, ...winners.values()]) {
-    const deferred = now.getTime() - new Date(c.created_at).getTime() > DEFER_THRESHOLD_MS;
+    const ageMs = now.getTime() - new Date(c.created_at).getTime();
+    const delayMs = emailDelayMinutes(c.type) * 60 * 1000;
+    if (ageMs < delayMs) continue; // for ung — vent, hverken mail eller dispose
+
+    const hasCustomDelay = c.type in EMAIL_DELAY_MINUTES_BY_TYPE;
+    const deferred = hasCustomDelay || ageMs > DEFER_THRESHOLD_MS;
     if (deferred && !inWindow) continue; // vent — samles op i vinduet
     toEmail.push(c);
   }

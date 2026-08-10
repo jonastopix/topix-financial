@@ -136,6 +136,10 @@ Deno.serve(async (req) => {
 
     const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
+    // Bredt net: 15 minutter er kun DB-forfilteret (den mindste mulige
+    // ventetid). Den faktiske ventetid pr. type afgøres i
+    // selectNotificationEmails (emailDelayMinutes — handlingsudløste typer
+    // som report_review_ready venter længere).
     // Fetch unseen notifications eligible for email
     const { data: pending, error: fetchErr } = await admin
       .from("notifications")

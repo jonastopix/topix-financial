@@ -5,6 +5,8 @@ import { describe, it, expect } from "vitest";
 import {
   selectNotificationEmails,
   parseDkReportPeriodKey,
+  emailDelayMinutes,
+  DEFAULT_EMAIL_DELAY_MINUTES,
   type EmailCandidate,
 } from "../../../supabase/functions/_shared/notificationEmailSelection.ts";
 
@@ -29,9 +31,12 @@ import {
  * financial_reports.reviewed_at er advisorens læst-flag og undertrykker IKKE.
  */
 
-// Fast "nu" i alle basistests: 2026-07-21 14:00 dansk (CEST) — inde i
+// Fast "nu" i alle basistests: 2026-07-21 18:00 dansk (CEST) — inde i
 // afsendelsesvinduet, så vindues-guarden ikke interfererer med de øvrige cases.
-const NOW = new Date("2026-07-21T12:00:00.000Z");
+// Basis-kandidaterne (created_at 10:00Z) er dermed 6 timer gamle og forbi den
+// type-specifikke ventetid (240 min for report_review_ready) — ventetids-
+// adfærden testes isoleret i sin egen describe-blok nedenfor.
+const NOW = new Date("2026-07-21T16:00:00.000Z");
 
 let seq = 0;
 function candidate(overrides: Partial<EmailCandidate> = {}): EmailCandidate {
@@ -163,9 +168,11 @@ describe("selectNotificationEmails — afsendelsesvindue for udskudte", () => {
     expect(toEmail.map((n) => n.id)).toEqual([c.id]);
   });
 
-  it("frisk notifikation sendes straks, også om natten", () => {
-    // Upload kl. 23:00 dansk → mail 23:30 dansk er fin (normal 15-min-cron-sti).
-    const fresh = candidate({ created_at: "2026-07-21T21:00:00.000Z" });
+  it("frisk default-type notifikation sendes straks, også om natten", () => {
+    // Advisor svarer kl. 23:00 dansk → mail 23:30 dansk er fin (normal
+    // 15-min-cron-sti). Gælder KUN default-typer: handlingsudløste typer
+    // (report_review_ready m.fl.) bærer nu altid vinduet, se ventetids-blokken.
+    const fresh = candidate({ type: "chat_reply", report: undefined, created_at: "2026-07-21T21:00:00.000Z" });
     const { toEmail } = selectNotificationEmails([fresh], { now: new Date("2026-07-21T21:30:00.000Z") });
 
     expect(toEmail.map((n) => n.id)).toEqual([fresh.id]);
@@ -181,6 +188,89 @@ describe("selectNotificationEmails — ikke-rapport-notifikationer røres ikke",
 
     expect(toEmail.map((n) => n.id)).toEqual([milestone.id, weekly.id]);
     expect(toDispose).toEqual([]);
+  });
+});
+
+describe("selectNotificationEmails — ventetid pr. type (handlingsudløste mails)", () => {
+  // NOW er 18:00 dansk (CEST) — inde i afsendelsesvinduet.
+
+  it("report_review_ready 30 min gammel, i vinduet → venter (hverken mail eller dispose)", () => {
+    const young = candidate({ created_at: "2026-07-21T15:30:00.000Z" });
+
+    const { toEmail, toDispose } = selectNotificationEmails([young], { now: NOW });
+
+    expect(toEmail).toEqual([]);
+    expect(toDispose).toEqual([]);
+  });
+
+  it("report_review_ready 5 timer gammel, i vinduet → toEmail", () => {
+    const ripe = candidate({ created_at: "2026-07-21T11:00:00.000Z" });
+
+    const { toEmail, toDispose } = selectNotificationEmails([ripe], { now: NOW });
+
+    expect(toEmail.map((n) => n.id)).toEqual([ripe.id]);
+    expect(toDispose).toEqual([]);
+  });
+
+  it("report_review_ready 5 timer gammel, kl. 22 dansk → venter (hasCustomDelay alene udløser vinduet)", () => {
+    // Alderen (5t) er UNDER DEFER_THRESHOLD (6t), så det gamle deferred-kriterium
+    // er falsk — kun hasCustomDelay kan binde kandidaten til vinduet.
+    // 2026-07-21T20:00Z = 22:00 dansk (CEST); oprettet 15:00Z = 5 timer før.
+    const ripe = candidate({ created_at: "2026-07-21T15:00:00.000Z" });
+
+    const { toEmail, toDispose } = selectNotificationEmails([ripe], { now: new Date("2026-07-21T20:00:00.000Z") });
+
+    expect(toEmail).toEqual([]);
+    expect(toDispose).toEqual([]);
+  });
+
+  it("chat_reply 30 min gammel → toEmail (default 15 min uændret)", () => {
+    const reply = candidate({ type: "chat_reply", report: undefined, created_at: "2026-07-21T15:30:00.000Z" });
+
+    const { toEmail } = selectNotificationEmails([reply], { now: NOW });
+
+    expect(toEmail.map((n) => n.id)).toEqual([reply.id]);
+  });
+
+  it("chat_reply 5 min gammel → venter", () => {
+    const fresh = candidate({ type: "chat_reply", report: undefined, created_at: "2026-07-21T15:55:00.000Z" });
+
+    const { toEmail, toDispose } = selectNotificationEmails([fresh], { now: NOW });
+
+    expect(toEmail).toEqual([]);
+    expect(toDispose).toEqual([]);
+  });
+
+  it("emailDelayMinutes falder tilbage til default for ukendte typer", () => {
+    expect(emailDelayMinutes("ukendt_type")).toBe(15);
+    expect(DEFAULT_EMAIL_DELAY_MINUTES).toBe(15);
+  });
+
+  it("report_review_ready 30 min gammel MEN committet → toDispose, ikke vent (dispose i trin 1 slår ventetiden i trin 3)", () => {
+    // Den dominerende sti efter 240-min ventetiden: medlemmet uploader og
+    // godkender kort efter. Kandidaten er UNG (30 min), så uden dispose i
+    // trin 1 ville den blot vente — og aldrig blive markeret håndteret.
+    const committedYoung = candidate({
+      created_at: "2026-07-21T15:30:00.000Z",
+      report: { deleted_at: null, committed: true, period_key: "2026-06" },
+    });
+
+    const { toEmail, toDispose } = selectNotificationEmails([committedYoung], { now: NOW });
+
+    expect(toEmail).toEqual([]);
+    expect(toDispose.map((n) => n.id)).toEqual([committedYoung.id]);
+  });
+
+  it("report_review_ready 30 min gammel MEN rapporten er slettet → toDispose, ikke vent", () => {
+    const deletedYoung = candidate({
+      created_at: "2026-07-21T15:30:00.000Z",
+      report: { deleted_at: "2026-07-21T15:35:00.000Z", committed: false, period_key: "2026-06" },
+    });
+
+    const { toEmail, toDispose } = selectNotificationEmails([deletedYoung], { now: NOW });
+
+    expect(toEmail).toEqual([]);
+    expect(toDispose.map((n) => n.id)).toEqual([deletedYoung.id]);
   });
 });
 
