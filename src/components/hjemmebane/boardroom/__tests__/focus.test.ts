@@ -25,6 +25,7 @@ const base = (overrides: Partial<FocusInputs> = {}): FocusInputs => ({
   weeklyFocus: null,
   openActions: [],
   unlinkedLevers: [],
+  askMeAboutMissing: false,
   ...overrides,
 });
 
@@ -126,10 +127,41 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(items[0]).toMatchObject({ kind: "unlinked-lever", priority: 8, ctaHref: "/handouts" });
     expect(items[0].description).toContain('"Flere leads fra LinkedIn" (Salg)');
   });
+
+  it("(i) tom netværksprofil → punktet, lavest prioritet", () => {
+    const items = deriveFocus(base({ askMeAboutMissing: true }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: "empty-profile",
+      priority: 9,
+      title: "Fortæl de andre hvad du er god til",
+      ctaHref: "/settings",
+    });
+  });
+
+  it("(i) udfyldt ask_me_about → intet punkt", () => {
+    expect(deriveFocus(base({ askMeAboutMissing: false }))).toEqual([]);
+  });
+
+  it("(i) står ALDRIG øverst når en anden kilde er aktiv", () => {
+    const withReport = deriveFocus(
+      base({ processedPeriodKeys: new Set(), committedPeriodKeys: new Set(), askMeAboutMissing: true }),
+    );
+    expect(withReport.map((i) => i.kind)).toEqual(["missing-report", "empty-profile"]);
+
+    const withLever = deriveFocus(
+      base({
+        unlinkedLevers: [{ lever: "Flere leads fra LinkedIn", moduleTitle: "Salg" }],
+        askMeAboutMissing: true,
+      }),
+    );
+    expect(withLever.map((i) => i.kind)).toEqual(["unlinked-lever", "empty-profile"]);
+    expect(withLever[withLever.length - 1].kind).toBe("empty-profile");
+  });
 });
 
 describe("deriveFocus — rækkefølge og tom-tilstand", () => {
-  it("alle otte slots samtidig → fast (a)-(h)-rækkefølge", () => {
+  it("alle ni slots samtidig → fast (a)-(i)-rækkefølge", () => {
     const items = deriveFocus({
       now: NOW,
       processedPeriodKeys: new Set(), // (a) — og pulse-gaten lukker (g)
@@ -141,6 +173,7 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
       weeklyFocus: { headline: null, seen: false },
       openActions: [{ id: "a1", title: "Handling", priority: "high" }],
       unlinkedLevers: [{ lever: "Løftestang", moduleTitle: "Salg" }],
+      askMeAboutMissing: true,
     });
     expect(items.map((i) => i.kind)).toEqual([
       "missing-report",
@@ -150,6 +183,7 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
       "milestone-deadline",
       "company-action",
       "unlinked-lever",
+      "empty-profile",
     ]);
     // prioriteterne er monotont voksende (listen ER sorteret)
     const prios = items.map((i) => i.priority);

@@ -26,6 +26,9 @@ import { DANISH_MONTHS } from "@/lib/financialUtils";
       (e) milestone-deadline ≤14 dage (nærmeste først, dernæst titel)
       (f) åbne company_actions (kalderens prioritetsorden)
       (g) pulse-nudge                  (h) løftestang uden milestone
+      (i) tom netværksprofil (ask_me_about mangler) — LAVEST: en tom
+          profil er aldrig vigtigere end tal, beskeder eller milepæle;
+          den skal kun dukke op i en rolig uge
     Tom liste = alt er ajour (kortet bærer forløbs-linket). */
 
 export interface NextStepMilestone {
@@ -71,6 +74,9 @@ export interface FocusInputs extends NextStepInputs {
   weeklyFocus: FocusWeeklyFocus | null;
   openActions: FocusOpenAction[];
   unlinkedLevers: FocusUnlinkedLever[];
+  /** Egen member_profiles.ask_me_about er null/tom. Kalderen gater
+      rådgivere til false — de har ikke samme profilrolle. */
+  askMeAboutMissing: boolean;
 }
 
 export type FocusKind =
@@ -82,7 +88,8 @@ export type FocusKind =
   | "milestone-deadline"
   | "company-action"
   | "pulse"
-  | "unlinked-lever";
+  | "unlinked-lever"
+  | "empty-profile";
 
 export interface FocusItem {
   /** Stabil, unik nøgle (list-keys/dedup): kind + evt. kilde-id. */
@@ -252,6 +259,20 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     });
   }
 
+  // (i) Tom netværksprofil — LAVEST prioritet: kun i en rolig uge.
+  // Kalderen gater rådgivere (askMeAboutMissing er false for dem).
+  if (inputs.askMeAboutMissing) {
+    items.push({
+      key: "empty-profile",
+      kind: "empty-profile",
+      priority: 9,
+      title: "Fortæl de andre hvad du er god til",
+      description: "Netværket kan kun bruge dig, hvis de ved hvad du har prøvet.",
+      ctaLabel: "Udfyld din profil",
+      ctaHref: "/settings",
+    });
+  }
+
   // Byggerækkefølgen ER prioritetsordenen — ingen efter-sortering
   // nødvendig, og indsættelsesordenen er deterministisk.
   return items;
@@ -268,6 +289,7 @@ export function deriveNextStep(inputs: NextStepInputs): NextStep | null {
     weeklyFocus: null,
     openActions: [],
     unlinkedLevers: [],
+    askMeAboutMissing: false,
   });
   const first = focus[0];
   if (!first) return null;
