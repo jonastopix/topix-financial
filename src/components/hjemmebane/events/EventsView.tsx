@@ -3,15 +3,17 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { listAllUpcomingEvents, listPastEvents } from "@/lib/hjemmebane/akademiApi";
 import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
+import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
 import { HbSection } from "../HbSection";
+import { EventRegisterAction } from "./EventRegisterAction";
 
-/** Events-miljøet, trin 1: medlemmets eventliste (/events). KUN listen —
-    ingen tilmelding, ingen deltagerliste, ingen eventsider (trin 2/3).
-    To sektioner: Kommende (published + fremtidige, nærmeste først) og
-    Afholdte (completed/cancelled, grupperet pr. år, nyeste først).
+/** Events-miljøet: medlemmets eventliste (/events) m. inline-tilmelding
+    (trin 3b) i Kommende-rækkernes højrekolonne. To sektioner: Kommende
+    (published + fremtidige, nærmeste først) og Afholdte
+    (completed/cancelled, grupperet pr. år, nyeste først).
     Events er platform-globale (ingen companyId) — ingen advisor-prompt.
     Række-udtrykket spejler forsidens "Kommende"-sektion: rammeløse
-    hb-line-rækker m. dato-blok, titel, meta og højre-stillet nedtælling. */
+    hb-line-rækker m. dato-blok, titel og meta (inkl. nedtælling). */
 
 /** Nedtællingssproget — samme som forsidens (BoardroomView:86-93). */
 const eventCountdown = (startsAt: string): string => {
@@ -114,21 +116,26 @@ export const EventsView = () => {
           </p>
         ) : (
           <ul>
-            {/* Hele rækken linker til eventsiden (trin 2) — udtrykket er
-                uændret; kun en stille hover-tone er lagt til. */}
+            {/* Link'et dækker KUN dato+titel+meta — tilmeldingshandlingen
+                står som SØSKENDE i rækken, aldrig inde i linket (en
+                klikbar handling i et anker er ugyldig HTML og ville
+                trigge navigation). Hover-tonen bor på wrapperen, så
+                rækken stadig føles som ét element. Nedtællingen er
+                flyttet ind i meta-linjen; højrekolonnen bærer handlingen. */}
             {upcoming.map((event) => (
               <li key={event.id} className="border-t border-hb-line last:border-b">
-                <Link
-                  to={`/events/${event.id}`}
-                  className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
-                >
-                  <DateBlock startsAt={event.starts_at} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
-                    <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event)}</p>
-                  </div>
-                  <p className="shrink-0 text-sm text-hb-ink-soft">{eventCountdown(event.starts_at)}</p>
-                </Link>
+                <div className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20">
+                  <Link to={`/events/${event.id}`} className="flex min-w-0 flex-1 items-center gap-5">
+                    <DateBlock startsAt={event.starts_at} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
+                      <p className="mt-1 text-sm text-hb-ink-soft">
+                        {`${metaLine(event)} · ${eventCountdown(event.starts_at)}`}
+                      </p>
+                    </div>
+                  </Link>
+                  <EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />
+                </div>
               </li>
             ))}
           </ul>
