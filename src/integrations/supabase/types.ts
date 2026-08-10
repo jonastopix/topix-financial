@@ -358,6 +358,7 @@ export type Database = {
           created_at: string
           cvr_fetched_at: string | null
           cvr_number: string | null
+          description: string | null
           end_date: string | null
           id: string
           industry: string | null
@@ -395,6 +396,7 @@ export type Database = {
           created_at?: string
           cvr_fetched_at?: string | null
           cvr_number?: string | null
+          description?: string | null
           end_date?: string | null
           id?: string
           industry?: string | null
@@ -432,6 +434,7 @@ export type Database = {
           created_at?: string
           cvr_fetched_at?: string | null
           cvr_number?: string | null
+          description?: string | null
           end_date?: string | null
           id?: string
           industry?: string | null
@@ -1762,6 +1765,39 @@ export type Database = {
           },
         ]
       }
+      member_profiles: {
+        Row: {
+          ask_me_about: string | null
+          created_at: string
+          expertise: string[]
+          linkedin_url: string | null
+          updated_at: string
+          user_id: string
+          working_on: string | null
+          working_on_updated_at: string | null
+        }
+        Insert: {
+          ask_me_about?: string | null
+          created_at?: string
+          expertise?: string[]
+          linkedin_url?: string | null
+          updated_at?: string
+          user_id: string
+          working_on?: string | null
+          working_on_updated_at?: string | null
+        }
+        Update: {
+          ask_me_about?: string | null
+          created_at?: string
+          expertise?: string[]
+          linkedin_url?: string | null
+          updated_at?: string
+          user_id?: string
+          working_on?: string | null
+          working_on_updated_at?: string | null
+        }
+        Relationships: []
+      }
       member_progress: {
         Row: {
           acknowledged_at: string | null
@@ -2564,6 +2600,63 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_event_participants: {
+        Args: { p_event_id: string }
+        Returns: {
+          ask_me_about: string
+          avatar_url: string
+          company_description: string
+          company_name: string
+          expertise: string[]
+          full_name: string
+          industry_label: string
+          is_advisor: boolean
+          linkedin_url: string
+          member_since: string
+          user_id: string
+          website: string
+          working_on: string
+          working_on_updated_at: string
+        }[]
+      }
+      get_member_directory: {
+        Args: never
+        Returns: {
+          ask_me_about: string
+          avatar_url: string
+          company_description: string
+          company_name: string
+          expertise: string[]
+          full_name: string
+          industry_label: string
+          is_advisor: boolean
+          linkedin_url: string
+          member_since: string
+          user_id: string
+          website: string
+          working_on: string
+          working_on_updated_at: string
+        }[]
+      }
+      get_member_profile: {
+        Args: { p_user_id: string }
+        Returns: {
+          ask_me_about: string
+          avatar_url: string
+          company_description: string
+          company_name: string
+          expertise: string[]
+          full_name: string
+          industry_label: string
+          is_advisor: boolean
+          linkedin_url: string
+          member_since: string
+          user_id: string
+          website: string
+          working_on: string
+          working_on_updated_at: string
+        }[]
+      }
       get_report_commit_preview: {
         Args: { p_report_id: string }
         Returns: Json
@@ -2598,6 +2691,7 @@ export type Database = {
         Returns: boolean
       }
       is_legat_user: { Args: { _user_id: string }; Returns: boolean }
+      is_membership_active: { Args: { p_company_id: string }; Returns: boolean }
       legat_day: { Args: { _user_id: string }; Returns: number }
       legat_unlocked_modules: { Args: { _user_id: string }; Returns: string[] }
       log_user_login: { Args: never; Returns: undefined }
