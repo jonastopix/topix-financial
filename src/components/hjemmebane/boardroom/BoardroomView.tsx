@@ -19,6 +19,8 @@ import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
+import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
+import { EventRegisterAction } from "../events/EventRegisterAction";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { HbButton } from "../HbButton";
@@ -1516,49 +1518,45 @@ export const BoardroomView = () => {
       {/* ── EVENTS: egen sektion mellem lag 1 og lag 2 — live-sessions
           er en KERNEYDELSE, ikke en nyhed; de skal ikke bo som én tile
           i det redaktionelle bånd. Rolige rammeløse rækker (samme
-          tile-materiale: hb-line + luft) m. dato tydeligt. INGEN
-          tilmelding endnu (egen leverance) — højrekolonnen i hver række
-          er bevidst reserveret: CTA'en ("Tilmeld") skal ind dér, når
-          tilmeldings-leverancen lander. Ingen kommende events → ingen
+          tile-materiale: hb-line + luft) m. dato tydeligt.
+          Højrekolonnen bærer inline-tilmeldingen (Events trin 3b);
+          nedtællingen bor i meta-linjen. Ingen kommende events → ingen
           sektion. */}
       {events.length > 0 && (
         <HbSection eyebrow="Kommende" hairline className="mt-14 md:mt-16">
-          {/* Hele rækken linker til eventsiden (Events trin 2) —
-              udtrykket uændret, kun stille hover-tone tilføjet. */}
+          {/* Link'et dækker KUN dato+titel+meta — tilmeldingshandlingen
+              står som SØSKENDE i rækken, aldrig inde i linket (klikbar
+              handling i et anker er ugyldig HTML og ville trigge
+              navigation). Hover-tonen bor på wrapperen. */}
           <ul>
             {events.map((event) => (
               <li key={event.id} className="border-t border-hb-line last:border-b">
-                <Link
-                  to={`/events/${event.id}`}
-                  className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
-                >
-                  <div className="w-12 shrink-0 text-center">
-                    <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
-                      {new Date(event.starts_at).getDate()}
-                    </p>
-                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                      {new Date(event.starts_at).toLocaleDateString("da-DK", { month: "short" }).replace(".", "")}
-                    </p>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
-                    <p className="mt-1 text-sm text-hb-ink-soft">
-                      {[
-                        event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
-                        event.meet_url ? "Online" : null,
-                        new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </div>
-                  {/* Nedtællingen højre-stillet, så rækken spænder aksen ud
-                      (polish #4) — den bærer højrekolonnen indtil
-                      tilmeldings-CTA'en ("Tilmeld") lander dér. */}
-                  <p className="shrink-0 text-sm text-hb-ink-soft">
-                    {eventCountdown(event.starts_at)}
-                  </p>
-                </Link>
+                <div className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20">
+                  <Link to={`/events/${event.id}`} className="flex min-w-0 flex-1 items-center gap-5">
+                    <div className="w-12 shrink-0 text-center">
+                      <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
+                        {new Date(event.starts_at).getDate()}
+                      </p>
+                      <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                        {new Date(event.starts_at).toLocaleDateString("da-DK", { month: "short" }).replace(".", "")}
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
+                      <p className="mt-1 text-sm text-hb-ink-soft">
+                        {[
+                          event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
+                          event.meet_url ? "Online" : null,
+                          new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
+                          eventCountdown(event.starts_at),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  </Link>
+                  <EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />
+                </div>
               </li>
             ))}
           </ul>
