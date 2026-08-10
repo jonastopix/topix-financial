@@ -230,26 +230,34 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
           <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
             Deltagere
           </h2>
+          {/* Hele rækken linker til medlemsprofilen (eventrække-mønstret:
+              Link + stille hover-tone; negativ margen giver hover-fladen
+              luft uden at rykke indholdet). */}
           {participants.length === 0 ? (
             <p className="mt-4 text-sm text-hb-ink-soft">Ingen tilmeldte endnu</p>
           ) : (
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-4 space-y-1">
               {participants.map((p) => (
-                <li key={p.user_id} className="flex items-center gap-3">
-                  <ParticipantAvatar participant={p} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-hb-ink">
-                      {p.full_name}
-                      {p.is_advisor && (
-                        <span className="ml-2 text-[11px] font-normal uppercase tracking-wide text-hb-ink-soft">
-                          Rådgiver
-                        </span>
+                <li key={p.user_id}>
+                  <Link
+                    to={`/medlemmer/${p.user_id}`}
+                    className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-hb-sage/20"
+                  >
+                    <ParticipantAvatar participant={p} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-hb-ink">
+                        {p.full_name}
+                        {p.is_advisor && (
+                          <span className="ml-2 text-[11px] font-normal uppercase tracking-wide text-hb-ink-soft">
+                            Rådgiver
+                          </span>
+                        )}
+                      </p>
+                      {p.company_name && (
+                        <p className="truncate text-xs text-hb-ink-soft">{p.company_name}</p>
                       )}
-                    </p>
-                    {p.company_name && (
-                      <p className="truncate text-xs text-hb-ink-soft">{p.company_name}</p>
-                    )}
-                  </div>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>

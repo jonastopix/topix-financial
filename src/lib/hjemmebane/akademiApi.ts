@@ -6,6 +6,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { isEventPast } from "./eventPhase";
+import type { MemberProfile } from "./memberProfile";
 import type {
   ContentCollection,
   ContentItem,
@@ -220,19 +221,11 @@ export async function listPastEvents(limit?: number): Promise<EventRow[]> {
     get_event_participants (SECURITY DEFINER-RPC, migration 20260810120000
     + aktivt-medlemskabs-gaten i 20260810150000). RPC'en er ikke i de
     genererede typer endnu — deraf as any-kaldet (samme mønster som
-    get_all_advisor_profiles i CompanyChatPane). */
-export type EventParticipant = {
-  user_id: string;
-  full_name: string;
-  avatar_url: string | null;
-  company_name: string | null;
-  industry_label: string | null;
-  website: string | null;
-  linkedin_url: string | null;
-  expertise: string[];
-  bio: string | null;
-  is_advisor: boolean;
-};
+    get_all_advisor_profiles i CompanyChatPane).
+    Kolonnesættet er DELT på tværs af visnings-RPC'erne og bor som
+    MemberProfile i memberProfile.ts — aliaset her består, så
+    deltagerlistens kaldesteder kan blive stående. */
+export type EventParticipant = MemberProfile;
 
 export async function listEventParticipants(eventId: string): Promise<EventParticipant[]> {
   const { data, error } = await supabase.rpc("get_event_participants" as any, {
