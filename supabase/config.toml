@@ -34,9 +34,9 @@ project_id = "loiavmastgeieqyiwyyr"
   [functions.send-slack-report-notification]
     verify_jwt = false
   [functions.send-report-reminder]
-    verify_jwt = false
+    verify_jwt = true
   [functions.nudge-report-no-reflection]
-    verify_jwt = false
+    verify_jwt = true
   [functions.send-template-email]
     verify_jwt = false
   [functions.send-slack-handout-notification]
@@ -79,3 +79,9 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.podcast-rss]
     verify_jwt = false
+  [functions.generate-weekly-focus]
+    verify_jwt = true
+  [functions.send-monthly-digest]
+    verify_jwt = true
+  [functions.event-reminders]
+    verify_jwt = true
