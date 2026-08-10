@@ -13,7 +13,7 @@ import {
   buildRawLines,
   buildNormalizedLines,
 } from "../_shared/canonicalEngine.ts";
-import type { CanonicalOutput, ValidationStatus } from "../_shared/canonicalTypes.ts";
+import type { CanonicalMetrics, CanonicalOutput, ValidationStatus } from "../_shared/canonicalTypes.ts";
 import { assertEquals, assert, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 // ══════════════════════════════════════════════════════════════════
@@ -349,7 +349,7 @@ Deno.test("CASE 8: Golden snapshot of full canonical output", () => {
   // ── VALIDATION ──
   assertEquals(canonical.validation.status, "PASS");
   assert(Array.isArray(canonical.validation.canonical_checks));
-  assertEquals(canonical.validation.canonical_checks.length, 12); // All 12 checks
+  assertEquals(canonical.validation.canonical_checks.length, 13); // All 13 checks
   assert(Array.isArray(canonical.validation.ai_checks));
   assertEquals(canonical.validation.ai_checks.length, 1);
 
@@ -446,4 +446,94 @@ Deno.test("CASE 10: AI saldobalance — safety net flips raw accounting signs", 
   // Note: ai_eligible is false for trial_balance statement type (Phase 3 restriction)
   assertEquals(canonical.statement_type, "trial_balance");
   assertEquals(canonical.ai_eligible, false);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// CASE 11: cost_lines_present — omsætning uden omkostningsposter
+// (prod: Rallysupport jan-apr 2026, Doggybed apr 2026 — net_result == revenue med PASS)
+// ══════════════════════════════════════════════════════════════════
+
+function metricsWith(overrides: Partial<CanonicalMetrics>): CanonicalMetrics {
+  return {
+    revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
+    payroll: null, payroll_related: null, other_staff_costs: null,
+    sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+    extraordinary_items: null, ebt: null, net_result: null,
+    assets_total: null, inventory: null, receivables_total: null,
+    trade_receivables: null, unbilled_wip: null, cash: null,
+    equity_total: null, equity_ratio_pct: null, related_party_net: null,
+    provisions_total: null, current_liabilities: null, debt_total: null,
+    vat_payable: null, liabilities_total: null,
+    ...overrides,
+  };
+}
+
+function runCostLinesCheck(overrides: Partial<CanonicalMetrics>) {
+  const { status, canonical_checks, errors } = runExtendedValidation(
+    { key_figures: {} }, metricsWith(overrides), "period", "trial_balance", []
+  );
+  const check = canonical_checks.find(c => c.name === "cost_lines_present");
+  assertExists(check);
+  return { status, check: check!, errors };
+}
+
+Deno.test("CASE 11a: Revenue uden en eneste omkostningspost → FAIL", () => {
+  const { status, check, errors } = runCostLinesCheck({
+    revenue: 250000, ebt: 250000, net_result: 250000,
+  });
+
+  assertEquals(check.result, "FAIL");
+  // Fejlteksten skal nævne omsætningen og at ingen omkostningskonti blev fundet
+  assert(check.details.includes("250000"), "Details should mention the revenue amount");
+  assert(check.details.toLowerCase().includes("no cost lines"), "Details should say no cost lines found");
+  assert(errors.some(e => e.includes("250000")), "Errors should mention the revenue amount");
+  // Guarden skal flippe den samlede status til FAIL
+  assertEquals(status, "FAIL");
+});
+
+Deno.test("CASE 11b: Revenue med kun cogs → PASS", () => {
+  const { check } = runCostLinesCheck({
+    revenue: 250000, cogs: 100000, ebt: 150000,
+  });
+
+  assertEquals(check.result, "PASS");
+  assert(check.details.includes("1/10"), "Details should count 1 of 10 cost fields");
+});
+
+Deno.test("CASE 11c: Revenue med kun admin_costs → PASS", () => {
+  const { check } = runCostLinesCheck({
+    revenue: 250000, admin_costs: 40000, ebt: 210000,
+  });
+
+  assertEquals(check.result, "PASS");
+  assert(check.details.includes("1/10"), "Details should count 1 of 10 cost fields");
+});
+
+Deno.test("CASE 11d: Revenue null → SKIP", () => {
+  const { check } = runCostLinesCheck({
+    revenue: null, ebt: -50000,
+  });
+
+  assertEquals(check.result, "SKIP");
+});
+
+Deno.test("CASE 11e: Revenue 0 → SKIP", () => {
+  const { check } = runCostLinesCheck({
+    revenue: 0, ebt: 0,
+  });
+
+  assertEquals(check.result, "SKIP");
+});
+
+Deno.test("CASE 11f: Alle omkostningsfelter eksplicit 0 → FAIL", () => {
+  const { status, check } = runCostLinesCheck({
+    revenue: 250000, ebt: 250000, net_result: 250000,
+    cogs: 0, payroll: 0, payroll_related: 0, other_staff_costs: 0,
+    sales_costs: 0, facility_costs: 0, vehicle_costs: 0,
+    admin_costs: 0, depreciation: 0, financial_costs: 0,
+  });
+
+  assertEquals(check.result, "FAIL");
+  assertEquals(status, "FAIL");
 });

@@ -736,6 +736,26 @@ export function runExtendedValidation(
     checks.push({ name: "missing_core_totals", result: "PASS", details: "Core totals present for statement type" });
   }
 
+  // 13. cost_lines_present
+  // Omsætning uden en eneste omkostningspost → subtotalerne er lig omsætningen
+  // og et underskud vises som overskud (prod: Rallysupport jan-apr 2026,
+  // Doggybed apr 2026 — net_result == revenue med PASS).
+  const costFields: (keyof CanonicalMetrics)[] = [
+    "cogs", "payroll", "payroll_related", "other_staff_costs", "sales_costs",
+    "facility_costs", "vehicle_costs", "admin_costs", "depreciation", "financial_costs",
+  ];
+  if (metrics.revenue != null && metrics.revenue > 0) {
+    const costLineCount = costFields.filter(f => metrics[f] != null && metrics[f] !== 0).length;
+    if (costLineCount === 0) {
+      checks.push({ name: "cost_lines_present", result: "FAIL", details: `Revenue ${metrics.revenue} but no cost lines found — result equals revenue, report incomplete` });
+      errors.push(`No cost lines found: revenue ${metrics.revenue} with all cost fields null or 0`);
+    } else {
+      checks.push({ name: "cost_lines_present", result: "PASS", details: `${costLineCount}/${costFields.length} cost fields present` });
+    }
+  } else {
+    checks.push({ name: "cost_lines_present", result: "SKIP", details: "Revenue missing or zero" });
+  }
+
   // ── Derive final status ──
   const hasCanonicalFail = checks.some(c => c.result === "FAIL");
   const hasAiFail = aiChecks.some(c => c.result === "FAIL");
