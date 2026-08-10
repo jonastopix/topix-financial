@@ -28,6 +28,18 @@ export type MemberProfileFields = {
   bio: string | null;
 };
 
+/** Absolut href til eksterne links. Værdier uden protokol
+    ("www.brroset.dk") er RELATIVE stier i et <a> — klikket lander på
+    app.theboardroom.dk/medlemmer/www.brroset.dk i stedet for ude af
+    siden. Feltet valideres bevidst ikke ved indtastning (et domæne uden
+    protokol er ikke en fejl); reparationen sker her ved visning. */
+export function externalHref(raw: string | null): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 /** Én brugers visningsprofil via get_member_profile-RPC'en (SECURITY
     DEFINER; gates BEVIDST ikke på medlemskab — historiske deltagere skal
     kunne slås op). RETURNS TABLE → array; første række eller null.
