@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { getMemberProfile } from "@/lib/hjemmebane/memberProfile";
+import { externalHref, getMemberProfile } from "@/lib/hjemmebane/memberProfile";
 
 /** Medlemsprofilens visningsflade (/medlemmer/:userId). Tom-tilstanden
     er bærende: en uudfyldt profil må ALDRIG ligne en fejl — vis kun det
@@ -35,9 +35,14 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
   const hasPersonalContent =
     !!profile.bio || profile.expertise.length > 0 || !!profile.linkedin_url;
+  // externalHref: prod-data mangler ofte protokol (www.brroset.dk), og et
+  // <a href="www.brroset.dk"> er en RELATIV sti — klikket ville blive på
+  // app.theboardroom.dk i stedet for at føre ud af siden.
+  const websiteHref = externalHref(profile.website);
+  const linkedinHref = externalHref(profile.linkedin_url);
   const links = [
-    profile.website ? { label: "Website", href: profile.website } : null,
-    profile.linkedin_url ? { label: "LinkedIn", href: profile.linkedin_url } : null,
+    websiteHref ? { label: "Website", href: websiteHref } : null,
+    linkedinHref ? { label: "LinkedIn", href: linkedinHref } : null,
   ].filter(Boolean) as { label: string; href: string }[];
 
   return (
