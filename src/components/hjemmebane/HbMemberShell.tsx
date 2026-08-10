@@ -17,7 +17,9 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events";
+  // "medlemmer" matcher intet nav-punkt (medlemsprofilsider) — bevidst
+  // ingen aktiv-markering; profilsider hører ikke til én sektion.
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events" | "medlemmer";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);

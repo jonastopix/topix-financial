@@ -6,11 +6,43 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+/** DET fælles kolonnesæt fra visnings-RPC'erne (get_member_profile,
+    get_event_participants, get_member_directory) — én type, ét sted.
+    akademiApi's EventParticipant er et alias for denne. */
+export type MemberProfile = {
+  user_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  company_name: string | null;
+  industry_label: string | null;
+  website: string | null;
+  linkedin_url: string | null;
+  expertise: string[];
+  bio: string | null;
+  is_advisor: boolean;
+};
+
 export type MemberProfileFields = {
   linkedin_url: string | null;
   expertise: string[];
   bio: string | null;
 };
+
+/** Én brugers visningsprofil via get_member_profile-RPC'en (SECURITY
+    DEFINER; gates BEVIDST ikke på medlemskab — historiske deltagere skal
+    kunne slås op). RETURNS TABLE → array; første række eller null.
+    22P02 (ugyldig uuid) er "ikke fundet", ikke en fejl (getEvent-mønstret). */
+export async function getMemberProfile(userId: string): Promise<MemberProfile | null> {
+  const { data, error } = await supabase.rpc("get_member_profile" as any, {
+    p_user_id: userId,
+  });
+  if (error) {
+    if ((error as { code?: string }).code === "22P02") return null;
+    throw new Error(error.message);
+  }
+  const rows = (data ?? []) as unknown as MemberProfile[];
+  return rows[0] ?? null;
+}
 
 /** Egen række — null når profilen aldrig er udfyldt (normalt udfald). */
 export async function getMyMemberProfile(userId: string): Promise<MemberProfileFields | null> {
