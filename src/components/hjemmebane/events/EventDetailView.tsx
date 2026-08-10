@@ -5,8 +5,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import {
   cancelRegistration,
+  declineEvent,
   getEvent,
-  isRegisteredForEvent,
+  getMyEventResponse,
   listEventParticipants,
   registerForEvent,
   type EventParticipant,
@@ -67,12 +68,13 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
     queryFn: () => listEventParticipants(eventId),
   });
 
-  // Egen tilmeldingsstatus SEPARAT fra deltagerlisten: RPC'en filtrerer
-  // på aktivt medlemskab, så en gyldig tilmelding kan eksistere uden at
-  // brugeren står i listen — knappen må aldrig aflæses af den.
-  const registrationQuery = useQuery({
+  // Eget svar SEPARAT fra deltagerlisten: RPC'en filtrerer på aktivt
+  // medlemskab OG attending, så både en gyldig tilmelding og et afbud
+  // kan eksistere uden at brugeren står i listen — knappen må aldrig
+  // aflæses af den.
+  const responseQuery = useQuery({
     queryKey: ["event", eventId, "registration", user?.id],
-    queryFn: () => isRegisteredForEvent(eventId, user!.id),
+    queryFn: () => getMyEventResponse(eventId, user!.id),
     enabled: !!user,
   });
 
@@ -86,7 +88,14 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
     onSuccess: invalidateRegistrationState,
   });
 
-  const cancelMutation = useMutation({
+  const declineMutation = useMutation({
+    mutationFn: () => declineEvent(eventId, user!.id),
+    onSuccess: invalidateRegistrationState,
+  });
+
+  // Afmelding OG fortryd-afbud er samme handling: cancelled_at sættes,
+  // svaret er trukket tilbage.
+  const resetMutation = useMutation({
     mutationFn: () => cancelRegistration(eventId, user!.id),
     onSuccess: invalidateRegistrationState,
   });
@@ -123,8 +132,9 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
   const participants = [...(participantsQuery.data ?? [])].sort(
     (a, b) => Number(a.is_advisor) - Number(b.is_advisor),
   );
-  const isRegistered = registrationQuery.data === true;
-  const mutating = registerMutation.isPending || cancelMutation.isPending;
+  const response = responseQuery.data ?? null;
+  const mutating =
+    registerMutation.isPending || declineMutation.isPending || resetMutation.isPending;
 
   // Tilmelding gælder kun fremtidige/igangværende events: aflyst → ingen
   // knap; afholdt (after) → ingen knap, men listen BLIVER — den er historik.
@@ -195,31 +205,54 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
           </p>
         )}
 
-        {/* Tilmelding: rolig tilmeldt-tilstand m. diskret afmeld-link,
-            ellers primær knap. Afmeld er en cancelled_at-UPDATE, aldrig
-            DELETE (kapacitetshistorik). */}
+        {/* Svaret: tre tilstande — intet svar (primær Tilmeld + "Jeg kan
+            ikke"-tekstlink), tilmeldt (rolig linje + Afmeld) og afbud
+            (rolig linje + Fortryd). Afmeld/fortryd er en
+            cancelled_at-UPDATE, aldrig DELETE (kapacitetshistorik). */}
         {canRegister && (
           <div className="mt-8">
-            {isRegistered ? (
+            {response === "attending" ? (
               <p className="text-sm text-hb-ink">
                 Du er tilmeldt.{" "}
                 <button
                   type="button"
                   disabled={mutating}
-                  onClick={() => cancelMutation.mutate()}
+                  onClick={() => resetMutation.mutate()}
                   className="text-hb-ink-soft underline-offset-4 hover:underline disabled:opacity-50"
                 >
                   Afmeld
                 </button>
               </p>
+            ) : response === "declined" ? (
+              <p className="text-sm text-hb-ink">
+                Du har meldt afbud.{" "}
+                <button
+                  type="button"
+                  disabled={mutating}
+                  onClick={() => resetMutation.mutate()}
+                  className="text-hb-ink-soft underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  Fortryd
+                </button>
+              </p>
             ) : (
-              <HbButton
-                variant="primary"
-                disabled={mutating}
-                onClick={() => registerMutation.mutate()}
-              >
-                Tilmeld
-              </HbButton>
+              <div className="flex items-center gap-4">
+                <HbButton
+                  variant="primary"
+                  disabled={mutating}
+                  onClick={() => registerMutation.mutate()}
+                >
+                  Tilmeld
+                </HbButton>
+                <button
+                  type="button"
+                  disabled={mutating}
+                  onClick={() => declineMutation.mutate()}
+                  className="text-sm text-hb-ink-soft underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  Jeg kan ikke
+                </button>
+              </div>
             )}
           </div>
         )}

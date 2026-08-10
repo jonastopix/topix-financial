@@ -235,34 +235,54 @@ export async function listEventParticipants(eventId: string): Promise<EventParti
   return (data ?? []) as EventParticipant[];
 }
 
-/** Tilmelding. UNIQUE(event_id, user_id) + upsert: en tidligere afmeldt
-    række genbruges med cancelled_at nulstillet — historikken er altid én
-    række pr. (event, bruger), aldrig dubletter. Self-only RLS håndhæver
-    ejerskabet. */
+/** Tilmelding. UNIQUE(event_id, user_id) + upsert: en tidligere
+    afmeldt/afbudt række genbruges med cancelled_at nulstillet og svaret
+    sat — historikken er altid én række pr. (event, bruger), aldrig
+    dubletter. Self-only RLS håndhæver ejerskabet. */
 export async function registerForEvent(eventId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from("event_registrations")
     .upsert(
-      { event_id: eventId, user_id: userId, cancelled_at: null },
+      // response er ikke i de genererede typer endnu (migration 20260810210000) — as any-mønstret.
+      { event_id: eventId, user_id: userId, response: "attending", cancelled_at: null } as any,
       { onConflict: "event_id,user_id" },
     );
   if (error) throw new Error(error.message);
 }
 
-/** Brugerens EGEN tilmeldingsstatus — læses direkte fra
-    event_registrations (self-only RLS), UAFHÆNGIGT af deltagerlisten:
-    get_event_participants filtrerer på aktivt medlemskab, så en gyldig
-    tilmelding kan eksistere uden at brugeren optræder i listen. */
-export async function isRegisteredForEvent(eventId: string, userId: string): Promise<boolean> {
+/** Afbud — et AKTIVT svar (response='declined', cancelled_at null),
+    ikke en afmelding. Vises aldrig på deltagerlisten (RPC'en filtrerer
+    på attending), men udelukker uge-påmindelsen. */
+export async function declineEvent(eventId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("event_registrations")
+    .upsert(
+      { event_id: eventId, user_id: userId, response: "declined", cancelled_at: null } as any,
+      { onConflict: "event_id,user_id" },
+    );
+  if (error) throw new Error(error.message);
+}
+
+export type EventResponse = "attending" | "declined";
+
+/** Brugerens EGET svar — læses direkte fra event_registrations
+    (self-only RLS), UAFHÆNGIGT af deltagerlisten: get_event_participants
+    filtrerer på aktivt medlemskab OG attending, så både en gyldig
+    tilmelding og et afbud kan eksistere uden at optræde i listen.
+    null = intet aktivt svar (ingen række, eller trukket tilbage). */
+export async function getMyEventResponse(
+  eventId: string,
+  userId: string,
+): Promise<EventResponse | null> {
   const { data, error } = await supabase
     .from("event_registrations")
-    .select("id")
+    .select("response" as any)
     .eq("event_id", eventId)
     .eq("user_id", userId)
     .is("cancelled_at", null)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data != null;
+  return ((data as any)?.response as EventResponse | undefined) ?? null;
 }
 
 /** Afmelding er en cancelled_at-UPDATE på egen række — ALDRIG DELETE.
