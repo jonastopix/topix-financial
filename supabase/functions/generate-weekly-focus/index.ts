@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { parseJwtClaims } from "../_shared/edgeFunctionAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +29,7 @@ Deno.serve(async (req) => {
   // Auth gate: service role or authenticated admin
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace("Bearer ", "");
-  const isServiceRole = token === serviceKey;
+  const isServiceRole = parseJwtClaims(token)?.role === "service_role";
 
   let isAdminUser = false;
   if (!isServiceRole && token.length > 0) {
