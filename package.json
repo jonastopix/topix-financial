@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "check:edge-auth": "bun run scripts/check-edge-function-auth.ts",
+    "check:verify-jwt": "bun run scripts/check-verify-jwt-invariant.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

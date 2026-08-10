@@ -52,19 +52,6 @@ const fmtTime = (iso: string): string =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // MIDLERTIDIG DIAGNOSTIK — fjernes når auth-sporet er lukket.
-  // Afgør om SUPABASE_SERVICE_ROLE_KEY i runtime er en legacy-JWT
-  // (praefiks "eyJ") eller en ny sb_secret-noegle (praefiks "sb_").
-  const _diagEnv = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const _diagHdr = req.headers.get("Authorization") ?? "";
-  console.log("auth-diagnostik", JSON.stringify({
-    env_laengde: _diagEnv.length,
-    env_praefiks: _diagEnv.slice(0, 3),
-    header_laengde: _diagHdr.length,
-    header_praefiks: _diagHdr.slice(0, 10),
-    er_ens: _diagHdr === `Bearer ${_diagEnv}`,
-  }));
-
   const auth = authenticateServiceRole(req);
   if (auth !== true) return auth;
 
