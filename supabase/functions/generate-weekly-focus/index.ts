@@ -600,11 +600,16 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
     .eq("company_id", company.id);
 
   for (const member of (members2 || [])) {
+    // Ugens fokus lever på forsiden, ikke i indbakken. priority "info"
+    // holder den ude af send-notification-email, som kun mailer
+    // action_required og important (index.ts:145). Beslutning 10-08-2026:
+    // en ugentlig mail om at der ligger noget nyt på forsiden er
+    // 55 mails om året for noget medlemmet ser ved næste login.
     const { error: notifErr } = await admin.from("notifications").insert({
       user_id: member.user_id,
       company_id: company.id,
       type: "weekly_focus_ready",
-      priority: "important",
+      priority: "info",
       title: "Ugens fokus er klar",
       body: headline,
       deep_link: "/",
