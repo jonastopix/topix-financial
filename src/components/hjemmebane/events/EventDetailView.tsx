@@ -1,16 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getEvent } from "@/lib/hjemmebane/akademiApi";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  cancelRegistration,
+  getEvent,
+  isRegisteredForEvent,
+  listEventParticipants,
+  registerForEvent,
+  type EventParticipant,
+} from "@/lib/hjemmebane/akademiApi";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
-import { hbButtonVariants } from "../HbButton";
+import { HbButton, hbButtonVariants } from "../HbButton";
 
-/** Events-miljøet, trin 2: eventsiden (/events/:id). KUN siden —
-    tilmelding, deltagerliste og optagelses-visning er trin 3 og
-    senere. Ikke-fundet håndteres blødt (ElementView-mønstret: venlig
-    tekst + tilbage-link, ingen throw). Meet-knappen følger den DELTE
-    fasedom (eventMeetPhase: live fra 15 min før start til sluttiden). */
+/** Events-miljøet, trin 3: eventsiden (/events/:id) med tilmelding og
+    deltagerliste. Ikke-fundet håndteres blødt (ElementView-mønstret:
+    venlig tekst + tilbage-link, ingen throw). Meet-knappen følger den
+    DELTE fasedom (eventMeetPhase: live fra 15 min før start til
+    sluttiden). Deltagerlisten viser ALDRIG tal (ingen tæller, ingen
+    "X af Y") — et halvtomt event skal ikke ligne et halvtomt event. */
 
 /** Samme art-ordbog som listefladen — lille nok til en lokal kopi. */
 const kindLabel = (kind: string): string =>
@@ -28,11 +37,58 @@ const BackLink = () => (
   </Link>
 );
 
+/** Avatar efter forsidens afsender-portræt (BoardroomView), blot i
+    listestørrelse: samme ramme, samme sage-fallback med initial. */
+const ParticipantAvatar = ({ participant }: { participant: EventParticipant }) =>
+  participant.avatar_url ? (
+    <img
+      src={participant.avatar_url}
+      alt={participant.full_name}
+      className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
+    />
+  ) : (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft">
+      {participant.full_name.charAt(0)}
+    </span>
+  );
+
 export const EventDetailView = ({ eventId }: { eventId: string }) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
   const eventQuery = useQuery({
     queryKey: ["events", "detail", eventId],
     queryFn: () => getEvent(eventId),
     staleTime: 60_000,
+  });
+
+  const participantsQuery = useQuery({
+    queryKey: ["event", eventId, "participants"],
+    queryFn: () => listEventParticipants(eventId),
+  });
+
+  // Egen tilmeldingsstatus SEPARAT fra deltagerlisten: RPC'en filtrerer
+  // på aktivt medlemskab, så en gyldig tilmelding kan eksistere uden at
+  // brugeren står i listen — knappen må aldrig aflæses af den.
+  const registrationQuery = useQuery({
+    queryKey: ["event", eventId, "registration", user?.id],
+    queryFn: () => isRegisteredForEvent(eventId, user!.id),
+    enabled: !!user,
+  });
+
+  const invalidateRegistrationState = () => {
+    queryClient.invalidateQueries({ queryKey: ["event", eventId, "participants"] });
+    queryClient.invalidateQueries({ queryKey: ["event", eventId, "registration", user?.id] });
+  };
+
+  const registerMutation = useMutation({
+    mutationFn: () => registerForEvent(eventId, user!.id),
+    onSuccess: invalidateRegistrationState,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelRegistration(eventId, user!.id),
+    onSuccess: invalidateRegistrationState,
   });
 
   if (eventQuery.isLoading) {
@@ -62,6 +118,17 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
   const timeSpan = event.ends_at
     ? `${fmtTime(event.starts_at)}–${fmtTime(event.ends_at)}`
     : fmtTime(event.starts_at);
+
+  // Rådgivere sidst, ellers RPC'ens navnesortering (stabil sort bevarer den).
+  const participants = [...(participantsQuery.data ?? [])].sort(
+    (a, b) => Number(a.is_advisor) - Number(b.is_advisor),
+  );
+  const isRegistered = registrationQuery.data === true;
+  const mutating = registerMutation.isPending || cancelMutation.isPending;
+
+  // Tilmelding gælder kun fremtidige/igangværende events: aflyst → ingen
+  // knap; afholdt (after) → ingen knap, men listen BLIVER — den er historik.
+  const canRegister = !cancelled && phase !== "after" && user != null;
 
   return (
     <div>
@@ -95,7 +162,7 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
 
         {/* Meet-knappens tre tilstande (delt fasedom):
             before → rolig mødelink-linje · live → primær knap ·
-            after → afholdt-linje (optagelsen selv er trin 3). */}
+            after → afholdt-linje (optagelsen selv er senere trin). */}
         {!cancelled && event.meet_url && phase === "before" && (
           <p className="mt-8 text-sm text-hb-ink-soft">
             Mødelink:{" "}
@@ -127,6 +194,67 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
             Sessionen er afholdt. Optagelsen lægges her, når den er klar.
           </p>
         )}
+
+        {/* Tilmelding: rolig tilmeldt-tilstand m. diskret afmeld-link,
+            ellers primær knap. Afmeld er en cancelled_at-UPDATE, aldrig
+            DELETE (kapacitetshistorik). */}
+        {canRegister && (
+          <div className="mt-8">
+            {isRegistered ? (
+              <p className="text-sm text-hb-ink">
+                Du er tilmeldt.{" "}
+                <button
+                  type="button"
+                  disabled={mutating}
+                  onClick={() => cancelMutation.mutate()}
+                  className="text-hb-ink-soft underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  Afmeld
+                </button>
+              </p>
+            ) : (
+              <HbButton
+                variant="primary"
+                disabled={mutating}
+                onClick={() => registerMutation.mutate()}
+              >
+                Tilmeld
+              </HbButton>
+            )}
+          </div>
+        )}
+
+        {/* Deltagerliste — historik, så den består også efter afholdelse.
+            Bevidst uden tal: tom liste er en sætning, aldrig "0 tilmeldte". */}
+        <div className="mt-10 border-t border-hb-line pt-6">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
+            Deltagere
+          </h2>
+          {participants.length === 0 ? (
+            <p className="mt-4 text-sm text-hb-ink-soft">Ingen tilmeldte endnu</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {participants.map((p) => (
+                <li key={p.user_id} className="flex items-center gap-3">
+                  <ParticipantAvatar participant={p} />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-hb-ink">
+                      {p.full_name}
+                      {p.is_advisor && (
+                        <span className="ml-2 text-[11px] font-normal uppercase tracking-wide text-hb-ink-soft">
+                          Rådgiver
+                        </span>
+                      )}
+                    </p>
+                    {p.company_name && (
+                      <p className="truncate text-xs text-hb-ink-soft">{p.company_name}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
     </div>
   );
