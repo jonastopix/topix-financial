@@ -244,6 +244,20 @@ export async function updateEvent(
   );
 }
 
+/** Aflysning går gennem cancel-event-funktionen (Bucket A) — den sætter
+    status OG giver alle aktive tilmeldte besked. En ren status-UPDATE
+    ville aflyse i stilhed; brug ALDRIG updateEvent til aflysning. */
+export async function cancelEvent(
+  eventId: string,
+  reason?: string,
+): Promise<{ ok: boolean; notified?: number; already_cancelled?: boolean }> {
+  const { data, error } = await supabase.functions.invoke("cancel-event", {
+    body: { event_id: eventId, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+  });
+  if (error) throw new Error(error.message);
+  return data as { ok: boolean; notified?: number; already_cancelled?: boolean };
+}
+
 // ── Vedhæftninger/materialer (content_item_attachments) ────────────────────
 // Bilag er rækker, ikke item-kolonner — de persisterer straks (uden om
 // ⌘S-draftmodellen, jf. c3-vedhaeftninger-design.md §5). React Query-nøgle:

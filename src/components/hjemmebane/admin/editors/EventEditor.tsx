@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type ContentItem,
   type EventRow,
+  cancelEvent,
   deleteEvent,
   updateEvent,
 } from "@/lib/hjemmebane/adminContentApi";
@@ -87,14 +88,42 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
       onError: (err: Error) => setError(err.message),
     });
 
+    // Aflysning går gennem cancel-event-funktionen (IKKE persist med
+    // status-patch): den giver alle aktive tilmeldte besked, og derfor
+    // kræves en eksplicit bekræftelse — handlingen kan ikke trækkes
+    // tilbage. To-trins i actions-rækken (husets model, ingen browser-
+    // confirm): første klik åbner bekræftelsen, andet klik udfører.
+    const [confirmingCancel, setConfirmingCancel] = useState(false);
+    const cancelMutation = useMutation({
+      mutationFn: () => cancelEvent(event.id),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["admin-events"] });
+        setConfirmingCancel(false);
+        setSavedAt(new Date());
+        setError(null);
+        onSaved();
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+
+    const confirmCancelLabel =
+      registrationCount > 0
+        ? `Ja, aflys — ${registrationCount} tilmeldt${registrationCount === 1 ? "" : "e"} får besked`
+        : "Ja, aflys";
+
     const actions: EditorAction[] =
       form.status === "draft"
         ? [{ label: "Publicér", onClick: () => persist({ status: "published" }), variant: "primary" }]
         : form.status === "published"
-          ? [
-              { label: "Markér afholdt", onClick: () => persist({ status: "completed" }), variant: "secondary" },
-              { label: "Aflys", onClick: () => persist({ status: "cancelled" }), variant: "link" },
-            ]
+          ? confirmingCancel
+            ? [
+                { label: confirmCancelLabel, onClick: () => cancelMutation.mutate(), variant: "secondary" },
+                { label: "Fortryd", onClick: () => setConfirmingCancel(false), variant: "link" },
+              ]
+            : [
+                { label: "Markér afholdt", onClick: () => persist({ status: "completed" }), variant: "secondary" },
+                { label: "Aflys", onClick: () => setConfirmingCancel(true), variant: "link" },
+              ]
           : [{ label: "Genåbn som publiceret", onClick: () => persist({ status: "published" }), variant: "secondary" }];
 
     return (
