@@ -1108,13 +1108,14 @@ const Settings = () => {
                     Det kan du spørge mig om
                   </label>
                   <p className="text-xs text-muted-foreground mb-1.5">
-                    To-tre sætninger om hvad du har erfaring med. Det er det, de andre bruger til at finde dig.
+                    Skriv det, du har prøvet — ikke det, du tilbyder. Konkret erfaring er det, andre husker og skriver til dig om.
                   </p>
                   <textarea
                     value={askMeAbout}
                     onChange={(e) => setAskMeAbout(e.target.value.slice(0, 400))}
                     maxLength={400}
                     rows={3}
+                    placeholder="Fx: Jeg har flyttet en webshop fra 2 til 12 mio. på tre år og taget alle de dyre fejl undervejs med lager og retur."
                     className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                   />
                   <p className="text-xs text-muted-foreground mt-1 text-right">{askMeAbout.length}/400</p>
@@ -1124,13 +1125,14 @@ const Settings = () => {
                     Det arbejder jeg med lige nu
                   </label>
                   <p className="text-xs text-muted-foreground mb-1.5">
-                    Kort. Du kan opdatere den, når noget ændrer sig.
+                    En samtalestart, ikke en statuslinje. Hvad fylder hos dig i denne måned?
                   </p>
                   <textarea
                     value={workingOn}
                     onChange={(e) => setWorkingOn(e.target.value.slice(0, 200))}
                     maxLength={200}
                     rows={2}
+                    placeholder="Fx: Vi skal vælge nyt lagersystem inden nytår, og jeg er ved at drukne i tilbud."
                     className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                   />
                   <p className="text-xs text-muted-foreground mt-1 text-right">{workingOn.length}/200</p>
