@@ -32,3 +32,6 @@ supabase/.temp/
 # MCP client config — may contain secrets in env values; never commit
 .mcp.json
 _recon/
+
+# Deno-testkørsler i supabase/functions (deno test) — genereres lokalt
+deno.lock
