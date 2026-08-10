@@ -420,10 +420,20 @@ const Settings = () => {
     setSaving(false);
   };
 
+  /** Ren fletning: splitter på komma ("Ledelse, Salg, Drift" → tre tags),
+      trimmer og dropper tomme/dubletter. Deles af tilføj OG gem, så gem
+      aldrig behøver læse state efter et setState-kald. */
+  const mergeExpertiseTags = (tags: string[], raw: string): string[] => {
+    let next = tags;
+    for (const part of raw.split(",")) {
+      const tag = part.trim();
+      if (tag && !next.includes(tag)) next = [...next, tag];
+    }
+    return next;
+  };
+
   const addExpertiseTag = (raw: string) => {
-    const tag = raw.trim();
-    if (!tag) return;
-    setExpertiseTags((tags) => (tags.includes(tag) ? tags : [...tags, tag]));
+    setExpertiseTags((tags) => mergeExpertiseTags(tags, raw));
     setExpertiseInput("");
   };
 
@@ -433,11 +443,17 @@ const Settings = () => {
 
   const handleSaveMemberProfile = async () => {
     if (!user) return;
+    // Gem-fælden: en ufærdig indtastning i feltet tæller med som tag.
+    // Listen beregnes LOKALT og er det der gemmes — setState er asynkront,
+    // så expertiseTags må ikke læses efter et setState-kald.
+    const finalTags = mergeExpertiseTags(expertiseTags, expertiseInput);
+    setExpertiseTags(finalTags);
+    setExpertiseInput("");
     setSavingMemberProfile(true);
     try {
       await saveMyMemberProfile(user.id, {
         linkedin_url: linkedinUrl.trim() || null,
-        expertise: expertiseTags,
+        expertise: finalTags,
         bio: memberBio.trim() || null,
       });
       toast.success("Netværksprofil opdateret");
@@ -1045,7 +1061,8 @@ const Settings = () => {
                     value={expertiseInput}
                     onChange={(e) => setExpertiseInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                      // Komma = Enter: folk skriver lister med komma.
+                      if (e.key === "Enter" || e.key === ",") {
                         e.preventDefault();
                         addExpertiseTag(expertiseInput);
                       }
