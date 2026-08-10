@@ -30,6 +30,15 @@ to the entire access-control model.
 - Only known caller: `src/pages/Members.tsx` (advisor-route)
 - Hardened in migration `20260507120000_harden_get_users_last_login.sql` (BACKLOG.md punkt #1)
 
+### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
+- All three: STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Fixed shared column set: `user_id, full_name, avatar_url, company_name, industry_label, website, linkedin_url, expertise, bio, is_advisor`
+- **NEVER expose** `email`, `notification_email_prefs`, `registered_at` or `cancelled_at`
+- `get_event_participants`: active registrations only (`cancelled_at IS NULL`) — the list shows who is coming, not registration history
+- `get_member_directory`: UNION of company members (`is_advisor = false`) and advisors/admins from `user_roles` (company columns NULL, sorted last) — advisors have no `company_members` row
+- Introduced in migration `20260810120000_member_profiles.sql`; rationale under `member_profiles` in section 5
+
 ---
 
 ## 2. Auth Trigger
@@ -203,6 +212,31 @@ cleared until a newer signal appears, a future value is a remind window, and
 advisor sees and writes only their own rows (owner-scoped); members have no
 access (no policy matches them). Contains no member PII, only `advisor_id`,
 `company_id` and timestamps.
+
+### Shared member-profile layer (`member_profiles`)
+- Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
+  `expertise`, `bio`. Industry and website live on `companies` (so two
+  colleagues can never state different ones); name and avatar stay in
+  `profiles`.
+- RLS: self-only SELECT/INSERT/UPDATE (`auth.uid() = user_id`),
+  advisor-wide SELECT via `has_role(auth.uid(), 'advisor')`, service_role
+  FOR ALL. **No member DELETE** (deliberate — cleanup happens via
+  `ON DELETE CASCADE` from `auth.users` or service-role).
+- Contains no sensitive fields; everything in the table is shared content
+  by design.
+
+**Deliberate break / rationale (2026-08-10)**: cross-company member
+visibility goes through the three member-visibility RPCs (section 1), NOT
+through a broad SELECT policy on `profiles` — `profiles` also carries
+`email` and `notification_email_prefs`, and opening that table would expose
+them. The RPC path gives three functions each with a single purpose instead
+of one open table, and the boundary is readable in the schema: everything
+in `member_profiles` is shared, nothing outside it is.
+
+This is the first time members become visible to each other across
+companies. Decided by Jonas and Morten 2026-08-10; the precedent is Circle,
+where members are already visible to each other. Migration
+`20260810120000_member_profiles.sql`.
 
 ### Service-role-only tables (no client INSERT/UPDATE/DELETE)
 - `slack_conversation_threads`
