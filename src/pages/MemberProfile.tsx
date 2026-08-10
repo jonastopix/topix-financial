@@ -5,8 +5,8 @@ import { MemberProfileView } from "@/components/hjemmebane/members/MemberProfile
 
 /** /medlemmer/:userId — medlemsprofilens visningsflade (EventDetail-
     mønstret: parameteren læses her og gives som prop; ikke-fundet
-    håndteres blødt i view'et). active="medlemmer" matcher bevidst
-    INTET nav-punkt: profilsider hører ikke til én sektion. */
+    håndteres blødt i view'et). Deler active="medlemmer" med
+    oversigten — en profil hører til netværket. */
 const MemberProfile = () => {
   const { userId } = useParams<{ userId: string }>();
   return (

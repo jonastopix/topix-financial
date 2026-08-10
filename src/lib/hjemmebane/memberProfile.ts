@@ -28,6 +28,15 @@ export type MemberProfileFields = {
   bio: string | null;
 };
 
+/** Hele netværket via get_member_directory-RPC'en: aktive
+    virksomhedsmedlemmer + rådgivere (is_advisor = true, sorteret sidst
+    af RPC'en selv). */
+export async function listMemberDirectory(): Promise<MemberProfile[]> {
+  const { data, error } = await supabase.rpc("get_member_directory" as any);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as MemberProfile[];
+}
+
 /** Absolut href til eksterne links. Værdier uden protokol
     ("www.brroset.dk") er RELATIVE stier i et <a> — klikket lander på
     app.theboardroom.dk/medlemmer/www.brroset.dk i stedet for ude af
