@@ -36,6 +36,7 @@ function resolveSenderFromTemplate(
 const FALLBACK_SUBJECT = 'Påmindelse: Din rapport for {{period}} mangler';
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
+import { authenticateServiceRole } from "../_shared/edgeFunctionAuth.ts";
 
 const FALLBACK_HTML = `<!DOCTYPE html>
 <html>
@@ -82,14 +83,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // --- Auth gate: service role required for ALL paths ---
-    const authHeader = req.headers.get("Authorization");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    if (authHeader !== `Bearer ${serviceRoleKey}`) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // --- Auth gate (Bucket B): service-role via role-claim.
+    // Gatewayen bærer signaturtjekket (verify_jwt = true, PR #267). ---
+    const auth = authenticateServiceRole(req);
+    if (auth !== true) return auth;
 
     // Parse body only after auth is confirmed
     let testEmail: string | null = null;
@@ -100,6 +97,7 @@ Deno.serve(async (req) => {
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.97.0");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Calculate expected period

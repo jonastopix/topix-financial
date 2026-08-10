@@ -17,6 +17,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
+import { authenticateServiceRole } from "../_shared/edgeFunctionAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,14 +66,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // --- Auth gate: service-role kraevet for ALLE stier (samme som send-report-reminder) ---
-  const authHeader = req.headers.get("Authorization");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  // --- Auth gate (Bucket B): service-role via role-claim.
+  // Gatewayen bærer signaturtjekket (verify_jwt = true, PR #267). ---
+  const auth = authenticateServiceRole(req);
+  if (auth !== true) return auth;
 
   // DRY_RUN default true. Kun et eksplicit { "dry_run": false } slaar live-post til.
   let dryRun = true;
@@ -82,6 +79,7 @@ Deno.serve(async (req) => {
   } catch { /* ingen body, sikker toerkoersel */ }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const cutoffMs = Date.now() - NUDGE_AGE_DAYS * 86400000;

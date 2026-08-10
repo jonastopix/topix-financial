@@ -6,7 +6,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { authenticateUser, parseJwtClaims, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const SENDER_DOMAIN = "boardroom.topix.dk";
 const FROM = `The Boardroom <noreply@${SENDER_DOMAIN}>`;
@@ -71,8 +71,8 @@ Deno.serve(async (req) => {
 
   // Support service-role calls (cron) — bypass user auth
   const authHeader = req.headers.get("Authorization") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const isServiceRole = authHeader === `Bearer ${serviceKey}`;
+  const isServiceRole = authHeader.startsWith("Bearer ")
+    && parseJwtClaims(authHeader.slice("Bearer ".length).trim())?.role === "service_role";
 
   if (!isServiceRole) {
     const auth = await authenticateUser(req);
