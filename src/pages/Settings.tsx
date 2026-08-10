@@ -155,7 +155,11 @@ const Settings = () => {
   const [expertiseTags, setExpertiseTags] = useState<string[]>([]);
   const [expertiseInput, setExpertiseInput] = useState("");
   const [expertiseSuggestions, setExpertiseSuggestions] = useState<string[]>([]);
-  const [memberBio, setMemberBio] = useState("");
+  const [askMeAbout, setAskMeAbout] = useState("");
+  const [workingOn, setWorkingOn] = useState("");
+  // Senest GEMTE working_on — sammenligningsgrundlaget for
+  // working_on_updated_at-stemplet (kun ægte ændringer stemples).
+  const [savedWorkingOn, setSavedWorkingOn] = useState<string | null>(null);
   const [savingMemberProfile, setSavingMemberProfile] = useState(false);
 
   // Company fields
@@ -203,7 +207,9 @@ const Settings = () => {
         if (!mp) return;
         setLinkedinUrl(mp.linkedin_url || "");
         setExpertiseTags(mp.expertise || []);
-        setMemberBio(mp.bio || "");
+        setAskMeAbout(mp.ask_me_about || "");
+        setWorkingOn(mp.working_on || "");
+        setSavedWorkingOn(mp.working_on ?? null);
       })
       .catch(() => {});
     listExistingExpertise()
@@ -451,11 +457,18 @@ const Settings = () => {
     setExpertiseInput("");
     setSavingMemberProfile(true);
     try {
-      await saveMyMemberProfile(user.id, {
-        linkedin_url: linkedinUrl.trim() || null,
-        expertise: finalTags,
-        bio: memberBio.trim() || null,
-      });
+      const nextWorkingOn = workingOn.trim() || null;
+      await saveMyMemberProfile(
+        user.id,
+        {
+          linkedin_url: linkedinUrl.trim() || null,
+          expertise: finalTags,
+          ask_me_about: askMeAbout.trim() || null,
+          working_on: nextWorkingOn,
+        },
+        savedWorkingOn,
+      );
+      setSavedWorkingOn(nextWorkingOn);
       toast.success("Netværksprofil opdateret");
     } catch {
       toast.error("Kunne ikke gemme netværksprofilen");
@@ -1092,16 +1105,35 @@ const Settings = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Kort om dig
+                    Det kan du spørge mig om
                   </label>
+                  <p className="text-xs text-muted-foreground mb-1.5">
+                    To-tre sætninger om hvad du har erfaring med. Det er det, de andre bruger til at finde dig.
+                  </p>
                   <textarea
-                    value={memberBio}
-                    onChange={(e) => setMemberBio(e.target.value.slice(0, 300))}
-                    maxLength={300}
+                    value={askMeAbout}
+                    onChange={(e) => setAskMeAbout(e.target.value.slice(0, 400))}
+                    maxLength={400}
                     rows={3}
                     className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                   />
-                  <p className="text-xs text-muted-foreground mt-1 text-right">{memberBio.length}/300</p>
+                  <p className="text-xs text-muted-foreground mt-1 text-right">{askMeAbout.length}/400</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Det arbejder jeg med lige nu
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-1.5">
+                    Kort. Du kan opdatere den, når noget ændrer sig.
+                  </p>
+                  <textarea
+                    value={workingOn}
+                    onChange={(e) => setWorkingOn(e.target.value.slice(0, 200))}
+                    maxLength={200}
+                    rows={2}
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1 text-right">{workingOn.length}/200</p>
                 </div>
               </div>
               <button

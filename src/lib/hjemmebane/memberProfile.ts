@@ -15,17 +15,22 @@ export type MemberProfile = {
   avatar_url: string | null;
   company_name: string | null;
   industry_label: string | null;
+  company_description: string | null;
   website: string | null;
   linkedin_url: string | null;
   expertise: string[];
-  bio: string | null;
+  ask_me_about: string | null;
+  working_on: string | null;
+  working_on_updated_at: string | null;
+  member_since: string | null;
   is_advisor: boolean;
 };
 
 export type MemberProfileFields = {
   linkedin_url: string | null;
   expertise: string[];
-  bio: string | null;
+  ask_me_about: string | null;
+  working_on: string | null;
 };
 
 /** Hele netværket via get_member_directory-RPC'en: aktive
@@ -69,21 +74,35 @@ export async function getMemberProfile(userId: string): Promise<MemberProfile | 
 export async function getMyMemberProfile(userId: string): Promise<MemberProfileFields | null> {
   const { data, error } = await supabase
     .from("member_profiles" as any)
-    .select("linkedin_url, expertise, bio")
+    .select("linkedin_url, expertise, ask_me_about, working_on")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return (data as unknown as MemberProfileFields | null) ?? null;
 }
 
-/** Upsert på user_id (PK) — første gem opretter rækken. */
+/** Upsert på user_id (PK) — første gem opretter rækken.
+    working_on_updated_at stemples KUN når working_on faktisk er ændret
+    (friskheds-visningen må ikke nulstilles af et gem, der rører noget
+    andet) — derfor sammenlignes mod den tidligere værdi, og feltet
+    udelades helt af payloaden når intet er ændret (upsert opdaterer kun
+    de medsendte kolonner). */
 export async function saveMyMemberProfile(
   userId: string,
   fields: MemberProfileFields,
+  previousWorkingOn: string | null,
 ): Promise<void> {
+  const workingOnChanged = (fields.working_on ?? null) !== (previousWorkingOn ?? null);
   const { error } = await supabase
     .from("member_profiles" as any)
-    .upsert({ user_id: userId, ...fields }, { onConflict: "user_id" });
+    .upsert(
+      {
+        user_id: userId,
+        ...fields,
+        ...(workingOnChanged ? { working_on_updated_at: new Date().toISOString() } : {}),
+      },
+      { onConflict: "user_id" },
+    );
   if (error) throw new Error(error.message);
 }
 

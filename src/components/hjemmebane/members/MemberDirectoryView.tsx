@@ -16,6 +16,9 @@ const matchesQuery = (profile: MemberProfile, query: string): boolean => {
     profile.full_name,
     profile.company_name ?? "",
     profile.industry_label ?? "",
+    profile.company_description ?? "",
+    profile.ask_me_about ?? "",
+    profile.working_on ?? "",
     ...profile.expertise,
   ].some((field) => field.toLocaleLowerCase("da").includes(q));
 };
@@ -39,6 +42,15 @@ const ProfileCard = ({ profile }: { profile: MemberProfile }) => {
   // fortrænge virksomheden). Ingen "Rådgiver"-tekst på kortet — rådgiverne
   // står allerede under overskriften "Dine rådgivere".
   const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
+  // Kortets undertekst: virksomhedens ene sætning, ellers starten af
+  // erfaringsteksten — kortet skal bære nok til at man ved hvem man ser på.
+  const teaser =
+    profile.company_description ??
+    (profile.ask_me_about
+      ? profile.ask_me_about.length > 90
+        ? `${profile.ask_me_about.slice(0, 90).trimEnd()}…`
+        : profile.ask_me_about
+      : null);
   return (
     <li>
       <Link to={`/medlemmer/${profile.user_id}`} className="block h-full">
@@ -52,6 +64,7 @@ const ProfileCard = ({ profile }: { profile: MemberProfile }) => {
               {metaLine && <p className="truncate text-xs text-hb-ink-soft">{metaLine}</p>}
             </div>
           </div>
+          {teaser && <p className="text-xs leading-relaxed text-hb-ink-soft">{teaser}</p>}
           {profile.expertise.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {profile.expertise.map((tag) => (
