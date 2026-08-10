@@ -49,7 +49,23 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   // en rådgiver der også er medlem beholder virksomhed og branche.
   const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
   const hasPersonalContent =
-    !!profile.bio || profile.expertise.length > 0 || !!profile.linkedin_url;
+    !!profile.ask_me_about ||
+    !!profile.working_on ||
+    profile.expertise.length > 0 ||
+    !!profile.linkedin_url;
+  const workingOnDate = profile.working_on_updated_at
+    ? new Date(profile.working_on_updated_at).toLocaleDateString("da-DK", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+  const memberSince = profile.member_since
+    ? new Date(profile.member_since).toLocaleDateString("da-DK", {
+        month: "long",
+        year: "numeric",
+      })
+    : null;
   // externalHref: prod-data mangler ofte protokol (www.brroset.dk), og et
   // <a href="www.brroset.dk"> er en RELATIV sti — klikket ville blive på
   // app.theboardroom.dk i stedet for at føre ud af siden.
@@ -90,11 +106,31 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
             )}
           </h1>
           {metaLine && <p className="mt-3 text-sm text-hb-ink-soft">{metaLine}</p>}
+          {profile.company_description && (
+            <p className="mt-1.5 text-sm text-hb-ink-soft">{profile.company_description}</p>
+          )}
         </div>
       </div>
 
-      {profile.bio && (
-        <p className="mt-8 max-w-2xl text-[15px] leading-relaxed text-hb-ink">{profile.bio}</p>
+      {/* Profilens tyngdepunkt: erfaringen — det man kan spørge om. */}
+      {profile.ask_me_about && (
+        <p className="mt-8 max-w-2xl text-[15px] leading-relaxed text-hb-ink">
+          {profile.ask_me_about}
+        </p>
+      )}
+
+      {profile.working_on && (
+        <div className="mt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
+            Lige nu
+          </h2>
+          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-hb-ink">
+            {profile.working_on}
+          </p>
+          {workingOnDate && (
+            <p className="mt-1 text-xs text-hb-ink-soft">{workingOnDate}</p>
+          )}
+        </div>
       )}
 
       {profile.expertise.length > 0 && (
@@ -136,6 +172,10 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
             udfyld din profil
           </Link>
         </p>
+      )}
+
+      {memberSince && (
+        <p className="mt-10 text-sm text-hb-ink-soft">Medlem siden {memberSince}</p>
       )}
     </section>
   );
