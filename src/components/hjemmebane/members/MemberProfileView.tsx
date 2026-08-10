@@ -30,9 +30,9 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   }
 
   const isOwn = user?.id === profile.user_id;
-  const metaLine = profile.is_advisor
-    ? "Rådgiver"
-    : [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
+  // Rådgiver-markeringen er et TILLÆG i rubrikken — aldrig en erstatning:
+  // en rådgiver der også er medlem beholder virksomhed og branche.
+  const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
   const hasPersonalContent =
     !!profile.bio || profile.expertise.length > 0 || !!profile.linkedin_url;
   const links = [
@@ -59,6 +59,11 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
         <div className="min-w-0">
           <h1 className="font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
             {profile.full_name}
+            {profile.is_advisor && (
+              <span className="ml-3 align-middle font-body text-[11px] font-medium uppercase tracking-wide text-hb-ink-soft">
+                Rådgiver
+              </span>
+            )}
           </h1>
           {metaLine && <p className="mt-3 text-sm text-hb-ink-soft">{metaLine}</p>}
         </div>
