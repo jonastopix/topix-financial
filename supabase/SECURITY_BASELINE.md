@@ -50,6 +50,7 @@ to the entire access-control model.
 - `get_event_participants`: active registrations only (`cancelled_at IS NULL`) — the list shows who is coming, not registration history
 - `get_member_directory`: UNION of company members (`is_advisor = false`) and advisors/admins from `user_roles` (company columns NULL, sorted last) — advisors have no `company_members` row
 - **Active-membership gate** (migration `20260810150000_directory_aktive_medlemmer.sql`): `get_member_directory` (member branch only — advisors have no company) and `get_event_participants` include only rows where `is_membership_active(user_company_id(user_id))` is true. `get_member_profile` deliberately does NOT gate: a profile must remain resolvable by direct lookup, e.g. from a historical participant list.
+- **Legat gate** (migration `20260810180000_directory_legat_filter.sql`): the same two RPCs also exclude legat users — mirrors useAuth's `isLegat` condition verbatim (`legat_enrollments` row with `status IN ('active','completed')`, non-advisors only; advisors are explicitly exempt in the participants predicate). Legat users have their own environment (`/legat`) and do not belong in the member network. `get_member_profile` again deliberately does NOT gate.
 - Introduced in migration `20260810120000_member_profiles.sql`; rationale under `member_profiles` in section 5
 
 ---

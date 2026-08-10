@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { externalHref, getMemberProfile } from "@/lib/hjemmebane/memberProfile";
 
@@ -8,6 +9,17 @@ import { externalHref, getMemberProfile } from "@/lib/hjemmebane/memberProfile";
     der findes, ingen tomme etiketter, ingen tællere, ingen procenter.
     Navn + virksomhed er altid nok til en hel side. Egen tomme profil får
     en rolig opfordring med link til Indstillinger. */
+
+/** Tilbage-link efter EventDetailViews BackLink-mønster — oversigten
+    (/medlemmer) er profilens naturlige "op". */
+const BackLink = () => (
+  <Link
+    to="/medlemmer"
+    className="inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+  >
+    <ArrowLeft className="h-4 w-4" /> Tilbage til netværket
+  </Link>
+);
 
 export const MemberProfileView = ({ userId }: { userId: string }) => {
   const { user } = useAuth();
@@ -25,7 +37,10 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   const profile = profileQuery.data;
   if (!profile) {
     return (
-      <p className="text-sm text-hb-ink-soft">Profilen findes ikke.</p>
+      <div>
+        <BackLink />
+        <p className="mt-8 text-sm text-hb-ink-soft">Profilen findes ikke.</p>
+      </div>
     );
   }
 
@@ -47,6 +62,10 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
 
   return (
     <section className="max-w-3xl">
+      <div className="mb-6">
+        <BackLink />
+      </div>
+
       {/* Portrættet: forsidens afsender-udtryk (BoardroomView) i fuld
           størrelse — samme ramme, samme sage-fallback med initial. */}
       <div className="flex items-start gap-6">
