@@ -17,8 +17,8 @@ export const HbMemberShell = ({
   active,
   children,
 }: {
-  // "medlemmer" matcher intet nav-punkt (medlemsprofilsider) — bevidst
-  // ingen aktiv-markering; profilsider hører ikke til én sektion.
+  // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
+  // deler værdien — en profil hører til netværket.
   active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events" | "medlemmer";
   children: React.ReactNode;
 }) => {
@@ -71,6 +71,7 @@ export const HbMemberShell = ({
     },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
     { label: "Events", to: "/events", active: active === "events" },
+    { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
     { label: "Community", to: "/community" },
   ];
 
