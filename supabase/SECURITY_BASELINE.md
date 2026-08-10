@@ -45,8 +45,10 @@ to the entire access-control model.
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
-- Fixed shared column set: `user_id, full_name, avatar_url, company_name, industry_label, website, linkedin_url, expertise, bio, is_advisor`
+- Fixed shared column set (as of migration `20260810200000_profil_struktur.sql`): `user_id, full_name, avatar_url, company_name, industry_label, company_description, website, linkedin_url, expertise, ask_me_about, working_on, working_on_updated_at, member_since, is_advisor`
 - **NEVER expose** `email`, `notification_email_prefs`, `registered_at` or `cancelled_at`
+- Field changes (migration `20260810200000`): `member_profiles.bio` is REMOVED, replaced by `ask_me_about` + `working_on` (+ `working_on_updated_at` freshness stamp); `companies.description` is a new shared field. All are deliberately shared content — the NEVER-expose list is unchanged.
+- The return type changed in `20260810200000`, so all three RPCs were DROPped and re-created (Postgres rejects CREATE OR REPLACE on return-type changes) — grants were re-applied explicitly in the same migration (`REVOKE FROM PUBLIC/anon`, `EXECUTE TO authenticated`).
 - `get_event_participants`: active registrations only (`cancelled_at IS NULL`) — the list shows who is coming, not registration history
 - `get_member_directory`: UNION of company members (`is_advisor = false`) and advisors/admins from `user_roles` (company columns NULL, sorted last) — advisors have no `company_members` row
 - **Active-membership gate** (migration `20260810150000_directory_aktive_medlemmer.sql`): `get_member_directory` (member branch only — advisors have no company) and `get_event_participants` include only rows where `is_membership_active(user_company_id(user_id))` is true. `get_member_profile` deliberately does NOT gate: a profile must remain resolvable by direct lookup, e.g. from a historical participant list.
