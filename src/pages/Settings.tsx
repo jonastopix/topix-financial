@@ -8,7 +8,7 @@ import {
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
+import { Settings as SettingsIcon, User, Users, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
@@ -16,6 +16,11 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import CompanyInvitations from "@/components/CompanyInvitations";
+import {
+  getMyMemberProfile,
+  listExistingExpertise,
+  saveMyMemberProfile,
+} from "@/lib/hjemmebane/memberProfile";
 
 const INDUSTRY_OPTIONS: { label: string; value: string; sub: { label: string; value: string }[] }[] = [
   { label: "Detailhandel", value: "retail", sub: [
@@ -145,6 +150,13 @@ const Settings = () => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  // Netværksprofilen (member_profiles) — branche/website bor på companies.
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [expertiseTags, setExpertiseTags] = useState<string[]>([]);
+  const [expertiseInput, setExpertiseInput] = useState("");
+  const [expertiseSuggestions, setExpertiseSuggestions] = useState<string[]>([]);
+  const [memberBio, setMemberBio] = useState("");
+  const [savingMemberProfile, setSavingMemberProfile] = useState(false);
 
   // Company fields
   const [company, setCompany] = useState<CompanyData | null>(null);
@@ -181,6 +193,23 @@ const Settings = () => {
       }
     }
   }, [profile]);
+
+  // Netværksprofil + expertise-forslag. Forslagene er venlige at miste —
+  // fejl her må aldrig blokere resten af siden, deraf tavs catch.
+  useEffect(() => {
+    if (!user) return;
+    getMyMemberProfile(user.id)
+      .then((mp) => {
+        if (!mp) return;
+        setLinkedinUrl(mp.linkedin_url || "");
+        setExpertiseTags(mp.expertise || []);
+        setMemberBio(mp.bio || "");
+      })
+      .catch(() => {});
+    listExistingExpertise()
+      .then(setExpertiseSuggestions)
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -389,6 +418,33 @@ const Settings = () => {
       toast.success("Profil opdateret");
     }
     setSaving(false);
+  };
+
+  const addExpertiseTag = (raw: string) => {
+    const tag = raw.trim();
+    if (!tag) return;
+    setExpertiseTags((tags) => (tags.includes(tag) ? tags : [...tags, tag]));
+    setExpertiseInput("");
+  };
+
+  const removeExpertiseTag = (tag: string) => {
+    setExpertiseTags((tags) => tags.filter((t) => t !== tag));
+  };
+
+  const handleSaveMemberProfile = async () => {
+    if (!user) return;
+    setSavingMemberProfile(true);
+    try {
+      await saveMyMemberProfile(user.id, {
+        linkedin_url: linkedinUrl.trim() || null,
+        expertise: expertiseTags,
+        bio: memberBio.trim() || null,
+      });
+      toast.success("Netværksprofil opdateret");
+    } catch {
+      toast.error("Kunne ikke gemme netværksprofilen");
+    }
+    setSavingMemberProfile(false);
   };
 
   const handleChangePassword = async () => {
@@ -933,6 +989,111 @@ const Settings = () => {
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Gem profil
+              </button>
+            </div>
+
+            {/* Netværksprofil (member_profiles) — det DELTE lag; alt her
+                er synligt for andre medlemmer via visnings-RPC'erne. */}
+            <div className="glass-card rounded-xl p-6 animate-fade-in">
+              <h2 className="font-display font-semibold text-foreground mb-1 flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Din profil i netværket
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Det her ser de andre medlemmer. Branche og website henter vi fra din virksomhed.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    LinkedIn
+                  </label>
+                  <input
+                    value={linkedinUrl}
+                    onChange={(e) => setLinkedinUrl(e.target.value)}
+                    placeholder="https://linkedin.com/in/..."
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Spidskompetencer
+                  </label>
+                  {/* Chippen selv er passiv — kun KRYDSET fjerner. Et klik
+                      på selve tagget må aldrig slette det (touch har ingen
+                      title-hint), og destructive-tonen bor på krydset. */}
+                  {expertiseTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {expertiseTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs text-foreground"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => removeExpertiseTag(tag)}
+                            aria-label={`Fjern ${tag}`}
+                            className="rounded-full px-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    value={expertiseInput}
+                    onChange={(e) => setExpertiseInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addExpertiseTag(expertiseInput);
+                      }
+                    }}
+                    placeholder="Skriv og tryk Enter — fx E-commerce, Ledelse…"
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  {/* Forslag fra netværket — aldrig en spærring, fri tekst
+                      er lige så gyldig. Kun uvalgte vises, maks 12. */}
+                  {expertiseSuggestions.filter((s) => !expertiseTags.includes(s)).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {expertiseSuggestions
+                        .filter((s) => !expertiseTags.includes(s))
+                        .slice(0, 12)
+                        .map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => addExpertiseTag(s)}
+                            className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Kort om dig
+                  </label>
+                  <textarea
+                    value={memberBio}
+                    onChange={(e) => setMemberBio(e.target.value.slice(0, 300))}
+                    maxLength={300}
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1 text-right">{memberBio.length}/300</p>
+                </div>
+              </div>
+              <button
+                onClick={handleSaveMemberProfile}
+                disabled={savingMemberProfile}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {savingMemberProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Gem netværksprofil
               </button>
             </div>
 
