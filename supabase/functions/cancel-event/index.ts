@@ -19,9 +19,15 @@ import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  console.log("[cancel-event] invoked", { method: req.method });
+
   const auth = await authenticateUser(req);
-  if (auth instanceof Response) return auth;
+  if (auth instanceof Response) {
+    console.error("[cancel-event] auth failed — returning early");
+    return auth;
+  }
   const { callerId, callerClient } = auth;
+  console.log("[cancel-event] authenticated", { callerId });
 
   // Verify caller is advisor via user_roles (not profiles).
   // .limit(1) + længdetjek — IKKE .maybeSingle(): en bruger med BÅDE
@@ -43,8 +49,11 @@ Deno.serve(async (req) => {
     });
   }
 
+  console.log("[cancel-event] role rows", { count: (roleRows ?? []).length });
+
   const isAdvisor = (roleRows ?? []).length > 0;
   if (!isAdvisor) {
+    console.error("[cancel-event] forbidden — caller has no advisor/admin role");
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -55,8 +64,10 @@ Deno.serve(async (req) => {
     event_id: string;
     reason?: string;
   };
+  console.log("[cancel-event] body", { event_id, hasReason: !!reason });
 
   if (!event_id) {
+    console.error("[cancel-event] bad request — event_id missing");
     return new Response(JSON.stringify({ error: "event_id is required" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -74,6 +85,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (!event) {
+    console.error("[cancel-event] event not found", { event_id });
     return new Response(JSON.stringify({ error: "Event not found" }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -134,6 +146,7 @@ Deno.serve(async (req) => {
     });
   }
 
+  console.log("[cancel-event] done", { notified, event_id });
   return new Response(JSON.stringify({ ok: true, notified }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
