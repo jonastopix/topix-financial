@@ -23,15 +23,28 @@ Deno.serve(async (req) => {
   if (auth instanceof Response) return auth;
   const { callerId, callerClient } = auth;
 
-  // Verify caller is advisor via user_roles (not profiles)
-  const { data: roleRow } = await callerClient
+  // Verify caller is advisor via user_roles (not profiles).
+  // .limit(1) + længdetjek — IKKE .maybeSingle(): en bruger med BÅDE
+  // advisor- og admin-rækken matcher to rækker, og maybeSingle
+  // returnerer da en fejl i stedet for en række → falsk 403 for præcis
+  // de brugere funktionen er til for.
+  const { data: roleRows, error: roleError } = await callerClient
     .from("user_roles")
     .select("role")
     .eq("user_id", callerId)
     .in("role", ["advisor", "admin"])
-    .maybeSingle();
+    .limit(1);
 
-  if (!roleRow) {
+  if (roleError) {
+    console.error("[cancel-event] role lookup failed:", roleError);
+    return new Response(JSON.stringify({ error: "Role lookup failed" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const isAdvisor = (roleRows ?? []).length > 0;
+  if (!isAdvisor) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
