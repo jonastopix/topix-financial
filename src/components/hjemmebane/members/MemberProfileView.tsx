@@ -121,15 +121,21 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
 
       {profile.working_on && (
         <div className="mt-8">
+          {/* Datoen bor PÅ overskriftslinjen efter et skilletegn — ikke
+              højre-stillet: over den brede spalte ville et højre-anker give
+              datoen sin egen position og et stort tomrum; her bliver den en
+              del af overskriftens rolige metadata-linje. */}
           <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
             Lige nu
+            {workingOnDate && (
+              <span className="ml-2 text-[11px] font-normal normal-case tracking-normal">
+                · {workingOnDate}
+              </span>
+            )}
           </h2>
           <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-hb-ink">
             {profile.working_on}
           </p>
-          {workingOnDate && (
-            <p className="mt-1 text-xs text-hb-ink-soft">{workingOnDate}</p>
-          )}
         </div>
       )}
 
