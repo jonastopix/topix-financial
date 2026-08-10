@@ -30,6 +30,18 @@ to the entire access-control model.
 - Only known caller: `src/pages/Members.tsx` (advisor-route)
 - Hardened in migration `20260507120000_harden_get_users_last_login.sql` (BACKLOG.md punkt #1)
 
+### `is_membership_active(p_company_id uuid) → boolean`
+- SQL mirror of the canonical membership-tier computation — **copy no. 3**
+  of the logic: 1) `src/lib/membershipTier.ts` (canonical), 2)
+  `supabase/functions/_shared/membershipTier.ts` (Deno mirror), 3) this
+  function. Changes to tier logic MUST be mirrored in all three places.
+- Fail-open by design (mirrors useAuth): NULL/unknown company → true,
+  missing `contract_end_date` ("no_date") → true; false only for "expired"
+  (contract past AND no active Stripe subscription)
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Introduced in migration `20260810150000_directory_aktive_medlemmer.sql`
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
@@ -37,6 +49,7 @@ to the entire access-control model.
 - **NEVER expose** `email`, `notification_email_prefs`, `registered_at` or `cancelled_at`
 - `get_event_participants`: active registrations only (`cancelled_at IS NULL`) — the list shows who is coming, not registration history
 - `get_member_directory`: UNION of company members (`is_advisor = false`) and advisors/admins from `user_roles` (company columns NULL, sorted last) — advisors have no `company_members` row
+- **Active-membership gate** (migration `20260810150000_directory_aktive_medlemmer.sql`): `get_member_directory` (member branch only — advisors have no company) and `get_event_participants` include only rows where `is_membership_active(user_company_id(user_id))` is true. `get_member_profile` deliberately does NOT gate: a profile must remain resolvable by direct lookup, e.g. from a historical participant list.
 - Introduced in migration `20260810120000_member_profiles.sql`; rationale under `member_profiles` in section 5
 
 ---
