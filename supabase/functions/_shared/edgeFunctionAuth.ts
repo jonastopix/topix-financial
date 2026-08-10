@@ -5,13 +5,21 @@
  * STATUS: This is the DEFAULT pattern for ALL new edge functions going forward.
  *         Existing functions can be migrated to use these helpers incrementally.
  *
- * BACKGROUND: This repo uses verify_jwt = false for all edge functions in
- * supabase/config.toml. This is a PROJECT-SPECIFIC pattern required by the
- * Supabase signing-keys system — it is NOT a general recommendation.
+ * BACKGROUND: Gatewayen validerer JWT-signaturen for funktioner med
+ * verify_jwt = true i supabase/config.toml, og validerer INTET for
+ * funktioner uden blok eller med false. Begge dele er bevist i
+ * produktion 10-08-2026.
  *
- * CONSEQUENCE: Because verify_jwt is false, every function MUST perform
- * explicit in-code auth validation BEFORE any service-role reads, writes,
- * or side effects. No exceptions.
+ * CONSEQUENCE: SUPABASE_SERVICE_ROLE_KEY i edge-runtime er en
+ * sb_secret-nøgle (41 tegn), mens cron sender en legacy-JWT (219
+ * tegn). En streng-sammenligning mellem de to kan ALDRIG bestå.
+ * Bucket B bruger derfor role-claimet og lader gatewayen bære
+ * signaturtjekket.
+ *
+ * INVARIANT: Enhver funktion der bruger authenticateServiceRole SKAL
+ * have verify_jwt = true i supabase/config.toml. Uden det er
+ * role-claimet uverificeret og kan forfalskes af hvem som helst.
+ * Håndhæves af scripts/check-verify-jwt-invariant.ts.
  *
  * THREE AUTH BUCKETS:
  *
@@ -106,21 +114,56 @@ export async function authenticateUser(
 }
 
 /**
- * Bucket B: Authenticate a service-role / cron / internal request.
+ * Læser claims ud af en JWT UDEN at verificere signaturen.
+ * Må kun bruges bag verify_jwt = true. Se INVARIANT i fil-headeren.
+ */
+export function parseJwtClaims(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = parts[1]
+      .replaceAll("-", "+")
+      .replaceAll("_", "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    return JSON.parse(atob(payload)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bucket B: Autentificér et service-role-/cron-/internt kald.
  *
- * Compares the Bearer token against SUPABASE_SERVICE_ROLE_KEY.
- * Rejects any request that doesn't carry the service-role key.
+ * Kræver et Bearer-token hvis role-claim er "service_role".
+ * Signaturen verificeres af gatewayen — se INVARIANT i fil-headeren.
  *
- * @returns true on success, or a 401 Response on failure.
+ * 401 = intet eller ugyldigt Bearer-token.
+ * 403 = gyldigt token, forkert rolle. Adskillelsen er bevidst: en
+ *       tvetydig 401 kostede en times fejlsøgning 10-08-2026.
+ *
+ * @returns true ved succes, ellers en 401/403 Response.
  */
 export function authenticateServiceRole(req: Request): true | Response {
   const authHeader = req.headers.get("Authorization");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
+  if (!authHeader?.startsWith("Bearer ")) {
     return new Response(
       JSON.stringify({ error: "Unauthorized — service-role key required" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const claims = parseJwtClaims(authHeader.slice("Bearer ".length).trim());
+  if (!claims) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized — service-role key required" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  if (claims.role !== "service_role") {
+    return new Response(
+      JSON.stringify({ error: "Forbidden — service-role required" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
