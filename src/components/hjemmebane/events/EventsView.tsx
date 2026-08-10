@@ -3,14 +3,16 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { listAllUpcomingEvents, listPastEvents } from "@/lib/hjemmebane/akademiApi";
 import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
-import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
+import { eventMeetPhase, isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { HbSection } from "../HbSection";
 import { EventRegisterAction } from "./EventRegisterAction";
 
 /** Events-miljøet: medlemmets eventliste (/events) m. inline-tilmelding
-    (trin 3b) i Kommende-rækkernes højrekolonne. To sektioner: Kommende
-    (published + fremtidige, nærmeste først) og Afholdte
-    (completed/cancelled, grupperet pr. år, nyeste først).
+    (trin 3b) i Kommende-rækkernes højrekolonne. Tre sektioner: Kommende
+    (published + fremtidige, nærmeste først), Afholdte (completed eller
+    reelt afholdt via isEventPast — ALDRIG aflyste; overskriften må ikke
+    lyve) og Aflyste (status cancelled, uanset dato), begge grupperet
+    pr. år, nyeste først.
     Events er platform-globale (ingen companyId) — ingen advisor-prompt.
     Række-udtrykket spejler forsidens "Kommende"-sektion: rammeløse
     hb-line-rækker m. dato-blok, titel og meta (inkl. nedtælling). */
@@ -63,6 +65,67 @@ const RowSkeleton = () => (
   </li>
 );
 
+/** Arkiv-rækkerne grupperet pr. år (nyeste først — input er allerede
+    starts_at descending fra listPastEvents). Deles af Afholdte og
+    Aflyste; rækkeudtrykket er uændret, og cancelled-varianten (dæmpet +
+    rust-badge) udledes fortsat pr. event. */
+const PastYearGroups = ({ events }: { events: EventRow[] }) => {
+  const byYear = events.reduce<Map<number, EventRow[]>>((map, event) => {
+    const year = new Date(event.starts_at).getFullYear();
+    const bucket = map.get(year) ?? [];
+    bucket.push(event);
+    map.set(year, bucket);
+    return map;
+  }, new Map());
+  const years = [...byYear.keys()].sort((a, b) => b - a);
+
+  return (
+    <>
+      {years.map((year) => (
+        <div key={year} className="mb-8 last:mb-0">
+          <p className="mb-2 text-sm font-medium text-hb-ink-soft">{year}</p>
+          <ul>
+            {(byYear.get(year) ?? []).map((event) => {
+              const cancelled = event.status === "cancelled";
+              return (
+                <li key={event.id} className="border-t border-hb-line last:border-b">
+                  <Link
+                    to={`/events/${event.id}`}
+                    className={cn(
+                      "flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20",
+                      cancelled && "opacity-60",
+                    )}
+                  >
+                    <DateBlock startsAt={event.starts_at} dimmed />
+                    <div className="min-w-0 flex-1">
+                      {/* Aflyst bæres af badgen + opacity — ingen
+                          gennemstregning (tredje markør er for meget). */}
+                      <p
+                        className={cn(
+                          "text-[15px] font-medium leading-snug",
+                          cancelled ? "text-hb-ink-soft" : "text-hb-ink",
+                        )}
+                      >
+                        {event.title}
+                      </p>
+                      <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event, false)}</p>
+                    </div>
+                    {cancelled && (
+                      <span className="shrink-0 rounded-full border border-hb-rust/40 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-hb-rust">
+                        Aflyst
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </>
+  );
+};
+
 export const EventsView = () => {
   const upcomingQuery = useQuery({
     queryKey: ["events", "upcoming-all"],
@@ -78,16 +141,15 @@ export const EventsView = () => {
   const upcoming = upcomingQuery.data ?? [];
   const past = pastQuery.data ?? [];
 
-  // Historikken grupperet pr. år, nyeste år først (rækkerne er allerede
-  // starts_at descending fra listPastEvents).
-  const pastByYear = past.reduce<Map<number, EventRow[]>>((map, event) => {
-    const year = new Date(event.starts_at).getFullYear();
-    const bucket = map.get(year) ?? [];
-    bucket.push(event);
-    map.set(year, bucket);
-    return map;
-  }, new Map());
-  const years = [...pastByYear.keys()].sort((a, b) => b - a);
+  // Arkivet deles i to: "Afholdte" må kun bære det der faktisk blev
+  // afholdt (completed, eller published med sluttid i fortiden) —
+  // aflyste er IKKE afholdte, uanset dato, og får egen sektion.
+  const held = past.filter(
+    (event) =>
+      event.status === "completed" ||
+      (event.status !== "cancelled" && isEventPast(event)),
+  );
+  const cancelledEvents = past.filter((event) => event.status === "cancelled");
 
   return (
     <div>
@@ -142,59 +204,36 @@ export const EventsView = () => {
         )}
       </HbSection>
 
-      {/* ── Afholdte (historikken, pr. år) ── */}
-      <HbSection eyebrow="Afholdte" hairline className="mt-14 md:mt-16">
-        {pastQuery.isLoading ? (
-          <ul>
-            <RowSkeleton />
-            <RowSkeleton />
-          </ul>
-        ) : past.length === 0 ? (
-          <p className="text-sm text-hb-ink-soft">Ingen afholdte events endnu.</p>
-        ) : (
-          years.map((year) => (
-            <div key={year} className="mb-8 last:mb-0">
-              <p className="mb-2 text-sm font-medium text-hb-ink-soft">{year}</p>
-              <ul>
-                {(pastByYear.get(year) ?? []).map((event) => {
-                  const cancelled = event.status === "cancelled";
-                  return (
-                    <li key={event.id} className="border-t border-hb-line last:border-b">
-                      <Link
-                        to={`/events/${event.id}`}
-                        className={cn(
-                          "flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20",
-                          cancelled && "opacity-60",
-                        )}
-                      >
-                        <DateBlock startsAt={event.starts_at} dimmed />
-                        <div className="min-w-0 flex-1">
-                          {/* Aflyst bæres af badgen + opacity — ingen
-                              gennemstregning (tredje markør er for meget). */}
-                          <p
-                            className={cn(
-                              "text-[15px] font-medium leading-snug",
-                              cancelled ? "text-hb-ink-soft" : "text-hb-ink",
-                            )}
-                          >
-                            {event.title}
-                          </p>
-                          <p className="mt-1 text-sm text-hb-ink-soft">{metaLine(event, false)}</p>
-                        </div>
-                        {cancelled && (
-                          <span className="shrink-0 rounded-full border border-hb-rust/40 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-hb-rust">
-                            Aflyst
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))
-        )}
-      </HbSection>
+      {/* ── Arkivet: Afholdte + Aflyste (pr. år) ──
+          Tom-tilstanden bor på TVÆRS af de to sektioner: en tom sektion
+          udelades helt (ingen tom-tekst pr. sektion), og kun når BEGGE
+          er tomme, står én "Afholdte"-overskrift med den kendte linje —
+          samme udtryk som før opdelingen. Loading bor samme sted. */}
+      {pastQuery.isLoading || (held.length === 0 && cancelledEvents.length === 0) ? (
+        <HbSection eyebrow="Afholdte" hairline className="mt-14 md:mt-16">
+          {pastQuery.isLoading ? (
+            <ul>
+              <RowSkeleton />
+              <RowSkeleton />
+            </ul>
+          ) : (
+            <p className="text-sm text-hb-ink-soft">Ingen afholdte events endnu.</p>
+          )}
+        </HbSection>
+      ) : (
+        <>
+          {held.length > 0 && (
+            <HbSection eyebrow="Afholdte" hairline className="mt-14 md:mt-16">
+              <PastYearGroups events={held} />
+            </HbSection>
+          )}
+          {cancelledEvents.length > 0 && (
+            <HbSection eyebrow="Aflyste" hairline className="mt-14 md:mt-16">
+              <PastYearGroups events={cancelledEvents} />
+            </HbSection>
+          )}
+        </>
+      )}
     </div>
   );
 };
