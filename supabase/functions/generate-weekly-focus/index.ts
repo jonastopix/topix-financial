@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { parseJwtClaims } from "../_shared/edgeFunctionAuth.ts";
+import { evaluateKpiTargets } from "../_shared/weeklyFocusKpi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,39 +265,7 @@ async function processCompany(
     .select("kpi_key, target_value, lower_is_better")
     .eq("company_id", company.id);
 
-  // Danish KPI key → canonical metrics key mapping
-  const kpiKeyMap: Record<string, string> = {
-    db_margin: "gross_margin_pct",
-    ebitda_margin: "ebitda_margin_pct",
-    omsaetning: "revenue",
-    resultat: "net_result",
-    loenninger: "payroll",
-  };
-
-  const offTargetKPIs: any[] = [];
-  for (const kpi of (kpiTargets || [])) {
-    const canonicalKey = kpiKeyMap[kpi.kpi_key];
-    if (!canonicalKey) continue;
-    let actual = metrics[canonicalKey] ?? null;
-    if (actual === null) continue;
-
-    // Both db_margin and ebitda_margin now map directly to their canonical pct keys
-    // No on-the-fly calculation needed
-
-    const deviation = Math.abs((actual - kpi.target_value) / Math.abs(kpi.target_value || 1)) * 100;
-    const offTarget = kpi.lower_is_better
-      ? actual > kpi.target_value * 1.15
-      : actual < kpi.target_value * 0.85;
-
-    if (offTarget && deviation > 15) {
-      offTargetKPIs.push({
-        kpi_key: kpi.kpi_key,
-        actual: Math.round(actual * 10) / 10,
-        target: kpi.target_value,
-        deviation_pct: Math.round(deviation * 10) / 10,
-      });
-    }
-  }
+  const offTargetKPIs = evaluateKpiTargets(kpiTargets || [], metrics);
   if (offTargetKPIs.length > 0) {
     triggers.push("KPI_OFF_TARGET");
     triggerData.KPI_OFF_TARGET = offTargetKPIs;
