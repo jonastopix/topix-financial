@@ -20,6 +20,17 @@ import { computeMembershipTier, type MembershipTier } from "./membershipTier";
 /** Beslutningsvinduet: så mange dage (eller færre) før udløb kræves en beslutning. */
 export const FORNYELSES_VINDUE_DAGE = 60;
 
+/**
+ * Ordningens ikrafttrædelsesdato. Virksomheder med slutdato PÅ ELLER FØR
+ * denne dato er uden for ordningen: de er håndteret i personlig dialog uden
+ * for systemet. Ordningen træder i kraft 10. september 2026 og må ikke sende
+ * noget på bagkant. Grænsen er "på eller før", ikke "før", fordi adgangen
+ * forsvinder kl. 00:00 UTC på selve slutdagen — et medlem med slutdato
+ * præcis 10. september har mistet adgangen i samme øjeblik, ordningen
+ * begynder.
+ */
+export const FORNYELSE_IKRAFT_DATO = "2026-09-10";
+
 export type Fornyelsesbeslutning = "tilbyd" | "tilbyd_ikke";
 
 export interface FornyelseInput {
@@ -31,9 +42,11 @@ export interface FornyelseInput {
 
 export type FornyelseStatus =
   | "ingen_slutdato"
+  | "uden_for_ordningen"
   | "selvbetjener"
   | "udloebet_uden_beslutning"
-  | "udloebet_besluttet"
+  | "udloebet_tilbyd"
+  | "udloebet_tilbyd_ikke"
   | "beslutning_mangler"
   | "klar_til_tilbud"
   | "klar_til_afsked"
@@ -60,6 +73,16 @@ function beregnDageTilUdloeb(contractEndDate: string, now: Date): number | null 
 }
 
 /**
+ * Datoens UTC-kalenderdag som "YYYY-MM-DD" — sammenligninger på denne streng
+ * er rene kalenderdato-sammenligninger og afhænger ikke af maskinens tidszone.
+ */
+function utcKalenderdato(s: string): string | null {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Afgør fornyelsestilstanden for en virksomhed.
  *
  * Fraværs-semantikken følger company_fornyelse-tabellen: beslutning = null
@@ -71,6 +94,9 @@ export function afgoerFornyelsestilstand(
   input: FornyelseInput,
   now: Date = new Date(),
 ): Fornyelsestilstand {
+  // tier beregnes her alene til returværdien (alle grene returnerer den som
+  // computeMembershipTier giver den). Status-forgreningen må først bruge den
+  // EFTER null-tjekket og ikrafttrædelses-tjekket nedenfor.
   const tier = computeMembershipTier(
     {
       contract_end_date: input.contract_end_date,
@@ -80,9 +106,25 @@ export function afgoerFornyelsestilstand(
     now,
   );
 
-  const dage_til_udloeb = input.contract_end_date
-    ? beregnDageTilUdloeb(input.contract_end_date, now)
-    : null;
+  if (!input.contract_end_date) {
+    return { status: "ingen_slutdato", dage_til_udloeb: null, tier };
+  }
+
+  const dage_til_udloeb = beregnDageTilUdloeb(input.contract_end_date, now);
+
+  // UDEN FOR ORDNINGEN — afgøres FØRST, før tier overhovedet indgår i
+  // forgreningen; ingen anden status må kunne returneres for disse
+  // virksomheder. Disse virksomheder er håndteret i personlig dialog uden
+  // for systemet. Ordningen træder i kraft 10. september 2026 og må ikke
+  // sende noget på bagkant. Grænsen er "på eller før", ikke "før", fordi
+  // adgangen forsvinder kl. 00:00 UTC på selve slutdagen — et medlem med
+  // slutdato præcis 10. september har mistet adgangen i samme øjeblik,
+  // ordningen begynder. Sammenligningen sker på kalenderdato (UTC), ikke
+  // tidsstempel, og afhænger ikke af maskinens tidszone.
+  const slutdag = utcKalenderdato(input.contract_end_date);
+  if (slutdag !== null && slutdag <= FORNYELSE_IKRAFT_DATO) {
+    return { status: "uden_for_ordningen", dage_til_udloeb, tier };
+  }
 
   if (tier === "no_date") {
     return { status: "ingen_slutdato", dage_til_udloeb, tier };
@@ -95,11 +137,17 @@ export function afgoerFornyelsestilstand(
   }
 
   if (tier === "expired") {
-    return {
-      status: input.beslutning === null ? "udloebet_uden_beslutning" : "udloebet_besluttet",
-      dage_til_udloeb,
-      tier,
-    };
+    // Efter udløb er forskellen mellem tilbud og afsked netop den handling,
+    // der skal udløses. Én samlet "udloebet_besluttet"-status ville tvinge
+    // enhver aftager til selv at læse beslutning og forgrene — og så ligger
+    // dommen to steder. Derfor tre adskilte statusser.
+    if (input.beslutning === "tilbyd") {
+      return { status: "udloebet_tilbyd", dage_til_udloeb, tier };
+    }
+    if (input.beslutning === "tilbyd_ikke") {
+      return { status: "udloebet_tilbyd_ikke", dage_til_udloeb, tier };
+    }
+    return { status: "udloebet_uden_beslutning", dage_til_udloeb, tier };
   }
 
   // tier === "full"
