@@ -200,12 +200,19 @@ BEGIN
   -- Skjul sker via status — ingen medlems-DELETE (soft-cancel-princippet
   -- fra event_registrations: "Afmelding = cancelled_at-UPDATE; ingen
   -- medlems-DELETE").
+  --
+  -- USING vurderes mod rækkens NUVÆRENDE tilstand. Har en rådgiver sat
+  -- status til 'skjult', kan forfatteren ikke længere røre rækken —
+  -- heller ikke for at sætte den tilbage til 'aktiv'. Uden betingelsen
+  -- kan moderation omgøres af den, der blev modereret. WITH CHECK holdes
+  -- uden status-betingelse, så medlemmet fortsat selv kan skjule eller
+  -- slette sit eget indlæg.
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
     AND tablename = 'community_traade' AND policyname = 'Members can update own threads') THEN
     CREATE POLICY "Members can update own threads"
       ON public.community_traade FOR UPDATE
       TO authenticated
-      USING (auth.uid() = forfatter_id)
+      USING (auth.uid() = forfatter_id AND status = 'aktiv')
       WITH CHECK (auth.uid() = forfatter_id);
   END IF;
 
@@ -245,12 +252,18 @@ BEGIN
       WITH CHECK (auth.uid() = forfatter_id);
   END IF;
 
+  -- USING vurderes mod rækkens NUVÆRENDE tilstand. Har en rådgiver sat
+  -- status til 'skjult', kan forfatteren ikke længere røre rækken —
+  -- heller ikke for at sætte den tilbage til 'aktiv'. Uden betingelsen
+  -- kan moderation omgøres af den, der blev modereret. WITH CHECK holdes
+  -- uden status-betingelse, så medlemmet fortsat selv kan skjule eller
+  -- slette sit eget indlæg.
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
     AND tablename = 'community_svar' AND policyname = 'Members can update own replies') THEN
     CREATE POLICY "Members can update own replies"
       ON public.community_svar FOR UPDATE
       TO authenticated
-      USING (auth.uid() = forfatter_id)
+      USING (auth.uid() = forfatter_id AND status = 'aktiv')
       WITH CHECK (auth.uid() = forfatter_id);
   END IF;
 
@@ -301,7 +314,8 @@ BEGIN
 
   -- ── community_visninger ──
   -- SELECT kun egne rækker; ingen UPDATE, ingen DELETE — set_at er første
-  -- visning, og tælleren på tråden er skrivestiens ansvar.
+  -- visning, og tælleren på tråden vedligeholdes af trigger
+  -- (community_visnings_taeller, nederst i filen).
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
     AND tablename = 'community_visninger' AND policyname = 'Members can view own views') THEN
     CREATE POLICY "Members can view own views"
