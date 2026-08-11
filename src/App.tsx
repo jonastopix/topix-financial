@@ -26,6 +26,7 @@ const MemberDetail = lazy(() => import("./pages/MemberDetail"));
 const Guide = lazy(() => import("./pages/Guide"));
 const AnnualBaseline = lazy(() => import("./pages/AnnualBaseline"));
 const Community = lazy(() => import("./pages/Community"));
+const CommunityTraad = lazy(() => import("./pages/CommunityTraad"));
 const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
 const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
@@ -244,7 +245,16 @@ const App = () => (
               <Route path="/chat" element={<ProtectedRoute><ChatShell /></ProtectedRoute>} />
               <Route path="/book-session" element={<ProtectedRoute><BookSession /></ProtectedRoute>} />
               <Route path="/pulse" element={<ProtectedRoute><PulseCheckin /></ProtectedRoute>} />
-              <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+              {/* MemberRoute, ikke ProtectedRoute: ProtectedRoute slipper
+                  Legat-adgang ind, MemberRoute gør ikke. Community er kun
+                  for aktive, fuldt betalende medlemmer — det er håndhævet i
+                  RLS og i RPC'ernes adgangstjek (har_aktivt_medlemskab), og
+                  ruten skal sige det samme. Uden dette kunne en
+                  legatmodtager åbne feedet og få en tom liste med teksten
+                  "Der er ikke skrevet noget endnu", hvilket er usandt: der
+                  er skrevet noget, de må bare ikke se det. */}
+              <Route path="/community" element={<MemberRoute><Community /></MemberRoute>} />
+              <Route path="/community/:id" element={<MemberRoute><CommunityTraad /></MemberRoute>} />
               <Route path="/guide" element={<ProtectedRoute><Guide /></ProtectedRoute>} />
               <Route path="/annual-baseline" element={<ProtectedRoute><AnnualBaseline /></ProtectedRoute>} />
               
