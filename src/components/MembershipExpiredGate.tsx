@@ -99,25 +99,24 @@ export default function MembershipExpiredGate() {
 
         {/* Three paths */}
         <div className="space-y-3">
-          {/* Path 1: Renew full membership */}
+          {/* Path 1: Renew full membership — prisen er individuel (50% af den
+              oprindelige aftale) og vedligeholdes uden for systemet, så kortet
+              viser ingen tal og åbner i stedet en mail til rådgiveren. */}
           <a
-            href="https://app.topix.dk/checkout/the-boardroom?coupon_code=TB2026V2"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="mailto:jonas@topix.dk?subject=Fornyelse%20af%20medlemskab"
             className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded">
                   <CalendarDays className="h-3 w-3" />
-                  Anbefalet · 70% rabat aktiveret
+                  Anbefalet
                 </span>
                 <h3 className="text-lg font-semibold text-foreground">
                   Forny dit fulde medlemskab
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Få Jonas & Morten som dine personlige sparringspartnere igen. Din rabatkode er allerede aktiveret —
-                  <span className="text-foreground font-medium"> 15.000 kr. for 12 måneder i stedet for 50.000 kr.</span>
+                  Din fornyelsespris afhænger af din oprindelige aftale. Skriv til os, så vender vi tilbage med dit tilbud.
                 </p>
               </div>
               <ArrowRight className="h-5 w-5 text-primary mt-1 group-hover:translate-x-1 transition-transform" />
