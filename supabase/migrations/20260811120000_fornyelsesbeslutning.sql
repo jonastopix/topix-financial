@@ -1,51 +1,79 @@
 -- Fornyelsesbeslutning: rådgiverens eksplicitte beslutning om hvorvidt en
--- virksomhed skal tilbydes forlængelse ved kontraktudløb.
+-- virksomhed skal tilbydes forlængelse ved kontraktudløb — som SELVSTÆNDIG
+-- TABEL, ikke kolonner på companies.
 --
--- Baggrund (recon-udloeb.md, 2026-08-11): der findes i dag INTET felt der
--- udtrykker om en virksomhed skal tilbydes forlængelse — udløbsgaten viser
--- samme hardcodede tilbud til alle udløbne. Disse fire kolonner gør
--- beslutningen eksplicit og sporbar (hvem, hvornår, hvorfor).
+-- HVORFOR EGEN TABEL: RLS i Postgres er rækkeniveau, ikke kolonneniveau.
+-- Et medlem læser sin egen companies-række (src/hooks/useAuth.tsx:189) og
+-- ville derfor kunne læse rådgiverens beslutning og begrundelse om sig selv.
+-- Noten skal kunne skrives ærligt, og derfor må den ikke bo på companies.
 --
--- NULL-semantik (bevidst — derfor INGEN DEFAULT): NULL betyder "ingen
--- beslutning truffet", og intet må sendes automatisk på et NULL. Den sikre
--- standard er tavshed. En automatik der læser feltet skal kræve en eksplicit
--- 'tilbyd' før den foretager sig noget.
+-- FRAVÆRS-SEMANTIK: ingen række = ingen beslutning truffet, og intet må
+-- sendes automatisk uden en eksplicit 'tilbyd'. Den sikre standard er
+-- tavshed. Derfor er beslutning NOT NULL — en række UDTRYKKER en beslutning;
+-- "ikke besluttet" udtrykkes ved at rækken ikke findes.
 --
--- Rent additiv: ingen backfill, ingen UPDATE, ingen DROP. Idempotent via
--- IF NOT EXISTS på kolonnerne og eksistens-tjek på constrainten (Postgres
--- har ikke IF NOT EXISTS til ADD CONSTRAINT).
+-- updated_at vedligeholdes af skrivestien (ingen trigger i denne migration).
+--
+-- Rent additiv: ingen backfill, ingen ændring af companies, ingen DROP af
+-- eksisterende objekter. Idempotent via IF NOT EXISTS på tabellen og
+-- eksistens-tjek på policyen (CREATE POLICY har ikke IF NOT EXISTS).
 --
 -- Deploy: køres MANUELT i Lovable -> SQL editor efter merge (jf. CLAUDE.md).
 -- Verificér efter kørsel med:
---   SELECT column_name, data_type FROM information_schema.columns
---   WHERE table_schema = 'public' AND table_name = 'companies'
---     AND column_name LIKE 'fornyelse%';
+--   SELECT relrowsecurity FROM pg_class WHERE oid = 'public.company_fornyelse'::regclass;
+--   SELECT policyname, cmd, roles FROM pg_policies
+--   WHERE schemaname = 'public' AND tablename = 'company_fornyelse';
 
-ALTER TABLE public.companies
-  ADD COLUMN IF NOT EXISTS fornyelse_beslutning text,
-  ADD COLUMN IF NOT EXISTS fornyelse_besluttet_af uuid REFERENCES auth.users(id),
-  ADD COLUMN IF NOT EXISTS fornyelse_besluttet_at timestamptz,
-  ADD COLUMN IF NOT EXISTS fornyelse_note text;
+CREATE TABLE IF NOT EXISTS public.company_fornyelse (
+  company_id    uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
+  beslutning    text NOT NULL
+    CONSTRAINT company_fornyelse_beslutning_check
+    CHECK (beslutning = ANY (ARRAY['tilbyd'::text, 'tilbyd_ikke'::text])),
+  besluttet_af  uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  besluttet_at  timestamptz NOT NULL DEFAULT now(),
+  note          text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
 
--- Præcis to gyldige beslutninger; NULL forbliver tilladt ("ikke besluttet").
+ALTER TABLE public.company_fornyelse ENABLE ROW LEVEL SECURITY;
+
+-- Adgang: kun rådgivere og admins — samme rolletjek-mønster som husets
+-- øvrige advisor-policies (public.has_role(auth.uid(), 'advisor'), jf.
+-- 20260611101500_advisor_company_acknowledgments.sql; admin arver advisor
+-- via has_role). FOR ALL dækker SELECT, INSERT, UPDATE og DELETE.
+-- Medlemmer har ingen adgang (ingen policy matcher dem), og der er ingen
+-- policy for anon (TO authenticated).
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'companies_fornyelse_beslutning_check'
-      AND conrelid = 'public.companies'::regclass
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'company_fornyelse'
+      AND policyname = 'Advisors manage company fornyelse'
   ) THEN
-    ALTER TABLE public.companies
-      ADD CONSTRAINT companies_fornyelse_beslutning_check
-      CHECK (fornyelse_beslutning = ANY (ARRAY['tilbyd'::text, 'tilbyd_ikke'::text]));
+    CREATE POLICY "Advisors manage company fornyelse"
+      ON public.company_fornyelse
+      FOR ALL
+      TO authenticated
+      USING (public.has_role(auth.uid(), 'advisor'))
+      WITH CHECK (public.has_role(auth.uid(), 'advisor'));
   END IF;
 END $$;
 
-COMMENT ON COLUMN public.companies.fornyelse_beslutning IS
-  'Rådgiverens beslutning om forlængelsestilbud: ''tilbyd'' eller ''tilbyd_ikke''. NULL = ingen beslutning truffet — intet må sendes automatisk på NULL; den sikre standard er tavshed.';
-COMMENT ON COLUMN public.companies.fornyelse_besluttet_af IS
-  'Den rådgiver (auth.users.id) der traf fornyelsesbeslutningen.';
-COMMENT ON COLUMN public.companies.fornyelse_besluttet_at IS
-  'Tidspunkt for fornyelsesbeslutningen.';
-COMMENT ON COLUMN public.companies.fornyelse_note IS
-  'Rådgiverens egen begrundelse for fornyelsesbeslutningen.';
+COMMENT ON TABLE public.company_fornyelse IS
+  'Rådgiverens beslutning om forlængelsestilbud pr. virksomhed. Egen tabel (ikke kolonner på companies) fordi RLS er rækkeniveau: medlemmet læser sin egen companies-række og må ikke kunne læse beslutning eller note om sig selv. Ingen række = ingen beslutning truffet — intet må sendes automatisk uden en eksplicit ''tilbyd''; den sikre standard er tavshed.';
+COMMENT ON COLUMN public.company_fornyelse.company_id IS
+  'Virksomheden beslutningen gælder (PK — højst én beslutning pr. virksomhed).';
+COMMENT ON COLUMN public.company_fornyelse.beslutning IS
+  'Beslutningen: ''tilbyd'' eller ''tilbyd_ikke''. NOT NULL — fravær af beslutning udtrykkes ved at rækken ikke findes.';
+COMMENT ON COLUMN public.company_fornyelse.besluttet_af IS
+  'Den rådgiver (auth.users.id) der traf beslutningen. NULL hvis brugeren siden er slettet (ON DELETE SET NULL).';
+COMMENT ON COLUMN public.company_fornyelse.besluttet_at IS
+  'Tidspunkt for beslutningen.';
+COMMENT ON COLUMN public.company_fornyelse.note IS
+  'Rådgiverens egen begrundelse. Må kunne skrives ærligt — derfor bor den i denne rådgiver-gatede tabel og ikke på companies.';
+COMMENT ON COLUMN public.company_fornyelse.created_at IS
+  'Hvornår rækken blev oprettet.';
+COMMENT ON COLUMN public.company_fornyelse.updated_at IS
+  'Hvornår rækken sidst blev ændret. Vedligeholdes af skrivestien — ingen trigger i denne migration.';
