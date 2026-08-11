@@ -26,6 +26,7 @@ const MemberDetail = lazy(() => import("./pages/MemberDetail"));
 const Guide = lazy(() => import("./pages/Guide"));
 const AnnualBaseline = lazy(() => import("./pages/AnnualBaseline"));
 const Community = lazy(() => import("./pages/Community"));
+const CommunityTraad = lazy(() => import("./pages/CommunityTraad"));
 const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
 const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
@@ -245,6 +246,7 @@ const App = () => (
               <Route path="/book-session" element={<ProtectedRoute><BookSession /></ProtectedRoute>} />
               <Route path="/pulse" element={<ProtectedRoute><PulseCheckin /></ProtectedRoute>} />
               <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+              <Route path="/community/:id" element={<MemberRoute><CommunityTraad /></MemberRoute>} />
               <Route path="/guide" element={<ProtectedRoute><Guide /></ProtectedRoute>} />
               <Route path="/annual-baseline" element={<ProtectedRoute><AnnualBaseline /></ProtectedRoute>} />
               

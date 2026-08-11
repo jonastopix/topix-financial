@@ -18,8 +18,9 @@ export const HbMemberShell = ({
   children,
 }: {
   // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
-  // deler værdien — en profil hører til netværket.
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events" | "medlemmer";
+  // deler værdien — en profil hører til netværket. "community" deles
+  // tilsvarende af feed (/community) og trådsider (/community/:id).
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events" | "medlemmer" | "community";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -72,7 +73,7 @@ export const HbMemberShell = ({
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
     { label: "Events", to: "/events", active: active === "events" },
     { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
-    { label: "Community", to: "/community" },
+    { label: "Community", to: "/community", active: active === "community" },
   ];
 
   return (
