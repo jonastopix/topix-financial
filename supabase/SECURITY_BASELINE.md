@@ -49,6 +49,24 @@ to the entire access-control model.
 - Grants: `EXECUTE TO authenticated` AND `TO service_role` — service_role does not inherit authenticated grants (learned 2026-08-10: `get_member_directory` cannot be called from cron); `REVOKE ALL FROM PUBLIC` and `FROM anon`
 - Introduced in migration `20260810210000_event_svar.sql`
 
+### `har_aktivt_medlemskab(_user_id uuid) → boolean`
+- **Fail-closed** community access verdict (dated note 2026-08-11): true ONLY
+  when the user belongs to at least one non-legat company with a SET and
+  FUTURE `contract_end_date`. Deliberately excludes self-serve subscribers
+  (subscription fields are NOT evaluated — the 299 kr./md. subscription
+  covers tal/budget/handouts/tasks, not community), legat companies, and
+  NULL end dates. This is the opposite polarity of `is_membership_active`
+  (fail-open, built for the member directory) — do not swap them.
+- Uses `EXISTS` over ALL of the user's companies — `user_company_id` is
+  deliberately avoided (LIMIT 1 without ORDER BY picks arbitrarily for
+  multi-company users)
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Consumed by the eight member policies on `community_traade`,
+  `community_svar`, `community_reaktioner`, `community_visninger`
+  (advisor policies unchanged, gated by `has_role`)
+- Introduced in migration `20260811160000_community_adgang.sql`
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
