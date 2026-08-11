@@ -1,8 +1,14 @@
 -- Community: forum light med ét feed — datamodellen.
 --
--- KUN tabeller, RLS, indekser og kommentarer. Ingen frontend, ingen edge
--- functions, ingen RPC'er, ingen triggere: antal_svar, antal_visninger og
--- sidste_svar_at er denormaliserede caches og vedligeholdes af SKRIVESTIEN.
+-- Tabeller, RLS, indekser, kommentarer og TRIGGERE. Ingen frontend, ingen
+-- edge functions, ingen RPC'er. antal_svar, antal_visninger og
+-- sidste_svar_at er denormaliserede caches og vedligeholdes af TRIGGERE
+-- (nederst i filen) — de kan ikke vedligeholdes af skrivestien, for
+-- svarer medlem B på medlem A's tråd, har B ingen UPDATE-ret på A's
+-- række. Dertil BEFORE UPDATE-immutability-triggere efter
+-- protect_message_immutable_fields-mønstret: RLS er rækkeniveau, ikke
+-- kolonneniveau, så uden dem kan et medlem fastgøre sit eget opslag og
+-- sætte sit eget visningstal frit.
 --
 -- RLS-mønstret er genbrugt ORDRET fra huset (20260804120000_hjemmebane_
 -- content_layer.sql): status-gatet fælles SELECT som events, self-scoped
@@ -58,7 +64,7 @@ CREATE TABLE IF NOT EXISTS public.community_traade (
 );
 
 COMMENT ON TABLE public.community_traade IS
-  'Community-tråde (forum light, ét feed). Skjul/sletning sker via status — rækker fjernes aldrig af medlemmer. antal_svar, antal_visninger og sidste_svar_at er denormaliserede caches, der vedligeholdes af skrivestien (ingen triggere).';
+  'Community-tråde (forum light, ét feed). Skjul/sletning sker via status — rækker fjernes aldrig af medlemmer. antal_svar, antal_visninger og sidste_svar_at er denormaliserede caches, der vedligeholdes af triggere på community_svar og community_visninger.';
 COMMENT ON COLUMN public.community_traade.kilde_type IS
   'NULL = fri tråd. ''content_item'' eller ''event'' — push er ikke en egen tabel (ugens push bor i content_items med area=''push''), så push-indslag refereres som content_item.';
 COMMENT ON COLUMN public.community_traade.kilde_item_id IS
@@ -70,11 +76,11 @@ COMMENT ON COLUMN public.community_traade.status IS
 COMMENT ON COLUMN public.community_traade.fastgjort IS
   'Fastgjorte tråde løftes øverst i feedet.';
 COMMENT ON COLUMN public.community_traade.antal_svar IS
-  'Denormaliseret cache af antal aktive svar — vedligeholdes af skrivestien.';
+  'Denormaliseret cache af antal aktive svar — vedligeholdes af trigger på community_svar.';
 COMMENT ON COLUMN public.community_traade.antal_visninger IS
-  'Denormaliseret cache af community_visninger (unikke brugere) — vedligeholdes af skrivestien.';
+  'Denormaliseret cache af community_visninger (unikke brugere) — vedligeholdes af trigger på community_visninger.';
 COMMENT ON COLUMN public.community_traade.sidste_svar_at IS
-  'Tidspunkt for seneste svar — feedets sorteringsnøgle; vedligeholdes af skrivestien.';
+  'Tidspunkt for seneste svar — feedets sorteringsnøgle; vedligeholdes af trigger på community_svar.';
 
 -- Feedet: aktive tråde sorteret efter seneste aktivitet.
 CREATE INDEX IF NOT EXISTS idx_community_traade_feed
@@ -149,7 +155,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_community_reaktioner_svar
 
 -- Unik pr. bruger pr. tråd — tælleren er "hvor mange har set", ikke "hvor
 -- mange gange". antal_visninger på tråden er en denormaliseret cache af
--- denne tabel og vedligeholdes af skrivestien.
+-- denne tabel og vedligeholdes af trigger.
 CREATE TABLE IF NOT EXISTS public.community_visninger (
   traad_id  uuid NOT NULL REFERENCES public.community_traade(id) ON DELETE CASCADE,
   bruger_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -158,7 +164,7 @@ CREATE TABLE IF NOT EXISTS public.community_visninger (
 );
 
 COMMENT ON TABLE public.community_visninger IS
-  'Én række pr. bruger pr. tråd — "hvor mange har set", ikke "hvor mange gange". community_traade.antal_visninger er en denormaliseret cache af denne tabel og vedligeholdes af skrivestien.';
+  'Én række pr. bruger pr. tråd — "hvor mange har set", ikke "hvor mange gange". community_traade.antal_visninger er en denormaliseret cache af denne tabel og vedligeholdes af trigger.';
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- RLS
@@ -292,14 +298,6 @@ BEGIN
       USING (public.has_role(auth.uid(), 'advisor'));
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
-    AND tablename = 'community_reaktioner' AND policyname = 'Advisors can update all reactions') THEN
-    CREATE POLICY "Advisors can update all reactions"
-      ON public.community_reaktioner FOR UPDATE
-      TO authenticated
-      USING (public.has_role(auth.uid(), 'advisor'))
-      WITH CHECK (public.has_role(auth.uid(), 'advisor'));
-  END IF;
 
   -- ── community_visninger ──
   -- SELECT kun egne rækker; ingen UPDATE, ingen DELETE — set_at er første
@@ -328,12 +326,162 @@ BEGIN
       USING (public.has_role(auth.uid(), 'advisor'));
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
-    AND tablename = 'community_visninger' AND policyname = 'Advisors can update all views') THEN
-    CREATE POLICY "Advisors can update all views"
-      ON public.community_visninger FOR UPDATE
-      TO authenticated
-      USING (public.has_role(auth.uid(), 'advisor'))
-      WITH CHECK (public.has_role(auth.uid(), 'advisor'));
-  END IF;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Immutability-triggere (BEFORE UPDATE) — mønster: protect_message_immutable_fields
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- RLS er rækkeniveau, ikke kolonneniveau. Uden denne trigger kan et medlem
+-- fastgøre sit eget opslag øverst i feedet og sætte sit eget visningstal
+-- frit. Medlemmet må rette titel, indhold og status på sit eget — intet
+-- andet. Samme adfærd som protect_message_immutable_fields: RAISE
+-- EXCEPTION, ingen stille nulstilling.
+--
+-- pg_trigger_depth() > 1: tæller-triggerne nedenfor opdaterer netop
+-- antal_svar/antal_visninger/sidste_svar_at som følge af et medlems
+-- INSERT — dén indirekte opdatering er legitim og skal ikke blokeres.
+-- Direkte UPDATE fra klienten har trigger-dybde 1.
+
+CREATE OR REPLACE FUNCTION public.protect_community_traad_immutable_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+  IF public.has_role(auth.uid(), 'advisor') THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.forfatter_id IS DISTINCT FROM OLD.forfatter_id THEN
+    RAISE EXCEPTION 'forfatter_id cannot be changed';
+  END IF;
+  IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'created_at cannot be changed';
+  END IF;
+  IF NEW.fastgjort IS DISTINCT FROM OLD.fastgjort THEN
+    RAISE EXCEPTION 'fastgjort cannot be changed';
+  END IF;
+  IF NEW.antal_svar IS DISTINCT FROM OLD.antal_svar THEN
+    RAISE EXCEPTION 'antal_svar cannot be changed';
+  END IF;
+  IF NEW.antal_visninger IS DISTINCT FROM OLD.antal_visninger THEN
+    RAISE EXCEPTION 'antal_visninger cannot be changed';
+  END IF;
+  IF NEW.sidste_svar_at IS DISTINCT FROM OLD.sidste_svar_at THEN
+    RAISE EXCEPTION 'sidste_svar_at cannot be changed';
+  END IF;
+  IF NEW.kilde_type IS DISTINCT FROM OLD.kilde_type THEN
+    RAISE EXCEPTION 'kilde_type cannot be changed';
+  END IF;
+  IF NEW.kilde_item_id IS DISTINCT FROM OLD.kilde_item_id THEN
+    RAISE EXCEPTION 'kilde_item_id cannot be changed';
+  END IF;
+  IF NEW.kilde_event_id IS DISTINCT FROM OLD.kilde_event_id THEN
+    RAISE EXCEPTION 'kilde_event_id cannot be changed';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER protect_community_traad_immutable_fields
+BEFORE UPDATE ON public.community_traade
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_community_traad_immutable_fields();
+
+CREATE OR REPLACE FUNCTION public.protect_community_svar_immutable_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+  IF public.has_role(auth.uid(), 'advisor') THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.forfatter_id IS DISTINCT FROM OLD.forfatter_id THEN
+    RAISE EXCEPTION 'forfatter_id cannot be changed';
+  END IF;
+  IF NEW.traad_id IS DISTINCT FROM OLD.traad_id THEN
+    RAISE EXCEPTION 'traad_id cannot be changed';
+  END IF;
+  IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'created_at cannot be changed';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER protect_community_svar_immutable_fields
+BEFORE UPDATE ON public.community_svar
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_community_svar_immutable_fields();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Tæller-triggere (SECURITY DEFINER) — cachen på tråden
+-- ─────────────────────────────────────────────────────────────────────────
+--
+-- Tællerne kan IKKE vedligeholdes af skrivestien: svarer medlem B på
+-- medlem A's tråd, har B ingen UPDATE-ret på A's række. Derfor SECURITY
+-- DEFINER-triggerfunktioner (samme form som husets øvrige SECURITY
+-- DEFINER-funktioner, fx is_membership_active: eksplicit search_path).
+-- Der GENBEREGNES — der tælles ikke op og ned; en genberegning kan aldrig
+-- drive fra sandheden.
+
+CREATE OR REPLACE FUNCTION public.community_opdater_svar_taellere()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _traad_id uuid;
+BEGIN
+  _traad_id := COALESCE(NEW.traad_id, OLD.traad_id);
+  UPDATE public.community_traade t
+  SET antal_svar = (
+        SELECT count(*)
+        FROM public.community_svar s
+        WHERE s.traad_id = _traad_id AND s.status = 'aktiv'
+      ),
+      sidste_svar_at = (
+        SELECT max(s.created_at)
+        FROM public.community_svar s
+        WHERE s.traad_id = _traad_id AND s.status = 'aktiv'
+      )
+  WHERE t.id = _traad_id;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER community_svar_taellere
+AFTER INSERT OR UPDATE OF status OR DELETE ON public.community_svar
+FOR EACH ROW
+EXECUTE FUNCTION public.community_opdater_svar_taellere();
+
+CREATE OR REPLACE FUNCTION public.community_opdater_visningstaeller()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  UPDATE public.community_traade t
+  SET antal_visninger = (
+        SELECT count(*)
+        FROM public.community_visninger v
+        WHERE v.traad_id = NEW.traad_id
+      )
+  WHERE t.id = NEW.traad_id;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER community_visnings_taeller
+AFTER INSERT ON public.community_visninger
+FOR EACH ROW
+EXECUTE FUNCTION public.community_opdater_visningstaeller();
