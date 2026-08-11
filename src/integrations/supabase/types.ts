@@ -523,6 +523,44 @@ export type Database = {
           },
         ]
       }
+      company_fornyelse: {
+        Row: {
+          beslutning: string
+          besluttet_af: string | null
+          besluttet_at: string
+          company_id: string
+          created_at: string
+          note: string | null
+          updated_at: string
+        }
+        Insert: {
+          beslutning: string
+          besluttet_af?: string | null
+          besluttet_at?: string
+          company_id: string
+          created_at?: string
+          note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          beslutning?: string
+          besluttet_af?: string | null
+          besluttet_at?: string
+          company_id?: string
+          created_at?: string
+          note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_fornyelse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_invitations: {
         Row: {
           accepted_at: string | null
