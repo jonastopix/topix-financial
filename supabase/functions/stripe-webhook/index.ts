@@ -130,6 +130,20 @@ Deno.serve(async (req) => {
     }
 
     const session = event.data.object;
+
+    // Begge checkout-functions sætter samme metadata-nøgler (user_id,
+    // company_id) på sessionen, og Stripe sender checkout.session.completed
+    // i BÅDE payment- og subscription-mode. Denne gren er 1:1-sessionskøbet
+    // og må kun køre for engangsbetalinger — abonnements- (og setup-)
+    // sessions ack'es med 200 uden handling, så Stripe ikke forsøger igen;
+    // abonnementsadgangen håndteres af subscription-grenene ovenfor.
+    if (session.mode !== "payment") {
+      console.log(`[stripe-webhook] Skipping checkout.session.completed for session ${session.id} (mode: ${session.mode})`);
+      return new Response(JSON.stringify({ received: true, skipped: "non_payment_mode" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const userId = session.metadata?.user_id;
     const companyId = session.metadata?.company_id || null;
     const stripeSessionId = session.id;
