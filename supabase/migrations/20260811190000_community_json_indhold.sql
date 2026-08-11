@@ -99,6 +99,17 @@ BEGIN
     RAISE EXCEPTION 'Titlen må ikke være tom';
   END IF;
 
+  -- Uden dette tjek kan et medlem gemme vilkårlig JSON i feltet — et
+  -- array, et tal, et objekt uden struktur. Rendereren viser kun kendte
+  -- noder, så det bider ikke på skærmen, men databasen skal ikke være et
+  -- fribytterfelt. Et Tiptap-dokument har altid type = "doc" i roden;
+  -- tjekket hører ved døren, ikke i klienten.
+  IF p_indhold_json IS NOT NULL
+     AND (jsonb_typeof(p_indhold_json) IS DISTINCT FROM 'object'
+          OR p_indhold_json->>'type' IS DISTINCT FROM 'doc') THEN
+    RAISE EXCEPTION 'Ugyldigt dokumentformat';
+  END IF;
+
   -- Er dokumentet sat, udledes teksten af det og p_indhold ignoreres —
   -- klienten bestemmer aldrig uddraget, så indhold og indhold_json ikke
   -- kan komme i utakt. Tomhedstjekket gælder den tekst, der faktisk ender
@@ -147,6 +158,17 @@ BEGIN
   IF NOT (public.har_aktivt_medlemskab(auth.uid())
           OR public.has_role(auth.uid(), 'advisor')) THEN
     RAISE EXCEPTION 'Ingen adgang til community';
+  END IF;
+
+  -- Uden dette tjek kan et medlem gemme vilkårlig JSON i feltet — et
+  -- array, et tal, et objekt uden struktur. Rendereren viser kun kendte
+  -- noder, så det bider ikke på skærmen, men databasen skal ikke være et
+  -- fribytterfelt. Et Tiptap-dokument har altid type = "doc" i roden;
+  -- tjekket hører ved døren, ikke i klienten.
+  IF p_indhold_json IS NOT NULL
+     AND (jsonb_typeof(p_indhold_json) IS DISTINCT FROM 'object'
+          OR p_indhold_json->>'type' IS DISTINCT FROM 'doc') THEN
+    RAISE EXCEPTION 'Ugyldigt dokumentformat';
   END IF;
 
   -- Er dokumentet sat, udledes teksten af det og p_indhold ignoreres (se
