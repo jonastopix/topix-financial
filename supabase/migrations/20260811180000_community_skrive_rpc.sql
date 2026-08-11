@@ -60,10 +60,13 @@ BEGIN
 
   -- Kilde-felterne sendes videre som de er — CHECK-constrainten
   -- community_traade_kilde_check håndhæver sammenhængen.
+  -- Titel og indhold indsættes TRIMMET: der valideres med btrim, men
+  -- indsættes råt, så " Titel " ellers ville havne i databasen med
+  -- mellemrum.
   INSERT INTO public.community_traade
     (forfatter_id, titel, indhold, kilde_type, kilde_item_id, kilde_event_id)
   VALUES
-    (auth.uid(), p_titel, p_indhold, p_kilde_type, p_kilde_item_id, p_kilde_event_id)
+    (auth.uid(), btrim(p_titel), btrim(p_indhold), p_kilde_type, p_kilde_item_id, p_kilde_event_id)
   RETURNING id INTO _id;
 
   RETURN _id;
@@ -108,8 +111,10 @@ BEGIN
     RAISE EXCEPTION 'Tråden findes ikke eller er lukket';
   END IF;
 
+  -- Indholdet indsættes TRIMMET: der valideres med btrim, men indsættes
+  -- råt, så " Titel " ellers ville havne i databasen med mellemrum.
   INSERT INTO public.community_svar (traad_id, forfatter_id, indhold)
-  VALUES (p_traad_id, auth.uid(), p_indhold)
+  VALUES (p_traad_id, auth.uid(), btrim(p_indhold))
   RETURNING id INTO _id;
 
   RETURN _id;
@@ -167,6 +172,12 @@ BEGIN
   END IF;
 
   -- Ny reaktion kræver at målobjektet findes og er aktivt.
+  -- ON CONFLICT DO NOTHING fjerner kapløbstilstanden: to hurtige klik kan
+  -- begge nå at se, at reaktionen ikke findes, hvorefter den anden INSERT
+  -- rammer det partielle unikke indeks og rejser en fejl. Brugeren ville
+  -- få en fejlbesked for at klikke to gange på et hjerte. DO NOTHING
+  -- fjerner fejlstien uden at ændre svaret: reaktionen findes bagefter,
+  -- så true er stadig sandt.
   IF p_traad_id IS NOT NULL THEN
     IF NOT EXISTS (
       SELECT 1 FROM public.community_traade t
@@ -175,7 +186,8 @@ BEGIN
       RAISE EXCEPTION 'Tråden findes ikke eller er lukket';
     END IF;
     INSERT INTO public.community_reaktioner (traad_id, bruger_id, type)
-    VALUES (p_traad_id, auth.uid(), 'like');
+    VALUES (p_traad_id, auth.uid(), 'like')
+    ON CONFLICT DO NOTHING;
   ELSE
     IF NOT EXISTS (
       SELECT 1 FROM public.community_svar s
@@ -184,7 +196,8 @@ BEGIN
       RAISE EXCEPTION 'Svaret findes ikke eller er skjult';
     END IF;
     INSERT INTO public.community_reaktioner (svar_id, bruger_id, type)
-    VALUES (p_svar_id, auth.uid(), 'like');
+    VALUES (p_svar_id, auth.uid(), 'like')
+    ON CONFLICT DO NOTHING;
   END IF;
 
   RETURN true;  -- "har jeg nu reageret"
