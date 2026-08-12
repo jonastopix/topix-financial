@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   hentSvar,
   hentTraad,
+  notificerSvar,
   opretSvar,
   registrerVisning,
   retSvar,
@@ -217,7 +218,16 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   };
 
   const svarMutation = useMutation({
-    mutationFn: (indholdJson: unknown) => opretSvar(traadId, "", indholdJson),
+    /* Notifikationen kaldes i mutationFn og ikke i onSuccess: onSuccess
+       kører efter at cachen er invalideret, og rækkefølgen er ligegyldig
+       for brugeren — men i mutationFn er koblingen til det netop
+       oprettede id direkte og kan ikke tabes. notificerSvar kaster
+       aldrig, så den kan ikke vælte mutationen. */
+    mutationFn: async (indholdJson: unknown) => {
+      const svarId = await opretSvar(traadId, "", indholdJson);
+      await notificerSvar(svarId);
+      return svarId;
+    },
     onSuccess: invaliderTraadOgFeed,
     /* Composeren sluger bevidst fejl (den beholder blot medlemmets tekst),
        så fejlvisningen ejes HER — uden toasten ville et mislykket svar se
