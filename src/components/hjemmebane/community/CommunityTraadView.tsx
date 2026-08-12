@@ -15,6 +15,7 @@ import {
   retSvar,
   retTraad,
   saetReaktion,
+  skjulTraad,
   sletSvar,
   sletTraad,
   type CommunitySvar,
@@ -187,7 +188,7 @@ const SvarRaekke = ({
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdvisor } = useAuth();
 
   const [redigererTraad, setRedigererTraad] = useState(false);
   const [traadTitel, setTraadTitel] = useState("");
@@ -299,6 +300,19 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     },
   });
 
+  const skjulMutation = useMutation({
+    /* Begge retninger: skjul OG vis igen — læse-RPC'erne (20260812180000)
+       viser skjulte tråde for rådgivere, så skjul er ikke længere en
+       envejsdør. Der navigeres IKKE væk: den tidligere version sendte
+       rådgiveren til /community, hvilket var forkert — tråden er stadig
+       synlig for rådgiveren, og fortryd skal kunne ske fra samme side. */
+    mutationFn: (skjul: boolean) => skjulTraad(traadId, skjul),
+    onSuccess: invaliderTraadOgFeed,
+    onError: (fejl: Error) => {
+      toast.error("Handlingen mislykkedes", { description: fejl.message });
+    },
+  });
+
   // Betingede returns EFTER samtlige hooks (React #310-reglen).
   if (traadQuery.isLoading) {
     return (
@@ -325,12 +339,21 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
 
   const svar = svarQuery.data ?? [];
   const erTraadForfatter = user !== null && user.id === traad.forfatter_id;
+  const erSkjult = traad.status === "skjult";
 
   return (
     <div>
       <BackLink />
 
-      <article className="mt-8">
+      {/* Rust frem for evergreen på skjult-markeringen: det er en advarsel
+          om en tilstand (medlemmerne kan ikke se opslaget), ikke en positiv
+          markering. */}
+      <article className={cn("mt-8", erSkjult && "border-l-2 border-l-hb-rust pl-4")}>
+        {erSkjult && (
+          <p className="mb-4 text-sm text-hb-rust">
+            Skjult for medlemmer — kun rådgivere kan se dette opslag.
+          </p>
+        )}
         <div className="flex items-center gap-4">
           <ForfatterAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />
           <p className="text-sm text-hb-ink">
@@ -400,15 +423,36 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
                   </TekstKnap>
                 </>
               )}
-              {/* Ingen skjul-knap her endnu: skjul er en envejsdør, indtil
-                  moderationsfladen findes. Læse-RPC'erne filtrerer på
-                  status = 'aktiv' også for rådgivere, så en skjult tråd
-                  forsvinder fra ENHVER flade — også rådgiverens egen — og
-                  kan kun vises igen via SQL-editoren.
-                  skjul_community_traad understøtter p_skjul = false, men
-                  der er intet sted at trykke fortryd. Knappen kommer
-                  tilbage sammen med en flade, hvor skjulte tråde kan ses
-                  og genåbnes. */}
+              {/* Skjul-knappen er tilbage (holdt ude i PR #318, hvor skjul
+                  var en envejsdør): læse-RPC'erne viser nu skjulte tråde
+                  for rådgivere (20260812180000), så der ER et sted at
+                  trykke fortryd — denne side. */}
+              {isAdvisor && !erSkjult && (
+                <TekstKnap
+                  disabled={skjulMutation.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Skjul opslaget for alle medlemmer? Du kan selv se det og fortryde bagefter.",
+                      )
+                    ) {
+                      skjulMutation.mutate(true);
+                    }
+                  }}
+                >
+                  Skjul opslag
+                </TekstKnap>
+              )}
+              {/* Ingen bekræftelse på vis-igen: at gøre noget synligt igen
+                  er ikke en handling, man skal advares om. */}
+              {isAdvisor && erSkjult && (
+                <TekstKnap
+                  disabled={skjulMutation.isPending}
+                  onClick={() => skjulMutation.mutate(false)}
+                >
+                  Vis opslag igen
+                </TekstKnap>
+              )}
             </div>
           </>
         )}

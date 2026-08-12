@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 import {
   hentFeed,
   notificerNaevnelser,
@@ -61,11 +62,18 @@ const RowSkeleton = () => (
 
 const TraadRaekke = ({ traad }: { traad: CommunityTraad }) => {
   const kilde = kildeLabel(traad.kilde_type);
+  /* En skjult tråd står kun i feedet for rådgivere (læse-RPC'erne,
+     20260812180000). Markeringen er nødvendig, fordi rådgiveren ellers
+     ikke kan se forskel på hvad medlemmerne ser og ikke ser. */
+  const erSkjult = traad.status === "skjult";
   return (
     <li>
       <Link
         to={`/community/${traad.id}`}
-        className="flex items-start gap-5 border-t border-hb-line py-4 transition-colors last:border-b hover:bg-hb-sage/20"
+        className={cn(
+          "flex items-start gap-5 border-t border-hb-line py-4 transition-colors last:border-b hover:bg-hb-sage/20",
+          erSkjult && "opacity-60",
+        )}
       >
         <ForfatterAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />
         <div className="min-w-0 flex-1">
@@ -73,6 +81,7 @@ const TraadRaekke = ({ traad }: { traad: CommunityTraad }) => {
             <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
             {traad.fastgjort && <HbTag>Fastgjort</HbTag>}
             {kilde && <HbTag>{kilde}</HbTag>}
+            {erSkjult && <HbTag>Skjult</HbTag>}
           </div>
           <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
             {traad.titel}
