@@ -327,11 +327,21 @@ function opretNaevnelsesDropdown() {
       vaelg = props.command;
       sidsteRect = props.clientRect;
       element = document.createElement("div");
-      // hb-surface er flade-farven (kort, dropdowns), hb-paper er
-      // sidebaggrunden — en flade må aldrig males i sidens egen farve,
-      // så løfter den sig ikke. Samme valg som HbCard (bg-hb-surface).
+      /* "theme-hjemmebane" FØRST: elementet hænges på document.body,
+         altså UDEN FOR .theme-hjemmebane. Hb-tokens er scoped til netop
+         den klasse (src/styles/hjemmebane.css:8 — filens egen header:
+         "variablerne findes kun under .theme-hjemmebane"), så
+         --hb-surface, --hb-line, --hb-radius og skyggen er alle
+         UDEFINEREDE på body. hsl(var(--hb-surface)) bliver ugyldig, og
+         elementet males ikke — hverken baggrund, kant eller radius.
+         Hverken bg-hb-paper eller bg-hb-surface kunne have virket uden
+         denne klasse; med den er tokens defineret i dropdown'ens eget
+         undertræ.
+
+         hb-surface (ikke hb-paper): flade-farven, samme valg som HbCard
+         — en flade må aldrig males i sidens egen farve. */
       element.className =
-        "fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-surface py-1 shadow-hb-hover";
+        "theme-hjemmebane fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-surface py-1 shadow-hb-hover";
       document.body.appendChild(element);
 
       // Positionen følger med scroll — capture er nødvendigt, fordi
