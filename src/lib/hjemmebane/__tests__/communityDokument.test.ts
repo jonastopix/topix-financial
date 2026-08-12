@@ -356,6 +356,103 @@ describe("parseCommunityDokument — nesting og tomme noder", () => {
   });
 });
 
+describe("parseCommunityDokument — fil-noder", () => {
+  const GYLDIG_FIL_STI = "3f2504e0-4f89-11d3-9a0c-0305e82c3301/budget-2026.pdf";
+
+  it("gyldig fil-node med .pdf → bevaret med path og navn", () => {
+    const input = doc([
+      { type: "fil", attrs: { path: GYLDIG_FIL_STI, navn: "Budget 2026.pdf" } },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "fil", path: GYLDIG_FIL_STI, navn: "Budget 2026.pdf" },
+    ]);
+  });
+
+  it("gyldig .XLSX i store bogstaver → bevaret", () => {
+    const sti = "3f2504e0-4f89-11d3-9a0c-0305e82c3301/TAL.XLSX";
+    const input = doc([{ type: "fil", attrs: { path: sti, navn: "Tal" } }]);
+    expect(parseCommunityDokument(input)).toEqual([{ type: "fil", path: sti, navn: "Tal" }]);
+  });
+
+  it.each([
+    [".svg som endelse", "3f2504e0-4f89-11d3-9a0c-0305e82c3301/grafik.svg"],
+    [".exe som endelse", "3f2504e0-4f89-11d3-9a0c-0305e82c3301/virus.exe"],
+  ])("%s → fjernet", (_navn, sti) => {
+    const input = doc([
+      { type: "paragraph", content: [tekst("før")] },
+      { type: "fil", attrs: { path: sti, navn: "Fil" } },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
+    ]);
+  });
+
+  it("gyldig sti men manglende navn → fjernet", () => {
+    const input = doc([{ type: "fil", attrs: { path: GYLDIG_FIL_STI } }]);
+    expect(parseCommunityDokument(input)).toEqual([]);
+  });
+
+  it("gyldig sti men navn som tom streng → fjernet", () => {
+    const input = doc([{ type: "fil", attrs: { path: GYLDIG_FIL_STI, navn: "" } }]);
+    expect(parseCommunityDokument(input)).toEqual([]);
+  });
+
+  it("navn med kontroltegn → kontroltegnet fjernet, resten bevaret", () => {
+    const input = doc([
+      { type: "fil", attrs: { path: GYLDIG_FIL_STI, navn: "\u0000rapport.pdf" } },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "fil", path: GYLDIG_FIL_STI, navn: "rapport.pdf" },
+    ]);
+  });
+
+  it("navn på 300 tegn → afkortet til 120", () => {
+    const input = doc([
+      { type: "fil", attrs: { path: GYLDIG_FIL_STI, navn: "a".repeat(300) } },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "fil", path: GYLDIG_FIL_STI, navn: "a".repeat(120) },
+    ]);
+  });
+
+  it("fil inde i en paragraph → fjernet (inline tillader kun text/hardBreak)", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [tekst("tekst"), { type: "fil", attrs: { path: GYLDIG_FIL_STI, navn: "F" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "tekst", marks: [] }] },
+    ]);
+  });
+
+  it("fil inde i et listItem → bevaret (blok-kontekst)", () => {
+    const input = doc([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [{ type: "fil", attrs: { path: GYLDIG_FIL_STI, navn: "Bilag" } }],
+          },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [{ type: "fil", path: GYLDIG_FIL_STI, navn: "Bilag" }],
+          },
+        ],
+      },
+    ]);
+  });
+});
+
 describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
   it("listItem som direkte barn af roden → fjernet", () => {
     const input = doc([

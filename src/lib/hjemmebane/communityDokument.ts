@@ -26,7 +26,8 @@ export type CommunityNode =
   | { type: "blockquote"; content: CommunityNode[] }
   | { type: "hardBreak" }
   | { type: "text"; text: string; marks: CommunityMark[] }
-  | { type: "image"; path: string; alt: string };
+  | { type: "image"; path: string; alt: string }
+  | { type: "fil"; path: string; navn: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -43,7 +44,7 @@ export const MAKS_DYBDE = 20;
 
     Reglerne:
       blok   (roden, listItem, blockquote) → paragraph, heading, bulletList,
-                                             orderedList, blockquote, image
+                                             orderedList, blockquote, image, fil
       liste  (bulletList, orderedList)     → KUN listItem
       inline (paragraph, heading)          → KUN text og hardBreak
 
@@ -53,7 +54,17 @@ export const MAKS_DYBDE = 20;
 type Kontekst = "blok" | "liste" | "inline";
 
 const TILLADT: Record<Kontekst, ReadonlySet<string>> = {
-  blok: new Set(["paragraph", "heading", "bulletList", "orderedList", "blockquote", "image"]),
+  // "fil" er en BLOK på linje med et billede — en vedhæftning står for
+  // sig selv i dokumentflowet, ikke inde i et afsnit.
+  blok: new Set([
+    "paragraph",
+    "heading",
+    "bulletList",
+    "orderedList",
+    "blockquote",
+    "image",
+    "fil",
+  ]),
   liste: new Set(["listItem"]),
   inline: new Set(["text", "hardBreak"]),
 };
@@ -129,6 +140,42 @@ function sikkerBilledSti(raw: unknown): string | null {
   }
   if (!BILLED_STI_MOENSTER.test(trimmet)) return null;
   return trimmet;
+}
+
+/** Samme regler som sikkerBilledSti, men for community-filer-bucketen:
+    dokument-endelser i stedet for billed-endelser. SVG er BEVIDST ikke
+    på listen — en SVG er scriptbart XML, og bucketen afviser den også
+    server-side (20260812130000, MIME-hvidlisten). */
+const FIL_STI_MOENSTER =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[A-Za-z0-9._-]+\.(pdf|xlsx|xls|docx|doc|xml)$/i;
+
+function sikkerFilSti(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmet = raw.trim();
+  if (trimmet.length === 0) return null;
+  if (
+    trimmet.includes("..") ||
+    trimmet.startsWith("/") ||
+    trimmet.includes("//") ||
+    trimmet.includes(":")
+  ) {
+    return null;
+  }
+  if (!FIL_STI_MOENSTER.test(trimmet)) return null;
+  return trimmet;
+}
+
+/** Filnavnet er rent brugerdata og vises som tekst i et element med en
+    downloadknap — det må hverken kunne bryde layoutet (derfor 120 tegn)
+    eller bære usynlige tegn (derfor fjernes alle kontroltegn, char code
+    < 32 og 127). Tomt efter rensning → null, og noden falder væk: en
+    vedhæftning uden navn er anonym. */
+function sikkertFilNavn(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  // eslint-disable-next-line no-control-regex
+  const renset = raw.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, 120);
+  if (renset.length === 0) return null;
+  return renset;
 }
 
 /** Hvidlist marks på en text-node. Ukendte marks fjernes stille; et link-mark
@@ -213,6 +260,15 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
       const path = sikkerBilledSti(attrs.path);
       if (path === null) return null;
       return { type: "image", path, alt: typeof attrs.alt === "string" ? attrs.alt : "" };
+    }
+
+    case "fil": {
+      const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
+      const path = sikkerFilSti(attrs.path);
+      const navn = sikkertFilNavn(attrs.navn);
+      // Både sti OG navn skal være gyldige — ellers falder noden væk.
+      if (path === null || navn === null) return null;
+      return { type: "fil", path, navn };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.
