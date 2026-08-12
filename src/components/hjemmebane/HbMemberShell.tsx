@@ -19,7 +19,7 @@ export const HbMemberShell = ({
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
 
@@ -73,7 +73,7 @@ export const HbMemberShell = ({
   return (
     <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased">
       <div className="flex lg:h-screen lg:overflow-hidden">
-        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} />
+        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} />
         <div className="min-w-0 flex-1 lg:overflow-y-auto">
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           <HbSidebarDrawer
@@ -83,6 +83,7 @@ export const HbMemberShell = ({
             userName={userName}
             nav={nav}
             homeTo={boardroomTo}
+            onSignOut={signOut}
           />
           <main className="mx-auto max-w-[1200px] px-6 py-10 md:py-14">{children}</main>
         </div>
