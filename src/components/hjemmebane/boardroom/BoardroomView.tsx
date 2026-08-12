@@ -19,6 +19,7 @@ import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
+import { hentFeed } from "@/lib/hjemmebane/communityApi";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
 import { EventRegisterAction } from "../events/EventRegisterAction";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
@@ -94,6 +95,32 @@ const eventCountdown = (startsAt: string): string => {
   if (days === 1) return "I morgen";
   return `Om ${days} dage`;
 };
+
+/** Community-sektionens relative tid — LOKAL pendant til CommunityViews
+    relativTid (CommunityView.tsx:22-27, ikke eksporteret), samme form
+    ordret. */
+const traadRelativTid = (iso: string): string => {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return "I dag";
+  if (days === 1) return "I går";
+  return `For ${days} dage siden`;
+};
+
+/** LOKAL pendant til CommunityViews ForfatterAvatar (CommunityView.tsx:
+    38-49, ikke eksporteret) — samme ramme, samme sage-fallback med
+    initial når avatar_url er null. */
+const TraadForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatarUrl: string | null }) =>
+  avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt={navn ?? "Medlem"}
+      className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
+    />
+  ) : (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft">
+      {(navn ?? "?").charAt(0)}
+    </span>
+  );
 
 /** Sidehovedet: rolig, personlig velkomst — altid til stede (pushet er
     flyttet ned i båndet som hovedhistorie). INGEN eyebrow (polish):
@@ -1495,6 +1522,16 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
 
+  // ── Community-sektionen: SAMME nøgle OG samme kald som CommunityView
+  // (["community","feed"] + hentFeed(30)) — cachen deles begge veje.
+  // hentFeed(3) under den delte nøgle ville forgifte fælles-cachen med
+  // et 3-rækkers subset (listEvents-lærdommen); visningen skærer selv
+  // til 3. Fejl → data undefined → sektionen udelades (samme som tom).
+  const { data: communityTraade = [] } = useQuery({
+    queryKey: ["community", "feed"],
+    queryFn: () => hentFeed(30),
+  });
+
   // ── Tal-strip-afledning (uændret) ───────────────────────────────────────
   const sorted = useMemo(
     () => facts.map((f) => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics), period: f.period_label })),
@@ -1586,6 +1623,50 @@ export const BoardroomView = () => {
                   </Link>
                   <EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />
                 </div>
+              </li>
+            ))}
+          </ul>
+        </HbSection>
+      )}
+
+      {/* ── COMMUNITY: efter events, før båndet — events er tidsbundne
+          og skal ses først; fællesskabet er levende, men ikke
+          tidskritisk; det kuraterede bånd er redaktionelt og hører
+          nederst. Ingen skeleton: sektionen dukker op når data er der —
+          forsiden har allerede nok bevægelse. TOMT feed → sektionen
+          renderes IKKE: en tom sektion på forsiden ser ud som om noget
+          er gået i stykker — og et medlem uden community-adgang får
+          netop et tomt feed (RPC'en er fail-closed), så sektionen skal
+          forsvinde helt for dem. Fejl → samme som tomt. */}
+      {communityTraade.length > 0 && (
+        <HbSection
+          eyebrow="Fra fællesskabet"
+          linkLabel="Gå til fællesskabet"
+          linkTo="/community"
+          hairline
+          className="mt-14 md:mt-16"
+        >
+          <ul>
+            {communityTraade.slice(0, 3).map((traad) => (
+              <li key={traad.id} className="border-t border-hb-line last:border-b">
+                <Link
+                  to={`/community/${traad.id}`}
+                  className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
+                >
+                  <TraadForfatterAvatar
+                    navn={traad.forfatter_navn}
+                    avatarUrl={traad.forfatter_avatar_url}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
+                    <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
+                      {traad.titel}
+                    </p>
+                    <p className="mt-1 text-sm text-hb-ink-soft">
+                      {traad.antal_svar} svar · {traadRelativTid(traad.seneste_aktivitet_at)}
+                    </p>
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
