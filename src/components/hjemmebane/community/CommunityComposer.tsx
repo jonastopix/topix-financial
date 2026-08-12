@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadCommunityBillede, uploadCommunityFil } from "@/lib/hjemmebane/communityUpload";
 import { hentCommunityMedlemmer, type CommunityMedlem } from "@/lib/hjemmebane/communityApi";
-import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
+import { listPublishedCollections, listPublishedItems } from "@/lib/hjemmebane/akademiApi";
 import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
@@ -424,26 +424,36 @@ const OMRAADE_LABELS: Record<string, string> = {
     ellers kan pickeren tilbyde noget, motoren kasserer ved visning. */
 const HENVISNINGS_OMRAADER = new Set(Object.keys(OMRAADE_LABELS));
 
-/** Rækkerne til #-forslag: titel + område og evt. varighed som
-    undertekst. Ingen cover-billeder — de kræver signering pr. række. */
-const opretHenvisningsDropdown = () =>
-  opretForslagsDropdown<ContentItem>((item, raekke) => {
-    const tekst = document.createElement("span");
-    tekst.className = "min-w-0 flex-1";
-    const titel = document.createElement("span");
-    titel.className = "block truncate font-body text-sm text-hb-ink";
-    titel.textContent = item.title;
-    tekst.appendChild(titel);
-    const dele = [OMRAADE_LABELS[item.area] ?? item.area];
-    if (item.duration_seconds) {
-      dele.push(`${Math.max(1, Math.round(item.duration_seconds / 60))} min`);
-    }
-    const under = document.createElement("span");
-    under.className = "block truncate text-xs text-hb-ink-soft";
-    under.textContent = dele.join(" · ");
-    tekst.appendChild(under);
-    raekke.appendChild(tekst);
-  });
+/** Rækkerne til #-forslag: titel + undertekst med samling, område og
+    evt. varighed. Ingen cover-billeder — de kræver signering pr. række.
+
+    Samlingen står FØRST i underteksten: en lektionstitel som "Dit
+    mindset ➤ System før superhelt" siger intet uden sit kursus — fire
+    lektioner kan hedde "Introduktion & målsætning", og kun samlingens
+    navn placerer dem. Områdelabelen alene ("Kursus") er den mindst
+    sigende del. */
+const opretHenvisningsDropdown =
+  (samlingsTitelFor: (item: ContentItem) => string | null) => () =>
+    opretForslagsDropdown<ContentItem>((item, raekke) => {
+      const tekst = document.createElement("span");
+      tekst.className = "min-w-0 flex-1";
+      const titel = document.createElement("span");
+      titel.className = "block truncate font-body text-sm text-hb-ink";
+      titel.textContent = item.title;
+      tekst.appendChild(titel);
+      const dele: string[] = [];
+      const samling = samlingsTitelFor(item);
+      if (samling) dele.push(samling);
+      dele.push(OMRAADE_LABELS[item.area] ?? item.area);
+      if (item.duration_seconds) {
+        dele.push(`${Math.max(1, Math.round(item.duration_seconds / 60))} min`);
+      }
+      const under = document.createElement("span");
+      under.className = "block truncate text-xs text-hb-ink-soft";
+      under.textContent = dele.join(" · ");
+      tekst.appendChild(under);
+      raekke.appendChild(tekst);
+    });
 
 /** #-henvisninger — Mention-extensionen omdøbt til motorens nodetype
     "henvisning" med area/slug/titel som eneste attributter. renderHTML
@@ -570,6 +580,18 @@ export function CommunityComposer({
   const itemsQuery = useQuery({ queryKey: ["akademi", "items"], queryFn: listPublishedItems });
   const itemsRef = useRef<ContentItem[]>([]);
   itemsRef.current = itemsQuery.data ?? [];
+
+  /* Samlingerne til #-pickerens undertekst — SAMME queryKey som
+     useAkademiData (["akademi", "collections"]), så cachen deles.
+     Opslaget collection_id → titel læses via ref som itemsRef. */
+  const samlingerQuery = useQuery({
+    queryKey: ["akademi", "collections"],
+    queryFn: listPublishedCollections,
+  });
+  const samlingsTitelRef = useRef<Map<string, string>>(new Map());
+  samlingsTitelRef.current = new Map(
+    (samlingerQuery.data ?? []).map((samling) => [samling.id, samling.title]),
+  );
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
@@ -682,7 +704,11 @@ export function CommunityComposer({
               ])
               .run();
           },
-          render: opretHenvisningsDropdown,
+          render: opretHenvisningsDropdown((item) =>
+            item.collection_id
+              ? (samlingsTitelRef.current.get(item.collection_id) ?? null)
+              : null,
+          ),
         },
       }),
       Placeholder.configure({ placeholder }),
