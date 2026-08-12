@@ -327,8 +327,11 @@ function opretNaevnelsesDropdown() {
       vaelg = props.command;
       sidsteRect = props.clientRect;
       element = document.createElement("div");
+      // hb-surface er flade-farven (kort, dropdowns), hb-paper er
+      // sidebaggrunden — en flade må aldrig males i sidens egen farve,
+      // så løfter den sig ikke. Samme valg som HbCard (bg-hb-surface).
       element.className =
-        "fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-paper py-1 shadow-hb-hover";
+        "fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-surface py-1 shadow-hb-hover";
       document.body.appendChild(element);
 
       // Positionen følger med scroll — capture er nødvendigt, fordi
